@@ -3,6 +3,7 @@
 #include "Debugger/Reply.h"
 
 class DebugHook;
+class IDiagnosticsProvider;
 class IRunObserver;
 class IWatchSink;
 class Microcode;
@@ -96,4 +97,8 @@ public:
     // The keyboard: a key is pending until the guest clears the strobe.
     virtual void                InjectKey         (Byte key) = 0;
     virtual bool                IsKeyPending      () const = 0;
+
+    // The devices that publish debugger panels. A target with no devices has
+    // none, which is the default.
+    virtual std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const { return {}; }
 };

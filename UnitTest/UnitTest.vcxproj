@@ -212,6 +212,8 @@
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiagnosticsProviderTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiagnosticsVisualsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />
     <ClCompile Include="DebuggerTests\Win32PipeTransportTests.cpp" />

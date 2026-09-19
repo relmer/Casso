@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Via6522.h"
+#include "Debugger/IDiagnosticsProvider.h"
 
 
 
@@ -584,4 +585,71 @@ void Via6522::UpdateIrq()
             m_ic->Clear (m_irqSource);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Via6522::AppendDiagnostics
+//
+//  The ports as the pins read, the timers' counts and latches, and IFR and
+//  IER with a decode of each interrupt source.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const
+{
+    using P = IDiagnosticsProvider;
+
+    static constexpr std::array<const char *, 8>  kIrqBits = { "IRQ", "T1", "T2", "CB1", "CB2", "SR", "CA1", "CA2" };
+    constexpr int                                 kByteBits = 8;
+    DiagnosticsGroup                              group     { title, {} };
+    Word                                          t1Latch   = (Word) ((m_t1LatchHi << kByteBits) | m_t1LatchLo);
+
+
+
+    group.rows.push_back (P::MakeHexRow  ("Port A",    GetPortA(), P::kByteDigits));
+    group.rows.push_back (P::MakeHexRow  ("DDR A",     m_ddra,     P::kByteDigits));
+    group.rows.push_back (P::MakeHexRow  ("Port B",    GetPortB(), P::kByteDigits));
+    group.rows.push_back (P::MakeHexRow  ("DDR B",     m_ddrb,     P::kByteDigits));
+    group.rows.push_back (P::MakeHexRow  ("T1 count",  GetTimer1(), P::kWordDigits));
+    group.rows.push_back (P::MakeHexRow  ("T1 latch",  t1Latch,    P::kWordDigits));
+    group.rows.push_back (P::MakeFlagRow ("T1 armed",  m_t1Armed));
+    group.rows.push_back (P::MakeHexRow  ("T2 count",  GetTimer2(), P::kWordDigits));
+    group.rows.push_back (P::MakeFlagRow ("T2 armed",  m_t2Armed));
+    group.rows.push_back (P::MakeHexRow  ("ACR",       m_acr,      P::kByteDigits));
+    group.rows.push_back (P::MakeHexRow  ("PCR",       m_pcr,      P::kByteDigits));
+    group.rows.push_back (P::MakeByteRow ("IFR",       GetIfr(),   kIrqBits));
+    group.rows.push_back (P::MakeByteRow ("IER",       GetIer(),   kIrqBits));
+
+    snapshot.groups.push_back (std::move (group));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Via6522::AppendTimerLevels
+//
+//  Timer 1 against its latch, the count it reloads from; timer 2 against the
+//  full sixteen bits, since it has no high latch to reload.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::AppendTimerLevels (const std::string & title, DiagnosticsMeters & meters) const
+{
+    constexpr int    kByteBits = 8;
+    constexpr float  kFullT2   = 65535.0f;
+    int              t1Latch   = (m_t1LatchHi << kByteBits) | m_t1LatchLo;
+    float            t1Level   = (t1Latch > 0) ? (float) GetTimer1() / (float) t1Latch : 0.0f;
+
+
+
+    meters.levels.push_back ({ title + " T1", std::clamp (t1Level, 0.0f, 1.0f) });
+    meters.levels.push_back ({ title + " T2", std::clamp ((float) GetTimer2() / kFullT2, 0.0f, 1.0f) });
 }

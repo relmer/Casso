@@ -1,10 +1,12 @@
 #pragma once
 
 #include "Debugger/DebugFile.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 
 class DebugSession;
+class IDiagnosticsProvider;
 
 
 
@@ -120,6 +122,18 @@ struct DebuggerViewSnapshot
     std::vector<BreakpointLine>  breakpoints;
     std::vector<WatchLine>       watches;
     std::optional<SourceState>   source;
+
+    //  Every device of the machine that publishes a panel, whether its panel
+    //  is open, and the rows of each open one.
+    struct PanelInfo
+    {
+        std::string  id;
+        std::string  title;
+        bool         open = false;
+    };
+
+    std::vector<PanelInfo>            panels;
+    std::vector<DiagnosticsSnapshot>  diagnostics;
 };
 
 
@@ -177,6 +191,13 @@ public:
     void                 CloseMemoryWindow      (int id);
     std::optional<Word>  GetMemoryWindowAddress (int id) const;
 
+    //  Device panels by provider id. A panel stays open until closed or until
+    //  its device leaves the machine; only open panels cost the devices
+    //  anything, since a closed one is never asked for its rows.
+    void                 OpenPanel   (const std::string & id) { m_openPanels.insert (id); }
+    void                 ClosePanel  (const std::string & id) { m_openPanels.erase (id); }
+    bool                 IsPanelOpen (const std::string & id) const { return m_openPanels.contains (id); }
+
     //  Runs the pane commands against the session. CPU thread only.
     DebuggerViewSnapshot  Build (DebugSession & session) const;
 
@@ -188,6 +209,10 @@ public:
     static std::string  GetStepOutLine          ()             { return "RTS"; }
     static std::string  GetRunLine              ()             { return "G"; }
     static std::string  GetRunToCursorLine      (Word address);
+
+    //  PANEL to open or close a device panel, marked as an AppleWin line when
+    //  the command box is in Monitor mode.
+    static std::string  GetPanelLine            (const std::string & id, bool open, CommandMode mode);
 
     //  The command line a keyboard-scheme action sends, which is the line its
     //  button sends. The cursor actions use the selected code line (toggling
@@ -219,7 +244,12 @@ private:
     void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
+    Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
+    void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
+
+    static const IDiagnosticsProvider *  FindProvider (const std::vector<const IDiagnosticsProvider *> & providers, const std::string & name);
     static Word                 GetInstructionLength   (DebugSession & session, Word address);
     static Word                 GetPreviousInstruction (DebugSession & session, Word address);
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
@@ -229,6 +259,9 @@ private:
     Word                 m_memoryAddress = 0x0000;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
+
+    //  Mutable so a build can close the panel of a device that has left.
+    mutable std::set<std::string>  m_openPanels;
 
     //  The line-to-address map for the loaded debug file, built once per load.
     mutable std::string                                                  m_lineAddressesKey;

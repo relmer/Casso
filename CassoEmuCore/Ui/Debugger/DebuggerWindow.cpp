@@ -160,6 +160,7 @@ void DebuggerWindow::OnCreate()
     m_pauseButton       = CreateChild<DxuiButton>    (L"Pause");
     m_followPcButton    = CreateChild<DxuiButton>    (L"Follow PC");
     m_keysButton        = CreateChild<DxuiButton>    (L"Keys");
+    m_panelsButton      = CreateChild<DxuiButton>    (L"Panels");
     m_flagsLabel        = CreateChild<DxuiLabel>     (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_codeList          = CreateChild<DxuiListView>  ();
     m_registerList      = CreateChild<DxuiListView>  ();
@@ -204,6 +205,19 @@ void DebuggerWindow::OnCreate()
 
     m_sourceView->SetVisible   (false);
     m_sourceBanner->SetVisible (false);
+
+    //  Every device panel the window can place; each shows while its device
+    //  is present and its panel open.
+    for (const DebuggerLayout::DiagnosticsPanel & panel : DebuggerLayout::GetDiagnosticsPanels())
+    {
+        DxuiListView  * list   = CreateChild<DxuiListView>();
+        MemoryMapBar  * map    = CreateChild<MemoryMapBar>();
+        DiskHeadView  * head   = CreateChild<DiskHeadView>();
+        MeterBar      * meters = CreateChild<MeterBar>();
+
+        m_diagPanes.push_back (std::make_unique<DiagnosticsPane> (panel.id, panel.title, list, map, head, meters));
+        list->SetVisible (false);
+    }
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -255,6 +269,12 @@ void DebuggerWindow::ConfigureWidgets()
 
     m_followPcButton->SetOnClick ([this] { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (std::nullopt); } });
     m_keysButton->SetOnClick     ([this] { CycleKeyScheme(); });
+    m_panelsButton->SetOnClick   ([this] { ShowPanelMenu();  });
+
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        pane->Configure();
+    }
 
     m_pokeButton->SetOnClick ([this] { SubmitPokeBox(); });
 
@@ -365,7 +385,16 @@ void DebuggerWindow::ConfigureWidgets()
 
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
-    return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_consoleList };
+    std::vector<DxuiListView *>  lists = { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_consoleList };
+
+
+
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        lists.push_back (pane->GetList());
+    }
+
+    return lists;
 }
 
 
@@ -408,7 +437,7 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 std::vector<DxuiButton *> DebuggerWindow::GetToolbarButtons() const
 {
     return { m_stepButton, m_stepOverButton, m_stepOutButton, m_runButton, m_runToCursorButton,
-             m_pauseButton, m_followPcButton, m_keysButton };
+             m_pauseButton, m_followPcButton, m_keysButton, m_panelsButton };
 }
 
 
@@ -1275,6 +1304,11 @@ void DebuggerWindow::ConfigureDockSite()
                              std::format (L"Memory {}", pane->GetId()), pane->GetView());
     }
 
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        m_dockSite->AddPane (DebuggerLayout::GetDiagnosticsPaneId (pane->GetId()), pane->GetTitle(), pane->GetFrame());
+    }
+
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
     savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
     restored = DebuggerLayout::Restore (savedText);
@@ -1301,16 +1335,26 @@ void DebuggerWindow::ConfigureDockSite()
 //
 //  DebuggerWindow::IsPaneShown
 //
-//  The source pane shows while a debug file is loaded and a memory window
-//  while it is open; the rest always show.
+//  The source pane shows while a debug file is loaded, a memory window while
+//  it is open, and a device panel while its device is present and its panel
+//  open (FR-044); the rest always show.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 {
+    std::string  diagnosticsId;
+
+
+
     if (pane == DebuggerLayout::kSource)
     {
         return m_sourceShown;
+    }
+
+    if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
+    {
+        return m_diagOpen.contains (diagnosticsId);
     }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
@@ -1360,6 +1404,14 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
     if (focused == m_sourceView)
     {
         return DebuggerLayout::kSource;
+    }
+
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        if (focused == pane->GetList())
+        {
+            return DebuggerLayout::GetDiagnosticsPaneId (pane->GetId());
+        }
     }
 
     return m_dockSite->GetPaneOf (focused);
@@ -1557,6 +1609,150 @@ void DebuggerWindow::ApplySnapshot()
 
     ApplyMemoryWindows();
     ApplySource();
+    ApplyDiagnostics();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyDiagnostics
+//
+//  The snapshot holds a panel for each device whose panel is open. A panel
+//  that opens comes to the front of its tab group, and one whose device left
+//  the machine is no longer in the snapshot, so it hides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyDiagnostics()
+{
+    std::set<std::string>  open;
+    bool                   changed = false;
+
+
+
+    for (const DiagnosticsSnapshot & diagnostics : m_snapshot->diagnostics)
+    {
+        DiagnosticsPane  * pane = GetDiagnosticsPane (DebuggerLayout::GetDiagnosticsPaneId (diagnostics.id));
+
+        if (pane == nullptr)
+        {
+            continue;
+        }
+
+        open.insert (diagnostics.id);
+
+        if (pane->Apply (diagnostics))
+        {
+            pane->GetFrame()->Relayout();
+        }
+    }
+
+    for (const std::string & id : open)
+    {
+        if (!m_diagOpen.contains (id))
+        {
+            (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetDiagnosticsPaneId (id));
+        }
+    }
+
+    changed    = (open != m_diagOpen);
+    m_diagOpen = std::move (open);
+
+    if (changed)
+    {
+        m_dockSite->Relayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPanelMenu
+//
+//  The devices of the current machine, each checked while its panel is open;
+//  choosing one runs the PANEL line that opens or closes it, as typing it
+//  would.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPanelMenu()
+{
+    RECT   button = m_panelsButton->GetBounds();
+    POINT  screen = { button.left, button.bottom };
+    HMENU  menu   = nullptr;
+    int    chosen = 0;
+
+
+
+    if (m_snapshot == nullptr || m_snapshot->panels.empty())
+    {
+        return;
+    }
+
+    menu = CreatePopupMenu();
+
+    if (menu == nullptr)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_snapshot->panels.size(); i++)
+    {
+        const DebuggerViewSnapshot::PanelInfo & panel = m_snapshot->panels[i];
+
+        AppendMenuW (menu, MF_STRING | (panel.open ? MF_CHECKED : MF_UNCHECKED), (UINT_PTR) (i + 1), Widen (panel.title).c_str());
+    }
+
+    ClientToScreen (GetHwnd(), &screen);
+    chosen = (int) TrackPopupMenu (menu, TPM_RETURNCMD | TPM_LEFTBUTTON, screen.x, screen.y, 0, GetHwnd(), nullptr);
+    DestroyMenu (menu);
+
+    if (chosen >= 1 && chosen <= (int) m_snapshot->panels.size())
+    {
+        const DebuggerViewSnapshot::PanelInfo & panel = m_snapshot->panels[(size_t) (chosen - 1)];
+
+        RunCommand (DebuggerViewState::GetPanelLine (panel.id, !panel.open, m_snapshot->mode));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetDiagnosticsPane
+//
+//  Null for a pane that is not a device panel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiagnosticsPane * DebuggerWindow::GetDiagnosticsPane (const std::wstring & pane) const
+{
+    std::string  id;
+
+
+
+    if (!DebuggerLayout::TryGetDiagnosticsId (pane, id))
+    {
+        return nullptr;
+    }
+
+    for (const std::unique_ptr<DiagnosticsPane> & diagnostics : m_diagPanes)
+    {
+        if (diagnostics->GetId() == id)
+        {
+            return diagnostics.get();
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -1943,6 +2139,11 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
         }
     }
 
+    if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
+    {
+        return diagnostics->GetControls();
+    }
+
     return {};
 }
 
@@ -1975,6 +2176,11 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return m_consoleFrame.get();
     }
 
+    if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
+    {
+        return diagnostics->GetFrame();
+    }
+
     controls = GetPaneControls (pane);
     return controls.empty() ? nullptr : controls.front();
 }
@@ -1998,6 +2204,11 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kBreakpoints) { return L"Breakpoints"; }
     if (pane == DebuggerLayout::kWatches)     { return L"Watches";     }
     if (pane == DebuggerLayout::kStack)       { return L"Stack";       }
+
+    if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
+    {
+        return diagnostics->GetTitle();
+    }
 
     return pane.starts_with (L"memory") ? L"Memory " + pane.substr (6) : pane;
 }

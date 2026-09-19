@@ -455,3 +455,38 @@ unique_ptr<MemoryDevice> AppleKeyboard::Create (const DeviceConfig & config, Mem
 
     return make_unique<AppleKeyboard> ();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleKeyboard::GetDiagnostics
+//
+//  Read without touching the strobe: the panel shows the latch, it does not
+//  consume the key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    constexpr Byte    kDataMask  = 0x7F;
+    constexpr Byte    kFirstShow = 0x20;
+    Byte              latch      = m_latchedKey.load (memory_order_acquire);
+    Byte              key        = (Byte) (latch & kDataMask);
+    Byte              repeat     = m_repeatKey.load (memory_order_acquire);
+    DiagnosticsGroup  group      { "Keyboard", {} };
+
+
+
+    group.rows.push_back (MakeByteRow ("Latch ($C000)", latch, { "STROBE", "", "", "", "", "", "", "" }));
+    group.rows.push_back (MakeTextRow ("Key",           key >= kFirstShow && key < kDataMask ? std::format ("'{}'", (char) key)
+                                                                                             : std::format ("${:02X}", key)));
+    group.rows.push_back (MakeFlagRow ("Key pending",   !IsStrobeClear()));
+    group.rows.push_back (MakeFlagRow ("Any key down",  m_anyKeyDown.load (memory_order_acquire)));
+    group.rows.push_back (MakeHexRow  ("Repeat key",    repeat, kByteDigits));
+    group.rows.push_back (MakeFlagRow ("Repeating",     m_repeatStarted));
+
+    snapshot.groups.push_back (std::move (group));
+}

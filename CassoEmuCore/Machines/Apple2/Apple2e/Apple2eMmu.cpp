@@ -619,3 +619,183 @@ void Apple2eMmu::ResolveHires20_3F()
         }
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eMmu::GetDiagnostics
+//
+//  The seven MMU switches as one byte with a decode, each switch as a row of
+//  its own, the language card's state where there is one, and the page map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eMmu::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    std::array<bool, 8>  bits     = { false, m_ramRd, m_ramWrt, m_altZp, m_store80, m_intCxRom, m_slotC3Rom, m_intC8Rom };
+    DiagnosticsGroup     switches { "Switches", {} };
+    DiagnosticsGroup     lc       { "Language card", {} };
+    Byte                 packed   = 0;
+
+
+
+    //  Bit 7 first, the order the decode lists them in.
+    for (bool bit : bits)
+    {
+        packed = (Byte) ((packed << 1) | (int) bit);
+    }
+
+    switches.rows.push_back (MakeByteRow ("MMU",       packed, { "", "RAMRD", "RAMWRT", "ALTZP", "80STORE", "INTCXROM", "SLOTC3ROM", "INTC8ROM" }));
+    switches.rows.push_back (MakeFlagRow ("RAMRD",     m_ramRd));
+    switches.rows.push_back (MakeFlagRow ("RAMWRT",    m_ramWrt));
+    switches.rows.push_back (MakeFlagRow ("ALTZP",     m_altZp));
+    switches.rows.push_back (MakeFlagRow ("80STORE",   m_store80));
+    switches.rows.push_back (MakeFlagRow ("INTCXROM",  m_intCxRom));
+    switches.rows.push_back (MakeFlagRow ("SLOTC3ROM", m_slotC3Rom));
+    switches.rows.push_back (MakeFlagRow ("INTC8ROM",  m_intC8Rom));
+
+    if (m_ssBank != nullptr)
+    {
+        switches.rows.push_back (MakeFlagRow ("PAGE2", m_ssBank->IsPage2()));
+        switches.rows.push_back (MakeFlagRow ("HIRES", m_ssBank->IsHiresMode()));
+    }
+
+    snapshot.groups.push_back (std::move (switches));
+
+    if (m_lc != nullptr)
+    {
+        lc.rows.push_back (MakeFlagRow ("Read RAM",  m_lc->IsReadRam()));
+        lc.rows.push_back (MakeFlagRow ("Write RAM", m_lc->IsWriteRam()));
+        lc.rows.push_back (MakeTextRow ("Bank",      m_lc->IsBank2() ? "2" : "1"));
+        lc.rows.push_back (MakeTextRow ("Side",      m_altZp ? "aux" : "main"));
+        snapshot.groups.push_back (std::move (lc));
+    }
+
+    snapshot.visual = GetMemoryMap();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eMmu::GetMemoryMap
+//
+//  RAM pages by where the bus's page table points them, which is what the CPU
+//  reads and writes; the I/O page, the $C100-$CFFF ROM by the Cxxx switches,
+//  and the language-card area by its read and write enables.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiagnosticsMemoryMap Apple2eMmu::GetMemoryMap() const
+{
+    constexpr int         kIoPage   = 0xC0;
+    constexpr int         kLcFirst  = 0xD0;
+    constexpr int         kBankLast = 0xDF;
+    DiagnosticsMemoryMap  map;
+    MemorySource          lcBank    = (m_lc != nullptr && m_lc->IsBank2()) ? MemorySource::LcBank2 : MemorySource::LcBank1;
+
+
+
+    for (int page = 0; page < (int) DiagnosticsMemoryMap::kPageCount; page++)
+    {
+        DiagnosticsMemoryMap::Page  & entry = map.pages[(size_t) page];
+        MemorySource                  ram   = MemorySource::None;
+
+        if (page < kIoPage)
+        {
+            entry.read  = (m_bus != nullptr) ? GetRamSource (m_bus->GetShadowReadPage  ((Word) (page * kPageSize))) : MemorySource::None;
+            entry.write = (m_bus != nullptr) ? GetRamSource (m_bus->GetShadowWritePage ((Word) (page * kPageSize))) : MemorySource::None;
+        }
+        else if (page == kIoPage)
+        {
+            entry.read  = MemorySource::Io;
+            entry.write = MemorySource::Io;
+        }
+        else if (page < kLcFirst)
+        {
+            entry.read  = GetCxxxSource (page);
+            entry.write = MemorySource::None;
+        }
+        else
+        {
+            ram         = (page <= kBankLast) ? lcBank : MemorySource::LcBank2;
+            entry.read  = (m_lc != nullptr && m_lc->IsReadRam())  ? ram : MemorySource::Rom;
+            entry.write = (m_lc != nullptr && m_lc->IsWriteRam()) ? ram : MemorySource::None;
+        }
+    }
+
+    return map;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eMmu::GetRamSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemorySource Apple2eMmu::GetRamSource (const Byte * page) const
+{
+    const Byte  * aux = m_auxRam.data();
+
+
+
+    if (page == nullptr)
+    {
+        return MemorySource::None;
+    }
+
+    if (!m_auxRam.empty() && page >= aux && page < aux + m_auxRam.size())
+    {
+        return MemorySource::Aux;
+    }
+
+    return MemorySource::Main;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eMmu::GetCxxxSource
+//
+//  INTCXROM puts the internal ROM over every slot; with it off, $C300 still
+//  reads internal ROM unless SLOTC3ROM is on, and $C800-$CFFF is internal
+//  while INTC8ROM holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemorySource Apple2eMmu::GetCxxxSource (int page) const
+{
+    constexpr int  kSlot3Page    = 0xC3;
+    constexpr int  kExpansionRom = 0xC8;
+
+
+
+    if (m_intCxRom)
+    {
+        return MemorySource::Rom;
+    }
+
+    if (page == kSlot3Page)
+    {
+        return m_slotC3Rom ? MemorySource::SlotRom : MemorySource::Rom;
+    }
+
+    if (page >= kExpansionRom)
+    {
+        return m_intC8Rom ? MemorySource::Rom : MemorySource::SlotRom;
+    }
+
+    return MemorySource::SlotRom;
+}

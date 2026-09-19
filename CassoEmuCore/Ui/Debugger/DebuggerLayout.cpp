@@ -7,6 +7,23 @@
 
 
 
+static constexpr DebuggerLayout::DiagnosticsPanel  s_kDiagnosticsPanels[] =
+{
+    { "clock",        L"Clock"        },
+    { "keyboard",     L"Keyboard"     },
+    { "video",        L"Video"        },
+    { "mmu",          L"MMU"          },
+    { "disk",         L"Disk II"      },
+    { "mockingboard", L"Mockingboard" },
+    { "printer",      L"Printer"      },
+};
+
+static constexpr const wchar_t * s_kpszDiagnosticsPrefix = L"diag-";
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebuggerLayout::GetMemoryPaneId
@@ -16,6 +33,69 @@
 std::wstring DebuggerLayout::GetMemoryPaneId (int window)
 {
     return std::format (L"memory{}", window);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetDiagnosticsPanels
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const DebuggerLayout::DiagnosticsPanel> DebuggerLayout::GetDiagnosticsPanels()
+{
+    return s_kDiagnosticsPanels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetDiagnosticsPaneId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::GetDiagnosticsPaneId (const std::string & id)
+{
+    return s_kpszDiagnosticsPrefix + std::wstring (id.begin(), id.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::TryGetDiagnosticsId
+//
+//  Ids are ASCII, so a pane id narrows character by character.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string & id)
+{
+    std::wstring_view  prefix = s_kpszDiagnosticsPrefix;
+
+
+
+    if (!pane.starts_with (prefix))
+    {
+        return false;
+    }
+
+    id.clear();
+
+    for (wchar_t ch : pane.substr (prefix.size()))
+    {
+        id += (char) ch;
+    }
+
+    return true;
 }
 
 
@@ -37,6 +117,11 @@ std::vector<std::wstring> DebuggerLayout::GetPaneIds()
     for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
     {
         ids.push_back (GetMemoryPaneId (window));
+    }
+
+    for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
+    {
+        ids.push_back (GetDiagnosticsPaneId (panel.id));
     }
 
     return ids;
@@ -75,13 +160,15 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
         return MakeDefault();
     }
 
-    //  A memory window the text lacks joins the first; anything else lacks a
-    //  better place than the right edge.
+    //  A memory window the text lacks joins the first and a device panel the
+    //  stack; anything else lacks a better place than the right edge.
     for (const std::wstring & pane : ids)
     {
         if (!layout.Contains (pane))
         {
-            layout.Add (pane, pane.starts_with (L"memory") ? memory1 : L"");
+            layout.Add (pane, pane.starts_with (L"memory")               ? memory1
+                            : pane.starts_with (s_kpszDiagnosticsPrefix) ? std::wstring (kStack)
+                                                                         : std::wstring());
         }
     }
 
@@ -127,6 +214,13 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
 
     layout.Add        (kStack,       L"");
     layout.DockToSide (kStack,       memory1,      DxuiDockSide::Right);
+
+    for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
+    {
+        layout.Add (GetDiagnosticsPaneId (panel.id), kStack);
+    }
+
+    layout.Activate   (kStack);
     layout.Activate   (memory1);
 
     //  Proportions of the fixed layout this replaces: a right column of about

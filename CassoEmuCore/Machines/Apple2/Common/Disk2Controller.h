@@ -5,6 +5,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
@@ -33,7 +34,7 @@ class IDisk2EventSink;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2Controller : public MemoryDevice
+class Disk2Controller : public MemoryDevice, public IDiagnosticsProvider
 {
 public:
     static constexpr int    kDriveCount      = 2;
@@ -169,6 +170,12 @@ public:
     int    GetCurrentTrack() const { return m_quarterTrack / 4; }
     bool   IsQ6() const { return m_q6; }
     bool   IsQ7() const { return m_q7; }
+    uint8_t  GetPhases() const { return m_phases; }
+
+    // The Disk II panel: drive, motor, head, phase magnets and the read state.
+    std::string  GetDiagnosticsId    () const override { return "disk"; }
+    std::string  GetDiagnosticsTitle () const override { return "Disk II"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
     Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);

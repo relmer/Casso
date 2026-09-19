@@ -48,6 +48,27 @@ namespace DebuggerTests
 
 
 
+        //  PANEL lists, opens and closes device panels; the name is kept as
+        //  typed, since only the window knows which panels exist.
+        TEST_METHOD (Panel_ListOpenClose)
+        {
+            AppleWinParseResult  open  = ParseOk ("PANEL disk");
+            AppleWinParseResult  close = ParseOk ("panel close MMU");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::ListPanels, (int) ParseOk ("PANEL").command.verb);
+            Assert::AreEqual ((int) DebugVerb::ListPanels, (int) ParseOk ("PANEL LIST").command.verb);
+            Assert::AreEqual ((int) DebugVerb::OpenPanel,  (int) open.command.verb);
+            Assert::AreEqual (std::string ("disk"),        open.command.text);
+            Assert::AreEqual ((int) DebugVerb::ClosePanel, (int) close.command.verb);
+            Assert::AreEqual (std::string ("MMU"),         close.command.text);
+            ParseFails ("PANEL CLOSE",          ParseStatus::Invalid);
+            ParseFails ("PANEL disk mmu",       ParseStatus::Invalid);
+            ParseFails ("PANEL CLOSE disk mmu", ParseStatus::Invalid);
+        }
+
+
         TEST_METHOD (Names_IgnoreCase_HexWithAndWithoutDollar)
         {
             Assert::AreEqual ((int) DebugVerb::SetReadWatchpoint, (int) ParseOk ("bpmr C019").command.verb);

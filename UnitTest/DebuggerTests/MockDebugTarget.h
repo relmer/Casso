@@ -49,6 +49,8 @@ public:
     std::vector<Word>        ioReads;
     std::vector<Word>        ioWrites;
 
+    std::vector<const IDiagnosticsProvider *>  diagnosticsProviders;
+
     Cpu6502Registers GetRegisters() const override                         { return registers; }
     void             SetRegisters (const Cpu6502Registers & value) override { registers = value; }
 
@@ -118,6 +120,8 @@ public:
     DebugMachineInfo  GetMachineInfo    () const override    { return machineInfo; }
     void              InjectKey         (Byte key) override  { injectedKeys.push_back (key); keyPending = true; }
     bool              IsKeyPending      () const override    { return keyPending; }
+
+    std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override { return diagnosticsProviders; }
 
     void Stop (const StopEvent & stop)
     {

@@ -520,3 +520,18 @@ bool MachineDebugTarget::IsKeyPending() const
 
     return keyboard != nullptr && !keyboard->IsStrobeClear();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetDiagnosticsProviders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<const IDiagnosticsProvider *> MachineDebugTarget::GetDiagnosticsProviders() const
+{
+    return m_host.GetDiagnosticsProviders();
+}

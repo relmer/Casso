@@ -32,9 +32,10 @@ reachable in every mode:
 | `CALLS` | the call chain to PC, innermost first: one line per frame with its call site, target symbol and provenance (`recorded` or `guessed`), and a break line (`-- TXS at $0812 --`) wherever the chain is broken (FR-067 to FR-069) |
 | `CALLS MODE RECORDED\|WALK\|HYBRID` | choose the mechanism; `CALLS MODE` reports it; hybrid is the default |
 | `SKIP name\|addr\|first.last` | add a routine to the step filter; `SKIP` lists it; `SKIP - name` removes one; `SKIP CLEAR` empties it (FR-070) |
+| `PANEL` / `PANEL LIST` / `PANEL name` / `PANEL CLOSE name` | list the current machine's device panels, open one, or close one, by provider id (`disk`, `mmu`) or title, either case (FR-049 to FR-053). Carried out by the window, which runs it from its command box and its panel menu; batch and the pipe return `notAvailable` with `PANEL needs the debugger window.` A name the machine lacks is an error that points at `PANEL LIST` |
 
 AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`,
-`CALLS` or `SKIP` command, so these names collide with nothing in its table;
+`CALLS`, `SKIP` or `PANEL` command, so these names collide with nothing in its table;
 nor does GSSquared's.
 
 ## AppleWin mode

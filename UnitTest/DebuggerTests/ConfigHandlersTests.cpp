@@ -213,5 +213,23 @@ namespace DebuggerTests
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("DISK EJECT 1").status);
             rig.RunFails ("DISK FROB", "invalid arguments");
         }
+
+
+
+        //  Device panels live in the window, which runs PANEL itself; batch and
+        //  the pipe report that it needs one.
+        TEST_METHOD (PANEL_NeedsTheWindow)
+        {
+            Rig  rig;
+
+
+
+            for (const char * line : { "PANEL", "PANEL LIST", "PANEL disk", "PANEL CLOSE disk" })
+            {
+                Reply  reply = rig.Run (line);
+
+                Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
+            }
+        }
     };
 }

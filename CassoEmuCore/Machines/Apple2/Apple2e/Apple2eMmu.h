@@ -4,6 +4,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/IMmu.h"
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
 
@@ -31,7 +32,7 @@
 // virtual IMmu getters (GetIntCxRom / GetSlotC3Rom / ...) when they are called
 // through a concrete `Apple2eMmu &` -- e.g. CxxxRomRouter pulls them on every
 // $Cxxx access, where the indirect call was showing up in profiles.
-class Apple2eMmu final : public IMmu
+class Apple2eMmu final : public IMmu, public IDiagnosticsProvider
 {
 public:
     Apple2eMmu ();
@@ -81,6 +82,13 @@ public:
     // this handle. Null on machines without an LC (no-op).
     void               SetLanguageCard       (LanguageCard * lc) { m_lc = lc; }
 
+    // The MMU panel: every switch, and the bank each page reads and writes.
+    std::string  GetDiagnosticsId    () const override { return "mmu"; }
+    std::string  GetDiagnosticsTitle () const override { return "MMU"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+
+    DiagnosticsMemoryMap  GetMemoryMap () const;
+
 private:
     void   RebindPageTable       ();
     void   RebindCxxxInternalRom ();
@@ -90,6 +98,8 @@ private:
     void   ResolveHires20_3F   ();
     Byte * SelectMainRead      (int page);
     Byte * SelectMainWrite     (int page);
+    MemorySource  GetRamSource   (const Byte * page) const;
+    MemorySource  GetCxxxSource  (int page) const;
 
     MemoryBus            *   m_bus         = nullptr;
     Byte                 *   m_mainRamPtr  = nullptr;

@@ -4,6 +4,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Debugger/IDiagnosticsProvider.h"
 
 
 
@@ -17,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleSoftSwitchBank : public MemoryDevice
+class AppleSoftSwitchBank : public MemoryDevice, public IDiagnosticsProvider
 {
 public:
     AppleSoftSwitchBank ();
@@ -35,9 +36,16 @@ public:
     bool IsPage2        () const { return m_page2; }
     bool IsHiresMode    () const { return m_hiresMode; }
 
+    // The video panel: the display switches and the mode they select.
+    std::string  GetDiagnosticsId    () const override { return "video"; }
+    std::string  GetDiagnosticsTitle () const override { return "Video"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 protected:
+    virtual std::string  GetModeName () const;
+
     bool    m_graphicsMode = false;
     bool    m_mixedMode    = false;
     bool    m_page2        = false;

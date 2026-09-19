@@ -1024,3 +1024,54 @@ void Disk2Controller::SetEventSink (IDisk2EventSink * sink) noexcept
     m_addrMarkWatcher.SetEventSink (sink);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2Controller::GetDiagnostics
+//
+//  Q6 and Q7 together select what the sequencer does: read, sense the write
+//  protect, shift out a write, or load the write latch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    static constexpr const char * kModes[]   = { "read", "sense write protect", "write", "load write latch" };
+    constexpr int                 kQuarters  = 4;
+    constexpr int                 kHundredth = 25;      // hundredths of a track in a quarter
+    const Disk2NibbleEngine     & engine     = m_engine[m_activeDrive];
+    int                           mode       = ((int) m_q7 << 1) | (int) m_q6;
+    DiagnosticsGroup              drive      { "Drive", {} };
+    DiagnosticsGroup              head       { "Head", {} };
+    DiagnosticsGroup              sequencer  { "Sequencer", {} };
+
+
+
+    drive.rows.push_back (MakeTextRow ("Active drive",   std::format ("{}", m_activeDrive + 1)));
+    drive.rows.push_back (MakeFlagRow ("Motor",          m_motorOn));
+    drive.rows.push_back (MakeFlagRow ("At speed",       IsMotorAtSpeed()));
+    drive.rows.push_back (MakeTextRow ("Spin-up left",   std::format ("{} cycles", m_motorSpinupRemaining)));
+    drive.rows.push_back (MakeTextRow ("Spin-down left", std::format ("{} cycles", m_motorSpindownCycles)));
+    drive.rows.push_back (MakeFlagRow ("Disk in drive",  m_activeDisk[m_activeDrive] != nullptr && m_activeDisk[m_activeDrive]->IsLoaded()));
+
+    head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", m_quarterTrack)));
+    head.rows.push_back (MakeTextRow ("Track",         std::format ("{}.{:02}", m_quarterTrack / kQuarters, (m_quarterTrack % kQuarters) * kHundredth)));
+    head.rows.push_back (MakeByteRow ("Phases",        m_phases, { "", "", "", "", "PH3", "PH2", "PH1", "PH0" }));
+
+    sequencer.rows.push_back (MakeTextRow ("Mode",            kModes[mode]));
+    sequencer.rows.push_back (MakeFlagRow ("Q6",              m_q6));
+    sequencer.rows.push_back (MakeFlagRow ("Q7",              m_q7));
+    sequencer.rows.push_back (MakeHexRow  ("Read latch",      engine.PeekReadLatch(), kByteDigits));
+    sequencer.rows.push_back (MakeTextRow ("Bit",             std::format ("{}", engine.GetBitPosition())));
+    sequencer.rows.push_back (MakeTextRow ("Nibbles read",    std::format ("{}", engine.GetReadNibbles())));
+    sequencer.rows.push_back (MakeTextRow ("Nibbles written", std::format ("{}", engine.GetWriteNibbles())));
+
+    snapshot.groups.push_back (std::move (drive));
+    snapshot.groups.push_back (std::move (head));
+    snapshot.groups.push_back (std::move (sequencer));
+    snapshot.visual = DiagnosticsDiskHead { m_quarterTrack, kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
+}
+

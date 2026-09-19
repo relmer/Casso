@@ -47,7 +47,7 @@ namespace DebuggerTests
             "D", "ME8", "ME16", "MM", "MS", "P0", "P1", "P2", "P3", "P4", "REGISTER", "TRACE", "SYMDOS", "SYMPRO", "ZAP",
             "BENCH", "EXITBENCH", "MDB",
             "BPV", "VIDEOINFO",
-            "MODE", "PAUSE", "BUDGET", "SWITCHES", "STACK", "PATCH", "SRC", "SKIP",
+            "MODE", "PAUSE", "BUDGET", "SWITCHES", "STACK", "PATCH", "SRC", "SKIP", "PANEL",
         };
 
         static constexpr const char * kWindowOnlyNames[] =
@@ -64,7 +64,7 @@ namespace DebuggerTests
 
         // Verbs no AppleWin name produces directly: Monitor-mode forms, and
         // operations reached through another command's arguments (R A=41,
-        // SYM name = addr, SYM file, MODE MONITOR).
+        // SYM name = addr, SYM file, MODE MONITOR, PANEL name).
         static constexpr DebugVerb kVerbsWithoutName[] =
         {
             DebugVerb::None,
@@ -82,6 +82,8 @@ namespace DebuggerTests
             DebugVerb::AddStepFilter,
             DebugVerb::RemoveStepFilter,
             DebugVerb::ClearStepFilter,
+            DebugVerb::OpenPanel,
+            DebugVerb::ClosePanel,
             DebugVerb::Trace,
             DebugVerb::Examine,
             DebugVerb::Deposit,

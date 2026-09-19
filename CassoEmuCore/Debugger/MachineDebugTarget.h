@@ -57,6 +57,8 @@ public:
     void                InjectKey         (Byte key) override;
     bool                IsKeyPending      () const override;
 
+    std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override;
+
 private:
     MachineHost       & m_host;
     DebugMemoryView     m_view;

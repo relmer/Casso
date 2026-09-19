@@ -194,6 +194,9 @@ enum class DebugVerb
     AddStepFilter,
     RemoveStepFilter,
     ClearStepFilter,
+    ListPanels,
+    OpenPanel,
+    ClosePanel,
 
     // Window-only views, carried by name
     View,

@@ -12,6 +12,7 @@
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
@@ -180,6 +181,9 @@ private:
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource);
     void     ApplySource        ();
+    void     ApplyDiagnostics   ();
+    void     ShowPanelMenu      ();
+    DiagnosticsPane *  GetDiagnosticsPane (const std::wstring & pane) const;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
@@ -246,4 +250,7 @@ private:
     std::wstring                                                                     m_sourceBannerKey;
     uint64_t                                                                         m_sourceClickMs      = 0;
     POINT                                                                            m_sourceClickAt      = {};
+    DxuiButton                                                                     * m_panelsButton       = nullptr;
+    std::vector<std::unique_ptr<DiagnosticsPane>>                                    m_diagPanes;
+    std::set<std::string>                                                            m_diagOpen;
 };

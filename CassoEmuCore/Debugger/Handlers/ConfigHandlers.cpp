@@ -45,6 +45,14 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
         reply.data = MessageData { { "Casso debugger: HELP lists the commands, MODE MONITOR switches to Apple II Monitor syntax." } };
         return true;
 
+    //  Device panels are the window's; the window runs PANEL itself, so any
+    //  PANEL that reaches here came from batch or the pipe.
+    case DebugVerb::ListPanels:
+    case DebugVerb::OpenPanel:
+    case DebugVerb::ClosePanel:
+        reply.SetError (CommandStatus::NotAvailable, "command not available", "PANEL needs the debugger window.");
+        return true;
+
     default:
         return false;
     }
