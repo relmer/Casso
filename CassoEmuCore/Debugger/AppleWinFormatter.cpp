@@ -214,6 +214,7 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<CompareData>        (&data)) { FormatCompare        (*v, lines); }
     else if (auto * v = std::get_if<DataBlockListData>  (&data)) { FormatDataBlocks     (*v, lines); }
     else if (auto * v = std::get_if<ProfileData>        (&data)) { FormatProfile        (*v, lines); }
+    else if (auto * v = std::get_if<TraceData>          (&data)) { FormatTrace          (*v, lines); }
     else if (auto * v = std::get_if<CalcData>           (&data)) { FormatCalc           (*v, lines); }
     else if (auto * v = std::get_if<StepFilterData>     (&data)) { FormatStepFilter     (*v, lines); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
@@ -623,6 +624,72 @@ void AppleWinFormatter::FormatStepFilter (const StepFilterData & data, Lines & l
         where = (entry.first == entry.last) ? std::format ("${:04X}", entry.first) : std::format ("${:04X}-${:04X}", entry.first, entry.last);
         lines.push_back (entry.name.empty() ? where : std::format ("{:<12} {}", entry.name, where));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatTrace
+//
+//  A line for the state and the count retained, then one per entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatTrace (const TraceData & data, Lines & lines)
+{
+    lines.push_back (std::format ("Trace {}, {} entries retained.", data.isOn ? "on" : "off", data.total));
+
+    for (const TraceRecord & record : data.entries)
+    {
+        lines.push_back (FormatTraceLine (record));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatTraceLine
+//
+//  Entry number, cycle count, address and its symbol, the instruction, the
+//  registers before it, and the access: R or W, the address, the byte, and
+//  the address's symbol. An interrupt handler's first instruction is marked.
+//
+//      1234    5678901  0300 START    LDA $C000      A=00 X=00 Y=00 SP=FF nv-BdIzc  R C000=8D KBD
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::FormatTraceLine (const TraceRecord & record)
+{
+    std::string  line;
+
+
+
+    line = std::format ("{:>6}  {:>10}  {:04X} {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
+                        record.index, record.cycles, record.pc, record.symbol, record.instruction,
+                        record.a, record.x, record.y, record.sp, FormatFlags (record.p));
+
+    if (record.hasAccess)
+    {
+        line += std::format ("  {} {:04X}={:02X}", record.accessIsWrite ? 'W' : 'R', record.accessAddress, record.accessData);
+
+        if (!record.accessSymbol.empty())
+        {
+            line += " " + record.accessSymbol;
+        }
+    }
+
+    if (record.isInterrupt)
+    {
+        line += "  [interrupt]";
+    }
+
+    return line;
 }
 
 

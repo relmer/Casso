@@ -247,6 +247,46 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Trace_StateThenOneLinePerEntry)
+        {
+            TraceData                 data;
+            TraceRecord               write;
+            TraceRecord               entry;
+            std::vector<std::string>  lines;
+
+
+
+            write.index         = 41;
+            write.cycles        = 5678;
+            write.pc            = 0x0302;
+            write.instruction   = "STA $0400";
+            write.symbol        = "START";
+            write.sp            = 0xFF;
+            write.p             = 0x30;
+            write.hasAccess     = true;
+            write.accessIsWrite = true;
+            write.accessAddress = 0x0400;
+            write.accessData    = 0x05;
+            write.accessSymbol  = "SCREEN";
+            entry.index         = 42;
+            entry.cycles        = 5682;
+            entry.pc            = 0x0305;
+            entry.instruction   = "INX";
+            entry.isInterrupt   = true;
+            data.isOn           = false;
+            data.total          = 100000;
+            data.entries        = { write, entry };
+
+            lines = Render (data);
+
+            Assert::AreEqual ((size_t) 3, lines.size());
+            Assert::AreEqual (std::string ("Trace off, 100000 entries retained."), lines[0]);
+            Assert::AreEqual (std::string ("    41        5678  0302 START    STA $0400      A=00 X=00 Y=00 SP=FF ..RB....  W 0400=05 SCREEN"), lines[1]);
+            Assert::AreEqual (std::string ("    42        5682  0305          INX            A=00 X=00 Y=00 SP=00 ........  [interrupt]"),       lines[2]);
+        }
+
+
+
         TEST_METHOD (OtherKinds)
         {
             WatchListData   zp;

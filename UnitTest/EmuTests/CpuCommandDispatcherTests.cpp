@@ -285,6 +285,23 @@ public:
     }
 
 
+    TEST_METHOD (TraceViewTakesAnEntryOrTheEnd)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_VIEW, "trace 123456", target);
+        Dispatch (IDM_DEBUG_VIEW, "trace end",    target);
+
+        //  Neither a hex entry nor no entry at all moves the pane.
+        Dispatch (IDM_DEBUG_VIEW, "trace 1F",     target);
+        Dispatch (IDM_DEBUG_VIEW, "trace",        target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("SetDebugTraceView 123456"), target.calls[0]);
+        Assert::AreEqual (std::string ("SetDebugTraceView end"),    target.calls[1]);
+    }
+
+
     TEST_METHOD (APauseChangeSaysWhichWay)
     {
         Notebook  target;
@@ -409,6 +426,11 @@ private:
         {
             calls.push_back (address.has_value() ? std::format ("SetDebugView {} {:04X}", view, *address)
                                                  : std::format ("SetDebugView {} pc", view));
+        }
+
+        void     SetDebugTraceView (std::optional<uint64_t> first) override
+        {
+            calls.push_back (first.has_value() ? std::format ("SetDebugTraceView {}", *first) : std::string ("SetDebugTraceView end"));
         }
     };
 

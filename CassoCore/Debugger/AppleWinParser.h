@@ -92,6 +92,8 @@ private:
     static bool    TryParseOutputArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseEngineArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseSkipArguments     (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseHistoryArguments  (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseDecimal           (const std::string & text, uint64_t & value);
     static bool    TryParseSkipRange  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryEvaluate        (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);
     static bool    TryParseRange      (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);

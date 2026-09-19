@@ -18,7 +18,8 @@
 //  The default keeps the window as it was before panes could be docked: the
 //  source beside the disassembly over the console on the left, registers,
 //  breakpoints and watches down the right, and memory beside the stack across
-//  the bottom, with memory windows 2 to 4 as tabs of the first.
+//  the bottom, with memory windows 2 to 4 as tabs of the first. The trace is a
+//  tab of the console.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,7 @@ public:
     static constexpr const wchar_t * kBreakpoints = L"breakpoints";
     static constexpr const wchar_t * kWatches     = L"watches";
     static constexpr const wchar_t * kStack       = L"stack";
+    static constexpr const wchar_t * kTrace       = L"trace";
 
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);
@@ -45,4 +47,8 @@ public:
     static DxuiPaneLayout  Restore     (const std::wstring & text);
 
     static std::vector<std::wstring>  GetPaneIds ();
+
+private:
+    //  The pane a restored layout tabs a missing pane with, or none.
+    static std::wstring  GetDefaultTabHost (const DxuiPaneLayout & layout, const std::wstring & pane);
 };

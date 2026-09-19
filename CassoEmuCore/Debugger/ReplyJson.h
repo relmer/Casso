@@ -62,5 +62,7 @@ private:
     static JsonValue    MakeDataBlocks      (const DataBlockListData & data);
     static JsonValue    MakeStepFilter      (const StepFilterData & data);
     static JsonValue    MakeProfile         (const ProfileData & data);
+    static JsonValue    MakeTrace           (const TraceData & data);
+    static JsonValue    MakeTraceRecord     (const TraceRecord & record);
     static JsonValue    MakeTextArray       (const std::vector<std::string> & lines);
 };

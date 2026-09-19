@@ -273,6 +273,22 @@ void EmulatorShell::SetDebuggerMemoryWindow (int id, std::optional<Word> address
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerTraceTop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerTraceTop (std::optional<uint64_t> first)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, first.has_value() ? std::format ("trace {}", *first)
+                                                               : std::string ("trace end"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TakeDebuggerUpdate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -428,6 +444,22 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
         }
     }
 
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugTraceView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebugTraceView (std::optional<uint64_t> first)
+{
+    m_debugViewState.SetTraceTop (first);
     m_isDebugViewDirty = true;
 }
 

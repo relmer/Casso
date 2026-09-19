@@ -186,8 +186,73 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
     }
 
     BuildSource (session, snapshot);
+    BuildTrace  (session, snapshot);
 
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildTrace
+//
+//  The trace pane is HISTORY first count, for the window around where the
+//  pane is scrolled; the trace size only says where that window starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    uint64_t  total = session.GetTarget().GetTraceSize();
+    uint64_t  first = GetTraceWindowFirst (total, m_traceTop, kTraceRows);
+    Reply     reply = session.ExecuteLine (GetHistoryLine (first, kTraceRows), CommandMode::AppleWin);
+
+
+
+    if (TraceData * data = std::get_if<TraceData> (&reply.data))
+    {
+        snapshot.trace.isOn    = data->isOn;
+        snapshot.trace.total   = data->total;
+        snapshot.trace.first   = first;
+        snapshot.trace.entries = std::move (data->entries);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetTraceWindowFirst
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DebuggerViewState::GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows)
+{
+    uint64_t  last = (total > (uint64_t) rows) ? total - (uint64_t) rows : 0;
+
+
+
+    return top.has_value() ? std::min (*top, last) : last;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetHistoryLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetHistoryLine (uint64_t first, int rows)
+{
+    return std::format ("HISTORY {} {}", first, rows);
 }
 
 

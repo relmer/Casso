@@ -26,7 +26,8 @@
 MachineDebugTarget::MachineDebugTarget (MachineHost & host) :
     m_host    (host),
     m_view    (host),
-    m_runHook (host, m_view)
+    m_runHook (host, m_view),
+    m_trace   (host)
 {
 }
 
@@ -519,4 +520,41 @@ bool MachineDebugTarget::IsKeyPending() const
 
 
     return keyboard != nullptr && !keyboard->IsStrobeClear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::SetTraceOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::SetTraceOn (bool on)
+{
+    if (on)
+    {
+        m_trace.On();
+    }
+    else
+    {
+        m_trace.Off();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetTraceWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::GetTraceWindow (size_t first, size_t count, std::vector<TraceRecord> & entries) const
+{
+    m_trace.GetWindow (first, count, entries);
 }

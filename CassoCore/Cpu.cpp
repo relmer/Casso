@@ -115,9 +115,13 @@ void Cpu::EnableTrace (size_t capacity)
 
 Byte Cpu::PeekForTrace (Word address) const
 {
-    if (m_readPages != nullptr)
+    Byte * const *  pages = (m_tracePeekPages != nullptr) ? m_tracePeekPages : m_readPages;
+
+
+
+    if (pages != nullptr)
     {
-        const Byte *  page = m_readPages[address >> 8];
+        const Byte *  page = pages[address >> 8];
 
         if (page != nullptr)
         {
@@ -157,15 +161,17 @@ void Cpu::TracePush (Byte opcode)
 
 
 
-    e.pc     = PC;
-    e.opcode = opcode;
-    e.op1    = PeekForTrace ((Word) (PC + 1));
-    e.op2    = PeekForTrace ((Word) (PC + 2));
-    e.a      = A;
-    e.x      = X;
-    e.y      = Y;
-    e.sp     = SP;
-    e.p      = status.status;
+    e.cycles    = (m_traceCycles != nullptr) ? *m_traceCycles : 0;
+    e.pc        = PC;
+    e.opcode    = opcode;
+    e.op1       = PeekForTrace ((Word) (PC + 1));
+    e.op2       = PeekForTrace ((Word) (PC + 2));
+    e.a         = A;
+    e.x         = X;
+    e.y         = Y;
+    e.sp        = SP;
+    e.p         = status.status;
+    e.hasAccess = false;
 
     // Move any pending interrupt-dispatch tag onto this entry: TracePush runs
     // for the handler's first instruction right after the vector was taken.
@@ -174,6 +180,99 @@ void Cpu::TracePush (Byte opcode)
 
     m_traceHead = (m_traceHead + 1) % m_traceCapacity;
     m_traceCount++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTraceSize
+//
+//  The entries the ring holds: every one pushed until it wraps, then its
+//  capacity.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t Cpu::GetTraceSize() const
+{
+    return (m_traceCount < (uint64_t) m_traceCapacity) ? (size_t) m_traceCount : m_traceCapacity;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTraceEntry
+//
+//  The entry `index` places from the oldest the ring holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Cpu::TryGetTraceEntry (size_t index, TraceEntry & entry) const
+{
+    size_t  size  = GetTraceSize();
+    size_t  start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
+
+
+
+    if (index >= size)
+    {
+        return false;
+    }
+
+    entry = m_trace[(start + index) % m_traceCapacity];
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordTraceAccess
+//
+//  A bus access, stored on the newest entry as its last access. Only the
+//  instruction's own data accesses count, so three kinds are left out:
+//
+//    - the reads of the instruction's own bytes, at pc to pc+2;
+//    - the next instruction's opcode fetch, which reads at PC before that
+//      instruction's entry exists;
+//    - an interrupt's stack writes and vector reads, which happen while a
+//      tag is pending and belong to no instruction.
+//
+//  A data read that falls on those addresses is rare (code reading its own
+//  bytes) and is left out with them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::RecordTraceAccess (Word address, Byte data, bool isWrite)
+{
+    static constexpr Word  kInstructionSpan = 3;
+    TraceEntry           * e                = nullptr;
+
+
+
+    if (!m_traceEnabled || m_traceCount == 0 || m_pendingTraceIntr != kTraceIntrNone)
+    {
+        return;
+    }
+
+    e = &m_trace[(m_traceHead + m_traceCapacity - 1) % m_traceCapacity];
+
+    if (!isWrite && (address == PC || (Word) (address - e->pc) < kInstructionSpan))
+    {
+        return;
+    }
+
+    e->hasAccess     = true;
+    e->accessIsWrite = isWrite;
+    e->accessData    = data;
+    e->accessAddress = address;
 }
 
 

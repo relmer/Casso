@@ -14,6 +14,7 @@
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/Panes/TracePane.h"
 
 struct CassoTheme;
 
@@ -39,6 +40,9 @@ public:
     virtual void  PauseDebugger           ()                               = 0;
     virtual void  SetDebuggerCodeAddress  (std::optional<Word> address)    = 0;
     virtual void  SetDebuggerMemoryWindow (int id, std::optional<Word> address) = 0;
+
+    //  Where the trace pane reads from: an entry, or the newest when empty.
+    virtual void  SetDebuggerTraceTop     (std::optional<uint64_t> first) = 0;
 
     //  The newest snapshot, if one arrived since the last call, and every
     //  console line written since then.
@@ -221,12 +225,15 @@ private:
     DxuiButton                                                                     * m_pauseButton        = nullptr;
     DxuiButton                                                                     * m_followPcButton     = nullptr;
     DxuiButton                                                                     * m_keysButton         = nullptr;
+    DxuiButton                                                                     * m_traceButton        = nullptr;
     DxuiLabel                                                                      * m_flagsLabel         = nullptr;
     DxuiListView                                                                   * m_codeList           = nullptr;
     DxuiListView                                                                   * m_registerList       = nullptr;
     DxuiListView                                                                   * m_breakpointList     = nullptr;
     DxuiListView                                                                   * m_watchList          = nullptr;
     DxuiListView                                                                   * m_stackList          = nullptr;
+    DxuiListView                                                                   * m_traceList          = nullptr;
+    std::unique_ptr<TracePane>                                                       m_tracePane;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     DxuiButton                                                                     * m_groupButton        = nullptr;
     DxuiButton                                                                     * m_addMemoryButton    = nullptr;

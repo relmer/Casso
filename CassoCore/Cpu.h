@@ -202,29 +202,34 @@ public:
     static constexpr Byte  kPenaltyBranchTaken = 0x02;
     static constexpr Byte  kPenaltyBranchCross = 0x04;
 
-protected:
-
     // Circular trace of recent instructions for post-mortem debugging.
     // Runtime-gated by m_traceEnabled and allocated only when tracing is
     // on, so it costs one predicted branch per step when disabled and is
     // available in every build config (driven by the --trace switch). In
     // Debug a small look-back ring is auto-enabled at construction so the
     // illegal-opcode stderr dump keeps working without --trace.
+    //
+    // The access fields hold the instruction's last data access, filled by
+    // RecordTraceAccess while a bus reports every access (the debugger's
+    // HISTORY); hasAccess stays false otherwise.
     struct TraceEntry
     {
-        Word    pc;
-        Byte    opcode;
-        Byte    op1;    // operand byte at PC+1 (raw RAM backing; exact for
-        Byte    op2;    // $0000-$BFFF, approximate for ROM/banked regions)
-        Byte    a;
-        Byte    x;
-        Byte    y;
-        Byte    sp;
-        Byte    p;
-        Byte    intr;   // kTraceIntr*: this instruction is a handler entry
+        uint64_t  cycles;         // the cycle counter before the instruction
+        Word      pc;
+        Byte      opcode;
+        Byte      op1;            // operand bytes at PC+1 and PC+2, read
+        Byte      op2;            // through the bank the CPU executes from
+        Byte      a;
+        Byte      x;
+        Byte      y;
+        Byte      sp;
+        Byte      p;
+        Byte      intr;           // kTraceIntr*: this instruction is a handler entry
+        bool      hasAccess;
+        bool      accessIsWrite;
+        Byte      accessData;
+        Word      accessAddress;
     };
-
-    static constexpr size_t  kTraceDefaultLookback = 256;
 
     // Interrupt-dispatch tags for the trace. The dispatch path stamps the
     // pending kind before the vector is taken; the next TracePush moves it
@@ -236,12 +241,23 @@ protected:
     static constexpr Byte    kTraceIntrIrq  = 1;
     static constexpr Byte    kTraceIntrNmi  = 2;
 
+protected:
+    static constexpr size_t  kTraceDefaultLookback = 256;
+
     std::vector<TraceEntry>  m_trace;   // sized by EnableTrace
     size_t                   m_traceCapacity    = 0;
     size_t                   m_traceHead        = 0;   // next slot to write
     uint64_t                 m_traceCount       = 0;   // total entries pushed
     bool                     m_traceEnabled     = false;
     Byte                     m_pendingTraceIntr = kTraceIntrNone;
+
+    // Where TracePush reads the cycle count and the operand bytes. A derived
+    // CPU with a cycle counter points the first at it; one whose read table
+    // can be unpublished page by page (a watched bus) points the second at a
+    // table that always holds the mapped pages. Null means none and the read
+    // table respectively.
+    const uint64_t *         m_traceCycles      = nullptr;
+    Byte * const *           m_tracePeekPages   = nullptr;
 
     // Called from the interrupt-dispatch path just before the vector is taken.
     // Cheap no-op while tracing is off (the common case).
@@ -254,6 +270,16 @@ public:
     void     EnableTrace    (size_t capacity);
     bool     IsTraceEnabled () const { return m_traceEnabled; }
     uint64_t GetTraceCount  () const { return m_traceCount; }
+
+    // Stops recording and keeps what the ring holds.
+    void     StopTrace      ()       { m_traceEnabled = false; m_pendingTraceIntr = kTraceIntrNone; }
+
+    // The entries the ring holds, oldest first.
+    size_t   GetTraceSize     () const;
+    bool     TryGetTraceEntry (size_t index, TraceEntry & entry) const;
+
+    // A bus access, recorded as the last access of the instruction executing.
+    void     RecordTraceAccess (Word address, Byte data, bool isWrite);
 
     // Write the recorded ring to a text file, oldest-first. `onProgress`
     // (may be empty) is invoked periodically with (entriesWritten,

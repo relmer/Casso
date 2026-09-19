@@ -30,7 +30,7 @@ std::wstring DebuggerLayout::GetMemoryPaneId (int window)
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kTrace };
 
 
 
@@ -55,8 +55,7 @@ std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
 {
     DxuiPaneLayout             layout;
-    std::vector<std::wstring>  ids     = GetPaneIds();
-    std::wstring               memory1 = GetMemoryPaneId (1);
+    std::vector<std::wstring>  ids    = GetPaneIds();
 
 
 
@@ -75,17 +74,43 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
         return MakeDefault();
     }
 
-    //  A memory window the text lacks joins the first; anything else lacks a
-    //  better place than the right edge.
+    //  A memory window the text lacks joins the first and the trace joins the
+    //  console, as they open by default; anything else lacks a better place
+    //  than the right edge.
     for (const std::wstring & pane : ids)
     {
         if (!layout.Contains (pane))
         {
-            layout.Add (pane, pane.starts_with (L"memory") ? memory1 : L"");
+            layout.Add (pane, GetDefaultTabHost (layout, pane));
         }
     }
 
     return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetDefaultTabHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, const std::wstring & pane)
+{
+    if (pane.starts_with (L"memory"))
+    {
+        return GetMemoryPaneId (1);
+    }
+
+    if (pane == kTrace && layout.Contains (kConsole))
+    {
+        return kConsole;
+    }
+
+    return L"";
 }
 
 
@@ -128,6 +153,8 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add        (kStack,       L"");
     layout.DockToSide (kStack,       memory1,      DxuiDockSide::Right);
     layout.Activate   (memory1);
+    layout.Add        (kTrace,       kConsole);
+    layout.Activate   (kConsole);
 
     //  Proportions of the fixed layout this replaces: a right column of about
     //  300 of 1100, memory eight rows high, and code over a shorter console.

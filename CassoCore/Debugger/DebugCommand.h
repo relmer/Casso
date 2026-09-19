@@ -194,6 +194,9 @@ enum class DebugVerb
     AddStepFilter,
     RemoveStepFilter,
     ClearStepFilter,
+    ShowHistory,
+    SetHistory,
+    SaveHistory,
 
     // Window-only views, carried by name
     View,
@@ -232,5 +235,6 @@ struct DebugCommand
     std::string              text;
     uint32_t                 count    = 0;
     std::optional<uint64_t>  budget;
+    std::optional<uint64_t>  first;        // HISTORY: the window's first entry
     CommandMode              mode     = CommandMode::AppleWin;
 };

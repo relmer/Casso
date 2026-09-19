@@ -92,7 +92,7 @@ Byte MemoryBus::ReadByte (Word address)
     {
         value = page[address & 0xFF];
     }
-    else if (m_debugWatched[address >> 8])
+    else if (m_pathWatched[address >> 8])
     {
         value = ReadWatchedPage (address);
     }
@@ -172,10 +172,7 @@ Byte MemoryBus::ReadWatchedPage (Word address)
 
     value = (page != nullptr) ? page[address & 0xFF] : ReadFromDevice (address);
 
-    if (m_watchSink != nullptr)
-    {
-        m_watchSink->OnWatchedAccess (address, value, BusAccess::Read, std::nullopt);
-    }
+    ReportAccess (address, value, BusAccess::Read, std::nullopt);
 
     return value;
 }
@@ -245,7 +242,7 @@ void MemoryBus::WriteByte (Word address, Byte value)
         // No page mapping -- fall through to device-based write (e.g., for ROM areas)
     }
 
-    if (m_debugWatched[address >> 8])
+    if (m_pathWatched[address >> 8])
     {
         WriteWatchedPage (address, value);
         return;
@@ -337,9 +334,33 @@ void MemoryBus::WriteWatchedPage (Word address, Byte value)
         m_floatingBusValue = value;
     }
 
-    if (m_watchSink != nullptr)
+    ReportAccess (address, value, BusAccess::Write, previous);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportAccess
+//
+//  An access on the watched path goes to the trace sink, and to the watch
+//  sink when a watchpoint's page holds it; while the trace publishes every
+//  page, the rest are the trace's alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ReportAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous)
+{
+    if (m_traceSink != nullptr)
     {
-        m_watchSink->OnWatchedAccess (address, value, BusAccess::Write, previous);
+        m_traceSink->OnWatchedAccess (address, value, access, previous);
+    }
+
+    if (m_watchSink != nullptr && m_debugWatched[address >> 8])
+    {
+        m_watchSink->OnWatchedAccess (address, value, access, previous);
     }
 }
 
@@ -361,7 +382,7 @@ void MemoryBus::SetReadPage (int pageIndex, Byte * page)
     if (pageIndex >= 0 && pageIndex < 0x100)
     {
         m_shadowReadPage[pageIndex] = page;
-        m_readPage[pageIndex]       = m_debugWatched[pageIndex] ? nullptr : page;
+        m_readPage[pageIndex]       = m_pathWatched[pageIndex] ? nullptr : page;
     }
 }
 
@@ -370,7 +391,7 @@ void MemoryBus::SetWritePage (int pageIndex, Byte * page)
     if (pageIndex >= 0 && pageIndex < 0x100)
     {
         m_shadowWritePage[pageIndex] = page;
-        m_writePage[pageIndex]       = m_debugWatched[pageIndex] ? nullptr : page;
+        m_writePage[pageIndex]       = m_pathWatched[pageIndex] ? nullptr : page;
     }
 }
 
@@ -392,9 +413,70 @@ void MemoryBus::SetWatchedPage (int pageIndex, bool watched)
     if (pageIndex >= 0 && pageIndex < 0x100)
     {
         m_debugWatched[pageIndex] = watched;
-        m_readPage[pageIndex]     = watched ? nullptr : m_shadowReadPage[pageIndex];
-        m_writePage[pageIndex]    = watched ? nullptr : m_shadowWritePage[pageIndex];
+        PublishPage (pageIndex);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTraceAllPages
+//
+//  On, every page takes the watched path, so the trace sink sees every
+//  access; off, each page goes back to what the watch mask says.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::SetTraceAllPages (bool on)
+{
+    m_traceAllPages = on;
+
+    for (int pageIndex = 0; pageIndex < 0x100; pageIndex++)
+    {
+        PublishPage (pageIndex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PublishPage
+//
+//  A page on the watched path is published as null in both tables; any other
+//  gets what the MMU set in the meantime.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::PublishPage (int pageIndex)
+{
+    bool  watched = m_debugWatched[pageIndex] || m_traceAllPages;
+
+
+
+    m_pathWatched[pageIndex] = watched;
+    m_readPage[pageIndex]    = watched ? nullptr : m_shadowReadPage[pageIndex];
+    m_writePage[pageIndex]   = watched ? nullptr : m_shadowWritePage[pageIndex];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWatchedPageCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int MemoryBus::GetWatchedPageCount() const
+{
+    return (int) std::count (std::begin (m_pathWatched), std::end (m_pathWatched), true);
 }
 
 

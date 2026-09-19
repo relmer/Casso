@@ -1012,6 +1012,11 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParseSkipArguments (args, command, error);
     }
 
+    if (command.verb == DebugVerb::ShowHistory)
+    {
+        return TryParseHistoryArguments (args, command, error);
+    }
+
     if (command.verb == DebugVerb::ShowMode && !args.tokens.empty())
     {
         mode = ToUpper (args.tokens[0]);
@@ -1053,6 +1058,104 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         command.count = (uint32_t) std::stoul (args.tokens[0]);
     }
 
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseHistoryArguments
+//
+//  HISTORY ON and HISTORY OFF switch the trace; HISTORY SAVE file writes it;
+//  HISTORY first [count] shows count entries from first, and a bare HISTORY
+//  the newest. The numbers are decimal, since an entry number runs past what
+//  a 16-bit expression holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    static constexpr const char * kUsage = "HISTORY takes ON, OFF, SAVE and a file name, or a first entry and a count in decimal.";
+    std::string                   first;
+    uint64_t                      value  = 0;
+
+
+
+    if (args.tokens.empty())
+    {
+        return true;
+    }
+
+    first = ToUpper (args.tokens[0]);
+
+    if ((first == "ON" || first == "OFF") && args.tokens.size() == 1)
+    {
+        command.verb  = DebugVerb::SetHistory;
+        command.count = (first == "ON") ? 1 : 0;
+        return true;
+    }
+
+    if (first == "SAVE")
+    {
+        command.verb = DebugVerb::SaveHistory;
+        command.text = Join (args.tokens, 1);
+
+        if (command.text.empty())
+        {
+            error = "HISTORY SAVE needs a file name.";
+            return false;
+        }
+
+        return true;
+    }
+
+    if (args.tokens.size() > 2 || !TryParseDecimal (args.tokens[0], value))
+    {
+        error = kUsage;
+        return false;
+    }
+
+    command.first = value;
+
+    if (args.tokens.size() == 2)
+    {
+        if (!TryParseDecimal (args.tokens[1], value) || value == 0 || value > UINT32_MAX)
+        {
+            error = kUsage;
+            return false;
+        }
+
+        command.count = (uint32_t) value;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseDecimal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value)
+{
+    static constexpr size_t  kMaxDigits = 18;
+
+
+
+    if (text.empty() || text.size() > kMaxDigits || text.find_first_not_of ("0123456789") != std::string::npos)
+    {
+        return false;
+    }
+
+    value = std::stoull (text);
     return true;
 }
 

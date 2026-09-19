@@ -118,6 +118,7 @@ Clients format them.
 | `mode` | `mode` |
 | `fileIo` | `path`, `requested`, `transferred`, `mismatch`: bool |
 | `profile` | `on`: bool, `instructions`, `cycles` (penalties included), `opcodes`: `[{"mnemonic","mode","count","cycles"}]` with base cycles only, `penalties`: `{"pageCross","branchTaken","branchCross"}` in cycles, `addresses`: `[{"address","symbol","cycles"}]` with `symbol` null where none holds the address (filled by `PROFILE LIST ADDR`, the hottest twenty) |
+| `trace` | `on`: bool, `total`: entries retained, `entries`: `[{"index","cycles","pc","bytes","instruction","symbol","a","x","y","sp","p","interrupt","access"}]` oldest first, where `bytes` is the opcode and the two bytes after it, `symbol` is null where none holds `pc`, `interrupt` marks an interrupt handler's first instruction, and `access` is `{"address","direction":"read"\|"write","data","symbol"}` or null for an instruction that made no data access (`HISTORY`) |
 | `message` | no fields beyond `text` |
 
 New kinds may be added; a client that does not recognize a kind uses `text`.

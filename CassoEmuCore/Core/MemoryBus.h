@@ -106,6 +106,17 @@ public:
     Byte * GetShadowReadPage  (Word address) const      { return m_shadowReadPage[address >> 8]; }
     Byte * GetShadowWritePage (Word address) const      { return m_shadowWritePage[address >> 8]; }
 
+    Byte * const * GetShadowReadPageTable () const      { return m_shadowReadPage; }
+
+    // The instruction trace: while on, every page takes the watched path, so
+    // every access reaches the trace sink as well as the watch sink's pages;
+    // off, the watch mask alone is published again. The watched page count
+    // is the pages that take the watched path now.
+    void   SetTraceAllPages   (bool on);
+    void   SetTraceSink       (IWatchSink * sink)       { m_traceSink = sink; }
+    bool   IsTracingAllPages  () const                  { return m_traceAllPages; }
+    int    GetWatchedPageCount () const;
+
     // Video-dirty tracking. Pages the renderer reads (text/hi-res, main +
     // aux, since aux is re-pointed at the same page index) are marked
     // "watched"; a write into any of them, or any banking change, raises
@@ -147,6 +158,8 @@ private:
     Byte ReadWatchedPage  (Word address);
     void WriteWatchedPage (Word address, Byte value);
     void StoreToPage      (Byte * page, Word address, Byte value);
+    void PublishPage      (int pageIndex);
+    void ReportAccess     (Word address, Byte value, BusAccess access, std::optional<Byte> previous);
 
     // Rebuild the I/O dispatch map from the current device list. Called from
     // the constructor and after any AddDevice / RemoveDevice -- the only events
@@ -187,11 +200,17 @@ private:
 
     // Debugger watch mask (see SetWatchedPage). The shadow tables hold what
     // SetReadPage / SetWritePage were given; m_readPage / m_writePage hold the
-    // same pointers except on watched pages, where they hold null.
+    // same pointers except on pages that take the watched path, where they
+    // hold null. m_debugWatched is the watchpoints' mask; m_pathWatched is
+    // that mask, or every page while the trace is on, and is what the access
+    // paths test.
     Byte *                  m_shadowReadPage [0x100] = {};
     Byte *                  m_shadowWritePage[0x100] = {};
     bool                    m_debugWatched   [0x100] = {};
+    bool                    m_pathWatched    [0x100] = {};
     IWatchSink *            m_watchSink              = nullptr;
+    IWatchSink *            m_traceSink              = nullptr;
+    bool                    m_traceAllPages          = false;
 
     BankingChangedFn        m_bankingChanged;
 };

@@ -25,5 +25,6 @@ void DebugHandlerSet::Attach (DebugSession & session)
     session.AddHandler (&m_config);
     session.AddHandler (&m_symbols);
     session.AddHandler (&m_monitor);
+    session.AddHandler (&m_trace);
     session.SetInstructionObserver (&m_execution);
 }

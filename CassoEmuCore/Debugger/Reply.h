@@ -334,6 +334,42 @@ struct StepFilterData
     std::vector<StepFilterEntry>  entries;
 };
 
+// One executed instruction in the trace: the cycle count and registers
+// before it, and the last memory access it made when it made one. index is
+// its place among the retained entries, oldest first. The instruction text
+// and the symbols are filled by the command that reports it.
+struct TraceRecord
+{
+    uint64_t     index         = 0;
+    uint64_t     cycles        = 0;
+    Word         pc            = 0;
+    Byte         opcode        = 0;
+    Byte         op1           = 0;
+    Byte         op2           = 0;
+    Byte         a             = 0;
+    Byte         x             = 0;
+    Byte         y             = 0;
+    Byte         sp            = 0;
+    Byte         p             = 0;
+    bool         isInterrupt   = false;   // the first instruction of an interrupt handler
+    bool         hasAccess     = false;
+    bool         accessIsWrite = false;
+    Byte         accessData    = 0;
+    Word         accessAddress = 0;
+    std::string  instruction;
+    std::string  symbol;
+    std::string  accessSymbol;
+};
+
+// HISTORY: whether the trace is on, how many entries it retains, and the
+// window of them the command asked for.
+struct TraceData
+{
+    bool                      isOn  = false;
+    uint64_t                  total = 0;
+    std::vector<TraceRecord>  entries;
+};
+
 using ReplyData = std::variant<MessageData,
                                RegistersData,
                                MemoryData,
@@ -354,7 +390,8 @@ using ReplyData = std::variant<MessageData,
                                BranchRecordData,
                                ProfileData,
                                CalcData,
-                               StepFilterData>;
+                               StepFilterData,
+                               TraceData>;
 
 
 

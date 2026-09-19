@@ -160,6 +160,7 @@ void DebuggerWindow::OnCreate()
     m_pauseButton       = CreateChild<DxuiButton>    (L"Pause");
     m_followPcButton    = CreateChild<DxuiButton>    (L"Follow PC");
     m_keysButton        = CreateChild<DxuiButton>    (L"Keys");
+    m_traceButton       = CreateChild<DxuiButton>    (L"Trace: Off");
     m_flagsLabel        = CreateChild<DxuiLabel>     (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_codeList          = CreateChild<DxuiListView>  ();
     m_registerList      = CreateChild<DxuiListView>  ();
@@ -167,6 +168,7 @@ void DebuggerWindow::OnCreate()
     m_watchList         = CreateChild<DxuiListView>  ();
     m_stackList         = CreateChild<DxuiListView>  ();
     m_consoleList       = CreateChild<DxuiListView>  ();
+    m_traceList         = CreateChild<DxuiListView>  ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_pokeBox           = CreateChild<DxuiTextInput> ();
@@ -189,6 +191,10 @@ void DebuggerWindow::OnCreate()
         view->SetVisible (id == 1);
         m_memoryOpen[(size_t) (id - 1)] = (id == 1);
     }
+
+    m_tracePane = std::make_unique<TracePane> (
+        m_traceList,
+        [this] (std::optional<uint64_t> first) { if (m_host != nullptr) { m_host->SetDebuggerTraceTop (first); } });
 
     //  Shown only while a debug file is loaded.
     m_sourceView   = CreateChild<DxuiTextView>();
@@ -255,6 +261,11 @@ void DebuggerWindow::ConfigureWidgets()
 
     m_followPcButton->SetOnClick ([this] { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (std::nullopt); } });
     m_keysButton->SetOnClick     ([this] { CycleKeyScheme(); });
+
+    m_traceButton->SetOnClick ([this, run]
+    {
+        run (DebuggerViewState::GetTraceToggleLine (m_snapshot != nullptr && m_snapshot->trace.isOn));
+    });
 
     m_pokeButton->SetOnClick ([this] { SubmitPokeBox(); });
 
@@ -334,8 +345,10 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     //  The console can hold thousands of lines, so it fits its column from a
-    //  character count rather than measuring every line it has ever held.
+    //  character count rather than measuring every line it has ever held. The
+    //  trace pane shows a window of a far longer list, so it does the same.
     m_consoleList->SetPreciseAutoFit (false);
+    m_tracePane->Configure();
 
     for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
     {
@@ -365,7 +378,7 @@ void DebuggerWindow::ConfigureWidgets()
 
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
-    return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_consoleList };
+    return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_consoleList, m_traceList };
 }
 
 
@@ -408,7 +421,7 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 std::vector<DxuiButton *> DebuggerWindow::GetToolbarButtons() const
 {
     return { m_stepButton, m_stepOverButton, m_stepOutButton, m_runButton, m_runToCursorButton,
-             m_pauseButton, m_followPcButton, m_keysButton };
+             m_pauseButton, m_followPcButton, m_keysButton, m_traceButton };
 }
 
 
@@ -1268,6 +1281,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointList);
     m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_watchList);
     m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_stackList);
+    m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceList);
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -1461,6 +1475,8 @@ void DebuggerWindow::RenderFrame()
         (void) pane->GetView()->TickScrollbars (now);
     }
 
+    m_tracePane->FollowScroll();
+
     SyncFloats();
 
     for (const auto & entry : m_floats)
@@ -1527,6 +1543,8 @@ void DebuggerWindow::ApplySnapshot()
 
     m_registerList->SetRows (std::move (rows));
     m_flagsLabel->SetText   (L"Flags  " + Widen (m_snapshot->flags));
+    m_tracePane->Apply      (m_snapshot->trace);
+    m_traceButton->SetLabel (m_snapshot->trace.isOn ? L"Trace: On" : L"Trace: Off");
 
     rows.clear();
 
@@ -1934,6 +1952,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList };                  }
     if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
+    if (pane == DebuggerLayout::kTrace)       { return { m_traceList };                  }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
@@ -1998,6 +2017,7 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kBreakpoints) { return L"Breakpoints"; }
     if (pane == DebuggerLayout::kWatches)     { return L"Watches";     }
     if (pane == DebuggerLayout::kStack)       { return L"Stack";       }
+    if (pane == DebuggerLayout::kTrace)       { return L"Trace";       }
 
     return pane.starts_with (L"memory") ? L"Memory " + pane.substr (6) : pane;
 }
