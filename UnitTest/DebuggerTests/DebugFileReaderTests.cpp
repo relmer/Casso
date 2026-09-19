@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/LineTable.h"
+#include "EmuTests/FixtureProvider.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -350,6 +351,98 @@ namespace DebuggerTests
 
             Assert::IsTrue (FAILED (hr));
             Assert::IsFalse (error.empty());
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Cc65FixtureTests
+    //
+    //  A debug file written by cc65's own linker (Fixtures/Debugger/DebugFiles,
+    //  see its LICENSE.md): records out of Casso's order, line records with no
+    //  span, keys Casso does not write (ref, oname, ooffs), six-digit hex, and
+    //  ca65's own macro records, which name the invocation and each body line.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (Cc65FixtureTests)
+    {
+    public:
+
+        static DebugFile Read()
+        {
+            FixtureProvider       provider;
+            std::vector<uint8_t>  bytes;
+            HRESULT               hr    = provider.OpenFixture ("Debugger/DebugFiles/hello.dbg", bytes);
+            DebugFile             file;
+            std::string           error;
+
+
+
+            Assert::AreEqual (S_OK, hr, L"fixture missing: Debugger/DebugFiles/hello.dbg");
+            hr = DebugFileReader::Read (std::string (bytes.begin(), bytes.end()), file, error);
+            Assert::AreEqual (S_OK, hr, std::wstring (error.begin(), error.end()).c_str());
+            return file;
+        }
+
+
+
+        TEST_METHOD (EveryRecordKindIsRead)
+        {
+            DebugFile  file = Read();
+
+
+
+            Assert::AreEqual ((size_t) 2,  file.files.size());
+            Assert::AreEqual ((size_t) 10, file.lines.size());
+            Assert::AreEqual ((size_t) 9,  file.spans.size());
+            Assert::AreEqual ((size_t) 6,  file.segments.size());
+            Assert::AreEqual ((size_t) 31, file.symbols.size());
+            Assert::AreEqual ((uint32_t) 0x0300, file.segments[0].start, L"six hex digits");
+            Assert::IsTrue   (file.files[0].sha1.empty(), L"cc65 writes no hash");
+        }
+
+
+        TEST_METHOD (AMacroMapsToTheInvocationAndItsBody)
+        {
+            DebugFile  file = Read();
+            LineTable  table;
+
+
+
+            table.Build (file);
+
+            const std::vector<SourcePosition> & at = table.GetPositionsAt (0x0302);
+
+            Assert::AreEqual ((size_t) 2, at.size(), L"the invocation and one body line");
+            Assert::AreEqual (8, at[0].line, L"twoinx");
+            Assert::AreEqual (3, at[1].line, L"the first inx in the body");
+            Assert::AreEqual (1, at[1].depth);
+            Assert::AreEqual (4, table.GetPositionsAt (0x0303).back().line);
+        }
+
+
+        TEST_METHOD (SymbolsResolveToTheirAddresses)
+        {
+            DebugFile  file = Read();
+            bool       found = false;
+
+
+
+            for (const DebugSymbol & symbol : file.symbols)
+            {
+                if (symbol.name == "sub")
+                {
+                    Assert::AreEqual ((uint32_t) 0x0308, symbol.value);
+                    Assert::AreEqual (std::string ("lab"), symbol.type);
+                    found = true;
+                }
+            }
+
+            Assert::IsTrue (found);
         }
     };
 }
