@@ -547,7 +547,7 @@ breakpoints, two watches and the stack are visible without scrolling
 ### Merlin listings
 
 - [ ] T121 [US6] Capture the `PI.ADD.S` listing from Merlin under emulation (R-022) by the procedure in `UnitTest/MerlinCorpus/README.md`, check it in as `UnitTest/Fixtures/Debugger/Merlin/PI.ADD.LST` with a `LICENSE` note, and record in research R-022 how `PUT` and `USE` lines appear and whether line numbers restart.
-- [ ] T122 [US6] Implement the Merlin 8/16 listing form in `DebugFileReader` (FR-033b): every listing line with an address becomes a `line` record for a single `file` that is the listing itself, and the trailing symbol table becomes `sym` records; if T121 found `PUT` lines marked, map them to a second `file`. Tests in `DebugFileReaderTests.cpp` against the fixture, asserting a non-zero line count. The same fixture's trailing symbol table verifies the layout `CassoCli merlin -l` appends (FR-033, R-009): add a case to `UnitTest/MerlinListingSymbolTableTests.cpp` comparing against the fixture instead of the inline sample.
+- [ ] T122 [US6] Implement the Merlin 8/16 listing form in `DebugFileReader` (FR-033b): every listing line with an address becomes a `line` record for a single `file` that is the listing itself, and the trailing symbol table becomes `sym` records; a `>` line (a `PUT` file's line, whose number restarts at 1, per the R-022 capture) is a line of the listing like any other, and no `PUT` file is opened. Tests in `DebugFileReaderTests.cpp` against the fixture, asserting a non-zero line count. The same fixture's trailing symbol table verifies the layout `CassoCli merlin -l` appends (FR-033, R-009): add a case to `UnitTest/MerlinListingSymbolTableTests.cpp` comparing against the fixture instead of the inline sample.
 
 ### Finding sources
 
@@ -656,26 +656,74 @@ breakpoints, two watches and the stack are visible without scrolling
 **Independent Test**: In batch with GSSquared mode, run each command in its list against a fixture machine and compare the engine effect with the same command in AppleWin mode; compare replies to the captured fixtures (quickstart Story 12).
 
 - [ ] T155 [US12] Capture GSSquared's replies (R-027): build GSSquared from source, run each command in `contracts/gssquared-mode.md` against the program in `Scripts/stop.txt` on the same machine type, and check the replies in under `UnitTest/Fixtures/Debugger/GSSquared/` with a `LICENSE` note. If GSSquared cannot be built, use its documented examples, record the deviation in research R-027, and note which fixtures are documentation-derived.
-- [ ] T156 [P] [US12] Write `UnitTest/DebuggerTests/GSSquaredParserTests.cpp` for every row of the contract's command table: `first.last` ranges, deposit, `set`, `move`, `l` with and without an address, `bp`/`bpd`/`bpi`/`nobp`, `watch`/`nowatch`, `load`/`save`, `sload`/`slookup`/`sclear`, `o`, `r`, `s`, an empty line, `g`, `debug`/`nodebug`; case-insensitive; `m`, `x`, `map` and `video` produce `NotAvailable` with their reason; `/` reaches AppleWin commands; a malformed line produces an error and no command.
+- [ ] T156 [P] [US12] Write `UnitTest/DebuggerTests/GSSquaredParserTests.cpp` for every row of the contract's command table: `first.last` ranges, deposit, `set`, `move`, `l` with and without an address, `bp`/`bpd`/`bpi`/`nobp`, `watch`/`nowatch`, `load`/`save`, `sload`/`slookup`/`sclear`, `o`, `r`, `s`, an empty line, `g`, `debug`/`nodebug`; case-insensitive; `m`, `x`, `map` and `video` produce `NotAvailable` with their reason; `00/300` is $0300 and `e1/300` is refused naming the bank (FR-022b); engine commands are bare names, as the contract's R-037 note says, and `/` is never a marker here; `300l` lists at $0300 but a command word ending in `l` is not split; a malformed line produces an error and no command.
 - [ ] T157 [US12] Implement `CassoCore/Debugger/GSSquaredParser.h/.cpp` producing `DebugCommand`, add `CommandMode::GSSquared`, `MODE GSSQUARED` and `/mode gssquared`, and route the mode in `DebugSession`. Makes T156 pass.
 - [ ] T158 [P] [US12] Write `UnitTest/DebuggerTests/OutputFormatTests.cpp` (FR-013, data-model `OutputFormat`): `MODE x` sets both mode and output format; `OUTPUT x` sets the format alone; the setting is reachable from batch (`--output` in `contracts/cli-debug.md` and `DebugOptions`), the channel and the window; every reply, including stops, is rendered by the current format. Implement `OUTPUT` in `ConfigHandlers`, the field in `DebugSession`, and the rendering switch in `DebugBatchSink` and the channel's reply path.
 - [ ] T159 [P] [US12] Write `UnitTest/DebuggerTests/GSSquaredFormatterTests.cpp` comparing each reply kind against the T155 fixtures line for line, and implement `CassoEmuCore/Debugger/GSSquaredFormatter.h/.cpp`; a reply kind GSSquared has no form for keeps the AppleWin text, as the Monitor formatter does.
 - [ ] T160 [US12] Write `UnitTest/DebuggerTests/GSSquaredCommandSweepTests.cpp` (SC-016): for every command in the contract's table, the engine effect (tables, memory, registers, run request) equals the AppleWin equivalent's, and every `DebugVerb` reachable from GSSquared mode is in the table.
-- [ ] T161 [US12] In the window's `ConsolePane`, Space steps and Return resumes when the mode is GSSquared and the input line is empty (the contract's batch note); `debug "name"` and `nodebug` map onto `PANEL`. Tests in `DebuggerViewStateTests.cpp`. Record the mode in `contracts/command-modes.md` and `docs/Debugger.md`.
-- [ ] T162 [US12] Add a GSSquared-mode script and goldens for quickstart Story 12 steps 1-3 under `UnitTest/Fixtures/Debugger/Scripts/` with cases in `DebugModeTests.cpp`.
+- [ ] T161 [US12] In the window's `ConsolePane`, Space and F10 step and Return resumes when the mode is GSSquared and the input line is empty (the contract's batch note); `debug "name"` and `nodebug` map onto `PANEL`. Tests in `DebuggerViewStateTests.cpp`. Record the mode in `contracts/command-modes.md` and `docs/Debugger.md`.
+- [ ] T162 [US12] Add a GSSquared-mode script and goldens for quickstart Story 12 steps 1-5 under `UnitTest/Fixtures/Debugger/Scripts/` with cases in `DebugModeTests.cpp`.
+- [ ] T168 [US12] FR-014 across every mode: write `UnitTest/DebuggerTests/EngineMarkerTests.cpp` asserting that every engine command (`MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`, `PANEL`, `OUTPUT`, `HISTORY`, `PROFILE`, and later `CALLS` and `SKIP`) is reachable as a bare name in AppleWin and GSSquared modes, through `/` in Monitor mode and through `!` in WinDbg mode, and that a command added to the table needs no parser change; implement one engine-command table (the `Engine` family in `CassoCore/Debugger/AppleWinCommandTable`) that each parser hands its marker-stripped line to. Record the marker table in `docs/Debugger.md` (the contract already has it).
 
-**Checkpoint**: All twelve stories are functional and the full suite is green.
+**Checkpoint**: GSSquared mode is functional, and the engine commands are reachable the same way in every mode.
 
 ---
 
-## Phase 18: Release
+## Phase 18: User Story 13 - See how the program got here (Priority: P2)
+
+**Goal**: FR-067 to FR-069; SC-018; FR-064 kept
+
+**Independent Test**: On the call-stack fixture, stop three calls deep and see the chain innermost first labeled recorded; then provoke each FR-069 break and see it reported at its instruction (quickstart Story 13).
+
+- [ ] T169 [P] [US13] Add the fixture source `UnitTest/Fixtures/Debugger/Sources/callstack.a65` (assembled by the tests with the as65 assembler, as `SourceStepTests.cpp` assembles its program): a three-deep call chain, a recursive routine, an inline-parameter routine (`PLA`/`PHA` past two bytes), a routine that pulls its return address and jumps away, a `TXS` reload, a return address rewritten in place, a loop that wraps the stack pointer past $0100, and an IRQ handler; every SC-018 case is a label in it.
+- [ ] T170 [P] [US13] Write `UnitTest/DebuggerTests/CallStackTests.cpp` (data-model `CallStackFrame`, `CallStackBreak`): `StackWalker` as a pure function over a memory view (the W-2 opcode test of R-035; candidates dropped when a loaded debug file has no routine entry at the `JSR`'s target; the scan ends at $01FF); `CallStackRecorder` fed by a run on `TestMachine` over the fixture: three frames innermost first labeled recorded; an interrupt frame pushed on dispatch and popped on `RTI`; each FR-069 break recorded with the pc and opcode that caused it, and the inline-parameter return noted rather than broken; hybrid gives recorded frames above the attach point, guessed below, and marks the boundary; a reset clears the record; with nothing attached, a recording target sees no hook (FR-064).
+- [ ] T171 [US13] Implement `CassoEmuCore/Debugger/CallStack.h/.cpp`: `CallStackRecorder` driven from `RunStopHook`'s per-instruction path (push on `JSR`, `BRK` and interrupt dispatch; pop on `RTS` and `RTI`; the break signals of R-035; the stack-level rule shared with R-033), `StackWalker`, and `CallStack::Build` for the three mechanisms; the session holds the chosen mechanism. Makes T170 pass.
+- [ ] T172 [P] [US13] `CALLS` and `CALLS MODE RECORDED|WALK|HYBRID` in `AppleWinParser`, `CassoEmuCore/Debugger/Handlers/CallStackHandlers.h/.cpp`, the formatters (a frame line per frame and a `--` line per break) and a `callStack` reply kind in `ReplyJson`. Tests in `AppleWinParserTests.cpp`, `CallStackHandlersTests.cpp`, the formatter tests and `ReplyJsonTests.cpp`; the reply recorded in `contracts/debug-channel-protocol.md`.
+- [ ] T173 [US13] Implement `CassoEmuCore/Ui/Debugger/Panes/CallStackPane.h/.cpp`: frames from the snapshot with a provenance column, break rows as separators, a mechanism selector, and double-click moving the disassembly to the call site; `DebugViewSnapshot` carries the `CallStack`. Tests in `DebuggerViewStateTests.cpp`.
+- [ ] T174 [US13] Validate quickstart Story 13 steps 1-6 by hand and record the results in the commit.
+
+**Checkpoint**: The call chain is shown with its provenance, and every way the program can defeat it is reported rather than hidden.
+
+---
+
+## Phase 19: User Story 15 - Skip routines when stepping (Priority: P3)
+
+**Goal**: FR-070; SC-020
+
+**Independent Test**: With `COUT` in the filter, a step into `JSR COUT` stops at the instruction after the `JSR`; with the filter cleared it stops at $FDED (quickstart Story 15).
+
+- [ ] T175 [P] [US15] Write `UnitTest/DebuggerTests/StepFilterTests.cpp` (data-model `StepFilter`): entries by name, address and range; a step into a `JSR` whose target is filtered completes by the step-over rule (R-033), in instruction granularity and in source granularity on the T119 fixture; a filtered routine that never returns leaves the run going; `SKIP name|addr|first.last`, `SKIP`, `SKIP - name` and `SKIP CLEAR` from `AppleWinParser`, and the same through `/skip` in Monitor mode; a name resolves through the symbol tables when set and is an error when it does not.
+- [ ] T176 [US15] Implement `CassoEmuCore/Debugger/StepFilter.h/.cpp`, the check in `RunStopHook::Begin` (a step into whose `JSR` target is filtered becomes a step over), `SKIP` in `AppleWinParser` and `CallStackHandlers`, and the reply in the formatters. Makes T175 pass.
+- [ ] T177 [US15] Validate quickstart Story 15 steps 1-5 by hand and record the results in the commit.
+
+**Checkpoint**: Stepping never lands inside a filtered routine, in any mode or granularity.
+
+---
+
+## Phase 20: User Story 14 - Use WinDbg's syntax (Priority: P3)
+
+**Goal**: FR-011, FR-013, FR-022c, FR-022d; SC-019
+
+**Independent Test**: In batch with WinDbg mode, run each command in `contracts/windbg-mode.md` against a fixture machine and compare the engine effect with the AppleWin command in the same row; each excluded command replies with its family (quickstart Story 14).
+
+- [ ] T178 [P] [US14] Write `UnitTest/DebuggerTests/WinDbgParserTests.cpp` for every row of the contract's command table: `0x300`, `300` and `$300`; `l<count>` lengths; `ba r1|w1|e1`; `bc *`, `bd`, `be`; `r a=41`; `file:line` with and without backquotes; `!name` reaching the engine table (T168); every excluded family in the contract producing `NotAvailable` naming the family, never `unknown`; `wt` deferred with its reason; a malformed line produces an error and no command.
+- [ ] T179 [US14] Implement `CassoCore/Debugger/WinDbgParser.h/.cpp` producing `DebugCommand`, `CommandMode::WinDbg`, `MODE WINDBG` and each mode's form of it, and the routing in `DebugSession`. Makes T178 pass.
+- [ ] T180 [P] [US14] Write `UnitTest/DebuggerTests/WinDbgFormatterTests.cpp` for the contract's layouts (`r`, `db`, `dw`, `dd`, `da`, `bl`, `u`, `k`, `.formats`, `?`, the stop line) and implement `CassoEmuCore/Debugger/WinDbgFormatter.h/.cpp` and `OutputFormat::WinDbg` (T158); a reply kind with no WinDbg form keeps the AppleWin text.
+- [ ] T181 [US14] Write `UnitTest/DebuggerTests/WinDbgCommandSweepTests.cpp` (SC-019): every command in the contract's table has the same engine effect as its AppleWin equivalent; every `DebugVerb` reachable from WinDbg mode is in the table; every excluded example in the contract replies with its family.
+- [ ] T182 [US14] `k` over `CallStack` (T171), `l+s`, `l-s` and `lsa` over `SRC`, `.formats`, and `--mode windbg` for batch in `contracts/cli-debug.md` and `DebugOptions`; a WinDbg-mode script and goldens for quickstart Story 14 steps 1-5 under `UnitTest/Fixtures/Debugger/Scripts/` with cases in `DebugModeTests.cpp`. Record the mode in `docs/Debugger.md`.
+
+**Checkpoint**: All fifteen stories are functional and the full suite is green.
+
+---
+
+## Phase 21: Release
 
 **Purpose**: The material the release needs and the gates before merging to master (FR-065, SC-008, SC-009).
 
-- [ ] T163 [P] Extend `docs/Debugger.md` (T083) with every story: the window and its panes, memory editing, source-level debugging and the debug file, docking, the trace, device panels, conditional and value breakpoints, profiling, GSSquared mode and the output format.
+- [ ] T163 [P] Extend `docs/Debugger.md` (T083) with every story: the window and its panes, memory editing, source-level debugging and the debug file, docking, the trace, device panels, conditional and value breakpoints, profiling, GSSquared mode and the output format, the call stack and its mechanisms, the step filter, WinDbg mode, and the engine-command marker per mode.
 - [ ] T164 [P] FR-065: assemble `Apple2/Demos/Mockingboard/Speech/mockingboard-speech-demo-dhgr.a65` with `-g`, boot `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk` in a Casso started in the background with a `--title` that is not a spec name, load the debug file, stop on a write to the speech chip's data register with the source pane, the Mockingboard panel, the trace and a memory window open, capture the window, and add it to `README.md` under the Debugger section beside the existing images.
 - [ ] T165 Measure SC-008 and SC-009 with the pinned procedure against the baseline commit before `9f12ea90`, 10 or more runs per arm; record in the merge commit. If either exceeds its bound, find the cost before merging.
-- [ ] T166 Bring `CHANGELOG.md` and `README.md` to the net effect of the whole branch (T084): one `GH #51` entry, headlines only, shown for approval before pushing.
+- [ ] T166 Bring `CHANGELOG.md` and `README.md` to the net effect of the whole branch (T084): one `GH #51` entry from the owner's 2026-09-18 wording (a full debugger; interactive and scripted; the standard features; source-level debugging; selectable dialects, GSSquared and WinDbg listed only if their phases shipped; key schemes), headlines only, the README test count brought current, shown for approval before pushing.
 - [ ] T167 Confirm 033-cassque has merged to master and merge master once more; then run the pre-merge gate (T085's list) on the final head, plus `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`, and every quickstart section end to end (T086); record the results in the merge commit. The merge to master is the owner's call.
 
 ---
@@ -693,8 +741,11 @@ breakpoints, two watches and the stack are visible without scrolling
 - **US9 (Phase 14)**: depends on US4's snapshot (T098). T143 needs T142; T144 and T145 need T143; T146 needs T144.
 - **US10 (Phase 15)**: depends on the delivered engine only. T149 needs T148; T150 needs T149.
 - **US11 (Phase 16)**: depends on the delivered engine only. T153 needs T151 and T152; T154 needs T153.
-- **US12 (Phase 17)**: depends on the delivered engine; T161 needs US4 (T101) and US9 (T146). T157 needs T156; T159 needs T155; T160 needs T157 and T158; T161 needs T157.
-- **Release (Phase 18)**: depends on every story. T164 needs US6, US8 and US9.
+- **US12 (Phase 17)**: depends on the delivered engine; T161 needs US4 (T101) and US9 (T146). T157 needs T156; T159 needs T155; T160 needs T157 and T158; T161 needs T157; T168 needs T157.
+- **US13 (Phase 18)**: depends on US4's snapshot (T098) and shares the hook with US8 (T138), which it follows. T170 needs T169; T171 needs T170; T172 and T173 need T171.
+- **US15 (Phase 19)**: depends on the delivered engine and the source steps (T125). T176 needs T175.
+- **US14 (Phase 20)**: depends on US12 (T157, T158, T168) and US13 (T171). T179 needs T178; T180 needs T158; T181 needs T179 and T180; T182 needs T171 and T179.
+- **Release (Phase 21)**: depends on every story. T164 needs US6, US8 and US9.
 
 ### Within each story
 
@@ -713,7 +764,13 @@ T112 Sha1   T113 DebugFileReaderTests   T115 LineTable   T117 DebugFileWriterTes
 T129 DxuiPaneLayoutTests   T130 DxuiDockDropZonesTests   T131 DxuiTabGroupTests   T132 DetachChild
 
 # Stories with no dependency on each other, after US4:
-US5 memory editing   US8 trace   US9 device panels   US10 conditions   US11 profiling
+US5 memory editing   US8 trace   US9 device panels   US10 conditions   US11 profiling   US15 step filter
+
+# US13, after T138:
+T169 callstack.a65 fixture   T170 CallStackTests
+
+# US14, after T157 and T171:
+T178 WinDbgParserTests   T180 WinDbgFormatterTests
 ```
 
 ## Implementation Strategy
@@ -728,7 +785,9 @@ Phases 1-8: the engine, AppleWin and Monitor modes, batch mode, the channel, and
 2. **US5** memory editing and **US6** source-level debugging: the two P1 stories that put Casso ahead.
 3. **US8** trace and **US9** device panels: the visible parity items.
 4. **US7** docking.
-5. **US10**, **US11**, **US12**: engine additions with small surfaces, in any order.
-6. **Release**: screenshot, docs, changelog, the measured gates, and the merge to master.
+5. **US13** the call stack, on the trace's hook, and **US15** the step filter.
+6. **US10**, **US11**, **US12**: engine additions with small surfaces, in any order.
+7. **US14** WinDbg mode, last of the dialects, since its `k` needs US13.
+8. **Release**: screenshot, docs, changelog, the measured gates, and the merge to master.
 
 Each story lands as its own merge to the branch behind the full suite. Nothing merges to master until the release phase, by the owner's decision (R-020), and not before 033-cassque has, since 035 carries its Dxui.
