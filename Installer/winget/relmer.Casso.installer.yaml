@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+
+# TEMPLATE. scripts/NewWingetManifest.ps1 fills the braced placeholders from a
+# published release and writes the result somewhere else; this file is not a
+# manifest until it does. See Installer/winget/README.md.
+
+PackageIdentifier: relmer.Casso
+PackageVersion: {VERSION}
+InstallerType: msix
+PackageFamilyName: {PACKAGE_FAMILY_NAME}
+MinimumOSVersion: 10.0.17763.0
+ReleaseDate: {RELEASE_DATE}
+
+# ONE FILE, TWO ENTRIES. The installer is a single .msixbundle holding an x64
+# package and an ARM64 one, so every field below except Architecture is the
+# same on both lines: same URL, same hash of that URL's bytes, same signature.
+# winget matches on Architecture to decide whether a machine is served, and
+# Windows then installs the right package out of the bundle. A single neutral
+# entry would offer the download to architectures it does not contain.
+Installers:
+- Architecture: x64
+  InstallerUrl: {INSTALLER_URL}
+  InstallerSha256: {INSTALLER_SHA256}
+  SignatureSha256: {SIGNATURE_SHA256}
+- Architecture: arm64
+  InstallerUrl: {INSTALLER_URL}
+  InstallerSha256: {INSTALLER_SHA256}
+  SignatureSha256: {SIGNATURE_SHA256}
+
+ManifestType: installer
+ManifestVersion: 1.12.0
