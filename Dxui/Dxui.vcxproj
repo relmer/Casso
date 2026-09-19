@@ -206,6 +206,7 @@
     <ClCompile Include="Widgets\DxuiSplitter.cpp" />
     <ClCompile Include="Widgets\DxuiTabGroup.cpp" />
     <ClCompile Include="Widgets\DxuiDockSite.cpp" />
+    <ClCompile Include="Window\DxuiDockedWindow.cpp" />
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
     <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
@@ -307,6 +308,7 @@
     <ClInclude Include="Widgets\DxuiSplitter.h" />
     <ClInclude Include="Widgets\DxuiTabGroup.h" />
     <ClInclude Include="Widgets\DxuiDockSite.h" />
+    <ClInclude Include="Window\DxuiDockedWindow.h" />
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
     <ClInclude Include="Widgets\DxuiFramebufferView.h" />
     <ClInclude Include="Widgets\DxuiHexView.h" />

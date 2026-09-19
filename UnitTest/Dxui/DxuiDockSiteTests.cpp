@@ -236,6 +236,74 @@ namespace DxuiDockSiteTests
         }
 
 
+        TEST_METHOD (AnAutoHiddenPaneIsAnEdgeTabThatSlidesOut)
+        {
+            Rig   rig;
+            RECT  tab   = {};
+            RECT  slid  = {};
+
+
+
+            Assert::IsTrue (rig.site.GetDockToMenu (L"console").size() > 0);
+            Assert::IsTrue (rig.site.EditPaneLayout().AutoHide (L"console", DxuiDockSide::Bottom));
+            rig.site.Relayout();
+
+            tab = rig.site.GetEdgeTabRect (L"console");
+            Assert::IsFalse  (rig.console.IsVisible(), L"hidden until slid out");
+            Assert::AreEqual ((long) 600, tab.bottom, L"a tab on the bottom edge");
+            Assert::IsTrue   (rig.code.GetBounds().bottom <= tab.top, L"the docked panes give the strip room");
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (tab)));
+            slid = rig.site.GetSlidRect();
+
+            Assert::AreEqual (std::wstring (L"console"), rig.site.GetSlidPane());
+            Assert::IsTrue   (rig.console.IsVisible());
+            Assert::AreEqual (slid.bottom, rig.console.GetBounds().bottom);
+            Assert::AreEqual (std::wstring (L"console"), rig.site.GetPaneAt (Center (slid)));
+
+            //  A press elsewhere slides it back.
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, POINT { 900, 40 }));
+            Assert::IsTrue  (rig.site.GetSlidPane().empty());
+            Assert::IsFalse (rig.console.IsVisible());
+        }
+
+
+        TEST_METHOD (TheDockToMenuOffersAutoHideAgainstTheNearestEdge)
+        {
+            Rig                                   rig;
+            std::vector<DxuiDockSite::MenuItem>   items = rig.site.GetDockToMenu (L"regs");
+            bool                                  done  = false;
+
+
+
+            for (const DxuiDockSite::MenuItem & item : items)
+            {
+                if (item.label == L"Auto Hide")
+                {
+                    done = item.action();
+                }
+            }
+
+            Assert::IsTrue (done);
+            Assert::IsTrue (rig.site.GetPaneLayout().IsAutoHidden (L"regs"));
+            Assert::IsTrue (rig.site.GetEdgeTabRect (L"regs").left >= 900, L"the right edge");
+        }
+
+
+        TEST_METHOD (AFloatingPaneIsLeftToItsWindow)
+        {
+            Rig  rig;
+
+
+
+            Assert::IsTrue (rig.site.EditPaneLayout().Float (L"console", L"m", RECT { 0, 0, 300, 200 }));
+            rig.console.SetVisible (true);
+            rig.site.Relayout();
+
+            Assert::IsTrue (rig.console.IsVisible(), L"the floating window shows it, not the site");
+        }
+
+
         TEST_METHOD (AHiddenPaneIsHiddenAndKeepsItsPlace)
         {
             Rig  rig;

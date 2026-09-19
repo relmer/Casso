@@ -114,8 +114,9 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
 
     BAIL_OUT_IF (IsCreated(), S_OK);
 
-    m_theme = theme;
-    m_host  = host;
+    m_theme     = theme;
+    m_host      = host;
+    m_hInstance = hInstance;
 
     params.title                    = s_kpszWindowTitle;
     params.hInstance                = hInstance;
@@ -517,7 +518,7 @@ MemoryPane * DebuggerWindow::GetActiveMemoryPane() const
 
 MemoryPane * DebuggerWindow::GetFocusedMemoryPane() const
 {
-    IDxuiControl  * focused = m_focusMgr.GetFocusedControl();
+    IDxuiControl  * focused = GetFocused();
 
 
 
@@ -724,7 +725,7 @@ bool DebuggerWindow::RouteSourceMouse (const DxuiMouseEvent & ev)
 
 
     //  A source pane behind another tab takes no input.
-    if (!m_sourceShown || !m_sourceView->IsVisible())
+    if (!m_sourceShown || !m_sourceView->IsVisible() || !IsRoutable (m_sourceView))
     {
         return false;
     }
@@ -775,7 +776,7 @@ bool DebuggerWindow::RouteSourceMouse (const DxuiMouseEvent & ev)
             m_sourcePane->OnClick (at);
         }
 
-        m_focusMgr.SetFocused (m_sourceView);
+        SetFocusedControl (m_sourceView);
         NoteViewFocus (true);
     }
 
@@ -868,6 +869,11 @@ bool DebuggerWindow::RouteMemoryMouse (const DxuiMouseEvent & ev)
         RECT           bounds = view->GetBounds();
         bool           inside = view->IsVisible() && at.x >= bounds.left && at.x < bounds.right && at.y >= bounds.top && at.y < bounds.bottom;
 
+        if (!IsRoutable (view))
+        {
+            continue;
+        }
+
         if (view->IsDragging() && ev.kind != DxuiMouseEventKind::Down)
         {
             (void) view->OnMouse (ev);
@@ -880,7 +886,7 @@ bool DebuggerWindow::RouteMemoryMouse (const DxuiMouseEvent & ev)
 
             if (ev.kind == DxuiMouseEventKind::Down)
             {
-                m_focusMgr.SetFocused (view);
+                SetFocusedControl (view);
                 m_activePane = pane;
             }
 
@@ -908,7 +914,7 @@ bool DebuggerWindow::RouteMemoryMouse (const DxuiMouseEvent & ev)
 
 DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 {
-    IDxuiControl  * focused = m_focusMgr.GetFocusedControl();
+    IDxuiControl  * focused = GetFocused();
 
 
 
@@ -985,6 +991,11 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
 
     m_keyScheme = scheme;
     SetKeyMap (&map);
+
+    for (const auto & entry : m_floats)
+    {
+        entry.second->SetKeyMap (&map);
+    }
 
     if (m_keysButton != nullptr)
     {
@@ -1132,6 +1143,11 @@ void DebuggerWindow::OnWindowClose()
 {
     Hide();
 
+    for (const auto & entry : m_floats)
+    {
+        entry.second->Hide();
+    }
+
     if (m_host != nullptr)
     {
         m_host->OnDebuggerWindowClosed();
@@ -1230,7 +1246,8 @@ void DebuggerWindow::LayoutWidgets()
 void DebuggerWindow::ConfigureDockSite()
 {
     auto          boxHeight = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
-    std::wstring  savedText;
+    std::wstring    savedText;
+    DxuiPaneLayout  restored;
 
 
 
@@ -1260,16 +1277,19 @@ void DebuggerWindow::ConfigureDockSite()
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
     savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
-    m_dockSite->SetPaneLayout (DebuggerLayout::Restore (savedText));
+    restored = DebuggerLayout::Restore (savedText);
+    restored.PlaceOnMonitors (GetMonitors());
+    m_dockSite->SetPaneLayout (restored);
+    m_syncFloats = true;
+
+    m_dockSite->SetOnFloatRequested ([this] (const std::wstring & pane, POINT clientPx) { RequestFloat (pane, clientPx); });
 
     //  Every change the user makes is saved as it happens, so a crash or a
     //  closed emulator loses nothing.
     m_dockSite->SetOnChanged ([this]
     {
-        if (m_host != nullptr)
-        {
-            m_host->SetDebuggerLayout (SourcePathList::WideToUtf8 (m_dockSite->GetPaneLayout().ToText()));
-        }
+        m_syncFloats = true;
+        SaveLayout();
     });
 }
 
@@ -1318,9 +1338,14 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 
 std::wstring DebuggerWindow::GetPaneOfFocus() const
 {
-    IDxuiControl  * focused = m_focusMgr.GetFocusedControl();
+    IDxuiControl  * focused = GetFocused();
 
 
+
+    if (!m_routingPane.empty())
+    {
+        return m_routingPane;
+    }
 
     if (focused == nullptr)
     {
@@ -1379,8 +1404,8 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         AppendMenuW (menu, MF_STRING, (UINT_PTR) (i + 1), items[i].label.c_str());
     }
 
-    ClientToScreen (GetHwnd(), &screen);
-    chosen = (int) TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, screen.x, screen.y, 0, GetHwnd(), nullptr);
+    ClientToScreen (GetRoutingHwnd(), &screen);
+    chosen = (int) TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, screen.x, screen.y, 0, GetRoutingHwnd(), nullptr);
     DestroyMenu (menu);
 
     if (chosen >= 1 && chosen <= (int) items.size())
@@ -1434,6 +1459,14 @@ void DebuggerWindow::RenderFrame()
     {
         pane->FollowScroll();
         (void) pane->GetView()->TickScrollbars (now);
+    }
+
+    SyncFloats();
+
+    for (const auto & entry : m_floats)
+    {
+        entry.second->PollCaptionDrag();
+        entry.second->Invalidate();
     }
 
     Invalidate();
@@ -1565,6 +1598,12 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
     m_consoleList->SetRows (std::move (rows));
     m_consoleList->UpdateAutoFitFromRows();
     m_consoleList->EnsureVisible ((int) m_console.size() - 1);
+
+    //  Output to a console out of sight marks its tab (FR-041).
+    if (m_dockSite != nullptr && !m_consoleList->IsVisible())
+    {
+        m_dockSite->SetIndicator (DebuggerLayout::kConsole, true);
+    }
 }
 
 
@@ -1712,9 +1751,9 @@ bool DebuggerWindow::ForwardToList (DxuiListView * list, const DxuiMouseEvent & 
 
 void DebuggerWindow::OfferPress (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled)
 {
-    if (!handled && control != nullptr && control->OnMouse (ev))
+    if (!handled && control != nullptr && IsRoutable (control) && control->OnMouse (ev))
     {
-        m_focusMgr.SetFocused (control);
+        SetFocusedControl (control);
         handled = true;
     }
 }
@@ -1741,14 +1780,21 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  The site first: its strips, its sashes and a drag in progress lie over
     //  the panes.
-    if (m_dockSite->OnMouse (ev))
+    if (m_routingPane.empty() && m_dockSite->OnMouse (ev))
     {
         return true;
     }
 
+    //  A pane slid out from an edge lies over others, so its area is its own.
+    if (m_routingPane.empty() && !m_dockSite->GetSlidPane().empty() && ev.kind != DxuiMouseEventKind::Move &&
+        DxuiDockSite::Contains (m_dockSite->GetSlidRect(), ev.positionDip))
+    {
+        return RouteFloatMouse (m_dockSite->GetSlidPane(), ev);
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
     {
-        pane = m_dockSite->GetPaneAt (ev.positionDip);
+        pane = m_routingPane.empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_routingPane;
 
         if (!pane.empty())
         {
@@ -1765,7 +1811,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     for (DxuiListView * list : GetLists())
     {
-        if (list->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
+        if (IsRoutable (list) && list->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
         {
             ForwardToList (list, ev);
             return true;
@@ -1775,19 +1821,26 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        for (DxuiButton * button : GetToolbarButtons())
+        //  The toolbar and the memory bar never leave this window.
+        if (m_routingPane.empty())
         {
-            button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
-        }
+            for (DxuiButton * button : GetToolbarButtons())
+            {
+                button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
+            }
 
-        for (DxuiButton * button : GetMemoryButtons())
-        {
-            button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
+            for (DxuiButton * button : GetMemoryButtons())
+            {
+                button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
+            }
         }
 
         for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
         {
-            box->SetMouseHover (x, y);
+            if (IsRoutable (box))
+            {
+                box->SetMouseHover (x, y);
+            }
         }
 
         return true;
@@ -1807,10 +1860,10 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         {
             RECT  bounds = list->GetBounds();
 
-            if (!handled && list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
+            if (!handled && IsRoutable (list) && list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
             {
                 handled = ForwardToList (list, ev);
-                m_focusMgr.SetFocused (list);
+                SetFocusedControl (list);
                 handled = true;
 
                 if (list == m_codeList)
@@ -1825,12 +1878,18 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Up:
         for (IDxuiControl * control : GetPressTargets())
         {
-            control->OnMouse (ev);
+            if (IsRoutable (control))
+            {
+                control->OnMouse (ev);
+            }
         }
 
         for (DxuiListView * list : GetLists())
         {
-            ForwardToList (list, ev);
+            if (IsRoutable (list))
+            {
+                ForwardToList (list, ev);
+            }
         }
 
         return true;
@@ -1840,7 +1899,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         {
             RECT  bounds = list->GetBounds();
 
-            if (list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
+            if (IsRoutable (list) && list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
             {
                 ForwardToList (list, ev);
             }
@@ -1850,6 +1909,685 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     default:
         return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneControls
+//
+//  The window's children that make up a pane, which move together when it
+//  floats.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring & pane) const
+{
+    if (pane == DebuggerLayout::kCode)        { return { m_codeList };                   }
+    if (pane == DebuggerLayout::kSource)      { return { m_sourceBanner, m_sourceView }; }
+    if (pane == DebuggerLayout::kConsole)     { return { m_consoleList, m_commandBox };  }
+    if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
+    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
+    if (pane == DebuggerLayout::kWatches)     { return { m_watchList };                  }
+    if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
+
+    for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
+    {
+        if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
+        {
+            return { memory->GetView() };
+        }
+    }
+
+    return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneContent
+//
+//  The one control a dock site places for a pane: its frame, or the pane's
+//  only control.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
+{
+    std::vector<IDxuiControl *>  controls;
+
+
+
+    if (pane == DebuggerLayout::kSource)
+    {
+        return m_sourceFrame.get();
+    }
+
+    if (pane == DebuggerLayout::kConsole)
+    {
+        return m_consoleFrame.get();
+    }
+
+    controls = GetPaneControls (pane);
+    return controls.empty() ? nullptr : controls.front();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
+{
+    if (pane == DebuggerLayout::kCode)        { return L"Disassembly"; }
+    if (pane == DebuggerLayout::kSource)      { return L"Source";      }
+    if (pane == DebuggerLayout::kConsole)     { return L"Console";     }
+    if (pane == DebuggerLayout::kRegisters)   { return L"Registers";   }
+    if (pane == DebuggerLayout::kBreakpoints) { return L"Breakpoints"; }
+    if (pane == DebuggerLayout::kWatches)     { return L"Watches";     }
+    if (pane == DebuggerLayout::kStack)       { return L"Stack";       }
+
+    return pane.starts_with (L"memory") ? L"Memory " + pane.substr (6) : pane;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneOfControl
+//
+//  Empty for a control that belongs to no pane: the toolbar and the memory
+//  bar, which never leave this window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetPaneOfControl (const IDxuiControl * control) const
+{
+    for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
+    {
+        for (const IDxuiControl * part : GetPaneControls (pane))
+        {
+            if (part == control)
+            {
+                return pane;
+            }
+        }
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsRoutable
+//
+//  Whether an event now being routed may reach a control: an event from this
+//  window reaches the controls still here, one from a floating window only
+//  the controls of its pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsRoutable (const IDxuiControl * control) const
+{
+    std::wstring  pane = GetPaneOfControl (control);
+
+
+
+    if (m_routingPane.empty())
+    {
+        return pane.empty() || !m_floats.contains (pane);
+    }
+
+    return pane == m_routingPane;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFocused
+//
+//  A floating window keeps its own focus: the control last pressed in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DebuggerWindow::GetFocused() const
+{
+    auto  found = m_floatFocus.find (m_routingPane);
+
+
+
+    if (m_routingPane.empty() || !m_floats.contains (m_routingPane))
+    {
+        return m_focusMgr.GetFocusedControl();
+    }
+
+    return (found != m_floatFocus.end()) ? found->second : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetFocusedControl
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetFocusedControl (IDxuiControl * control)
+{
+    IDxuiControl  * old = GetFocused();
+
+
+
+    if (m_routingPane.empty() || !m_floats.contains (m_routingPane))
+    {
+        m_focusMgr.SetFocused (control);
+        return;
+    }
+
+    if (old == control)
+    {
+        return;
+    }
+
+    if (old != nullptr)
+    {
+        old->OnFocusChanged (false);
+    }
+
+    m_floatFocus[m_routingPane] = control;
+
+    if (control != nullptr)
+    {
+        control->OnFocusChanged (true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetRoutingHwnd
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND DebuggerWindow::GetRoutingHwnd() const
+{
+    auto  found = m_floats.find (m_routingPane);
+
+
+
+    return (found != m_floats.end()) ? found->second->GetHwnd() : GetHwnd();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMonitorKey
+//
+//  A monitor by its device name, which stays the same while it is attached
+//  where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetMonitorKey (const RECT & rectPx)
+{
+    HMONITOR        monitor = MonitorFromRect (&rectPx, MONITOR_DEFAULTTONEAREST);
+    MONITORINFOEXW  info    = {};
+
+
+
+    info.cbSize = sizeof (info);
+
+    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    {
+        return L"";
+    }
+
+    return info.szDevice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMonitors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPaneLayout::Monitor> DebuggerWindow::GetMonitors()
+{
+    std::vector<DxuiPaneLayout::Monitor>  monitors;
+
+
+
+    EnumDisplayMonitors (nullptr, nullptr,
+        [] (HMONITOR monitor, HDC, LPRECT, LPARAM data) -> BOOL
+        {
+            MONITORINFOEXW            info = {};
+            DxuiPaneLayout::Monitor   entry;
+
+            info.cbSize = sizeof (info);
+
+            if (GetMonitorInfoW (monitor, &info))
+            {
+                entry.key       = info.szDevice;
+                entry.workDip   = info.rcWork;
+                entry.isPrimary = (info.dwFlags & MONITORINFOF_PRIMARY) != 0;
+                reinterpret_cast<std::vector<DxuiPaneLayout::Monitor> *> (data)->push_back (entry);
+            }
+
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM> (&monitors));
+
+    return monitors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RequestFloat
+//
+//  A pane dropped outside the dock site, or floated from its menu, floats in
+//  a window of the size it had, under the cursor. A floating pane dragged
+//  somewhere with no zone stays where it was put.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RequestFloat (const std::wstring & pane, POINT clientPx)
+{
+    auto            found   = m_floats.find (pane);
+    IDxuiControl  * content = GetPaneContent (pane);
+    RECT            bounds  = (content != nullptr) ? content->GetBounds() : RECT {};
+    int             width   = std::max ((int) (bounds.right - bounds.left), m_scaler.ToPx (320));
+    int             height  = std::max ((int) (bounds.bottom - bounds.top), m_scaler.ToPx (220)) + m_scaler.ToPx (60);
+    POINT           screen  = clientPx;
+    RECT            rect    = {};
+
+
+
+    if (found != m_floats.end())
+    {
+        rect = found->second->GetScreenRect();
+    }
+    else
+    {
+        ClientToScreen (GetHwnd(), &screen);
+        rect = RECT { screen.x - width / 2, screen.y - m_scaler.ToPx (16), screen.x + width / 2, screen.y - m_scaler.ToPx (16) + height };
+    }
+
+    if (m_dockSite->EditPaneLayout().Float (pane, GetMonitorKey (rect), rect))
+    {
+        m_dockSite->Relayout();
+        m_syncFloats = true;
+        SaveLayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SyncFloats
+//
+//  Makes the floating windows match the layout: a window for each floating
+//  pane and none for the rest, each shown while this window is and its pane
+//  is. Run from the frame, never from inside a floating window's own
+//  message, which may be the window about to go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SyncFloats()
+{
+    const DxuiPaneLayout &  layout  = m_dockSite->GetPaneLayout();
+    bool                    visible = IsWindowVisible (GetHwnd()) != FALSE;
+    IDxuiControl          * focused = nullptr;
+
+
+
+    if (m_syncFloats)
+    {
+        m_syncFloats = false;
+
+        for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
+        {
+            if (layout.IsFloating (pane) && !m_floats.contains (pane))
+            {
+                FloatControls (pane);
+            }
+            else if (!layout.IsFloating (pane) && m_floats.contains (pane))
+            {
+                DockControls (pane);
+            }
+        }
+
+        m_dockSite->Relayout();
+        m_focusMgr.Rebuild();
+
+        focused = m_focusMgr.GetFocusedControl();
+
+        if (focused == nullptr || !IsRoutable (focused))
+        {
+            m_focusMgr.SetFocused (IsRoutable (m_commandBox) ? (IDxuiControl *) m_commandBox : m_codeList);
+        }
+    }
+
+    for (const auto & entry : m_floats)
+    {
+        bool  shown = visible && IsPaneShown (entry.first);
+
+        if ((IsWindowVisible (entry.second->GetHwnd()) != FALSE) != shown)
+        {
+            if (shown)
+            {
+                entry.second->Show (false);
+            }
+            else
+            {
+                entry.second->Hide();
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FloatControls
+//
+//  A window for one floating pane, at the place the layout keeps for it,
+//  with the pane's controls moved into it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FloatControls (const std::wstring & pane)
+{
+    std::unique_ptr<DxuiDockedWindow>  window = std::make_unique<DxuiDockedWindow>();
+    DxuiWindow::CreateParams           params;
+    RECT                               rect   = {};
+    HRESULT                            hr     = S_OK;
+
+
+
+    for (const DxuiPaneLayout::Floating & floating : m_dockSite->GetPaneLayout().GetFloating())
+    {
+        rect = (floating.pane == pane) ? floating.rectDip : rect;
+    }
+
+    params.title            = GetPaneTitle (pane);
+    params.hInstance        = m_hInstance;
+    params.ownerHwnd        = GetHwnd();
+    params.initialSizeDip   = { std::max (160L, rect.right - rect.left), std::max (120L, rect.bottom - rect.top) };
+    params.minSizeDip       = { 160, 120 };
+    params.resizable        = true;
+    params.captionStyle     = DxuiCaptionStyle::CloseOnly;
+    params.createNoActivate = true;
+
+    hr = window->Create (params);
+
+    if (FAILED (hr))
+    {
+        //  With no window to float in, the pane goes back where it was.
+        (void) m_dockSite->EditPaneLayout().DockBack (pane);
+        return;
+    }
+
+    window->SetTheme  (m_theme);
+    window->SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
+
+    for (IDxuiControl * control : GetPaneControls (pane))
+    {
+        std::unique_ptr<IDxuiControl>  owned = DetachChild (control);
+
+        if (owned != nullptr)
+        {
+            (void) window->AttachChild (std::move (owned));
+        }
+    }
+
+    window->GetSite().AddPane       (pane, GetPaneTitle (pane), GetPaneContent (pane));
+    window->GetSite().SetPaneLayout (DxuiPaneLayout::MakeSingle (pane));
+
+    window->SetOnContentMouse   ([this, pane] (const DxuiMouseEvent & ev) { return RouteFloatMouse (pane, ev); });
+    window->SetOnContentKey     ([this, pane] (const DxuiKeyEvent & ev)   { return RouteFloatKey   (pane, ev); });
+    window->SetOnMappedCommand  ([this]       (int commandId)             { return OnMappedCommand (commandId); });
+    window->SetOnCaptionDrag    ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, false); });
+    window->SetOnCaptionDragEnd ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, true);  });
+
+    //  Closing a floating pane docks it where it came from; the debugger has
+    //  no way yet to reopen a pane that was closed.
+    window->SetOnClosed ([this, pane]
+    {
+        if (m_dockSite->EditPaneLayout().DockBack (pane))
+        {
+            m_syncFloats = true;
+            SaveLayout();
+        }
+    });
+
+    if (rect.right > rect.left && rect.bottom > rect.top)
+    {
+        window->SetScreenRect (rect);
+    }
+
+    m_floats[pane] = std::move (window);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DockControls
+//
+//  The pane's controls come back to this window and its floating window
+//  goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::DockControls (const std::wstring & pane)
+{
+    std::unique_ptr<DxuiDockedWindow>  window = std::move (m_floats[pane]);
+
+
+
+    m_floats.erase     (pane);
+    m_floatFocus.erase (pane);
+
+    for (IDxuiControl * control : GetPaneControls (pane))
+    {
+        std::unique_ptr<IDxuiControl>  owned = window->DetachChild (control);
+
+        if (owned != nullptr)
+        {
+            (void) AttachChild (std::move (owned));
+        }
+    }
+
+    window.reset();
+
+    //  The site's strips and drop zones paint over the panes, so it stays
+    //  the last child.
+    {
+        std::unique_ptr<IDxuiControl>  site = DetachChild (m_dockSite);
+
+        (void) AttachChild (std::move (site));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveLayout
+//
+//  Each floating window's place is read back first, since moving or sizing
+//  one is not a layout operation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveLayout()
+{
+    DxuiPaneLayout &  layout = m_dockSite->EditPaneLayout();
+
+
+
+    for (const auto & entry : m_floats)
+    {
+        RECT  rect = entry.second->GetScreenRect();
+
+        //  A window whose pane just docked is still here until the next frame;
+        //  floating it again would undo the dock.
+        if (layout.IsFloating (entry.first))
+        {
+            (void) layout.Float (entry.first, GetMonitorKey (rect), rect);
+        }
+    }
+
+    if (m_host != nullptr)
+    {
+        m_host->SetDebuggerLayout (SourcePathList::WideToUtf8 (layout.ToText()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteFloatMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteFloatMouse (const std::wstring & pane, const DxuiMouseEvent & ev)
+{
+    bool  handled = false;
+
+
+
+    m_routingPane = pane;
+    handled       = OnMouse (ev);
+    m_routingPane.clear();
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteFloatKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteFloatKey (const std::wstring & pane, const DxuiKeyEvent & ev)
+{
+    bool  handled = false;
+
+
+
+    m_routingPane = pane;
+    handled       = OnKey (ev);
+    m_routingPane.clear();
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnFloatDrag
+//
+//  A floating window moved by its title bar shows this window's drop zones
+//  under the cursor, and docks the pane on the one it is released over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, bool ended)
+{
+    POINT           client = screenPx;
+    RECT            area   = m_dockSite->GetBounds();
+    bool            inside = false;
+    DxuiMouseEvent  ev;
+
+
+
+    ScreenToClient (GetHwnd(), &client);
+    inside = client.x >= area.left && client.x < area.right && client.y >= area.top && client.y < area.bottom;
+
+    if (!ended)
+    {
+        if (!m_dockSite->IsDragging())
+        {
+            m_dockSite->BeginDrag (pane);
+        }
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = client;
+        (void) m_dockSite->OnMouse (ev);
+        Invalidate();
+        return;
+    }
+
+    if (!m_dockSite->IsDragging())
+    {
+        return;
+    }
+
+    //  Released outside the site, the pane stays floating where it was put;
+    //  released over a zone it docks there, which the site reports.
+    (void) m_dockSite->EndDrag (inside ? client : POINT { area.right + 1, area.bottom + 1 });
+
+    if (!inside)
+    {
+        SaveLayout();
     }
 }
 
@@ -1920,7 +2658,7 @@ bool DebuggerWindow::RouteDockKey (const DxuiKeyEvent & ev)
 
 bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
 {
-    IDxuiControl  * focused = m_focusMgr.GetFocusedControl();
+    IDxuiControl  * focused = GetFocused();
     bool            handled = false;
 
 
@@ -1947,6 +2685,12 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return focused->OnKey (ev);
     }
 
+    //  A floating window types into its own focused control.
+    if (ev.kind == DxuiKeyEventKind::Char && !m_routingPane.empty())
+    {
+        return focused != nullptr && focused->OnKey (ev);
+    }
+
     if (ev.kind == DxuiKeyEventKind::Char)
     {
         return m_commandBox->OnKey (ev) || m_memoryBox->OnKey (ev) || m_pokeBox->OnKey (ev);
@@ -1963,7 +2707,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     {
         handled = (focused != nullptr) && focused->OnKey (ev);
 
-        if (!handled && ev.vk == VK_TAB)
+        if (!handled && ev.vk == VK_TAB && m_routingPane.empty())
         {
             m_focusMgr.HandleKey (ev.shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             handled = true;
@@ -1996,7 +2740,7 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
 
     for (DxuiListView * list : GetLists())
     {
-        if (!list->IsVisible())
+        if (!list->IsVisible() || !IsRoutable (list))
         {
             continue;
         }

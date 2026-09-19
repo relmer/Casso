@@ -93,6 +93,41 @@ namespace DebuggerLayoutTests
         }
 
 
+        TEST_METHOD (AFloatingPaneRestoresFloatingAndDocksBack)
+        {
+            DxuiPaneLayout  layout = DebuggerLayout::MakeDefault();
+            DxuiPaneLayout  restored;
+
+
+
+            Assert::IsTrue (layout.Float (DebuggerLayout::kRegisters, L"\\\\.\\DISPLAY2", RECT { 10, 20, 410, 370 }));
+
+            restored = DebuggerLayout::Restore (layout.ToText());
+
+            Assert::IsTrue  (restored.IsFloating (DebuggerLayout::kRegisters));
+            Assert::IsFalse (restored.IsDocked   (DebuggerLayout::kRegisters));
+            Assert::IsTrue  (restored.DockBack   (DebuggerLayout::kRegisters));
+            Assert::IsTrue  (restored.IsDocked   (DebuggerLayout::kRegisters));
+        }
+
+
+        TEST_METHOD (AnAutoHiddenPaneRestoresHidden)
+        {
+            DxuiPaneLayout  layout = DebuggerLayout::MakeDefault();
+            DxuiPaneLayout  restored;
+
+
+
+            Assert::IsTrue (layout.AutoHide (DebuggerLayout::kWatches, DxuiDockSide::Right));
+
+            restored = DebuggerLayout::Restore (layout.ToText());
+
+            Logger::WriteMessage (layout.ToText().c_str());
+            Assert::IsTrue (restored.IsAutoHidden (DebuggerLayout::kWatches));
+            Assert::AreEqual (layout.ToText(), restored.ToText());
+        }
+
+
         TEST_METHOD (UnreadableTextGivesTheDefault)
         {
             Assert::AreEqual (DebuggerLayout::MakeDefault().ToText(), DebuggerLayout::Restore (L"").ToText());

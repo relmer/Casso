@@ -33,6 +33,11 @@
 //  A drop outside the site's area asks the application to float the pane;
 //  where a floating window comes from is the application's concern.
 //
+//  AN AUTO-HIDDEN PANE IS A TAB ON AN EDGE. The site keeps a strip along each
+//  edge that holds one, and a hover or a press on its tab slides the pane out
+//  beside the others, which make room for it; a press anywhere else in the
+//  site slides it back.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiDockSite : public IDxuiControl
@@ -82,6 +87,13 @@ public:
     std::vector<MenuItem>  GetDockToMenu   (const std::wstring & pane);
     bool                   MovePaneByArrow (const std::wstring & pane, DxuiDockSide direction);
 
+    //  Auto-hidden panes: the one slid out, if any, and where it lies.
+    const std::wstring &        GetSlidPane    () const { return m_slidPane; }
+    RECT                        GetSlidRect    () const { return m_slidRect; }
+    void                        SlideOut       (const std::wstring & pane);
+    void                        SlideIn        ();
+    RECT                        GetEdgeTabRect (const std::wstring & pane) const;
+
     bool                        IsDragging     () const { return !m_dragPane.empty(); }
     const std::wstring &        GetDraggedPane () const { return m_dragPane; }
     const DxuiDockDropZone *    GetHoveredZone () const;
@@ -100,21 +112,36 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Dock site"; }
 
-    static constexpr int  kSashDip = 6;
+    static bool  Contains (const RECT & rect, POINT point);
+
+    static constexpr int  kSashDip      = 6;
+    static constexpr int  kSideStripDip = 96;
+    static constexpr int  kSlideMinDip  = 240;
 
 private:
     struct Pane
     {
         std::wstring    title;
-        IDxuiControl  * content = nullptr;
+        IDxuiControl  * content   = nullptr;
+        bool            indicator = false;
+    };
+
+    struct EdgeTab
+    {
+        std::wstring  pane;
+        DxuiDockSide  edge = DxuiDockSide::Left;
+        RECT          rect = {};
     };
 
     void          Arrange       ();
+    RECT          GetDockedArea () const;
+    void          ArrangeEdges  (const RECT & area);
+    int           HitTestEdgeTab (POINT pointDip) const;
+    void          PaintEdges    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void          NotifyChanged ();
     int           HitTestSash   (POINT pointDip) const;
     RECT          GetSashRect   (const DxuiPaneLayout::SplitRect & split) const;
     std::wstring  GetTitle      (const std::wstring & pane) const;
-    static bool   Contains      (const RECT & rect, POINT point);
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;
@@ -130,5 +157,9 @@ private:
     std::vector<DxuiDockDropZone>                 m_zones;
     int                                           m_hoverZone  = -1;
     int                                           m_sashDrag   = -1;
+    std::vector<EdgeTab>                          m_edgeTabs;
+    std::wstring                                  m_slidPane;
+    RECT                                          m_slidRect   = {};
+    DxuiDockSide                                  m_slidEdge   = DxuiDockSide::Left;
     bool                                          m_arranging  = false;
 };

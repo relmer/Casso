@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Window/DxuiWindow.h"
+#include "Window/DxuiDockedWindow.h"
 #include "Core/DxuiFocusManager.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDockSite.h"
@@ -150,7 +151,29 @@ private:
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
     bool     RouteDockKey       (const DxuiKeyEvent & ev);
-    void     ApplyMemoryWindows ();
+
+    //  Floating panes (FR-040): each floats in a DxuiDockedWindow of its own,
+    //  its controls moved there whole. The window's routing serves every
+    //  window, filtered to the controls of the one the event came from.
+    std::vector<IDxuiControl *>  GetPaneControls   (const std::wstring & pane) const;
+    IDxuiControl *               GetPaneContent    (const std::wstring & pane) const;
+    std::wstring                 GetPaneTitle      (const std::wstring & pane) const;
+    std::wstring                 GetPaneOfControl  (const IDxuiControl * control) const;
+    bool                         IsRoutable        (const IDxuiControl * control) const;
+    IDxuiControl *               GetFocused        () const;
+    void                         SetFocusedControl (IDxuiControl * control);
+    HWND                         GetRoutingHwnd    () const;
+    void                         RequestFloat      (const std::wstring & pane, POINT clientPx);
+    void                         SyncFloats        ();
+    void                         FloatControls     (const std::wstring & pane);
+    void                         DockControls      (const std::wstring & pane);
+    void                         SaveLayout        ();
+    bool                         RouteFloatMouse   (const std::wstring & pane, const DxuiMouseEvent & ev);
+    bool                         RouteFloatKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
+    void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
+
+    static std::wstring                          GetMonitorKey (const RECT & rectPx);
+    static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();    void     ApplyMemoryWindows ();
     void     AddMemoryWindow    ();
     void     RemoveMemoryWindow ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
@@ -182,6 +205,11 @@ private:
     std::vector<std::string>                        m_console;
 
     DxuiDockSite                                                                   * m_dockSite           = nullptr;
+    HINSTANCE                                                                        m_hInstance          = nullptr;
+    std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>                        m_floats;
+    std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
+    std::wstring                                                                     m_routingPane;
+    bool                                                                             m_syncFloats         = false;
     std::unique_ptr<DebuggerPaneFrame>                                               m_sourceFrame;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
