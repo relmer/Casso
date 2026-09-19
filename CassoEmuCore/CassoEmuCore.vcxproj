@@ -147,6 +147,7 @@
     <ClCompile Include="Debugger\StepFilter.cpp" />
     <ClCompile Include="Debugger\CallStack.cpp" />
     <ClCompile Include="Debugger\MachineDebugTarget.cpp" />
+    <ClCompile Include="Debugger\IDiagnosticsProvider.cpp" />
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
     <ClCompile Include="Debugger\DebuggerController.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
@@ -156,6 +157,10 @@
     <ClCompile Include="Ui\Debugger\Panes\SourcePane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DebuggerPaneFrame.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\DiagnosticsPane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\MemoryMapBar.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\DiskHeadView.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\MeterBar.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerLayout.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindow.cpp" />
     <ClCompile Include="Debugger\SynchronousRunDriver.cpp" />
@@ -187,6 +192,7 @@
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
     <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
+    <ClCompile Include="Debugger\GSSquaredFormatter.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelProtocol.cpp" />
     <ClCompile Include="Debugger\Channel\DebugChannelServer.cpp" />
     <ClCompile Include="Debugger\Channel\InstanceLister.cpp" />
@@ -517,6 +523,8 @@
     <ClInclude Include="Debugger\StepFilter.h" />
     <ClInclude Include="Debugger\CallStack.h" />
     <ClInclude Include="Debugger\MachineDebugTarget.h" />
+    <ClInclude Include="Debugger\IDiagnosticsProvider.h" />
+    <ClInclude Include="Debugger\DiagnosticsSnapshot.h" />
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />
     <ClInclude Include="Debugger\DebuggerController.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
@@ -526,6 +534,10 @@
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneFrame.h" />
+    <ClInclude Include="Ui\Debugger\Panes\DiagnosticsPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\MemoryMapBar.h" />
+    <ClInclude Include="Ui\Debugger\Panes\DiskHeadView.h" />
+    <ClInclude Include="Ui\Debugger\Panes\MeterBar.h" />
     <ClInclude Include="Ui\Debugger\DebuggerLayout.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
     <ClInclude Include="Debugger\SynchronousRunDriver.h" />
@@ -560,6 +572,7 @@
     <ClInclude Include="Debugger\BinaryImageReader.h" />
     <ClInclude Include="Debugger\DebugHandlerSet.h" />
     <ClInclude Include="Debugger\MonitorFormatter.h" />
+    <ClInclude Include="Debugger\GSSquaredFormatter.h" />
     <ClInclude Include="Debugger\Channel\ChannelProtocol.h" />
     <ClInclude Include="Debugger\Channel\IPipeTransport.h" />
     <ClInclude Include="Debugger\Channel\IDebugCommandRunner.h" />

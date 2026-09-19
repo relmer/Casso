@@ -1,0 +1,101 @@
+>MEB 300 20 10 03 EA 4C 03 03
+0300: 20 10 03 EA 4C 03 03      ..jL..
+>MEB 310 AD 19 C0 60
+0310: AD 19 C0 60              -.@`
+>R PC 300
+A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I..
+>MODE GSSQUARED
+Mode: GSSQUARED
+>300.313
+00/0300: 20 10 03 EA 4C 03 03 86 6E 65 B3 92 01 C8 21 6C   ..jL...ne3..H!l
+00/0310: AD 19 C0 60                                      -.@`
+
+>300
+00/0300: 20
+>bp 300
+Breakpoint id=0 set
+>bpd C019 r
+Breakpoint id=1 set
+>bp
+Current breakpoints:
+[0] exec 00/0300
+[1] data 00/C019 r
+>watch 6.7
+Watch id=0 set
+Watch id=1 set
+>watch
+Current memory watches:
+[0] 00/0006
+[1] 00/0007
+>l 300
+M=8 X=8
+0300: 20 10 03    JSR  $0310
+0303: EA          NOP
+0304: 4C 03 03    JMP  $0303
+0307: 86 6E       STX  $6E
+0309: 65 B3       ADC  $B3
+030B: 92          ???
+030C: 01 C8       ORA  ($C8,X)
+030E: 21 6C       AND  ($6C,X)
+0310: AD 19 C0    LDA  $C019
+0313: 60          RTS
+0314: 3D D5 F2    AND  $F2D5,X
+0317: A7 53       LAX  $53
+0319: 9A          TXS
+031A: 2B          ???
+031B: 80 B1       NOP  #$B1
+031D: 9E          ???
+031E: FA          NOP
+031F: A0 F3       LDY  #$F3
+0321: 31 3B       AND  ($3B),Y
+0323: 8B          ???
+>s
+Step at $0310
+>o
+Watchpoint #1: Read $80 from $C019 by $0310
+>r
+Step at $0303
+>mode monitor
+Mode: MONITOR
+*/bpl
+#0 enabled  at $0300, hits 0
+#1 enabled  on read of $C019, hits 1
+*/mode gssquared
+Mode: GSSQUARED
+>output applewin
+Output: APPLEWIN
+>bp
+#0 enabled  at $0300, hits 0
+#1 enabled  on read of $C019, hits 1
+>mode applewin
+Mode: APPLEWIN
+>BPR A=0
+Breakpoint #2 set when A=0
+>MODE GSSQUARED
+Mode: GSSQUARED
+>00/300
+00/0300: 20
+>e1/300
+Error: command not available
+       E1/0300 is in bank E1; only bank 00 exists on this machine.
+>map
+Error: command not available
+       MAP needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU.
+>switches
+TEXT       on
+MIXED      off
+PAGE2      off
+HIRES      off
+80COL      off
+DHIRES     off
+ALTCHARSET off
+RAMRD      off
+RAMWRT     off
+ALTZP      off
+80STORE    off
+INTCXROM   off
+SLOTC3ROM  off
+INTC8ROM   off
+LCREAD     off
+LCWRITE    on
+LCBANK2    on

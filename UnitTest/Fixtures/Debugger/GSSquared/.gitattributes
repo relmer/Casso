@@ -1,0 +1,3 @@
+#  GSSquared reply fixtures, compared line by line with the GSSquared
+#  formatter's output. LF on checkout, as the batch goldens are.
+* text eol=lf

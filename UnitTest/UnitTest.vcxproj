@@ -209,6 +209,11 @@
     <ClCompile Include="DebuggerTests\DebugOptionsParseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugModeTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorParserTests.cpp" />
+    <ClCompile Include="DebuggerTests\GSSquaredParserTests.cpp" />
+    <ClCompile Include="DebuggerTests\GSSquaredFormatterTests.cpp" />
+    <ClCompile Include="DebuggerTests\GSSquaredCommandSweepTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugOutputFormatTests.cpp" />
+    <ClCompile Include="DebuggerTests\EngineMarkerTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorFormatterTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ChannelProtocolTests.cpp" />
@@ -216,6 +221,8 @@
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiagnosticsProviderTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiagnosticsVisualsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />
     <ClCompile Include="DebuggerTests\Win32PipeTransportTests.cpp" />

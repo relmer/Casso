@@ -3,6 +3,8 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 
 #include "Debugger/DebugSession.h"
+#include "Debugger/AppleWinParser.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/MonitorParser.h"
@@ -193,6 +195,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
 
     BuildSource (session, snapshot);
     BuildTrace  (session, snapshot);
+    BuildPanels (session, snapshot);
 
     return snapshot;
 }
@@ -528,6 +531,129 @@ std::optional<std::string> DebuggerViewState::GetActionLine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetModeLine
+//
+//  The controls build AppleWin lines and the session reads lines in its own
+//  mode. GSSquared has its own words for most of what they send; run to
+//  cursor has none, and stays an AppleWin line. WinDbg has a word for each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetModeLine (const std::string & line, CommandMode mode)
+{
+    size_t       space = line.find (' ');
+    std::string  name  = line.substr (0, space);
+    std::string  rest  = (space == std::string::npos) ? std::string() : line.substr (space + 1);
+    size_t       split = rest.find (' ');
+
+
+
+    if (mode == CommandMode::WinDbg)
+    {
+        return GetWinDbgLine (name, rest, line);
+    }
+
+    if (mode != CommandMode::GSSquared)
+    {
+        return line;
+    }
+
+    if (rest.empty())
+    {
+        if (name == "T")   { return "s"; }
+        if (name == "P")   { return "o"; }
+        if (name == "RTS") { return "r"; }
+        if (name == "G")   { return "g"; }
+    }
+
+    if (name == "BP")  { return "bp " + rest; }
+    if (name == "BPC") { return "nobp " + rest; }
+
+    if (name == "MEB" && split != std::string::npos)
+    {
+        return rest.substr (0, split) + ":" + rest.substr (split);
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetWinDbgLine
+//
+//  A control's AppleWin line in WinDbg's words: t, p, gu, g, bp, bc and eb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line)
+{
+    static constexpr std::pair<const char *, const char *>  kWords[] =
+    {
+        { "T", "t" }, { "P", "p" }, { "RTS", "gu" }, { "G", "g" }, { "BP", "bp" }, { "BPC", "bc" }, { "MEB", "eb" },
+    };
+
+
+
+    for (const auto & [appleWin, windbg] : kWords)
+    {
+        if (name == appleWin)
+        {
+            return rest.empty() ? std::string (windbg) : std::string (windbg) + " " + rest;
+        }
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetConsoleKeyAction
+//
+//  GSSquared steps and resumes by key, not by command, so a reader used to it
+//  presses Space at an empty prompt. Once something is typed the keys type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebuggerKeySchemes::Action> DebuggerViewState::GetConsoleKeyAction (
+    CommandMode  mode,
+    WPARAM       vk,
+    bool         ctrl,
+    bool         alt,
+    bool         shift,
+    bool         isLineEmpty)
+{
+    if (mode != CommandMode::GSSquared || !isLineEmpty || ctrl || alt || shift)
+    {
+        return std::nullopt;
+    }
+
+    if (vk == VK_SPACE || vk == VK_F10)
+    {
+        return DebuggerKeySchemes::Action::StepInto;
+    }
+
+    if (vk == VK_RETURN)
+    {
+        return DebuggerKeySchemes::Action::Run;
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetToggleBreakpointLine
 //
 //  A click sets a breakpoint where there is none and clears the one that is
@@ -585,6 +711,21 @@ std::string DebuggerViewState::GetRunToCursorLine (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetPanelLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetPanelLine (const std::string & id, bool open, CommandMode mode)
+{
+    return std::format ("{}PANEL {}{}", mode == CommandMode::Monitor ? "/" : "", open ? "" : "CLOSE ", id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::ExecuteLine
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -626,8 +767,9 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
 
 
-    //  WinDbg mode has no window-only commands of its own.
-    if (mode == CommandMode::WinDbg)
+    //  GSSquared and WinDbg have no layout commands, and their words are not
+    //  AppleWin's.
+    if (mode == CommandMode::GSSquared || mode == CommandMode::WinDbg)
     {
         return ExecuteLine (session, line, mode);
     }
@@ -649,6 +791,12 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     if (!name.empty() && !session.IsAssembling())
     {
         entry = AppleWinCommandTable::Find (name);
+    }
+
+    //  PANEL is the window's own: batch and the pipe report that it needs one.
+    if (entry != nullptr && entry->verb == DebugVerb::ListPanels)
+    {
+        return ExecutePanelLine (session, text, line, mode);
     }
 
     if (entry == nullptr || entry->availability != CommandAvailability::WindowOnly)
@@ -693,6 +841,175 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
     session.FormatReply (reply, mode);
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildPanels
+//
+//  Every provider the machine has is listed; only open panels are built, so a
+//  device pays for its rows only while someone watches them. A panel whose
+//  device is gone closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildPanels (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    std::vector<const IDiagnosticsProvider *>  providers = session.GetTarget().GetDiagnosticsProviders();
+    std::set<std::string>                      present;
+
+
+
+    for (const IDiagnosticsProvider * provider : providers)
+    {
+        DebuggerViewSnapshot::PanelInfo  info  { provider->GetDiagnosticsId(), provider->GetDiagnosticsTitle(), false };
+        DiagnosticsSnapshot              panel;
+
+        present.insert (info.id);
+        info.open = m_openPanels.contains (info.id);
+
+        if (info.open)
+        {
+            panel.id     = info.id;
+            panel.device = info.title;
+            provider->GetDiagnostics (panel);
+            snapshot.diagnostics.push_back (std::move (panel));
+        }
+
+        snapshot.panels.push_back (std::move (info));
+    }
+
+    std::erase_if (m_openPanels, [&present] (const std::string & id) { return !present.contains (id); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ExecutePanelLine
+//
+//  Parsed by the same parser batch uses, so the window and batch agree on
+//  what a PANEL line means; only what it does differs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebuggerViewState::ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode)
+{
+    AppleWinParseResult  parsed = AppleWinParser::Parse (text, session);
+    Reply                reply;
+
+
+
+    reply.command = line;
+
+    if (parsed.status != ParseStatus::Ok)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", parsed.error);
+    }
+    else
+    {
+        RunPanelCommand (session, parsed.command, reply);
+    }
+
+    session.FormatReply (reply, mode);
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::RunPanelCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::RunPanelCommand (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    std::vector<const IDiagnosticsProvider *>  providers = session.GetTarget().GetDiagnosticsProviders();
+    constexpr int                              kIdWidth  = 14;
+    const IDiagnosticsProvider               * provider  = nullptr;
+    MessageData                                message;
+
+
+
+    if (command.verb == DebugVerb::ListPanels)
+    {
+        for (const IDiagnosticsProvider * each : providers)
+        {
+            std::string  id = each->GetDiagnosticsId();
+
+            message.lines.push_back (std::format ("{:<{}}{}{}", id, kIdWidth, each->GetDiagnosticsTitle(), m_openPanels.contains (id) ? " (open)" : ""));
+        }
+
+        if (providers.empty())
+        {
+            message.lines.push_back ("This machine has no device panels.");
+        }
+
+        reply.data = std::move (message);
+        return;
+    }
+
+    provider = FindProvider (providers, command.text);
+
+    if (provider == nullptr)
+    {
+        reply.SetError (CommandStatus::Error, "no such panel",
+                        std::format ("This machine has no {} panel. PANEL LIST lists the ones it has.", command.text));
+        return;
+    }
+
+    if (command.verb == DebugVerb::ClosePanel)
+    {
+        ClosePanel (provider->GetDiagnosticsId());
+        reply.data = MessageData { { std::format ("The {} panel is closed.", provider->GetDiagnosticsTitle()) } };
+    }
+    else
+    {
+        OpenPanel (provider->GetDiagnosticsId());
+        reply.data = MessageData { { std::format ("The {} panel is open.", provider->GetDiagnosticsTitle()) } };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::FindProvider
+//
+//  By id or by title, either case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const IDiagnosticsProvider * DebuggerViewState::FindProvider (const std::vector<const IDiagnosticsProvider *> & providers, const std::string & name)
+{
+    auto  isSame = [] (const std::string & a, const std::string & b)
+    {
+        return a.size() == b.size() &&
+               std::equal (a.begin(), a.end(), b.begin(), [] (char x, char y) { return tolower ((unsigned char) x) == tolower ((unsigned char) y); });
+    };
+
+
+
+    for (const IDiagnosticsProvider * provider : providers)
+    {
+        if (isSame (provider->GetDiagnosticsId(), name) || isSame (provider->GetDiagnosticsTitle(), name))
+        {
+            return provider;
+        }
+    }
+
+    return nullptr;
 }
 
 

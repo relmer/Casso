@@ -3,6 +3,7 @@
 #include "Debugger/Reply.h"
 
 class DebugHook;
+class IDiagnosticsProvider;
 class IRunObserver;
 class IWatchSink;
 class Microcode;
@@ -105,4 +106,8 @@ public:
     virtual void                ClearTrace        () = 0;
     virtual size_t              GetTraceSize      () const = 0;
     virtual void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const = 0;
+
+    // The devices that publish debugger panels. A target with no devices has
+    // none, which is the default.
+    virtual std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const { return {}; }
 };

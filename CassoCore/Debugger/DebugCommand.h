@@ -16,6 +16,29 @@ enum class CommandMode
 {
     AppleWin,
     Monitor,
+    GSSquared,
+    WinDbg,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OutputFormat
+//
+//  How replies are written, separate from the mode lines are read in.
+//  Changing the mode sets the format to that mode's own; OUTPUT changes the
+//  format alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class OutputFormat
+{
+    AppleWin,
+    Monitor,
+    GSSquared,
     WinDbg,
 };
 
@@ -200,6 +223,11 @@ enum class DebugVerb
     ShowHistory,
     SetHistory,
     SaveHistory,
+    ListPanels,
+    OpenPanel,
+    ClosePanel,
+    ShowOutputFormat,
+    SetOutputFormat,
 
     // Window-only views, carried by name
     View,
@@ -240,4 +268,5 @@ struct DebugCommand
     std::optional<uint64_t>  budget;
     std::optional<uint64_t>  first;        // HISTORY: the window's first entry
     CommandMode              mode     = CommandMode::AppleWin;
+    OutputFormat             output   = OutputFormat::AppleWin;
 };

@@ -86,4 +86,10 @@ public:
     //  Null when the name is not an AppleWin-mode command. Case is ignored.
     static const AppleWinCommand *        Find   (const std::string & name);
     static std::span<const AppleWinCommand> GetAll ();
+
+    //  Whether the name is one of Casso's engine commands, the Engine family:
+    //  the commands every mode reaches through its own marker. A parser hands
+    //  such a line, marker stripped, to AppleWinParser, so a command added to
+    //  the family is reachable in every mode with no parser change.
+    static bool                           IsEngineCommand (const std::string & name);
 };

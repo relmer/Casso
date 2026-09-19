@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
 
 
 
@@ -388,5 +389,73 @@ void MachineHost::AttachObservers (const MachineObservers & observers)
     if (m_refs.gamePort != nullptr)
     {
         m_refs.gamePort->SetInputEventSink (observers.input);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::GetDiagnosticsProviders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders() const
+{
+    std::vector<const IDiagnosticsProvider *>  providers = { this };
+    const IDiagnosticsProvider               * devices[] =
+    {
+        m_refs.keyboard,
+        m_refs.softSwitches,
+        m_mmu.get(),
+        m_refs.diskController,
+        m_refs.mockingboard,
+        m_refs.printerCard,
+    };
+
+
+
+    for (const IDiagnosticsProvider * device : devices)
+    {
+        if (device != nullptr)
+        {
+            providers.push_back (device);
+        }
+    }
+
+    return providers;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::GetDiagnostics
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    static constexpr const char * kSpeeds[] = { "authentic", "double", "maximum" };
+    DiagnosticsGroup              cpu       { "CPU", {} };
+    DiagnosticsGroup              video     { "Video", {} };
+
+
+
+    cpu.rows.push_back (MakeTextRow ("Cycles", std::format ("{}", (m_cpu != nullptr) ? m_cpu->GetTotalCycles() : 0)));
+    cpu.rows.push_back (MakeTextRow ("Clock",  std::format ("{} Hz", m_config->clockSpeed)));
+    cpu.rows.push_back (MakeTextRow ("Speed",  kSpeeds[(size_t) m_speedMode]));
+    snapshot.groups.push_back (std::move (cpu));
+
+    if (m_videoTiming != nullptr)
+    {
+        video.rows.push_back (MakeTextRow ("Scanline",       std::format ("{}", m_videoTiming->GetCurrentScanline())));
+        video.rows.push_back (MakeTextRow ("Cycle in line",  std::format ("{}", m_videoTiming->GetHorizontalPos())));
+        video.rows.push_back (MakeTextRow ("Cycle in frame", std::format ("{}", m_videoTiming->GetCycleInFrame())));
+        snapshot.groups.push_back (std::move (video));
     }
 }

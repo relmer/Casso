@@ -13,6 +13,9 @@
 #include "Debugger/LineAssembler.h"
 #include "Debugger/MonitorFormatter.h"
 #include "Debugger/MonitorParser.h"
+#include "Debugger/GSSquaredFormatter.h"
+#include "Debugger/GSSquaredParser.h"
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/WinDbgFormatter.h"
 #include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
@@ -188,6 +191,7 @@ Reply DebugSession::Execute (const DebugCommand & command)
 
 
     reply.command = command.sourceName;
+    reply.verb    = command.verb;
 
     if (command.verb == DebugVerb::None)
     {
@@ -291,9 +295,14 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
         return reply;
     }
 
-    reply         = (mode == CommandMode::Monitor) ? ExecuteMonitorLine (text)
-                  : (mode == CommandMode::WinDbg)  ? ExecuteWinDbgLine  (text)
-                  :                                  ExecuteAppleWinLine (text);
+    switch (mode)
+    {
+    case CommandMode::Monitor:    reply = ExecuteMonitorLine   (text); break;
+    case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text); break;
+    case CommandMode::WinDbg:     reply = ExecuteWinDbgLine    (text); break;
+    default:                      reply = ExecuteAppleWinLine  (text); break;
+    }
+
     reply.command = line;
     return reply;
 }
@@ -455,15 +464,109 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::FormatReply
+//  DebugSession::ExecuteGSSquaredLine
 //
-//  Monitor mode renders as AppleWin mode until its formatter exists.
+//  A GSSquared line is one command, or one per address for `watch
+//  first.last`; several are run in order and merged as a Monitor line's are.
+//  A `nobp` number becomes an id or an address here, against the tables.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::FormatReply (Reply & reply) const
+Reply DebugSession::ExecuteGSSquaredLine (const std::string & text)
 {
-    FormatReply (reply, m_mode);
+    GSSquaredParseResult  parsed = GSSquaredParser::Parse (text, *this);
+    Reply                 merged;
+
+
+
+    switch (parsed.status)
+    {
+    case ParseStatus::Ok:
+        break;
+
+    case ParseStatus::Unknown:
+        SetError (merged, CommandStatus::Unknown, "unknown command", parsed.error);
+        return merged;
+
+    case ParseStatus::NotAvailable:
+    case ParseStatus::WindowOnly:
+        SetError (merged, CommandStatus::NotAvailable, "command not available", parsed.error);
+        return merged;
+
+    case ParseStatus::Invalid:
+        SetError (merged, CommandStatus::Error, "invalid arguments", parsed.error);
+        return merged;
+
+    default:
+        return merged;
+    }
+
+    if (parsed.isIdOrAddress && !TryResolveIdOrAddress (parsed.commands.front(), merged))
+    {
+        return merged;
+    }
+
+    if (parsed.commands.size() == 1)
+    {
+        return Execute (parsed.commands.front());
+    }
+
+    for (const DebugCommand & command : parsed.commands)
+    {
+        Reply  one = Execute (command);
+
+        FormatReply (one);
+        merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
+
+        if (merged.status == CommandStatus::Ok)
+        {
+            merged.status = one.status;
+            merged.error  = one.error;
+        }
+    }
+
+    return merged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TryResolveIdOrAddress
+//
+//  GSSquared's `nobp N`: an id when an entry has that id, and otherwise the
+//  address of an execution breakpoint, which is how GSSquared reads it. The
+//  command becomes the BPC of the entry found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryResolveIdOrAddress (DebugCommand & command, Reply & reply)
+{
+    bool         isId     = command.text.find_first_not_of ("0123456789") == std::string::npos;
+    Breakpoint   breakpoint;
+    Watchpoint   watchpoint;
+
+
+
+    if (isId && (m_breakpoints.TryFind ((int) command.count, breakpoint) || m_watchpoints.TryFind ((int) command.count, watchpoint)))
+    {
+        return true;
+    }
+
+    for (const Breakpoint & entry : m_breakpoints.GetAll())
+    {
+        if (command.hasA1 && entry.kind == BreakpointKind::Address && entry.first == command.a1)
+        {
+            command.count = (uint32_t) entry.id;
+            return true;
+        }
+    }
+
+    SetError (reply, CommandStatus::Error, "unknown breakpoint",
+              std::format ("No breakpoint has the id or address {}.", command.text));
+    return false;
 }
 
 
@@ -474,25 +577,56 @@ void DebugSession::FormatReply (Reply & reply) const
 //
 //  DebugSession::FormatReply
 //
-//  In a given mode, for a line that was run in one.
+//  In the session's output format, which MODE sets and OUTPUT changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::FormatReply (Reply & reply) const
+{
+    RenderReply (reply, m_outputFormat);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::FormatReply
+//
+//  For a line run in a given mode. A line in the session's own mode renders
+//  in the session's output format; a line a client ran in another mode, for
+//  itself alone, renders in that mode's own format.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::FormatReply (Reply & reply, CommandMode mode) const
 {
-    if (mode == CommandMode::Monitor)
-    {
-        MonitorFormatter::Format (reply);
-        return;
-    }
+    RenderReply (reply, mode == m_mode ? m_outputFormat : CommandModeNames::GetOutputFormat (mode));
+}
 
-    if (mode == CommandMode::WinDbg)
-    {
-        WinDbgFormatter::Format (reply);
-        return;
-    }
 
-    AppleWinFormatter::Format (reply);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::RenderReply
+//
+//  Each format renders what it has a layout for and keeps the AppleWin text
+//  for the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::RenderReply (Reply & reply, OutputFormat format)
+{
+    switch (format)
+    {
+    case OutputFormat::Monitor:    MonitorFormatter::Format   (reply); break;
+    case OutputFormat::GSSquared:  GSSquaredFormatter::Format (reply); break;
+    case OutputFormat::WinDbg:     WinDbgFormatter::Format    (reply); break;
+    default:                       AppleWinFormatter::Format  (reply); break;
+    }
 }
 
 
@@ -1204,8 +1338,9 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
     switch (command.verb)
     {
     case DebugVerb::SetMode:
-        m_mode     = command.mode;
-        reply.data = ModeData { m_mode };
+        m_mode         = command.mode;
+        m_outputFormat = CommandModeNames::GetOutputFormat (m_mode);
+        reply.data     = ModeData { m_mode };
         m_sink.OnModeChanged (m_mode);
         return true;
 

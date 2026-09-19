@@ -91,6 +91,9 @@ public:
     void   FormatReply           (Reply & reply) const;
     void   FormatReply           (Reply & reply, CommandMode mode) const;
 
+    // A reply's text in a given output format, whatever the session's is.
+    static void  RenderReply     (Reply & reply, OutputFormat format);
+
     // Sets the cycle budget later runs get, as `BUDGET` does; empty for none.
     void   SetBudget             (std::optional<uint64_t> budget) { m_budget = budget; }
 
@@ -110,6 +113,8 @@ public:
 
     RunState                GetRunState    () const { return m_state; }
     CommandMode             GetMode        () const { return m_mode; }
+    OutputFormat            GetOutputFormat () const { return m_outputFormat; }
+    void                    SetOutputFormat (OutputFormat format) { m_outputFormat = format; }
     std::optional<uint64_t> GetBudget      () const { return m_budget; }
     LogLevel                GetLogLevel    () const { return m_logLevel; }
     void                    SetLogLevel    (LogLevel level) { m_logLevel = level; }
@@ -223,7 +228,9 @@ private:
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     Reply  ExecuteMonitorLine    (const std::string & text);
     Reply  ExecuteAppleWinLine   (const std::string & text);
+    Reply  ExecuteGSSquaredLine  (const std::string & text);
     Reply  ExecuteWinDbgLine     (const std::string & text);
+    bool   TryResolveIdOrAddress (DebugCommand & command, Reply & reply);
     void   PushMonitorReturn     ();
     void   UpdateHookInstalled   ();
     void   SettleCallRecord      ();
@@ -265,6 +272,7 @@ private:
 
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;
+    OutputFormat                          m_outputFormat  = OutputFormat::AppleWin;
     LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;
     bool                                  m_hookInstalled = false;

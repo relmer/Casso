@@ -13,7 +13,8 @@ class DebugSession;
 //  ConfigHandlers
 //
 //  PWD, CD, RUN, LOAD, SAVE, STARTUP, DISASM, DISK, LOG, ECHO, PRINT,
-//  PRINTF, CALC, ?, HELP, VERSION and MOTD.
+//  PRINTF, CALC, ?, HELP, VERSION and MOTD, and PANEL outside the window,
+//  which reports that it needs one.
 //
 //  RUN, LOAD and STARTUP execute a script's lines through the session and
 //  collect every reply's text. SAVE writes the breakpoint, watch, zero-page
@@ -46,6 +47,7 @@ private:
     static void  Print           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  PrintFormatted  (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Help            (const DebugCommand & command, Reply & reply);
+    static void  Output          (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static void  SplitItems      (const std::string & text, std::vector<std::string> & items);
     static bool  TryUnquote      (const std::string & item, std::string & text);

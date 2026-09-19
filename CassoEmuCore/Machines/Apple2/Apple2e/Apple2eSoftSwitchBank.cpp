@@ -52,6 +52,71 @@ bool Apple2eSoftSwitchBank::Is80Store() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Apple2eSoftSwitchBank::GetDiagnostics
+//
+//  The switches every Apple II has, then the //e's own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup  iie { "//e", {} };
+
+
+
+    AppleSoftSwitchBank::GetDiagnostics (snapshot);
+
+    iie.rows.push_back (MakeFlagRow ("80COL",      m_80colMode));
+    iie.rows.push_back (MakeFlagRow ("DHIRES",     m_doubleHiRes));
+    iie.rows.push_back (MakeFlagRow ("ALTCHARSET", m_altCharSet));
+    iie.rows.push_back (MakeFlagRow ("80STORE",    Is80Store()));
+
+    snapshot.groups.push_back (std::move (iie));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eSoftSwitchBank::GetModeName
+//
+//  80COL doubles the text and, with DHIRES, the graphics.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Apple2eSoftSwitchBank::GetModeName() const
+{
+    std::string  mode = AppleSoftSwitchBank::GetModeName();
+
+
+
+    if (!m_80colMode)
+    {
+        return mode;
+    }
+
+    if (!m_graphicsMode)
+    {
+        return "80-column text";
+    }
+
+    if (m_doubleHiRes)
+    {
+        mode = m_hiresMode ? "double hi-res" : "double lo-res";
+        mode += m_mixedMode ? ", mixed" : "";
+    }
+
+    return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadStatusRegister
 //
 //  Phase 6 / T061 / T064 / FR-001 / FR-003 / audit §1.2.

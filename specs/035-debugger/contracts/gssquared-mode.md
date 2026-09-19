@@ -76,3 +76,11 @@ From the documentation, the forms that are known:
 
 The formatter tests compare against the fixtures line for line. When the
 `OUTPUT` format is set to another mode, replies use that mode's formatter.
+
+**As built:** the fixtures are written from GSSquared's source, not captured
+(research R-027). GSSquared has no stop line, so a stop in this format reads
+as in AppleWin's; a deposit prints nothing, as in GSSquared. `debug` and
+`nodebug` report not available until `PANEL` exists. In the window, the
+controls' lines are sent in GSSquared words in this mode; run to cursor has
+none. `nobp N` clears id `N` when an entry has it, and otherwise the
+execution breakpoint at address `$N`.

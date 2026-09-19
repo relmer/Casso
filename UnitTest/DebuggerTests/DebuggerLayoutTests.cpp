@@ -19,6 +19,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace DebuggerLayoutTests
 {
+    static bool IsInGroup (const DxuiPaneLayout & layout, const std::wstring & member, const std::wstring & pane)
+    {
+        std::vector<std::wstring>  group = layout.GetGroup (member);
+
+
+
+        return std::find (group.begin(), group.end(), pane) != group.end();
+    }
+
+
+
     static RECT FindGroup (const std::vector<DxuiPaneLayout::GroupRect> & groups, const std::wstring & pane)
     {
         for (const DxuiPaneLayout::GroupRect & group : groups)
@@ -55,7 +66,7 @@ namespace DebuggerLayoutTests
 
             Assert::AreEqual ((size_t) 4, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size());
             Assert::AreEqual ((size_t) 2, layout.GetGroup (DebuggerLayout::kConsole).size(), L"the trace is a tab of the console");
-            Assert::AreEqual ((size_t) 2, layout.GetGroup (DebuggerLayout::kStack).size(), L"the call stack is a tab of the stack");
+            Assert::IsTrue   (IsInGroup (layout, DebuggerLayout::kStack, DebuggerLayout::kCallStack), L"the call stack is a tab of the stack");
         }
 
 
@@ -70,7 +81,7 @@ namespace DebuggerLayoutTests
             restored = DebuggerLayout::Restore (saved.ToText());
 
             Assert::IsFalse  (saved.Contains (DebuggerLayout::kCallStack));
-            Assert::AreEqual ((size_t) 2, restored.GetGroup (DebuggerLayout::kStack).size());
+            Assert::IsTrue   (IsInGroup (restored, DebuggerLayout::kStack, DebuggerLayout::kCallStack));
         }
 
 

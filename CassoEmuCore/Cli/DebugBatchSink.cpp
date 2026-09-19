@@ -39,26 +39,27 @@ std::string DebugBatchSink::TakePending()
 
 void DebugBatchSink::OnStopped (const StopEvent & stop)
 {
-    CommandMode  mode = (m_session != nullptr) ? m_session->GetMode() : CommandMode::AppleWin;
+    OutputFormat  format = (m_session != nullptr) ? m_session->GetOutputFormat() : OutputFormat::AppleWin;
 
 
 
     m_lastStop = stop.reason;
 
-    //  A STOP IS PRINTED IN THE MODE THE READER IS WORKING IN. At a `*`
-    //  prompt a step shows the Monitor's register line, which is what the
-    //  original ][ printed; `Step at $0302` is the AppleWin wording and
-    //  belongs to the AppleWin prompt. The JSON form carries the stop as
-    //  data and does not vary by mode at all.
+    //  A STOP IS PRINTED IN THE SESSION'S OUTPUT FORMAT. In the Monitor's a
+    //  step shows its register line, which is what the original ][ printed;
+    //  `Step at $0302` is the AppleWin wording. GSSquared prints no stop line
+    //  of its own, its window shows the stop, so its format keeps AppleWin's.
+    //  WinDbg's adds r's register line under AppleWin's stop line.
+    //  The JSON form carries the stop as data and does not vary at all.
     if (m_json)
     {
         m_pending += ReplyJson::WriteStopped (stop, std::nullopt);
     }
     else
     {
-        m_pending += (mode == CommandMode::Monitor) ? MonitorFormatter::FormatStop (stop)
-                   : (mode == CommandMode::WinDbg)  ? WinDbgFormatter::FormatStop  (stop)
-                   :                                  AppleWinFormatter::FormatStop (stop);
+        m_pending += (format == OutputFormat::Monitor) ? MonitorFormatter::FormatStop  (stop)
+                   : (format == OutputFormat::WinDbg)  ? WinDbgFormatter::FormatStop   (stop)
+                   :                                     AppleWinFormatter::FormatStop (stop);
     }
 
     m_pending += "\n";

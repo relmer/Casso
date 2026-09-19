@@ -76,10 +76,6 @@ public:
     static std::span<const WinDbgCommand>    GetCommands   ();
     static std::span<const WinDbgExclusion>  GetExclusions ();
 
-    //  Whether `!name` reaches this AppleWin-mode command: the engine
-    //  commands, which have no WinDbg original.
-    static bool  IsEngineCommand (const AppleWinCommand & entry);
-
 private:
     using Tokens = std::vector<std::string>;
 

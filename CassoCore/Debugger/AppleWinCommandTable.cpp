@@ -35,7 +35,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "NOP",         V::WriteNop,                 F::Cpu,         A::Headless,     nullptr,     nullptr },
     { "OUT",         V::WriteIo,                  F::Cpu,         A::Headless,     nullptr,     nullptr },
     { "LBR",         V::ShowBranchRecord,         F::Cpu,         A::Headless,     nullptr,     nullptr },
-    { "PROFILE",     V::Profile,                  F::Cpu,         A::Headless,     nullptr,     nullptr },
+    { "PROFILE",     V::Profile,                  F::Engine,      A::Headless,     nullptr,     nullptr },
     { "R",           V::ShowRegisters,            F::Cpu,         A::Headless,     nullptr,     nullptr },
     { "POP",         V::PopStack,                 F::Cpu,         A::Headless,     nullptr,     nullptr },
     { "PPOP",        V::PopStackWord,             F::Cpu,         A::Headless,     nullptr,     nullptr },
@@ -246,11 +246,13 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BUDGET",      V::SetBudget,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SWITCHES",    V::ShowSwitches,             F::Engine,      A::Headless,     nullptr,     nullptr },
     { "STACK",       V::ShowStack,                F::Engine,      A::Headless,     nullptr,     nullptr },
-    { "PATCH",       V::PatchBytes,               F::Memory,      A::Headless,     nullptr,     nullptr },
+    { "PATCH",       V::PatchBytes,               F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SRC",         V::ShowSource,               F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SKIP",        V::ListStepFilter,           F::Engine,      A::Headless,     nullptr,     nullptr },
     { "CALLS",       V::ShowCallStack,            F::Engine,      A::Headless,     nullptr,     nullptr },
     { "HISTORY",     V::ShowHistory,              F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "PANEL",       V::ListPanels,               F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "OUTPUT",      V::ShowOutputFormat,         F::Engine,      A::Headless,     nullptr,     nullptr },
 
     // Window only: cursor
     { ".",           V::View,                     F::Cursor,      A::WindowOnly,   nullptr,     nullptr },
@@ -378,4 +380,23 @@ const AppleWinCommand * AppleWinCommandTable::Find (const std::string & name)
 std::span<const AppleWinCommand> AppleWinCommandTable::GetAll()
 {
     return s_kAppleWinCommands;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinCommandTable::IsEngineCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinCommandTable::IsEngineCommand (const std::string & name)
+{
+    const AppleWinCommand  * entry = Find (name);
+
+
+
+    return entry != nullptr && entry->family == AppleWinCommandFamily::Engine;
 }

@@ -235,29 +235,11 @@ std::span<const WinDbgExclusion> WinDbgParser::GetExclusions()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WinDbgParser::IsEngineCommand
-//
-//  The Engine family, and PATCH and PROFILE, which are Casso's own too.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WinDbgParser::IsEngineCommand (const AppleWinCommand & entry)
-{
-    return entry.family == AppleWinCommandFamily::Engine ||
-           entry.verb   == DebugVerb::PatchBytes          ||
-           entry.verb   == DebugVerb::Profile;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WinDbgParser::TryParseEngine
 //
 //  `!name ...` for an engine command, parsed as AppleWin mode parses the
-//  same line without the `!`. An excluded `!` command is left to Parse,
+//  same line without the `!`, so every command in the Engine family is
+//  reachable here with no change to this parser. An excluded `!` command is left to Parse,
 //  which reports its family.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,7 +248,6 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
 {
     std::string                text;
     Tokens                     tokens;
-    const AppleWinCommand    * entry     = nullptr;
     const WinDbgExclusion    * exclusion = nullptr;
     AppleWinParseResult        parsed;
 
@@ -285,9 +266,7 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
         return false;
     }
 
-    entry = AppleWinCommandTable::Find (tokens[0]);
-
-    if (entry == nullptr || !IsEngineCommand (*entry))
+    if (!AppleWinCommandTable::IsEngineCommand (tokens[0]))
     {
         result.status = ParseStatus::Unknown;
         result.error  = std::format ("!{} is not an engine command.", tokens[0]);

@@ -315,6 +315,62 @@ namespace DebugModeTests
 
 
 
+        //  Quickstart Story 12 steps 1-5: GSSquared's commands in its own
+        //  layouts, the steps, a breakpoint set here listed by the Monitor's
+        //  /bpl, the output format changed alone and reset by MODE, BPR with
+        //  its operator unspaced, the bank rules, a IIgs command, and an
+        //  engine command by its bare name.
+        TEST_METHOD (GSSquaredScript_ProducesTheExpectedText)
+        {
+            BatchRig  rig;
+
+
+
+            Assert::AreEqual (0, rig.Run (rig.Script ("gssquared.txt")));
+            Assert::IsTrue   (rig.result.diagnostics.empty(), rig.Widen (rig.result.diagnostics).c_str());
+            rig.AssertOutputIs ("gssquared.txt");
+        }
+
+
+
+        TEST_METHOD (GSSquaredScript_ProducesTheExpectedJsonLines)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.json = true;
+
+            Assert::AreEqual (0, rig.Run (rig.Script ("gssquared.txt")));
+            rig.AssertOutputIs ("gssquared.jsonl");
+        }
+
+
+
+        //  --mode and --output from the command line: the mode's format by
+        //  default, and the output format apart from it when given.
+        TEST_METHOD (ModeAndOutputOptions_SetTheStartingModeAndFormat)
+        {
+            BatchRig  gssquared;
+            BatchRig  appleWin;
+
+
+
+            gssquared.options.mode     = "gssquared";
+            gssquared.options.commands = { "300: A9 41", "300.301" };
+            Assert::AreEqual (0, gssquared.Run (""));
+            Assert::IsTrue   (gssquared.result.output.find (">300.301\n00/0300: A9 41") != std::string::npos,
+                              gssquared.Widen (gssquared.result.output).c_str());
+
+            appleWin.options.output   = "gssquared";
+            appleWin.options.commands = { "MEB 300 A9 41", "D 300:301" };
+            Assert::AreEqual (0, appleWin.Run (""));
+            Assert::IsTrue   (appleWin.result.output.find (">D 300:301\n00/0300: A9 41") != std::string::npos,
+                              appleWin.Widen (appleWin.result.output).c_str());
+        }
+
+
+
         //  Quickstart Story 10: an IF breakpoint on a loop that counts A up
         //  stops once, with A at $41; a value breakpoint stops after the
         //  write that makes $06 hold 7; an IF expression that reads an I/O

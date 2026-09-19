@@ -4,6 +4,7 @@
 
 #include "Config/IFileSystem.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/ReplyJson.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -107,10 +108,11 @@ Error:
 
 void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options, const std::string & scriptText, DebugBatchResult & result)
 {
-    HRESULT                   hr = S_OK;
+    HRESULT                   hr     = S_OK;
     std::vector<std::string>  lines;
     DebugCommand              budget;
     DebugCommand              mode;
+    OutputFormat              output = OutputFormat::AppleWin;
     DebugSession              session (*m_target, m_sink, RunState::Paused);
 
 
@@ -128,13 +130,17 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     budget.count      = (uint32_t) std::min<uint64_t> (options.maxCycles, UINT32_MAX);
     session.Execute (budget);
 
-    if (options.mode == "monitor" || options.mode == "windbg")
+    if (CommandModeNames::TryParse (options.mode, mode.mode) && mode.mode != CommandMode::AppleWin)
     {
         mode.verb       = DebugVerb::SetMode;
         mode.sourceName = "MODE";
-        mode.mode       = (options.mode == "windbg") ? CommandMode::WinDbg : CommandMode::Monitor;
         session.Execute (mode);
         m_sink.TakePending();
+    }
+
+    if (CommandModeNames::TryParse (options.output, output))
+    {
+        session.SetOutputFormat (output);
     }
 
     SplitLines (scriptText, lines);

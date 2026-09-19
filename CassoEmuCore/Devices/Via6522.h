@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/IInterruptController.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 
@@ -141,6 +142,11 @@ public:
     Byte     GetOrb        () const { return m_orb; }
     Byte     GetDdra       () const { return m_ddra; }
     Byte     GetDdrb       () const { return m_ddrb; }
+
+    // A debugger panel's rows for this chip, as one group, and each timer's
+    // remaining count from 0 to 1 for the panel's meters.
+    void     AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const;
+    void     AppendTimerLevels (const std::string & title, DiagnosticsMeters & meters) const;
 
 private:
     void    TickTimer1  (uint32_t cycles);

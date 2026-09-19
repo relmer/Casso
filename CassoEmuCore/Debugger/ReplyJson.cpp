@@ -4,6 +4,7 @@
 
 #include "Core/JsonWriter.h"
 #include "Debugger/CallStack.h"
+#include "Debugger/CommandModeNames.h"
 
 
 
@@ -354,9 +355,7 @@ const char * ReplyJson::GetSymbolTableName (SymbolTableId table)
 
 const char * ReplyJson::GetModeName (CommandMode mode)
 {
-    return mode == CommandMode::Monitor ? "monitor"
-         : mode == CommandMode::WinDbg  ? "windbg"
-         :                                "applewin";
+    return CommandModeNames::GetName (mode);
 }
 
 

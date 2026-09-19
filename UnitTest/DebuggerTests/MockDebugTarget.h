@@ -52,6 +52,8 @@ public:
     std::vector<TraceRecord> trace;
     int                      traceClears      = 0;
 
+    std::vector<const IDiagnosticsProvider *>  diagnosticsProviders;
+
     Cpu6502Registers GetRegisters() const override                         { return registers; }
     void             SetRegisters (const Cpu6502Registers & value) override { registers = value; }
 
@@ -137,6 +139,8 @@ public:
             entries.back().index = index;
         }
     }
+
+    std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override { return diagnosticsProviders; }
 
     void Stop (const StopEvent & stop)
     {

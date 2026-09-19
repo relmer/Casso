@@ -4,6 +4,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/ReplyJson.h"
 
 
@@ -105,7 +106,7 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
 
         if (!TryGetMode (mode, chosen))
         {
-            SetError (error, "unknown mode", std::format ("{} is not a mode; the modes are applewin, monitor and windbg.", mode));
+            SetError (error, "unknown mode", std::format ("{} is not a mode; the modes are {}.", mode, CommandModeNames::GetList()));
             return false;
         }
 
@@ -272,25 +273,7 @@ JsonValue ChannelProtocol::MakeDisks (const std::vector<std::optional<std::strin
 
 bool ChannelProtocol::TryGetMode (const std::string & name, CommandMode & mode)
 {
-    if (name == "applewin")
-    {
-        mode = CommandMode::AppleWin;
-        return true;
-    }
-
-    if (name == "monitor")
-    {
-        mode = CommandMode::Monitor;
-        return true;
-    }
-
-    if (name == "windbg")
-    {
-        mode = CommandMode::WinDbg;
-        return true;
-    }
-
-    return false;
+    return CommandModeNames::TryParse (name, mode);
 }
 
 
