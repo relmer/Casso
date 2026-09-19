@@ -3,6 +3,7 @@
 #include "InMemoryFileSystem.h"
 
 #include "Config/GlobalUserPrefs.h"
+#include "Config/WindowPlacementProfile.h"
 #include "Ui/ColorUtil.h"
 
 #include "Core/JsonParser.h"
@@ -322,6 +323,46 @@ public:
         Assert::AreEqual (string ("AppleWin"), loaded.debuggerKeyScheme);
     }
 
+
+    //  Two Casso instances: one the user moves, one they do not. A save from
+    //  the instance that was never moved -- prefs are written for all sorts
+    //  of reasons -- must leave the other's placement alone.
+    TEST_METHOD (APlacementIsOnlyWrittenByTheInstanceThatWasMoved)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     mover;
+        GlobalUserPrefs     bystander;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+
+
+
+        mover.window.placements["T"] = { 10, 10, 800, 600 };
+        hr = mover.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        //  Both instances now hold that placement.
+        hr = bystander.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        //  The user moves the first instance's window, which records it.
+        WindowPlacementProfile (mover).Save ("T", { 400, 300, 900, 700 });
+
+        hr = mover.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        //  The other instance saves for a reason of its own.
+        bystander.recentDisks.push_back ("C:\\Disks\\game.dsk");
+        hr = bystander.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (400,        loaded.window.placements["T"].x, L"the window the user moved keeps its place");
+        Assert::AreEqual (900,        loaded.window.placements["T"].w);
+        Assert::AreEqual (size_t (1), loaded.recentDisks.size(),       L"the other instance's own change is still saved");
+    }
 
     TEST_METHOD (DebuggerLayout_RoundTrips)
     {

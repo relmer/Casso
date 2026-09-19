@@ -1018,13 +1018,42 @@ HRESULT GlobalUserPrefs::Save (
     JsonValue            existing;
     JsonParseError       err;
     JsonWriter::Options  opts;
-    JsonValue            global           = ToJson();
+    GlobalUserPrefs      onDisk;
+    HRESULT              hrDisk           = S_OK;
+    GlobalUserPrefs      merged           = *this;
+    JsonValue            global;
     JsonObject           rootEntries;
     JsonObject           machines;
     bool                 isObject         = false;
 
 
 
+    //  Placements are the user's, and another Casso may have recorded one
+    //  since this instance read the file. Only the keys this instance's user
+    //  placed are written; the rest keep whatever is on disk, so a save
+    //  triggered by something else never moves another window.
+    hrDisk = onDisk.Load (baseDir, fs);
+
+    if (SUCCEEDED (hrDisk))
+    {
+        for (const auto & each : onDisk.window.placements)
+        {
+            if (std::find (window.touched.begin(), window.touched.end(), each.first) == window.touched.end())
+            {
+                merged.window.placements[each.first] = each.second;
+            }
+        }
+
+        for (const auto & each : onDisk.window.debuggerPlacements)
+        {
+            if (std::find (window.touchedDebugger.begin(), window.touchedDebugger.end(), each.first) == window.touchedDebugger.end())
+            {
+                merged.window.debuggerPlacements[each.first] = each.second;
+            }
+        }
+    }
+
+    global = merged.ToJson();
     // Preserve any machines section the file already has on disk so that
     // this "global only" save path doesn't clobber per-machine user prefs
     // written by UserConfigStore. Without this, every Main.cpp pre-flight

@@ -167,6 +167,13 @@ struct GlobalUserPrefs
         // The debugger window's own bounds, keyed the same way. It is a
         // window the user places, so it is remembered like the main one.
         std::map<std::string, WindowBounds>  debuggerPlacements;
+
+        // The keys this session's user placed, which are the only ones a
+        // save writes: another Casso may have recorded a placement since
+        // this one read the file, and a window this one merely opened where
+        // it was told must not write that back over it. Not persisted.
+        std::vector<std::string>             touched;
+        std::vector<std::string>             touchedDebugger;
     } window;
 
     // Most-recently-used disk image absolute paths, most-recent-first,

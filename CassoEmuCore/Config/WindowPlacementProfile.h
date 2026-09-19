@@ -52,6 +52,8 @@ public:
     // load / save path with literal keys instead.
     static std::string  BuildTopologyKey (HMONITOR activeMonitor);
 
+    static void  Touch (std::vector<std::string> & keys, const std::string & topologyKey);
+
     // Places a window of the desired size on a monitor's work area, centered
     // where it fits, under one rule that outranks centering: THE CAPTION'S
     // TOP-LEFT CORNER IS NEVER OFF SCREEN. A window with its top-left off the

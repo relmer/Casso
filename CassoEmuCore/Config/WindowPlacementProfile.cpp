@@ -282,10 +282,33 @@ void WindowPlacementProfile::Save (
     if (target == Target::Debugger)
     {
         m_prefs->window.debuggerPlacements[topologyKey] = bounds;
+        Touch (m_prefs->window.touchedDebugger, topologyKey);
         return;
     }
 
     m_prefs->window.placements[topologyKey] = bounds;
+    Touch (m_prefs->window.touched, topologyKey);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::Touch
+//
+//  Records that this session's user put a window here, so the save keeps it
+//  and leaves every other key to whatever is on disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowPlacementProfile::Touch (std::vector<std::string> & keys, const std::string & topologyKey)
+{
+    if (std::find (keys.begin(), keys.end(), topologyKey) == keys.end())
+    {
+        keys.push_back (topologyKey);
+    }
 }
 
 
