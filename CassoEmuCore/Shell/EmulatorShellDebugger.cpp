@@ -148,6 +148,27 @@ void EmulatorShell::SetDebuggerLayout (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDebuggerPlacementKey
+//
+//  Saving and restoring must agree on the key, and the topology key folds in
+//  the ACTIVE monitor as well as the set of them: taken from the debugger
+//  window's own monitor it changes the moment the user drags that window to
+//  another screen, and nothing it saved would ever be found again. The
+//  emulator window is the anchor for both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string EmulatorShell::GetDebuggerPlacementKey() const
+{
+    return WindowPlacementProfile::BuildTopologyKey (MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryGetDebuggerPlacement
 //
 //  Where the debugger window was left on this monitor arrangement. A
@@ -160,7 +181,7 @@ bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
 {
     WindowPlacementProfile::Bounds  bounds;
     WindowPlacementProfile          profile (m_globalPrefs);
-    std::string                     key      = WindowPlacementProfile::BuildTopologyKey (MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST));
+    std::string                     key      = GetDebuggerPlacementKey();
     RECT                            saved    = {};
 
 
@@ -195,7 +216,7 @@ void EmulatorShell::SetDebuggerPlacement (const RECT & rectPx)
 {
     WindowPlacementProfile          profile (m_globalPrefs);
     WindowPlacementProfile::Bounds  bounds;
-    std::string                     key    = WindowPlacementProfile::BuildTopologyKey (MonitorFromRect (&rectPx, MONITOR_DEFAULTTONEAREST));
+    std::string                     key    = GetDebuggerPlacementKey();
 
 
 

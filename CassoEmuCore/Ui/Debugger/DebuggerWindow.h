@@ -5,6 +5,8 @@
 #include "Core/DxuiFocusManager.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDockSite.h"
+#include "Widgets/DxuiToolbar.h"
+#include "Ui/Debugger/DebuggerCommands.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
@@ -159,6 +161,12 @@ private:
     void     CycleKeyScheme   ();
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
     void     ConfigureDockSite  ();
+    void     ConfigureCommandBar ();
+    void     SetCommandBarMenus  ();
+    void     RunCommandBarEntry  (int id);
+    bool     IsCommandBarEntryEnabled (int id) const;
+    bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
+    static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
     bool     IsPaneShown        (const std::wstring & pane) const;
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
@@ -194,13 +202,11 @@ private:
     void     NoteViewFocus      (bool isSource);
     void     ApplySource        ();
     void     ApplyDiagnostics   ();
-    void     ShowPanelMenu      ();
     DiagnosticsPane *  GetDiagnosticsPane (const std::wstring & pane) const;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;
-    std::vector<DxuiButton *>    GetToolbarButtons () const;
     std::vector<DxuiButton *>    GetMemoryButtons  () const;
     std::vector<MemoryPane *>    GetOpenMemoryPanes () const;
     MemoryPane *                 GetActiveMemoryPane () const;
@@ -220,6 +226,9 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
 
+    DxuiToolbar                                                                    * m_commandBar         = nullptr;
+    std::unique_ptr<DebuggerCommands>                                                m_commands;
+    std::vector<std::shared_ptr<DxuiCommand>>                                        m_menuCommands;
     DxuiDockSite                                                                   * m_dockSite           = nullptr;
     HINSTANCE                                                                        m_hInstance          = nullptr;
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>                        m_floats;
@@ -229,15 +238,6 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_sourceFrame;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
-    DxuiButton                                                                     * m_stepButton         = nullptr;
-    DxuiButton                                                                     * m_stepOverButton     = nullptr;
-    DxuiButton                                                                     * m_stepOutButton      = nullptr;
-    DxuiButton                                                                     * m_runButton          = nullptr;
-    DxuiButton                                                                     * m_runToCursorButton  = nullptr;
-    DxuiButton                                                                     * m_pauseButton        = nullptr;
-    DxuiButton                                                                     * m_followPcButton     = nullptr;
-    DxuiButton                                                                     * m_keysButton         = nullptr;
-    DxuiButton                                                                     * m_traceButton        = nullptr;
     DxuiLabel                                                                      * m_flagsLabel         = nullptr;
     DxuiListView                                                                   * m_codeList           = nullptr;
     DxuiListView                                                                   * m_registerList       = nullptr;
@@ -269,7 +269,6 @@ private:
     std::wstring                                                                     m_sourceBannerKey;
     uint64_t                                                                         m_sourceClickMs      = 0;
     POINT                                                                            m_sourceClickAt      = {};
-    DxuiButton                                                                     * m_panelsButton       = nullptr;
     std::vector<std::unique_ptr<DiagnosticsPane>>                                    m_diagPanes;
     std::set<std::string>                                                            m_diagOpen;
 };

@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
 
 #include "Core/TextEncoding.h"
@@ -153,16 +154,7 @@ Error:
 
 void DebuggerWindow::OnCreate()
 {
-    m_stepButton        = CreateChild<DxuiButton>    (L"Step");
-    m_stepOverButton    = CreateChild<DxuiButton>    (L"Step Over");
-    m_stepOutButton     = CreateChild<DxuiButton>    (L"Step Out");
-    m_runButton         = CreateChild<DxuiButton>    (L"Run");
-    m_runToCursorButton = CreateChild<DxuiButton>    (L"Run to Cursor");
-    m_pauseButton       = CreateChild<DxuiButton>    (L"Pause");
-    m_followPcButton    = CreateChild<DxuiButton>    (L"Follow PC");
-    m_keysButton        = CreateChild<DxuiButton>    (L"Keys");
-    m_traceButton       = CreateChild<DxuiButton>    (L"Trace: Off");
-    m_panelsButton      = CreateChild<DxuiButton>    (L"Panels");
+    m_commandBar        = CreateChild<DxuiToolbar>   ();
     m_flagsLabel        = CreateChild<DxuiLabel>     (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_codeList          = CreateChild<DxuiListView>  ();
     m_registerList      = CreateChild<DxuiListView>  ();
@@ -256,38 +248,12 @@ void DebuggerWindow::ConfigureWidgets()
 
 
 
-    m_stepButton->SetOnClick     ([run] { run (DebuggerViewState::GetStepLine());     });
-    m_stepOverButton->SetOnClick ([run] { run (DebuggerViewState::GetStepOverLine()); });
-    m_stepOutButton->SetOnClick  ([run] { run (DebuggerViewState::GetStepOutLine());  });
-    m_runButton->SetOnClick      ([run] { run (DebuggerViewState::GetRunLine());      });
-
-    //  Pause is not a command line: it is the channel's pause, which stops a
-    //  run in progress, and the command box has no equivalent.
-    m_pauseButton->SetOnClick ([this] { if (m_host != nullptr) { m_host->PauseDebugger(); } });
-
-    m_runToCursorButton->SetOnClick ([this, run]
-    {
-        int  row = m_codeList->GetSelectedRow();
-
-        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->code.size())
-        {
-            run (DebuggerViewState::GetRunToCursorLine (m_snapshot->code[(size_t) row].address));
-        }
-    });
-
-    m_followPcButton->SetOnClick ([this] { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (std::nullopt); } });
-    m_keysButton->SetOnClick     ([this] { CycleKeyScheme(); });
-    m_panelsButton->SetOnClick   ([this] { ShowPanelMenu();  });
+    ConfigureCommandBar();
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
         pane->Configure();
     }
-
-    m_traceButton->SetOnClick ([this, run]
-    {
-        run (DebuggerViewState::GetTraceToggleLine (m_snapshot != nullptr && m_snapshot->trace.isOn));
-    });
 
     m_pokeButton->SetOnClick ([this] { SubmitPokeBox(); });
 
@@ -395,6 +361,200 @@ void DebuggerWindow::ConfigureWidgets()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ConfigureCommandBar
+//
+//  The strip of commands across the top. Its entries carry the key schemes'
+//  own ids, so a click and the key beside it in the tip run the same command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ConfigureCommandBar()
+{
+    DebuggerCommands::Handlers  handlers;
+
+
+
+    handlers.dispatch  = [this] (int id) { RunCommandBarEntry (id); };
+    handlers.isEnabled = [this] (int id) { return IsCommandBarEntryEnabled (id); };
+    handlers.isChecked = [this] (int id) { return id == DebuggerCommands::kTrace && m_snapshot != nullptr && m_snapshot->trace.isOn; };
+
+    m_commands = std::make_unique<DebuggerCommands> (std::move (handlers));
+
+    m_commandBar->SetTextRenderer (GetTextRenderer());
+    m_commandBar->SetPopupHost    (GetPopupHost());
+    m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+    m_commandBar->EnableSeeMore   (L"\uE712", L"See more");
+    m_commandBar->SetEntries      (m_commands->BuildEntries());
+
+    SetCommandBarMenus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MakeMenuCommand
+//
+//  A command for one row of a drop-down: its own label, whether it is the
+//  one in force, and what choosing it runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<DxuiCommand> DebuggerWindow::MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen)
+{
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+
+
+    command->label     = label;
+    command->isChecked = [checked] { return checked; };
+    command->dispatch  = std::move (chosen);
+
+    return command;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetCommandBarMenus
+//
+//  The drop-downs: the machine's device panels, the command dialects and the
+//  key schemes, each checked where it is the one in force. Rebuilt whenever
+//  what they list changes, since the rows carry the state they were built
+//  with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetCommandBarMenus()
+{
+    std::vector<DxuiPopupMenuItem>  panels;
+    std::vector<DxuiPopupMenuItem>  modes;
+    std::vector<DxuiPopupMenuItem>  schemes;
+
+
+
+    m_menuCommands.clear();
+
+    if (m_snapshot != nullptr)
+    {
+        for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
+        {
+            std::string  id   = panel.id;
+            bool         open = panel.open;
+            CommandMode  mode = m_snapshot->mode;
+
+            m_menuCommands.push_back (MakeMenuCommand (Widen (panel.title), open, [this, id, open, mode]
+            {
+                RunCommand (DebuggerViewState::GetPanelLine (id, !open, mode));
+            }));
+
+            panels.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+        }
+    }
+
+    for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+    {
+        bool  current = (m_snapshot != nullptr) && m_snapshot->mode == mode;
+
+        m_menuCommands.push_back (MakeMenuCommand (Widen (CommandModeNames::GetName (mode)), current, [this, mode]
+        {
+            RunCommand ("MODE " + CommandModeNames::GetUpperName (mode));
+        }));
+
+        modes.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+    {
+        m_menuCommands.push_back (MakeMenuCommand (DebuggerKeySchemes::GetMap (scheme).GetName(), scheme == m_keyScheme, [this, scheme]
+        {
+            ApplyKeyScheme (scheme);
+
+            if (m_host != nullptr)
+            {
+                m_host->SetDebuggerKeyScheme (DebuggerKeySchemes::GetName (scheme));
+            }
+
+            SetCommandBarMenus();
+        }));
+
+        schemes.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    m_commandBar->SetDropDownItems (DebuggerCommands::kPanels,    std::move (panels));
+    m_commandBar->SetDropDownItems (DebuggerCommands::kMode,      std::move (modes));
+    m_commandBar->SetDropDownItems (DebuggerCommands::kKeyScheme, std::move (schemes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunCommandBarEntry
+//
+//  A click on the strip runs what the same key would: the key schemes' own
+//  actions go through the mapped-command path, and the bar's own entries are
+//  handled here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunCommandBarEntry (int id)
+{
+    if (id == DebuggerCommands::kFollowPc)
+    {
+        if (m_host != nullptr)
+        {
+            m_host->SetDebuggerCodeAddress (std::nullopt);
+        }
+
+        return;
+    }
+
+    if (id == DebuggerCommands::kTrace)
+    {
+        RunCommand (DebuggerViewState::GetTraceToggleLine (m_snapshot != nullptr && m_snapshot->trace.isOn));
+        return;
+    }
+
+    (void) OnMappedCommand (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsCommandBarEntryEnabled
+//
+//  Run to Cursor is the one entry with a requirement of its own: a line to
+//  run to. The rest are commands the session answers whatever it is doing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
+{
+    if (id == DebuggerCommands::kRunToCursor)
+    {
+        return m_codeList != nullptr && m_codeList->GetSelectedRow() >= 0;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetLists
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -445,24 +605,6 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetToolbarButtons
-//
-//  Left to right, in the order they are laid out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiButton *> DebuggerWindow::GetToolbarButtons() const
-{
-    return { m_stepButton, m_stepOverButton, m_stepOutButton, m_runButton, m_runToCursorButton,
-             m_pauseButton, m_followPcButton, m_keysButton, m_traceButton, m_panelsButton };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::GetPressTargets
 //
 //  Every control a mouse press is offered to before the lists.
@@ -474,11 +616,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
     std::vector<IDxuiControl *>  targets;
 
 
-
-    for (DxuiButton * button : GetToolbarButtons())
-    {
-        targets.push_back (button);
-    }
 
     for (DxuiButton * button : GetMemoryButtons())
     {
@@ -1049,9 +1186,9 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
         entry.second->SetKeyMap (&map);
     }
 
-    if (m_keysButton != nullptr)
+    if (m_commands != nullptr)
     {
-        m_keysButton->SetLabel (L"Keys: " + map.GetName());
+        m_commands->ApplyKeyScheme (scheme);
     }
 }
 
@@ -1276,29 +1413,14 @@ void DebuggerWindow::LayoutWidgets()
         return;
     }
 
-    //  The buttons wrap to a second row when the window is too narrow for
-    //  them and the flags, rather than running off its edge.
-    for (DxuiButton * button : GetToolbarButtons())
-    {
-        int  w = px ((button == m_keysButton) ? 170 : (button == m_runToCursorButton) ? 120 : 96);
-
-        if (x > pad && x + w > width - pad)
-        {
-            x     = pad;
-            rowY += buttonH + pad;
-        }
-
-        button->Layout (RECT { x, rowY, x + w, rowY + buttonH }, m_scaler);
-        x += w + pad;
-    }
-
-    if (x + flagsW > width - pad)
-    {
-        x     = pad;
-        rowY += buttonH + pad;
-    }
-
-    m_flagsLabel->Layout (RECT { x + pad, rowY, width - pad, rowY + buttonH }, m_scaler);
+    //  The strip takes the row, less the room the flags need at its end: it
+    //  drops its labels one at a time and finally into See more, so it never
+    //  runs off the edge. The renderer it measures and draws its icons with
+    //  arrives with the backend, after the window was built.
+    m_commandBar->SetTextRenderer   (GetTextRenderer());
+    m_commandBar->SetHostClientRect (RECT { 0, 0, width, height });
+    m_commandBar->Layout (RECT { pad, rowY, width - pad - flagsW, rowY + buttonH }, m_scaler);
+    m_flagsLabel->Layout (RECT { width - pad - flagsW, rowY, width - pad, rowY + buttonH }, m_scaler);
 
     top  = rowY + buttonH + pad;
     barY = std::max (top + px (120), height - pad - boxH);
@@ -1646,7 +1768,6 @@ void DebuggerWindow::ApplySnapshot()
     m_registerList->SetRows (std::move (rows));
     m_flagsLabel->SetText   (L"Flags  " + Widen (m_snapshot->flags));
     m_tracePane->Apply      (m_snapshot->trace);
-    m_traceButton->SetLabel (m_snapshot->trace.isOn ? L"Trace: On" : L"Trace: Off");
 
     rows.clear();
 
@@ -1733,60 +1854,6 @@ void DebuggerWindow::ApplyDiagnostics()
     if (changed)
     {
         m_dockSite->Relayout();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ShowPanelMenu
-//
-//  The devices of the current machine, each checked while its panel is open;
-//  choosing one runs the PANEL line that opens or closes it, as typing it
-//  would.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowPanelMenu()
-{
-    RECT   button = m_panelsButton->GetBounds();
-    POINT  screen = { button.left, button.bottom };
-    HMENU  menu   = nullptr;
-    int    chosen = 0;
-
-
-
-    if (m_snapshot == nullptr || m_snapshot->panels.empty())
-    {
-        return;
-    }
-
-    menu = CreatePopupMenu();
-
-    if (menu == nullptr)
-    {
-        return;
-    }
-
-    for (size_t i = 0; i < m_snapshot->panels.size(); i++)
-    {
-        const DebuggerViewSnapshot::PanelInfo & panel = m_snapshot->panels[i];
-
-        AppendMenuW (menu, MF_STRING | (panel.open ? MF_CHECKED : MF_UNCHECKED), (UINT_PTR) (i + 1), Widen (panel.title).c_str());
-    }
-
-    ClientToScreen (GetHwnd(), &screen);
-    chosen = (int) TrackPopupMenu (menu, TPM_RETURNCMD | TPM_LEFTBUTTON, screen.x, screen.y, 0, GetHwnd(), nullptr);
-    DestroyMenu (menu);
-
-    if (chosen >= 1 && chosen <= (int) m_snapshot->panels.size())
-    {
-        const DebuggerViewSnapshot::PanelInfo & panel = m_snapshot->panels[(size_t) (chosen - 1)];
-
-        RunCommand (DebuggerViewState::GetPanelLine (panel.id, !panel.open, m_snapshot->mode));
     }
 }
 
@@ -2029,6 +2096,44 @@ void DebuggerWindow::OfferPress (IDxuiControl * control, const DxuiMouseEvent & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RouteCommandBarMouse
+//
+//  The strip takes the pointer over itself and everything while one of its
+//  menus is open, so a click meant for a menu row never reaches the pane
+//  behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
+{
+    int   x    = ev.positionDip.x;
+    int   y    = ev.positionDip.y;
+    RECT  bars = m_commandBar->GetBounds();
+    bool  over = x >= bars.left && x < bars.right && y >= bars.top && y < bars.bottom;
+
+
+
+    if (!over && !m_commandBar->IsMenuOpen())
+    {
+        m_commandBar->OnToolbarMouseLeave();
+        return false;
+    }
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move: return m_commandBar->OnToolbarMouseMove   (x, y);
+    case DxuiMouseEventKind::Down: return m_commandBar->OnToolbarLButtonDown (x, y);
+    case DxuiMouseEventKind::Up:   return m_commandBar->OnToolbarLButtonUp   (x, y);
+    default:                       return m_commandBar->IsMenuOpen();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2043,7 +2148,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    //  The site first: its strips, its sashes and a drag in progress lie over
+    //  The command bar first: it owns its strip and whatever menu it has
+    //  open.
+    if (m_routingPane.empty() && RouteCommandBarMouse (ev))
+    {
+        return true;
+    }
+
+    //  Then the site: its strips, its sashes and a drag in progress lie over
     //  the panes.
     if (m_routingPane.empty() && m_dockSite->OnMouse (ev))
     {
@@ -2086,14 +2198,9 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        //  The toolbar and the memory bar never leave this window.
+        //  The command bar and the memory bar never leave this window.
         if (m_routingPane.empty())
         {
-            for (DxuiButton * button : GetToolbarButtons())
-            {
-                button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
-            }
-
             for (DxuiButton * button : GetMemoryButtons())
             {
                 button->SetMouse (x, y, button->HitTest (x, y) && lbDown);

@@ -161,7 +161,7 @@
     <ClCompile Include="Ui\Debugger\Panes\MemoryMapBar.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DiskHeadView.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\MeterBar.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerLayout.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerLayout.cpp" /><ClCompile Include="Ui\Debugger\DebuggerCommands.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindow.cpp" />
     <ClCompile Include="Debugger\SynchronousRunDriver.cpp" />
     <ClCompile Include="Debugger\BreakpointTable.cpp" />
@@ -538,7 +538,7 @@
     <ClInclude Include="Ui\Debugger\Panes\MemoryMapBar.h" />
     <ClInclude Include="Ui\Debugger\Panes\DiskHeadView.h" />
     <ClInclude Include="Ui\Debugger\Panes\MeterBar.h" />
-    <ClInclude Include="Ui\Debugger\DebuggerLayout.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerLayout.h" /><ClInclude Include="Ui\Debugger\DebuggerCommands.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
     <ClInclude Include="Debugger\SynchronousRunDriver.h" />
     <ClInclude Include="Debugger\BreakpointTable.h" />

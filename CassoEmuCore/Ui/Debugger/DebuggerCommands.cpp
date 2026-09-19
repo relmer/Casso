@@ -1,0 +1,180 @@
+#include "Pch.h"
+
+#include "Ui/Debugger/DebuggerCommands.h"
+
+
+
+
+
+//  Segoe MDL2 Assets, chosen off a rendered sheet at both sizes the strip
+//  draws: no guessed codepoints, and nothing that turns to mush at the icon
+//  size. The font has no step-over arc, so the mark that reads as "past this
+//  one" stands in for it.
+static constexpr const wchar_t *  s_kGlyphRun         = L"\uE768";   // play
+static constexpr const wchar_t *  s_kGlyphPause       = L"\uE769";   // pause bars
+static constexpr const wchar_t *  s_kGlyphStepInto    = L"\uE896";   // arrow down to a bar
+static constexpr const wchar_t *  s_kGlyphStepOver    = L"\uE893";   // play to the next mark
+static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up from a bar
+static constexpr const wchar_t *  s_kGlyphRunToCursor = L"\uE847";   // arrow to a bar
+static constexpr const wchar_t *  s_kGlyphFollowPc    = L"\uE80F";   // home
+static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
+static constexpr const wchar_t *  s_kGlyphPanels      = L"\uE950";   // chip
+static constexpr const wchar_t *  s_kGlyphKeys        = L"\uE765";   // keyboard
+static constexpr const wchar_t *  s_kGlyphMode        = L"\uE943";   // braces
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::GetRows
+//
+//  Running and stopping first, then where the code pane looks, then the
+//  choices that change what the window shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
+{
+    static const std::vector<Row>  rows =
+    {
+        { kRun,         L"Run",           s_kGlyphRun,         L"Run until something stops the machine",        DxuiToolbar::Kind::Command,  0, false },
+        { kPause,       L"Pause",         s_kGlyphPause,       L"Stop the running machine",                     DxuiToolbar::Kind::Command,  0, false },
+        { kStepInto,    L"Step",          s_kGlyphStepInto,    L"Step one instruction, into a call",            DxuiToolbar::Kind::Command,  1, false },
+        { kStepOver,    L"Step Over",     s_kGlyphStepOver,    L"Step one instruction, over a call",            DxuiToolbar::Kind::Command,  1, false },
+        { kStepOut,     L"Step Out",      s_kGlyphStepOut,     L"Run to the return of the current call",        DxuiToolbar::Kind::Command,  1, false },
+        { kRunToCursor, L"Run to Cursor", s_kGlyphRunToCursor, L"Run until the selected line",                  DxuiToolbar::Kind::Command,  1, false },
+        { kFollowPc,    L"Follow PC",     s_kGlyphFollowPc,    L"Bring the code pane back to the PC",           DxuiToolbar::Kind::Command,  2, false },
+        { kTrace,       L"Trace",         s_kGlyphTrace,       L"Record every instruction the machine runs",    DxuiToolbar::Kind::Toggle,   2, true  },
+        { kPanels,      L"Panels",        s_kGlyphPanels,      L"Open a panel for one of the machine's devices", DxuiToolbar::Kind::DropDown, 3, false },
+        { kMode,        L"Dialect",       s_kGlyphMode,        L"The command dialect the console reads",        DxuiToolbar::Kind::DropDown, 3, false },
+        { kKeyScheme,   L"Keys",          s_kGlyphKeys,        L"Which editor's keys drive the debugger",       DxuiToolbar::Kind::DropDown, 3, false },
+    };
+
+
+
+    return rows;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::DebuggerCommands
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerCommands::DebuggerCommands (Handlers handlers)
+{
+    m_handlers = std::move (handlers);
+
+    for (const Row & row : GetRows())
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        int                           id      = row.id;
+
+        command->id    = row.id;
+        command->label = row.label;
+        command->glyph = row.glyph;
+        command->tip   = row.tip;
+
+        command->dispatch = [this, id]
+        {
+            if (m_handlers.dispatch)
+            {
+                m_handlers.dispatch (id);
+            }
+        };
+
+        command->isEnabled = [this, id]
+        {
+            return m_handlers.isEnabled ? m_handlers.isEnabled (id) : true;
+        };
+
+        if (row.checkable)
+        {
+            command->isChecked = [this, id]
+            {
+                return m_handlers.isChecked ? m_handlers.isChecked (id) : false;
+            };
+        }
+
+        m_commands.push_back (std::move (command));
+    }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::BuildEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (const Row & row : GetRows())
+    {
+        DxuiToolbar::Entry  entry;
+
+        entry.command = Find (row.id);
+        entry.kind    = row.kind;
+        entry.group   = row.group;
+        entries.push_back (std::move (entry));
+    }
+
+    return entries;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::Find
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<DxuiCommand> DebuggerCommands::Find (int id) const
+{
+    for (const std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        if (command->id == id)
+        {
+            return command;
+        }
+    }
+
+    return nullptr;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::ApplyKeyScheme
+//
+//  The strip shows each command's key as the scheme in force binds it, so
+//  changing the scheme relabels the tips rather than leaving them wrong.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::ApplyKeyScheme (DebuggerKeyScheme scheme)
+{
+    const DxuiKeyMap &  map = DebuggerKeySchemes::GetMap (scheme);
+
+
+
+    for (const std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        command->accelerator = map.GetChordText (command->id);
+    }
+}

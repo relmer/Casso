@@ -510,6 +510,7 @@ private:
     void         SetDebuggerKeyScheme (const std::string & name) override;
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;
+    std::string  GetDebuggerPlacementKey () const;
     bool         TryGetDebuggerPlacement (RECT & rectPx) override;
     void         SetDebuggerPlacement    (const RECT & rectPx) override;
     SourceLookup FindDebuggerSource   (const DebugSourceFile & record, const std::wstring & debugFilePath,
