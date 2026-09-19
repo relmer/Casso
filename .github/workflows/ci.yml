@@ -268,10 +268,7 @@ jobs:
           name: release-arm64
           path: ARM64/Release
 
-      # Staged before signing, so that what gets signed is what gets shipped.
-      # Both the zips and the MSIX are built from this tree afterwards.
-      # scripts/StageRelease.ps1 holds the list of what ships and why each
-      # thing is on it; the packaging dry run stages from the same script.
+      # Before signing, so what gets signed is what gets shipped.
       - name: Stage release payloads
         if: steps.check.outputs.exists != 'true'
         shell: pwsh
@@ -334,21 +331,9 @@ jobs:
                       'federated credential for ' +
                       'repo:${{ github.repository }}:environment:release.')
 
-      # --- MSIX ---
-      #
-      # AFTER the signing steps, never before. The bundle carries the staged
-      # executables verbatim, and signing a container does not reach inside
-      # it, so a bundle packed ahead of this point would hold two unsigned
-      # binaries under a signed wrapper.
-      #
-      # Gated on the signing credential for a second reason: an unsigned
-      # msixbundle cannot be installed at all. A zip that ships unsigned still
-      # runs, with a SmartScreen warning; an MSIX that ships unsigned is a
-      # download that does nothing but fail, so the unsigned path publishes
-      # the zips alone rather than a file no one can open.
-      #
-      # scripts/BuildMsix.ps1 says why an MSIX exists at all, and what the
-      # portable zip did in winget's validator that made it necessary.
+      # After signing: signing the bundle does not reach the executables
+      # inside it. Skipped without a credential, since an unsigned
+      # msixbundle cannot be installed at all.
       - name: Build the MSIX bundle
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
         shell: pwsh
@@ -359,10 +344,7 @@ jobs:
             -Version '${{ steps.ver.outputs.version }}' `
             -Platforms x64, ARM64
 
-      # The filter is not redundant even though the bundle is the only thing
-      # in `artifacts` at this point. The zips land in the same folder a few
-      # steps later, and an unfiltered folder is the kind of thing that keeps
-      # working until someone reorders the steps.
+      # The zips land in this folder later, hence the filter.
       - name: Sign the MSIX bundle
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
         uses: azure/artifact-signing-action@v2.0.0
@@ -378,17 +360,9 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
-      # A bundle whose signature did not take is not a lesser release, it is
-      # an uninstallable one: Windows refuses to deploy an unsigned package,
-      # and winget's validator refuses it before that. So this is a hard gate
-      # where the same check on the executables is a softer one.
-      #
-      # The publisher is checked too, because the way an MSIX signature fails
-      # is specific: signtool requires the certificate subject to match the
-      # manifest's Publisher string exactly, and a mismatch there is the one
-      # thing that would sail through every other check in this job. The
-      # manifest is read back out of the signed bundle rather than out of the
-      # tree, so what is asserted is what shipped.
+      # A hard gate, unlike the same check on the executables: an unsigned
+      # bundle will not install. Publisher is compared too, read back out of
+      # the signed bundle, because signtool needs it to match the subject.
       - name: Verify the bundle is signed
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
         shell: pwsh
@@ -432,10 +406,8 @@ jobs:
         run: |
           $version = '${{ steps.ver.outputs.version }}'
 
-          # Compress-Archive does not create the destination's parent, and on
-          # the unsigned path nothing upstream of here has: BuildMsix.ps1
-          # makes this folder, and it does not run without a signing
-          # credential.
+          # Compress-Archive will not create the parent, and on the unsigned
+          # path BuildMsix.ps1 has not run to make it.
           New-Item -ItemType Directory -Path artifacts -Force | Out-Null
 
           foreach ($plat in @('x64', 'ARM64')) {
@@ -462,11 +434,8 @@ jobs:
         if: steps.check.outputs.exists != 'true'
         shell: pwsh
         run: |
-          # Everything in the folder, not a list of extensions: every file in
-          # `artifacts` is a release asset by construction, and a named list
-          # is how the bundle would have been left out of this when it was
-          # added. SHA256SUMS.txt is written afterwards and so is not yet
-          # here to checksum itself.
+          # Everything in the folder: a list of extensions is how a new asset
+          # gets left out. SHA256SUMS.txt is written after this.
           $lines = Get-ChildItem artifacts -File | Sort-Object Name | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           }
@@ -580,9 +549,8 @@ jobs:
                   Write-Host "::warning::WINGET_PAT will not work as it stands: $tokenProblem."
               }
               Write-Host ("::notice::$pkgId is not in winget-pkgs yet, so there is nothing to " +
-                          'update. Submit the first manifest once by hand -- ' +
-                          'Installer/winget holds it and says how -- and this step picks up ' +
-                          'from there by itself.')
+                          'update. Submit the first manifest with ' +
+                          'scripts/NewWingetManifest.ps1; this step takes over after that.')
               exit 0
           }
 
@@ -599,11 +567,8 @@ jobs:
 
           $baseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag"
 
-          # ONE URL, because the installer is one bundle. wingetcreate reads
-          # the .msixbundle, takes the package family name and the signature
-          # hash out of it, and writes an Installer entry per architecture
-          # from what it finds inside -- none of which it could do for the
-          # zips, which is part of why the manifest is an msix one now.
+          # One bundle, one URL. wingetcreate reads the family name, the
+          # signature hash and both architectures out of it.
           & $dest update $pkgId `
             --version $version `
             --urls "$baseUrl/Casso-$version.msixbundle" `

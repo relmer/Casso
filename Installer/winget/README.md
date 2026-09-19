@@ -4,33 +4,13 @@ Three YAML templates and what to do with them. `scripts/NewWingetManifest.ps1`
 fills them from a published release; nothing here is edited by hand except the
 metadata, and the metadata is the only part that is not derived.
 
-## Why this is an msix manifest and not a portable one
+## Why msix
 
-The first submission was a portable zip, and winget's validation refused it on
-both architectures.
+An MSIX installs Casso and the DLLs it needs as one unit and runs them from
+one folder. A portable install launches through symlinks, where the loader
+searches beside the link and never finds the C runtime.
 
-A portable install drops symlinks into a `Links` folder on `PATH`, and the
-validator launches the binaries through those links. Windows resolves a DLL
-import against the directory of the **link**, not of its target, so the loader
-looked in `Links`, found no `vcruntime140.dll` beside it, fell through to
-`System32` and came up empty on a machine without the Visual C++
-redistributable. `Casso.exe` and `CassoCli.exe` both exited with
-`0xC0000135` / `STATUS_DLL_NOT_FOUND`. Setting `ArchiveBinariesDependOnPath`
-changed nothing: it does not move where the loader looks, and the validator
-still launched from `Links`.
-
-Reproduced locally in both directions, which is what settled it. Launched from
-the folder the build produced, the four CRT DLLs load from that folder.
-Launched through a symlink with `CreateProcess`, the same four come from
-`System32` instead.
-
-An MSIX has no links. The executables run from the folder they live in, beside
-the DLLs the package carries, and the two terminal commands come from app
-execution aliases, which are entries in the app-paths list rather than files on
-`PATH`.
-
-The zip is still published. It works for direct use, and only the link path was
-ever broken.
+The zip is still published and works for direct use.
 
 ## The three values that cannot be typed
 
@@ -39,7 +19,7 @@ published URL rather than a local build.
 
 `SignatureSha256` is the hash of `AppxSignature.p7x` inside the bundle. winget
 checks it before installing, to confirm the package was signed by the publisher
-the manifest names. It exists only after signing.
+the manifest claims. It exists only after signing.
 
 `PackageFamilyName` is how Windows and winget identify the package for upgrade
 and uninstall. It is the manifest's `Name`, an underscore, and a hash of the
