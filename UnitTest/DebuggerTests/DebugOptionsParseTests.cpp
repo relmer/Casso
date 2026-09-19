@@ -218,6 +218,34 @@ namespace DebugOptionsParseTests
             Assert::IsTrue (other.refusalMessage.find ("--mode") != std::string::npos, Widen (other.refusalMessage).c_str());
         }
 
+        TEST_METHOD (Mode_TakesGSSquared)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--mode", "GSSquared" });
+
+
+
+            Assert::AreEqual (std::string ("gssquared"), options.debug.mode);
+            Assert::IsFalse  (IsRefused (options));
+        }
+
+        //  FR-013: the output format from batch, apart from the mode. Absent,
+        //  it is empty, which means the mode's own.
+        TEST_METHOD (Output_TakesAFormat_AndAnotherWordIsRefused)
+        {
+            CommandLineOptions  none    = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r" });
+            CommandLineOptions  output  = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--output", "GSSQUARED" });
+            CommandLineOptions  other   = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--output", "basic" });
+
+
+
+            Assert::IsTrue   (none.debug.output.empty());
+            Assert::AreEqual (std::string ("gssquared"), output.debug.output);
+            Assert::IsFalse  (IsRefused (output));
+
+            Assert::IsTrue (IsRefused (other));
+            Assert::IsTrue (other.refusalMessage.find ("--output") != std::string::npos, Widen (other.refusalMessage).c_str());
+        }
+
         TEST_METHOD (Json_AndWriteDisks_AreFlags)
         {
             CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--json", "--write-disks" });

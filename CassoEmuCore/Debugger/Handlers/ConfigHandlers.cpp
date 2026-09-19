@@ -6,6 +6,7 @@
 #include "Config/IFileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/AppleWinCommandTable.h"
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
@@ -40,6 +41,8 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::Calculate:            reply.data = CalcData { command.a1 };      return true;
     case DebugVerb::Help:                 Help            (command, reply);          return true;
     case DebugVerb::ShowVersion:          reply.data = MessageData { { "Casso " VERSION_STRING } }; return true;
+    case DebugVerb::ShowOutputFormat:
+    case DebugVerb::SetOutputFormat:      Output          (session, command, reply); return true;
 
     case DebugVerb::ShowMessageOfTheDay:
         reply.data = MessageData { { "Casso debugger: HELP lists the commands, MODE MONITOR switches to Apple II Monitor syntax." } };
@@ -740,4 +743,27 @@ const char * ConfigHandlers::GetFamilyName (int family)
 
 
     return kNames[family];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::Output
+//
+//  OUTPUT reports the format replies are written in; OUTPUT name sets it and
+//  leaves the mode lines are read in as it was. MODE sets both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::Output (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    if (command.verb == DebugVerb::SetOutputFormat)
+    {
+        session.SetOutputFormat (command.output);
+    }
+
+    reply.data = MessageData { { "Output: " + CommandModeNames::GetUpperName (session.GetOutputFormat()) } };
 }

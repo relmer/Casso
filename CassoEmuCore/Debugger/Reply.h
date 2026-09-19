@@ -492,9 +492,13 @@ struct ReplyError
     std::string  detail;
 };
 
+//  verb is the operation the reply answers, for a format that writes two
+//  operations with the same data differently: GSSquared prints nothing for a
+//  deposit and a dump for an examine, and both reply with memory rows.
 struct Reply
 {
     CommandStatus             status = CommandStatus::Ok;
+    DebugVerb                 verb   = DebugVerb::None;
     std::string               command;
     ReplyData                 data;
     std::vector<std::string>  text;

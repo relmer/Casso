@@ -36,7 +36,16 @@ reachable in every mode:
 | `HISTORY [first [count]]` | the state, the number of entries retained, and `count` entries (20 by default) from entry `first`, oldest first; a bare `HISTORY` shows the newest. Both numbers are decimal. Each line: entry, cycles, address and its symbol, instruction, registers, and `R` or `W` with the accessed address, byte and symbol (FR-047) |
 | `HISTORY SAVE file` | write every retained entry, one `HISTORY` line each, oldest first (FR-048) |
 | `PANEL` / `PANEL LIST` / `PANEL name` / `PANEL CLOSE name` | list the current machine's device panels, open one, or close one, by provider id (`disk`, `mmu`) or title, either case (FR-049 to FR-053). Carried out by the window, which runs it from its command box and its panel menu; batch and the pipe return `notAvailable` with `PANEL needs the debugger window.` A name the machine lacks is an error that points at `PANEL LIST` |
+| `OUTPUT APPLEWIN\|MONITOR\|GSSQUARED` | set the output format alone (FR-013); `OUTPUT` reports it; `MODE x` sets both mode and format |
+| `MODE GSSQUARED` | switch to GSSquared mode ([gssquared-mode.md](gssquared-mode.md)) |
 
+The engine commands are the `Engine` family of `AppleWinCommandTable`
+(`MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`, `SKIP`,
+`OUTPUT`, `PROFILE`). Each mode's parser strips its marker and hands the line
+to `AppleWinParser`, so a command added to the family is reachable in every
+mode with no parser change; `EngineMarkerTests` walks the family. `PANEL`,
+`HISTORY` and `CALLS` join it when they are built, and WinDbg's `!` row when
+that mode is.
 AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`,
 `CALLS`, `SKIP`, `HISTORY` or `PANEL` command, so these names collide with nothing in its table;
 nor does GSSquared's.

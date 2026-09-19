@@ -17,16 +17,18 @@ up in the other. The channel is documented in [DebugChannel.md](DebugChannel.md)
 
 ## Command modes
 
-The debugger reads each line in one of two modes.
+The debugger reads each line in one of three modes.
 
 - **AppleWin** (the default) uses AppleWin's debugger command names: `BP`, `G`,
   `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols.
 - **Monitor** uses the Apple II Monitor's own syntax: `300.30F`,
   `300: A9 41`, `300L`, `300G`, `^E`. Values are plain hex digits; there are
   no expressions or symbols. Control-key commands are typed as `^` and a letter.
+- **GSSquared** uses the GSSquared emulator's debugger commands, described
+  below.
 
-Switch with `MODE MONITOR` and `MODE APPLEWIN`; `MODE` alone shows the current
-mode. Batch mode starts in the mode `--mode` gives.
+Switch with `MODE MONITOR`, `MODE GSSQUARED` and `MODE APPLEWIN`; `MODE` alone
+shows the current mode. Batch mode starts in the mode `--mode` gives.
 
 ### The `/` prefix
 
@@ -38,6 +40,44 @@ reaches everything the Monitor has no command for:
 */SYM LOAD "game.dbg"
 ```
 
+### GSSquared mode
+
+| Command | Effect |
+|---|---|
+| `addr` | examine one byte |
+| `first.last` | dump the range, sixteen bytes a line with the characters after them |
+| `addr: b b ...`, `set addr b b ...` | deposit bytes |
+| `move first.last dest` | copy a range |
+| `l addr`, `addrl`, `l` | disassemble from an address, or continue |
+| `bp addr`, `bp first.last`, `bp` | set an execution breakpoint, or list the breakpoints and watchpoints |
+| `bpd addr r\|w\|rw`, `bpi addr r\|w\|rw` | stop on a read, a write or either; `bpi` takes an I/O address, $C000-$C0FF |
+| `nobp id`, `nobp addr` | clear a breakpoint by id, or the execution breakpoint at an address |
+| `watch addr`, `watch first.last`, `watch`, `nowatch id` | add, list and clear watches; a range adds one watch per address |
+| `load "file" addr`, `save "file" first.last` | load and save a binary, as `BLOAD` and `BSAVE` |
+| `sload "file"`, `slookup addr`, `sclear` | load, look up and clear symbols |
+| `s`, `o`, `r`, `g` | step into, step over, step out, run |
+
+- Addresses are hex with no prefix, and names are case-insensitive. `bp`,
+  `bpd` and `bpi` take a trailing `IF expression`, as in AppleWin mode.
+- An address may carry a bank, as on a IIgs: `00/300` is $0300. Any other bank
+  is refused, since only bank 00 exists on these machines.
+- `m`, `x`, `map`, `video` and `novideo` are IIgs commands, and `debug` and
+  `nodebug` open device panels; these reply that they are not available.
+- GSSquared itself steps by key rather than by command. In the debugger
+  window, with the command line empty, Space and F10 step and Return runs, as
+  in GSSquared; `s`, `o`, `r` and `g` are how a script does the same.
+- A breakpoint set in GSSquared mode is the same breakpoint `BPL` lists in
+  AppleWin mode.
+
+### Output format
+
+Replies are written in an output format of their own: AppleWin, Monitor or
+GSSquared. `MODE` sets the format along with the mode; `OUTPUT name` then
+changes the format alone, and `OUTPUT` shows it. Batch mode takes `--output`.
+A reply a format has no layout for is written as AppleWin writes it, and
+GSSquared has no stop line of its own, so in its format a stop reads as in
+AppleWin's.
+
 ## Getting help
 
 `HELP` (or `?`) lists every command by family. `HELP name` describes one, and
@@ -45,11 +85,19 @@ says whether it is an alias, needs the debugger window, or is not available.
 
 ## Casso engine commands
 
-These are Casso's own, alongside AppleWin's names.
+These are Casso's own, alongside AppleWin's names. Each mode reaches them
+through its own marker:
+
+| Mode | Marker | Example |
+|---|---|---|
+| AppleWin | the bare name | `SWITCHES` |
+| Monitor | `/` | `/switches` |
+| GSSquared | the bare name; `/` is its bank separator | `switches` |
 
 | Command | Effect |
 |---|---|
-| `MODE [APPLEWIN\|MONITOR]` | shows or sets the command mode |
+| `MODE [APPLEWIN\|MONITOR\|GSSQUARED]` | shows or sets the command mode, and sets the output format to match |
+| `OUTPUT [APPLEWIN\|MONITOR\|GSSQUARED]` | shows or sets the output format alone |
 | `PAUSE` | stops a running machine |
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
 | `SWITCHES` | lists the soft switches and whether each is on |
@@ -68,7 +116,7 @@ These are Casso's own, alongside AppleWin's names.
 | `RTS [n]` | steps out of `n` subroutines |
 
 A stop is reported with its reason and address, for example
-`Breakpoint #0 at $FDED` or `Step at $0302`. In Monitor mode a stop prints the
+`Breakpoint #0 at $FDED` or `Step at $0302`. In the Monitor output format a stop prints the
 register line instead.
 
 Breakpoints (`BP`, `BPM`, `BPMR`, `BPMW`, `BPR`, `BPL`, `BPC`, `BPD`, `BPE`),

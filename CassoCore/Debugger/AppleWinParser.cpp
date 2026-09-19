@@ -2,6 +2,7 @@
 
 #include "Debugger/AppleWinParser.h"
 
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDebugExpressionContext.h"
 
@@ -996,8 +997,9 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
 //
 //  AppleWinParser::TryParseEngineArguments
 //
-//  MODE [APPLEWIN | MONITOR], and BUDGET n with n in decimal, as
-//  --max-cycles takes it.
+//  MODE [APPLEWIN | MONITOR | GSSQUARED], OUTPUT with the same names, and
+//  BUDGET n with n in decimal, as --max-cycles takes it. PATCH takes its
+//  arguments as ME does and PROFILE its keywords as text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1027,18 +1029,38 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParsePanelArguments (args, command, error);
     }
 
+    if (command.verb == DebugVerb::PatchBytes)
+    {
+        return TryParseMemoryArguments (args, command, error);
+    }
+
+    if (command.verb == DebugVerb::Profile)
+    {
+        command.text = args.rest;
+        return true;
+    }
+
     if (command.verb == DebugVerb::ShowMode && !args.tokens.empty())
     {
-        mode = ToUpper (args.tokens[0]);
-
-        if (mode != "APPLEWIN" && mode != "MONITOR")
+        if (!CommandModeNames::TryParse (args.tokens[0], command.mode))
         {
-            error = "The modes are APPLEWIN and MONITOR.";
+            error = std::format ("The modes are {}.", ToUpper (CommandModeNames::GetList()));
             return false;
         }
 
         command.verb = DebugVerb::SetMode;
-        command.mode = (mode == "MONITOR") ? CommandMode::Monitor : CommandMode::AppleWin;
+        return true;
+    }
+
+    if (command.verb == DebugVerb::ShowOutputFormat && !args.tokens.empty())
+    {
+        if (!CommandModeNames::TryParse (args.tokens[0], command.output))
+        {
+            error = std::format ("The output formats are {}.", ToUpper (CommandModeNames::GetList()));
+            return false;
+        }
+
+        command.verb = DebugVerb::SetOutputFormat;
         return true;
     }
 

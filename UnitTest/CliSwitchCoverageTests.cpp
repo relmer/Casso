@@ -467,6 +467,10 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.debug.mode == "monitor"; },
               "--mode picks the starting command mode" },
 
+            { "debug", "output", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--output", "gssquared" },
+              [] (const CommandLineOptions & o) { return o.debug.output == "gssquared"; },
+              "--output picks the starting output format" },
+
             { "debug", "json", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--json" },
               [] (const CommandLineOptions & o) { return o.debug.json; },
               "--json prints JSON Lines instead of text" },

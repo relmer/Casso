@@ -5,6 +5,7 @@
 #include "As65ExitStatus.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
+#include "Debugger/CommandModeNames.h"
 
 
 
@@ -393,6 +394,7 @@ static constexpr const char *  s_kpszDebugLongOptions[] =
     "script",
     "command",
     "mode",
+    "output",
     "json",
     "max-cycles",
     "seed",
@@ -1105,7 +1107,7 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 bool CommandLineParser::IsDebugOptionNeedingValue (const std::string & arg)
 {
     return arg == "--machine" || arg == "--disk1"      || arg == "--disk2" ||
-           arg == "--script"  || arg == "--command"    || arg == "--mode"  ||
+           arg == "--script"  || arg == "--command"    || arg == "--mode"  || arg == "--output" ||
            arg == "--max-cycles" || arg == "--seed"    || arg == "--attach" ||
            arg == "--timeout";
 }
@@ -4041,6 +4043,8 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
     HRESULT                            hr        = S_OK;
     bool                               wantsHelp = false;
     uint32_t                           cycles    = 0;
+    CommandMode                        mode      = CommandMode::AppleWin;
+    OutputFormat                       output    = OutputFormat::AppleWin;
 
 
 
@@ -4107,10 +4111,26 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
                 ch = (char) tolower ((unsigned char) ch);
             }
 
-            if (debug.mode != "applewin" && debug.mode != "monitor")
+            if (!CommandModeNames::TryParse (debug.mode, mode))
             {
                 Refusal (options) << "Error: unknown value for " << FormatLongOption ("--mode", options.flagPrefix) << "\n"
-                                  << "       expected: applewin or monitor\n";
+                                  << "       expected: " << CommandModeNames::GetList() << "\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+        }
+        else if (IsLongOption (arg, "--output", options) && hasValue)
+        {
+            debug.output = argv[++argIndex];
+
+            for (char & ch : debug.output)
+            {
+                ch = (char) tolower ((unsigned char) ch);
+            }
+
+            if (!CommandModeNames::TryParse (debug.output, output))
+            {
+                Refusal (options) << "Error: unknown value for " << FormatLongOption ("--output", options.flagPrefix) << "\n"
+                                  << "       expected: " << CommandModeNames::GetList() << "\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
