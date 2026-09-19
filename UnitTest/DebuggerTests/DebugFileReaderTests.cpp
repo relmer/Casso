@@ -427,7 +427,7 @@ namespace DebuggerTests
 
         TEST_METHOD (SymbolsResolveToTheirAddresses)
         {
-            DebugFile  file = Read();
+            DebugFile  file  = Read();
             bool       found = false;
 
 
