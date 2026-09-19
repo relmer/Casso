@@ -266,6 +266,34 @@ namespace DebugModeTests
             rig.AssertOutputIs ("modes.txt");
         }
 
+        //  Quickstart Story 14: WinDbg mode's commands in its own layouts, the
+        //  excluded families, `!` reaching the engine, and the three ways of
+        //  writing one address.
+        TEST_METHOD (WinDbgScript_ProducesTheExpectedText)
+        {
+            BatchRig  rig;
+
+
+
+            rig.Run (rig.Script ("windbg.txt"));
+            rig.AssertOutputIs ("windbg.txt");
+        }
+
+        //  --mode windbg starts the script in WinDbg mode, at its prompt.
+        TEST_METHOD (ModeOption_StartsInWinDbgMode)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.mode     = "windbg";
+            rig.options.commands = { "r", "!mode" };
+
+            Assert::AreEqual (0, rig.Run (""));
+            Assert::IsTrue   (rig.result.output.starts_with ("0:000> r\na="), rig.Widen (rig.result.output).c_str());
+            Assert::IsTrue   (rig.result.output.find ("Mode: WINDBG") != std::string::npos, rig.Widen (rig.result.output).c_str());
+        }
+
         //  As JSON the mode change is a record of its own, since a tool
         //  reading the stream keys its parser on it.
         TEST_METHOD (ModeSwitch_MidScript_AsJsonLines)

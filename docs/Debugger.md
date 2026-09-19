@@ -17,7 +17,7 @@ up in the other. The channel is documented in [DebugChannel.md](DebugChannel.md)
 
 ## Command modes
 
-The debugger reads each line in one of three modes.
+The debugger reads each line in one of four modes.
 
 - **AppleWin** (the default) uses AppleWin's debugger command names: `BP`, `G`,
   `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols.
@@ -26,8 +26,12 @@ The debugger reads each line in one of three modes.
   no expressions or symbols. Control-key commands are typed as `^` and a letter.
 - **GSSquared** uses the GSSquared emulator's debugger commands, described
   below.
+- **WinDbg** is WinDbg-flavored: the WinDbg commands a 6502 session uses, with
+  WinDbg's arguments and layouts, described below. It is not WinDbg; the rest
+  of WinDbg has no meaning on this machine and says so.
 
-Switch with `MODE MONITOR`, `MODE GSSQUARED` and `MODE APPLEWIN`; `MODE` alone
+Switch with `MODE MONITOR`, `MODE GSSQUARED`, `MODE WINDBG` and
+`MODE APPLEWIN`; `MODE` alone
 shows the current mode. Batch mode starts in the mode `--mode` gives.
 
 ### The `/` prefix
@@ -69,10 +73,37 @@ reaches everything the Monitor has no command for:
 - A breakpoint set in GSSquared mode is the same breakpoint `BPL` lists in
   AppleWin mode.
 
+### WinDbg mode
+
+Each command has the effect of the AppleWin command beside it.
+
+| Command | Effect | AppleWin |
+|---|---|---|
+| `t`, `p`, `gu` | step into, over, out | `T`, `P`, `RTS` |
+| `g [addr]`, `pa addr`, `ta addr` | resume, or run to an address | `G` |
+| `bp addr`, ``bp `file:line` `` | execution breakpoint | `BP` |
+| `ba r1\|w1\|e1 addr` | stop on a read, a write, or execution of one byte; a larger size covers more | `BPMR`, `BPMW`, `BP` |
+| `bl`, `bc n\|*`, `bd n\|*`, `be n\|*` | list, clear, disable, enable | `BPL`, `BPC`, `BPD`, `BPE` |
+| `db`, `dw`, `dd`, `da` `addr [l n]` | bytes, words, double words, a string to a zero | `D` |
+| `eb addr b ...`, `ew addr w ...`, `ea addr "text"` | deposit | `MEB`, `MEW` |
+| `f addr l n b`, `s addr l n b ...`, `m src l n dest` | fill, search, move | `F`, `S`, `M` |
+| `r`, `r a=41` | show or set registers (`a`, `x`, `y`, `sp`, `pc`, `fl`) | `R` |
+| `u [addr]`, `x pattern`, `k` | disassemble, find symbols (`*` and `?` match), call stack | `U`, `SYM`, `CALLS` |
+| `? expr`, `.formats value` | evaluate | `CALC` |
+| `l+s`, `l-s`, `lsa` | step by source line on, off; the line at PC | `SRC` |
+
+- A bare number is hex; `0x300` and `$300` are the same, and `0n10` is
+  decimal. A length is `l` and a count in the command's own units.
+- The prompt is `0:000>`. A stop prints AppleWin's stop line, then `r`'s.
+- Threads, modules, exceptions, the kernel, dump files, types and scripting
+  (`~`, `lm`, `sxe`, `!pte`, `.dump`, `dt`, `.foreach` and the like) reply
+  `Error: no meaning on this machine` with the family. `wt`, `s -a`, `s -b`
+  and `lsa file:line` are not available yet.
+
 ### Output format
 
-Replies are written in an output format of their own: AppleWin, Monitor or
-GSSquared. `MODE` sets the format along with the mode; `OUTPUT name` then
+Replies are written in an output format of their own: AppleWin, Monitor,
+GSSquared or WinDbg. `MODE` sets the format along with the mode; `OUTPUT name` then
 changes the format alone, and `OUTPUT` shows it. Batch mode takes `--output`.
 A reply a format has no layout for is written as AppleWin writes it, and
 GSSquared has no stop line of its own, so in its format a stop reads as in
@@ -93,11 +124,12 @@ through its own marker:
 | AppleWin | the bare name | `SWITCHES` |
 | Monitor | `/` | `/switches` |
 | GSSquared | the bare name; `/` is its bank separator | `switches` |
+| WinDbg | `!` | `!switches` |
 
 | Command | Effect |
 |---|---|
-| `MODE [APPLEWIN\|MONITOR\|GSSQUARED]` | shows or sets the command mode, and sets the output format to match |
-| `OUTPUT [APPLEWIN\|MONITOR\|GSSQUARED]` | shows or sets the output format alone |
+| `MODE [APPLEWIN\|MONITOR\|GSSQUARED\|WINDBG]` | shows or sets the command mode, and sets the output format to match |
+| `OUTPUT [APPLEWIN\|MONITOR\|GSSQUARED\|WINDBG]` | shows or sets the output format alone |
 | `PAUSE` | stops a running machine |
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
 | `SWITCHES` | lists the soft switches and whether each is on |

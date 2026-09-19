@@ -292,8 +292,8 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
 
 bool WinDbgParser::TryFindExclusion (const std::string & name, const WinDbgExclusion *& exclusion)
 {
-    static constexpr size_t  kPseudoRegisterLength = 3;
-    const char             * family = nullptr;
+    static constexpr size_t    kPseudoRegisterLength = 3;
+    const char               * family                = nullptr;
 
 
 

@@ -163,12 +163,12 @@ bool WinDbgFormatter::TryFormatData (const std::string & name, const ReplyData &
 
 void WinDbgFormatter::FormatBytes (const MemoryData & data, Lines & lines)
 {
-    static constexpr size_t  kHalf       = 8;
-    static constexpr size_t  kHexWidth   = kBytesPerLine * 3 - 1;
-    static constexpr Byte    kFirstPrint = 0x20;
-    static constexpr Byte    kLastPrint  = 0x7E;
-    std::vector<std::optional<Byte>>  bytes   = GetBytes (data);
-    Word                              address = data.rows.empty() ? 0 : data.rows.front().address;
+    static constexpr size_t           kHalf       = 8;
+    static constexpr size_t           kHexWidth   = kBytesPerLine * 3 - 1;
+    static constexpr Byte             kFirstPrint = 0x20;
+    static constexpr Byte             kLastPrint  = 0x7E;
+    std::vector<std::optional<Byte>>  bytes       = GetBytes (data);
+    Word                              address     = data.rows.empty() ? 0 : data.rows.front().address;
 
 
 
@@ -212,9 +212,9 @@ void WinDbgFormatter::FormatBytes (const MemoryData & data, Lines & lines)
 
 void WinDbgFormatter::FormatUnits (const MemoryData & data, size_t unit, Lines & lines)
 {
-    static constexpr int  kBitsPerByte = 8;
-    std::vector<std::optional<Byte>>  bytes   = GetBytes (data);
-    Word                              address = data.rows.empty() ? 0 : data.rows.front().address;
+    static constexpr int              kBitsPerByte = 8;
+    std::vector<std::optional<Byte>>  bytes        = GetBytes (data);
+    Word                              address      = data.rows.empty() ? 0 : data.rows.front().address;
 
 
 
@@ -259,11 +259,11 @@ void WinDbgFormatter::FormatUnits (const MemoryData & data, size_t unit, Lines &
 
 void WinDbgFormatter::FormatString (const MemoryData & data, Lines & lines)
 {
-    static constexpr Byte  kLowBits    = 0x7F;
-    static constexpr Byte  kFirstPrint = 0x20;
-    static constexpr Byte  kLastPrint  = 0x7E;
-    std::vector<std::optional<Byte>>  bytes   = GetBytes (data);
-    Word                              address = data.rows.empty() ? 0 : data.rows.front().address;
+    static constexpr Byte             kLowBits    = 0x7F;
+    static constexpr Byte             kFirstPrint = 0x20;
+    static constexpr Byte             kLastPrint  = 0x7E;
+    std::vector<std::optional<Byte>>  bytes       = GetBytes (data);
+    Word                              address     = data.rows.empty() ? 0 : data.rows.front().address;
     std::string                       text;
 
 

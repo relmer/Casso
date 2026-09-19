@@ -1,0 +1,30 @@
+; Quickstart Story 14 in WinDbg mode. Known bytes first: a JSR at $0300
+; to a routine at $0310 that loads A and returns, amid NOPs.
+F 300:33F EA
+MEB 300 20 10 03 60
+MEB 310 A9 41 60
+R PC 300
+MODE WINDBG
+bp 300
+ba w1 c010
+bl
+db 300 l20
+eb 2000 a9 41
+t
+k
+p
+gu
+r
+u 300
+x home*
+? 300+10
+.formats 41
+~
+lm
+dt
+.reload
+db 0x300 l4
+db 300 l4
+db $300 l4
+!switches
+!mode applewin

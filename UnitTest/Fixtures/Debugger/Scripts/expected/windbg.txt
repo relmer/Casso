@@ -1,0 +1,106 @@
+>F 300:33F EA
+Filled 64 bytes at $0300-$033F.
+>MEB 300 20 10 03 60
+0300: 20 10 03 60               ..`
+>MEB 310 A9 41 60
+0310: A9 41 60                 )A`
+>R PC 300
+A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I..
+>MODE WINDBG
+Mode: WINDBG
+0:000> bp 300
+Breakpoint #0 set at $0300
+0:000> ba w1 c010
+Breakpoint #1 set on write of $C010
+0:000> bl
+0 e 0300 0001 (0001)
+1 e c010 w1 0001 (0001)
+0:000> db 300 l20
+0300  20 10 03 60 ea ea ea ea-ea ea ea ea ea ea ea ea   ..`............
+0310  a9 41 60 ea ea ea ea ea-ea ea ea ea ea ea ea ea  .A`.............
+0:000> eb 2000 a9 41
+2000  a9 41                                            .A
+0:000> t
+Step at $0310
+a=00 x=00 y=00 sp=fb pc=0310 nv-bdIzc
+0:000> k
+#  call site  target        how
+00 0300       0310          JSR recorded
+-- recording began at $FA62 --
+0:000> p
+Step at $0312
+a=41 x=00 y=00 sp=fb pc=0312 nv-bdIzc
+0:000> gu
+Step at $0303
+a=41 x=00 y=00 sp=fd pc=0303 nv-bdIzc
+0:000> r
+a=41 x=00 y=00 sp=fd pc=0303 nv-bdIzc
+0:000> u 300
+0300 201003  jsr $0310
+0303 60      rts
+0304 ea      nop
+0305 ea      nop
+0306 ea      nop
+0307 ea      nop
+0308 ea      nop
+0309 ea      nop
+030a ea      nop
+030b ea      nop
+030c ea      nop
+030d ea      nop
+030e ea      nop
+030f ea      nop
+0310 a941    lda #$41
+0312 60      rts
+0313 ea      nop
+0314 ea      nop
+0315 ea      nop
+0316 ea      nop
+0:000> x home*
+$FC58 HOME (main)
+0:000> ? 300+10
+Evaluate expression: 784 = 0310
+0:000> .formats 41
+Evaluate expression:
+  Hex:     0041
+  Decimal: 65
+  Binary:  00000000 01000001
+  Chars:   .A
+0:000> ~
+Error: no meaning on this machine
+       ~ belongs to WinDbg's threads and processes commands.
+0:000> lm
+Error: no meaning on this machine
+       lm belongs to WinDbg's modules and symbol paths commands.
+0:000> dt
+Error: no meaning on this machine
+       dt belongs to WinDbg's types and locals commands.
+0:000> .reload
+Error: no meaning on this machine
+       .reload belongs to WinDbg's modules and symbol paths commands.
+0:000> db 0x300 l4
+0300  20 10 03 60                                       ..`
+0:000> db 300 l4
+0300  20 10 03 60                                       ..`
+0:000> db $300 l4
+0300  20 10 03 60                                       ..`
+0:000> !switches
+TEXT       on
+MIXED      off
+PAGE2      off
+HIRES      off
+80COL      off
+DHIRES     off
+ALTCHARSET off
+RAMRD      off
+RAMWRT     off
+ALTZP      off
+80STORE    off
+INTCXROM   off
+SLOTC3ROM  off
+INTC8ROM   off
+LCREAD     off
+LCWRITE    on
+LCBANK2    on
+0:000> !mode applewin
+Mode: APPLEWIN
