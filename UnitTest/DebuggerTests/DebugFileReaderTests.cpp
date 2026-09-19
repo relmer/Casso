@@ -368,6 +368,73 @@ namespace DebuggerTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinFixtureTests
+    //
+    //  Merlin Pro 2.23's own listing of PI.ADD.S, printed by the emulated
+    //  assembler. It carries what a captured listing has that a written one
+    //  does not: macro expansion lines, PUT and USE files with their own
+    //  numbering, and a symbol table after the end of the assembly.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinFixtureTests)
+    {
+    public:
+
+        static DebugFile Read()
+        {
+            FixtureProvider       provider;
+            std::vector<uint8_t>  bytes;
+            HRESULT               hr    = provider.OpenFixture ("Debugger/Merlin/PI.ADD.LST", bytes);
+            DebugFile             file;
+            std::string           error;
+
+
+
+            Assert::AreEqual (S_OK, hr, L"fixture missing: Debugger/Merlin/PI.ADD.LST");
+            hr = DebugFileReader::ReadMerlinListing (std::string (bytes.begin(), bytes.end()), "PI.ADD.LST", file, error);
+            Assert::AreEqual (S_OK, hr, std::wstring (error.begin(), error.end()).c_str());
+            return file;
+        }
+
+
+
+        TEST_METHOD (TheListingIsReadAsItsOwnSource)
+        {
+            DebugFile  file = Read();
+            LineTable  table;
+
+
+
+            Assert::AreEqual ((size_t) 1, file.files.size(), L"the listing is the one source");
+            Assert::IsFalse  (file.lines.empty());
+
+            table.Build (file);
+
+            //  The RTS that ends the OUTPUT routine, at $80CE, is one line of
+            //  the listing and starts there.
+            Assert::AreEqual ((size_t) 1, table.GetPositionsAt (0x80CE).size());
+            Assert::AreEqual (0x80CE, (int) table.GetRanges (0, table.GetPositionsAt (0x80CE).at (0).line).at (0).first);
+        }
+
+
+        TEST_METHOD (EveryRecordedLineHoldsCode)
+        {
+            DebugFile  file = Read();
+
+
+
+            for (const DebugLine & line : file.lines)
+            {
+                Assert::IsTrue (line.line > 0,        L"a record carries the listing line it came from");
+                Assert::IsFalse (line.spans.empty(),  L"and the bytes that line assembled to");
+                Assert::AreEqual (0, line.file,       L"the listing is the only source");
+            }
+        }
+    };
+
     TEST_CLASS (Cc65FixtureTests)
     {
     public:

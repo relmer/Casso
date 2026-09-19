@@ -27,7 +27,46 @@ namespace PrinterCardTests
     {
     public:
 
-        TEST_METHOD (Slot1ClaimsC090Window)
+        //  A path in CASSO_PRINTER_TEXT makes the card keep a text copy of what
+    //  the guest printed, which is how a program's printed output is read
+    //  back: the high bit goes, a carriage return ends the line, and the line
+    //  feed a driver adds after it is left out.
+    TEST_METHOD (TheTextCopyHoldsWhatTheGuestPrinted)
+    {
+        std::filesystem::path  path = std::filesystem::temp_directory_path() / "casso-printer-text-test.txt";
+        std::string            text;
+        std::ifstream          in;
+
+
+
+        std::filesystem::remove (path);
+        _putenv_s (PrinterCard::kTextPathVariable, path.string().c_str());
+
+        {
+            PrinterCard  card (1);
+
+            for (Byte value : { (Byte) 0xC8, (Byte) 0xE9, (Byte) 0x8D, (Byte) 0x0A, (Byte) 0xA1 })
+            {
+                card.Write (PrinterCard::kSlotIoBase + 0x10, value);
+            }
+        }
+
+        _putenv_s (PrinterCard::kTextPathVariable, "");
+
+        in.open (path, std::ios::binary);
+        std::getline (in, text);
+
+        Assert::AreEqual (std::string ("Hi"), text, L"the high bit is dropped");
+
+        std::getline (in, text);
+
+        Assert::AreEqual (std::string ("!"), text, L"the carriage return ended the line, and the line feed added none");
+
+        in.close();
+        std::filesystem::remove (path);
+    }
+
+    TEST_METHOD (Slot1ClaimsC090Window)
         {
             auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
 

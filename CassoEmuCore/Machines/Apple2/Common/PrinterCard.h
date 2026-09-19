@@ -59,6 +59,10 @@ public:
 
     explicit PrinterCard (int slot);
 
+    //  A path in CASSO_PRINTER_TEXT makes the card keep a text copy of what
+    //  the guest prints, for reading a program's output back.
+    static constexpr const char *  kTextPathVariable = "CASSO_PRINTER_TEXT";
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     Byte Read (Word address) override;
@@ -87,6 +91,10 @@ private:
     int               m_slot        = 0;
     Word              m_ioStart     = 0;
     Word              m_ioEnd       = 0;
+    void  WriteTextCopy (Byte value);
+
     bool              m_everTouched = false;
     PrinterByteRing   m_ring;
+    std::string       m_textPath;
+    std::ofstream     m_text;
 };

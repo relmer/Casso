@@ -1,0 +1,285 @@
+
+                1    ********************************
+                2    *                              *
+                3    *          APPLE PI            *
+                4    *                              *
+                5    *    Glen Bredon    6/13/82    *
+                6    *                              *
+                7    ********************************
+                8    
+                9             REL              
+                10   SAVOBJ   KBD   
+                11            DO    SAVOBJ     
+                12            DSK   PI.ADD     
+                13            FIN              
+                14   
+                17   
+                18            USE   PI.MACS    
+               >1    *-------------------------------------
+               >2    * Equates & macros for PI test for REL
+               >3    *-------------------------------------
+               >4    
+               >5    PL       =     0          ;General pointer
+               >6    QL       =     2          ; "
+               >7    COUNT    =     4          ;Countdown of string length
+               >8    ODD      =     6          ;Holds "odd" divisors
+               >9    SIGN     =     8          ;Sign of series term
+               >10   WHICHSER =     9          ;Flags series 1 or 2
+               >11   DIVR     =     10         ;Divisor
+               >12   REMR     =     12         ;Remainder (1-3 bytes)
+               >13   TEMP     =     15         ;Scratch
+               >14   FLAG     =     17         ;Flags 0 number string
+               >15   MSGPNT   =     18         ;Message pointer
+               >16   DEFLEN   =     20         ;Specified string length
+               >17   NUMCOL   =     22         ;Countdown printout columns
+               >18   DEFNUMC  =     23         ;Specified # of columns
+               >19   SLOT     =     24         ;Holds slot # for printout
+               >20   ZLEN     =     25         
+               >21   CH       =     $24        
+               >22   CV       =     $25        
+               >23   INVFLG   =     $32        
+               >24   PROMPT   =     $33        
+               >25   CSWL     =     $36        
+               >26   IN       =     $200       
+               >27   INITSTR  =     IN+$80     
+               >28   CURSLOT  =     $7F8       
+               >29   DOSCLD   =     $3D3       
+               >30   HOME     =     $FC58      
+               >31   RDKEY    =     $FD0C      
+               >32   CROUT    =     $FD8E      
+               >33   COUT     =     $FDED      
+               >34   GETLN    =     $FD6A      
+               >35   OUTPORT  =     $FE95      
+               >36   
+               >37   STRLEN   =     $2D00      
+               >38   SUMSTR   =     $E00       
+               >39   PWRSTR   =     SUMSTR+STRLEN 
+               >40   TEMPSTR  =     PWRSTR+STRLEN 
+               >41   
+               >42   MOV      MAC              
+               >43            LDA   ]1          
+                              ===== Page 2 =====
+ 
+               >44            STA   ]2         
+               >45            <<<              
+               >46   
+               >47   MOVD     MAC              
+               >48            MOV   ]1;]2      
+               >49            MOV   ]1+1;]2+1  
+               >50            <<<              
+               >51   
+               >52   INCD     MAC              
+               >53            INC   ]1         
+               >54            BNE   NC         
+               >55            INC   ]1+1       
+               >56   NC                        
+               >57            <<<              
+               >58   
+               >59   ADD      MAC              
+               >60            CLC              
+               >61            LDA   ]2         
+               >62            STA   ]3         
+               >63            LDA   #>]1       
+               >64            ADC   ]2+1       
+               >65            STA   ]3+1       
+               >66            <<<              
+               >67   
+               >68   STADR    MAC              
+               >69            LDA   #]1        
+               >70            STA   ]2         
+               >71            LDA   #>]1       
+               >72            STA   ]2+1       
+               >73            <<<              
+                19   
+                20   ADDORSUB ENT              
+                21            ADD   SUMSTR;DEFLEN;PL 
+                22            ADD   TEMPSTR;DEFLEN;QL 
+8016: 38        23            SEC              
+8017: A5 15     24            LDA   DEFLEN+1   
+8019: E5 1A     25            SBC   ZLEN+1     
+801B: 30 28     26            BMI   BACK       
+801D: AA        27            TAX              
+801E: 38        28            SEC              
+801F: A0 00     29            LDY   #0         
+8021: 24 08     30            BIT   SIGN       
+8023: 30 25     31            BMI   SUBSTR     
+                32   ********************************
+                33   * Routine to add string at (PL)
+                34   * to that at (QL) sum in (PL)
+                35   ********************************
+                36   ADDSTR   ENT              
+8025: 18        37            CLC              
+8026: 90 04     38            BCC   ADS        
+8028: C6 00     39   SKIP     DEC   PL         
+802A: C6 02     40            DEC   QL         
+802C: B1 00     41   ADS      LDA   (PL),Y     
+802E: 71 02     42            ADC   (QL),Y     
+8030: C9 0A     43            CMP   #10        
+8032: 90 02     44            BLT   ADOK       
+8034: E9 0A     45            SBC   #10         
+                              ===== Page 3 =====
+ 
+8036: 91 00     46   ADOK     STA   (PL),Y     
+8038: A5 00     47            LDA   PL         
+803A: D0 EC     48            BNE   SKIP       
+803C: C6 01     49            DEC   PL+1       
+803E: C6 03     50            DEC   QL+1       
+8040: CA        51            DEX              
+8041: 10 E5     52            BPL   SKIP       
+8043: B0 E3     53            BCS   SKIP       ;Do another page if nec
+8045: 60        54   BACK     RTS              
+                55   
+                56   ************************************
+                57   * Routine to subtract string at (QL)
+                58   * from that at (PL) diff in (PL)
+                59   ************************************
+8046: C6 00     60   SKP      DEC   PL         
+8048: C6 02     61            DEC   QL         
+804A: B1 00     62   SUBSTR   LDA   (PL),Y     ;Entry point
+804C: F1 02     63            SBC   (QL),Y     
+804E: 10 03     64            BPL   SOK        
+8050: 69 0A     65            ADC   #10        ;Carry is clear
+8052: 18        66            CLC              
+8053: 91 00     67   SOK      STA   (PL),Y     
+8055: A5 00     68            LDA   PL         
+8057: D0 ED     69            BNE   SKP        
+8059: C6 01     70            DEC   PL+1       
+805B: C6 03     71            DEC   QL+1       
+805D: CA        72            DEX              
+805E: 10 E6     73            BPL   SKP        
+8060: 90 E4     74            BCC   SKP        ;Another page if nec
+8062: 60        75            RTS              
+                76   
+                77   ***********************************
+                78   * Routine to move PWRSTR to TEMPSTR
+                79   * (Only moves full pages)
+                80   ***********************************
+                81   MOVSTR   ENT              
+8063: A5 1A     82            LDA   ZLEN+1     
+8065: A0 00     83            LDY   #0         
+8067: 84 00     84            STY   PL         
+8069: 84 02     85            STY   QL         
+806B: 18        86            CLC              
+806C: 69 3B     87            ADC   #>PWRSTR   
+806E: 85 01     88            STA   PL+1       
+8070: A5 1A     89            LDA   ZLEN+1     
+8072: 69 68     90            ADC   #>TEMPSTR  
+8074: 85 03     91            STA   QL+1       
+8076: 38        92            SEC              
+8077: A5 15     93            LDA   DEFLEN+1   
+8079: E5 1A     94            SBC   ZLEN+1     
+807B: AA        95            TAX              
+807C: B1 00     96   MV       LDA   (PL),Y     
+807E: 91 02     97            STA   (QL),Y     
+8080: C8        98            INY              
+8081: D0 F9     99            BNE   MV         
+8083: E6 01     100           INC   PL+1       
+8085: E6 03     101           INC   QL+1       
+8087: CA        102           DEX               
+                              ===== Page 4 =====
+ 
+8088: 10 F2     103           BPL   MV         
+808A: 60        104           RTS              
+                105  
+                106  ********************************
+                107  * Routine to zero string at (PL)
+                108  * Number of pages in DEFLEN+1
+                109  ********************************
+                110  ZSTRNG   ENT              
+808B: A0 00     111           LDY   #0         
+808D: 98        112           TYA              
+808E: A6 15     113           LDX   DEFLEN+1   
+8090: 91 00     114  ZS       STA   (PL),Y     
+8092: C8        115           INY              
+8093: D0 FB     116           BNE   ZS         
+8095: E6 01     117           INC   PL+1       
+8097: CA        118           DEX              
+8098: 10 F6     119           BPL   ZS         
+809A: 60        120           RTS              
+                121  
+                122  PRINT    ENT              
+                123           VAR   MSGPNT;OUTPUT 
+                124           PUT   SENDMSG    
+809B: 68       >1    SENDMSG  PLA              
+809C: 85 12    >2             STA   MSGPNT     
+809E: 68       >3             PLA              
+809F: 85 13    >4             STA   MSGPNT+1   
+80A1: D0 03    >5             BNE   :NXTCHR    ;Always
+80A3: 20 B9 80 >6    :PCHR    JSR   OUTPUT     
+80A6: A0 00    >7    :NXTCHR  LDY   #0         
+               >8             INCD  MSGPNT     
+80AE: B1 12    >9             LDA   (MSGPNT),Y 
+80B0: D0 F1    >10            BNE   :PCHR      
+80B2: A5 13    >11            LDA   MSGPNT+1   
+80B4: 48       >12            PHA              
+80B5: A5 12    >13            LDA   MSGPNT     
+80B7: 48       >14            PHA              
+80B8: 60       >15            RTS              
+                125  
+80B9: 30 0B     126  OUTPUT   BMI   NOINV      
+80BB: A0 3F     127           LDY   #%00111111 
+80BD: 84 32     128           STY   INVFLG     
+80BF: 18        129           CLC              
+80C0: 29 3F     130           AND   #%00111111 
+80C2: 69 20     131           ADC   #%00100000 
+80C4: 49 E0     132           EOR   #%11100000 
+80C6: 20 ED FD  133  NOINV    JSR   COUT       
+80C9: A0 FF     134           LDY   #$FF       
+80CB: 84 32     135           STY   INVFLG     
+80CD: C8        136           INY              
+80CE: 60        137           RTS              
+                138  
+                139  HOOKS    ENT              
+80CF: F0 FD     140           DA    $FDF0      
+80D1: 1B FD     141           DA    $FD1B      
+                142  
+                143  * Tell linker not to accept this if it goes
+                144  * beyond start of first buffer SUMSTR: 
+                              ===== Page 5 =====
+ 
+                145  
+                146           ERR   \SUMSTR    
+
+
+--End assembly, 211 bytes, Errors: 0 
+
+
+Symbol table - alphabetical order:
+
+MD ADD     =$8000   E? ADDORSUB=$8000   E? ADDSTR  =$8025      ADOK    =$8036
+   ADS     =$802C      BACK    =$8045   ?  CH      =$24     ?  COUNT   =$04
+   COUT    =$FDED   ?  CROUT   =$FD8E   ?  CSWL    =$36     ?  CURSLOT =$07F8
+?  CV      =$25        DEFLEN  =$14     ?  DEFNUMC =$17     ?  DIVR    =$0A
+?  DOSCLD  =$03D3   ?  FLAG    =$11     ?  GETLN   =$FD6A   ?  HOME    =$FC58
+E? HOOKS   =$80CF      IN      =$0200   MD INCD    =$8000   ?  INITSTR =$0280
+   INVFLG  =$32     MD?MOV     =$8000   MD?MOVD    =$8000   E? MOVSTR  =$8063
+   MSGPNT  =$12        MV      =$807C   M  NC      =$80AE      NOINV   =$80C6
+?  NUMCOL  =$16     ?  ODD     =$06     ?  OUTPORT =$FE95      OUTPUT  =$80B9
+   PL      =$00     E? PRINT   =$809B   ?  PROMPT  =$33        PWRSTR  =$3B00
+   QL      =$02     ?  RDKEY   =$FD0C   ?  REMR    =$0C        SAVOBJ  =$00
+?  SENDMSG =$809B      SIGN    =$08        SKIP    =$8028      SKP     =$8046
+?  SLOT    =$18        SOK     =$8053   MD?STADR   =$8000      STRLEN  =$2D00
+   SUBSTR  =$804A      SUMSTR  =$0E00   ?  TEMP    =$0F        TEMPSTR =$6800
+?  WHICHSER=$09        ZLEN    =$19        ZS      =$8090   E? ZSTRNG  =$808B
+
+
+
+Symbol table - numerical order:
+
+   SAVOBJ  =$00        PL      =$00        QL      =$02     ?  COUNT   =$04
+?  ODD     =$06        SIGN    =$08     ?  WHICHSER=$09     ?  DIVR    =$0A
+?  REMR    =$0C     ?  TEMP    =$0F     ?  FLAG    =$11        MSGPNT  =$12
+   DEFLEN  =$14     ?  NUMCOL  =$16     ?  DEFNUMC =$17     ?  SLOT    =$18
+   ZLEN    =$19     ?  CH      =$24     ?  CV      =$25        INVFLG  =$32
+?  PROMPT  =$33     ?  CSWL    =$36        IN      =$0200   ?  INITSTR =$0280
+?  DOSCLD  =$03D3   ?  CURSLOT =$07F8      SUMSTR  =$0E00      STRLEN  =$2D00
+   PWRSTR  =$3B00      TEMPSTR =$6800   E? ADDORSUB=$8000   E? ADDSTR  =$8025
+   SKIP    =$8028      ADS     =$802C      ADOK    =$8036      BACK    =$8045
+   SKP     =$8046      SUBSTR  =$804A      SOK     =$8053   E? MOVSTR  =$8063
+   MV      =$807C   E? ZSTRNG  =$808B      ZS      =$8090   E? PRINT   =$809B
+?  SENDMSG =$809B      OUTPUT  =$80B9      NOINV   =$80C6   E? HOOKS   =$80CF
+MD?STADR   =$8000   MD ADD     =$8000   M  NC      =$80AE   MD INCD    =$8000
+MD?MOVD    =$8000   MD?MOV     =$8000   ?  HOME    =$FC58   ?  RDKEY   =$FD0C
+?  GETLN   =$FD6A   ?  CROUT   =$FD8E      COUT    =$FDED   ?  OUTPORT =$FE95
+
+

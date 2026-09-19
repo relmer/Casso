@@ -18,9 +18,16 @@
 
 PrinterCard::PrinterCard (int slot)
 {
-    m_slot    = slot;
-    m_ioStart = (Word) (kSlotIoBase + slot * kSlotIoStride);
-    m_ioEnd   = (Word) (m_ioStart + kSlotIoSize - 1);
+    char    path[MAX_PATH] = {};
+    size_t  length         = 0;
+
+
+
+    (void) getenv_s (&length, path, kTextPathVariable);
+    m_textPath = (length > 0) ? path : "";
+    m_slot     = slot;
+    m_ioStart  = (Word) (kSlotIoBase + slot * kSlotIoStride);
+    m_ioEnd    = (Word) (m_ioStart + kSlotIoSize - 1);
 }
 
 
@@ -99,6 +106,69 @@ void PrinterCard::Write (Word address, Byte value)
     m_everTouched = true;
     pushed        = m_ring.TryPush (value);
     ASSERT (pushed);
+    WriteTextCopy (value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteTextCopy
+//
+//  A copy of what the guest prints, as text, for whoever set
+//  CASSO_PRINTER_TEXT to a path. The printer itself renders dots on paper,
+//  which is right for a printout and useless for reading the words back, so
+//  this tee exists to capture a program's printed output: the high bit the
+//  Apple II sets is dropped, and its carriage returns end lines.
+//
+//  Nothing is written when the variable is unset, which is every ordinary
+//  run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterCard::WriteTextCopy (Byte value)
+{
+    static constexpr Byte  kCarriageReturn = 0x0D;
+    static constexpr Byte  kLineFeed       = 0x0A;
+    char                   ch              = (char) (value & 0x7F);
+
+
+
+    if (m_textPath.empty())
+    {
+        return;
+    }
+
+    if (!m_text.is_open())
+    {
+        m_text.open (m_textPath, std::ios::binary | std::ios::app);
+
+        if (!m_text.is_open())
+        {
+            m_textPath.clear();
+            return;
+        }
+    }
+
+    //  The Apple II ends a line with a carriage return; a driver that adds
+    //  a line feed of its own would otherwise double-space the copy.
+    if (ch == kLineFeed)
+    {
+        return;
+    }
+
+    if (ch == kCarriageReturn)
+    {
+        m_text << '\n';
+    }
+    else
+    {
+        m_text << ch;
+    }
+
+    m_text.flush();
 }
 
 
