@@ -175,6 +175,9 @@
     <ClCompile Include="Debugger\Handlers\ConfigHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\CallStackHandlers.cpp" />
     <ClCompile Include="Debugger\ProfileTable.cpp" />
+    <ClCompile Include="Debugger\TraceController.cpp" />
+    <ClCompile Include="Debugger\Handlers\TraceHandlers.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\TracePane.cpp" />
     <ClCompile Include="Debugger\SymbolTable.cpp" />
     <ClCompile Include="Debugger\Source\SourcePathList.cpp" />
     <ClCompile Include="Debugger\Source\SourceService.cpp" />
@@ -544,6 +547,9 @@
     <ClInclude Include="Debugger\Handlers\ConfigHandlers.h" />
     <ClInclude Include="Debugger\Handlers\CallStackHandlers.h" />
     <ClInclude Include="Debugger\ProfileTable.h" />
+    <ClInclude Include="Debugger\TraceController.h" />
+    <ClInclude Include="Debugger\Handlers\TraceHandlers.h" />
+    <ClInclude Include="Ui\Debugger\Panes\TracePane.h" />
     <ClInclude Include="Debugger\SymbolTable.h" />
     <ClInclude Include="Debugger\Source\SourcePathList.h" />
     <ClInclude Include="Debugger\Source\SourceService.h" />

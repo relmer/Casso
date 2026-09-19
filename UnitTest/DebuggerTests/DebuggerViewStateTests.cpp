@@ -12,6 +12,7 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/Panes/TracePane.h"
 #include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
 
@@ -244,6 +245,93 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((Word) 0x0400, snapshot.watches[0].address);
 
             Assert::IsFalse  (snapshot.stack.empty(), L"the stack pane shows the page above SP");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  TracePaneTests
+    //
+    //  The trace pane reads a window of entries through HISTORY: from where the
+    //  pane is scrolled, or ending at the newest while it follows the end. The
+    //  pane asks for a new window only when the rows on screen leave the last.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (TracePaneTests)
+    {
+    public:
+
+        static constexpr int       kRows      = DebuggerViewState::kTraceRows;
+        static constexpr uint64_t  kTotal     = 300;
+        static constexpr uint64_t  kJmpCycles = 3;
+
+        //  JMP $0300 at $0300, run with the trace on until it holds kTotal.
+        static void FillTrace (MachineRig & rig)
+        {
+            rig.machine.GetMemoryBus().WriteByte (0x0300, 0x4C);
+            rig.machine.GetMemoryBus().WriteByte (0x0301, 0x00);
+            rig.machine.GetMemoryBus().WriteByte (0x0302, 0x03);
+
+            rig.Run ("HISTORY ON");
+            rig.machine.RunCycles (kTotal * kJmpCycles);
+        }
+
+
+
+        TEST_METHOD (TheWindowEndsAtTheNewestOrStartsWhereThePaneIs)
+        {
+            Assert::AreEqual ((uint64_t) 0,   DebuggerViewState::GetTraceWindowFirst (0,    std::nullopt, kRows));
+            Assert::AreEqual ((uint64_t) 0,   DebuggerViewState::GetTraceWindowFirst (100,  std::nullopt, kRows), L"fewer than a window");
+            Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, std::nullopt, kRows));
+            Assert::AreEqual ((uint64_t) 500, DebuggerViewState::GetTraceWindowFirst (1000, 500,          kRows));
+            Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, 990,          kRows), L"never past the newest");
+            Assert::AreEqual (std::string ("HISTORY 500 128"), DebuggerViewState::GetHistoryLine (500, kRows));
+        }
+
+
+
+        TEST_METHOD (TheSnapshotHoldsTheWindowForTheScrollPosition)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            FillTrace (rig);
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::IsTrue   (snapshot.trace.isOn);
+            Assert::AreEqual (kTotal,                     snapshot.trace.total);
+            Assert::AreEqual (kTotal - kRows,             snapshot.trace.first, L"following the end");
+            Assert::AreEqual ((size_t) kRows,             snapshot.trace.entries.size());
+            Assert::AreEqual (kTotal - 1,                 snapshot.trace.entries.back().index);
+
+            rig.view.SetTraceTop (100);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual ((uint64_t) 100,             snapshot.trace.first);
+            Assert::AreEqual ((uint64_t) 100,             snapshot.trace.entries.front().index);
+            Assert::AreEqual ((size_t) kRows,             snapshot.trace.entries.size(), L"a window, never the whole trace");
+            Assert::AreEqual (std::string ("JMP $0300"),  snapshot.trace.entries.front().instruction);
+        }
+
+
+
+        TEST_METHOD (ThePaneAsksOnlyWhenItsRowsLeaveTheWindow)
+        {
+            static constexpr int  kVisible = 20;
+
+
+
+            Assert::AreEqual (TracePane::kFollowEnd, TracePane::GetReadStartFor (872, 128, 980, kVisible, true).value(), L"the end follows the newest");
+            Assert::IsFalse  (TracePane::GetReadStartFor (500, 128, 510, kVisible, false).has_value(),                  L"rows inside the window");
+            Assert::AreEqual ((uint64_t) 384, TracePane::GetReadStartFor (500, 128, 400, kVisible, false).value(),      L"above it, with a lead");
+            Assert::AreEqual ((uint64_t) 604, TracePane::GetReadStartFor (500, 128, 620, kVisible, false).value(),      L"below it");
+            Assert::AreEqual ((uint64_t) 0,   TracePane::GetReadStartFor (500, 128, 4,   kVisible, false).value(),      L"never before the first entry");
         }
     };
 

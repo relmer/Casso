@@ -48,6 +48,9 @@ public:
     std::vector<Byte>        injectedKeys;
     std::vector<Word>        ioReads;
     std::vector<Word>        ioWrites;
+    bool                     traceOn          = false;
+    std::vector<TraceRecord> trace;
+    int                      traceClears      = 0;
 
     Cpu6502Registers GetRegisters() const override                         { return registers; }
     void             SetRegisters (const Cpu6502Registers & value) override { registers = value; }
@@ -118,6 +121,22 @@ public:
     DebugMachineInfo  GetMachineInfo    () const override    { return machineInfo; }
     void              InjectKey         (Byte key) override  { injectedKeys.push_back (key); keyPending = true; }
     bool              IsKeyPending      () const override    { return keyPending; }
+
+    void              SetTraceOn        (bool on) override   { traceOn = on; }
+    bool              IsTraceOn         () const override    { return traceOn; }
+    void              ClearTrace        () override          { traceOn = false; trace.clear(); ++traceClears; }
+    size_t            GetTraceSize      () const override    { return trace.size(); }
+
+    void GetTraceWindow (size_t first, size_t count, std::vector<TraceRecord> & entries) const override
+    {
+        entries.clear();
+
+        for (size_t index = first; index < trace.size() && index - first < count; index++)
+        {
+            entries.push_back (trace[index]);
+            entries.back().index = index;
+        }
+    }
 
     void Stop (const StopEvent & stop)
     {

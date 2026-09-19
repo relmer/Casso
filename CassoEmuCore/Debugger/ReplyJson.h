@@ -64,5 +64,7 @@ private:
     static JsonValue    MakeCallStack       (const CallStackData & data);
     static JsonValue    MakeCallFrame       (const CallStackFrame & frame);
     static JsonValue    MakeProfile         (const ProfileData & data);
+    static JsonValue    MakeTrace           (const TraceData & data);
+    static JsonValue    MakeTraceRecord     (const TraceRecord & record);
     static JsonValue    MakeTextArray       (const std::vector<std::string> & lines);
 };

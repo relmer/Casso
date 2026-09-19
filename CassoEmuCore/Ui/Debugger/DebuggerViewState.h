@@ -108,6 +108,17 @@ struct DebuggerViewSnapshot
         //  The same map is shared until another debug file is loaded.
         std::shared_ptr<const std::map<std::pair<int, int>, Word>>  lineAddresses;
     };
+
+    //  A window of the instruction trace: the entries from first, of the
+    //  total it retains.
+    struct TraceState
+    {
+        bool                      isOn  = false;
+        uint64_t                  total = 0;
+        uint64_t                  first = 0;
+        std::vector<TraceRecord>  entries;
+    };
+
     Word                         pc     = 0;
     CommandMode                  mode   = CommandMode::AppleWin;
     std::string                  machine;
@@ -121,6 +132,7 @@ struct DebuggerViewSnapshot
     std::vector<BreakpointLine>  breakpoints;
     std::vector<WatchLine>       watches;
     std::optional<SourceState>   source;
+    TraceState                   trace;
 };
 
 
@@ -179,6 +191,20 @@ public:
     void                 CloseMemoryWindow      (int id);
     std::optional<Word>  GetMemoryWindowAddress (int id) const;
 
+    //  The trace pane reads kTraceRows entries from the entry the user
+    //  scrolled to, or the newest when it follows the end (no entry).
+    static constexpr int     kTraceRows = 128;
+
+    void                     SetTraceTop  (std::optional<uint64_t> first) { m_traceTop = first; }
+    std::optional<uint64_t>  GetTraceTop  () const                        { return m_traceTop; }
+
+    //  The first entry of the window read for a pane scrolled to top, or at
+    //  the end when top is empty: the window ends at the newest entry at the
+    //  latest, so a pane at the end never reads past it.
+    static uint64_t     GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows);
+    static std::string  GetHistoryLine      (uint64_t first, int rows);
+    static std::string  GetTraceToggleLine  (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
+
     //  Runs the pane commands against the session. CPU thread only.
     DebuggerViewSnapshot  Build (DebugSession & session) const;
 
@@ -221,14 +247,16 @@ private:
     void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
     static Word                 GetInstructionLength   (DebugSession & session, Word address);
     static Word                 GetPreviousInstruction (DebugSession & session, Word address);
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
 
-    std::optional<Word>  m_codeAddress;
-    Word                 m_memoryAddress = 0x0000;
+    std::optional<Word>      m_codeAddress;
+    Word                     m_memoryAddress = 0x0000;
+    std::optional<uint64_t>  m_traceTop;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
 

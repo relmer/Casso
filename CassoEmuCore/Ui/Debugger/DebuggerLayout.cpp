@@ -30,7 +30,7 @@ std::wstring DebuggerLayout::GetMemoryPaneId (int window)
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace };
 
 
 
@@ -55,8 +55,7 @@ std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
 {
     DxuiPaneLayout             layout;
-    std::vector<std::wstring>  ids     = GetPaneIds();
-    std::wstring               memory1 = GetMemoryPaneId (1);
+    std::vector<std::wstring>  ids    = GetPaneIds();
 
 
 
@@ -75,30 +74,48 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
         return MakeDefault();
     }
 
-    //  A memory window the text lacks joins the first and the call stack joins
-    //  the stack; anything else lacks a better place than the right edge.
+    //  A memory window the text lacks joins the first, the call stack joins the
+    //  stack and the trace the console, as they open by default; anything else
+    //  lacks a better place than the right edge.
     for (const std::wstring & pane : ids)
     {
-        if (layout.Contains (pane))
+        if (!layout.Contains (pane))
         {
-            continue;
-        }
-
-        if (pane.starts_with (L"memory"))
-        {
-            layout.Add (pane, memory1);
-        }
-        else if (pane == kCallStack && layout.Contains (kStack))
-        {
-            layout.Add (pane, kStack);
-        }
-        else
-        {
-            layout.Add (pane, L"");
+            layout.Add (pane, GetDefaultTabHost (layout, pane));
         }
     }
 
     return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetDefaultTabHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, const std::wstring & pane)
+{
+    if (pane.starts_with (L"memory"))
+    {
+        return GetMemoryPaneId (1);
+    }
+
+    if (pane == kCallStack && layout.Contains (kStack))
+    {
+        return kStack;
+    }
+
+    if (pane == kTrace && layout.Contains (kConsole))
+    {
+        return kConsole;
+    }
+
+    return L"";
 }
 
 
@@ -143,6 +160,8 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add        (kCallStack,   kStack);
     layout.Activate   (memory1);
     layout.Activate   (kStack);
+    layout.Add        (kTrace,       kConsole);
+    layout.Activate   (kConsole);
 
     //  Proportions of the fixed layout this replaces: a right column of about
     //  300 of 1100, memory eight rows high, and code over a shorter console.

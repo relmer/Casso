@@ -250,6 +250,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "SRC",         V::ShowSource,               F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SKIP",        V::ListStepFilter,           F::Engine,      A::Headless,     nullptr,     nullptr },
     { "CALLS",       V::ShowCallStack,            F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "HISTORY",     V::ShowHistory,              F::Engine,      A::Headless,     nullptr,     nullptr },
 
     // Window only: cursor
     { ".",           V::View,                     F::Cursor,      A::WindowOnly,   nullptr,     nullptr },

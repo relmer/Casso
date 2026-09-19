@@ -360,6 +360,44 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Engine_History)
+        {
+            AppleWinParseResult  bare   = ParseOk ("HISTORY");
+            AppleWinParseResult  on     = ParseOk ("history on");
+            AppleWinParseResult  off    = ParseOk ("HISTORY OFF");
+            AppleWinParseResult  save   = ParseOk ("HISTORY SAVE trace.txt");
+            AppleWinParseResult  window = ParseOk ("HISTORY 99990 25");
+            AppleWinParseResult  from   = ParseOk ("HISTORY 100");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::ShowHistory, (int) bare.command.verb);
+            Assert::IsFalse  (bare.command.first.has_value());
+            Assert::AreEqual ((uint32_t) 0,                 bare.command.count);
+
+            Assert::AreEqual ((int) DebugVerb::SetHistory,  (int) on.command.verb);
+            Assert::AreEqual ((uint32_t) 1,                 on.command.count);
+            Assert::AreEqual ((int) DebugVerb::SetHistory,  (int) off.command.verb);
+            Assert::AreEqual ((uint32_t) 0,                 off.command.count);
+
+            Assert::AreEqual ((int) DebugVerb::SaveHistory, (int) save.command.verb);
+            Assert::AreEqual (std::string ("trace.txt"),    save.command.text);
+
+            Assert::AreEqual ((int) DebugVerb::ShowHistory, (int) window.command.verb);
+            Assert::AreEqual ((uint64_t) 99990,             window.command.first.value(), L"entry numbers are decimal and pass 16 bits");
+            Assert::AreEqual ((uint32_t) 25,                window.command.count);
+            Assert::AreEqual ((uint64_t) 100,               from.command.first.value());
+            Assert::AreEqual ((uint32_t) 0,                 from.command.count);
+
+            ParseFails ("HISTORY SAVE",       ParseStatus::Invalid);
+            ParseFails ("HISTORY 1F",         ParseStatus::Invalid);
+            ParseFails ("HISTORY 10 0",       ParseStatus::Invalid);
+            ParseFails ("HISTORY 10 20 30",   ParseStatus::Invalid);
+            ParseFails ("HISTORY ON NOW",     ParseStatus::Invalid);
+        }
+
+
+
         TEST_METHOD (Engine_ModePauseBudget)
         {
             AppleWinParseResult  mode   = ParseOk ("MODE monitor");

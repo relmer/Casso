@@ -32,9 +32,12 @@ reachable in every mode:
 | `CALLS` | the call chain to PC, innermost first: one line per frame with its call site, target symbol and provenance (`recorded` or `guessed`), and a break line (`-- TXS at $0812 --`) wherever the chain is broken (FR-067 to FR-069) |
 | `CALLS MODE RECORDED\|WALK\|HYBRID` | choose the mechanism; `CALLS MODE` reports it; hybrid is the default |
 | `SKIP name\|addr\|first.last` | add a routine to the step filter; `SKIP` lists it; `SKIP - name` removes one; `SKIP CLEAR` empties it (FR-070) |
+| `HISTORY ON` / `HISTORY OFF` | start the instruction trace, which keeps the newest 100,000 instructions with their cycle count, registers before execution and last memory access, or stop it; stopping keeps the retained entries until the trace starts again or the machine changes (FR-045, FR-046) |
+| `HISTORY [first [count]]` | the state, the number of entries retained, and `count` entries (20 by default) from entry `first`, oldest first; a bare `HISTORY` shows the newest. Both numbers are decimal. Each line: entry, cycles, address and its symbol, instruction, registers, and `R` or `W` with the accessed address, byte and symbol (FR-047) |
+| `HISTORY SAVE file` | write every retained entry, one `HISTORY` line each, oldest first (FR-048) |
 
 AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`,
-`CALLS` or `SKIP` command, so these names collide with nothing in its table;
+`CALLS`, `SKIP` or `HISTORY` command, so these names collide with nothing in its table;
 nor does GSSquared's.
 
 ## AppleWin mode

@@ -60,6 +60,9 @@ public:
     virtual void     CloseDebugChannel        ()                                                = 0;
     virtual void     PauseDebugRun            ()                                                = 0;
     virtual void     SetDebugView             (const std::string & view, std::optional<Word> address) = 0;
+
+    //  Where the trace pane reads from: an entry, or the newest when empty.
+    virtual void     SetDebugTraceView        (std::optional<uint64_t> first)                   = 0;
 };
 
 

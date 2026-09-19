@@ -120,6 +120,7 @@ Clients format them.
 | `profile` | `on`: bool, `instructions`, `cycles` (penalties included), `opcodes`: `[{"mnemonic","mode","count","cycles"}]` with base cycles only, `penalties`: `{"pageCross","branchTaken","branchCross"}` in cycles, `addresses`: `[{"address","symbol","cycles"}]` with `symbol` null where none holds the address (filled by `PROFILE LIST ADDR`, the hottest twenty) |
 | `callStack` | `mechanism`: `"RECORDED"`, `"WALK"` or `"HYBRID"`; `rows`, innermost first, each a frame `{"callSite","target","type":"JSR"|"BRK"|"IRQ"|"NMI","provenance":"recorded"|"guessed","stackLevel","verified":bool,"symbol":str|null,"note":str|null}` or a break `{"break":"txs"|"pulledReturn"|"endedByJump"|"returnMismatch"|"stackWrap"|"reset"|"trackingBegan","pc","opcode","text"}`; `lastReturn`: the last frame that returned with a note (past inline parameters), or `null` (`CALLS`) |
 | `callStackMode` | `mechanism` (`CALLS MODE`) |
+| `trace` | `on`: bool, `total`: entries retained, `entries`: `[{"index","cycles","pc","bytes","instruction","symbol","a","x","y","sp","p","interrupt","access"}]` oldest first, where `bytes` is the opcode and the two bytes after it, `symbol` is null where none holds `pc`, `interrupt` marks an interrupt handler's first instruction, and `access` is `{"address","direction":"read"\|"write","data","symbol"}` or null for an instruction that made no data access (`HISTORY`) |
 | `message` | no fields beyond `text` |
 
 New kinds may be added; a client that does not recognize a kind uses `text`.

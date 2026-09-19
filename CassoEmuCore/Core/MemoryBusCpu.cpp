@@ -40,6 +40,10 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
     // valid). I/O ($C000+) and unmapped low pages still fall through the
     // virtual ReadByteSlow into the bus.
     m_readPages = m_memoryBus.GetReadPageTable();
+
+    // The trace reads operand bytes from the pages the MMU mapped, which a
+    // watched page keeps in the shadow table while the read table holds null.
+    m_tracePeekPages = m_memoryBus.GetShadowReadPageTable();
 }
 
 

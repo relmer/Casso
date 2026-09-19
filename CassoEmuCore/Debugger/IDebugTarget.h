@@ -96,4 +96,13 @@ public:
     // The keyboard: a key is pending until the guest clears the strobe.
     virtual void                InjectKey         (Byte key) = 0;
     virtual bool                IsKeyPending      () const = 0;
+
+    // The instruction trace. Turning it on starts a new one; off keeps what
+    // it holds until it is turned on again or cleared. The window is up to
+    // count entries from first, oldest first, raw fields only.
+    virtual void                SetTraceOn        (bool on) = 0;
+    virtual bool                IsTraceOn         () const = 0;
+    virtual void                ClearTrace        () = 0;
+    virtual size_t              GetTraceSize      () const = 0;
+    virtual void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const = 0;
 };

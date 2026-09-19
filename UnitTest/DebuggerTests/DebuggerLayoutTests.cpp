@@ -47,12 +47,14 @@ namespace DebuggerLayoutTests
 
             for (const wchar_t * pane : { DebuggerLayout::kCode, DebuggerLayout::kSource, DebuggerLayout::kConsole,
                                           DebuggerLayout::kRegisters, DebuggerLayout::kBreakpoints,
-                                          DebuggerLayout::kWatches, DebuggerLayout::kStack, DebuggerLayout::kCallStack })
+                                          DebuggerLayout::kWatches, DebuggerLayout::kStack, DebuggerLayout::kCallStack,
+                                          DebuggerLayout::kTrace })
             {
                 Assert::IsTrue (layout.IsDocked (pane), pane);
             }
 
             Assert::AreEqual ((size_t) 4, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size());
+            Assert::AreEqual ((size_t) 2, layout.GetGroup (DebuggerLayout::kConsole).size(), L"the trace is a tab of the console");
             Assert::AreEqual ((size_t) 2, layout.GetGroup (DebuggerLayout::kStack).size(), L"the call stack is a tab of the stack");
         }
 
@@ -168,5 +170,17 @@ namespace DebuggerLayoutTests
 
             Assert::AreEqual ((size_t) 5, restored.GetGroup (DebuggerLayout::kRegisters).size(),
                               L"registers and the four memory windows");
+        }
+
+
+        TEST_METHOD (ALayoutSavedBeforeTheTraceGetsItBesideTheConsole)
+        {
+            DxuiPaneLayout  restored = DebuggerLayout::Restore (
+                L"dxui-layout 1\ntree (split h 0.6000 (tabs 0 \"code\") (tabs 0 \"console\"))\n");
+
+
+
+            Assert::AreEqual ((size_t) 2, restored.GetGroup (DebuggerLayout::kConsole).size());
+            Assert::IsTrue   (restored.IsDocked (DebuggerLayout::kTrace));
         }    };
 }

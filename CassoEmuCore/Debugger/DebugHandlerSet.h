@@ -9,6 +9,7 @@
 #include "Debugger/Handlers/MonitorHandlers.h"
 #include "Debugger/Handlers/RegisterHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
+#include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
 
 class DebugSession;
@@ -44,4 +45,5 @@ private:
     SymbolHandlers         m_symbols;
     MonitorHandlers        m_monitor;
     CallStackHandlers      m_callStack;
+    TraceHandlers          m_trace;
 };

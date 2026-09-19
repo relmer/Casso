@@ -492,6 +492,7 @@ private:
     void    CloseDebugChannel  ();
     void    PauseDebugRun      ();
     void    SetDebugView       (const std::string & view, std::optional<Word> address);
+    void    SetDebugTraceView  (std::optional<uint64_t> first);
 
     // Rebuilds the window's snapshot when it is showing and due. CPU thread.
     void    PublishDebuggerView ();
@@ -501,6 +502,7 @@ private:
     void    PauseDebugger            () override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address) override;
     void    SetDebuggerMemoryWindow  (int id, std::optional<Word> address) override;
+    void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;
     bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                       std::vector<std::string>                     & consoleLines) override;
     void    OnDebuggerWindowClosed   () override;

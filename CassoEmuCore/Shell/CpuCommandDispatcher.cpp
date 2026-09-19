@@ -281,21 +281,37 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuC
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
 //  "memory2" to "memory4" with a hex address or "close" for the others, which
-//  is passed on as no address. Anything else asks for nothing: a pane moved to
-//  an address nobody meant is worse than a pane left where it was.
+//  is passed on as no address. "trace <decimal>" and "trace end" place the
+//  trace pane. Anything else asks for nothing: a pane moved to an address
+//  nobody meant is worse than a pane left where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuCommandTarget & target)
 {
-    size_t        space      = payload.find (' ');
-    std::string   view       = payload.substr (0, space);
-    std::string   where      = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
-    bool          isExtraWin = view == "memory2" || view == "memory3" || view == "memory4";
-    unsigned int  value      = 0;
-    size_t        used       = 0;
+    static constexpr size_t  kMaxEntryDigits = 18;
+    size_t                   space           = payload.find (' ');
+    std::string              view            = payload.substr (0, space);
+    std::string              where           = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
+    bool                     isExtraWin = view == "memory2" || view == "memory3" || view == "memory4";
+    unsigned int             value      = 0;
+    size_t                   used       = 0;
 
 
+
+    if (view == "trace")
+    {
+        if (where == "end")
+        {
+            target.SetDebugTraceView (std::nullopt);
+        }
+        else if (!where.empty() && where.size() <= kMaxEntryDigits && where.find_first_not_of ("0123456789") == std::string::npos)
+        {
+            target.SetDebugTraceView (std::stoull (where));
+        }
+
+        return;
+    }
 
     if (view != "code" && view != "memory" && !isExtraWin)
     {

@@ -576,6 +576,7 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
     }
 
     if (auto * v = std::get_if<ProfileData>       (&data)) { return MakeProfile    (*v); }
+    if (auto * v = std::get_if<TraceData>         (&data)) { return MakeTrace      (*v); }
 
     if (auto * v = std::get_if<VideoInfoData> (&data))
     {
@@ -784,6 +785,76 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
                                                                        { "branchTaken", MakeNumber ((int64_t) data.branchTaken) },
                                                                        { "branchCross", MakeNumber ((int64_t) data.branchCross) } }) },
                                 { "addresses",    JsonValue (std::move (addresses)) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeTrace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeTrace (const TraceData & data)
+{
+    std::vector<JsonValue>  entries;
+
+
+
+    for (const TraceRecord & record : data.entries)
+    {
+        entries.push_back (MakeTraceRecord (record));
+    }
+
+    return JsonValue (Members { { "kind",    MakeString ("trace") },
+                                { "on",      JsonValue (data.isOn) },
+                                { "total",   MakeNumber ((int64_t) data.total) },
+                                { "entries", JsonValue (std::move (entries)) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeTraceRecord
+//
+//  An entry with no memory access has a null access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeTraceRecord (const TraceRecord & record)
+{
+    JsonValue  access (nullptr);
+
+
+
+    if (record.hasAccess)
+    {
+        access = JsonValue (Members { { "address",   MakeNumber ((int64_t) record.accessAddress) },
+                                      { "direction", MakeString (record.accessIsWrite ? "write" : "read") },
+                                      { "data",      MakeNumber ((int64_t) record.accessData) },
+                                      { "symbol",    record.accessSymbol.empty() ? JsonValue (nullptr) : MakeString (record.accessSymbol) } });
+    }
+
+    return JsonValue (Members { { "index",       MakeNumber ((int64_t) record.index) },
+                                { "cycles",      MakeNumber ((int64_t) record.cycles) },
+                                { "pc",          MakeNumber ((int64_t) record.pc) },
+                                { "bytes",       JsonValue (std::vector<JsonValue> { MakeNumber (record.opcode),
+                                                                                     MakeNumber (record.op1),
+                                                                                     MakeNumber (record.op2) }) },
+                                { "instruction", MakeString (record.instruction) },
+                                { "symbol",      record.symbol.empty() ? JsonValue (nullptr) : MakeString (record.symbol) },
+                                { "a",           MakeNumber (record.a) },
+                                { "x",           MakeNumber (record.x) },
+                                { "y",           MakeNumber (record.y) },
+                                { "sp",          MakeNumber (record.sp) },
+                                { "p",           MakeNumber (record.p) },
+                                { "interrupt",   JsonValue (record.isInterrupt) },
+                                { "access",      std::move (access) } });
 }
 
 

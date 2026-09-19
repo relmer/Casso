@@ -27,6 +27,9 @@ public:
     static std::string  FormatFlags     (Byte p);
     static std::string  FormatAddress   (const BreakpointInfo & breakpoint);
 
+    // One HISTORY line, as the trace pane and HISTORY SAVE show it too.
+    static std::string  FormatTraceLine (const TraceRecord & record);
+
 private:
     using Lines = std::vector<std::string>;
 
@@ -51,6 +54,7 @@ private:
     static void  FormatCallStack    (const CallStackData      & data, Lines & lines);
 
     static std::string  FormatCallFrame (const CallStackFrame & frame);
+    static void  FormatTrace        (const TraceData          & data, Lines & lines);
 
     static void  FormatProfileOpcodes   (const ProfileData & data, Lines & lines);
     static void  FormatProfileAddresses (const ProfileData & data, Lines & lines);

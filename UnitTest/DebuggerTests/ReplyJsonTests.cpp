@@ -300,6 +300,62 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (Trace_CarriesEntriesAndTheirAccess)
+        {
+            TraceData          data;
+            TraceRecord        write;
+            TraceRecord        implied;
+            JsonValue          root;
+            std::string        text;
+            int                value   = 0;
+            bool               isOn    = false;
+            const JsonValue  * none    = nullptr;
+
+
+
+            write.index         = 7;
+            write.cycles        = 1234;
+            write.pc            = 0x0302;
+            write.opcode        = 0x8D;
+            write.instruction   = "STA $0400";
+            write.symbol        = "START";
+            write.hasAccess     = true;
+            write.accessIsWrite = true;
+            write.accessAddress = 0x0400;
+            write.accessData    = 0x05;
+            write.accessSymbol  = "SCREEN";
+            implied.index       = 8;
+            implied.instruction = "INX";
+            data.isOn           = true;
+            data.total          = 9;
+            data.entries        = { write, implied };
+            root                = ParseRecord (ReplyJson::WriteReply (MakeOk (data), std::nullopt));
+
+            const JsonValue & body   = GetObjectMember (root, "data");
+            const JsonValue & first  = GetArrayMember (body, "entries").GetArrayElement (0);
+            const JsonValue & second = GetArrayMember (body, "entries").GetArrayElement (1);
+            const JsonValue & access = GetObjectMember (first, "access");
+
+            Assert::AreEqual (S_OK, body.GetString ("kind", text));
+            Assert::AreEqual (std::string ("trace"), text);
+            Assert::AreEqual (S_OK, body.GetBool ("on", isOn));
+            Assert::IsTrue   (isOn);
+            Assert::AreEqual (S_OK, body.GetInt ("total", value));
+            Assert::AreEqual (9, value);
+            Assert::AreEqual (S_OK, first.GetInt ("cycles", value));
+            Assert::AreEqual (1234, value);
+            Assert::AreEqual (S_OK, first.GetString ("symbol", text));
+            Assert::AreEqual (std::string ("START"), text);
+            Assert::AreEqual (S_OK, access.GetInt ("address", value));
+            Assert::AreEqual (0x0400, value);
+            Assert::AreEqual (S_OK, access.GetString ("direction", text));
+            Assert::AreEqual (std::string ("write"), text);
+            Assert::AreEqual (S_OK, access.GetString ("symbol", text));
+            Assert::AreEqual (std::string ("SCREEN"), text);
+            Assert::IsFalse  (second.HasObject ("access", none), L"no access is null");
+        }
+
+
 
         TEST_METHOD (EveryDataKind_Serializes)
         {
@@ -309,6 +365,7 @@ namespace DebuggerTests
                 WatchListData(), SearchHitsData(), StackData(), SoftSwitchData(), SymbolData(), CyclesData(), ModeData(), FileIoData(),
                 CompareData(), DataBlockListData(), VideoInfoData(), BranchRecordData(), ProfileData(), CalcData(), StepFilterData(),
                 CallStackData(), CallStackModeData(),
+                TraceData(),
             };
 
             std::set<std::string>  names;

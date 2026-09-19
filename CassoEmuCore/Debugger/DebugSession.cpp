@@ -616,8 +616,9 @@ void DebugSession::OnInstruction (Word pc)
 //
 //  DebugSession::OnMachineChanged
 //
-//  A different machine makes every address meaningless, so breakpoints and
-//  watchpoints go and the call record starts over. Watches and bookmarks are only labels and stay.
+//  A different machine makes every address meaningless, so breakpoints,
+//  watchpoints and the trace go and the call record starts over. Watches and
+//  bookmarks are only labels and stay.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -627,6 +628,7 @@ void DebugSession::OnMachineChanged (const std::string & machineName)
     m_watchpoints.ClearAll();
     m_lastBreakpointId.reset();
     m_state = RunState::Paused;
+    m_target.ClearTrace();
 
     if (m_callRecorder.IsActive())
     {

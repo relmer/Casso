@@ -3,6 +3,7 @@
 #include "Debugger/DebugMemoryView.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/RunStopHook.h"
+#include "Debugger/TraceController.h"
 
 class IRunDriver;
 class MachineHost;
@@ -56,11 +57,19 @@ public:
     DebugMachineInfo    GetMachineInfo    () const override;
     void                InjectKey         (Byte key) override;
     bool                IsKeyPending      () const override;
+    void                SetTraceOn        (bool on) override;
+    bool                IsTraceOn         () const override { return m_trace.IsOn(); }
+    void                ClearTrace        () override       { m_trace.Clear(); }
+    size_t              GetTraceSize      () const override { return m_trace.GetSize(); }
+    void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const override;
+
+    TraceController   & GetTrace          () { return m_trace; }
 
 private:
     MachineHost       & m_host;
     DebugMemoryView     m_view;
     RunStopHook         m_runHook;
+    TraceController     m_trace;
     IRunDriver        * m_driver        = nullptr;
     IRunObserver      * m_observer      = nullptr;
 };

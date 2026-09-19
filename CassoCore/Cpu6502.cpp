@@ -15,6 +15,7 @@
 Cpu6502::Cpu6502()
     : Cpu()
 {
+    m_traceCycles = &m_totalCycles;
 }
 
 
