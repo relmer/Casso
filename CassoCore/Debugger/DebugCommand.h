@@ -16,6 +16,28 @@ enum class CommandMode
 {
     AppleWin,
     Monitor,
+    GSSquared,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OutputFormat
+//
+//  How replies are written, separate from the mode lines are read in.
+//  Changing the mode sets the format to that mode's own; OUTPUT changes the
+//  format alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class OutputFormat
+{
+    AppleWin,
+    Monitor,
+    GSSquared,
 };
 
 
@@ -194,6 +216,8 @@ enum class DebugVerb
     AddStepFilter,
     RemoveStepFilter,
     ClearStepFilter,
+    ShowOutputFormat,
+    SetOutputFormat,
 
     // Window-only views, carried by name
     View,
@@ -233,4 +257,5 @@ struct DebugCommand
     uint32_t                 count    = 0;
     std::optional<uint64_t>  budget;
     CommandMode              mode     = CommandMode::AppleWin;
+    OutputFormat             output   = OutputFormat::AppleWin;
 };

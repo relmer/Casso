@@ -180,6 +180,7 @@
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
     <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
+    <ClCompile Include="Debugger\GSSquaredFormatter.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelProtocol.cpp" />
     <ClCompile Include="Debugger\Channel\DebugChannelServer.cpp" />
     <ClCompile Include="Debugger\Channel\InstanceLister.cpp" />
@@ -546,6 +547,7 @@
     <ClInclude Include="Debugger\BinaryImageReader.h" />
     <ClInclude Include="Debugger\DebugHandlerSet.h" />
     <ClInclude Include="Debugger\MonitorFormatter.h" />
+    <ClInclude Include="Debugger\GSSquaredFormatter.h" />
     <ClInclude Include="Debugger\Channel\ChannelProtocol.h" />
     <ClInclude Include="Debugger\Channel\IPipeTransport.h" />
     <ClInclude Include="Debugger\Channel\IDebugCommandRunner.h" />

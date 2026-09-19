@@ -224,13 +224,7 @@ void DebuggerWindow::OnCreate()
 
 void DebuggerWindow::ConfigureWidgets()
 {
-    auto  run = [this] (const std::string & line)
-    {
-        if (m_host != nullptr)
-        {
-            m_host->RunDebuggerCommand (line);
-        }
-    };
+    auto  run = [this] (const std::string & line) { RunCommand (line); };
 
 
 
@@ -937,13 +931,19 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 //
 //  DebuggerWindow::RunCommand
 //
+//  A line a control or a key sends, in the words of the session's mode.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::RunCommand (const std::string & line)
 {
+    CommandMode  mode = (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
+
+
+
     if (m_host != nullptr)
     {
-        m_host->RunDebuggerCommand (line);
+        m_host->RunDebuggerCommand (DebuggerViewState::GetModeLine (line, mode));
     }
 }
 
@@ -1097,17 +1097,33 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 //  for it is swallowed, or an empty box that stepped would be left holding a
 //  space. Returns true when the key was decided here.
 //
+//  In GSSquared mode the empty command line has GSSquared's own keys first:
+//  Space and F10 step and Return resumes, whatever the scheme.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 {
-    DxuiTextInput  * box      = GetFocusedBox();
-    bool             inMemory = GetFocusedMemoryPane() != nullptr;
-    bool             decided  = false;
+    DxuiTextInput                               * box           = GetFocusedBox();
+    bool                                          inMemory      = GetFocusedMemoryPane() != nullptr;
+    bool                                          decided       = false;
+    CommandMode                                   mode          = (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
+    std::optional<DebuggerKeySchemes::Action>     consoleAction;
 
 
 
-    if (ev.kind == DxuiKeyEventKind::Char)
+    consoleAction = (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_commandBox)
+                  ? DebuggerViewState::GetConsoleKeyAction (mode, ev.vk, ev.ctrl, ev.alt, ev.shift, box->GetText().empty())
+                  : std::nullopt;
+
+    if (consoleAction.has_value())
+    {
+        OnMappedCommand ((int) *consoleAction);
+        m_swallowSpace = ev.vk == VK_SPACE;
+        handled        = true;
+        decided        = true;
+    }
+    else if (ev.kind == DxuiKeyEventKind::Char)
     {
         decided        = m_swallowSpace && ev.vk == L' ';
         handled        = decided;
@@ -1710,7 +1726,7 @@ void DebuggerWindow::SubmitPokeBox()
 
     if (m_host != nullptr)
     {
-        m_host->RunDebuggerCommand (DebuggerViewState::GetPokeLine (address, (Byte) value));
+        RunCommand (DebuggerViewState::GetPokeLine (address, (Byte) value));
     }
 
     m_pokeBox->SetText (L"");

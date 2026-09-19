@@ -457,6 +457,92 @@ std::optional<std::string> DebuggerViewState::GetActionLine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetModeLine
+//
+//  The controls build AppleWin lines and the session reads lines in its own
+//  mode. GSSquared has its own words for most of what they send; run to
+//  cursor has none, and stays an AppleWin line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetModeLine (const std::string & line, CommandMode mode)
+{
+    size_t       space = line.find (' ');
+    std::string  name  = line.substr (0, space);
+    std::string  rest  = (space == std::string::npos) ? std::string() : line.substr (space + 1);
+    size_t       split = rest.find (' ');
+
+
+
+    if (mode != CommandMode::GSSquared)
+    {
+        return line;
+    }
+
+    if (rest.empty())
+    {
+        if (name == "T")   { return "s"; }
+        if (name == "P")   { return "o"; }
+        if (name == "RTS") { return "r"; }
+        if (name == "G")   { return "g"; }
+    }
+
+    if (name == "BP")  { return "bp " + rest; }
+    if (name == "BPC") { return "nobp " + rest; }
+
+    if (name == "MEB" && split != std::string::npos)
+    {
+        return rest.substr (0, split) + ":" + rest.substr (split);
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetConsoleKeyAction
+//
+//  GSSquared steps and resumes by key, not by command, so a reader used to it
+//  presses Space at an empty prompt. Once something is typed the keys type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebuggerKeySchemes::Action> DebuggerViewState::GetConsoleKeyAction (
+    CommandMode  mode,
+    WPARAM       vk,
+    bool         ctrl,
+    bool         alt,
+    bool         shift,
+    bool         isLineEmpty)
+{
+    if (mode != CommandMode::GSSquared || !isLineEmpty || ctrl || alt || shift)
+    {
+        return std::nullopt;
+    }
+
+    if (vk == VK_SPACE || vk == VK_F10)
+    {
+        return DebuggerKeySchemes::Action::StepInto;
+    }
+
+    if (vk == VK_RETURN)
+    {
+        return DebuggerKeySchemes::Action::Run;
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetToggleBreakpointLine
 //
 //  A click sets a breakpoint where there is none and clears the one that is
@@ -554,6 +640,12 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     Reply                    reply;
 
 
+
+    //  GSSquared has no layout commands, and its words are not AppleWin's.
+    if (mode == CommandMode::GSSquared)
+    {
+        return ExecuteLine (session, line, mode);
+    }
 
     //  In Monitor mode only a `/` line is an AppleWin line.
     if (mode == CommandMode::Monitor)

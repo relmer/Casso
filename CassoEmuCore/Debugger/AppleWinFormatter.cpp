@@ -2,6 +2,7 @@
 
 #include "Debugger/AppleWinFormatter.h"
 
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/ReplyJson.h"
 
 
@@ -218,7 +219,7 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<StepFilterData>     (&data)) { FormatStepFilter     (*v, lines); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
-    else if (auto * v = std::get_if<ModeData>           (&data)) { lines.push_back (v->mode == CommandMode::Monitor ? "Mode: MONITOR" : "Mode: APPLEWIN"); }
+    else if (auto * v = std::get_if<ModeData>           (&data)) { lines.push_back ("Mode: " + CommandModeNames::GetUpperName (v->mode)); }
     else if (auto * v = std::get_if<VideoInfoData>      (&data)) { lines.push_back (std::format ("Scanline {}, cycle {}", v->scanline, v->cycleInLine)); }
     else if (auto * v = std::get_if<BranchRecordData>   (&data)) { lines.push_back (v->address.has_value() ? std::format ("Last branch at ${:04X}", *v->address) : std::string ("No branch recorded.")); }
 }

@@ -1,0 +1,5 @@
+Current breakpoints:
+[0] exec 00/0300
+[1] data 00/C019 r
+[2] data 00/C010 rw
+[3] exec 00/0400.040F

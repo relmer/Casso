@@ -32,7 +32,16 @@ reachable in every mode:
 | `CALLS` | the call chain to PC, innermost first: one line per frame with its call site, target symbol and provenance (`recorded` or `guessed`), and a break line (`-- TXS at $0812 --`) wherever the chain is broken (FR-067 to FR-069) |
 | `CALLS MODE RECORDED\|WALK\|HYBRID` | choose the mechanism; `CALLS MODE` reports it; hybrid is the default |
 | `SKIP name\|addr\|first.last` | add a routine to the step filter; `SKIP` lists it; `SKIP - name` removes one; `SKIP CLEAR` empties it (FR-070) |
+| `OUTPUT APPLEWIN\|MONITOR\|GSSQUARED` | set the output format alone (FR-013); `OUTPUT` reports it; `MODE x` sets both mode and format |
+| `MODE GSSQUARED` | switch to GSSquared mode ([gssquared-mode.md](gssquared-mode.md)) |
 
+The engine commands are the `Engine` family of `AppleWinCommandTable`
+(`MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`, `SKIP`,
+`OUTPUT`, `PROFILE`). Each mode's parser strips its marker and hands the line
+to `AppleWinParser`, so a command added to the family is reachable in every
+mode with no parser change; `EngineMarkerTests` walks the family. `PANEL`,
+`HISTORY` and `CALLS` join it when they are built, and WinDbg's `!` row when
+that mode is.
 AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`,
 `CALLS` or `SKIP` command, so these names collide with nothing in its table;
 nor does GSSquared's.

@@ -1,0 +1,33 @@
+THE FILES IN THIS DIRECTORY record the console reply layouts of the GSSquared
+emulator's debugger, one reply kind per file, for Casso's GSSquared output
+format to be compared against line by line. This note covers every file in
+this directory and nothing outside it.
+
+Work:      GSSquared, an Apple II and IIgs emulator
+Author:    Jawaid Bazyar and contributors
+Source:    https://github.com/jawaidbazyar2/gssquared
+Read at:   commit 4a14e989754fa03ee8bde6bdb009ab62eff62ef9, 2026-09-18
+
+HOW THEY WERE MADE. These are NOT captured from a running GSSquared. Building
+it needs SDL3 and its other dependencies, which this machine does not have, so
+each file was written by hand from the format strings in GSSquared's
+src/debugger/Monitor.cpp (examine, dump, breakpoint and watch lists and their
+"set" lines, save, slookup, sclear) and src/debugger/trace.cpp with
+line_buffer.hpp (the column layout of `list`), applied to the values of the
+program in ../Scripts/stop.txt and the data the formatter tests build. No
+GSSquared source code is copied here or into Casso; only the layout of the
+text it prints is reproduced, as a specification to test against.
+
+Where Casso's reply is known to differ from what GSSquared would print for the
+same command, the fixture records GSSquared's layout for the values Casso
+produces, and the difference is recorded in the spec's research note R-027:
+
+- `list` prints thirty instructions in GSSquared and twenty in Casso; the
+  fixture has the two instructions the test builds.
+- GSSquared pads its disassembly lines to a fixed width with trailing spaces;
+  the fixtures, like Casso, carry no trailing spaces.
+- GSSquared watches a range as one entry; Casso watches each address, so
+  `watch 6.7` lists two single-address entries, as recorded here.
+
+Tests MUST treat these files as read-only: a mismatch is a finding about
+Casso, unless the file is shown to differ from GSSquared's own output.

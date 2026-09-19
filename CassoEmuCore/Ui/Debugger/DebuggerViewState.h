@@ -197,6 +197,22 @@ public:
                                                       const DebuggerViewSnapshot * snapshot,
                                                       int                          selectedRow);
 
+    //  A control's AppleWin line in the words of the mode the session is in,
+    //  where the mode has them: GSSquared's `s`, `o`, `r`, `g`, `bp`, `nobp`
+    //  and `addr:` deposit. Any other line, and any line in another mode, is
+    //  returned as it is.
+    static std::string  GetModeLine (const std::string & line, CommandMode mode);
+
+    //  In GSSquared mode with the command line empty, Space and F10 step and
+    //  Return resumes, as GSSquared's own window does, whatever the key
+    //  scheme; otherwise nothing, and the key goes where it would have.
+    static std::optional<DebuggerKeySchemes::Action>  GetConsoleKeyAction (CommandMode mode,
+                                                                           WPARAM      vk,
+                                                                           bool        ctrl,
+                                                                           bool        alt,
+                                                                           bool        shift,
+                                                                           bool        isLineEmpty);
+
     //  A line from the window's command box, run and formatted exactly as batch
     //  mode runs and formats it. CPU thread only.
     static Reply  ExecuteLine (DebugSession & session, const std::string & line, CommandMode mode);

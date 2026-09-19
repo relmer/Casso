@@ -47,7 +47,7 @@ namespace DebuggerTests
             "D", "ME8", "ME16", "MM", "MS", "P0", "P1", "P2", "P3", "P4", "REGISTER", "TRACE", "SYMDOS", "SYMPRO", "ZAP",
             "BENCH", "EXITBENCH", "MDB",
             "BPV", "VIDEOINFO",
-            "MODE", "PAUSE", "BUDGET", "SWITCHES", "STACK", "PATCH", "SRC", "SKIP",
+            "MODE", "PAUSE", "BUDGET", "SWITCHES", "STACK", "PATCH", "SRC", "SKIP", "OUTPUT",
         };
 
         static constexpr const char * kWindowOnlyNames[] =
@@ -77,6 +77,7 @@ namespace DebuggerTests
             DebugVerb::AddSymbol,
             DebugVerb::RemoveSymbol,
             DebugVerb::SetMode,
+            DebugVerb::SetOutputFormat,
             DebugVerb::SetSourceStepping,
             DebugVerb::SetSourceBreakpoint,
             DebugVerb::AddStepFilter,

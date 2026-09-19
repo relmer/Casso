@@ -496,6 +496,64 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (parsed.commands[0].verb == DebugVerb::WriteFile);
             Assert::AreEqual (std::string ("C:\\My Files\\dump.bin"), parsed.commands[0].text);
         }
+
+        //  GSSquared steps and resumes by key: at an empty command line in
+        //  GSSquared mode, Space and F10 step and Return resumes, whatever the
+        //  scheme. With text typed, or in another mode, the keys are left
+        //  alone.
+        TEST_METHOD (GSSquaredMode_EmptyLine_SpaceAndF10Step_ReturnResumes)
+        {
+            using Action = DebuggerKeySchemes::Action;
+
+            auto  action = [] (CommandMode mode, WPARAM vk, bool shift, bool isEmpty)
+            {
+                return DebuggerViewState::GetConsoleKeyAction (mode, vk, false, false, shift, isEmpty);
+            };
+
+
+
+            Assert::IsTrue (action (CommandMode::GSSquared, VK_SPACE,  false, true) == Action::StepInto, L"Space");
+            Assert::IsTrue (action (CommandMode::GSSquared, VK_F10,    false, true) == Action::StepInto, L"F10");
+            Assert::IsTrue (action (CommandMode::GSSquared, VK_RETURN, false, true) == Action::Run,      L"Return");
+
+            Assert::IsFalse (action (CommandMode::GSSquared, VK_SPACE,  false, false).has_value(), L"text typed");
+            Assert::IsFalse (action (CommandMode::GSSquared, VK_RETURN, false, false).has_value(), L"Return runs the line");
+            Assert::IsFalse (action (CommandMode::GSSquared, VK_F10,    true,  true).has_value(),  L"Shift+F10 is the context menu");
+            Assert::IsFalse (action (CommandMode::GSSquared, 'O',       false, true).has_value(),  L"O is the scheme's");
+            Assert::IsFalse (action (CommandMode::AppleWin,  VK_SPACE,  false, true).has_value(),  L"AppleWin mode");
+            Assert::IsFalse (action (CommandMode::Monitor,   VK_RETURN, false, true).has_value(),  L"Monitor mode");
+            Assert::IsFalse (DebuggerViewState::GetConsoleKeyAction (CommandMode::GSSquared, VK_SPACE, true, false, false, true).has_value(), L"Ctrl+Space");
+        }
+
+        //  The controls send AppleWin lines; in GSSquared mode they go in its
+        //  words, and each one runs there.
+        TEST_METHOD (GSSquaredMode_ControlLines_AreInItsWords)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::AreEqual (std::string ("s"),              DebuggerViewState::GetModeLine ("T",            CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("o"),              DebuggerViewState::GetModeLine ("P",            CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("r"),              DebuggerViewState::GetModeLine ("RTS",          CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("g"),              DebuggerViewState::GetModeLine ("G",            CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("bp 0300"),        DebuggerViewState::GetModeLine ("BP 0300",      CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("nobp 3"),         DebuggerViewState::GetModeLine ("BPC 3",        CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("0300: 41"),       DebuggerViewState::GetModeLine ("MEB 0300 41",  CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("SRC ON"),         DebuggerViewState::GetModeLine ("SRC ON",       CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("T"),              DebuggerViewState::GetModeLine ("T",            CommandMode::AppleWin));
+
+            rig.controller.GetSession().ExecuteLine ("MODE GSSQUARED");
+
+            for (const char * line : { "BP 0300", "MEB 0300 41", "BPC 0" })
+            {
+                Reply  reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
+                                                               DebuggerViewState::GetModeLine (line, CommandMode::GSSquared),
+                                                               CommandMode::GSSquared);
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
+            }
+        }
     };
 
 

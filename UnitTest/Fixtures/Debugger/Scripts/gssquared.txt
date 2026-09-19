@@ -1,0 +1,30 @@
+; Quickstart Story 12: GSSquared mode. A subroutine at $0310 reads $C019
+; and returns; the program at $0300 calls it. Each GSSquared command is
+; followed by the output format changed alone, and then the bank rules.
+MEB 300 20 10 03 EA 4C 03 03
+MEB 310 AD 19 C0 60
+R PC 300
+MODE GSSQUARED
+300.313
+300
+bp 300
+bpd C019 r
+bp
+watch 6.7
+watch
+l 300
+s
+o
+r
+mode monitor
+/bpl
+/mode gssquared
+output applewin
+bp
+mode applewin
+BPR A=0
+MODE GSSQUARED
+00/300
+e1/300
+map
+switches

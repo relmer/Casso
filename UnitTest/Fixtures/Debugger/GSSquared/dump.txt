@@ -1,0 +1,3 @@
+00/0300: AD 19 C0 4C 00 03 C8 C5 CC CC CF A0 D7 CF D2 CC  -.@L..HELLO WORL
+00/0310: C4 00                                            D.
+

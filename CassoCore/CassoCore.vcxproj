@@ -167,6 +167,8 @@
     <ClCompile Include="Debugger\AppleWinParser.cpp" />
     <ClCompile Include="Debugger\DebugCommandPayload.cpp" />
     <ClCompile Include="Debugger\MonitorParser.cpp" />
+    <ClCompile Include="Debugger\GSSquaredParser.cpp" />
+    <ClCompile Include="Debugger\CommandModeNames.cpp" />
     <ClCompile Include="Debugger\EffectiveAddress.cpp" />
     <ClCompile Include="Debugger\SymbolFileReader.cpp" />
     <ClCompile Include="Directive.cpp" />
@@ -238,6 +240,8 @@
     <ClInclude Include="Debugger\AppleWinParser.h" />
     <ClInclude Include="Debugger\DebugCommandPayload.h" />
     <ClInclude Include="Debugger\MonitorParser.h" />
+    <ClInclude Include="Debugger\GSSquaredParser.h" />
+    <ClInclude Include="Debugger\CommandModeNames.h" />
     <ClInclude Include="Debugger\MonitorState.h" />
     <ClInclude Include="Debugger\EffectiveAddress.h" />
     <ClInclude Include="Debugger\SymbolFileReader.h" />

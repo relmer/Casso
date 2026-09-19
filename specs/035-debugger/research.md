@@ -923,6 +923,27 @@ research item that needs a build of another project; if it cannot be built,
 the documented examples decide the format and the rest follows their style,
 recorded here as a deviation.
 
+**As built (2026-09-18), a deviation**: GSSquared was not built. It needs SDL3
+and its other dependencies, which this machine lacks, and its documentation
+shows almost no replies. Its source does: `src/debugger/Monitor.cpp` prints
+every console reply through a handful of format strings, and `trace.cpp` with
+`line_buffer.hpp` fixes the columns of `list`. The fixtures under
+`UnitTest/Fixtures/Debugger/GSSquared/` were written from those strings
+(commit 4a14e98), one file per reply kind, for the program in
+`Scripts/stop.txt` and the data the formatter tests build; the `LICENSE` note
+there says so. None is a capture. The layouts, in brief: every address as
+`00/0300`; examine `00/0300: A9`; a dump of sixteen bytes a line, each byte
+followed by a space, then a space and the characters with the high bit
+dropped, then a blank line; `list` as `M=8 X=8` and `0300: AD 19 C0    LDA
+$C019` (bytes from column 6, mnemonic at 18, operand at 23); `Current
+breakpoints:` then `[id] exec|data|io addr[.last] [r|w|rw]`; `Current memory
+watches:` then `[id] addr`; `Breakpoint id=N set`, `Watch id=N set`, `Saved N
+bytes to file`, `addr: NAME`, `Cleared symbol table`. GSSquared prints nothing
+for a deposit and has no stop line (its window shows the stop), so Casso keeps
+AppleWin's stop text in this format. Known differences from what GSSquared
+would print: `list` shows 20 instructions, not 30; no line carries trailing
+spaces; a watch range is one watch per address, since Casso's watches are
+single addresses.
 ## R-028: Layout persistence
 
 **Decision**: the layout is one JSON subtree in the global preferences,

@@ -27,6 +27,9 @@ public:
     static std::string  FormatFlags     (Byte p);
     static std::string  FormatAddress   (const BreakpointInfo & breakpoint);
 
+    // A breakpoint's kind and place in words, as BPL lists it.
+    static std::string  DescribeBreakpoint (const BreakpointInfo & breakpoint);
+
 private:
     using Lines = std::vector<std::string>;
 
@@ -53,7 +56,6 @@ private:
     static void  FormatProfileAddresses (const ProfileData & data, Lines & lines);
     static double  GetShare             (uint64_t part, uint64_t total);
 
-    static std::string  DescribeBreakpoint (const BreakpointInfo & breakpoint);
     static std::string  FormatCondition    (const StopEvent & stop);
 
     static constexpr int   kBytesPerRow  = 8;
