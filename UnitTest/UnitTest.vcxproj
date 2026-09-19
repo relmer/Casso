@@ -535,6 +535,7 @@
     <ClCompile Include="Dxui\DxuiPropertySheetTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneLayoutTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockDropZonesTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
