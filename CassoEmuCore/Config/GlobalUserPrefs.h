@@ -224,6 +224,11 @@ struct GlobalUserPrefs
     // screenshotMode; the window reads an unknown name as the default.
     std::string  debuggerKeyScheme        = "VisualStudio";
 
+    // The debugger window's pane arrangement, in DxuiPaneLayout's text form,
+    // which carries its own version. Empty until the user moves a pane; text
+    // the window cannot read gives the default arrangement.
+    std::string  debuggerLayout;
+
     // Folders where the debugger found source files, most-recent-first: for
     // every program, and for each program by its debug file's SHA-1. A
     // program's own list is searched before the global one.

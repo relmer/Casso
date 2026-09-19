@@ -506,6 +506,8 @@ private:
     void    OnDebuggerWindowClosed   () override;
     std::string  GetDebuggerKeyScheme () override;
     void         SetDebuggerKeyScheme (const std::string & name) override;
+    std::string  GetDebuggerLayout    () override;
+    void         SetDebuggerLayout    (const std::string & text) override;
     SourceLookup FindDebuggerSource   (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                        const std::string & programKey) override;
     SourceLookup MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,

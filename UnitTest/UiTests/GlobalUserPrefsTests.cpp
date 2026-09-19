@@ -319,6 +319,28 @@ public:
     }
 
 
+    TEST_METHOD (DebuggerLayout_RoundTrips)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     saved;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+        string              text = "dxui-layout 1\ntree (split h 0.6000 (tabs 0 \"code\") (tabs 0 \"registers\"))\n";
+
+        Assert::IsTrue (saved.debuggerLayout.empty(), L"empty until a pane moves");
+
+        saved.debuggerLayout = text;
+
+        hr = saved.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (text, loaded.debuggerLayout);
+    }
+
+
     TEST_METHOD (Screenshot_MissingKeysKeepDefaults)
     {
         InMemoryFileSystem  fs;

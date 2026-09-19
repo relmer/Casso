@@ -54,6 +54,10 @@ public:
     virtual std::string  GetDebuggerKeyScheme ()                           = 0;
     virtual void         SetDebuggerKeyScheme (const std::string & name)   = 0;
 
+    //  The pane arrangement as DxuiPaneLayout text, kept the same way.
+    virtual std::string  GetDebuggerLayout    ()                           = 0;
+    virtual void         SetDebuggerLayout    (const std::string & text)   = 0;
+
     //  A debug file's source file, found by the rules of FR-058, and a file
     //  the user dropped, matched against the debug file's records. Where a
     //  file is found goes into the preferences, which the host keeps.

@@ -37,4 +37,12 @@ public:
     static std::wstring    GetMemoryPaneId (int window);
 
     static DxuiPaneLayout  MakeDefault ();
+
+    //  A saved arrangement: panes this version does not have are dropped and
+    //  panes it has that the text lacks are added, so a layout saved by an
+    //  older or newer build still holds every pane. Text that does not parse
+    //  gives the default.
+    static DxuiPaneLayout  Restore     (const std::wstring & text);
+
+    static std::vector<std::wstring>  GetPaneIds ();
 };

@@ -91,5 +91,31 @@ namespace DebuggerLayoutTests
             Assert::AreEqual (layout.ToText(), parsed.ToText());
             Logger::WriteMessage (layout.ToText().c_str());
         }
-    };
+
+
+        TEST_METHOD (UnreadableTextGivesTheDefault)
+        {
+            Assert::AreEqual (DebuggerLayout::MakeDefault().ToText(), DebuggerLayout::Restore (L"").ToText());
+            Assert::AreEqual (DebuggerLayout::MakeDefault().ToText(), DebuggerLayout::Restore (L"dxui-layout 99\n").ToText());
+        }
+
+
+        TEST_METHOD (ASavedLayoutKeepsItsArrangementAndGainsMissingPanes)
+        {
+            DxuiPaneLayout  restored = DebuggerLayout::Restore (
+                L"dxui-layout 1\ntree (split h 0.6000 (tabs 0 \"code\" \"gone\") (tabs 0 \"registers\" \"memory1\"))\n");
+
+
+
+            Assert::IsFalse  (restored.Contains (L"gone"), L"a pane this build lacks is dropped");
+            Assert::AreEqual ((size_t) 1, restored.GetGroup (DebuggerLayout::kCode).size());
+
+            for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
+            {
+                Assert::IsTrue (restored.IsDocked (pane), pane.c_str());
+            }
+
+            Assert::AreEqual ((size_t) 5, restored.GetGroup (DebuggerLayout::kRegisters).size(),
+                              L"registers and the four memory windows");
+        }    };
 }

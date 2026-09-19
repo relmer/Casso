@@ -24,6 +24,76 @@ std::wstring DebuggerLayout::GetMemoryPaneId (int window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerLayout::GetPaneIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerLayout::GetPaneIds()
+{
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack };
+
+
+
+    for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    {
+        ids.push_back (GetMemoryPaneId (window));
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::Restore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
+{
+    DxuiPaneLayout             layout;
+    std::vector<std::wstring>  ids     = GetPaneIds();
+    std::wstring               memory1 = GetMemoryPaneId (1);
+
+
+
+    if (text.empty() || !DxuiPaneLayout::TryParse (text, layout))
+    {
+        return MakeDefault();
+    }
+
+    layout.DropUnknown ([&ids] (const std::wstring & pane)
+    {
+        return std::find (ids.begin(), ids.end(), pane) != ids.end();
+    });
+
+    if (layout.GetRoot() == nullptr)
+    {
+        return MakeDefault();
+    }
+
+    //  A memory window the text lacks joins the first; anything else lacks a
+    //  better place than the right edge.
+    for (const std::wstring & pane : ids)
+    {
+        if (!layout.Contains (pane))
+        {
+            layout.Add (pane, pane.starts_with (L"memory") ? memory1 : L"");
+        }
+    }
+
+    return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerLayout::MakeDefault
 //
 //  Built by the same operations a user would perform, so the default is a

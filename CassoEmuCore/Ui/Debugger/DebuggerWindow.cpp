@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Debugger/Source/SourcePathList.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -1228,7 +1229,8 @@ void DebuggerWindow::LayoutWidgets()
 
 void DebuggerWindow::ConfigureDockSite()
 {
-    auto  boxHeight = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
+    auto          boxHeight = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
+    std::wstring  savedText;
 
 
 
@@ -1257,7 +1259,18 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
-    m_dockSite->SetPaneLayout (DebuggerLayout::MakeDefault());
+    savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
+    m_dockSite->SetPaneLayout (DebuggerLayout::Restore (savedText));
+
+    //  Every change the user makes is saved as it happens, so a crash or a
+    //  closed emulator loses nothing.
+    m_dockSite->SetOnChanged ([this]
+    {
+        if (m_host != nullptr)
+        {
+            m_host->SetDebuggerLayout (SourcePathList::WideToUtf8 (m_dockSite->GetPaneLayout().ToText()));
+        }
+    });
 }
 
 
