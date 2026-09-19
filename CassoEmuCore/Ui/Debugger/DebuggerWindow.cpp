@@ -1263,8 +1263,9 @@ void DebuggerWindow::LayoutWidgets()
     int   height   = m_heightDip;
     int   captionH = GetCaptionHeightPx();
     int   rowY     = captionH + pad;
-    int   top      = rowY + buttonH + pad;
-    int   barY     = std::max (top + px (120), height - pad - boxH);
+    int   flagsW   = px (150);
+    int   top      = 0;
+    int   barY     = 0;
     int   x        = pad;
 
 
@@ -1274,15 +1275,32 @@ void DebuggerWindow::LayoutWidgets()
         return;
     }
 
+    //  The buttons wrap to a second row when the window is too narrow for
+    //  them and the flags, rather than running off its edge.
     for (DxuiButton * button : GetToolbarButtons())
     {
         int  w = px ((button == m_keysButton) ? 170 : (button == m_runToCursorButton) ? 120 : 96);
+
+        if (x > pad && x + w > width - pad)
+        {
+            x     = pad;
+            rowY += buttonH + pad;
+        }
 
         button->Layout (RECT { x, rowY, x + w, rowY + buttonH }, m_scaler);
         x += w + pad;
     }
 
+    if (x + flagsW > width - pad)
+    {
+        x     = pad;
+        rowY += buttonH + pad;
+    }
+
     m_flagsLabel->Layout (RECT { x + pad, rowY, width - pad, rowY + buttonH }, m_scaler);
+
+    top  = rowY + buttonH + pad;
+    barY = std::max (top + px (120), height - pad - boxH);
 
     m_dockSite->Layout (RECT { pad, top, width - pad, barY - pad }, m_scaler);
 
