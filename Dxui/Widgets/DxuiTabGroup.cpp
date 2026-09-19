@@ -413,6 +413,7 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTabGroup::OnMouse
