@@ -55,6 +55,7 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
 
 
     return rows;
+}
 
 
 
@@ -103,6 +104,7 @@ DebuggerCommands::DebuggerCommands (Handlers handlers)
 
         m_commands.push_back (std::move (command));
     }
+}
 
 
 
@@ -131,6 +133,7 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
     }
 
     return entries;
+}
 
 
 
@@ -153,6 +156,7 @@ std::shared_ptr<DxuiCommand> DebuggerCommands::Find (int id) const
     }
 
     return nullptr;
+}
 
 
 
