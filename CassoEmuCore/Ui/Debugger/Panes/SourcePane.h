@@ -57,6 +57,7 @@ public:
 
     //  A code row was selected: scroll to its line when it is in this file.
     void  ShowLine      (int fileId, int line);
+    void  FollowMarkedLine ();
 
     //  A click on a line moves the code pane to the line's address; a double
     //  click toggles a breakpoint on it.
@@ -98,15 +99,16 @@ private:
     RunFn                                              m_run;
     GoToFn                                             m_goTo;
 
-    std::optional<DebuggerViewSnapshot::SourceState>   m_state;
-    std::wstring                                       m_loadedFor;
-    int                                                m_fileId      = -1;
-    SourceMatch                                        m_match       = SourceMatch::NotFound;
-    bool                                               m_isDropped   = false;
-    int                                                m_droppedAt   = -1;
-    std::vector<std::wstring>                          m_lines;
-    bool                                               m_showBody    = false;
-    int                                                m_rowsLine    = -1;
-    std::set<int>                                      m_rowsBreakpoints;
-    int                                                m_rowsFileId  = -2;
+    std::optional<DebuggerViewSnapshot::SourceState>  m_state;
+    std::wstring                                      m_loadedFor;
+    int                                               m_fileId          = -1;
+    SourceMatch                                       m_match           = SourceMatch::NotFound;
+    bool                                              m_isDropped       = false;
+    int                                               m_droppedAt       = -1;
+    std::vector<std::wstring>                         m_lines;
+    bool                                              m_showBody        = false;
+    int                                               m_rowsLine        = -1;
+    bool                                              m_followPending   = false;
+    std::set<int>                                     m_rowsBreakpoints;
+    int                                               m_rowsFileId      = -2;
 };

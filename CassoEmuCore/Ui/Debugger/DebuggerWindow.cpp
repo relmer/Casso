@@ -1578,6 +1578,7 @@ void DebuggerWindow::RenderFrame()
     m_tracePane->FollowScroll();
 
     SyncFloats();
+    m_sourcePane->FollowMarkedLine();
 
     for (const auto & entry : m_floats)
     {

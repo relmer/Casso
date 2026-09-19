@@ -211,7 +211,9 @@ void SourcePane::Rebuild()
 //  SourcePane::ScrollTo
 //
 //  Leaves the view alone when the line is already on screen; otherwise puts
-//  it a third of the way down.
+//  it a third of the way down. A view that has not been painted yet has not
+//  measured its text and cannot place the line, so the scroll waits for
+//  FollowMarkedLine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,9 +225,33 @@ void SourcePane::ScrollTo (int line)
 
 
 
+    m_followPending = first < 0;
+
     if (first >= 0 && (first < top || first >= top + cap))
     {
         m_view->SetTopLine (std::max (0, first - cap / 3));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::FollowMarkedLine
+//
+//  Once a frame: brings the marked line into view if an earlier scroll could
+//  not place it, as happens when the rows arrive before the view is laid out
+//  or painted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::FollowMarkedLine()
+{
+    if (m_followPending && m_rowsLine > 0)
+    {
+        ScrollTo (m_rowsLine);
     }
 }
 
