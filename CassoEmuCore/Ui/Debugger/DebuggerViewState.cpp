@@ -50,6 +50,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
     Reply                 breakpoints = session.ExecuteLine ("BPL",   CommandMode::AppleWin);
     Reply                 stack       = session.ExecuteLine ("STACK", CommandMode::AppleWin);
     Reply                 watches     = session.ExecuteLine ("WL",    CommandMode::AppleWin);
+    Reply                 calls       = session.ExecuteLine ("CALLS", CommandMode::AppleWin);
     Reply                 code;
     Reply                 memory;
     Word                  codeStart   = 0;
@@ -174,6 +175,11 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
         {
             snapshot.stack.push_back ({ entry.address, entry.value });
         }
+    }
+
+    if (const CallStackData * data = std::get_if<CallStackData> (&calls.data))
+    {
+        snapshot.callStack = *data;
     }
 
     if (const WatchListData * data = std::get_if<WatchListData> (&watches.data))

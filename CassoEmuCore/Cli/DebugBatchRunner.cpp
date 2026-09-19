@@ -120,6 +120,9 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     m_handlers.Attach (session);
     session.SetFileSystem (&m_files);
 
+    //  A batch run is the debugger attached from the first instruction.
+    session.SetCallRecording (true);
+
     budget.verb       = DebugVerb::SetBudget;
     budget.sourceName = "BUDGET";
     budget.count      = (uint32_t) std::min<uint64_t> (options.maxCycles, UINT32_MAX);

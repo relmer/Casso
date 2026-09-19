@@ -145,6 +145,7 @@
     <ClCompile Include="Debugger\DebugMemoryView.cpp" />
     <ClCompile Include="Debugger\RunStopHook.cpp" />
     <ClCompile Include="Debugger\StepFilter.cpp" />
+    <ClCompile Include="Debugger\CallStack.cpp" />
     <ClCompile Include="Debugger\MachineDebugTarget.cpp" />
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
     <ClCompile Include="Debugger\DebuggerController.cpp" />
@@ -153,6 +154,7 @@
     <ClCompile Include="Ui\Debugger\Panes\MemoryEditModel.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\MemoryPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SourcePane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DebuggerPaneFrame.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerLayout.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindow.cpp" />
@@ -171,6 +173,7 @@
     <ClCompile Include="Debugger\Handlers\ExecutionHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\WatchHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\ConfigHandlers.cpp" />
+    <ClCompile Include="Debugger\Handlers\CallStackHandlers.cpp" />
     <ClCompile Include="Debugger\ProfileTable.cpp" />
     <ClCompile Include="Debugger\SymbolTable.cpp" />
     <ClCompile Include="Debugger\Source\SourcePathList.cpp" />
@@ -508,6 +511,7 @@
     <ClInclude Include="Debugger\DebugMemoryView.h" />
     <ClInclude Include="Debugger\RunStopHook.h" />
     <ClInclude Include="Debugger\StepFilter.h" />
+    <ClInclude Include="Debugger\CallStack.h" />
     <ClInclude Include="Debugger\MachineDebugTarget.h" />
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />
     <ClInclude Include="Debugger\DebuggerController.h" />
@@ -516,6 +520,7 @@
     <ClInclude Include="Ui\Debugger\Panes\MemoryEditModel.h" />
     <ClInclude Include="Ui\Debugger\Panes\MemoryPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneFrame.h" />
     <ClInclude Include="Ui\Debugger\DebuggerLayout.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
@@ -537,6 +542,7 @@
     <ClInclude Include="Debugger\Handlers\ExecutionHandlers.h" />
     <ClInclude Include="Debugger\Handlers\WatchHandlers.h" />
     <ClInclude Include="Debugger\Handlers\ConfigHandlers.h" />
+    <ClInclude Include="Debugger\Handlers\CallStackHandlers.h" />
     <ClInclude Include="Debugger\ProfileTable.h" />
     <ClInclude Include="Debugger\SymbolTable.h" />
     <ClInclude Include="Debugger\Source\SourcePathList.h" />

@@ -30,7 +30,7 @@ std::wstring DebuggerLayout::GetMemoryPaneId (int window)
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack };
 
 
 
@@ -75,13 +75,26 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
         return MakeDefault();
     }
 
-    //  A memory window the text lacks joins the first; anything else lacks a
-    //  better place than the right edge.
+    //  A memory window the text lacks joins the first and the call stack joins
+    //  the stack; anything else lacks a better place than the right edge.
     for (const std::wstring & pane : ids)
     {
-        if (!layout.Contains (pane))
+        if (layout.Contains (pane))
         {
-            layout.Add (pane, pane.starts_with (L"memory") ? memory1 : L"");
+            continue;
+        }
+
+        if (pane.starts_with (L"memory"))
+        {
+            layout.Add (pane, memory1);
+        }
+        else if (pane == kCallStack && layout.Contains (kStack))
+        {
+            layout.Add (pane, kStack);
+        }
+        else
+        {
+            layout.Add (pane, L"");
         }
     }
 
@@ -127,7 +140,9 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
 
     layout.Add        (kStack,       L"");
     layout.DockToSide (kStack,       memory1,      DxuiDockSide::Right);
+    layout.Add        (kCallStack,   kStack);
     layout.Activate   (memory1);
+    layout.Activate   (kStack);
 
     //  Proportions of the fixed layout this replaces: a right column of about
     //  300 of 1100, memory eight rows high, and code over a shorter console.

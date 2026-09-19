@@ -194,6 +194,8 @@ enum class DebugVerb
     AddStepFilter,
     RemoveStepFilter,
     ClearStepFilter,
+    ShowCallStack,
+    SetCallStackMode,
 
     // Window-only views, carried by name
     View,

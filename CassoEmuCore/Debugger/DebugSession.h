@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/BreakpointTable.h"
+#include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
 #include "Debugger/IDebugExpressionContext.h"
@@ -137,6 +138,18 @@ public:
     // The routines a step into runs as a step over, in every dialect.
     const StepFilter    & GetStepFilter  () const { return m_stepFilter; }
 
+    // The call-stack record (FR-068), kept only while the debugger is attached:
+    // while the window or the channel is open, and for a batch run. Turning it
+    // on starts a new record at PC; off discards it.
+    void                  SetCallRecording (bool isOn);
+    bool                  IsCallRecording  () const { return m_callRecorder.IsActive(); }
+
+    // CALLS and the call-stack pane: the chain to PC by the chosen mechanism,
+    // each frame's target named from the symbol tables.
+    CallStackMechanism    GetCallMechanism () const                       { return m_callMechanism; }
+    void                  SetCallMechanism (CallStackMechanism mechanism) { m_callMechanism = mechanism; }
+    CallStackData         GetCallStack     ();
+
     // The innermost source line at an address, as file name and line; false
     // where no loaded line produced it.
     bool                  TryGetSourceLine (Word address, std::string & file, int & line) const;
@@ -208,6 +221,8 @@ private:
     Reply  ExecuteAppleWinLine   (const std::string & text);
     void   PushMonitorReturn     ();
     void   UpdateHookInstalled   ();
+    void   SettleCallRecord      ();
+    Byte   PeekByte              (Word address) const;
     bool   HasStopConditions     () const;
     bool   TryMatchBeforeWatchpoint (Word pc);
     bool   IsVideoBreakHit       () const;
@@ -239,6 +254,8 @@ private:
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
     StepFilter                            m_stepFilter;
+    CallStackRecorder                     m_callRecorder;
+    CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;
     std::vector<Word>                     m_searchResults;
 
     RunState                              m_state         = RunState::Paused;

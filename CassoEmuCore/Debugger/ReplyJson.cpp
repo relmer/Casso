@@ -3,6 +3,7 @@
 #include "Debugger/ReplyJson.h"
 
 #include "Core/JsonWriter.h"
+#include "Debugger/CallStack.h"
 
 
 
@@ -567,6 +568,13 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
     if (auto * v = std::get_if<CompareData>       (&data)) { return MakeCompare    (*v); }
     if (auto * v = std::get_if<DataBlockListData> (&data)) { return MakeDataBlocks (*v); }
     if (auto * v = std::get_if<StepFilterData>    (&data)) { return MakeStepFilter (*v); }
+    if (auto * v = std::get_if<CallStackData>     (&data)) { return MakeCallStack  (*v); }
+
+    if (auto * v = std::get_if<CallStackModeData> (&data))
+    {
+        return JsonValue (Members { { "kind", MakeString ("callStackMode") }, { "mechanism", MakeString (CallStack::GetMechanismName (v->mechanism)) } });
+    }
+
     if (auto * v = std::get_if<ProfileData>       (&data)) { return MakeProfile    (*v); }
 
     if (auto * v = std::get_if<VideoInfoData> (&data))
@@ -680,8 +688,69 @@ JsonValue ReplyJson::MakeStepFilter (const StepFilterData & data)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReplyJson::MakeProfile
+//  ReplyJson::MakeCallStack
 //
+//  Rows innermost first, each a frame or a break; a symbol or a note that is
+//  absent is null.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeCallStack (const CallStackData & data)
+{
+    std::vector<JsonValue>  rows;
+
+
+
+    for (const CallStackRow & row : data.rows)
+    {
+        if (row.chainBreak.has_value())
+        {
+            rows.push_back (JsonValue (Members { { "break",  MakeString (CallStack::GetBreakKindName (row.chainBreak->kind)) },
+                                                 { "pc",     MakeNumber (row.chainBreak->pc) },
+                                                 { "opcode", MakeNumber (row.chainBreak->opcode) },
+                                                 { "text",   MakeString (CallStack::DescribeBreak (*row.chainBreak)) } }));
+        }
+        else if (row.frame.has_value())
+        {
+            rows.push_back (MakeCallFrame (*row.frame));
+        }
+    }
+
+    return JsonValue (Members { { "kind",       MakeString ("callStack") },
+                                { "mechanism",  MakeString (CallStack::GetMechanismName (data.mechanism)) },
+                                { "rows",       JsonValue (std::move (rows)) },
+                                { "lastReturn", data.lastReturn.has_value() ? MakeCallFrame (*data.lastReturn) : JsonValue (nullptr) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeCallFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeCallFrame (const CallStackFrame & frame)
+{
+    return JsonValue (Members { { "callSite",   MakeNumber (frame.callSite) },
+                                { "target",     MakeNumber (frame.target) },
+                                { "type",       MakeString (CallStack::GetKindName (frame.kind)) },
+                                { "provenance", MakeString (frame.provenance == CallProvenance::Recorded ? "recorded" : "guessed") },
+                                { "stackLevel", MakeNumber (frame.stackLevel) },
+                                { "verified",   JsonValue (frame.isVerified) },
+                                { "symbol",     frame.symbol.empty() ? JsonValue (nullptr) : MakeString (frame.symbol) },
+                                { "note",       frame.note.empty() ? JsonValue (nullptr) : MakeString (frame.note) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeProfile//
 ////////////////////////////////////////////////////////////////////////////////
 
 JsonValue ReplyJson::MakeProfile (const ProfileData & data)

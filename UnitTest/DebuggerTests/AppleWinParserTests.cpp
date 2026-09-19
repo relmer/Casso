@@ -379,6 +379,26 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Engine_CallsAndCallsMode)
+        {
+            AppleWinParseResult  walk = ParseOk ("calls mode walk");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::ShowCallStack,    (int) ParseOk ("CALLS").command.verb);
+            Assert::AreEqual ((int) DebugVerb::SetCallStackMode, (int) walk.command.verb);
+            Assert::AreEqual (std::string ("WALK"),              walk.command.text);
+            Assert::AreEqual (std::string ("RECORDED"),          ParseOk ("CALLS MODE RECORDED").command.text);
+            Assert::AreEqual (std::string ("HYBRID"),            ParseOk ("CALLS MODE Hybrid").command.text);
+            Assert::AreEqual ((int) DebugVerb::SetCallStackMode, (int) ParseOk ("CALLS MODE").command.verb);
+            Assert::IsTrue   (ParseOk ("CALLS MODE").command.text.empty(), L"CALLS MODE alone only reports");
+            ParseFails ("CALLS MODE GUESS",      ParseStatus::Invalid);
+            ParseFails ("CALLS 300",             ParseStatus::Invalid);
+            ParseFails ("CALLS MODE WALK EXTRA", ParseStatus::Invalid);
+        }
+
+
+
         TEST_METHOD (UnknownWindowOnlyAndNotAvailable)
         {
             MockExpressionContext  context;

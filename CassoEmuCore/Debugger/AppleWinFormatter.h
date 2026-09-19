@@ -48,6 +48,9 @@ private:
     static void  FormatProfile      (const ProfileData        & data, Lines & lines);
     static void  FormatCalc         (const CalcData           & data, Lines & lines);
     static void  FormatStepFilter   (const StepFilterData     & data, Lines & lines);
+    static void  FormatCallStack    (const CallStackData      & data, Lines & lines);
+
+    static std::string  FormatCallFrame (const CallStackFrame & frame);
 
     static void  FormatProfileOpcodes   (const ProfileData & data, Lines & lines);
     static void  FormatProfileAddresses (const ProfileData & data, Lines & lines);

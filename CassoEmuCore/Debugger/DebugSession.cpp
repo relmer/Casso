@@ -42,6 +42,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetContext          (this);
     m_watchpoints.SetValueBreakpoints (&m_breakpoints);
     m_watchpoints.SetTarget           (&m_target);
+    m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
     LoadRomSymbols();
 }
 
@@ -596,6 +597,11 @@ void DebugSession::OnInstruction (Word pc)
 
     m_watchpoints.SetAccessPc (pc);
 
+    if (m_callRecorder.IsActive())
+    {
+        m_callRecorder.OnInstruction (pc, m_target.GetRegisters().sp, PeekByte (pc));
+    }
+
     if (isDebuggerRun && m_instructionObserver != nullptr)
     {
         m_instructionObserver->OnInstruction (*this, pc);
@@ -611,7 +617,7 @@ void DebugSession::OnInstruction (Word pc)
 //  DebugSession::OnMachineChanged
 //
 //  A different machine makes every address meaningless, so breakpoints and
-//  watchpoints go. Watches and bookmarks are only labels and stay.
+//  watchpoints go and the call record starts over. Watches and bookmarks are only labels and stay.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -621,6 +627,12 @@ void DebugSession::OnMachineChanged (const std::string & machineName)
     m_watchpoints.ClearAll();
     m_lastBreakpointId.reset();
     m_state = RunState::Paused;
+
+    if (m_callRecorder.IsActive())
+    {
+        m_callRecorder.End();
+        SetCallRecording (true);
+    }
 
     UpdateHookInstalled();
     LoadRomSymbols();
@@ -639,6 +651,11 @@ void DebugSession::OnMachineChanged (const std::string & machineName)
 
 void DebugSession::OnReset (bool isPowerCycle)
 {
+    Word  pc = m_target.GetRegisters().pc;
+
+
+
+    m_callRecorder.OnReset (pc, PeekByte (pc));
     m_sink.OnReset (isPowerCycle);
 }
 
@@ -672,6 +689,7 @@ void DebugSession::OnUserPaused()
 
     m_state = RunState::Paused;
     UpdateHookInstalled();
+    SettleCallRecord();
 
     stop.reason    = StopReason::Pause;
     stop.registers = m_target.GetRegisters();
@@ -918,6 +936,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
     m_monitorReturn.reset();
     m_state = RunState::Paused;
 
+    SettleCallRecord();
     ClearTemporary (event);
     UpdateHookInstalled();
 
@@ -1380,17 +1399,157 @@ void DebugSession::PushMonitorReturn()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::SetCallRecording
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetCallRecording (bool isOn)
+{
+    Word  pc = m_target.GetRegisters().pc;
+
+
+
+    if (isOn == m_callRecorder.IsActive())
+    {
+        return;
+    }
+
+    if (isOn)
+    {
+        m_callRecorder.Begin (pc, PeekByte (pc));
+    }
+    else
+    {
+        m_callRecorder.End();
+    }
+
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetCallStack
+//
+//  With a debug file loaded, the walk keeps only calls to a routine entry,
+//  which is any address a label in the file holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CallStackData DebugSession::GetCallStack()
+{
+    std::set<Word>     entries;
+    CallStackData      data;
+    SymbolTableId      table = SymbolTableId::User;
+    Cpu6502Registers   registers;
+
+
+
+    SettleCallRecord();
+
+    if (HasDebugFile())
+    {
+        for (const DebugSymbol & symbol : m_debugFile.symbols)
+        {
+            if (symbol.type == "lab")
+            {
+                entries.insert ((Word) symbol.value);
+            }
+        }
+    }
+
+    registers = m_target.GetRegisters();
+    data      = CallStack::Build (m_callMechanism, m_callRecorder, registers.sp,
+                                  [this] (Word address) { return PeekByte (address); },
+                                  HasDebugFile() ? &entries : nullptr);
+
+    for (CallStackRow & row : data.rows)
+    {
+        if (row.frame.has_value())
+        {
+            m_symbols.TryFindName (row.frame->target, row.frame->symbol, table);
+        }
+    }
+
+    if (data.lastReturn.has_value())
+    {
+        m_symbols.TryFindName (data.lastReturn->target, data.lastReturn->symbol, table);
+    }
+
+    return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::SettleCallRecord
+//
+//  The record takes in the last instruction executed, from the registers
+//  after it; called only between instructions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SettleCallRecord()
+{
+    Cpu6502Registers  registers;
+
+
+
+    if (!m_callRecorder.IsActive())
+    {
+        return;
+    }
+
+    registers = m_target.GetRegisters();
+    m_callRecorder.Settle (registers.pc, registers.sp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::PeekByte
+//
+//  A byte as the CPU sees it, or zero where the debugger cannot read one
+//  without disturbing the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte DebugSession::PeekByte (Word address) const
+{
+    Byte  value = 0;
+
+
+
+    m_target.TryPeek (address, value);
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::UpdateHookInstalled
 //
-//  The hook is installed while any enabled stop condition exists or a run is
-//  active, and removed otherwise, so a machine with no debugger interest pays
-//  only the null test.
+//  The hook is installed while any enabled stop condition exists, a run is
+//  active or the call stack is being recorded, and removed otherwise, so a
+//  machine with no debugger interest pays only the null test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::UpdateHookInstalled()
 {
-    bool  shouldInstall = HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping;
+    bool  shouldInstall = HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping || m_callRecorder.IsActive();
 
 
 

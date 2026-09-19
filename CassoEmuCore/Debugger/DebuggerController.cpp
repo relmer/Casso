@@ -59,11 +59,23 @@ DebuggerController::~DebuggerController()
 //
 //  DebuggerController::Open
 //
+//  The call stack is recorded from here on: the debugger is attached.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DebuggerController::Open()
 {
-    return m_server.Open();
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_server.Open();
+    CHR (hr);
+
+    m_session.SetCallRecording (true);
+
+Error:
+    return hr;
 }
 
 
@@ -75,13 +87,15 @@ HRESULT DebuggerController::Open()
 //  DebuggerController::Close
 //
 //  Closes the channel only. See the class comment for why the session, its
-//  breakpoints and the machine's pause state are left alone.
+//  breakpoints and the machine's pause state are left alone. The call-stack
+//  record is not: it is kept only while the debugger is attached (FR-064).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerController::Close()
 {
     m_server.Close();
+    m_session.SetCallRecording (false);
 }
 
 

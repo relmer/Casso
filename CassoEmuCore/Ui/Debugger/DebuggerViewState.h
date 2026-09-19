@@ -117,6 +117,7 @@ struct DebuggerViewSnapshot
     std::vector<MemoryLine>      memory;
     std::vector<MemoryWindow>    memoryWindows;
     std::vector<StackLine>       stack;
+    CallStackData                callStack;
     std::vector<BreakpointLine>  breakpoints;
     std::vector<WatchLine>       watches;
     std::optional<SourceState>   source;
@@ -133,8 +134,9 @@ struct DebuggerViewSnapshot
 //  What the window shows and what its controls do, with no window in it.
 //
 //  EVERY PANE IS A COMMAND'S REPLY. The code pane is `U`, the registers `R`,
-//  memory `D`, the stack `STACK`, watches `WL`, breakpoints `BPL` -- run through
-//  the session and read back from their typed data. The window therefore
+//  memory `D`, the stack `STACK`, the call stack `CALLS`, watches `WL`,
+//  breakpoints `BPL` -- run through the session and read back from their
+//  typed data. The window therefore
 //  cannot show anything batch mode or a channel client would not be told, and
 //  a fix to a command is a fix to its pane.
 //

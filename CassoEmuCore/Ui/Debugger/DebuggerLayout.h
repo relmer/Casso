@@ -18,7 +18,8 @@
 //  The default keeps the window as it was before panes could be docked: the
 //  source beside the disassembly over the console on the left, registers,
 //  breakpoints and watches down the right, and memory beside the stack across
-//  the bottom, with memory windows 2 to 4 as tabs of the first.
+//  the bottom, with memory windows 2 to 4 as tabs of the first and the call
+//  stack as a tab of the stack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,7 @@ public:
     static constexpr const wchar_t * kBreakpoints = L"breakpoints";
     static constexpr const wchar_t * kWatches     = L"watches";
     static constexpr const wchar_t * kStack       = L"stack";
+    static constexpr const wchar_t * kCallStack   = L"callstack";
 
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);
