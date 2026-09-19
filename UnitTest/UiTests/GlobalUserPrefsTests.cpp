@@ -90,6 +90,7 @@ public:
         orig.crtOverrides["AppleMonitorIIc/amber"].colorBleedEnabled = true;
         orig.crtOverrides["AppleMonitorIIc/amber"].colorBleedWidth   = 1.5f;
         orig.window.placements["topology-A"] = { 100, 50, 1280, 720, true };
+        orig.window.debuggerPlacements["topology-A"] = { 300, 120, 1100, 840 };
         orig.window.placements["topology-B"] = { 200, 75, 1920, 1080 };
         orig.window.fullscreen      = true;
         orig.printOutputDpi         = 288;
@@ -119,6 +120,9 @@ public:
         Assert::IsTrue   (orig.crtOverrides == loaded.crtOverrides);
         Assert::AreEqual ((size_t) 2, loaded.crtOverrides.size());
         Assert::AreEqual (size_t (2),                            loaded.window.placements.size());
+        Assert::AreEqual (size_t (1),                            loaded.window.debuggerPlacements.size());
+        Assert::AreEqual (300, loaded.window.debuggerPlacements["topology-A"].x,  L"the debugger window keeps its own place");
+        Assert::AreEqual (840, loaded.window.debuggerPlacements["topology-A"].h);
         Assert::AreEqual (100, loaded.window.placements["topology-A"].x);
         Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
         Assert::AreEqual (1920, loaded.window.placements["topology-B"].w);

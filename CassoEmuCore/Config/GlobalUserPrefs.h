@@ -163,6 +163,10 @@ struct GlobalUserPrefs
         // single-monitor laptop layout and a docked multi-monitor
         // layout each get their own remembered bounds.
         std::map<std::string, WindowBounds>  placements;
+
+        // The debugger window's own bounds, keyed the same way. It is a
+        // window the user places, so it is remembered like the main one.
+        std::map<std::string, WindowBounds>  debuggerPlacements;
     } window;
 
     // Most-recently-used disk image absolute paths, most-recent-first,

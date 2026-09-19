@@ -230,7 +230,8 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
 
 bool WindowPlacementProfile::TryLoad (
     const std::string & topologyKey,
-    Bounds            & outBounds) const
+    Bounds            & outBounds,
+    Target              target) const
 {
     bool  found = false;
 
@@ -240,9 +241,11 @@ bool WindowPlacementProfile::TryLoad (
     // hand the user an invisible window.
     if (m_prefs != nullptr)
     {
-        auto  it = m_prefs->window.placements.find (topologyKey);
+        const std::map<std::string, Bounds> &  saved = (target == Target::Debugger) ? m_prefs->window.debuggerPlacements
+                                                                                    : m_prefs->window.placements;
+        auto  it = saved.find (topologyKey);
 
-        if (it != m_prefs->window.placements.end() && it->second.w > 0 && it->second.h > 0)
+        if (it != saved.end() && it->second.w > 0 && it->second.h > 0)
         {
             outBounds = it->second;
             found     = true;
@@ -268,10 +271,17 @@ bool WindowPlacementProfile::TryLoad (
 
 void WindowPlacementProfile::Save (
     const std::string & topologyKey,
-    const Bounds      & bounds)
+    const Bounds      & bounds,
+    Target              target)
 {
     if (m_prefs == nullptr)
     {
+        return;
+    }
+
+    if (target == Target::Debugger)
+    {
+        m_prefs->window.debuggerPlacements[topologyKey] = bounds;
         return;
     }
 

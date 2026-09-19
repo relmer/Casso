@@ -29,12 +29,22 @@ class WindowPlacementProfile
 public:
     using Bounds = GlobalUserPrefs::WindowBounds;
 
+    //  Which window's bounds, since the debugger window is placed by the
+    //  user as the main one is and is remembered under the same key.
+    enum class Target
+    {
+        Main,
+        Debugger,
+    };
+
     explicit WindowPlacementProfile (GlobalUserPrefs & prefs);
 
     bool    TryLoad (const std::string & topologyKey,
-                     Bounds            & outBounds) const;
+                     Bounds            & outBounds,
+                     Target              target = Target::Main) const;
     void    Save    (const std::string & topologyKey,
-                     const Bounds      & bounds);
+                     const Bounds      & bounds,
+                     Target              target = Target::Main);
 
     // Computes the per-monitor-topology key by enumerating attached
     // monitors and folding their device name + rect + work area + flags

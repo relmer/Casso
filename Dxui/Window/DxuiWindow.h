@@ -252,6 +252,13 @@ protected:
     virtual void  OnWindowDestroy () {}
 
     //
+    //  The user finished dragging or resizing this window by its caption or
+    //  border. A programmatic move never gets here, so this is the moment
+    //  that means the user put the window where it is.
+    //
+    virtual void  OnWindowPlaced   () {}
+
+    //
     //  Dialog periodic hook. While a dialog (modal or modeless) is
     //  showing, the window drives a timer that repaints (so a focused
     //  caret blinks) and calls this each tick -- override for a poller
@@ -331,6 +338,7 @@ private:
     DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
     void               OnModalLoopTick () override;
+    void  OnExitSizeMove    () override;
     DxuiMessageResult  OnClose       () override;
     DxuiMessageResult  OnDropFiles   (HDROP drop) override;
     void               OnDestroy     () override;

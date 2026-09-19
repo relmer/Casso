@@ -1148,7 +1148,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("crtOverrides", JsonValue (std::move (crtObj)));
 
     // window
-    windowObj.emplace_back ("placements", PlacementsToJson (window.placements));
+    windowObj.emplace_back ("placements",         PlacementsToJson (window.placements));
+    windowObj.emplace_back ("debuggerPlacements", PlacementsToJson (window.debuggerPlacements));
     windowObj.emplace_back ("fullscreen", JsonValue (window.fullscreen));
 
     root.emplace_back ("window", JsonValue (std::move (windowObj)));
@@ -1374,6 +1375,11 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         if (windowSub->HasObject ("placements", placementsObj))
         {
             PlacementsFromJson (*placementsObj, window.placements);
+        }
+
+        if (windowSub->HasObject ("debuggerPlacements", placementsObj))
+        {
+            PlacementsFromJson (*placementsObj, window.debuggerPlacements);
         }
 
         window.fullscreen = TryGetBoolOpt (*windowSub, "fullscreen", window.fullscreen);

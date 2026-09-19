@@ -65,6 +65,11 @@ public:
     virtual std::string  GetDebuggerLayout    ()                           = 0;
     virtual void         SetDebuggerLayout    (const std::string & text)   = 0;
 
+    //  Where the user last put the debugger window, for this monitor
+    //  arrangement. False when there is nothing to restore.
+    virtual bool  TryGetDebuggerPlacement (RECT & rectPx)                  = 0;
+    virtual void  SetDebuggerPlacement    (const RECT & rectPx)            = 0;
+
     //  A debug file's source file, found by the rules of FR-058, and a file
     //  the user dropped, matched against the debug file's records. Where a
     //  file is found goes into the preferences, which the host keeps.
@@ -111,6 +116,7 @@ public:
 
 protected:
     void     OnCreate        () override;
+    void     OnWindowPlaced  () override;
     void     OnWindowClose   () override;
     void     Layout          (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool     OnMouse         (const DxuiMouseEvent & ev) override;
@@ -157,6 +163,7 @@ private:
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
     bool     RouteDockKey       (const DxuiKeyEvent & ev);
+    void     ApplySavedPlacement ();
 
     //  Floating panes (FR-040): each floats in a DxuiDockedWindow of its own,
     //  its controls moved there whole. The window's routing serves every

@@ -131,7 +131,8 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     hr = DxuiWindow::Create (params);
     CHR (hr);
 
-    ApplyKeyScheme (GetSavedKeyScheme());
+    ApplyKeyScheme        (GetSavedKeyScheme());
+    ApplySavedPlacement();
 
     SetTheme (m_theme);
     Show();
@@ -2882,6 +2883,58 @@ void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, boo
     if (!inside)
     {
         SaveLayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplySavedPlacement
+//
+//  The window opens where the user last left it on this monitor arrangement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplySavedPlacement()
+{
+    RECT  rect = {};
+
+
+
+    if (m_host == nullptr || !m_host->TryGetDebuggerPlacement (rect))
+    {
+        return;
+    }
+
+    SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+                  SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnWindowPlaced
+//
+//  The user finished dragging or sizing the window, so where it is now is
+//  where it should open next time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OnWindowPlaced()
+{
+    RECT  rect = {};
+
+
+
+    if (m_host != nullptr && GetWindowRect (GetHwnd(), &rect))
+    {
+        m_host->SetDebuggerPlacement (rect);
     }
 }
 

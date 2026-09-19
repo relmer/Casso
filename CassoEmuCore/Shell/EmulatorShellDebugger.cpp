@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 
+#include "Config/WindowPlacementProfile.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebuggerController.h"
 #include "resource.h"
@@ -138,6 +139,72 @@ void EmulatorShell::SetDebuggerLayout (const std::string & text)
     }
 
     m_globalPrefs.debuggerLayout = text;
+    SaveGlobalPrefsDeferred();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetDebuggerPlacement
+//
+//  Where the debugger window was left on this monitor arrangement. A
+//  placement that no longer lands on any monitor is declined, so a window
+//  saved on a screen since removed opens at its default place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
+{
+    WindowPlacementProfile::Bounds  bounds;
+    WindowPlacementProfile          profile (m_globalPrefs);
+    std::string                     key      = WindowPlacementProfile::BuildTopologyKey (MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST));
+    RECT                            saved    = {};
+
+
+
+    if (!profile.TryLoad (key, bounds, WindowPlacementProfile::Target::Debugger))
+    {
+        return false;
+    }
+
+    saved = RECT { bounds.x, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h };
+
+    if (MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) == nullptr)
+    {
+        return false;
+    }
+
+    rectPx = saved;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerPlacement
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerPlacement (const RECT & rectPx)
+{
+    WindowPlacementProfile          profile (m_globalPrefs);
+    WindowPlacementProfile::Bounds  bounds;
+    std::string                     key    = WindowPlacementProfile::BuildTopologyKey (MonitorFromRect (&rectPx, MONITOR_DEFAULTTONEAREST));
+
+
+
+    bounds.x = rectPx.left;
+    bounds.y = rectPx.top;
+    bounds.w = (int) (rectPx.right - rectPx.left);
+    bounds.h = (int) (rectPx.bottom - rectPx.top);
+
+    profile.Save (key, bounds, WindowPlacementProfile::Target::Debugger);
     SaveGlobalPrefsDeferred();
 }
 
