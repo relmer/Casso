@@ -310,9 +310,9 @@ void DxuiPaneLayout::Split (Node & group, std::unique_ptr<Node> added, DxuiDockS
 
 
 
+    //  The group's contents moved out above; it starts again as a new node.
+    group            = Node();
     group.kind       = Node::Kind::Split;
-    group.panes.clear();
-    group.active     = 0;
     group.horizontal = (side == DxuiDockSide::Left || side == DxuiDockSide::Right);
     group.ratio      = 0.5f;
     group.first      = isFirst ? std::move (added)    : std::move (existing);

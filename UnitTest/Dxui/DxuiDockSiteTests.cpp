@@ -105,6 +105,12 @@ namespace DxuiDockSiteTests
                 group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
             }
 
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a group of two tabs");
+                return;
+            }
+
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (group->GetTabRect (0))));
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   Center (group->GetTabRect (0))));
 
@@ -146,6 +152,12 @@ namespace DxuiDockSiteTests
             for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
             {
                 group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
+            }
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a group of two tabs");
+                return;
             }
 
             tab = group->GetTabRect (1);

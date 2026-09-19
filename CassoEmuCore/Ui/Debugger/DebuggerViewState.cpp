@@ -510,7 +510,7 @@ std::optional<std::string> DebuggerViewState::GetActionLine (
         break;
 
     case Action::ToggleBreakpoint:
-        if (current.has_value())
+        if (snapshot != nullptr && current.has_value())
         {
             line = GetToggleBreakpointLine (*snapshot, *current);
         }

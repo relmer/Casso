@@ -350,8 +350,9 @@ namespace DebuggerTests
 
         TEST_METHOD (ThePrinterPanelShowsTheStatusTheGuestReads)
         {
-            PrinterCard          card (1);
-            DiagnosticsSnapshot  snapshot = Snapshot (card);
+            //  The card holds its print buffer, too large for the stack.
+            std::unique_ptr<PrinterCard>  card     = std::make_unique<PrinterCard> (1);
+            DiagnosticsSnapshot           snapshot = Snapshot (*card);
 
 
 
