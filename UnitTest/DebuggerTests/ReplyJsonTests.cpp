@@ -216,7 +216,7 @@ namespace DebuggerTests
             {
                 MessageData(), RegistersData(), MemoryData(), DisassemblyData(), BreakpointSetData(), BreakpointListData(),
                 WatchListData(), SearchHitsData(), StackData(), SoftSwitchData(), SymbolData(), CyclesData(), ModeData(), FileIoData(),
-                CompareData(), DataBlockListData(), VideoInfoData(), BranchRecordData(), ProfileData(), CalcData(),
+                CompareData(), DataBlockListData(), VideoInfoData(), BranchRecordData(), ProfileData(), CalcData(), StepFilterData(),
             };
 
             std::set<std::string>  names;

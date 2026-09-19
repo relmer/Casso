@@ -34,6 +34,9 @@ class MachineHost;
 //  instruction step out. An instruction with no line never ends a source
 //  step, so code without source runs through.
 //
+//  A step into, by instruction or by source line, whose JSR reaches a routine
+//  in the request's step filter runs that call as a step over would.
+//
 //  The first instruction of a run always executes, so resuming from a
 //  breakpoint does not stop on the same breakpoint again.
 //
@@ -59,7 +62,7 @@ private:
 
     bool        IsRunComplete    (Word pc, Byte sp) const;
     bool        IsSourceStepComplete (Word pc, Byte sp) const;
-    void        TrackCall        (Byte sp);
+    void        TrackCall        (Word pc, Byte sp);
     static bool IsTransfer       (Byte opcode);
     Byte        PeekOpcode       (Word pc) const;
 

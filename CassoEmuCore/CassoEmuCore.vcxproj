@@ -144,6 +144,7 @@
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Debugger\DebugMemoryView.cpp" />
     <ClCompile Include="Debugger\RunStopHook.cpp" />
+    <ClCompile Include="Debugger\StepFilter.cpp" />
     <ClCompile Include="Debugger\MachineDebugTarget.cpp" />
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
     <ClCompile Include="Debugger\DebuggerController.cpp" />
@@ -505,6 +506,7 @@
     <ClInclude Include="Debugger\DebugHook.h" />
     <ClInclude Include="Debugger\DebugMemoryView.h" />
     <ClInclude Include="Debugger\RunStopHook.h" />
+    <ClInclude Include="Debugger\StepFilter.h" />
     <ClInclude Include="Debugger\MachineDebugTarget.h" />
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />
     <ClInclude Include="Debugger\DebuggerController.h" />

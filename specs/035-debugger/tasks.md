@@ -692,8 +692,8 @@ breakpoints, two watches and the stack are visible without scrolling
 
 **Independent Test**: With `COUT` in the filter, a step into `JSR COUT` stops at the instruction after the `JSR`; with the filter cleared it stops at $FDED (quickstart Story 15).
 
-- [ ] T175 [P] [US15] Write `UnitTest/DebuggerTests/StepFilterTests.cpp` (data-model `StepFilter`): entries by name, address and range; a step into a `JSR` whose target is filtered completes by the step-over rule (R-033), in instruction granularity and in source granularity on the T119 fixture; a filtered routine that never returns leaves the run going; `SKIP name|addr|first.last`, `SKIP`, `SKIP - name` and `SKIP CLEAR` from `AppleWinParser`, and the same through `/skip` in Monitor mode; a name resolves through the symbol tables when set and is an error when it does not.
-- [ ] T176 [US15] Implement `CassoEmuCore/Debugger/StepFilter.h/.cpp`, the check in `RunStopHook::Begin` (a step into whose `JSR` target is filtered becomes a step over), `SKIP` in `AppleWinParser` and `CallStackHandlers`, and the reply in the formatters. Makes T175 pass.
+- [X] T175 [P] [US15] Write `UnitTest/DebuggerTests/StepFilterTests.cpp` (data-model `StepFilter`): entries by name, address and range; a step into a `JSR` whose target is filtered completes by the step-over rule (R-033), in instruction granularity and in source granularity on the T119 fixture; a filtered routine that never returns leaves the run going; `SKIP name|addr|first.last`, `SKIP`, `SKIP - name` and `SKIP CLEAR` from `AppleWinParser`, and the same through `/skip` in Monitor mode; a name resolves through the symbol tables when set and is an error when it does not.
+- [X] T176 [US15] Implement `CassoEmuCore/Debugger/StepFilter.h/.cpp`, the check in `RunStopHook::Begin` (a step into whose `JSR` target is filtered becomes a step over), `SKIP` in `AppleWinParser` and `CallStackHandlers`, and the reply in the formatters. Makes T175 pass.
 - [ ] T177 [US15] Validate quickstart Story 15 steps 1-5 by hand and record the results in the commit.
 
 **Checkpoint**: Stepping never lands inside a filtered routine, in any mode or granularity.

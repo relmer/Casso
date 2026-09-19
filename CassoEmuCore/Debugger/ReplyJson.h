@@ -60,6 +60,7 @@ private:
     static JsonValue    MakeSymbols         (const SymbolData & data);
     static JsonValue    MakeCompare         (const CompareData & data);
     static JsonValue    MakeDataBlocks      (const DataBlockListData & data);
+    static JsonValue    MakeStepFilter      (const StepFilterData & data);
     static JsonValue    MakeProfile         (const ProfileData & data);
     static JsonValue    MakeTextArray       (const std::vector<std::string> & lines);
 };

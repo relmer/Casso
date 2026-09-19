@@ -1078,6 +1078,13 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
         ExecuteSource (command, reply);
         return true;
 
+    case DebugVerb::ListStepFilter:
+    case DebugVerb::AddStepFilter:
+    case DebugVerb::RemoveStepFilter:
+    case DebugVerb::ClearStepFilter:
+        ExecuteStepFilter (command, reply);
+        return true;
+
     default:
         break;
     }
@@ -1136,6 +1143,56 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
                              : m_stepBySource              ? "Steps go by instruction until a debug file is loaded."
                              :                               "Steps go by instruction.");
     reply.data = message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteStepFilter
+//
+//  SKIP and its forms. Each replies with the list as it stands afterward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ExecuteStepFilter (const DebugCommand & command, Reply & reply)
+{
+    std::optional<std::pair<Word, Word>>  range;
+
+
+
+    switch (command.verb)
+    {
+    case DebugVerb::AddStepFilter:
+        m_stepFilter.Add (command.text, command.a1, command.a2);
+        break;
+
+    case DebugVerb::RemoveStepFilter:
+        if (command.hasA1)
+        {
+            range = std::pair<Word, Word> (command.a1, command.a2);
+        }
+
+        if (!m_stepFilter.TryRemove (command.text, range))
+        {
+            SetError (reply, CommandStatus::Error, "not in the step filter",
+                      std::format ("{} is not in the step filter. SKIP lists it.", command.text));
+            return;
+        }
+
+        break;
+
+    case DebugVerb::ClearStepFilter:
+        m_stepFilter.Clear();
+        break;
+
+    default:
+        break;
+    }
+
+    reply.data = StepFilterData { m_stepFilter.GetEntries() };
 }
 
 
@@ -1213,6 +1270,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     request.count      = (command.count == 0) ? 1 : command.count;
     request.budget     = command.budget.has_value() ? command.budget : m_budget;
     request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty()) ? &m_lineTable : nullptr;
+    request.stepFilter = (isStep && !m_stepFilter.IsEmpty()) ? &m_stepFilter : nullptr;
 
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;
     UpdateHookInstalled();

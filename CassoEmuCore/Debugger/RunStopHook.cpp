@@ -3,6 +3,7 @@
 #include "Debugger/RunStopHook.h"
 
 #include "Debugger/DebugMemoryView.h"
+#include "Debugger/StepFilter.h"
 #include "Shell/MachineHost.h"
 
 
@@ -92,7 +93,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
 
     if (m_active && !isFirst)
     {
-        TrackCall (sp);
+        TrackCall (pc, sp);
     }
 
     if (m_active && !isFirst && IsRunComplete (pc, sp))
@@ -205,7 +206,7 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
 
     case RunKind::StepInto:
     case RunKind::Trace:
-        isComplete = m_instructions >= m_request.count;
+        isComplete = m_instructions >= m_request.count && !m_callSp.has_value();
         break;
 
     case RunKind::StepOver:
@@ -253,7 +254,7 @@ bool RunStopHook::IsSourceStepComplete (Word pc, Byte sp) const
     {
     case RunKind::StepInto:
     case RunKind::Trace:
-        isComplete = isNewLine;
+        isComplete = isNewLine && !m_callSp.has_value();
         break;
 
     case RunKind::StepOver:
@@ -281,11 +282,18 @@ bool RunStopHook::IsSourceStepComplete (Word pc, Byte sp) const
 //  discards its return address pulls that address itself, which brings the
 //  stack back to the caller's level while it is still running.
 //
+//  A step over follows every call. A step into follows a call only when the
+//  routine it reached, at pc, is in the step filter (FR-070): the step then
+//  ends as a step over would, and a filtered routine that never returns
+//  leaves the run going.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunStopHook::TrackCall (Byte sp)
+void RunStopHook::TrackCall (Word pc, Byte sp)
 {
     static constexpr Byte  kReturnAddressBytes = 2;
+    bool                   isInto              = m_request.kind == RunKind::StepInto || m_request.kind == RunKind::Trace;
+    bool                   isFiltered          = isInto && m_request.stepFilter != nullptr && m_request.stepFilter->Contains (pc);
 
 
 
@@ -294,7 +302,7 @@ void RunStopHook::TrackCall (Byte sp)
         m_callSp.reset();
     }
 
-    if (!m_callSp.has_value() && m_lastOpcode == kJsr && m_request.kind == RunKind::StepOver)
+    if (!m_callSp.has_value() && m_lastOpcode == kJsr && (m_request.kind == RunKind::StepOver || isFiltered))
     {
         m_callSp = (Byte) (sp + kReturnAddressBytes);
     }

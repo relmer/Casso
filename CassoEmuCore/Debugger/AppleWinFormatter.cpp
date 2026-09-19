@@ -191,6 +191,7 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<DataBlockListData>  (&data)) { FormatDataBlocks     (*v, lines); }
     else if (auto * v = std::get_if<ProfileData>        (&data)) { FormatProfile        (*v, lines); }
     else if (auto * v = std::get_if<CalcData>           (&data)) { FormatCalc           (*v, lines); }
+    else if (auto * v = std::get_if<StepFilterData>     (&data)) { FormatStepFilter     (*v, lines); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
     else if (auto * v = std::get_if<ModeData>           (&data)) { lines.push_back (v->mode == CommandMode::Monitor ? "Mode: MONITOR" : "Mode: APPLEWIN"); }
@@ -565,6 +566,38 @@ void AppleWinFormatter::FormatDataBlocks (const DataBlockListData & data, Lines 
     for (const DataBlock & block : data.blocks)
     {
         lines.push_back (std::format ("{:<12} ${:04X}-${:04X}  {}", block.name, block.first, block.last, kKinds[(int) block.kind]));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatStepFilter
+//
+//  One routine a line: its name when it was given one, then its address or
+//  range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatStepFilter (const StepFilterData & data, Lines & lines)
+{
+    std::string  where;
+
+
+
+    if (data.entries.empty())
+    {
+        lines.push_back ("The step filter is empty.");
+        return;
+    }
+
+    for (const StepFilterEntry & entry : data.entries)
+    {
+        where = (entry.first == entry.last) ? std::format ("${:04X}", entry.first) : std::format ("${:04X}-${:04X}", entry.first, entry.last);
+        lines.push_back (entry.name.empty() ? where : std::format ("{:<12} {}", entry.name, where));
     }
 }
 

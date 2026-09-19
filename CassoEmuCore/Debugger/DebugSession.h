@@ -8,6 +8,7 @@
 #include "Debugger/IRunObserver.h"
 #include "Debugger/LineTable.h"
 #include "Debugger/MonitorState.h"
+#include "Debugger/StepFilter.h"
 #include "Debugger/SymbolTable.h"
 #include "Debugger/WatchTable.h"
 #include "Debugger/WatchpointTable.h"
@@ -133,6 +134,9 @@ public:
     void                  SetStepBySource (bool bySource) { m_stepBySource = bySource; }
     bool                  IsStepBySource  () const        { return m_stepBySource; }
 
+    // The routines a step into runs as a step over, in every dialect.
+    const StepFilter    & GetStepFilter  () const { return m_stepFilter; }
+
     // The innermost source line at an address, as file name and line; false
     // where no loaded line produced it.
     bool                  TryGetSourceLine (Word address, std::string & file, int & line) const;
@@ -198,6 +202,7 @@ private:
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
     void   ExecuteSource         (const DebugCommand & command, Reply & reply);
+    void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     Reply  ExecuteMonitorLine    (const std::string & text);
     Reply  ExecuteAppleWinLine   (const std::string & text);
@@ -232,6 +237,7 @@ private:
     std::string                           m_debugFileKey;
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
+    StepFilter                            m_stepFilter;
     std::vector<Word>                     m_searchResults;
 
     RunState                              m_state         = RunState::Paused;
