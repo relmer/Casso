@@ -222,11 +222,11 @@
 
 ## Phase 7c: AppleSingle (US2, US3, US6)
 
-- [ ] T104 [US2] `AppleSingleCodec` in CassoEmuCore: read and write the container (data fork, real name, ProDOS type and aux type, dates), with no knowledge of memory or disks; round-trip and malformed-header tests. Shared with 035-debugger (research R-016): whichever spec implements first builds it, and tells the other -- status 2026-09-16: built by 035-debugger (b4ef46e9, not yet on master) without the dates entry; T105-T108 wait for it
-- [ ] T105 [US2] Put and drag-in: an AppleSingle host file unwraps through `CassqueActions::PlanPut` with its type and aux type and no dialog, and is never taken for a disk image (FR-017c)
-- [ ] T106 [US2] Get and drag-out in the AppleSingle style: `HostFileNaming` gains it and the Host file names setting offers it (FR-017a, FR-017c)
+- [x] T104 [US2] `AppleSingleCodec` in CassoEmuCore: read and write the container (data fork, real name, ProDOS type and aux type, dates), with no knowledge of memory or disks; round-trip and malformed-header tests. Shared with 035-debugger (research R-016): whichever spec implements first builds it, and tells the other -- built by 035-debugger with the dates entry; on master as 325bfbb5
+- [x] T105 [US2] Put and drag-in: an AppleSingle host file unwraps through `CassqueActions::PlanPut` with its type and aux type and no dialog, and is never taken for a disk image (FR-017c)
+- [x] T106 [US2] Get and drag-out in the AppleSingle style: `HostFileNaming` gains it and the Host file names setting offers it (FR-017a, FR-017c)
 - [ ] T107 [US3] A right-drag out of an image opens a menu choosing the style for that drop (FR-017c)
-- [ ] T108 [US6] The preview of an AppleSingle host file shows the name, type, aux type and dates of the file it holds (FR-017c)
+- [x] T108 [US6] The preview of an AppleSingle host file shows the name, type, aux type and dates of the file it holds (FR-017c)
 
 ---
 

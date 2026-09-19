@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/AppleSingleCodec.h"
 #include "Cassque/Model/PreviewDecoder.h"
 #include "Cassque/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
@@ -225,6 +226,95 @@ void PreviewDecoder::SplitIntoLines (const std::string & text, std::vector<std::
     {
         outLines.push_back (line);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::RenderAppleSingle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::RenderAppleSingle (const AppleSingleFile & file, PreviewContent & outContent)
+{
+    wchar_t  hex[16] = {};
+
+
+
+    outContent         = PreviewContent();
+    outContent.kind    = PreviewContent::Kind::Details;
+    outContent.details.push_back ({ L"Format", L"AppleSingle" });
+    outContent.details.push_back ({ L"Name",   file.realName.empty() ? std::wstring (L"Not recorded") : TextEncoding::NarrowToWide (file.realName) });
+
+    if (file.hasProDosInfo)
+    {
+        swprintf_s (hex, L" ($%02X)", (unsigned) (file.fileType & 0xFF));
+        outContent.details.push_back ({ L"Type", CatalogModel::GetTypeText ((Byte) file.fileType, VolumeKind::ProDos) + hex });
+
+        swprintf_s (hex, L"$%04X", (unsigned) (file.auxType & 0xFFFF));
+        outContent.details.push_back ({ L"Aux type", hex });
+    }
+    else
+    {
+        outContent.details.push_back ({ L"Type", L"Not recorded" });
+    }
+
+    outContent.details.push_back ({ L"Size", std::to_wstring (file.data.size()) + L" bytes" });
+
+    if (file.createDate)
+    {
+        outContent.details.push_back ({ L"Created", FormatAppleSingleDate (*file.createDate) });
+    }
+
+    if (file.modifyDate)
+    {
+        outContent.details.push_back ({ L"Modified", FormatAppleSingleDate (*file.modifyDate) });
+    }
+
+    if (file.backupDate)
+    {
+        outContent.details.push_back ({ L"Backed up", FormatAppleSingleDate (*file.backupDate) });
+    }
+
+    if (file.accessDate)
+    {
+        outContent.details.push_back ({ L"Accessed", FormatAppleSingleDate (*file.accessDate) });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::FormatAppleSingleDate
+//
+//  AppleSingle counts seconds from 2000-01-01 UTC, and the date is shown in
+//  UTC, since the container records no zone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDecoder::FormatAppleSingleDate (int32_t secondsFrom2000)
+{
+    static constexpr int64_t  kUnixSecondsAt2000 = 946684800;
+    __time64_t                when               = kUnixSecondsAt2000 + secondsFrom2000;
+    tm                        parts              = {};
+    wchar_t                   text[40]           = {};
+    errno_t                   err                = _gmtime64_s (&parts, &when);
+
+
+
+    if (err != 0)
+    {
+        return L"Not valid";
+    }
+
+    swprintf_s (text, L"%04d-%02d-%02d %02d:%02d UTC", parts.tm_year + 1900, parts.tm_mon + 1, parts.tm_mday, parts.tm_hour, parts.tm_min);
+    return text;
 }
 
 

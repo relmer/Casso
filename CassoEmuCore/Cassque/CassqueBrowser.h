@@ -203,6 +203,7 @@ private:
     HRESULT  LoadRoot       (const std::wstring & id);
     HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
     bool     CanListImage   (const std::wstring & imagePath);
+    bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
     void     SortRows();
     void     UpdatePreview();
     void     UpdateStatus();

@@ -5,6 +5,7 @@
 #include "Cassque/CassqueBrowser.h"
 #include "Cassque/Model/DiskOperations.h"
 #include "Cassque/Model/HostFileNaming.h"
+#include "Core/AppleSingleCodec.h"
 
 
 
@@ -191,6 +192,9 @@ public:
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
 
     static PutPlan  PlanPut (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
+    void            GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome);
+    static PutPlan  PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind);
+    static void     SetTypedPayload (PutPlan & plan, const std::vector<Byte> & bytes, Byte type, bool hasAux, Word aux, bool isDos);
 
     //  A host file's stem as a legal catalog name: DOS 3.3 keeps up to 30
     //  printable characters; ProDOS keeps up to 15 of letters, digits and

@@ -143,6 +143,12 @@ public:
     //  A watched folder changed. Posted from the watcher's thread, which does
     //  nothing else.
     static constexpr UINT      kFolderChangedMessage = WM_APP + 0x32;
+
+    //  Runs the command whose id is in wParam, as its button or menu row
+    //  would, when it is enabled. A posted message reaches every command
+    //  without the pointer or a menu, which is how a walkthrough is driven
+    //  from outside the process; a popup menu does not take posted clicks.
+    static constexpr UINT      kRunCommandMessage    = WM_APP + 0x33;
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
 
     //  How long to let a burst settle before re-reading. Copying a hundred
@@ -356,6 +362,7 @@ private:
     bool  IsListVerbOffered      (CassqueActions::Verb verb) const;
     bool  IsToolbarEntryAvailable (int index) const;
     bool  IsCommandBarEntryAvailable (int index) const;
+    HostFileNaming::Style  GetNamingStyle () const;
     bool  RouteCommandBarKey      (const DxuiKeyEvent & ev);
 
     DxuiToolbar          * m_commandBar      = nullptr;

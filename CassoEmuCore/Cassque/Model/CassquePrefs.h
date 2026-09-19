@@ -105,6 +105,7 @@ struct CassquePrefs
 
     static constexpr const char *  kNamingDescriptive  = "Descriptive";
     static constexpr const char *  kNamingCiderPress   = "CiderPress";
+    static constexpr const char *  kNamingAppleSingle  = "AppleSingle";
 
     static constexpr const wchar_t *  kFileName = L"CassquePrefs.json";
 

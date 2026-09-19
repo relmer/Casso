@@ -4371,16 +4371,45 @@ void CassqueWindow::SizeListIcons()
 
 void CassqueWindow::ShowOptions()
 {
+    static constexpr const char *  kNamings[] = { CassquePrefs::kNamingDescriptive, CassquePrefs::kNamingCiderPress, CassquePrefs::kNamingAppleSingle };
     CassqueOptionsDialog::Choices  choices;
 
 
 
-    choices.hostNaming = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress) ? 1 : 0;
+    choices.hostNaming = (int) GetNamingStyle();
 
-    if (CassqueOptionsDialog::Ask (GetHwnd(), m_theme, choices))
+    if (CassqueOptionsDialog::Ask (GetHwnd(), m_theme, choices) && choices.hostNaming >= 0 && choices.hostNaming < (int) std::size (kNamings))
     {
-        m_prefs.hostNaming = (choices.hostNaming == 1) ? CassquePrefs::kNamingCiderPress : CassquePrefs::kNamingDescriptive;
+        m_prefs.hostNaming = kNamings[choices.hostNaming];
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetNamingStyle
+//
+//  The host file name style the Options dialog set; its choices are in the
+//  style's own order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HostFileNaming::Style CassqueWindow::GetNamingStyle() const
+{
+    if (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
+    {
+        return HostFileNaming::Style::CiderPress;
+    }
+
+    if (m_prefs.hostNaming == CassquePrefs::kNamingAppleSingle)
+    {
+        return HostFileNaming::Style::AppleSingle;
+    }
+
+    return HostFileNaming::Style::Descriptive;
 }
 
 
@@ -4505,8 +4534,7 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
     std::wstring                   newName;
     std::vector<std::wstring>      hostPaths;
     CassqueNewDiskDialog::Outcome  newDisk;
-    HostFileNaming::Style    style   = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
-                                     ? HostFileNaming::Style::CiderPress : HostFileNaming::Style::Descriptive;
+    HostFileNaming::Style          style   = GetNamingStyle();
 
 
 
@@ -4866,7 +4894,6 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
 
 
-    UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
     //  A change arrived. Restarting the timer rather than re-reading now is
@@ -4875,6 +4902,16 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     if (msg == kFolderChangedMessage)
     {
         SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kRunCommandMessage)
+    {
+        if (IsEnabled ((int) wParam))
+        {
+            Dispatch ((int) wParam);
+        }
 
         return DxuiMessageResult::Handled;
     }
@@ -5993,8 +6030,7 @@ void CassqueWindow::BeginDragOut()
     HRESULT                                  hr      = S_OK;
     DWORD                                    effect  = DROPEFFECT_NONE;
     DxuiMouseEvent                           release;
-    HostFileNaming::Style                    style   = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
-                                                     ? HostFileNaming::Style::CiderPress : HostFileNaming::Style::Descriptive;
+    HostFileNaming::Style                    style   = GetNamingStyle();
     std::vector<DxuiDragDropSource::Format>  formats = CassqueDragOut::BuildFormats (m_browser, style);
 
 

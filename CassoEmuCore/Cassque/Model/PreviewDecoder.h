@@ -15,6 +15,12 @@ struct ApplesoftListingError;
 
 
 
+struct AppleSingleFile;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PreviewContent
@@ -107,6 +113,10 @@ public:
     //  with no file system, as label and value; false when the message has none.
     static bool  ParseDetails (const std::string & message, std::vector<std::pair<std::wstring, std::wstring>> & outDetails);
 
+    //  What an AppleSingle host file holds: its name, type, aux type, size
+    //  and dates, as label and value.
+    static void  RenderAppleSingle (const AppleSingleFile & file, PreviewContent & outContent);
+
     static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, const Microcode * table, std::vector<std::wstring> & outLines);
 
     //  Whether a file's leading bytes read as text, with or without the high
@@ -121,6 +131,7 @@ private:
 
     //  A ProDOS date as CAT prints it, 17-AUG-84, or <NO DATE>.
     static std::wstring  FormatProDosDate (const FileEntry & entry);
+    static std::wstring  FormatAppleSingleDate (int32_t secondsFrom2000);
     static bool          IsCutOff         (const ApplesoftListingError & error);
     static std::wstring  DescribeCutOff   (const ApplesoftListingError & error);
 

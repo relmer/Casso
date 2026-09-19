@@ -120,6 +120,48 @@ public:
 
 
 
+    TEST_METHOD (AppleSingleStyle_NamesEveryFileDotAsUnconverted)
+    {
+        bool  converted = true;
+
+        Assert::AreEqual (std::wstring (L"HELLO.as"),
+                          DragPayload::GetHostName (MakeEntry ("HELLO", Dos33Volume::kTypeApplesoft), VolumeKind::Dos33, Style::AppleSingle, converted));
+        Assert::IsFalse (converted, L"The container keeps the tokenized program as it is");
+
+        Assert::AreEqual (std::wstring (L"PIC.as"),
+                          DragPayload::GetHostName (MakeEntry ("PIC", ProDosVolume::kTypeBinary, false, true, 0x2000), VolumeKind::ProDos, Style::AppleSingle, converted));
+        Assert::IsFalse (converted);
+    }
+
+
+
+    TEST_METHOD (MakeAppleSingle_CarriesNameTypeAuxAndDate)
+    {
+        FileEntry        entry = MakeEntry ("GAME", Dos33Volume::kTypeBinary, false, true, 0x6000);
+        AppleSingleFile    file;
+        AppleSingleFile    decoded;
+        std::vector<Byte>  bytes;
+        std::string        error;
+
+        entry.hasModified  = true;
+        entry.modifiedUnix = 946684800 + 86400;
+
+        file      = DragPayload::MakeAppleSingle (entry, VolumeKind::Dos33);
+        file.data = { 0xA9, 0x00, 0x60 };
+        AppleSingleCodec::Encode (file, bytes);
+
+        AssertSucceeded  (AppleSingleCodec::Decode (std::span<const Byte> (bytes.data(), bytes.size()), decoded, error), L"Decode");
+        Assert::AreEqual (std::string ("GAME"), decoded.realName);
+        Assert::IsTrue   (decoded.hasProDosInfo);
+        Assert::AreEqual ((int) ProDosVolume::kTypeBinary, (int) decoded.fileType, L"DOS 3.3's B is ProDOS's BIN");
+        Assert::AreEqual ((int) 0x6000, (int) decoded.auxType, L"The load address is the aux type");
+        Assert::IsTrue   (decoded.modifyDate.has_value());
+        Assert::AreEqual (86400, (int) *decoded.modifyDate, L"Dates count from 2000");
+        Assert::IsTrue   (decoded.data == file.data);
+    }
+
+
+
     TEST_METHOD (ADirectory_YieldsNestedDescriptorsWithRelativePaths)
     {
         std::vector<FileEntry>  entries = { MakeEntry ("SUBDIR", 0x0F, true) };

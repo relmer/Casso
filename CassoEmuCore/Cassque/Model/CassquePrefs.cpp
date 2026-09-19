@@ -319,7 +319,7 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
         hexFormat = text;
     }
 
-    if (root.HasString ("hostNaming", text) && (text == kNamingDescriptive || text == kNamingCiderPress))
+    if (root.HasString ("hostNaming", text) && (text == kNamingDescriptive || text == kNamingCiderPress || text == kNamingAppleSingle))
     {
         hostNaming = text;
     }

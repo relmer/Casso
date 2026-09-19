@@ -4,6 +4,7 @@
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Cassque/CassqueBrowser.h"
+#include "Core/AppleSingleCodec.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -173,6 +174,46 @@ public:
         FindRow (host.browser, L"HELLO");
         FindRow (host.browser, L"PICTURE");
         Assert::IsFalse (host.browser.GetStatus().freeSpace.empty());
+    }
+
+
+    TEST_METHOD (AnAppleSingleHostFile_PreviewsAsTheFileItHolds)
+    {
+        Host               host;
+        std::wstring       folder = host.OpenDisksFolder();
+        AppleSingleFile    file;
+        std::vector<Byte>  bytes;
+        bool               named  = false;
+        bool               typed  = false;
+        bool               dated  = false;
+
+        file.data          = { 0x60 };
+        file.realName      = "GAME";
+        file.hasProDosInfo = true;
+        file.fileType      = 0x06;
+        file.auxType       = 0x6000;
+        file.modifyDate    = 86400;
+        AppleSingleCodec::Encode (file, bytes);
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\GAME.as", std::string (bytes.begin(), bytes.end())));
+
+        AssertSucceeded (host.browser.SelectTreeNode (folder));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"GAME.as") });
+
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Details);
+
+        for (const auto & [label, value] : host.browser.GetPreview().details)
+        {
+            named |= label == L"Name"     && value == L"GAME";
+            typed |= label == L"Aux type" && value == L"$6000";
+            dated |= label == L"Modified" && value == L"2000-01-02 00:00 UTC";
+        }
+
+        Assert::IsTrue (named, L"The real name");
+        Assert::IsTrue (typed, L"The aux type");
+        Assert::IsTrue (dated, L"The date, counted from 2000");
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"Any other file still shows its bytes");
     }
 
 

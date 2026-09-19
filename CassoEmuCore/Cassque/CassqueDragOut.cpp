@@ -178,7 +178,14 @@ std::vector<DxuiDragDropSource::Format> CassqueDragOut::BuildFormats (CassqueBro
 
                                  result = browser.GetOperations().Get (image, descriptor.catalogPath, GetEncoding (descriptor), "", descriptor.catalogIndex);
 
-                                 if (result.Succeeded())
+                                 if (result.Succeeded() && descriptor.appleSingle)
+                                 {
+                                     AppleSingleFile  single = descriptor.single;
+
+                                     single.data = std::move (result.payload);
+                                     AppleSingleCodec::Encode (single, out);
+                                 }
+                                 else if (result.Succeeded())
                                  {
                                      out.assign (result.payload.begin(), result.payload.end());
                                  }

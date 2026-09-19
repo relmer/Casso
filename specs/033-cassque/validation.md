@@ -21,6 +21,29 @@ opening the shell menu and its items, Share opening the share sheet, paste
 of files cut or copied in Explorer, a drag from Explorer and from another
 image onto the list and the tree, and a read-only image refusing the drop.
 
+### Release x64, 2026-09-18, commit `c8ccbca9`
+
+Driven with posted clicks and keys, and with the posted command message
+(`WM_APP + 0x33`) where a key needs a modifier, on copies of
+`UnitTest/Fixtures/Cassque/dos33.dsk` and `prodos.po`. The CLI side ran
+`CassoCli disk delete` on a second copy of each.
+
+| Check | Result |
+|---|---|
+| §1 Delete ODD from the DOS 3.3 image, Delete key then Yes; `fc /b` against the CLI's delete | No differences |
+| §1 The same on the ProDOS image | No differences |
+| §2 The DOS 3.3 image lists every entry `disk list` reports, with the same types | As expected |
+| §2 HELLO previews as its listing; PICTURE ($2000, 8192 bytes) as a hi-res picture | As expected |
+| §6 F1 opens About with the cassowary picture and the explanation of the name | As expected |
+| Posted command 502 (Large icons) switches the list's view | As expected |
+| The command bar's See more, reached by Tab and Left, opens with Enter | Shows About Cassque, F1 |
+| Context menu Open with, reached by the Apps key and arrows (Debug) | Lists the handlers; Enter on Notepad opened the file |
+
+Not yet checked on Release: the rest of §1 (get, put, create, init, sector
+and block reads and writes need the folder picker or a drag), §3 and §5
+(they need Casso running with a disk and its menus), §4 (drags), the
+Ctrl shortcuts of §6 other than through the command message, and §7.
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
