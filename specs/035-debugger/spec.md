@@ -8,7 +8,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Casso debugger (GH #51): an engine that breaks into the running emulator, AppleWin and Apple II Monitor command modes, batch scripting, named-pipe protocol, and GUI debugger window." Expanded 2026-09-18: when released, the debugger is at least at parity with AppleWin's and GSSquared's, and ahead of both where Casso can be: a window worth releasing, in-place memory editing, Visual Studio-style docking, an instruction trace ring, device diagnostic panels, source-level debugging on a cc65-compatible debug file, expression and value breakpoints, a GSSquared command mode, and cycle profiling.
+**Input**: User description: "Casso debugger (GH #51): an engine that breaks into the running emulator, AppleWin and Apple II Monitor command modes, batch scripting, named-pipe protocol, and GUI debugger window." Expanded 2026-09-18: when released, the debugger is at least at parity with AppleWin's and GSSquared's, and ahead of both where Casso can be: a window worth releasing, in-place memory editing, Visual Studio-style docking, an instruction trace ring, device diagnostic panels, source-level debugging on a cc65-compatible debug file, expression and value breakpoints, a GSSquared command mode, and cycle profiling. Expanded again 2026-09-18 (design review): a call-stack pane with selectable backtrace mechanisms that report their own breaks, a WinDbg-flavored command mode, a step filter, and one rule for how each mode reaches the engine commands.
 
 ## Overview
 
@@ -22,10 +22,10 @@ emulator: every mature emulator debugger (AppleWin, VICE, MAME, Mesen, Stella)
 is built into the running emulator. GH #59 (the GUI panel) is merged into this
 feature.
 
-One engine, three command modes, three ways in:
+One engine, four command modes, three ways in:
 
-- **Command modes**: AppleWin (default), the Apple II System Monitor, and
-  GSSquared.
+- **Command modes**: AppleWin (default), the Apple II System Monitor,
+  GSSquared, and a WinDbg-flavored mode.
 - **Ways in**: a GUI debugger window with a command line, a batch mode in the
   command-line tool, and a debug channel that lets another program attach to a
   running Casso.
@@ -74,6 +74,14 @@ competitors in the parts a user sees first would waste the launch.
 - Q: Is the saved layout one for all machines, or one per machine type? -> A: One layout. A pane for a device the current machine lacks is closed on restore and keeps its saved place, so it reopens there when that machine returns.
 - Q: Which keyboard shortcuts drive stepping and running in the window? -> A: Three selectable schemes, saved in preferences and independent of the command mode: Visual Studio's by default (F5 run, F10 step over, F11 step into, Shift+F11 step out, F9 toggle breakpoint, Shift+F5 pause), AppleWin's (Space step, Ctrl+Space step over, Enter run, and its function keys), and GSSquared's (Space step, Return resume, O step over, R step out).
 - Q: Which Merlin listings must import as a source view? -> A: Merlin 8/16 listings, verified against the corpus. Merlin 32 listings are a follow-up, tracked as a GitHub issue.
+
+### Session 2026-09-18 (design review)
+
+- Q: How does each command mode reach Casso's own engine commands (`MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`)? -> A: Each mode uses the marker native to it. Monitor mode keeps `/` (Ctrl-Y is the machine's own user command, and `!` is its mini-assembler). AppleWin and GSSquared modes use bare names: neither has an extension marker, none of the engine names collide with their tables, and `/` cannot serve GSSquared because it is that debugger's bank separator. WinDbg mode uses `!`, WinDbg's own extension-command prefix. Every engine command is reachable in every mode.
+- Q: Is a WinDbg/cdb dialect in scope after all? -> A: Yes, as a fourth command mode, described as WinDbg-flavored rather than as parity: the commands a 6502 session uses, with the process, thread, module, exception, kernel, dump, type and scripting families excluded with a defined reply. It follows GSSquared's mode and the call stack, since its `k` needs the call stack.
+- Q: How is a call stack shown, given the 6502 has no frames? -> A: A call-stack pane, separate from the raw stack pane, with three selectable mechanisms: calls recorded as they execute, a walk of the stack page, and a hybrid default that uses recorded frames and extends below them with the walk. Every frame says which mechanism produced it, and each way a mechanism can be defeated is detected and shown as a break in the chain rather than hidden.
+- Q: Does stepping into a call ever have to land inside the ROM? -> A: No. A step filter, reachable from every mode, lists routines a step into treats as a step over.
+- Q: What did GSSquared's source settle about its mode? -> A: Its typed command table (FR-022a); that stepping in its window is by key (Space and F10 step, O over, R out, Return resumes), so typed `o` and `r` are Casso's additions for scripts; that an address may be bank-qualified with `/` and only bank `00` exists here; and that `m`, `x`, `map` and `video` are IIgs commands, refused with a message.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -513,7 +521,10 @@ cycles separately from the instruction's base cycles.
 A user coming from GSSquared switches the debugger to its command mode and
 uses its words: `bp C000.C0FF`, `bpd C010 rw`, `bpi C010 rw`, `nobp 3`,
 `watch 40.4F`, `l C000`, `sload "labels.lbl"`, `load`, `save`, `set`, `move`,
-and `o` and `r` to step over and out.
+and `o` and `r` to step over and out. In GSSquared itself stepping is done
+with keys in its window (Space and F10 step, O steps over, R steps out,
+Return resumes), which the GSSquared key scheme matches; `o` and `r` as typed
+commands are Casso's additions so a script can step in this mode.
 
 **Why this priority**: It is a third parser over the same engine, small and
 independent, and it removes the last reason a GSSquared user would need to
@@ -538,6 +549,125 @@ with the same command in AppleWin mode.
    $2000 and $2001 hold $AA and $55.
 5. **Given** a breakpoint set in GSSquared mode, **When** the user switches to
    AppleWin mode and enters `BPL`, **Then** the same breakpoint is listed.
+6. **Given** GSSquared mode, **When** the user enters `00/300`, **Then** it
+   means $0300; **and when** the user enters `E1/300`, **Then** the reply says
+   only bank 00 exists on this machine and nothing changes.
+7. **Given** GSSquared mode, **When** the user enters `map` or `video`,
+   **Then** the reply says the command needs a IIgs and nothing changes.
+
+---
+
+### User Story 13 - See how the program got here (Priority: P2)
+
+A user stopped deep inside a program opens the call-stack pane and sees the
+chain of calls that led to the current instruction: each caller's address and
+symbol, innermost first. They double-click a frame and the disassembly moves
+to the call site. When the program has done something to the stack that no
+mechanism can see through, the pane says where the chain breaks and why,
+instead of showing frames it has lost track of.
+
+**Why this priority**: AppleWin shows only the raw stack bytes. Mesen tracks
+calls as they run; VICE has a backtrace. Casso can do both and, unlike either,
+say when the answer cannot be trusted. It shares the run hook with the trace
+ring, so it follows User Story 8.
+
+**Independent Test**: On a fixture program with a recursive routine, a routine
+that reads inline parameters after its `JSR`, and an interrupt handler, stop
+at a known depth and compare the pane's frames with the true chain; then run
+each stack manipulation in FR-069 and confirm the pane reports the break at
+the instruction that caused it.
+
+**Acceptance Scenarios**:
+
+1. **Given** the machine stopped three calls deep with recording on, **When**
+   the user opens the pane, **Then** three frames are shown innermost first,
+   each labeled recorded, with the caller's address and symbol.
+2. **Given** the debugger attached after the program had already made two
+   calls, **When** the user opens the pane, **Then** the frames recorded since
+   attaching are labeled recorded, the two below them are labeled guessed from
+   the stack walk, and the boundary between them is marked.
+3. **Given** a routine that pulls its return address, reads two inline
+   parameter bytes and returns past them, **When** it returns, **Then** the
+   pane reports that the frame returned past inline parameters and does not
+   mark the chain broken.
+4. **Given** a program that executes `TXS`, **When** the user opens the pane,
+   **Then** a separator row names `TXS` and its address, and every frame below
+   it is shown as unverified.
+5. **Given** the machine stopped inside an interrupt handler, **When** the
+   user opens the pane, **Then** the interrupt is a frame of its own, labeled
+   as an interrupt, above the frame it interrupted.
+6. **Given** the pane open, **When** the user double-clicks a frame, **Then**
+   the disassembly moves to the `JSR` that made the call.
+7. **Given** the mechanism set to stack walk only, **When** the user opens the
+   pane, **Then** every frame is labeled guessed and no recorded frame is used.
+
+---
+
+### User Story 14 - Use WinDbg's syntax (Priority: P3)
+
+A user who lives in WinDbg switches the debugger to its command mode and uses
+the words they know: `bp 300`, `ba w1 c010`, `bl`, `db 2000 l20`,
+`eb 300 a9 41`, `t`, `p`, `gu`, `k`, `r`, `u`, `x start*`, `? 300+10`,
+`.formats 41`, and `!switches` for Casso's own commands.
+
+**Why this priority**: It is a fourth parser over the same engine, like
+GSSquared's, and no other Apple II debugger offers it. It follows User
+Story 12 and User Story 13, since `k` needs the call stack.
+
+**Independent Test**: In batch with WinDbg mode selected, run each command in
+FR-022c against a fixture machine and compare the effect with the same
+command in AppleWin mode.
+
+**Acceptance Scenarios**:
+
+1. **Given** WinDbg mode, **When** the user enters `ba w1 c010`, **Then** a
+   write watchpoint is set on $C010 and `bl` lists it in WinDbg's listing
+   layout.
+2. **Given** WinDbg mode, **When** the user enters `db 2000 l20`, **Then** 32
+   bytes print in WinDbg's dump layout, with the address, hex bytes and ASCII.
+3. **Given** WinDbg mode and a stopped machine, **When** the user enters `k`,
+   **Then** the call stack prints, one frame per line, with each frame's
+   provenance.
+4. **Given** WinDbg mode, **When** the user enters `bp main.a65:12`, with or
+   without WinDbg's backquotes, **Then** a breakpoint is set on that source
+   line.
+5. **Given** WinDbg mode, **When** the user enters `~` or `lm`, **Then** the
+   reply says the command has no meaning on this machine and nothing changes.
+6. **Given** WinDbg mode, **When** the user enters `!switches`, **Then** the
+   soft switches are listed, the same as `SWITCHES` in AppleWin mode.
+7. **Given** WinDbg mode, **When** the user enters `0x300`, `300` or `$300` as
+   an address, **Then** all three mean $0300.
+
+---
+
+### User Story 15 - Skip routines when stepping (Priority: P3)
+
+A user stepping through their program adds `COUT` and `RDKEY` to the step
+filter. From then on a step into `JSR COUT` behaves as a step over, so they
+never land in the ROM's output routine, while a step into their own routines
+still enters them.
+
+**Why this priority**: Small, reachable from every mode and every key scheme,
+and it removes the most common reason to reach for step over by hand on the
+Apple II.
+
+**Independent Test**: With `COUT` in the filter, step into a `JSR COUT` and
+confirm the stop is at the instruction after the `JSR`; clear the filter and
+confirm the same step stops at `COUT`'s first instruction.
+
+**Acceptance Scenarios**:
+
+1. **Given** `COUT` in the filter, **When** the user steps into `JSR COUT`,
+   **Then** the stop is at the instruction after the `JSR`.
+2. **Given** an empty filter, **When** the user steps into the same `JSR`,
+   **Then** the stop is at $FDED.
+3. **Given** a filter entry given as an address range, **When** the user steps
+   into any routine in the range, **Then** it is stepped over.
+4. **Given** source-level stepping on, **When** a source line calls a filtered
+   routine, **Then** the step lands on the next source line, not inside the
+   routine.
+5. **Given** the filter set in one mode, **When** the user switches mode,
+   **Then** the filter still applies.
 
 ---
 
@@ -625,6 +755,20 @@ with the same command in AppleWin mode.
   mean the same in both modes.
 - **`BPR` register condition with no value**: still an error, in either
   spacing.
+- **Call stack when a routine pulls its return address and jumps away**: the
+  frame ends at the jump, and the pane shows it as ended by a jump rather than
+  a return.
+- **Call stack after a reset**: every recorded frame is discarded and the pane
+  says so; the stack walk starts again from the new stack pointer.
+- **Return address that differs from the one pushed**: a difference of a few
+  bytes past the pushed address is the inline-parameter case and is reported
+  as such; any other difference is a break at the `RTS`.
+- **Stack wrap**: a push at $0100 wrapping to $01FF is a break; recorded frames
+  above it are kept and marked unverified.
+- **WinDbg command with no 6502 meaning**: a defined reply saying so, never
+  "unknown command".
+- **Filtered routine that never returns**: the step continues until a
+  breakpoint, a pause, or the budget, as a step over of any such call does.
 
 ## Requirements *(mandatory)*
 
@@ -688,20 +832,30 @@ with the same command in AppleWin mode.
   address when one is loaded, and MUST show an operand as a symbol when the
   operand's address has one, in every way in.
 
+- **FR-070**: The debugger MUST keep a step filter: a list of routines, by
+  symbol, address or address range, that a step into treats as a step over.
+  It MUST apply in every mode, to every key scheme and to source-level
+  stepping, and MUST be settable and listable from every mode.
+
 **Command modes**
 
-- **FR-011**: The debugger MUST provide three command modes, AppleWin, Apple
-  II Monitor and GSSquared, selected by the user; AppleWin MUST be the
+- **FR-011**: The debugger MUST provide four command modes, AppleWin, Apple
+  II Monitor, GSSquared and WinDbg, selected by the user; AppleWin MUST be the
   default.
 - **FR-012**: All modes MUST operate on the same session state: a breakpoint,
   watch or register change made in one mode MUST be visible in the others.
-- **FR-013**: The debugger MUST have an output format, AppleWin, Monitor or
-  GSSquared, separate from the input mode. Changing the input mode MUST set
+- **FR-013**: The debugger MUST have an output format, AppleWin, Monitor,
+  GSSquared or WinDbg, separate from the input mode. Changing the input mode MUST set
   the output format to that mode's own; the user MUST then be able to change
   the output format alone, from any way in, and every reply MUST be written
   in the current output format.
-- **FR-014**: Monitor mode MUST provide a prefix that reaches debugger commands
-  with no Monitor equivalent, including switching modes.
+- **FR-014**: Every engine command Casso adds beyond the dialects (`MODE`,
+  `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`, and any added later)
+  MUST be reachable in every mode through that mode's own marker: `/` in
+  Monitor mode (which also reaches any AppleWin command with no Monitor
+  equivalent), bare names in AppleWin and GSSquared modes, and `!` in WinDbg
+  mode. The documentation MUST describe each engine command once and list the
+  marker per mode.
 
 **AppleWin mode**
 
@@ -742,14 +896,35 @@ with the same command in AppleWin mode.
   `nobp` (by id or address), `watch` and `nowatch`, `l` (disassemble, with
   and without an address), `sload`, `slookup`, `sclear`, `load`, `save`,
   `set`, `move`, memory read (`C000`), deposit (`2000:AA 55`), dump
-  (`2000.201F`), and the step commands (`o` step over, `r` step out). Each
+  (`2000.201F`), and, as Casso's additions for scripts (GSSquared itself steps only by key), `o` (step over) and `r` (step out). Each
   MUST map onto the same engine operation the equivalent AppleWin command
   performs. GSSquared's output format MUST be verified against its documented
   examples and, where the documentation shows none, against a capture from
   GSSquared checked in as a fixture.
 - **FR-022b**: GSSquared commands that need hardware Casso lacks (`m` and `x`
-  register width, `map` on a machine with no IIgs MMU) MUST report that they
-  are not available and change nothing.
+  register width, `map` and `video` on a machine with no IIgs MMU) MUST report
+  that they are not available and change nothing. A bank-qualified address
+  (`00/300`) MUST be accepted for bank `00` and refused with a message for any
+  other bank.
+
+**WinDbg mode**
+
+- **FR-022c**: WinDbg mode MUST accept, with WinDbg's arguments and mapped onto
+  the same engine operations as their AppleWin equivalents: stepping and
+  running (`t`, `p`, `g`, `gu`, `pa`, `ta`); breakpoints (`bp`, `bl`, `bc`,
+  `bd`, `be`, and `ba r1|w1|e1 addr` for access breakpoints); memory display
+  (`db`, `dw`, `dd`, `da`, with `l<count>` lengths); memory change (`eb`,
+  `ew`, `ea`, `f` fill, `s` search, `m` move); `r` registers, `u` disassemble,
+  `x` symbol lookup, `k` call stack, `?` expression; source (`l+s`, `lsa`, and
+  `file:line` breakpoints with or without backquotes); and `.formats`.
+  Addresses MUST be accepted as `0x300`, `300` and `$300`, and a bare number
+  is hex, as in WinDbg.
+- **FR-022d**: WinDbg commands whose meaning depends on host processes,
+  threads, modules, exceptions, kernel structures, dump files, C types, the
+  `dx` data model, extension loading or scripting MUST reply that the command
+  has no meaning on this machine and change nothing; they MUST NOT be
+  reported as unknown. The documentation MUST describe the mode as
+  WinDbg-flavored and list what is excluded.
 
 **Ways in**
 
@@ -826,7 +1001,7 @@ with the same command in AppleWin mode.
   breakpoint actions MUST have keyboard shortcuts in one of three selectable
   schemes: Visual Studio's (the default: F5, F10, F11, Shift+F11, Shift+F5,
   F9), AppleWin's (Space, Ctrl+Space, Enter, and its function keys) and
-  GSSquared's (Space, Return, O, R). The scheme is saved in preferences and
+  GSSquared's (Space and F10, Return, O, R). The scheme is saved in preferences and
   is independent of the command mode.
 
 **Memory editing**
@@ -891,6 +1066,31 @@ with the same command in AppleWin mode.
   most recent, MUST let the user scroll to any entry, and MUST show the
   symbol for an entry's address and accessed address when one is loaded.
 - **FR-048**: The retained trace MUST be savable to a file with every entry.
+
+**Call stack**
+
+- **FR-067**: The window MUST provide a call-stack pane, separate from the raw
+  stack pane, listing the chain of calls to the current instruction innermost
+  first: each frame's call-site address and symbol, and for an interrupt frame
+  the vector taken. Double-clicking a frame MUST move the disassembly to the
+  call site. The same chain MUST be available as a command in every mode.
+- **FR-068**: The pane MUST offer three mechanisms, selectable by the user:
+  recorded calls (a record kept as `JSR`, `BRK`, interrupt dispatch, `RTS`
+  and `RTI` execute, kept only while the debugger is attached); stack walk
+  (the stack page scanned for return addresses whose preceding opcode is
+  `JSR` and, when a debug file is loaded, whose `JSR` targets a known routine
+  entry); and hybrid, the default, which uses recorded frames where they exist
+  and extends below them with the walk. Every frame MUST be labeled with the
+  mechanism that produced it.
+- **FR-069**: The pane MUST detect and show, as a separator row naming the
+  instruction and its address, each event that breaks a chain: `TXS`
+  reloading the stack pointer; a pull that consumes a frame's return address;
+  a frame ending by a jump rather than a return; a return whose address
+  differs from the one its call pushed; the stack pointer wrapping past $0100;
+  a reset; and, for the recorded mechanism, the point below which tracking had
+  not yet begun. Frames below a break MUST be shown as unverified. A return
+  whose address is a few bytes past the one pushed MUST be reported as
+  returning past inline parameters and MUST NOT be treated as a break.
 
 **Device panels**
 
@@ -966,7 +1166,8 @@ with the same command in AppleWin mode.
 
 - **FR-064**: With no debugger window open and no trace, watch or hook
   active, emulation MUST run the same code path and at the same speed as
-  before this feature, within measurement noise.
+  before this feature, within measurement noise. The call-stack record is a
+  hook in this sense: it runs only while the debugger is attached.
 
 **Release material**
 
@@ -1003,10 +1204,15 @@ with the same command in AppleWin mode.
   stopping either after the access (the default, which reports the value and
   the value a write replaced) or before the instruction that would make it;
   may carry an expression condition.
-- **Command mode**: AppleWin, Apple II Monitor or GSSquared; determines how a
-  command line is read.
-- **Output format**: AppleWin, Monitor or GSSquared; determines how replies
-  are written. Follows the command mode when it changes, and can be set alone.
+- **Command mode**: AppleWin, Apple II Monitor, GSSquared or WinDbg;
+  determines how a command line is read.
+- **Output format**: AppleWin, Monitor, GSSquared or WinDbg; determines how
+  replies are written. Follows the command mode when it changes, and can be
+  set alone.
+- **Call-stack frame**: One call in the chain to the current instruction: its
+  call site, its target, the mechanism that produced it, and any break
+  reported at it.
+- **Step filter**: The routines a step into treats as a step over.
 - **Command**: One line of input in a mode; produces a reply.
 - **Reply**: The result of a command, in text and in structured form.
 - **Notification**: An unsolicited message to an attached client: breakpoint
@@ -1074,11 +1280,23 @@ with the same command in AppleWin mode.
   engine effect as its AppleWin equivalent in 100% of test cases.
 - **SC-017**: A debug file written by `CassoCli as65 -g` is read without
   error by cc65's own debug-info reader.
+- **SC-018**: On the call-stack fixture (a recursive routine, an
+  inline-parameter routine and an interrupt), the recorded mechanism reports
+  the true chain at 100% of stops, and each break in FR-069 is detected at the
+  instruction that caused it in 100% of the cases that provoke it.
+- **SC-019**: Every command in FR-022c produces the same engine effect as its
+  AppleWin equivalent in 100% of test cases, and every excluded WinDbg command
+  replies that it has no meaning here.
+- **SC-020**: With `COUT` in the step filter, no step into `JSR COUT` stops
+  inside the ROM, in 100% of fixture cases.
 
 ## Assumptions
 
-- **Monitor-mode engine prefix**: `/`, which no Monitor command uses. The text
-  after it is read as an AppleWin-mode command line (`/bpl`).
+- **Engine-command markers per mode**: Monitor `/` (the text after it is read
+  as an AppleWin-mode command line, `/bpl`; Ctrl-Y is the machine's own user
+  command and `!` its mini-assembler), AppleWin bare names, GSSquared bare
+  names (`/` is its bank separator), WinDbg `!` (its extension-command
+  prefix).
 - **AppleWin command coverage**, by name from AppleWin's command table:
   - **Phase 1 (headless)**:
     - Assembler: `A`.
@@ -1133,8 +1351,12 @@ with the same command in AppleWin mode.
   - The table is consulted for names and behavior only; `RUN` runs a script of
     commands through the same engine batch mode uses.
 - **GSSquared command coverage** is taken from its published debugger
-  documentation, not its source; its syntax is consulted for names and
-  behavior only.
+  documentation and, for its command table, its tokenizer's behavior and its
+  window's step keys, from a reading of its source on 2026-09-18; its code is
+  not copied.
+- **WinDbg command coverage** is taken from Microsoft's published command
+  reference; the mode is WinDbg-flavored, and its output layouts follow
+  WinDbg's documented examples.
 - **No standalone console**: interactive command entry is through the window's
   command line; scripting is through batch mode and the channel.
 - **The window builds on `032-dxui-command-widgets`** (merged) and on the
@@ -1184,9 +1406,9 @@ with the same command in AppleWin mode.
   content; the default layout is the first version's arrangement with the
   source pane tabbed with the disassembly and the trace tabbed with the
   console.
-- **Out of scope**: cdb/WinDbg syntax (its `.` and `!` command families depend
-  on host processes, modules and threads a 6502 lacks, and collide with Monitor
-  `.` and `!`); gdb syntax; the VS Code debug adapter (GH #54); whole-program
+- **Out of scope**: WinDbg beyond FR-022c (the process, thread, module,
+  exception, kernel, dump, type, `dx` and scripting families, and `wt`, which
+  maps onto the trace and the profile once they exist); gdb syntax; the VS Code debug adapter (GH #54); whole-program
   disassembly (GH #121); the IIgs, C64 and NES monitors, which arrive with
   those machines as additional modes; beam-position debugging (a crosshair at
   the emulated beam position over a partial frame), deferred until the color
@@ -1195,8 +1417,9 @@ with the same command in AppleWin mode.
   binary channel framing.
 - **Existing starting points**: the CPU's instruction trace and the windowless
   host used by the command-line tool.
-- **Clean-room**: AppleWin and GSSquared are consulted for command names and
-  behavior only; their implementations are not read or copied.
+- **Clean-room**: AppleWin is consulted for command names and behavior only,
+  and its implementation is not read. GSSquared's source was read for its
+  command table and input behavior; no code from it is copied.
 
 ### References
 
@@ -1210,6 +1433,10 @@ with the same command in AppleWin mode.
   https://github.com/AppleWin/AppleWin/blob/master/source/Debugger/Debugger_Commands.cpp
 - AppleWin symbol tables:
   https://github.com/AppleWin/AppleWin/blob/master/help/dbg-symbols.html
+- WinDbg command reference:
+  https://learn.microsoft.com/windows-hardware/drivers/debugger/commands
+- Mesen's call-stack window and VICE's `bt` command, as the call stack's
+  parity targets.
 - GSSquared debugger:
   https://github.com/jawaidbazyar2/gssquared/blob/main/Docs/UsingTheDebugger.md
   and https://github.com/jawaidbazyar2/gssquared/blob/main/Docs/Debugger.md

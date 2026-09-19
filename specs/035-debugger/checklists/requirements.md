@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-09-13
-**Updated**: 2026-09-18 (expanded scope: window, memory editing, docking, trace, device panels, source-level debugging, expression breakpoints, GSSquared mode, profiling)
+**Updated**: 2026-09-18 (expanded scope: window, memory editing, docking, trace, device panels, source-level debugging, expression breakpoints, GSSquared mode, profiling; design review: call-stack pane, WinDbg mode, step filter, engine-command markers)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
