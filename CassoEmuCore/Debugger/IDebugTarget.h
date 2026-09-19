@@ -85,6 +85,10 @@ public:
 
     virtual VideoPosition       GetVideoPosition  () const = 0;
     virtual uint64_t            GetCycleCount     () const = 0;
+
+    // The Cpu::kPenalty bits the last instruction paid.
+    virtual Byte                GetLastPenalties  () const = 0;
+
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;

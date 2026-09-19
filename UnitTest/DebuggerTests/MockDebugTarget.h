@@ -33,6 +33,7 @@ public:
     DebugMachineInfo         machineInfo      = { "Apple //e Enhanced", "", {} };
     VideoPosition            videoPosition;
     uint64_t                 cycleCount       = 0;
+    Byte                     lastPenalties    = 0;
     bool                     keyPending       = false;
 
     IRunObserver           * observer         = nullptr;
@@ -111,6 +112,7 @@ public:
 
     VideoPosition     GetVideoPosition  () const override    { return videoPosition; }
     uint64_t          GetCycleCount     () const override    { return cycleCount; }
+    Byte              GetLastPenalties  () const override    { return lastPenalties; }
     DebugCpuKind      GetCpuKind        () const override    { return cpuKind; }
     const Microcode * GetInstructionSet () const override    { return instructionSet; }
     DebugMachineInfo  GetMachineInfo    () const override    { return machineInfo; }

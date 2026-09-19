@@ -65,12 +65,15 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 //  ExecutionHandlers::OnRunStopped
 //
 //  The trace file is written at every stop, so a script that never turns
-//  tracing off still leaves the file behind.
+//  tracing off still leaves the file behind. The last instruction of the run
+//  is billed to the profile here, since no next instruction will bill it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::OnRunStopped (DebugSession & session, const StopEvent & stop)
 {
+    BillProfile (session);
+
     m_lastRunCycles = stop.cycles;
     m_previousPc.reset();
     FlushTrace (session);
@@ -369,30 +372,203 @@ bool ExecutionHandlers::IsControlTransfer (Byte opcode, bool isCmos)
 //
 //  ExecutionHandlers::RecordProfile
 //
+//  The hook reports an instruction before it runs, so its cost is billed at
+//  the next instruction, or at the stop for the last one. Nothing is kept
+//  while profiling is off.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::RecordProfile (DebugSession & session, Word pc)
 {
-    IDebugTarget     & target    = session.GetTarget();
-    const Microcode  * set       = target.GetInstructionSet();
-    Byte               opcode    = Peek (target, pc);
+    IDebugTarget        & target  = session.GetTarget();
+    PendingInstruction    pending;
 
 
 
-    if (set == nullptr)
+    if (!m_profile.IsOn())
     {
         return;
     }
 
-    if (!m_profile.hasStart)
+    BillProfile (session);
+
+    pending.pc          = pc;
+    pending.opcode      = Peek (target, pc);
+    pending.startCycles = target.GetCycleCount();
+    m_profilePending    = pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::BillProfile
+//
+//  The cycles the pending instruction took, from the machine's count, and the
+//  penalties the CPU recorded for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BillProfile (DebugSession & session)
+{
+    IDebugTarget  & target    = session.GetTarget();
+    uint64_t        cycles    = 0;
+    Byte            penalties = 0;
+
+
+
+    if (!m_profilePending.has_value())
     {
-        m_profile.startCycles = target.GetCycleCount();
-        m_profile.hasStart    = true;
+        return;
     }
 
-    ++m_profile.instructions;
-    ++m_profile.opcodes[set[opcode].isLegal ? set[opcode].instructionName : "???"];
-    ++m_profile.modes[set[opcode].isLegal ? GlobalAddressingMode::s_addressingModeName[set[opcode].globalAddressingMode] : "???"];
+    cycles    = target.GetCycleCount() - m_profilePending->startCycles;
+    penalties = target.GetLastPenalties();
+
+    m_profile.Record (m_profilePending->pc, m_profilePending->opcode, (Byte) std::min (cycles, kMaxBilledCycles), penalties);
+    m_profilePending.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::BuildProfile
+//
+//  The opcode rows are grouped by mnemonic and addressing mode, since several
+//  opcodes can share both, and sorted by cycles. The address rows are the
+//  hottest kHotAddresses, each with the first symbol that holds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BuildProfile (DebugSession & session, bool isByAddress, ProfileData & data) const
+{
+    using ModeKey = std::pair<std::string, std::string>;
+
+    const Microcode                   * set    = session.GetTarget().GetInstructionSet();
+    std::map<ModeKey, ProfileEntry>     groups;
+    ProfileAddressEntry                 entry;
+    SymbolTableId                       table  = SymbolTableId::Main;
+
+
+
+    data.isOn         = m_profile.IsOn();
+    data.isByAddress  = isByAddress;
+    data.instructions = m_profile.GetInstructionCount();
+    data.cycles       = m_profile.GetTotalCycles();
+    data.pageCross    = m_profile.GetPenalties().pageCross;
+    data.branchTaken  = m_profile.GetPenalties().branchTaken;
+    data.branchCross  = m_profile.GetPenalties().branchCross;
+
+    for (size_t opcode = 0; opcode < ProfileTable::kOpcodeCount; ++opcode)
+    {
+        const ProfileTable::OpcodeCounts  & counts  = m_profile.GetOpcode ((Byte) opcode);
+        bool                                isKnown = set != nullptr && set[opcode].isLegal;
+        ModeKey                             key;
+
+
+
+        if (counts.count == 0)
+        {
+            continue;
+        }
+
+        key.first  = isKnown ? set[opcode].instructionName : "???";
+        key.second = isKnown ? GlobalAddressingMode::s_addressingModeName[set[opcode].globalAddressingMode] : "???";
+
+        groups[key].mnemonic  = key.first;
+        groups[key].mode      = key.second;
+        groups[key].count    += counts.count;
+        groups[key].cycles   += counts.cycles;
+    }
+
+    for (const auto & [key, group] : groups)
+    {
+        data.opcodes.push_back (group);
+    }
+
+    std::stable_sort (data.opcodes.begin(), data.opcodes.end(), [] (const ProfileEntry & a, const ProfileEntry & b) { return a.cycles > b.cycles; });
+
+    if (!isByAddress)
+    {
+        return;
+    }
+
+    for (const auto & [address, cycles] : m_profile.GetByAddress())
+    {
+        entry.address = address;
+        entry.cycles  = cycles;
+        entry.symbol.clear();
+        session.GetSymbols().TryFindName (address, entry.symbol, table);
+        data.addresses.push_back (entry);
+    }
+
+    std::sort (data.addresses.begin(), data.addresses.end(), [] (const ProfileAddressEntry & a, const ProfileAddressEntry & b)
+    {
+        return a.cycles != b.cycles ? a.cycles > b.cycles : a.address < b.address;
+    });
+
+    if (data.addresses.size() > kHotAddresses)
+    {
+        data.addresses.resize (kHotAddresses);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::SaveProfile
+//
+//  The same rows PROFILE LIST and PROFILE LIST ADDR print, one after the
+//  other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string & name, Reply & reply) const
+{
+    IFileSystem  * files     = session.GetFileSystem();
+    Reply          byOpcode;
+    Reply          byAddress;
+    ProfileData    opcodeData;
+    ProfileData    addressData;
+    std::string    text;
+    HRESULT        hr        = S_OK;
+
+
+
+    if (files == nullptr)
+    {
+        reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
+        return;
+    }
+
+    BuildProfile (session, false, opcodeData);
+    BuildProfile (session, true,  addressData);
+
+    byOpcode.data  = opcodeData;
+    byAddress.data = addressData;
+    AppleWinFormatter::Format (byOpcode);
+    AppleWinFormatter::Format (byAddress);
+
+    for (const std::string & line : byOpcode.text)  { text += line + "\n"; }
+    for (const std::string & line : byAddress.text) { text += line + "\n"; }
+
+    hr = files->WriteAllText (session.ResolvePath (name), text);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        return;
+    }
+
+    reply.data = MessageData { { std::format ("Saved the profile to {}.", name) } };
 }
 
 
@@ -403,74 +579,53 @@ void ExecutionHandlers::RecordProfile (DebugSession & session, Word pc)
 //
 //  ExecutionHandlers::Profile
 //
-//  PROFILE [LIST|RESET|SAVE]: the counts sorted by count, cleared, or written
-//  tab-separated to Profile.txt.
+//  PROFILE ON|OFF|RESET|LIST [ADDR]|SAVE [file]. A bare PROFILE lists.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::string   verb  = command.text;
-    ProfileData   data;
-    std::string   text;
-    IFileSystem * files = session.GetFileSystem();
-    HRESULT       hr    = S_OK;
+    std::istringstream  stream (command.text);
+    std::string         verb;
+    std::string         argument;
+    std::string         extra;
+    ProfileData         data;
 
 
 
-    for (char & ch : verb)
+    stream >> verb >> argument >> extra;
+    verb = SymbolTable::ToUpper (verb);
+
+    if (verb == "ON" && argument.empty())
     {
-        ch = (char) toupper ((unsigned char) ch);
+        m_profile.SetOn (true);
+        reply.data = MessageData { { "Profiling on." } };
     }
-
-    if (verb == "RESET")
+    else if (verb == "OFF" && argument.empty())
     {
-        m_profile = ProfileState();
+        m_profile.SetOn (false);
+        m_profilePending.reset();
+        reply.data = MessageData { { "Profiling off." } };
+    }
+    else if (verb == "RESET" && argument.empty())
+    {
+        m_profile.Reset();
+        m_profilePending.reset();
         reply.data = MessageData { { "Profile reset." } };
-        return;
     }
-
-    data.instructions = m_profile.instructions;
-    data.cycles       = m_profile.hasStart ? session.GetTarget().GetCycleCount() - m_profile.startCycles : 0;
-
-    for (const auto & [name, count] : m_profile.opcodes) { data.opcodes.push_back ({ name, count }); }
-    for (const auto & [name, count] : m_profile.modes)   { data.modes.push_back   ({ name, count }); }
-
-    std::stable_sort (data.opcodes.begin(), data.opcodes.end(), [] (const ProfileEntry & a, const ProfileEntry & b) { return a.count > b.count; });
-    std::stable_sort (data.modes.begin(),   data.modes.end(),   [] (const ProfileEntry & a, const ProfileEntry & b) { return a.count > b.count; });
-
-    if (verb == "SAVE")
+    else if (verb == "SAVE" && extra.empty())
     {
-        if (files == nullptr)
-        {
-            reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
-            return;
-        }
-
-        text = std::format ("Instructions\t{}\nCycles\t{}\n", data.instructions, data.cycles);
-
-        for (const ProfileEntry & entry : data.opcodes) { text += std::format ("{}\t{}\n", entry.name, entry.count); }
-        for (const ProfileEntry & entry : data.modes)   { text += std::format ("{}\t{}\n", entry.name, entry.count); }
-
-        hr = files->WriteAllText (session.ResolvePath (kDefaultProfile), text);
-
-        if (FAILED (hr))
-        {
-            reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", kDefaultProfile));
-            return;
-        }
-
-        reply.data = MessageData { { std::format ("Saved the profile to {}.", kDefaultProfile) } };
-        return;
+        SaveProfile (session, argument.empty() ? kDefaultProfile : argument, reply);
     }
-
-    if (!verb.empty() && verb != "LIST")
+    else if ((verb.empty() || verb == "LIST") && extra.empty() && (argument.empty() || SymbolTable::ToUpper (argument) == "ADDR"))
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes LIST, RESET or SAVE.");
-        return;
+        BuildProfile (session, !argument.empty(), data);
+        reply.data = data;
     }
-
-    reply.data = data;
+    else
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR] or SAVE [file].");
+    }
 }
 
 

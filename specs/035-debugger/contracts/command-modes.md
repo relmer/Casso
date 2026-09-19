@@ -72,6 +72,14 @@ nor does GSSquared's.
   `PRINTF` formats, `CALC`'s four-column line, `LOG` as a console verbosity
   setting, the `[name] [range]` data directives with `Z` as `DB` and `B` as
   the block list, and `SYM<table> CLEAR | LOAD "file" | ON | OFF`.
+- **`PROFILE ON | OFF | RESET | LIST [ADDR] | SAVE [file]`**: while on, each
+  instruction a debugger-driven run executes is counted; off, nothing is
+  counted and no hook is added. A bare `PROFILE` lists. `LIST` prints count,
+  base cycles and share per mnemonic and addressing mode, then the penalty
+  cycles apart by kind: page crossings on indexed reads, taken branches, and
+  branches crossing a page. `LIST ADDR` prints the twenty hottest addresses
+  with their symbols. `SAVE` writes both tables to the file, `Profile.txt` by
+  default. The penalty rows are a Casso addition.
 
 ## Apple II Monitor mode
 

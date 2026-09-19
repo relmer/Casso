@@ -55,6 +55,7 @@ public:
 
     void StepOne                  ();
     Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
+    Byte GetLastPenalties         () const                   { return m_lastPenalties; }
     Byte PeekByte                 (Word address) const       { return memory[address]; }
     void PokeByte                 (Word address, Byte value) { memory[address] = value; }
     Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
@@ -190,7 +191,18 @@ protected:
     // Heap-allocated for the same reason as `memory`: keeps the ~10 KB
     // instruction table off the stack of any function holding a Cpu.
     std::vector<Microcode> instructionSet {std::vector<Microcode> (256)};
-    Byte                  m_lastCycles = 0;
+    Byte                  m_lastCycles    = 0;
+    Byte                  m_lastPenalties = 0;
+
+public:
+    // The penalty kinds the last instruction paid, one bit each, each worth one
+    // cycle already counted in m_lastCycles. The profiler subtracts them to find
+    // the base cost and bills them to their own buckets.
+    static constexpr Byte  kPenaltyPageCross   = 0x01;
+    static constexpr Byte  kPenaltyBranchTaken = 0x02;
+    static constexpr Byte  kPenaltyBranchCross = 0x04;
+
+protected:
 
     // Circular trace of recent instructions for post-mortem debugging.
     // Runtime-gated by m_traceEnabled and allocated only when tracing is

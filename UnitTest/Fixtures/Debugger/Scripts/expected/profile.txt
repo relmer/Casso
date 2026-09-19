@@ -1,0 +1,37 @@
+>MEB 300 A2 00 BD FF 10 E8 E0 04 D0 F8 EA
+0300: A2 00 BD FF 10 E8 E0 04  ".=..h`.
+0308: D0 F8 EA                 Pxj
+>R PC 300
+A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I..
+>SYM LOOP = 302
+$0302 LOOP (user)
+>BP 30A
+Breakpoint #0 set at $030A
+>PROFILE ON
+Profiling on.
+>G
+Breakpoint #0 at $030A
+>PROFILE LIST
+Instructions: 17, cycles: 48
+Opcode Mode                      Count     Cycles Percent
+LDA    Absolute, X                   4         16   33.3%
+BNE    Relative                      4          8   16.7%
+CPX    #Immediate                    4          8   16.7%
+INX    [No Operand]                  4          8   16.7%
+LDX    #Immediate                    1          2    4.2%
+Penalty                                    Cycles Percent
+Page crossing                                   3    6.2%
+Taken branches                                  3    6.2%
+Branches crossing a page                        0    0.0%
+>PROFILE LIST ADDR
+Instructions: 17, cycles: 48
+Address Symbol                   Cycles Percent
+$0302   LOOP                         19   39.6%
+$0308                                11   22.9%
+$0305                                 8   16.7%
+$0306                                 8   16.7%
+$0300                                 2    4.2%
+>PROFILE SAVE profile.txt
+Saved the profile to profile.txt.
+>PROFILE OFF
+Profiling off.

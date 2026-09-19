@@ -92,6 +92,7 @@ public:
     }
 
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
+    Byte             GetLastPenalties         () const                        { return m_cpu6502->GetLastPenalties (); }
 
     // Interrupt-aware companion to StepOne; see Cpu6502::TryStepInterrupt.
     bool             TryStepInterrupt() { return m_cpu6502->TryStepInterrupt(); }

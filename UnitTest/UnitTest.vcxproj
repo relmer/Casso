@@ -191,6 +191,7 @@
     <ClCompile Include="DebuggerTests\MemoryHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\DataDirectiveHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ExecutionHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\ProfileTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ConfigHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolFileReaderTests.cpp" />

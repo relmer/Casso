@@ -171,6 +171,7 @@
     <ClCompile Include="Debugger\Handlers\ExecutionHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\WatchHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\ConfigHandlers.cpp" />
+    <ClCompile Include="Debugger\ProfileTable.cpp" />
     <ClCompile Include="Debugger\SymbolTable.cpp" />
     <ClCompile Include="Debugger\Source\SourcePathList.cpp" />
     <ClCompile Include="Debugger\Source\SourceService.cpp" />
@@ -536,6 +537,7 @@
     <ClInclude Include="Debugger\Handlers\ExecutionHandlers.h" />
     <ClInclude Include="Debugger\Handlers\WatchHandlers.h" />
     <ClInclude Include="Debugger\Handlers\ConfigHandlers.h" />
+    <ClInclude Include="Debugger\ProfileTable.h" />
     <ClInclude Include="Debugger\SymbolTable.h" />
     <ClInclude Include="Debugger\Source\SourcePathList.h" />
     <ClInclude Include="Debugger\Source\SourceService.h" />

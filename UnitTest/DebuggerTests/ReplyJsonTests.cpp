@@ -210,6 +210,43 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Profile_CarriesRowsPenaltiesAndAddresses)
+        {
+            ProfileData  data;
+            JsonValue    root;
+            std::string  text;
+            int          value = 0;
+
+
+
+            data.isOn         = true;
+            data.instructions = 2;
+            data.cycles       = 9;
+            data.pageCross    = 1;
+            data.opcodes      = { { "LDA", "Absolute, X", 2, 8 } };
+            data.addresses    = { { 0x0300, "LOOP", 9 } };
+            root              = ParseRecord (ReplyJson::WriteReply (MakeOk (data), std::nullopt));
+
+            const JsonValue & body   = GetObjectMember (root, "data");
+            const JsonValue & opcode = GetArrayMember (body, "opcodes").GetArrayElement (0);
+            const JsonValue & hot    = GetArrayMember (body, "addresses").GetArrayElement (0);
+
+            Assert::AreEqual (S_OK, body.GetString ("kind", text));
+            Assert::AreEqual (std::string ("profile"), text);
+            Assert::AreEqual (S_OK, opcode.GetString ("mode", text));
+            Assert::AreEqual (std::string ("Absolute, X"), text);
+            Assert::AreEqual (S_OK, opcode.GetInt ("cycles", value));
+            Assert::AreEqual (8, value);
+            Assert::AreEqual (S_OK, GetObjectMember (body, "penalties").GetInt ("pageCross", value));
+            Assert::AreEqual (1, value);
+            Assert::AreEqual (S_OK, hot.GetInt ("address", value));
+            Assert::AreEqual (0x0300, value);
+            Assert::AreEqual (S_OK, hot.GetString ("symbol", text));
+            Assert::AreEqual (std::string ("LOOP"), text);
+        }
+
+
+
         TEST_METHOD (EveryDataKind_Serializes)
         {
             std::vector<ReplyData> kinds =
