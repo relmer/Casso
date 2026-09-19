@@ -133,6 +133,30 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (SYM_Load_MerlinListing_IsItsOwnSource)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.lst",
+                "8000: A9 41     3  START    LDA   #$41\n"
+                "8002: 60        4           RTS\n"
+                "\n"
+                "--End assembly, 3 bytes, Errors: 0\n"
+                "\n"
+                "Symbol table - alphabetical order:\n"
+                "\n"
+                "   START   =$8000\n");
+
+            rig.RunOk ("SYMUSER LOAD \"prog.lst\"");
+            Assert::IsTrue   (rig.session.HasDebugFile(), L"a listing with bytes is a debug file");
+            Assert::AreEqual (std::string ("prog.lst"), rig.session.GetDebugFile().files.at (0).name);
+            Assert::AreEqual (1, rig.session.GetLineTable().GetPositionsAt (0x8000).at (0).line);
+            Assert::AreEqual (std::string ("$8000 START (user)"), rig.RunOk ("SYM START").text.at (0));
+        }
+
+
         TEST_METHOD (SYM_LoadAndSave_Files)
         {
             Rig                       rig;

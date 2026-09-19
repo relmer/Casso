@@ -4,6 +4,7 @@
 
 #include "Config/IFileSystem.h"
 #include "Debugger/DebugFileReader.h"
+#include "Debugger/SymbolFileReader.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/ReplyJson.h"
 #include "Sha1.h"
@@ -195,7 +196,15 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 
     if (DebugFileReader::IsDebugFile (content))
     {
-        LoadDebugFile (session, table, name, content, offset, reply);
+        LoadDebugFile (session, table, name, content, offset, false, reply);
+        return;
+    }
+
+    //  A Merlin listing with assembled lines is its own source (FR-033b); one
+    //  holding only a symbol table loads its symbols as before.
+    if (SymbolFileReader::Detect (content) == SymbolFileFormat::MerlinListing && IsListingWithLines (content))
+    {
+        LoadDebugFile (session, table, name, content, offset, true, reply);
         return;
     }
 
@@ -220,18 +229,22 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 //
 //  A cc65 debug file gives the session its source lines as well as its
 //  symbols. The offset moves every segment, and so every line, with the
-//  symbols. A file with lines and no top-level symbols still loads.
+//  symbols. A file with lines and no top-level symbols still loads. A Merlin
+//  listing is read the same way, with the listing as its one source file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
-                                    const std::string & content, int offset, Reply & reply)
+                                    const std::string & content, int offset, bool isListing, Reply & reply)
 {
     DebugFile    file;
     std::string  error;
     size_t       loaded = 0;
     size_t       lines  = 0;
-    HRESULT      hr     = DebugFileReader::Read (content, file, error);
+    size_t       slash  = name.find_last_of ("/\\");
+    std::string  base   = (slash == std::string::npos) ? name : name.substr (slash + 1);
+    HRESULT      hr     = isListing ? DebugFileReader::ReadMerlinListing (content, base, file, error)
+                                    : DebugFileReader::Read (content, file, error);
 
 
 
@@ -259,6 +272,27 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 
     reply.data = MessageData { { std::format ("Loaded {} symbols into {} and {} source lines from {}.",
                                               loaded, ReplyJson::GetSymbolTableName (table), lines, name) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::IsListingWithLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolHandlers::IsListingWithLines (const std::string & content)
+{
+    DebugFile    file;
+    std::string  error;
+    HRESULT      hr = DebugFileReader::ReadMerlinListing (content, "", file, error);
+
+
+
+    return SUCCEEDED (hr);
 }
 
 

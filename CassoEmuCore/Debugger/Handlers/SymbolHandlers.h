@@ -33,7 +33,8 @@ private:
     static void  List     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Load     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
-                                const std::string & content, int offset, Reply & reply);
+                                const std::string & content, int offset, bool isListing, Reply & reply);
+    static bool  IsListingWithLines (const std::string & content);
     static void  Save     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Clear    (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Enable   (DebugSession & session, const DebugCommand & command, Reply & reply);

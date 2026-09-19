@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Debugger/DebugFileReader.h"
+#include "Debugger/SymbolFileReader.h"
+#include "Sha1.h"
 
 
 
@@ -72,6 +74,150 @@ bool DebugFileReader::IsDebugFile (std::string_view text)
     }
 
     return line.starts_with ("version") && line.find ("major=") != std::string_view::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugFileReader::ReadMerlinListing
+//
+//  One segment spanning memory, so a span's start is its address. A line
+//  that carries more bytes than fit beside its source text continues on
+//  lines with an address and bytes but no line number; those extend the span
+//  of the line before. The record's line is the listing's own line, since
+//  the listing is the text shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebugFileReader::ReadMerlinListing (std::string_view text, const std::string & name, DebugFile & out, std::string & error)
+{
+    static constexpr uint32_t     kAddressSpace = 0x10000;
+    HRESULT                       hr            = S_OK;
+    DebugFile                     file;
+    std::vector<SymbolFileEntry>  symbols;
+    SymbolFileFormat              format        = SymbolFileFormat::Unknown;
+    std::string                   symbolError;
+    HRESULT                       hrSymbols     = SymbolFileReader::Read (std::string (text), symbols, format, symbolError);
+    size_t                        at            = 0;
+    int                           lineNumber    = 0;
+    bool                          hasLines      = false;
+
+
+
+    out = DebugFile();
+    error.clear();
+
+    file.major = kSupportedMajor;
+    file.files.push_back ({ 0, name, text.size(), 0, Sha1::ComputeTextHex (text), 0 });
+    file.modules.push_back ({ 0, name, 0 });
+    file.segments.push_back ({ 0, "LISTING", 0, kAddressSpace });
+    file.scopes.push_back ({ 0, "", 0, -1 });
+
+    while (at < text.size())
+    {
+        std::string_view  line          = GetNextLine (text, at);
+        uint32_t          address       = 0;
+        uint32_t          count         = 0;
+        bool              hasLineNumber = false;
+
+        lineNumber++;
+
+        if (!TryParseListingLine (line, address, count, hasLineNumber) || count == 0)
+        {
+            continue;
+        }
+
+        if (!hasLineNumber && !file.spans.empty() &&
+            file.spans.back().start + file.spans.back().size == address)
+        {
+            file.spans.back().size += count;
+            continue;
+        }
+
+        file.spans.push_back ({ (int) file.spans.size(), 0, address, count });
+        file.lines.push_back ({ (int) file.lines.size(), 0, lineNumber, DebugLineType::Asm, 0, { file.spans.back().id } });
+    }
+
+    hasLines = !file.lines.empty();
+
+    if (SUCCEEDED (hrSymbols))
+    {
+        for (const SymbolFileEntry & symbol : symbols)
+        {
+            file.symbols.push_back ({ (int) file.symbols.size(), symbol.name, symbol.address, 0, 0, "lab" });
+        }
+    }
+
+    CBREx (hasLines, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    out = std::move (file);
+
+Error:
+    if (FAILED (hr))
+    {
+        error = "This Merlin listing has no line that assembled bytes.";
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugFileReader::TryParseListingLine
+//
+//  `AAAA: bb bb bb   nnn  source`: four hex digits and a colon, then bytes
+//  one space apart, then, two or more spaces on, the line number, with `>`
+//  in front of it on a line from a PUT file or a macro. A line of bytes alone
+//  continues the one before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugFileReader::TryParseListingLine (std::string_view line, uint32_t & address, uint32_t & byteCount, bool & hasLineNumber)
+{
+    static constexpr size_t  kFirstByte = 6;
+    uint64_t                 value      = 0;
+    size_t                   pos        = kFirstByte;
+    auto                     isHex      = [] (char c) { return std::isxdigit ((unsigned char) c) != 0; };
+
+
+
+    byteCount     = 0;
+    hasLineNumber = false;
+
+    if (line.size() < kFirstByte || line[4] != ':' || !TryParseNumber (std::string ("0x") + std::string (line.substr (0, 4)), value))
+    {
+        return false;
+    }
+
+    address = (uint32_t) value;
+
+    while (pos + 2 <= line.size() && line[pos - 1] == ' ' && isHex (line[pos]) && isHex (line[pos + 1]) &&
+           (pos + 2 == line.size() || line[pos + 2] == ' '))
+    {
+        byteCount++;
+        pos += 3;
+    }
+
+    while (pos < line.size() && line[pos] == ' ')
+    {
+        pos++;
+    }
+
+    //  A line from a PUT file or a macro expansion carries `>` before its number.
+    if (pos < line.size() && line[pos] == '>')
+    {
+        pos++;
+    }
+
+    hasLineNumber = pos < line.size() && std::isdigit ((unsigned char) line[pos]) != 0;
+    return true;
 }
 
 

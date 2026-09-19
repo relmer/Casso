@@ -31,6 +31,12 @@ public:
     //  symbol file both use the .dbg extension.
     static bool  IsDebugFile (std::string_view text);
 
+    //  A Merlin 8/16 listing as a debug file whose one source file is the
+    //  listing itself (FR-033b): each listing line that assembled bytes is a
+    //  line record over them, and the trailing symbol table gives the
+    //  symbols. `name` is what the file record calls the listing.
+    static HRESULT  ReadMerlinListing (std::string_view text, const std::string & name, DebugFile & out, std::string & error);
+
 private:
     static constexpr int  kSupportedMajor = 2;
 
@@ -44,6 +50,7 @@ private:
     static std::string       GetString      (const Fields & fields, std::string_view key);
     static std::vector<int>  GetIdList      (const Fields & fields, std::string_view key);
     static bool              TryParseNumber (std::string_view text, uint64_t & value);
+    static bool              TryParseListingLine (std::string_view line, uint32_t & address, uint32_t & byteCount, bool & hasLineNumber);
 
     static void     ReadRecord (std::string_view keyword, const Fields & fields, DebugFile & file);
     static HRESULT  Validate   (const DebugFile & file, std::string & error);

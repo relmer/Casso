@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/DebugFileReader.h"
+#include "Debugger/LineTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -221,6 +222,134 @@ namespace DebuggerTests
             text.erase (0, text.find ('\n') + 1);
 
             ReadFails (text);
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinListingTests
+    //
+    //  A Merlin 8/16 listing read as a debug file whose one source is the
+    //  listing itself (FR-033b). The layout is the one captured from Merlin
+    //  Pro 2.23 (research R-022): address and bytes, then the line number, with
+    //  `>` in front of it on a line from a PUT file, whose numbers restart at 1.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static const char * const  s_kListing =
+        "                1  * sample\n"                                 //  1
+        "                2           ORG   $8000\n"                     //  2
+        "8000: A9 41     3  START    LDA   #$41\n"                      //  3
+        "8002: 20 9B 80  4           JSR   SENDMSG\n"                   //  4
+        "8005: C5 B0 B0  5           DCI   \"E003BASIC\"\n"             //  5
+        "8008: B3 C2 C1 D3 C9 C3\n"                                     //  6
+        "                6           PUT   SENDMSG\n"                   //  7
+        "809B: 68       >1  SENDMSG  PLA\n"                             //  8
+        "809C: 60       >2           RTS\n"                             //  9
+        "\n"                                                            // 10
+        "--End assembly, 14 bytes, Errors: 0\n"                         // 11
+        "\n"
+        "Symbol table - alphabetical order:\n"
+        "\n"
+        "   SENDMSG =$809B      START   =$8000\n";
+
+
+
+    TEST_CLASS (MerlinListingTests)
+    {
+    public:
+
+        static DebugFile Read (const std::string & text)
+        {
+            DebugFile    file;
+            std::string  error;
+
+
+
+            Assert::AreEqual (S_OK, DebugFileReader::ReadMerlinListing (text, "SAMPLE.LST", file, error),
+                              std::wstring (error.begin(), error.end()).c_str());
+            return file;
+        }
+
+
+
+        TEST_METHOD (TheListingIsItsOneSourceFile)
+        {
+            DebugFile  file = Read (s_kListing);
+
+
+
+            Assert::AreEqual ((size_t) 1,                 file.files.size());
+            Assert::AreEqual (std::string ("SAMPLE.LST"), file.files[0].name);
+            Assert::AreEqual ((uint64_t) strlen (s_kListing), file.files[0].size);
+            Assert::IsFalse  (file.files[0].sha1.empty(), L"hashed, so the source service finds the listing itself");
+        }
+
+
+        TEST_METHOD (EachLineWithBytesIsARecordAtItsListingLine)
+        {
+            DebugFile  file = Read (s_kListing);
+            LineTable  table;
+
+
+
+            Assert::AreEqual ((size_t) 5, file.lines.size(), L"LDA, JSR, DCI, and the two PUT lines");
+            table.Build (file);
+            Assert::AreEqual (3, table.GetPositionsAt (0x8000).at (0).line);
+            Assert::AreEqual (4, table.GetPositionsAt (0x8004).at (0).line);
+        }
+
+
+        TEST_METHOD (ABytesOnlyLineContinuesTheLineBefore)
+        {
+            DebugFile  file = Read (s_kListing);
+            LineTable  table;
+
+
+
+            table.Build (file);
+            Assert::AreEqual (5, table.GetPositionsAt (0x8008).at (0).line, L"the DCI's second row of bytes");
+            Assert::AreEqual (5, table.GetPositionsAt (0x800D).at (0).line);
+        }
+
+
+        TEST_METHOD (APutLineIsALineOfTheListing)
+        {
+            DebugFile  file = Read (s_kListing);
+            LineTable  table;
+
+
+
+            table.Build (file);
+            Assert::AreEqual (8, table.GetPositionsAt (0x809B).at (0).line, L"its own listing line, not the PUT file's line 1");
+            Assert::AreEqual (9, table.GetPositionsAt (0x809C).at (0).line);
+            Assert::AreEqual (0, table.GetPositionsAt (0x809B).at (0).file);
+        }
+
+
+        TEST_METHOD (TheSymbolTableGivesTheSymbols)
+        {
+            DebugFile  file = Read (s_kListing);
+
+
+
+            Assert::AreEqual ((size_t) 2, file.symbols.size());
+        }
+
+
+        TEST_METHOD (AListingWithNoBytesIsRefused)
+        {
+            DebugFile    file;
+            std::string  error;
+            HRESULT      hr    = DebugFileReader::ReadMerlinListing ("   1  * nothing\n", "X", file, error);
+
+
+
+            Assert::IsTrue (FAILED (hr));
+            Assert::IsFalse (error.empty());
         }
     };
 }
