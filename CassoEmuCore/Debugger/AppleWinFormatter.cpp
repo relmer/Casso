@@ -2,6 +2,7 @@
 
 #include "Debugger/AppleWinFormatter.h"
 
+#include "Debugger/CallStack.h"
 #include "Debugger/ReplyJson.h"
 
 
@@ -216,6 +217,8 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<ProfileData>        (&data)) { FormatProfile        (*v, lines); }
     else if (auto * v = std::get_if<CalcData>           (&data)) { FormatCalc           (*v, lines); }
     else if (auto * v = std::get_if<StepFilterData>     (&data)) { FormatStepFilter     (*v, lines); }
+    else if (auto * v = std::get_if<CallStackData>      (&data)) { FormatCallStack      (*v, lines); }
+    else if (auto * v = std::get_if<CallStackModeData>  (&data)) { lines.push_back (std::format ("Call stack: {}", CallStack::GetMechanismName (v->mechanism))); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
     else if (auto * v = std::get_if<ModeData>           (&data)) { lines.push_back (v->mode == CommandMode::Monitor ? "Mode: MONITOR" : "Mode: APPLEWIN"); }
@@ -631,8 +634,77 @@ void AppleWinFormatter::FormatStepFilter (const StepFilterData & data, Lines & l
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinFormatter::FormatProfile
+//  AppleWinFormatter::FormatCallStack
 //
+//  A line a frame, innermost first: the call site, how it was entered, the
+//  routine and its symbol, and which mechanism found it. A break is a line
+//  of its own between dashes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatCallStack (const CallStackData & data, Lines & lines)
+{
+    if (data.rows.empty())
+    {
+        lines.push_back ("No calls are on the stack.");
+    }
+
+    for (const CallStackRow & row : data.rows)
+    {
+        if (row.chainBreak.has_value())
+        {
+            lines.push_back (std::format ("-- {} --", CallStack::DescribeBreak (*row.chainBreak)));
+        }
+        else if (row.frame.has_value())
+        {
+            lines.push_back (FormatCallFrame (*row.frame));
+        }
+    }
+
+    if (data.lastReturn.has_value())
+    {
+        lines.push_back ("Last return: " + FormatCallFrame (*data.lastReturn));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatCallFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::FormatCallFrame (const CallStackFrame & frame)
+{
+    std::string  line = std::format ("${:04X}  {} ${:04X} {:<12} {}",
+                                     frame.callSite, CallStack::GetKindName (frame.kind), frame.target, frame.symbol,
+                                     frame.provenance == CallProvenance::Recorded ? "recorded" : "guessed");
+
+
+
+    if (!frame.isVerified)
+    {
+        line += ", unverified";
+    }
+
+    if (!frame.note.empty())
+    {
+        line += ", " + frame.note;
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfile//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)

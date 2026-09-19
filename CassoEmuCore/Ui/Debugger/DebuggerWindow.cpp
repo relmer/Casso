@@ -166,6 +166,8 @@ void DebuggerWindow::OnCreate()
     m_breakpointList    = CreateChild<DxuiListView>  ();
     m_watchList         = CreateChild<DxuiListView>  ();
     m_stackList         = CreateChild<DxuiListView>  ();
+    m_callStackList     = CreateChild<DxuiListView>  ();
+    m_callStackButton   = CreateChild<DxuiButton>    (L"Hybrid");
     m_consoleList       = CreateChild<DxuiListView>  ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
@@ -204,6 +206,11 @@ void DebuggerWindow::OnCreate()
 
     m_sourceView->SetVisible   (false);
     m_sourceBanner->SetVisible (false);
+
+    m_callStackPane = std::make_unique<CallStackPane> (
+        m_callStackList, m_callStackButton,
+        [this] (const std::string & line) { RunCommand (line); },
+        [this] (Word address)             { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (address); } });
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -274,6 +281,7 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     m_sourcePane->Configure (GetHwnd());
+    m_callStackPane->Configure();
     SetAcceptsDroppedFiles  (true);
 
     //  A code row selected shows its line in the source pane (FR-054).
@@ -365,7 +373,7 @@ void DebuggerWindow::ConfigureWidgets()
 
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
-    return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_consoleList };
+    return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList, m_consoleList };
 }
 
 
@@ -439,7 +447,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
         targets.push_back (button);
     }
 
-    targets.insert (targets.end(), { m_commandBox, m_memoryBox, m_pokeBox });
+    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox, m_pokeBox });
 
     return targets;
 }
@@ -1261,6 +1269,10 @@ void DebuggerWindow::ConfigureDockSite()
     m_consoleFrame->AddPart (m_consoleList);
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
 
+    m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call Stack");
+    m_callStackFrame->AddPart (m_callStackButton, boxHeight);
+    m_callStackFrame->AddPart (m_callStackList);
+
     m_dockSite->AddPane (DebuggerLayout::kCode,        L"Disassembly", m_codeList);
     m_dockSite->AddPane (DebuggerLayout::kSource,      L"Source",      m_sourceFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
@@ -1268,6 +1280,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointList);
     m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_watchList);
     m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_stackList);
+    m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call Stack",  m_callStackFrame.get());
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -1554,6 +1567,7 @@ void DebuggerWindow::ApplySnapshot()
     }
 
     m_stackList->SetRows (std::move (rows));
+    m_callStackPane->Apply (m_snapshot->callStack);
 
     ApplyMemoryWindows();
     ApplySource();
@@ -1843,6 +1857,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             }
         }
 
+        //  The call stack's button moves with its pane.
+        if (IsRoutable (m_callStackButton))
+        {
+            m_callStackButton->SetMouse (x, y, m_callStackButton->HitTest (x, y) && lbDown);
+        }
+
         return true;
 
     case DxuiMouseEventKind::Down:
@@ -1934,6 +1954,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList };                  }
     if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
+    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
@@ -1975,6 +1996,11 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return m_consoleFrame.get();
     }
 
+    if (pane == DebuggerLayout::kCallStack)
+    {
+        return m_callStackFrame.get();
+    }
+
     controls = GetPaneControls (pane);
     return controls.empty() ? nullptr : controls.front();
 }
@@ -1998,6 +2024,7 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kBreakpoints) { return L"Breakpoints"; }
     if (pane == DebuggerLayout::kWatches)     { return L"Watches";     }
     if (pane == DebuggerLayout::kStack)       { return L"Stack";       }
+    if (pane == DebuggerLayout::kCallStack)   { return L"Call Stack";  }
 
     return pane.starts_with (L"memory") ? L"Memory " + pane.substr (6) : pane;
 }

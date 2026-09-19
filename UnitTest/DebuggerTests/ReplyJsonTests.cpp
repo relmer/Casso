@@ -247,6 +247,60 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (CallStack_CarriesFramesBreaksAndTheLastReturn)
+        {
+            CallStackData   data;
+            CallStackFrame  frame;
+            CallStackBreak  txs;
+            JsonValue       root;
+            std::string     text;
+            int             value    = 0;
+            bool            verified = true;
+
+
+
+            frame.callSite   = 0x0806;
+            frame.target     = 0x0820;
+            frame.stackLevel = 0xFD;
+            frame.symbol     = "THREE";
+            txs.kind         = CallBreakKind::Txs;
+            txs.pc           = 0x0812;
+            txs.opcode       = 0x9A;
+
+            data.mechanism = CallStackMechanism::Recorded;
+            data.rows.push_back ({ std::nullopt, txs });
+            frame.isVerified = false;
+            data.rows.push_back ({ frame, std::nullopt });
+            frame.note       = "returned past inline parameters";
+            data.lastReturn  = frame;
+            root             = ParseRecord (ReplyJson::WriteReply (MakeOk (data), std::nullopt));
+
+            const JsonValue & body     = GetObjectMember (root, "data");
+            const JsonValue & breakRow = GetArrayMember (body, "rows").GetArrayElement (0);
+            const JsonValue & frameRow = GetArrayMember (body, "rows").GetArrayElement (1);
+
+            Assert::AreEqual (S_OK, body.GetString ("kind", text));
+            Assert::AreEqual (std::string ("callStack"), text);
+            Assert::AreEqual (S_OK, body.GetString ("mechanism", text));
+            Assert::AreEqual (std::string ("RECORDED"), text);
+            Assert::AreEqual (S_OK, breakRow.GetString ("break", text));
+            Assert::AreEqual (std::string ("txs"), text);
+            Assert::AreEqual (S_OK, breakRow.GetInt ("pc", value));
+            Assert::AreEqual (0x0812, value);
+            Assert::AreEqual (S_OK, breakRow.GetString ("text", text));
+            Assert::AreEqual (std::string ("TXS at $0812"), text);
+            Assert::AreEqual (S_OK, frameRow.GetInt ("callSite", value));
+            Assert::AreEqual (0x0806, value);
+            Assert::AreEqual (S_OK, frameRow.GetString ("provenance", text));
+            Assert::AreEqual (std::string ("recorded"), text);
+            Assert::AreEqual (S_OK, frameRow.GetBool ("verified", verified));
+            Assert::IsFalse  (verified);
+            Assert::AreEqual (S_OK, GetObjectMember (body, "lastReturn").GetString ("note", text));
+            Assert::AreEqual (std::string ("returned past inline parameters"), text);
+        }
+
+
+
         TEST_METHOD (EveryDataKind_Serializes)
         {
             std::vector<ReplyData> kinds =
@@ -254,6 +308,7 @@ namespace DebuggerTests
                 MessageData(), RegistersData(), MemoryData(), DisassemblyData(), BreakpointSetData(), BreakpointListData(),
                 WatchListData(), SearchHitsData(), StackData(), SoftSwitchData(), SymbolData(), CyclesData(), ModeData(), FileIoData(),
                 CompareData(), DataBlockListData(), VideoInfoData(), BranchRecordData(), ProfileData(), CalcData(), StepFilterData(),
+                CallStackData(), CallStackModeData(),
             };
 
             std::set<std::string>  names;

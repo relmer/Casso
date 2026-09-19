@@ -61,6 +61,8 @@ private:
     static JsonValue    MakeCompare         (const CompareData & data);
     static JsonValue    MakeDataBlocks      (const DataBlockListData & data);
     static JsonValue    MakeStepFilter      (const StepFilterData & data);
+    static JsonValue    MakeCallStack       (const CallStackData & data);
+    static JsonValue    MakeCallFrame       (const CallStackFrame & frame);
     static JsonValue    MakeProfile         (const ProfileData & data);
     static JsonValue    MakeTextArray       (const std::vector<std::string> & lines);
 };

@@ -33,6 +33,38 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (CallStack_AFrameALineAndABreakBetweenDashes)
+        {
+            CallStackData             data;
+            CallStackFrame            inner;
+            CallStackFrame            outer;
+            CallStackBreak            txs;
+            std::vector<std::string>  text;
+
+
+
+            inner.callSite   = 0x0806;
+            inner.target     = 0x0820;
+            inner.symbol     = "THREE";
+            outer.callSite   = 0x0800;
+            outer.target     = 0x0810;
+            outer.provenance = CallProvenance::Guessed;
+            outer.isVerified = false;
+            txs.kind         = CallBreakKind::Txs;
+            txs.pc           = 0x0812;
+            data.rows        = { { inner, std::nullopt }, { std::nullopt, txs }, { outer, std::nullopt } };
+            text             = Render (data);
+
+            Assert::AreEqual ((size_t) 3, text.size());
+            Assert::AreEqual (std::string ("$0806  JSR $0820 THREE        recorded"),              text[0]);
+            Assert::AreEqual (std::string ("-- TXS at $0812 --"),                                    text[1]);
+            Assert::AreEqual (std::string ("$0800  JSR $0810              guessed, unverified"),   text[2]);
+            Assert::AreEqual (std::string ("No calls are on the stack."), Render (CallStackData()).at (0));
+            Assert::AreEqual (std::string ("Call stack: WALK"),           Render (CallStackModeData { CallStackMechanism::Walk }).at (0));
+        }
+
+
+
         TEST_METHOD (Registers_WithFlags)
         {
             RegistersData             data;

@@ -1012,6 +1012,11 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParseSkipArguments (args, command, error);
     }
 
+    if (command.verb == DebugVerb::ShowCallStack)
+    {
+        return TryParseCallsArguments (args, command, error);
+    }
+
     if (command.verb == DebugVerb::ShowMode && !args.tokens.empty())
     {
         mode = ToUpper (args.tokens[0]);
@@ -1053,6 +1058,56 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         command.count = (uint32_t) std::stoul (args.tokens[0]);
     }
 
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseCallsArguments
+//
+//  CALLS shows the chain; CALLS MODE reports the mechanism, and CALLS MODE
+//  RECORDED|WALK|HYBRID chooses it. The text carries the name chosen, and is
+//  empty for the report.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseCallsArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    std::string  mechanism;
+
+
+
+    if (args.tokens.empty())
+    {
+        return true;
+    }
+
+    if (ToUpper (args.tokens[0]) != "MODE" || args.tokens.size() > 2)
+    {
+        error = "CALLS shows the call stack; CALLS MODE RECORDED|WALK|HYBRID chooses how it is found.";
+        return false;
+    }
+
+    command.verb = DebugVerb::SetCallStackMode;
+
+    if (args.tokens.size() == 1)
+    {
+        return true;
+    }
+
+    mechanism = ToUpper (args.tokens[1]);
+
+    if (mechanism != "RECORDED" && mechanism != "WALK" && mechanism != "HYBRID")
+    {
+        error = "The call-stack mechanisms are RECORDED, WALK and HYBRID.";
+        return false;
+    }
+
+    command.text = mechanism;
     return true;
 }
 

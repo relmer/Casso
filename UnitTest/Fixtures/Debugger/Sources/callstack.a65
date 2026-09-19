@@ -1,0 +1,92 @@
+; The call-stack fixture (spec 035, User Story 13, SC-018). Each case starts
+; at its own label, so a test sets PC there, runs to the label it names, and
+; compares CALLS with the chain it knows.
+
+        .org $0800
+
+; Three calls deep: deep -> one -> two -> three.
+deep    jsr one
+deepx   jmp deepx
+one     jsr two
+        rts
+two     jsr three
+        rts
+three   nop
+threein nop
+        rts
+
+; A recursive routine, entered three times.
+recur   lda #3
+        jsr rec
+recurx  jmp recurx
+rec     sec
+        sbc #1
+        beq recbot
+        jsr rec
+        rts
+recbot  nop
+        rts
+
+; Two inline parameter bytes after the JSR, stepped over by the routine.
+inl     jsr inline
+        .byte 1, 2
+inlback nop
+inlx    jmp inlx
+inline  pla
+        clc
+        adc #2
+        tay
+        pla
+        adc #0
+        pha
+        tya
+        pha
+inlrts  rts
+
+; A routine that pulls its return address and jumps away.
+away    jsr discard
+awayx   jmp awayx
+discard pla
+        pla
+disjmp  jmp awayto
+awayto  nop
+awayy   jmp awayy
+
+; TXS reloading the stack pointer inside a call.
+reload  jsr txsr
+reloadx jmp reloadx
+txsr    ldx #$F0
+txsat   txs
+txsnext nop
+        rts
+
+; A return address rewritten in place, so the RTS lands somewhere else.
+rewrite jsr rewr
+        nop
+rewrx   jmp rewrx
+rewr    tsx
+        lda #<(rewrto-1)
+        sta $0101,x
+        lda #>(rewrto-1)
+        sta $0102,x
+rewrrts rts
+
+; A loop of pushes that wraps the stack pointer past $0100.
+wrap    jsr wrapr
+wrapx   jmp wrapx
+wrapr   ldx #0
+wrappha pha
+        dex
+        bne wrappha
+wrapend nop
+wrapy   jmp wrapy
+
+; An interrupt taken in a loop, and its handler.
+irqwait cli
+irqspin jmp irqspin
+irqh    nop
+        rti
+
+; Far from rewr's call, so its return is a mismatch and not inline bytes.
+rewrto  nop
+rewrz   jmp rewrz

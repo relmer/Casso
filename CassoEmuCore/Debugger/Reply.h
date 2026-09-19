@@ -334,6 +334,85 @@ struct StepFilterData
     std::vector<StepFilterEntry>  entries;
 };
 
+// CALLS: the chain of calls to PC (FR-067 to FR-069).
+enum class CallStackMechanism
+{
+    Recorded,
+    Walk,
+    Hybrid,
+};
+
+enum class CallFrameKind
+{
+    Call,
+    Brk,
+    Irq,
+    Nmi,
+};
+
+enum class CallProvenance
+{
+    Recorded,
+    Guessed,
+};
+
+enum class CallBreakKind
+{
+    Txs,
+    PulledReturn,
+    EndedByJump,
+    ReturnMismatch,
+    StackWrap,
+    Reset,
+    TrackingBegan,
+};
+
+// callSite is the JSR or BRK, or the interrupted instruction; target is the
+// routine entered or the handler the vector took. stackLevel is SP before
+// the push, which is what ends the frame (R-033). A frame below a break is
+// unverified. note is empty unless something about the frame is worth saying.
+struct CallStackFrame
+{
+    Word            callSite   = 0;
+    Word            target     = 0;
+    CallFrameKind   kind       = CallFrameKind::Call;
+    CallProvenance  provenance = CallProvenance::Recorded;
+    Byte            stackLevel = 0;
+    bool            isVerified = true;
+    std::string     symbol;
+    std::string     note;
+};
+
+// The instruction that broke the chain, and its opcode.
+struct CallStackBreak
+{
+    CallBreakKind  kind   = CallBreakKind::Txs;
+    Word           pc     = 0;
+    Byte           opcode = 0;
+};
+
+// One row of the chain: a frame, or a break between frames.
+struct CallStackRow
+{
+    std::optional<CallStackFrame>  frame;
+    std::optional<CallStackBreak>  chainBreak;
+};
+
+// Innermost first. lastReturn is the most recent frame the recorder saw
+// return with a note, such as one that returned past inline parameters.
+struct CallStackData
+{
+    CallStackMechanism             mechanism = CallStackMechanism::Hybrid;
+    std::vector<CallStackRow>      rows;
+    std::optional<CallStackFrame>  lastReturn;
+};
+
+// CALLS MODE, with or without a mechanism: the one now in use.
+struct CallStackModeData
+{
+    CallStackMechanism  mechanism = CallStackMechanism::Hybrid;
+};
+
 using ReplyData = std::variant<MessageData,
                                RegistersData,
                                MemoryData,
@@ -354,7 +433,9 @@ using ReplyData = std::variant<MessageData,
                                BranchRecordData,
                                ProfileData,
                                CalcData,
-                               StepFilterData>;
+                               StepFilterData,
+                               CallStackData,
+                               CallStackModeData>;
 
 
 

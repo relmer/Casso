@@ -47,12 +47,28 @@ namespace DebuggerLayoutTests
 
             for (const wchar_t * pane : { DebuggerLayout::kCode, DebuggerLayout::kSource, DebuggerLayout::kConsole,
                                           DebuggerLayout::kRegisters, DebuggerLayout::kBreakpoints,
-                                          DebuggerLayout::kWatches, DebuggerLayout::kStack })
+                                          DebuggerLayout::kWatches, DebuggerLayout::kStack, DebuggerLayout::kCallStack })
             {
                 Assert::IsTrue (layout.IsDocked (pane), pane);
             }
 
             Assert::AreEqual ((size_t) 4, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size());
+            Assert::AreEqual ((size_t) 2, layout.GetGroup (DebuggerLayout::kStack).size(), L"the call stack is a tab of the stack");
+        }
+
+
+        TEST_METHOD (ALayoutSavedWithoutTheCallStackTabsItWithTheStack)
+        {
+            DxuiPaneLayout  saved = DebuggerLayout::MakeDefault();
+            DxuiPaneLayout  restored;
+
+
+
+            saved.DropUnknown ([] (const std::wstring & pane) { return pane != DebuggerLayout::kCallStack; });
+            restored = DebuggerLayout::Restore (saved.ToText());
+
+            Assert::IsFalse  (saved.Contains (DebuggerLayout::kCallStack));
+            Assert::AreEqual ((size_t) 2, restored.GetGroup (DebuggerLayout::kStack).size());
         }
 
 

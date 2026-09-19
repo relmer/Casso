@@ -10,6 +10,7 @@
 #include "Shell/CpuManager.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
@@ -109,6 +110,53 @@ namespace DebuggerViewStateTests
             Assert::IsFalse  (snapshot.code[1].isCurrent,              L"and only that line");
             Assert::AreEqual (std::string ("A9 41"), snapshot.code[0].bytes);
             Assert::IsTrue   (snapshot.code[0].instruction.find ("LDA") == 0);
+        }
+
+
+
+        //  FR-067: the call-stack pane is CALLS, recorded while the debugger
+        //  is attached; a row's activation moves the disassembly to the call
+        //  site, and the button moves to the next mechanism.
+        TEST_METHOD (TheCallStackPaneShowsTheRecordedChain)
+        {
+            MachineRig                          rig;
+            DebuggerViewSnapshot                snapshot;
+            std::vector<CallStackPane::Row>     rows;
+            Cpu6502Registers                    r;
+            HRESULT                             hr = S_OK;
+
+
+
+            //  JSR $0320 at $0310, and a NOP there.
+            rig.machine.GetMemoryBus().WriteByte (0x0310, 0x20);
+            rig.machine.GetMemoryBus().WriteByte (0x0311, 0x20);
+            rig.machine.GetMemoryBus().WriteByte (0x0312, 0x03);
+            rig.machine.GetMemoryBus().WriteByte (0x0320, 0xEA);
+
+            r    = rig.controller.GetSession().GetTarget().GetRegisters();
+            r.pc = 0x0310;
+            r.sp = 0xFF;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+
+            hr = rig.controller.Open();
+            Assert::IsTrue (SUCCEEDED (hr));
+            Assert::IsNotNull (rig.machine.GetDebugHook(), L"attached: the record is kept");
+
+            rig.machine.StepOne();
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            rows     = CallStackPane::GetRows (snapshot.callStack);
+
+            Assert::IsTrue   (snapshot.callStack.rows[0].frame.has_value());
+            Assert::AreEqual ((Word) 0x0310, snapshot.callStack.rows[0].frame->callSite);
+            Assert::AreEqual ((Word) 0x0320, snapshot.callStack.rows[0].frame->target);
+            Assert::AreEqual (std::wstring (L"$0310"),    rows[0].site);
+            Assert::AreEqual (std::wstring (L"recorded"), rows[0].foundBy);
+            Assert::AreEqual ((Word) 0x0310,              rows[0].address, L"activating the row shows the call site");
+            Assert::IsTrue   (rows[1].isBreak,            L"where recording began is a separator row");
+            Assert::AreEqual (std::string ("CALLS MODE RECORDED"), CallStackPane::GetNextModeLine (snapshot.callStack.mechanism));
+
+            rig.controller.Close();
+            Assert::IsNull (rig.machine.GetDebugHook(), L"detached: no hook (FR-064)");
         }
 
 

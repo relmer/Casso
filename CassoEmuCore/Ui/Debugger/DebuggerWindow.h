@@ -11,6 +11,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
@@ -227,6 +228,10 @@ private:
     DxuiListView                                                                   * m_breakpointList     = nullptr;
     DxuiListView                                                                   * m_watchList          = nullptr;
     DxuiListView                                                                   * m_stackList          = nullptr;
+    DxuiListView                                                                   * m_callStackList      = nullptr;
+    DxuiButton                                                                     * m_callStackButton    = nullptr;
+    std::unique_ptr<CallStackPane>                                                   m_callStackPane;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_callStackFrame;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     DxuiButton                                                                     * m_groupButton        = nullptr;
     DxuiButton                                                                     * m_addMemoryButton    = nullptr;

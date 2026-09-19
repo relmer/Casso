@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/CallStackHandlers.h"
 #include "Debugger/Handlers/ConfigHandlers.h"
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
@@ -42,4 +43,5 @@ private:
     ConfigHandlers         m_config;
     SymbolHandlers         m_symbols;
     MonitorHandlers        m_monitor;
+    CallStackHandlers      m_callStack;
 };
