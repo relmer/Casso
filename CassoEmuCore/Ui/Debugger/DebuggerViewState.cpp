@@ -534,8 +534,9 @@ std::optional<std::string> DebuggerViewState::GetActionLine (
 //  DebuggerViewState::GetModeLine
 //
 //  The controls build AppleWin lines and the session reads lines in its own
-//  mode. GSSquared has its own words for most of what they send; run to
-//  cursor has none, and stays an AppleWin line.
+//  mode. Monitor mode reads an AppleWin line after its `/`; GSSquared has its
+//  own words for most of what they send, and run to cursor, which has none,
+//  stays an AppleWin line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -547,6 +548,11 @@ std::string DebuggerViewState::GetModeLine (const std::string & line, CommandMod
     size_t       split = rest.find (' ');
 
 
+
+    if (mode == CommandMode::Monitor)
+    {
+        return "/" + line;
+    }
 
     if (mode != CommandMode::GSSquared)
     {

@@ -693,6 +693,30 @@ namespace DebuggerViewStateTests
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
             }
         }
+
+        //  Monitor mode reads an AppleWin line after its `/`, so the Step
+        //  button steps there instead of reaching the Monitor's own T.
+        TEST_METHOD (MonitorMode_ControlLines_TakeTheSlash)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            Assert::AreEqual (std::string ("/T"),       DebuggerViewState::GetModeLine ("T",       CommandMode::Monitor));
+            Assert::AreEqual (std::string ("/BP 0300"), DebuggerViewState::GetModeLine ("BP 0300", CommandMode::Monitor));
+
+            rig.controller.GetSession().ExecuteLine ("MODE MONITOR");
+
+            for (const char * line : { "BP 0300", "MEB 0300 41", "BPC 0", "SRC OFF" })
+            {
+                reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
+                                                        DebuggerViewState::GetModeLine (line, CommandMode::Monitor),
+                                                        CommandMode::Monitor);
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
+            }
+        }
     };
 
 
