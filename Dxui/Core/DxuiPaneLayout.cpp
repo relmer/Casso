@@ -1119,6 +1119,7 @@ bool DxuiPaneLayout::SetRatio (const std::wstring & path, float ratio)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPaneLayout::DropUnknown
