@@ -355,7 +355,7 @@ void EmulatorShell::OpenDebugChannel()
         reply = m_debugViewState.ExecuteWindowLine (m_debugger->GetSession(), line,
                                                     m_debugger->GetSession().GetMode());
 
-        lines.push_back ((m_debugger->GetSession().GetMode() == CommandMode::Monitor ? "*" : ">") + line);
+        lines.push_back (DebugSession::GetPrompt (m_debugger->GetSession().GetMode()) + line);
         lines.insert (lines.end(), reply.text.begin(), reply.text.end());
 
         {

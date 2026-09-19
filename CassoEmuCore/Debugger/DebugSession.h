@@ -107,6 +107,10 @@ public:
     void   OnUserPaused          ();
     void   OnUserResumed         ();
 
+    // What each mode prints before a command line: `>`, the Monitor's `*`,
+    // and WinDbg's `0:000>`.
+    static const char *     GetPrompt      (CommandMode mode);
+
     RunState                GetRunState    () const { return m_state; }
     CommandMode             GetMode        () const { return m_mode; }
     OutputFormat            GetOutputFormat () const { return m_outputFormat; }
@@ -225,6 +229,7 @@ private:
     Reply  ExecuteMonitorLine    (const std::string & text);
     Reply  ExecuteAppleWinLine   (const std::string & text);
     Reply  ExecuteGSSquaredLine  (const std::string & text);
+    Reply  ExecuteWinDbgLine     (const std::string & text);
     bool   TryResolveIdOrAddress (DebugCommand & command, Reply & reply);
     void   PushMonitorReturn     ();
     void   UpdateHookInstalled   ();

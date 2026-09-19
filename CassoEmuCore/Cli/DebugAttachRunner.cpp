@@ -108,7 +108,7 @@ void DebugAttachRunner::Run (IChannelClient                         & client,
 
         if (!options.json)
         {
-            result.output += (options.mode == "monitor" ? "*" : ">") + line + "\n";
+            result.output += (options.mode == "monitor" ? "*" : options.mode == "windbg" ? "0:000> " : ">") + line + "\n";
         }
 
         if (!client.WriteLine (BuildCommand (id, line, options.mode, options.maxCycles)))

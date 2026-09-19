@@ -27,6 +27,7 @@ static constexpr CommandModeNames::Entry  s_kModes[] =
     { "applewin",  CommandMode::AppleWin,  OutputFormat::AppleWin  },
     { "monitor",   CommandMode::Monitor,   OutputFormat::Monitor   },
     { "gssquared", CommandMode::GSSquared, OutputFormat::GSSquared },
+    { "windbg",    CommandMode::WinDbg,    OutputFormat::WinDbg    },
 };
 
 

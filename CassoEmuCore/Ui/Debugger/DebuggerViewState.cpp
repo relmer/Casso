@@ -536,7 +536,7 @@ std::optional<std::string> DebuggerViewState::GetActionLine (
 //  The controls build AppleWin lines and the session reads lines in its own
 //  mode. Monitor mode reads an AppleWin line after its `/`; GSSquared has its
 //  own words for most of what they send, and run to cursor, which has none,
-//  stays an AppleWin line.
+//  stays an AppleWin line. WinDbg has a word for each.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -552,6 +552,11 @@ std::string DebuggerViewState::GetModeLine (const std::string & line, CommandMod
     if (mode == CommandMode::Monitor)
     {
         return "/" + line;
+    }
+
+    if (mode == CommandMode::WinDbg)
+    {
+        return GetWinDbgLine (name, rest, line);
     }
 
     if (mode != CommandMode::GSSquared)
@@ -573,6 +578,38 @@ std::string DebuggerViewState::GetModeLine (const std::string & line, CommandMod
     if (name == "MEB" && split != std::string::npos)
     {
         return rest.substr (0, split) + ":" + rest.substr (split);
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetWinDbgLine
+//
+//  A control's AppleWin line in WinDbg's words: t, p, gu, g, bp, bc and eb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line)
+{
+    static constexpr std::pair<const char *, const char *>  kWords[] =
+    {
+        { "T", "t" }, { "P", "p" }, { "RTS", "gu" }, { "G", "g" }, { "BP", "bp" }, { "BPC", "bc" }, { "MEB", "eb" },
+    };
+
+
+
+    for (const auto & [appleWin, windbg] : kWords)
+    {
+        if (name == appleWin)
+        {
+            return rest.empty() ? std::string (windbg) : std::string (windbg) + " " + rest;
+        }
     }
 
     return line;
@@ -736,8 +773,9 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
 
 
-    //  GSSquared has no layout commands, and its words are not AppleWin's.
-    if (mode == CommandMode::GSSquared)
+    //  GSSquared and WinDbg have no layout commands, and their words are not
+    //  AppleWin's.
+    if (mode == CommandMode::GSSquared || mode == CommandMode::WinDbg)
     {
         return ExecuteLine (session, line, mode);
     }

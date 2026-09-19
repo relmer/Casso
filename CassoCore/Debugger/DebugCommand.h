@@ -17,6 +17,7 @@ enum class CommandMode
     AppleWin,
     Monitor,
     GSSquared,
+    WinDbg,
 };
 
 
@@ -38,6 +39,7 @@ enum class OutputFormat
     AppleWin,
     Monitor,
     GSSquared,
+    WinDbg,
 };
 
 

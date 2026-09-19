@@ -5,6 +5,7 @@
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/MonitorFormatter.h"
 #include "Debugger/ReplyJson.h"
+#include "Debugger/WinDbgFormatter.h"
 
 
 
@@ -38,7 +39,7 @@ std::string DebugBatchSink::TakePending()
 
 void DebugBatchSink::OnStopped (const StopEvent & stop)
 {
-    bool  isMonitor = m_session != nullptr && m_session->GetOutputFormat() == OutputFormat::Monitor;
+    OutputFormat  format = (m_session != nullptr) ? m_session->GetOutputFormat() : OutputFormat::AppleWin;
 
 
 
@@ -48,6 +49,7 @@ void DebugBatchSink::OnStopped (const StopEvent & stop)
     //  step shows its register line, which is what the original ][ printed;
     //  `Step at $0302` is the AppleWin wording. GSSquared prints no stop line
     //  of its own, its window shows the stop, so its format keeps AppleWin's.
+    //  WinDbg's adds r's register line under AppleWin's stop line.
     //  The JSON form carries the stop as data and does not vary at all.
     if (m_json)
     {
@@ -55,7 +57,9 @@ void DebugBatchSink::OnStopped (const StopEvent & stop)
     }
     else
     {
-        m_pending += isMonitor ? MonitorFormatter::FormatStop (stop) : AppleWinFormatter::FormatStop (stop);
+        m_pending += (format == OutputFormat::Monitor) ? MonitorFormatter::FormatStop  (stop)
+                   : (format == OutputFormat::WinDbg)  ? WinDbgFormatter::FormatStop   (stop)
+                   :                                     AppleWinFormatter::FormatStop (stop);
     }
 
     m_pending += "\n";

@@ -333,7 +333,7 @@ void DebugBatchRunner::RunLines (
 
         if (!options.json)
         {
-            result.output += (session.GetMode() == CommandMode::Monitor ? "*" : ">") + line + "\n";
+            result.output += DebugSession::GetPrompt (session.GetMode()) + line + "\n";
         }
 
         reply = session.ExecuteLine (line);

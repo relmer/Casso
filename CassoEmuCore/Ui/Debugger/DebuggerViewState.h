@@ -252,9 +252,10 @@ public:
 
     //  A control's AppleWin line in the words of the mode the session is in,
     //  where the mode has them: GSSquared's `s`, `o`, `r`, `g`, `bp`, `nobp`
-    //  and `addr:` deposit. Any other line, and any line in another mode, is
-    //  returned as it is.
-    static std::string  GetModeLine (const std::string & line, CommandMode mode);
+    //  and `addr:` deposit; WinDbg's `t`, `p`, `gu`, `g`, `bp`, `bc` and `eb`.
+    //  Any other line, and any line in another mode, is returned as it is.
+    static std::string  GetModeLine   (const std::string & line, CommandMode mode);
+    static std::string  GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line);
 
     //  In GSSquared mode with the command line empty, Space and F10 step and
     //  Return resumes, as GSSquared's own window does, whatever the key

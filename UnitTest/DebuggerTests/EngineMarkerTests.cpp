@@ -5,6 +5,7 @@
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/GSSquaredParser.h"
 #include "Debugger/MonitorParser.h"
+#include "Debugger/WinDbgParser.h"
 #include "HandlerTestRig.h"
 #include "MockExpressionContext.h"
 
@@ -29,13 +30,11 @@ namespace DebuggerTests
     //  FR-014 and R-037: Casso's engine commands, the Engine family of
     //  AppleWinCommandTable, are reachable in every mode through that mode's
     //  own marker -- a bare name in AppleWin and GSSquared modes, `/` in
-    //  Monitor mode -- and mean the same thing in each.
+    //  Monitor mode, `!` in WinDbg mode -- and mean the same thing in each.
     //
     //  THE TESTS WALK THE TABLE, NOT A LIST OF NAMES, so a command added to
     //  the Engine family is covered here, and reachable in every mode, with
     //  no change to any parser: each parser hands its marker-stripped line to
-    //  AppleWinParser. WinDbg mode's `!` joins these rows when that mode
-    //  exists.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +110,7 @@ namespace DebuggerTests
                 MonitorParseResult    monitor   = MonitorParser::Parse ("/" + line, state);
                 GSSquaredParseResult  gssquared = GSSquaredParser::Parse (line, context);
                 GSSquaredParseResult  lowered   = GSSquaredParser::Parse (ToLower (line), context);
+                WinDbgParseResult     windbg    = WinDbgParser::Parse ("!" + ToLower (line), context);
                 AppleWinParseResult   viaSlash  = AppleWinParser::Parse (monitor.appleWinLine, context);
 
 
@@ -125,6 +125,9 @@ namespace DebuggerTests
                 Assert::AreEqual ((int) appleWin.command.verb, (int) gssquared.commands.front().verb, Widen (line).c_str());
                 Assert::IsTrue   (lowered.status == ParseStatus::Ok, Widen (ToLower (line)).c_str());
 
+                Assert::IsTrue   (windbg.status == ParseStatus::Ok, Widen ("!" + line + ": " + windbg.error).c_str());
+                Assert::AreEqual ((int) appleWin.command.verb, (int) windbg.command.verb, Widen ("!" + line).c_str());
+
                 ++checked;
             }
 
@@ -138,19 +141,21 @@ namespace DebuggerTests
             for (const std::string & name : GetEngineNames())
             {
                 std::string    line       = GetSampleLine (name);
-                Reply          replies[3];
+                Reply          replies[4];
                 CommandStatus  expected   = CommandStatus::Ok;
                 int            i          = 0;
 
 
 
-                for (const char * mode : { "APPLEWIN", "MONITOR", "GSSQUARED" })
+                for (const char * mode : { "APPLEWIN", "MONITOR", "GSSQUARED", "WINDBG" })
                 {
                     MockDebugTarget            target;
                     RecordingNotificationSink  sink;
                     DebugSession               session (target, sink, RunState::Paused);
                     DebugHandlerSet            handlers;
-                    std::string                typed = (std::string (mode) == "MONITOR") ? "/" + line : line;
+                    std::string                typed = (std::string (mode) == "MONITOR") ? "/" + line
+                                                     : (std::string (mode) == "WINDBG")  ? "!" + line
+                                                     :                                     line;
 
 
 

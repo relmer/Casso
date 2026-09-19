@@ -5,7 +5,7 @@
 ```text
 CassoCli debug --machine <name> [--disk1 <path>] [--disk2 <path>]
                --script <path> | --command <line> ...
-               [--mode applewin|monitor|gssquared] [--output <format>] [--json] [--max-cycles <n>]
+               [--mode applewin|monitor|gssquared|windbg] [--output <format>] [--json] [--max-cycles <n>]
                [--write-disks]
 ```
 
@@ -16,7 +16,7 @@ CassoCli debug --machine <name> [--disk1 <path>] [--disk2 <path>]
 | `--script` | file of command lines; `-` reads standard input |
 | `--command` | one command line; repeatable; runs after `--script` if both are given |
 | `--mode` | starting command mode; default `applewin` |
-| `--output` | starting output format, `applewin`, `monitor` or `gssquared` (FR-013); default: the mode's own |
+| `--output` | starting output format, `applewin`, `monitor`, `gssquared` or `windbg` (FR-013); default: the mode's own |
 | `--json` | print one JSON Lines record per reply and notification ([protocol](debug-channel-protocol.md)) instead of text |
 | `--max-cycles` | cycle budget for every run in the script; default 100000000 |
 | `--seed` | the DRAM power-on pattern seed; default `0xCA550001`, so two runs are identical |
@@ -27,7 +27,7 @@ CassoCli debug --machine <name> [--disk1 <path>] [--disk2 <path>]
 - The machine is built paused at power-on reset. The script runs line by line,
   and the process exits after the last line.
 - Text mode prints each command line prefixed by the mode's prompt (`>` for
-  AppleWin, `*` for Monitor), then its text output. Stop notifications print as
+  AppleWin and GSSquared, `*` for Monitor, `0:000>` for WinDbg), then its text output. Stop notifications print as
   text lines.
 - JSON mode prints `reply` records and notification records only, in order.
 - **Script format**: one command per line, in the current mode. Blank lines

@@ -167,6 +167,7 @@
     <ClCompile Include="Debugger\BreakpointTable.cpp" />
     <ClCompile Include="Debugger\WatchpointTable.cpp" />
     <ClCompile Include="Debugger\WatchTable.cpp" />
+    <ClCompile Include="Debugger\WinDbgFormatter.cpp" />
     <ClCompile Include="Debugger\DebugSession.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatter.cpp" />
     <ClCompile Include="Debugger\ReplyJson.cpp" />
@@ -543,6 +544,7 @@
     <ClInclude Include="Debugger\BreakpointTable.h" />
     <ClInclude Include="Debugger\WatchpointTable.h" />
     <ClInclude Include="Debugger\WatchTable.h" />
+    <ClInclude Include="Debugger\WinDbgFormatter.h" />
     <ClInclude Include="Debugger\DebugSession.h" />
     <ClInclude Include="Debugger\AppleWinFormatter.h" />
     <ClInclude Include="Debugger\ReplyJson.h" />
