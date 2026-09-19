@@ -9,8 +9,25 @@ is listed by AppleWin's `BPL` and the Monitor's `/bpl`.
 ## Selecting the mode
 
 `MODE GSSQUARED` in AppleWin mode, `/mode gssquared` in Monitor mode. In
-GSSquared mode the AppleWin engine commands are reached with the `/` prefix,
-as in Monitor mode, so `/mode applewin` returns.
+GSSquared mode Casso's engine commands are bare names, as in AppleWin mode,
+so `mode applewin` returns; `/` is not a marker here because GSSquared uses
+it as its bank separator (R-037).
+
+## What GSSquared's source settled (2026-09-18)
+
+- Its typed command table is exactly: `set`, `load`, `save`, `move`,
+  `verify`, `watch`, `nowatch`, `help`, `bp`, `bpd`, `bpi`, `nobp`, `list`
+  and `l`, `map`, `debug`, `nodebug`, `sload`, `sclear`, `slookup`, `m`,
+  `x`, `video`, `novideo`. `verify` is parsed and does nothing.
+- Stepping is by key in its window, not by command: Space and F10 step, `O`
+  steps over, `R` steps out, Return resumes, `T` toggles the trace, `B`
+  toggles a breakpoint. The GSSquared key scheme matches these. `o` and `r`
+  as typed commands below are Casso's additions so a script can step.
+- An address may carry a bank: `E1/0400`. Casso accepts `00/addr` as `addr`
+  and refuses any other bank with "only bank 00 exists on this machine".
+- Its tokenizer splits any token ending in `l` into `l` plus an address, so
+  `300l` lists at $0300. Casso accepts `300l` but does not apply the split to
+  command words.
 
 ## Commands
 
@@ -37,6 +54,7 @@ as in Monitor mode, so `/mode applewin` returns.
 | Return (empty line) | resume | `G` |
 | `debug "name"` / `debug` / `nodebug "name"` | open, list, close a device panel | window only |
 | `m 8\|16`, `x 8\|16`, `map` | not available: no 65816, no IIgs MMU | reported with the reason |
+| `bank/addr` | `00/addr` is `addr`; any other bank is refused with the reason | |
 | `video ...` | not available: the emulator window shows the screen | reported with the reason |
 
 - Addresses are hex without a prefix. A range is `first.last`, inclusive.

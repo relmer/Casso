@@ -22,6 +22,13 @@ Launch the emulator for the window scenarios with
 `Start-Process x64\Debug\Casso.exe -WindowStyle Minimized -ArgumentList '--title', (Split-Path -Leaf (git rev-parse --show-toplevel)), '--debugger'`
 and kill only the PID you started.
 
+cc65 is cloned and built at `C:\Users\relmer\source\repos\cc65`: `ca65`,
+`ld65` and the rest in its `bin`, plus `dbgsh.exe` built from
+`src/dbginfo`, which is cc65's own reader over its debug-info files. SC-017
+was checked with it on 2026-09-18: `load <file>` then `show line 1` and
+`show symbol 0`; the one warning is the skipped `sha1` key, which the
+contract predicts.
+
 ## Stories 1-3: engine, Monitor mode, channel (delivered)
 
 1. **Acceptance tests.** Run `scripts/RunTests.ps1 -Filter Debugger`. The run
@@ -188,6 +195,52 @@ and kill only the PID you started.
 2. `OUTPUT APPLEWIN` then `bp`. Expect the AppleWin listing form for the same
    breakpoints; `MODE APPLEWIN` resets the output format too.
 3. `bpr a=0` in AppleWin mode. Expect it accepted (FR-015a).
+4. `00/300` then `e1/300` then `map`. Expect $0300 examined, then the
+   bank refusal, then the IIgs refusal (FR-022b).
+5. `switches` in GSSquared mode. Expect the soft-switch list: engine commands
+   are bare names here (FR-014).
+
+## Story 13: call stack
+
+1. Assemble `UnitTest/Fixtures/Debugger/Sources/callstack.a65`, load it and
+   its debug file, `BP` inside the innermost routine, `G`. On the stop,
+   `CALLS`. Expect three frames innermost first, each `recorded`, with the
+   symbols from the debug file.
+2. Open the call-stack pane. Expect the same frames; double-click the bottom
+   one and expect the disassembly at its `JSR`.
+3. `CALLS MODE WALK` then `CALLS`. Expect the same chain labeled `guessed`.
+4. `G` to the fixture's `TXS`, step once, `CALLS`. Expect a `-- TXS at
+   $xxxx --` break row with the frames below it marked unverified.
+5. `G` to the fixture's inline-parameter routine and step it to its `RTS`.
+   Expect `CALLS` to note "returned past inline parameters" and no break.
+6. Raise the fixture's IRQ (`BRKINT` or the fixture's own timer) and stop in
+   the handler. Expect an interrupt frame above the interrupted one.
+
+## Story 14: WinDbg mode
+
+1. `MODE WINDBG`, then `bp 300`, `ba w1 c010`, `bl`, `db 2000 l20`,
+   `eb 300 a9 41`, `t`, `p`, `gu`, `r`, `u`, `x sta*`, `? 300+10`,
+   `.formats 41`. Expect each reply in the layout in
+   `contracts/windbg-mode.md` and each effect the same as the AppleWin
+   command in the same table (SC-019).
+2. `k` after step 1 of Story 13. Expect the chain, one frame per line, with
+   provenance.
+3. `~`, `lm`, `dt`, `.reload`. Expect "no meaning on this machine" with the
+   family named, and nothing changed.
+4. `!switches` and `!mode applewin`. Expect the soft switches, then AppleWin
+   mode.
+5. `0x300`, `300` and `$300` as the address to `db`. Expect the same bytes.
+
+## Story 15: step filter
+
+1. Load any program that calls `COUT`. `SKIP COUT`, then `T` on the
+   `JSR COUT`. Expect the stop at the instruction after the `JSR` (SC-020).
+2. `SKIP CLEAR`, `T` again from the `JSR`. Expect the stop at $FDED.
+3. `SKIP F800.FFFF`, `T` on any ROM call. Expect it stepped over.
+4. `SRC ON` with the fixture's debug file loaded, `T` on a source line that
+   calls a filtered routine. Expect the next source line.
+5. `MODE MONITOR`, `/skip`. Expect the list; `MODE WINDBG`, `!skip`. Expect
+   the same list.
 
 ## Release
 

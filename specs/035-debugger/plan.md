@@ -214,14 +214,15 @@ drivable from `UnitTest` without a window or a file. **PASS.**
  Ways in       CassoCli debug       DebugChannelServer                 DebuggerWindow + floating windows
                (batch, JSON Lines)  (pipe, JSON Lines)                 (Dxui; DxuiDockSite; panes over snapshots)
                      \                    |                                 /
- Parsing              AppleWinParser / MonitorParser / GSSquaredParser   (per session mode)
+ Parsing              AppleWinParser / MonitorParser / GSSquaredParser / WinDbgParser   (per session mode)
                                      \        |       /
  Intermediate                        DebugCommand
                                           |
  Engine                            DebugSession ---- Breakpoints (address, opcode, register, memory, value, IF expr)
                                           |          Watchpoints, Watches, Symbols, DebugFile + LineTable
                                           |          Trace (CPU ring), Profile, Diagnostics providers
- Formatting                AppleWin / Monitor / GSSquared formatter   (per output format)
+                                          |          CallStack (recorder + walker), StepFilter
+ Formatting                AppleWin / Monitor / GSSquared / WinDbg formatter   (per output format)
                                           |
  Target seam                        IDebugTarget
                                     /           \
@@ -229,9 +230,14 @@ drivable from `UnitTest` without a window or a file. **PASS.**
                     (MachineHost, DebugMemoryView + Patch, hook, trace, diagnostics)
 ```
 
-- **Parsers** are unchanged in kind; `GSSquaredParser` is the third. The
-  session's `mode` selects the parser and `outputFormat` the formatter;
-  `MODE` sets both, `OUTPUT` the formatter alone (FR-013).
+- **Parsers** are unchanged in kind; `GSSquaredParser` is the third and
+  `WinDbgParser` the fourth. The session's `mode` selects the parser and
+  `outputFormat` the formatter; `MODE` sets both, `OUTPUT` the formatter alone
+  (FR-013).
+- **Engine commands** are reached through each mode's own marker (FR-014,
+  R-037): `/` in Monitor mode, bare names in AppleWin and GSSquared modes, `!`
+  in WinDbg mode. Each parser strips its marker and hands the rest to the
+  shared engine-command table, so the table exists once.
 - **Source-level commands** (`SOURCE`, source steps, line breakpoints) act
   on a `LineTable` built from the loaded `DebugFile`; `SYM LOAD` loads both
   symbols and lines from one file.
@@ -309,6 +315,30 @@ drivable from `UnitTest` without a window or a file. **PASS.**
 - `RunStopHook` gains the stack-pointer rule and the source-line repeat
   (R-033); the session's granularity chooses which the step commands use.
 
+### Call stack, step filter, WinDbg mode
+
+- `CallStackRecorder` (CassoEmuCore/Debugger) is fed by the run hook while
+  the debugger is attached: it pushes on `JSR`, `BRK` and interrupt dispatch,
+  pops on `RTS` and `RTI`, and records every break in FR-069 with the
+  instruction and address that caused it (R-035). It is off, and not on the
+  code path, when nothing is attached (FR-064).
+- `StackWalker` scans the stack page for return addresses whose preceding
+  opcode is `JSR`, and drops candidates whose `JSR` targets no known routine
+  entry when a debug file is loaded. It is a pure function over a memory view
+  and the symbol table, so it is tested without a machine.
+- `CallStack` combines the two per the selected mechanism (recorded, walk,
+  hybrid) into frames labeled by provenance, with break rows between them.
+  It serves the `CALLS` engine command in every mode, WinDbg's `k`, and the
+  `CallStackPane`, which draws from the snapshot like every other pane.
+- `StepFilter` is session state: a list of symbols, addresses and ranges.
+  `RunStopHook` consults it on a step into: a `JSR` whose target is in the
+  filter is treated as a step over, in instruction and in source
+  granularity. The `SKIP` engine command sets, lists and clears it (R-038).
+- `WinDbgParser` (CassoCore) and `WinDbgFormatter` (CassoEmuCore) are the
+  fourth mode (R-036): the command table in `contracts/windbg-mode.md`, a
+  defined "no meaning on this machine" reply for the excluded families, and
+  WinDbg's documented output layouts for `db`, `r`, `bl`, `u` and `k`.
+
 ### Threading
 
 As before: batch is single-threaded; in the emulator the session lives on
@@ -348,6 +378,10 @@ landing as its own merge to the branch and gated by the full suite:
    docking; layout save and restore with the fallback monitor.
 5. **Trace (story 8, P2)**: the extended `TraceEntry`, the bus's all-pages
    watched mode, `HISTORY`, the trace pane, `HISTORY SAVE`, SC-013.
+5a. **Call stack and step filter (stories 13 and 15)**: `CallStackRecorder`
+    in the hook the trace shares; `StackWalker`; `CallStack` and `CALLS`;
+    the pane; the FR-069 break fixtures (SC-018); `StepFilter`, `SKIP`, and
+    the step-into check in `RunStopHook` (SC-020).
 6. **Device panels (story 9, P2)**: `IDiagnosticsProvider`, the seven
    providers, `DiagnosticsPane`, the three visuals, the panel menu.
 7. **Expression and value breakpoints (story 10, P3)**: `IF` on address and
@@ -356,17 +390,26 @@ landing as its own merge to the branch and gated by the full suite:
    `PROFILE LIST [ADDR]` and `PROFILE SAVE`.
 9. **GSSquared mode (story 12, P3)**: capture the fixtures (R-027);
    `GSSquaredParser`, `GSSquaredFormatter`, `OUTPUT`, the command sweep,
-   `BPR` without spaces (FR-015a).
+   `BPR` without spaces (FR-015a); the bank rule and the IIgs refusals
+   (FR-022b); the engine-marker rule across all modes (FR-014).
+9a. **WinDbg mode (story 14, P3)**: `WinDbgParser`, `WinDbgFormatter`, the
+    `!` marker, the excluded-family reply, the command sweep (SC-019), and
+    `k` over the call stack.
 10. **Release**: the README screenshot on the Mockingboard speech demo
     (FR-065), `docs/Debugger.md` for every story, the changelog, the
     pre-merge gate, SC-008 measured, and 033 on master before 035 merges.
 
 ## Risks
 
-- **The Merlin `PUT` listing layout is unknown** (R-022). The listing
-  importer is not built until the capture exists; if `PUT` lines are
-  unmarked, the listing maps to itself and no source file is opened, which
-  the contract already allows.
+- **The Merlin `PUT` listing layout** was unknown; resolved 2026-09-18 by
+  capture (R-022): `PUT` lines are marked `>` and numbered from 1 again, so
+  the listing maps to itself and the importer treats a `>` line as a line of
+  the listing.
+- **The call stack is a heuristic in two of its three modes.** The recorder
+  is exact for ordinary code and says where it lost the thread; the walk is
+  a guess and is labeled as one. The risk is a frame shown with the wrong
+  label; SC-018's fixtures provoke every break in FR-069 to keep the labels
+  honest.
 - **GSSquared's output has to be captured from a build of GSSquared**
   (R-027). If it cannot be built, the documented examples fix the format
   and the deviation is recorded; SC-016 then measures against those.
@@ -424,6 +467,7 @@ CassoCore/Debugger/
 ├── LineTable.h/.cpp                         # NEW: address <-> (file, line, type, depth)
 ├── SymbolFileReader.cpp                     # CHANGE: detect cc65 and listings, delegate
 ├── GSSquaredParser.h/.cpp                   # NEW: third mode
+├── WinDbgParser.h/.cpp                      # NEW: fourth mode, `!` engine marker
 └── AppleWinParser.cpp                       # CHANGE: BPR without spaces; IF on BP/BPM; BPV; HISTORY; PROFILE; OUTPUT; SOURCE
 CassoCore/Assembler.h/.cpp                   # CHANGE: source position stack per emitted range; -g calls DebugFileWriter
 CassoEmuCore/Cli/As65Mode.cpp, MerlinMode.cpp # CHANGE: -g writes the cc65 file
@@ -437,19 +481,23 @@ CassoEmuCore/Machines/**                     # CHANGE: IDiagnosticsProvider on D
 CassoEmuCore/Debugger/
 ├── DebugMemoryView.h/.cpp                   # CHANGE: Patch for ROM regions; IsIo
 ├── BreakpointTable.h/.cpp                   # CHANGE: IF conditions, MemoryValue kind
-├── RunStopHook.h/.cpp                       # CHANGE: stack-pointer step-over; source-step modes
+├── RunStopHook.h/.cpp                       # CHANGE: stack-pointer step-over; source-step modes; step filter; feeds the call recorder
+├── CallStack.h/.cpp                         # NEW: CallStackRecorder, StackWalker, CallStack (frames, breaks, mechanism)
+├── StepFilter.h/.cpp                        # NEW: symbols, addresses, ranges a step into steps over
 ├── TraceController.h/.cpp                   # NEW: HISTORY on/off/save; window of entries
 ├── ProfileTable.h/.cpp                      # NEW: per-opcode, penalty and per-address tables
 ├── IDiagnosticsProvider.h                   # NEW: rows, bits, visual payloads
 ├── DiagnosticsSnapshot.h                    # NEW
 ├── DebugViewSnapshot.h/.cpp                 # NEW: what the window draws, built per frame on the CPU thread
 ├── GSSquaredFormatter.h/.cpp                # NEW: third output format
+├── WinDbgFormatter.h/.cpp                   # NEW: fourth output format
 ├── Source/
 │   ├── SourceService.h/.cpp                 # NEW: resolve, hash, match, path lists, text
 │   └── SourcePathList.h/.cpp                # NEW: per-program and global lists in prefs
 └── Handlers/
     ├── SourceHandlers.h/.cpp                # NEW: SOURCE, line breakpoints, source steps
     ├── TraceHandlers.h/.cpp                 # NEW: HISTORY
+    ├── CallStackHandlers.h/.cpp             # NEW: CALLS, CALLS MODE, SKIP
     ├── ExecutionHandlers.cpp                # CHANGE: PROFILE LIST [ADDR], SAVE, RESET; BPV value form
     └── ConfigHandlers.cpp                   # CHANGE: OUTPUT
 
@@ -464,6 +512,7 @@ CassoEmuCore/Ui/Debugger/
 │   ├── MemoryPane.h/.cpp                    # NEW: one per memory window, over DxuiHexView
 │   ├── MemoryEditModel.h/.cpp               # NEW: the IDxuiHexSource: pending, completion, undo, refusal
 │   ├── TracePane.h/.cpp                     # NEW
+│   ├── CallStackPane.h/.cpp                 # NEW: frames with provenance, break rows, double-click to call site
 │   ├── DiagnosticsPane.h/.cpp               # NEW: rows and bits
 │   ├── MemoryMapBar.h/.cpp, DiskHeadView.h/.cpp, MeterBar.h/.cpp  # NEW: visuals
 │   └── RegistersPane, StackPane, WatchesPane, BreakpointsPane, ConsolePane  # NEW: split out of the first window
@@ -492,6 +541,10 @@ UnitTest/DebuggerTests/
 ├── SourceServiceTests.cpp                   # resolution order, size filter, hash match, mismatch warning, drag
 ├── SourceStepTests.cpp                      # SC-011: inline parameters, recursion, step out, IRQ during step
 ├── GSSquaredParserTests.cpp, GSSquaredFormatterTests.cpp, GSSquaredCommandSweepTests.cpp  # SC-016
+├── WinDbgParserTests.cpp, WinDbgFormatterTests.cpp, WinDbgCommandSweepTests.cpp  # SC-019; excluded families reply
+├── CallStackTests.cpp                       # SC-018: recursion, inline parameters, interrupt; every FR-069 break
+├── StepFilterTests.cpp                      # SC-020: COUT skipped in both granularities
+├── EngineMarkerTests.cpp                    # FR-014: every engine command through every mode's marker
 ├── OutputFormatTests.cpp                    # MODE sets both, OUTPUT one
 ├── ExpressionBreakpointTests.cpp            # IF, value breakpoints, I/O rejection
 ├── TraceTests.cpp                           # SC-013, access fields, off = no cost path taken
@@ -515,6 +568,7 @@ UnitTest/Dxui/
 UnitTest/Fixtures/Debugger/
 ├── GSSquared/                               # captured replies + LICENSE
 ├── Merlin/PI.ADD.LST                        # PUT listing capture + LICENSE
+├── Sources/callstack.a65                    # SC-018 fixture: recursion, inline parameters, IRQ, each break
 └── DebugFiles/                              # cc65 v2 samples, one from cc65 itself
 
 docs/Debugger.md                             # CHANGE: every story

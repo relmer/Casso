@@ -1,13 +1,21 @@
 # Contract: Command Modes
 
-Both modes execute against one session (FR-012). This contract fixes the
+Every mode executes against one session (FR-012). This contract fixes the
 syntax each mode reads and the text each mode writes. Per-command argument
 forms for AppleWin mode follow AppleWin's help pages (research R-014).
 
 ## Casso engine commands
 
-These commands have no AppleWin or Monitor original. They are reachable in
-AppleWin mode directly and in Monitor mode through `/`.
+These commands have no AppleWin, Monitor, GSSquared or WinDbg original. Each
+mode reaches them through its own marker (FR-014, R-037), and every one is
+reachable in every mode:
+
+| Mode | Marker | Example |
+|---|---|---|
+| AppleWin | bare name | `SWITCHES` |
+| Monitor | `/` | `/switches` |
+| GSSquared | bare name (`/` is its bank separator) | `switches` |
+| WinDbg | `!` | `!switches` |
 
 | Command | Effect |
 |---|---|
@@ -21,9 +29,13 @@ AppleWin mode directly and in Monitor mode through `/`.
 | `SRC` | the source file and line that produced PC, from the loaded debug file, and whether steps go by source line or by instruction |
 | `SRC ON` / `SRC OFF` | step by source line or by instruction. With `SRC ON` and a debug file loaded, every step command in every mode (`T`, `P`, `RTS`; the Monitor's `S`) steps by source line: into stops at the first instruction of another line, the innermost one inside a macro; over runs calls and whole macro expansions and stops on the next line; out is unchanged. The window sets this from which of its source and disassembly panes has focus |
 | `BP file:line` | a breakpoint on the first instruction of a source line, at each place a macro body line was expanded. A line that produced no code moves to the next one that did, and the reply says so. Told apart from AppleWin's `BP addr:addr` range by its left side, which is not an address, and its decimal right side |
+| `CALLS` | the call chain to PC, innermost first: one line per frame with its call site, target symbol and provenance (`recorded` or `guessed`), and a break line (`-- TXS at $0812 --`) wherever the chain is broken (FR-067 to FR-069) |
+| `CALLS MODE RECORDED\|WALK\|HYBRID` | choose the mechanism; `CALLS MODE` reports it; hybrid is the default |
+| `SKIP name\|addr\|first.last` | add a routine to the step filter; `SKIP` lists it; `SKIP - name` removes one; `SKIP CLEAR` empties it (FR-070) |
 
-AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH` or `SRC` command, so
-these names collide with nothing in its table.
+AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`,
+`CALLS` or `SKIP` command, so these names collide with nothing in its table;
+nor does GSSquared's.
 
 ## AppleWin mode
 

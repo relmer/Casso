@@ -812,6 +812,17 @@ layout here. If included lines are not marked, they are mapped to the listing
 itself (the listing is the source) and no `PUT` file is opened, which is still
 correct because the listing carries the text.
 
+**Captured 2026-09-18** (partial, lines 1 to 137 of `PI.ADD.S`, by a
+`COUT` breakpoint over the debug pipe): a `PUT` file's lines are printed
+with `>` after the bytes, in the column the line number otherwise holds, and
+their numbering restarts at 1 for the included file; the `PUT` line itself
+prints as an ordinary line of the outer file. The listing carries the text of
+both, so the importer maps every line to the listing itself and needs no
+second file; a `>` line is a line of the listing like any other. The capture
+technique and its two traps (a breakpoint left armed drops keystrokes; a
+Return sent while the machine is paused overwrites the keyboard latch) are
+recorded in `UnitTest/MerlinCorpus/README.md`.
+
 ## R-023: Moving a pane between windows
 
 **Decision**: a pane's controls are moved, not recreated, when it floats or
@@ -1038,3 +1049,135 @@ same cadence as the debugger view, and the panel widget draws rows; the
 memory-map bar, head graphic and meters are three controls that take their
 payload from the same snapshot. A device on a future machine gets a panel by
 implementing the interface.
+
+## R-035: The call stack
+
+**Decision**: three mechanisms behind one pane, hybrid by default, every
+frame labeled with its provenance, and every way a mechanism can be defeated
+detected and shown as a break rather than hidden.
+
+**Facts**: the 6502 has no frame pointer; a call is two bytes on the stack
+page. AppleWin shows the raw stack bytes only. Mesen tracks `JSR`, `RTS`,
+interrupt entry and `RTI` as they execute and shows a call-stack window;
+VICE's monitor has a `bt` backtrace. Tracking as calls execute is exact for
+ordinary code and fails only when the program manipulates the stack itself;
+walking the stack page needs no history but is fooled by pushed data.
+
+**The mechanisms**:
+
+- *Recorded*: a shadow stack fed by the run hook. Push on `JSR`, `BRK` and
+  interrupt dispatch; pop on `RTS` and `RTI`. Kept only while the debugger is
+  attached, so the unattached path is unchanged (FR-064).
+- *Walk*: scan the stack page from SP+1 to $01FF for a word W where the
+  opcode at W-2 is `JSR` ($20); the return lands at W+1. With a debug file
+  loaded, keep a candidate only if that `JSR` targets a routine entry. This
+  is the corrected candidate test: the pushed word is the address of the
+  `JSR`'s third byte, not the return address.
+- *Hybrid* (default): recorded frames where they exist, the walk below the
+  point where recording began.
+
+**Breaks the recorder detects** (FR-069), each shown as a separator row with
+the instruction and its address, frames below it marked unverified:
+
+| Signal | What happened |
+|---|---|
+| `TXS` | the stack pointer was reloaded; everything recorded above the new level is suspect |
+| a pull (`PLA`, `PLP`) into a frame's return address | a routine is reading or discarding its return address |
+| a frame ending by `JMP` with SP back at level | the return was faked; the same test the step-over rule uses (R-033) |
+| `RTS` popping an address other than the one the matching `JSR` pushed | the return address was rewritten in place |
+| SP wrapping past $0100 | the stack overflowed into itself |
+| reset | every recorded frame is void |
+| tracking began after the program started | frames below the attach point are unknown to the recorder; the walk supplies them, labeled guessed |
+
+A mismatch where the popped address is a few bytes past the pushed one is
+the inline-parameter idiom (ProDOS MLI) and is reported as "returned past
+inline parameters", not as a break. A routine that edits its return address
+in place and then returns normally has no signal until the `RTS` itself.
+
+**Rejected**: rebuilding the chain from the trace history. The trace runs
+only while the debugger is attached, when the recorder is running too, so it
+would see the same calls; a fourth label would cost more than it adds.
+Symbol-checking as a separate mode, likewise: it is a refinement of the walk.
+
+## R-036: A WinDbg-flavored mode
+
+**Decision**: a fourth command mode, scoped to the commands a 6502 session
+uses, with the rest of WinDbg answered by a defined reply and the mode
+documented as WinDbg-flavored.
+
+**Facts**: WinDbg has several hundred commands in three families: plain
+commands (`g`, `bp`, `db`) that act on the target, `.` meta-commands that
+act on the debugger itself (`.reload`, `.formats`), and `!` extension
+commands that live in extension DLLs and are qualified by DLL name
+(`!ext.analyze`). Most of the set assumes processes, threads, modules, C
+types and an OS a 6502 lacks. WinDbg's default number base is hex, `0x` is
+accepted, and source lines are written `` `file:line` ``.
+
+**In**: `t`, `p`, `g`, `gu`, `pa`, `ta`; `bp`, `bl`, `bc`, `bd`, `be`, `ba
+r1|w1|e1`; `db`, `dw`, `dd`, `da` with `l<count>`; `eb`, `ew`, `ea`, `f`,
+`s`, `m`; `r`, `u`, `x`, `k`, `?`; `l+s`, `lsa`, `file:line` with or
+without backquotes; `.formats`. Casso's engine commands are reached as `!`
+commands (`!switches`), which a WinDbg user reads as "extension commands
+this debugger adds", which is what they are.
+
+**Out**, with the reply "has no meaning on this machine": threads and
+processes (`~`, `|`, `.process`, `.attach`), modules and symbol paths (`lm`,
+`.reload`, `.sympath`), exceptions and events (`sx*`, `!analyze`), kernel
+(`!pte`, `!pool`), dumps (`.dump`), types and locals (`dt`, `dv`, `dx`,
+`??`, `dq`, `dp`), extension loading and scripting (`.load`, `.foreach`,
+`.if`, aliases, pseudo-registers). Deferred with a reason: `wt`, which maps
+onto the trace and the profile once they exist; `s -a`/`s -b`, which are
+syntax only over the search that exists.
+
+**Order**: after GSSquared's mode, since `k` needs the call stack (R-035).
+
+## R-037: Engine-command markers per mode, and GSSquared's source
+
+**Decision**: each mode reaches Casso's engine commands through the marker
+native to it; a mode with none uses bare names.
+
+**Facts, per mode**:
+
+- *Monitor*: `/`, as today. Ctrl-Y is the Monitor's own user-vector command
+  and only means anything on the machine; `!` is the mini-assembler on the
+  enhanced //e and //c, so it cannot be the marker here.
+- *AppleWin*: no marker exists; its table is flat. Bare names, which collide
+  with nothing in its table.
+- *GSSquared*: no marker exists. Its parser (`src/debugger/Monitor.cpp`,
+  read 2026-09-18) classifies each space-separated token by form: hex is a
+  number, `addr:` deposits, `a.b` is a range, `bank/addr` is a 24-bit
+  address, a quoted string is a string, and anything else is looked up in a
+  flat command table (`set`, `load`, `save`, `move`, `verify`, `watch`,
+  `nowatch`, `help`, `bp`, `bpd`, `bpi`, `nobp`, `list`/`l`, `map`, `debug`,
+  `nodebug`, `sload`, `sclear`, `slookup`, `m`, `x`, `video`, `novideo`).
+  Stepping is not typed at all: its window steps on Space and F10, steps
+  over on O, out on R, resumes on Return, toggles trace on T and a
+  breakpoint on B. So `/` is taken (bank separator) and `!` is free, but
+  bare names collide with nothing, so bare names it is. Typed `o` and `r`
+  stay as Casso's additions so a script can step in this mode. Its
+  tokenizer splits any token ending in `l` into `l` plus an address, which
+  Casso does not copy. No code from GSSquared is copied; the spec's
+  clean-room assumption is amended to say its source was read for its
+  command table and input behavior.
+- *WinDbg*: `!`, WinDbg's own extension-command prefix.
+
+The engine-command table exists once; each parser strips its marker and
+hands the rest to it, so a command added to the table is reachable in every
+mode without touching a parser.
+
+## R-038: The step filter
+
+**Decision**: a session-level list of routines, by symbol, address or range,
+that a step into treats as a step over; applied in the hook, so it works in
+every mode, every key scheme and both step granularities.
+
+**Facts**: WinDbg's `.step_filter` does this by symbol pattern. On the Apple
+II the routines worth skipping are the ROM's (`COUT`, `RDKEY`, `PRBYTE`,
+the disk and MLI entries), which every program calls and nobody wants to
+step into. The hook already sees each `JSR` before it executes and already
+knows how to run a call to completion by the stack-pointer rule (R-033), so
+the filter is one lookup at the step-into decision.
+
+**Command**: `SKIP name|addr|first.last` adds, `SKIP` lists, `SKIP - name`
+removes, `SKIP CLEAR` empties. Reachable in every mode through its marker.
+The list is session state, not a preference, in this feature.

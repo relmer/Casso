@@ -52,6 +52,8 @@ A batch session starts `Paused`; an emulator session starts in whichever of
 
 ## CommandMode
 
+Gains `WinDbg` as a fourth value (FR-011).
+
 An enum: `AppleWin`, `Monitor`. It is switched by the AppleWin command `MODE
 MONITOR`, or by `/mode applewin` in Monitor mode. The switch is a Casso engine
 command, listed in [contracts/command-modes.md](contracts/command-modes.md).
@@ -218,6 +220,8 @@ listed by `debug --list`.
 
 ## OutputFormat
 
+Gains `WinDbg` as a fourth value (FR-013).
+
 An enum: `AppleWin`, `Monitor`, `GSSquared`. Session state beside `mode`.
 `MODE x` sets both `mode` and `outputFormat` to `x`; `OUTPUT x` sets
 `outputFormat` alone. Every `Reply.text` is rendered by the formatter for the
@@ -340,3 +344,31 @@ A `DxuiKeyMap`: `{name, list<{vk, ctrl, alt, shift} -> commandId>}` (the chord
 struct is `CassqueCommands::kKeys`'s) for run, pause, step into, step over,
 step out, toggle breakpoint and run to cursor. Three maps; the chosen name is
 a preference, and the window swaps its active map when it changes.
+
+## CallStackFrame
+
+| Field | Type | Notes |
+|---|---|---|
+| callSite | `Word` | the `JSR`'s address, or the interrupted instruction for an interrupt frame |
+| target | `Word` | the routine entered, or the vector taken |
+| kind | `Call`, `Brk`, `Irq`, `Nmi`, `Reset` | |
+| provenance | `Recorded`, `Guessed` | which mechanism produced it (FR-068) |
+| stackLevel | `Byte` | SP before the push, which is what ends the frame (R-033) |
+| note | `std::optional<std::string>` | "returned past inline parameters" and the like |
+
+## CallStackBreak
+
+| Field | Type | Notes |
+|---|---|---|
+| kind | `Txs`, `PulledReturn`, `EndedByJump`, `ReturnMismatch`, `StackWrap`, `Reset`, `TrackingBegan` | FR-069 |
+| pc | `Word` | the instruction that caused it |
+| opcode | `Byte` | |
+
+A `CallStack` is the ordered list of frames innermost first, with breaks
+between them; `mechanism` is `Recorded`, `Walk` or `Hybrid`. Built by the
+session on request (`CALLS`, `k`) and once per snapshot for the pane.
+
+## StepFilter
+
+`{ entries: vector<{name, first, last}> }`, matched against a `JSR`'s target
+at a step into (FR-070). Session state; `SKIP` sets, lists and clears it.
