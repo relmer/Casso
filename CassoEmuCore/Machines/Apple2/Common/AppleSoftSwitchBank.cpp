@@ -141,3 +141,55 @@ unique_ptr<MemoryDevice> AppleSoftSwitchBank::Create (const DeviceConfig & confi
 
     return make_unique<AppleSoftSwitchBank> ();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleSoftSwitchBank::GetDiagnostics
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleSoftSwitchBank::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup  display { "Display", {} };
+
+
+
+    display.rows.push_back (MakeTextRow ("Mode",  GetModeName()));
+    display.rows.push_back (MakeFlagRow ("TEXT",  !m_graphicsMode));
+    display.rows.push_back (MakeFlagRow ("MIXED", m_mixedMode));
+    display.rows.push_back (MakeFlagRow ("PAGE2", m_page2));
+    display.rows.push_back (MakeFlagRow ("HIRES", m_hiresMode));
+
+    snapshot.groups.push_back (std::move (display));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleSoftSwitchBank::GetModeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleSoftSwitchBank::GetModeName() const
+{
+    std::string  mode;
+
+
+
+    if (!m_graphicsMode)
+    {
+        return "text";
+    }
+
+    mode  = m_hiresMode ? "hi-res" : "lo-res";
+    mode += m_mixedMode ? ", mixed" : "";
+
+    return mode;
+}

@@ -35,9 +35,10 @@ reachable in every mode:
 | `HISTORY ON` / `HISTORY OFF` | start the instruction trace, which keeps the newest 100,000 instructions with their cycle count, registers before execution and last memory access, or stop it; stopping keeps the retained entries until the trace starts again or the machine changes (FR-045, FR-046) |
 | `HISTORY [first [count]]` | the state, the number of entries retained, and `count` entries (20 by default) from entry `first`, oldest first; a bare `HISTORY` shows the newest. Both numbers are decimal. Each line: entry, cycles, address and its symbol, instruction, registers, and `R` or `W` with the accessed address, byte and symbol (FR-047) |
 | `HISTORY SAVE file` | write every retained entry, one `HISTORY` line each, oldest first (FR-048) |
+| `PANEL` / `PANEL LIST` / `PANEL name` / `PANEL CLOSE name` | list the current machine's device panels, open one, or close one, by provider id (`disk`, `mmu`) or title, either case (FR-049 to FR-053). Carried out by the window, which runs it from its command box and its panel menu; batch and the pipe return `notAvailable` with `PANEL needs the debugger window.` A name the machine lacks is an error that points at `PANEL LIST` |
 
 AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`,
-`CALLS`, `SKIP` or `HISTORY` command, so these names collide with nothing in its table;
+`CALLS`, `SKIP`, `HISTORY` or `PANEL` command, so these names collide with nothing in its table;
 nor does GSSquared's.
 
 ## AppleWin mode

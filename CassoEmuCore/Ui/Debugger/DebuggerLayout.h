@@ -19,7 +19,8 @@
 //  source beside the disassembly over the console on the left, registers,
 //  breakpoints and watches down the right, and memory beside the stack across
 //  the bottom, with memory windows 2 to 4 as tabs of the first and the call
-//  stack as a tab of the stack. The trace is a tab of the console.
+//  stack and the device panels as tabs of the stack. The trace is a tab of
+//  the console.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +40,18 @@ public:
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);
 
+    //  A device panel is "diag-" and its provider's id. The panels the window
+    //  can place are these, each with the title its tab shows, and each hidden
+    //  until its device is present and its panel open.
+    struct DiagnosticsPanel
+    {
+        const char     * id;
+        const wchar_t  * title;
+    };
+
+    static std::span<const DiagnosticsPanel>  GetDiagnosticsPanels   ();
+    static std::wstring                       GetDiagnosticsPaneId   (const std::string & id);
+    static bool                               TryGetDiagnosticsId    (const std::wstring & pane, std::string & id);
     static DxuiPaneLayout  MakeDefault ();
 
     //  A saved arrangement: panes this version does not have are dropped and

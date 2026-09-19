@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Ay8910.h"
+#include "Debugger/IDiagnosticsProvider.h"
 
 
 
@@ -601,4 +602,85 @@ int Ay8910::GetEnvPeriod() const
 
 
     return (period == 0) ? 1 : period;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ay8910::AppendDiagnostics
+//
+//  The periods as the registers set them, the mixer's enables decoded (a
+//  clear bit enables), each channel's amplitude, and the envelope.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ay8910::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const
+{
+    using P = IDiagnosticsProvider;
+
+    static constexpr std::array<const char *, 8>  kMixerBits = { "IOB", "IOA", "NC", "NB", "NA", "TC", "TB", "TA" };
+    static constexpr std::array<const char *, 8>  kShapeBits = { "", "", "", "", "CONT", "ATT", "ALT", "HOLD" };
+    static constexpr std::array<const char *, 8>  kAmpBits   = { "", "", "", "ENV", "", "", "", "" };
+    static constexpr const char *                 kNames[]   = { "A", "B", "C" };
+    constexpr int                                 kChannels  = 3;
+    DiagnosticsGroup                              group      { title, {} };
+
+
+
+    for (int channel = 0; channel < kChannels; channel++)
+    {
+        group.rows.push_back (P::MakeHexRow (std::format ("Tone {} period", kNames[channel]), (uint32_t) GetTonePeriod (channel), P::kWordDigits));
+    }
+
+    group.rows.push_back (P::MakeHexRow  ("Noise period", (uint32_t) GetNoisePeriod(), P::kByteDigits));
+    group.rows.push_back (P::MakeByteRow ("Mixer",        m_regs[kRegMixer], kMixerBits));
+
+    for (int channel = 0; channel < kChannels; channel++)
+    {
+        group.rows.push_back (P::MakeByteRow (std::format ("Amplitude {}", kNames[channel]), m_regs[kRegAmpA + channel], kAmpBits));
+    }
+
+    group.rows.push_back (P::MakeHexRow  ("Envelope period", (uint32_t) GetEnvPeriod(), P::kWordDigits));
+    group.rows.push_back (P::MakeByteRow ("Envelope shape",  m_regs[kRegEnvShape], kShapeBits));
+    group.rows.push_back (P::MakeTextRow ("Envelope level",  std::format ("{}", m_envLevel)));
+    group.rows.push_back (P::MakeHexRow  ("Latched register", m_latched, P::kByteDigits));
+
+    snapshot.groups.push_back (std::move (group));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ay8910::AppendChannelLevels
+//
+//  A channel's amplitude register, or the envelope's level where the register
+//  hands the channel to the envelope; a channel the mixer silences on both
+//  tone and noise reads as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ay8910::AppendChannelLevels (const std::string & title, DiagnosticsMeters & meters) const
+{
+    static constexpr const char * kNames[]    = { "A", "B", "C" };
+    constexpr int                 kChannels   = 3;
+    constexpr int                 kNoiseShift = 3;
+    Byte                          mixer       = m_regs[kRegMixer];
+
+
+
+    for (int channel = 0; channel < kChannels; channel++)
+    {
+        Byte   amp     = m_regs[kRegAmpA + channel];
+        int    level   = (amp & kAmpUseEnvelope) ? m_envLevel : (amp & kAmpLevelMask);
+        bool   silent  = ((mixer >> channel) & 1) != 0 && ((mixer >> (channel + kNoiseShift)) & 1) != 0;
+
+        meters.levels.push_back ({ std::format ("{} {}", title, kNames[channel]),
+                                   silent ? 0.0f : (float) level / (float) kMaxEnvLevel });
+    }
 }

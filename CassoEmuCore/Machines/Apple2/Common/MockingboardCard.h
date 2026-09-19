@@ -4,6 +4,7 @@
 
 #include "Core/MemoryDevice.h"
 #include "Core/IInterruptController.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Via6522.h"
 #include "Devices/Ay8910.h"
 #include "Devices/Ssi263.h"
@@ -68,7 +69,7 @@ enum class MockingboardVariant
     SoundSpeech,    // Mockingboard C: SSI 263A installed in socket 1
 };
 
-class MockingboardCard : public MemoryDevice
+class MockingboardCard : public MemoryDevice, public IDiagnosticsProvider
 {
 public:
     static constexpr int     kViaCount   = 2;
@@ -127,6 +128,12 @@ public:
 
     static unique_ptr<MemoryDevice> Create       (const DeviceConfig & config, MemoryBus & bus);
     static unique_ptr<MemoryDevice> CreateSpeech (const DeviceConfig & config, MemoryBus & bus);
+
+    // The Mockingboard panel: each 6522 and each AY, and meters for the AY
+    // channels and the 6522 timers.
+    std::string  GetDiagnosticsId    () const override { return "mockingboard"; }
+    std::string  GetDiagnosticsTitle () const override { return "Mockingboard"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
 private:
     void    SyncPsg            (int index);

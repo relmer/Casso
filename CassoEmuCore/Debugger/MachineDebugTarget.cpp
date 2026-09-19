@@ -558,3 +558,18 @@ void MachineDebugTarget::GetTraceWindow (size_t first, size_t count, std::vector
 {
     m_trace.GetWindow (first, count, entries);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetDiagnosticsProviders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<const IDiagnosticsProvider *> MachineDebugTarget::GetDiagnosticsProviders() const
+{
+    return m_host.GetDiagnosticsProviders();
+}

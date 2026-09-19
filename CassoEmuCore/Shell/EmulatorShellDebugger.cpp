@@ -497,6 +497,10 @@ void EmulatorShell::PublishDebuggerView()
         return;
     }
 
+    //  The clock panel reports the speed, which the CPU manager paces and the
+    //  machine does not know.
+    m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
+
     snapshot = std::make_shared<const DebuggerViewSnapshot> (m_debugViewState.Build (m_debugger->GetSession()));
 
     {

@@ -7,11 +7,13 @@
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/MachineRefs.h"
+#include "Ui/UiCommandTypes.h"
 #include "Video/VideoOutput.h"
 
 
@@ -101,11 +103,11 @@ struct SoftSwitchMirror
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MachineHost
+class MachineHost : public IDiagnosticsProvider
 {
 public:
     MachineHost  ();
-    ~MachineHost ();
+    ~MachineHost () override;
 
     MachineHost                (const MachineHost &) = delete;
     MachineHost & operator=    (const MachineHost &) = delete;
@@ -232,6 +234,19 @@ public:
     std::filesystem::path  GetPendingPrintDir() const;
 
     void  SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
+
+    //  The devices of this machine that publish debugger panels, the clock
+    //  first. Only what the machine has: a ][ lists no MMU, and an empty slot
+    //  lists no card.
+    std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const;
+
+    //  The clock panel: the cycle counters, the video beam, and the speed the
+    //  CPU thread runs at, which it sets here since the machine does not pace
+    //  itself.
+    std::string  GetDiagnosticsId    () const override { return "clock"; }
+    std::string  GetDiagnosticsTitle () const override { return "Clock"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+    void         SetSpeedMode        (SpeedMode mode) noexcept { m_speedMode = mode; }
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
 private:
@@ -273,4 +288,6 @@ private:
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;
+
+    SpeedMode     m_speedMode = SpeedMode::Authentic;
 };

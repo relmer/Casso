@@ -199,6 +199,9 @@ enum class DebugVerb
     ShowHistory,
     SetHistory,
     SaveHistory,
+    ListPanels,
+    OpenPanel,
+    ClosePanel,
 
     // Window-only views, carried by name
     View,

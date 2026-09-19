@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 
@@ -107,6 +108,11 @@ public:
     uint32_t GetNoiseLfsr  () const { return m_lfsr; }
     int      GetEnvLevel   () const { return m_envLevel; }
     bool     IsEnvHolding  () const { return m_envHolding; }
+
+    // A debugger panel's rows for this chip, as one group, and each channel's
+    // level from 0 to 1 for the panel's meters.
+    void     AppendDiagnostics     (const std::string & title, DiagnosticsSnapshot & snapshot) const;
+    void     AppendChannelLevels   (const std::string & title, DiagnosticsMeters & meters) const;
 
     static float GetVolumeForLevel (int level);
 

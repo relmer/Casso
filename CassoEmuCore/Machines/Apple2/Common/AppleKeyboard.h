@@ -4,6 +4,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Debugger/IDiagnosticsProvider.h"
 
 class IInputEventSink;
 
@@ -67,7 +68,7 @@ enum class AppleSpecialKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleKeyboard : public MemoryDevice
+class AppleKeyboard : public MemoryDevice, public IDiagnosticsProvider
 {
 public:
     AppleKeyboard ();
@@ -142,6 +143,11 @@ public:
     void TickAutoRepeat (uint32_t elapsedMicroseconds);
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+
+    // The keyboard panel: the latch, its strobe, and the key held down.
+    std::string  GetDiagnosticsId    () const override { return "keyboard"; }
+    std::string  GetDiagnosticsTitle () const override { return "Keyboard"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
 protected:
     // Fold one TYPED character to the case this keyboard can send. Never

@@ -1022,6 +1022,11 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParseHistoryArguments (args, command, error);
     }
 
+    if (command.verb == DebugVerb::ListPanels)
+    {
+        return TryParsePanelArguments (args, command, error);
+    }
+
     if (command.verb == DebugVerb::ShowMode && !args.tokens.empty())
     {
         mode = ToUpper (args.tokens[0]);
@@ -1211,6 +1216,44 @@ bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value
     }
 
     value = std::stoull (text);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParsePanelArguments
+//
+//  PANEL and PANEL LIST list the device panels; PANEL name opens one and PANEL
+//  CLOSE name closes it. The name is kept as typed; which panels exist is the
+//  window's to know.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    std::string  first = args.tokens.empty() ? std::string() : ToUpper (args.tokens[0]);
+    bool         close = first == "CLOSE";
+
+
+
+    if (args.tokens.empty() || (first == "LIST" && args.tokens.size() == 1))
+    {
+        command.verb = DebugVerb::ListPanels;
+        return true;
+    }
+
+    if ((close && args.tokens.size() != 2) || (!close && args.tokens.size() != 1))
+    {
+        error = "PANEL LIST lists the device panels, PANEL name opens one, and PANEL CLOSE name closes it.";
+        return false;
+    }
+
+    command.verb = close ? DebugVerb::ClosePanel : DebugVerb::OpenPanel;
+    command.text = close ? args.tokens[1] : args.tokens[0];
     return true;
 }
 

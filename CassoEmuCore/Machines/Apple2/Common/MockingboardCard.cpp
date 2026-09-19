@@ -436,3 +436,36 @@ void MockingboardCard::SyncSpeechRequest()
 {
     m_via[1].SetCa1 (!m_speech->IsRequesting());
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockingboardCard::GetDiagnostics
+//
+//  Each 6522 beside the AY it drives, numbered as the card's two halves are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockingboardCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsMeters  meters;
+
+
+
+    for (int index = 0; index < kViaCount; index++)
+    {
+        m_via[index].AppendDiagnostics (std::format ("6522 #{}", index + 1), snapshot);
+        m_psg[index].AppendDiagnostics (std::format ("AY #{}",   index + 1), snapshot);
+        m_psg[index].AppendChannelLevels (std::format ("AY{}",   index + 1), meters);
+    }
+
+    for (int index = 0; index < kViaCount; index++)
+    {
+        m_via[index].AppendTimerLevels (std::format ("6522 #{}", index + 1), meters);
+    }
+
+    snapshot.visual = std::move (meters);
+}

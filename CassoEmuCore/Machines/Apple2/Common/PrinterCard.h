@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/MemoryDevice.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Printer/PrinterByteRing.h"
 
 struct DeviceConfig;
@@ -34,7 +35,7 @@ class MemoryBus;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class PrinterCard : public MemoryDevice
+class PrinterCard : public MemoryDevice, public IDiagnosticsProvider
 {
 public:
     static constexpr Word   kSlotIoBase   = 0xC080;
@@ -74,6 +75,11 @@ public:
     bool HasBeenTouched() const { return m_everTouched; }
 
     int  GetSlot() const { return m_slot; }
+
+    // The printer panel: the card's status and the bytes waiting for the printer.
+    std::string  GetDiagnosticsId    () const override { return "printer"; }
+    std::string  GetDiagnosticsTitle () const override { return "Printer"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
 private:
     Byte ReadStatus() const;

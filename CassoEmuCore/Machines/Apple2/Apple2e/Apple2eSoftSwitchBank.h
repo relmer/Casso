@@ -63,6 +63,8 @@ public:
     bool IsAltCharSet   () const { return m_altCharSet; }
     bool Is80Store      () const;
 
+    void GetDiagnostics (DiagnosticsSnapshot & snapshot) const override;
+
     void SetMmu          (Apple2eMmu * mmu)         { m_mmu          = mmu; }
     void SetKeyboard     (Apple2eKeyboard * kbd)    { m_keyboard     = kbd; }
     void SetLanguageCard (LanguageCard * lc)        { m_lc           = lc; }
@@ -93,6 +95,9 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
+
+protected:
+    std::string  GetModeName () const override;
 
 private:
     static constexpr int      s_knPaddleAxisCount   = 4;

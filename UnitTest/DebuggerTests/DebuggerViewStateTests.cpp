@@ -4,13 +4,16 @@
 #include "Debugger/DebuggerController.h"
 #include "Debugger/MonitorParser.h"
 #include "EmuTests/TestMachine.h"
+#include "FakeDiagnosticsProvider.h"
 #include "HandlerTestRig.h"
 #include "InMemoryPipeTransport.h"
+#include "TestHelpers.h"
 #include "MockDebugTarget.h"
 #include "Shell/CpuManager.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/Panes/TracePane.h"
 #include "Core/UnicodeSymbols.h"
@@ -1157,6 +1160,269 @@ namespace DebuggerViewStateTests
 
             Assert::AreEqual ((size_t) 2, view.GetRows().size(), L"the dropped text stays while the PC is in the same file");
             Assert::IsTrue   (banner.GetText().find (L"no line mapping") != std::wstring::npos);
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DiagnosticsPanelTests
+    //
+    //  Device panels in the window's snapshot, the PANEL command, and the rows
+    //  a panel draws, all from a provider that stands for no real device.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DiagnosticsPanelTests)
+    {
+    public:
+
+        class PanelRig
+        {
+        public:
+            TestCpu                    cpu;
+            MockDebugTarget            target;
+            RecordingNotificationSink  sink;
+            DebugSession               session { target, sink, RunState::Paused };
+            DebugHandlerSet            handlers;
+            FakeDiagnosticsProvider    provider;
+            DebuggerViewState          view;
+
+
+
+            PanelRig()
+            {
+                cpu.InitForTest();
+                target.instructionSet = cpu.GetInstructionSet();
+                handlers.Attach (session);
+                target.diagnosticsProviders = { &provider };
+            }
+
+
+
+            Reply Run (const std::string & line, CommandMode mode = CommandMode::AppleWin)
+            {
+                return view.ExecuteWindowLine (session, line, mode);
+            }
+        };
+
+
+
+        static std::string Join (const std::vector<std::string> & lines)
+        {
+            std::string  text;
+
+
+
+            for (const std::string & line : lines)
+            {
+                text += line + "\n";
+            }
+
+            return text;
+        }
+
+
+
+        //  A panel nobody opened is listed and never asked for its rows.
+        TEST_METHOD (AClosedPanelIsListedButNotBuilt)
+        {
+            PanelRig              rig;
+            DebuggerViewSnapshot  snapshot = rig.view.Build (rig.session);
+
+
+
+            Assert::AreEqual ((size_t) 1, snapshot.panels.size());
+            Assert::AreEqual (std::string ("fake"), snapshot.panels[0].id);
+            Assert::AreEqual (std::string ("Fake"), snapshot.panels[0].title);
+            Assert::IsFalse  (snapshot.panels[0].open);
+            Assert::IsTrue   (snapshot.diagnostics.empty());
+            Assert::AreEqual (0, rig.provider.calls, L"a closed panel costs the device nothing");
+        }
+
+
+        //  Every build carries every open panel, so a panel follows the device
+        //  at the cadence the view is built: each frame while running, and on
+        //  stop (SC-015).
+        TEST_METHOD (AnOpenPanelIsInEverySnapshot)
+        {
+            PanelRig              rig;
+            DebuggerViewSnapshot  first;
+            DebuggerViewSnapshot  second;
+
+
+
+            rig.view.OpenPanel ("fake");
+            first              = rig.view.Build (rig.session);
+            rig.provider.value = 0x01;
+            second             = rig.view.Build (rig.session);
+
+            Assert::AreEqual ((size_t) 1, second.diagnostics.size());
+            Assert::AreEqual (std::string ("Fake"),  second.diagnostics[0].device);
+            Assert::AreEqual (std::string ("$80"),   first.diagnostics[0].groups[0].rows[0].value);
+            Assert::AreEqual (std::string ("$01"),   second.diagnostics[0].groups[0].rows[0].value, L"the new state, one build later");
+            Assert::AreEqual (2, rig.provider.calls, L"once per build");
+            Assert::IsTrue   (second.panels[0].open);
+
+            Assert::IsTrue  (DebuggerViewState::IsBuildDue (false, false, false, DebuggerViewState::kBuildIntervalMs, 0), L"a frame later while running");
+            Assert::IsFalse (DebuggerViewState::IsBuildDue (false, false, false, DebuggerViewState::kBuildIntervalMs - 1, 0));
+            Assert::IsTrue  (DebuggerViewState::IsBuildDue (false, true,  false, 1, 0), L"at once on stop");
+        }
+
+
+        TEST_METHOD (ThePanelCommandOpensListsAndCloses)
+        {
+            PanelRig  rig;
+            Reply     reply;
+
+
+
+            reply = rig.Run ("PANEL LIST");
+            Assert::IsTrue (reply.status == CommandStatus::Ok);
+            Assert::IsTrue (Join (reply.text).find ("fake") != std::string::npos);
+
+            reply = rig.Run ("panel FAKE");
+            Assert::IsTrue (reply.status == CommandStatus::Ok);
+            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"by id, either case");
+            Assert::IsTrue (Join (rig.Run ("PANEL").text).find ("(open)") != std::string::npos, L"PANEL alone lists");
+
+            reply = rig.Run ("PANEL CLOSE Fake");
+            Assert::IsTrue  (reply.status == CommandStatus::Ok);
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"by title");
+
+            (void) rig.Run ("/PANEL fake", CommandMode::Monitor);
+            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"as an AppleWin line from Monitor mode");
+        }
+
+
+        TEST_METHOD (APanelTheMachineLacksIsAnError)
+        {
+            PanelRig  rig;
+            Reply     reply = rig.Run ("PANEL mmu");
+
+
+
+            Assert::IsTrue  (reply.status == CommandStatus::Error);
+            Assert::IsTrue  (Join (reply.text).find ("PANEL LIST") != std::string::npos);
+            Assert::IsFalse (rig.view.IsPanelOpen ("mmu"));
+            Assert::IsTrue  (rig.Run ("PANEL CLOSE").status == CommandStatus::Error, L"CLOSE needs a name");
+        }
+
+
+        //  Batch and the pipe have no window to put a panel in.
+        TEST_METHOD (OutsideTheWindowPanelIsNotAvailable)
+        {
+            PanelRig  rig;
+            Reply     reply = DebuggerViewState::ExecuteLine (rig.session, "PANEL fake", CommandMode::AppleWin);
+
+
+
+            Assert::IsTrue  (reply.status == CommandStatus::NotAvailable);
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+        }
+
+
+        //  A machine switch or an emptied slot takes the device away; its panel
+        //  closes and stays closed when a device of that id returns.
+        TEST_METHOD (APanelClosesWhenItsDeviceLeaves)
+        {
+            PanelRig              rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.OpenPanel ("fake");
+            rig.target.diagnosticsProviders.clear();
+            snapshot = rig.view.Build (rig.session);
+
+            Assert::IsTrue  (snapshot.panels.empty());
+            Assert::IsTrue  (snapshot.diagnostics.empty());
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+
+            rig.target.diagnosticsProviders = { &rig.provider };
+            snapshot = rig.view.Build (rig.session);
+            Assert::IsTrue (snapshot.diagnostics.empty());
+        }
+
+
+        TEST_METHOD (TheMenuSendsPanelLines)
+        {
+            Assert::AreEqual (std::string ("PANEL disk"),        DebuggerViewState::GetPanelLine ("disk", true,  CommandMode::AppleWin));
+            Assert::AreEqual (std::string ("PANEL CLOSE disk"),  DebuggerViewState::GetPanelLine ("disk", false, CommandMode::AppleWin));
+            Assert::AreEqual (std::string ("/PANEL disk"),       DebuggerViewState::GetPanelLine ("disk", true,  CommandMode::Monitor));
+        }
+
+
+        //  A real machine's MMU panel arrives with its map.
+        TEST_METHOD (TheMmuPanelOfARealMachine)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            (void) rig.view.ExecuteWindowLine (rig.controller.GetSession(), "PANEL mmu", CommandMode::AppleWin);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size());
+            Assert::AreEqual (std::string ("mmu"), snapshot.diagnostics[0].id);
+            Assert::IsTrue   (std::holds_alternative<DiagnosticsMemoryMap> (snapshot.diagnostics[0].visual));
+        }
+
+
+        //  The rows a panel draws: the group's title on a row of its own, each
+        //  row under it, and a bit's name dimmed while the bit is clear.
+        TEST_METHOD (APanelRendersASyntheticSnapshot)
+        {
+            FakeDiagnosticsProvider                       provider;
+            DiagnosticsSnapshot                           snapshot;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+            provider.GetDiagnostics (snapshot);
+            rows = DiagnosticsPane::MakeRows (snapshot);
+
+            Assert::AreEqual ((size_t) 3, rows.size(), L"the group, then two rows");
+            Assert::AreEqual (std::wstring (L"Group"),       rows[0][0].text);
+            Assert::AreEqual (std::wstring (L"  Register"),  rows[1][0].text);
+            Assert::AreEqual (std::wstring (L"$80"),         rows[1][1].text);
+            Assert::AreEqual (std::wstring (L"HI LO"),       rows[1][2].text);
+            Assert::AreEqual ((size_t) 1, rows[1][2].dimRanges.size(), L"only LO is clear");
+            Assert::AreEqual (3, rows[1][2].dimRanges[0].first);
+            Assert::AreEqual (5, rows[1][2].dimRanges[0].second);
+            Assert::AreEqual (std::wstring (L""),            rows[2][2].text, L"a row with no decode");
+        }
+
+
+        //  The graphic follows the payload's kind; only a change of kind asks
+        //  the frame to lay out again.
+        TEST_METHOD (APanelShowsTheGraphicItsPayloadAsksFor)
+        {
+            DxuiListView         list;
+            MemoryMapBar         map;
+            DiskHeadView         head;
+            MeterBar             meters;
+            DiagnosticsPane      pane ("fake", L"Fake", &list, &map, &head, &meters);
+            DiagnosticsSnapshot  snapshot;
+
+
+
+            snapshot.groups.push_back ({ "Group", { { "Row", "1", {} } } });
+            Assert::IsFalse (pane.Apply (snapshot), L"no graphic, as before");
+
+            snapshot.visual = DiagnosticsDiskHead { 17, 139, 0x04, true, 0 };
+            Assert::IsTrue   (pane.Apply (snapshot));
+            Assert::IsFalse  (pane.Apply (snapshot), L"the same kind again");
+            Assert::AreEqual (17, head.GetHead().quarterTrack);
+
+            pane.GetFrame()->Layout (RECT { 0, 0, 400, 300 }, DxuiDpiScaler());
+            Assert::IsTrue  (head.IsVisible());
+            Assert::IsFalse (map.IsVisible());
+            Assert::IsFalse (meters.IsVisible());
+            Assert::AreEqual (2, list.GetRowCount());
         }
     };
 }

@@ -137,3 +137,31 @@ Byte PrinterCard::ReadStatus() const
 {
     return (m_ring.GetFreeBytes() > kReadyHighWater) ? kStatusReady : kStatusBusy;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterCard::GetDiagnostics
+//
+//  The status byte as the guest reads it: bit 7 ready, and the low three bits
+//  the Centronics lines a Grappler-style driver tests.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup  group { "Card", {} };
+
+
+
+    group.rows.push_back (MakeTextRow ("Slot",          std::format ("{}", m_slot)));
+    group.rows.push_back (MakeByteRow ("Status",        ReadStatus(), { "READY", "", "", "", "", "PAPER OUT", "FAULT#", "SELECT" }));
+    group.rows.push_back (MakeFlagRow ("Used",          m_everTouched));
+    group.rows.push_back (MakeTextRow ("Bytes waiting", std::format ("{}", m_ring.GetApproxSize())));
+    group.rows.push_back (MakeTextRow ("Space left",    std::format ("{}", m_ring.GetFreeBytes())));
+
+    snapshot.groups.push_back (std::move (group));
+}

@@ -65,6 +65,8 @@ public:
 
     TraceController   & GetTrace          () { return m_trace; }
 
+    std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override;
+
 private:
     MachineHost       & m_host;
     DebugMemoryView     m_view;
