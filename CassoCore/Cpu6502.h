@@ -66,16 +66,23 @@ public:
     // AddCycles rollup owns that, exactly as for a real instruction. Returns
     // true when an interrupt was dispatched (host skips StepOne that step).
     //
+    // An opcode watcher hears of the interrupt before it is taken (see
+    // IOpcodeWatcher).
+    //
     // Inlined: this runs once per instruction in the slice loop, and the
     // common path (no pending interrupt) is two branch tests. Keeping it in
     // the header lets it fold into EmuCpu::StepOne and the loop; only the rare
-    // dispatch path pays the out-of-line (virtual) DispatchVector call.
-    bool                          TryStepInterrupt()
+    // dispatch path pays the out-of-line (virtual) DispatchVector call. It is
+    // forced inline: left to the compiler it was called, and the linker kept
+    // whichever object's copy it met first, so an unrelated edit could move
+    // it far from the loop and change the loop's speed by 15%.
+    __forceinline bool            TryStepInterrupt()
     {
         if (m_nmiPending)
         {
             m_nmiPending = false;
 
+            ObserveInterrupt();
             MarkTraceInterrupt (kTraceIntrNmi);
             DispatchVector (nmiVector, false);
 
@@ -86,6 +93,7 @@ public:
 
         if (m_irqLine && status.flags.interruptDisable == 0)
         {
+            ObserveInterrupt();
             MarkTraceInterrupt (kTraceIntrIrq);
             DispatchVector (irqVector, false);
 

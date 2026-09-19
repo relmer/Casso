@@ -90,6 +90,55 @@ namespace DebuggerTests
 
 
 
+        //  The machine running freely, as it does with the debugger window open,
+        //  one instruction at a time until PC reaches the address. No breakpoint
+        //  is set and no hook installed, so the record hears only of the
+        //  instructions the CPU reports to it.
+        static void FreeRunTo (Rig & rig, Word address)
+        {
+            static constexpr int  kStepLimit = 100'000;
+            int                   steps      = 0;
+
+
+
+            do
+            {
+                rig.machine.StepOne();
+                ++steps;
+            }
+            while (rig.machine.GetCpu()->GetPC() != address && steps < kStepLimit);
+
+            Assert::AreEqual (address, rig.machine.GetCpu()->GetPC(), L"the free run reached its label");
+        }
+
+
+        //  The chain CALLS shows at each address in turn, reached by debugger
+        //  runs in one machine and by free runs in another, is the same.
+        static void AssertFreeRunRecordsTheSame (const char * start, const std::vector<std::string> & labels)
+        {
+            Rig      stepped;
+            Rig      running;
+            Program  program = Load (stepped, start);
+
+
+
+            Load (running, start);
+
+            for (const std::string & label : labels)
+            {
+                Word  address = program.Symbol (label.c_str());
+
+
+
+                RunTo     (stepped, address);
+                FreeRunTo (running, address);
+
+                Assert::IsTrue (stepped.RunOk ("CALLS").text == running.RunOk ("CALLS").text, L"the free run recorded the same chain");
+            }
+        }
+
+
+
         static CallStackData Calls (Rig & rig)
         {
             Reply  reply = rig.RunOk ("CALLS");
@@ -511,6 +560,146 @@ namespace DebuggerTests
 
             rig.RunOk ("CALLS MODE RECORDED");
             Assert::AreEqual ((size_t) 2, Calls (rig).rows.size(), L"recorded alone stops at the boundary");
+        }
+
+
+        //  Free runs, where the record hears only of the instructions the CPU
+        //  reports, record what debugger runs record.
+
+        TEST_METHOD (AFreeRunRecordsEachCaseAsADebuggerRunDoes)
+        {
+            AssertFreeRunRecordsTheSame ("deep",    { "two", "threein" });
+            AssertFreeRunRecordsTheSame ("recur",   { "recbot" });
+            AssertFreeRunRecordsTheSame ("inl",     { "inlrts", "inlback" });
+            AssertFreeRunRecordsTheSame ("away",    { "disjmp", "awayto" });
+            AssertFreeRunRecordsTheSame ("reload",  { "txsnext" });
+            AssertFreeRunRecordsTheSame ("rewrite", { "rewrrts", "rewrto" });
+            AssertFreeRunRecordsTheSame ("wrap",    { "wrapend" });
+        }
+
+
+        TEST_METHOD (AFreeRunDetectsTxs)
+        {
+            Rig      rig;
+            Program  program = Load (rig, "reload");
+
+
+
+            FreeRunTo (rig, program.Symbol ("txsnext"));
+            Assert::AreEqual (std::format ("-- TXS at ${:04X} --", program.Symbol ("txsat")), rig.RunOk ("CALLS").text.at (0));
+        }
+
+
+        TEST_METHOD (AFreeRunRecordsAnInterruptTakenInALoopWithNoStackOpcode)
+        {
+            static constexpr Word        kStart      = 0x0900;
+            static constexpr Word        kLoop       = 0x0901;
+            static constexpr Word        kHandler    = 0x0A00;
+            static constexpr Byte        kCli        = 0x58;
+            static constexpr Byte        kBne        = 0xD0;
+            static constexpr Byte        kNop        = 0xEA;
+            static constexpr Byte        kRti        = 0x40;
+            static constexpr int         kNops       = 16;
+            static constexpr uint64_t    kSpinCycles = 1000;
+            Rig                          rig;
+            std::vector<CallStackFrame>  frames;
+            Word                         at          = kLoop;
+            Word                         interrupted = 0;
+            auto                         isIrq       = [] (const CallStackFrame & frame) { return frame.kind == CallFrameKind::Irq; };
+
+
+
+            //  CLI, then sixteen NOPs and a BNE back to the first, taken with Z
+            //  clear from the load: the loop the interrupt lands in has no
+            //  opcode the filter marks, and many instructions it can land on.
+            rig.Load (kStart, { kCli }, kStart);
+
+            for (int i = 0; i < kNops; ++i)
+            {
+                rig.target.TryPoke (at++, kNop);
+            }
+
+            rig.target.TryPoke (at,     kBne);
+            rig.target.TryPoke (at + 1, (Byte) (kLoop - (at + 2)));
+            rig.target.TryPoke (kHandler,     kNop);
+            rig.target.TryPoke (kHandler + 1, kRti);
+            rig.target.TryPoke (kIrqUserVector,     (Byte) (kHandler & 0xFF));
+            rig.target.TryPoke (kIrqUserVector + 1, (Byte) (kHandler >> 8));
+            rig.session.SetCallRecording (true);
+
+            FreeRunTo (rig, kLoop);
+            rig.machine.RunCycles (kSpinCycles);
+            interrupted = rig.machine.GetCpu()->GetPC();
+            Assert::AreNotEqual (kLoop, interrupted, L"the interrupt lands on an instruction the recorder was not shown");
+
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kMaskable, true);
+            FreeRunTo (rig, kHandler);
+            frames = Frames (Calls (rig));
+
+            Assert::IsTrue   (std::any_of (frames.begin(), frames.end(), isIrq), L"the interrupt is a frame");
+            Assert::AreEqual (interrupted, std::find_if (frames.begin(), frames.end(), isIrq)->callSite, L"its call site is the interrupted instruction");
+
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kMaskable, false);
+            FreeRunTo (rig, kLoop);
+            frames = Frames (Calls (rig));
+
+            Assert::IsFalse (std::any_of (frames.begin(), frames.end(), isIrq), L"RTI popped it");
+        }
+
+
+        TEST_METHOD (RecordingAloneInstallsNoPerInstructionHook)
+        {
+            Rig                      rig;
+            const DebugHookFilter  & filter = rig.session.GetFilter();
+
+
+
+            rig.session.SetCallRecording (true);
+            Assert::IsNull (rig.machine.GetDebugHook(), L"the CPU reports what the record needs");
+
+            rig.session.GetBreakpoints().AddAddress (0x1234, 0x1234);
+            rig.session.OnStopConditionsChanged();
+            Assert::IsNotNull (rig.machine.GetDebugHook());
+            Assert::IsFalse   (filter.everyInstruction);
+            Assert::IsTrue    (filter.pages[0x12]);
+            Assert::IsFalse   (filter.pages[0x13], L"only the breakpoint's page is asked about");
+
+            rig.session.GetBreakpoints().AddCondition (Expression());
+            rig.session.OnStopConditionsChanged();
+            Assert::IsTrue (filter.everyInstruction, L"a register condition is tested before every instruction");
+            Assert::IsTrue (filter.pages[0x13]);
+
+            rig.session.ClearAllBreakpoints();
+            Assert::IsNull (rig.machine.GetDebugHook());
+        }
+
+
+        TEST_METHOD (AFreeRunStopsAtABreakpointWithAndWithoutRecording)
+        {
+            static constexpr uint64_t  kBudget = 1'000'000;
+
+
+
+            for (bool isRecording : { false, true })
+            {
+                Rig      rig;
+                Program  program = Load (rig, "deep");
+                Word     stop    = program.Symbol ("threein");
+
+
+
+                rig.session.SetCallRecording (isRecording);
+                rig.session.GetBreakpoints().AddAddress (stop, stop);
+                rig.session.OnStopConditionsChanged();
+                rig.machine.RunCycles (kBudget);
+
+                Assert::AreEqual (stop, rig.machine.GetCpu()->GetPC(), L"the free run stopped at the breakpoint");
+
+                if (isRecording)
+                {
+                    Assert::AreEqual ((size_t) 3, Frames (Calls (rig)).size(), L"and recorded the three calls to it");
+                }
+            }
         }
     };
 }

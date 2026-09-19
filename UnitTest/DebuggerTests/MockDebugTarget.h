@@ -39,6 +39,7 @@ public:
     IRunObserver           * observer         = nullptr;
     DebugHook              * stopConditions   = nullptr;
     bool                     hookInstalled    = false;
+    const bool             * watchedOpcodes   = nullptr;
     int                      hookChanges      = 0;
     WatchedPages             watchedPages     = {};
     int                      maskChanges      = 0;
@@ -111,6 +112,7 @@ public:
     HRESULT StartRun         (const RunRequest & request) override   { runs.push_back (request); return S_OK; }
     void    RequestPause     () override                             { ++pauseRequests; }
     void    SetHookInstalled (bool installed) override               { hookInstalled = installed; ++hookChanges; }
+    void    SetOpcodeWatch   (const bool * opcodes, IOpcodeWatcher *) override { watchedOpcodes = opcodes; }
     void    SetStopConditions (DebugHook * conditions) override      { stopConditions = conditions; }
     void    SetWatchedPages  (const WatchedPages & pages) override   { watchedPages = pages; ++maskChanges; }
     void    SetWatchSink     (IWatchSink * sink) override            { watchSink = sink; }

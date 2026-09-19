@@ -20,6 +20,42 @@ RunStopHook::RunStopHook (MachineHost & host, const DebugMemoryView & view) :
     m_host (host),
     m_view (view)
 {
+    UseIdleFilter();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::SetConditions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RunStopHook::SetConditions (DebugHook * conditions)
+{
+    m_conditions = conditions;
+
+    if (!m_active)
+    {
+        UseIdleFilter();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::UseIdleFilter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RunStopHook::UseIdleFilter()
+{
+    SetFilter ((m_conditions != nullptr) ? &m_conditions->GetFilter() : &s_kNoInstruction);
 }
 
 
@@ -51,6 +87,8 @@ void RunStopHook::Begin (const RunRequest & request)
     m_overCall     = request.kind == RunKind::StepOver && PeekOpcode (pc) == kJsr;
     m_callSp.reset();
     m_startLine    = GetStepLine (pc);
+
+    SetFilter (&s_kEveryInstruction);
 }
 
 
@@ -67,6 +105,8 @@ void RunStopHook::End()
 {
     m_active  = false;
     m_stopped = false;
+
+    UseIdleFilter();
 }
 
 
@@ -109,8 +149,11 @@ bool RunStopHook::ShouldStopBefore (Word pc)
 
     if (!m_stopped)
     {
-        m_lastOpcode = PeekOpcode (pc);
-        ++m_instructions;
+        if (m_active)
+        {
+            m_lastOpcode = PeekOpcode (pc);
+            ++m_instructions;
+        }
 
         if (m_conditions != nullptr)
         {

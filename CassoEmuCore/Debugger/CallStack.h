@@ -93,6 +93,14 @@ public:
     void    Settle        (Word pc, Byte sp);
     void    OnReset       (Word pc, Byte opcode);
 
+    //  Marks, in a 256-entry table, every opcode an instruction of which can
+    //  change the record: the calls, returns, jumps, pushes and pulls, and
+    //  every load of the stack pointer. An instruction of any other opcode
+    //  leaves the stack pointer where it was, so the record may skip it
+    //  provided it sees the instruction after each marked one and each
+    //  interrupt.
+    static void  MarkOpcodes (bool * opcodes);
+
     //  Outermost first.
     const std::vector<CallStackFrame>    & GetFrames     () const { return m_frames; }
     const std::vector<Break>             & GetBreaks     () const { return m_breaks; }

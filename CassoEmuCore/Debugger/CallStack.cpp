@@ -20,6 +20,8 @@ static constexpr Byte  s_kJmpIndirect = 0x6C;
 static constexpr Byte  s_kPly         = 0x7A;
 static constexpr Byte  s_kJmpIndexed  = 0x7C;
 static constexpr Byte  s_kTxs         = 0x9A;
+static constexpr Byte  s_kTas         = 0x9B;    // 6502 undocumented: SP = A & X
+static constexpr Byte  s_kLas         = 0xBB;    // 6502 undocumented: SP = SP & operand
 static constexpr Byte  s_kPhx         = 0xDA;
 static constexpr Byte  s_kPlx         = 0xFA;
 
@@ -209,6 +211,36 @@ void CallStackRecorder::OnReset (Word pc, Byte opcode)
     at.pc     = pc;
     at.opcode = opcode;
     AddBreak (CallBreakKind::Reset, at);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::MarkOpcodes
+//
+//  Apply's opcodes, the pushes it counts toward a stack wrap, and the two
+//  undocumented 6502 instructions that load the stack pointer, which Apply
+//  ignores but which would otherwise move it unseen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackRecorder::MarkOpcodes (bool * opcodes)
+{
+    static constexpr Byte  kMarked[] =
+    {
+        s_kBrk, s_kPhp, s_kJsr, s_kPlp, s_kRti, s_kPha, s_kJmp, s_kPhy, s_kRts, s_kPla,
+        s_kJmpIndirect, s_kPly, s_kJmpIndexed, s_kTxs, s_kTas, s_kLas, s_kPhx, s_kPlx,
+    };
+
+
+
+    for (Byte opcode : kMarked)
+    {
+        opcodes[opcode] = true;
+    }
 }
 
 

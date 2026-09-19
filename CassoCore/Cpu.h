@@ -9,6 +9,29 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IOpcodeWatcher
+//
+//  Told by a Cpu of each fetch of an opcode it watches, and of the fetch after
+//  each one, before the instruction runs: the registers are the ones it starts
+//  from. An interrupt the CPU takes reads as opcode $00, BRK's, which is what
+//  the 6502 forces into its instruction register to take one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IOpcodeWatcher
+{
+public:
+    virtual ~IOpcodeWatcher() = default;
+
+    virtual void  OnWatchedFetch (Word pc, Byte sp, Byte opcode) = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Cpu
 //
 //  The 6502 core: registers, a private 64 KB memory array, and the microcode
@@ -272,7 +295,11 @@ public:
     uint64_t GetTraceCount  () const { return m_traceCount; }
 
     // Stops recording and keeps what the ring holds.
-    void     StopTrace      ()       { m_traceEnabled = false; m_pendingTraceIntr = kTraceIntrNone; }
+    void     StopTrace      ()       { m_traceEnabled = false; m_pendingTraceIntr = kTraceIntrNone; UpdateFetchObserved(); }
+
+    // The opcodes, a 256-entry table, whose fetches the watcher is told of,
+    // with the fetch after each; null for none. The table is read in place.
+    void     SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher);
 
     // The entries the ring holds, oldest first.
     size_t   GetTraceSize     () const;
@@ -289,6 +316,49 @@ public:
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const;
 
 protected:
+    static constexpr Byte  kInterruptOpcode = 0x00;
+
+    using OpcodeTable = std::array<bool, 0x100>;
+
+    static constexpr OpcodeTable  s_kNoOpcodes  = {};
+    static constexpr OpcodeTable  s_kAllOpcodes = [] { OpcodeTable all {}; all.fill (true); return all; }();
+
+    // Whether a fetch is looked at at all: the trace is on, or an opcode watch
+    // is set. One test per instruction while neither is.
+    bool                     m_isFetchObserved  = false;
+
+    // The watcher's table, and the one the next fetch is looked up in: the
+    // watcher's, or every opcode for the fetch after a watched one.
+    const bool             * m_watchOpcodes     = nullptr;
+    const bool             * m_watchFetch       = s_kNoOpcodes.data();
+    IOpcodeWatcher         * m_watcher          = nullptr;
+
+    void UpdateFetchObserved () { m_isFetchObserved = m_traceEnabled || m_watcher != nullptr; }
+    void ReportWatchedFetch  (Byte opcode);
+
+    // Forced inline: it runs once per instruction while a fetch is observed.
+    __forceinline void ObserveFetch (Byte opcode)
+    {
+        if (m_watchFetch[opcode])
+        {
+            ReportWatchedFetch (opcode);
+        }
+
+        if (m_traceEnabled)
+        {
+            TracePush (opcode);
+        }
+    }
+
+    // An interrupt about to be taken in place of the instruction at PC.
+    void ObserveInterrupt ()
+    {
+        if (m_isFetchObserved && m_watchFetch[kInterruptOpcode])
+        {
+            ReportWatchedFetch (kInterruptOpcode);
+        }
+    }
+
     void TracePush    (Byte opcode);
 
     // Side-effect-free read for the trace, routed through the same read-page

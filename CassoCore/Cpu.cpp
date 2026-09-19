@@ -78,12 +78,55 @@ void Cpu::EnableTrace (size_t capacity)
         m_traceCapacity = 0;
         m_trace.clear();
         m_trace.shrink_to_fit();
+        UpdateFetchObserved();
         return;
     }
 
     m_traceCapacity = capacity;
     m_trace.assign (capacity, TraceEntry {});
     m_traceEnabled  = true;
+    UpdateFetchObserved();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetOpcodeWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher)
+{
+    bool  isOn = opcodes != nullptr && watcher != nullptr;
+
+
+
+    m_watchOpcodes = isOn ? opcodes : nullptr;
+    m_watcher      = isOn ? watcher : nullptr;
+    m_watchFetch   = isOn ? opcodes : s_kNoOpcodes.data();
+    UpdateFetchObserved();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportWatchedFetch
+//
+//  The fetch after a watched opcode is looked up in a table that holds every
+//  opcode, so the watcher sees the registers that opcode left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::ReportWatchedFetch (Byte opcode)
+{
+    m_watchFetch = m_watchOpcodes[opcode] ? s_kAllOpcodes.data() : m_watchOpcodes;
+    m_watcher->OnWatchedFetch (PC, SP, opcode);
 }
 
 
@@ -519,9 +562,9 @@ void Cpu::StepOne()
 
 
 
-    if (m_traceEnabled)
+    if (m_isFetchObserved)
     {
-        TracePush (opcode);
+        ObserveFetch (opcode);
     }
 
     if (!microcode.isLegal)

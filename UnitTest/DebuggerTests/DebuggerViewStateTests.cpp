@@ -144,7 +144,7 @@ namespace DebuggerViewStateTests
 
             hr = rig.controller.Open();
             Assert::IsTrue (SUCCEEDED (hr));
-            Assert::IsNotNull (rig.machine.GetDebugHook(), L"attached: the record is kept");
+            Assert::IsTrue (rig.controller.GetSession().IsCallRecording(), L"attached: the record is kept");
 
             rig.machine.StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());

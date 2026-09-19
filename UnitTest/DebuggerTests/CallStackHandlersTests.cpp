@@ -47,10 +47,11 @@ namespace DebuggerTests
             Assert::IsFalse (rig.target.hookInstalled, L"FR-064: no debugger interest, no hook");
 
             rig.session.SetCallRecording (true);
-            Assert::IsTrue  (rig.target.hookInstalled, L"recording is a hook");
+            Assert::IsFalse   (rig.target.hookInstalled, L"recording needs no hook: the CPU reports the opcodes it needs");
+            Assert::IsNotNull (rig.target.watchedOpcodes);
 
             rig.session.SetCallRecording (false);
-            Assert::IsFalse (rig.target.hookInstalled);
+            Assert::IsNull    (rig.target.watchedOpcodes);
         }
 
 

@@ -40,6 +40,10 @@ class MachineHost;
 //  The first instruction of a run always executes, so resuming from a
 //  breakpoint does not stop on the same breakpoint again.
 //
+//  A run in progress asks about every instruction. Between runs the hook asks
+//  about the instructions its conditions hook asks about, and none without
+//  one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class RunStopHook : public DebugHook
@@ -47,7 +51,7 @@ class RunStopHook : public DebugHook
 public:
     RunStopHook (MachineHost & host, const DebugMemoryView & view);
 
-    void        SetConditions    (DebugHook * conditions) { m_conditions = conditions; }
+    void        SetConditions    (DebugHook * conditions);
     void        Begin            (const RunRequest & request);
     void        End              ();
     bool        IsActive         () const { return m_active; }
@@ -58,7 +62,10 @@ public:
     bool        HasPendingStop   () const override;
 
 private:
-    static constexpr Byte  kJsr = 0x20;
+    static constexpr Byte             kJsr             = 0x20;
+    static constexpr DebugHookFilter  s_kNoInstruction = [] { DebugHookFilter none; none.everyInstruction = false; none.pages = {}; return none; }();
+
+    void        UseIdleFilter    ();
 
     bool        IsRunComplete    (Word pc, Byte sp) const;
     bool        IsSourceStepComplete (Word pc, Byte sp) const;

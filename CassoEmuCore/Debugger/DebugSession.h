@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Cpu.h"
 #include "Debugger/BreakpointTable.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
@@ -62,12 +63,14 @@ enum class LogLevel
 //  started.
 //
 //  The session is also the target's stop-conditions hook, its run observer,
-//  and the context expressions are evaluated in.
+//  the watcher of the opcodes the call record needs, and the context
+//  expressions are evaluated in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class DebugSession : public DebugHook,
                      public IRunObserver,
+                     public IOpcodeWatcher,
                      public IDebugExpressionContext
 {
 public:
@@ -204,6 +207,9 @@ public:
     // IRunObserver
     void   OnStopped             (const StopEvent & stop) override;
 
+    // IOpcodeWatcher: the call record's instructions, from the CPU.
+    void   OnWatchedFetch        (Word pc, Byte sp, Byte opcode) override;
+
     // IDebugExpressionContext
     bool   TryGetRegister        (const std::string & name, Word & value) const override;
     bool   TryPeek               (Word address, Byte & value) const override;
@@ -233,6 +239,7 @@ private:
     bool   TryResolveIdOrAddress (DebugCommand & command, Reply & reply);
     void   PushMonitorReturn     ();
     void   UpdateHookInstalled   ();
+    void   RefreshHookFilter     ();
     void   SettleCallRecord      ();
     Byte   PeekByte              (Word address) const;
     bool   HasStopConditions     () const;
@@ -267,6 +274,7 @@ private:
     bool                                  m_stepBySource  = false;
     StepFilter                            m_stepFilter;
     CallStackRecorder                     m_callRecorder;
+    std::array<bool, 0x100>               m_callOpcodes   = {};
     CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;
     std::vector<Word>                     m_searchResults;
 
@@ -276,6 +284,7 @@ private:
     LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;
     bool                                  m_hookInstalled = false;
+    DebugHookFilter                       m_hookFilter;
     std::optional<int>                    m_lastBreakpointId;
     std::optional<WatchHit>               m_beforeHit;
     std::optional<VideoBreak>             m_videoBreak;
