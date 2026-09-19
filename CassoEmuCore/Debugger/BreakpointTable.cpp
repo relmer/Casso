@@ -2,6 +2,7 @@
 
 #include "Debugger/BreakpointTable.h"
 
+#include "Debugger/ConditionContext.h"
 #include "Debugger/IDebugExpressionContext.h"
 
 
@@ -29,15 +30,43 @@ BreakpointTable::BreakpointTable (int & nextId) :
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int BreakpointTable::AddAddress (Word first, Word last)
+int BreakpointTable::AddAddress (Word first, Word last, const Expression & condition)
 {
     Breakpoint  entry;
 
 
 
-    entry.kind  = BreakpointKind::Address;
-    entry.first = first;
-    entry.last  = last;
+    entry.kind      = BreakpointKind::Address;
+    entry.first     = first;
+    entry.last      = last;
+    entry.condition = condition;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::AddMemoryValue
+//
+//  Matched on the bus's write path, through the watchpoint table, which
+//  watches the address's page while the entry is enabled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddMemoryValue (Word address, Byte value, const Expression & condition)
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind      = BreakpointKind::MemoryValue;
+    entry.first     = address;
+    entry.last      = address;
+    entry.value     = value;
+    entry.condition = condition;
     return Add (entry);
 }
 
@@ -379,7 +408,8 @@ bool BreakpointTable::TryMatchBeforeInstruction (
     const IDebugExpressionContext & context,
     int                           & hitId)
 {
-    bool  isAddressPass = m_addressBits[pc];
+    bool                    isAddressPass  = m_addressBits[pc];
+    std::optional<int32_t>  conditionValue;
 
 
 
@@ -396,7 +426,7 @@ bool BreakpointTable::TryMatchBeforeInstruction (
                 continue;
             }
 
-            if (TryMatchEntry (entry, pc, opcode, context))
+            if (TryMatchEntry (entry, pc, opcode, context, conditionValue))
             {
                 ++entry.hits;
 
@@ -405,7 +435,8 @@ bool BreakpointTable::TryMatchBeforeInstruction (
                     continue;
                 }
 
-                hitId = entry.id;
+                hitId                = entry.id;
+                m_lastConditionValue = conditionValue;
                 return true;
             }
         }
@@ -420,15 +451,64 @@ bool BreakpointTable::TryMatchBeforeInstruction (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::TryMatchWrite
+//
+//  The write has already happened, so the address holds value; ACCESS and
+//  VALUE give the address and the byte to the IF expression.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMatchWrite (
+    Word                            address,
+    Byte                            value,
+    const IDebugExpressionContext & context,
+    int                           & hitId,
+    std::optional<int32_t>        & conditionValue)
+{
+    for (Breakpoint & entry : m_entries)
+    {
+        bool  isTarget = entry.enabled && entry.kind == BreakpointKind::MemoryValue && entry.first == address && entry.value == value;
+
+
+
+        if (!isTarget || !ConditionContext::IsMet (entry.condition, context, address, value, conditionValue))
+        {
+            continue;
+        }
+
+        ++entry.hits;
+
+        if (!entry.stops)
+        {
+            continue;
+        }
+
+        hitId = entry.id;
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::TryMatchEntry
+//
+//  An address entry's IF expression is evaluated only once PC is in its
+//  range, so a false one costs nothing elsewhere.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BreakpointTable::TryMatchEntry (
-    Breakpoint                    & entry,
+    const Breakpoint              & entry,
     Word                            pc,
     Byte                            opcode,
-    const IDebugExpressionContext & context) const
+    const IDebugExpressionContext & context,
+    std::optional<int32_t>        & conditionValue) const
 {
     int32_t      value = 0;
     std::string  error;
@@ -436,10 +516,13 @@ bool BreakpointTable::TryMatchEntry (
 
 
 
+    conditionValue.reset();
+
     switch (entry.kind)
     {
     case BreakpointKind::Address:
-        return pc >= entry.first && pc <= entry.last;
+        return pc >= entry.first && pc <= entry.last &&
+               ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, conditionValue);
 
     case BreakpointKind::Opcode:
     case BreakpointKind::Brk:

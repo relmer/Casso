@@ -177,7 +177,7 @@ contract predicts.
    Expect one stop, with `A=41`.
 2. `BPMV 6 7` (value breakpoint) and a program that increments `$06`. Expect
    the stop after the write that makes it 7 (FR-062).
-3. `BP 300 IF @C000=80`. Expect a refusal naming the I/O read.
+3. `BP 300 IF *C000=80`. Expect an error giving the I/O address read.
 
 ## Story 11: profiling
 

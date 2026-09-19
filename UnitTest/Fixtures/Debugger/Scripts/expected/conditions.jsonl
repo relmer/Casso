@@ -1,0 +1,18 @@
+{"type":"reply","status":"ok","command":"MEB 300 18 69 01 4C 00 03","data":{"kind":"memory","rows":[{"address":768,"bytes":[24,105,1,76,0,3],"region":"mainRam"}]},"text":["0300: 18 69 01 4C 00 03        .i.L.."]}
+{"type":"reply","status":"ok","command":"R PC 300","data":{"kind":"registers","a":0,"x":0,"y":0,"p":36,"s":253,"pc":768,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I.."]}
+{"type":"reply","status":"ok","command":"BP 300 IF A=41","data":{"kind":"breakpointSet","breakpoint":{"id":0,"kind":"address","address":768,"last":768,"condition":"A=41","enabled":true,"temporary":false,"stops":true,"hits":0}},"text":["Breakpoint #0 set at $0300 if A=41"]}
+{"type":"reply","status":"ok","command":"G","data":{"kind":"message"},"text":[]}
+{"type":"stopped","reason":"breakpoint","pc":768,"breakpointId":0,"condition":"A=41","conditionValue":1,"cycles":455,"registers":{"a":65,"x":0,"y":0,"p":36,"s":253,"pc":768}}
+{"type":"reply","status":"ok","command":"R","data":{"kind":"registers","a":65,"x":0,"y":0,"p":36,"s":253,"pc":768,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:41 X:00 Y:00 P:24 S:FD PC:0300  ..R..I.."]}
+{"type":"reply","status":"ok","command":"BPL","data":{"kind":"breakpointList","breakpoints":[{"id":0,"kind":"address","address":768,"last":768,"condition":"A=41","enabled":true,"temporary":false,"stops":true,"hits":1}]},"text":["#0 enabled  at $0300 if A=41, hits 1"]}
+{"type":"reply","status":"ok","command":"BPC *","data":{"kind":"message"},"text":["All breakpoints cleared."]}
+{"type":"reply","status":"ok","command":"MEB 6 0","data":{"kind":"memory","rows":[{"address":6,"bytes":[0],"region":"mainRam"}]},"text":["0006: 00                       ."]}
+{"type":"reply","status":"ok","command":"MEB 310 E6 06 4C 10 03","data":{"kind":"memory","rows":[{"address":784,"bytes":[230,6,76,16,3],"region":"mainRam"}]},"text":["0310: E6 06 4C 10 03           f.L.."]}
+{"type":"reply","status":"ok","command":"R PC 310","data":{"kind":"registers","a":65,"x":0,"y":0,"p":36,"s":253,"pc":784,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:41 X:00 Y:00 P:24 S:FD PC:0310  ..R..I.."]}
+{"type":"reply","status":"ok","command":"BPMV 6 7","data":{"kind":"breakpointSet","breakpoint":{"id":0,"kind":"memoryValue","address":6,"last":6,"value":7,"enabled":true,"temporary":false,"stops":true,"hits":0}},"text":["Breakpoint #0 set when $0006 becomes $07"]}
+{"type":"reply","status":"ok","command":"G","data":{"kind":"message"},"text":[]}
+{"type":"stopped","reason":"watchpoint","pc":786,"watch":{"id":0,"address":6,"value":7,"previous":6,"access":"write","accessPc":784,"mode":"after"},"cycles":53,"registers":{"a":65,"x":0,"y":0,"p":36,"s":253,"pc":786}}
+{"type":"reply","status":"ok","command":"BPL","data":{"kind":"breakpointList","breakpoints":[{"id":0,"kind":"memoryValue","address":6,"last":6,"value":7,"enabled":true,"temporary":false,"stops":true,"hits":1}]},"text":["#0 enabled  when $0006 becomes $07, hits 1"]}
+{"type":"reply","status":"ok","command":"BPC *","data":{"kind":"message"},"text":["All breakpoints cleared."]}
+{"type":"reply","status":"error","command":"BP 300 IF *C000=80","text":["Error: invalid condition","       The condition reads $C000, an I/O address. Reading it would change the machine."],"error":{"label":"invalid condition","detail":"The condition reads $C000, an I/O address. Reading it would change the machine."}}
+{"type":"reply","status":"ok","command":"BPL","data":{"kind":"breakpointList","breakpoints":[]},"text":["No breakpoints."]}

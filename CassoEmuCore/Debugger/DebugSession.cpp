@@ -36,10 +36,12 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_sink   (sink),
     m_state  (initialState)
 {
-    m_target.SetStopConditions (this);
-    m_target.SetRunObserver    (this);
-    m_target.SetWatchSink      (&m_watchpoints);
-    m_watchpoints.SetTarget    (&m_target);
+    m_target.SetStopConditions        (this);
+    m_target.SetRunObserver           (this);
+    m_target.SetWatchSink             (&m_watchpoints);
+    m_watchpoints.SetContext          (this);
+    m_watchpoints.SetValueBreakpoints (&m_breakpoints);
+    m_watchpoints.SetTarget           (&m_target);
     LoadRomSymbols();
 }
 
@@ -545,6 +547,7 @@ void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
 
 void DebugSession::OnStopConditionsChanged()
 {
+    m_watchpoints.RefreshWatchedPages();
     UpdateHookInstalled();
 }
 
@@ -900,6 +903,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
         event.watch = m_watchpoints.GetPendingHit();
     }
 
+    AttachCondition (event);
     TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
     if (m_videoBreakHit)
@@ -952,6 +956,56 @@ void DebugSession::ClearTemporary (const StopEvent & stop)
     if (stop.watch.has_value() && m_watchpoints.TryFind (stop.watch->id, watchpoint) && watchpoint.temporary)
     {
         m_watchpoints.TryClear (watchpoint.id);
+    }
+
+    //  A value breakpoint stops as a watchpoint does, under its own id.
+    if (stop.watch.has_value() && m_breakpoints.TryFind (stop.watch->id, breakpoint) && breakpoint.temporary)
+    {
+        m_breakpoints.TryClear (breakpoint.id);
+        m_watchpoints.RefreshWatchedPages();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AttachCondition
+//
+//  The IF expression of the entry that stopped the machine, and the value it
+//  had at the hit, which the table recorded then. A register breakpoint's
+//  condition is the breakpoint itself, not an IF, and is not repeated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AttachCondition (StopEvent & event) const
+{
+    Breakpoint  breakpoint;
+    Watchpoint  watchpoint;
+
+
+
+    if (event.breakpointId.has_value() && m_breakpoints.TryFind (*event.breakpointId, breakpoint) && breakpoint.kind != BreakpointKind::Register)
+    {
+        event.condition      = breakpoint.condition.text;
+        event.conditionValue = m_breakpoints.GetLastConditionValue();
+    }
+    else if (event.watch.has_value() && m_watchpoints.TryFind (event.watch->id, watchpoint))
+    {
+        event.condition      = watchpoint.condition.text;
+        event.conditionValue = event.watch->conditionValue;
+    }
+    else if (event.watch.has_value() && m_breakpoints.TryFind (event.watch->id, breakpoint))
+    {
+        event.condition      = breakpoint.condition.text;
+        event.conditionValue = event.watch->conditionValue;
+    }
+
+    if (event.condition.empty())
+    {
+        event.conditionValue.reset();
     }
 }
 

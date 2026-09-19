@@ -5,6 +5,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/ConditionContext.h"
 #include "Debugger/DebugSession.h"
 #include "Disassembler.h"
 
@@ -34,6 +35,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::SetMemoryWatchpoint:        SetWatchpoint (session, command, WatchAccess::ReadWrite, reply); return true;
     case DebugVerb::SetReadWatchpoint:          SetWatchpoint (session, command, WatchAccess::Read,      reply); return true;
     case DebugVerb::SetWriteWatchpoint:         SetWatchpoint (session, command, WatchAccess::Write,     reply); return true;
+    case DebugVerb::SetValueBreakpoint:         SetValue      (session, command, reply);                         return true;
     case DebugVerb::BreakOnBrk:                 SetBrk        (session, command, reply);                         return true;
     case DebugVerb::BreakOnOpcode:              SetOpcode     (session, command, reply);                         return true;
     case DebugVerb::BreakOnInterrupt:           SetInterrupt  (session, command, reply);                         return true;
@@ -103,6 +105,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.address   = entry.first;
     info.last      = entry.last;
     info.opcode    = entry.opcode;
+    info.value     = entry.value;
     info.condition = entry.condition.text;
     info.enabled   = entry.enabled;
     info.temporary = entry.temporary;
@@ -133,6 +136,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Watchpoint & entry)
     info.last      = entry.last;
     info.access    = entry.access;
     info.mode      = entry.mode;
+    info.condition = entry.condition.text;
     info.enabled   = entry.enabled;
     info.temporary = entry.temporary;
     info.stops     = entry.stops;
@@ -150,7 +154,8 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Watchpoint & entry)
 //
 //  A condition is written back as BPR with its register first, so `A=41`
 //  becomes `BPR A =41`. An I/O entry has no command of its own and is
-//  written as the memory watchpoint it behaves as.
+//  written as the memory watchpoint it behaves as. An IF expression follows
+//  the entry's own arguments.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,17 +166,19 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
                                                  ? std::format ("{:04X}:{:04X}", info.address, info.last)
                                                  : std::format ("{:04X}", info.address);
     size_t                        op             = info.condition.find_first_of ("<>=!");
+    std::string                   clause         = info.condition.empty() ? std::string() : " IF " + info.condition;
 
 
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:   return "BP " + range;
-    case BreakpointKind::Register:  return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
-    case BreakpointKind::Opcode:    return std::format ("BRKOP {:02X}", info.opcode);
-    case BreakpointKind::Brk:       return "BRK ON";
-    case BreakpointKind::Interrupt: return "BRKINT ON";
-    default:                        return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "");
+    case BreakpointKind::Address:     return "BP " + range + clause;
+    case BreakpointKind::Register:    return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
+    case BreakpointKind::Opcode:      return std::format ("BRKOP {:02X}", info.opcode);
+    case BreakpointKind::Brk:         return "BRK ON";
+    case BreakpointKind::Interrupt:   return "BRKINT ON";
+    case BreakpointKind::MemoryValue: return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
+    default:                          return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
     }
 }
 
@@ -188,11 +195,17 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
 void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     Word        last = command.hasA2 ? command.a2 : command.a1;
-    int         id   = session.GetBreakpoints().AddAddress (command.a1, last);
+    int         id   = 0;
     Breakpoint  entry;
 
 
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
+    id = session.GetBreakpoints().AddAddress (command.a1, last, command.expression);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
@@ -230,6 +243,11 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
         return;
     }
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     fileId = FindSourceFile (file, command.text);
 
     if (!fileId.has_value())
@@ -250,7 +268,7 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
 
     for (const std::pair<Word, Word> & range : ranges)
     {
-        int  id = session.GetBreakpoints().AddAddress (range.first, range.first);
+        int  id = session.GetBreakpoints().AddAddress (range.first, range.first, command.expression);
 
         message.lines.push_back (std::format ("Breakpoint #{} at ${:04X}, {} line {}.", id, range.first, command.text, *target));
     }
@@ -342,14 +360,94 @@ void BreakpointHandlers::SetCondition (DebugSession & session, const DebugComman
 void BreakpointHandlers::SetWatchpoint (DebugSession & session, const DebugCommand & command, WatchAccess access, Reply & reply)
 {
     Word        last = command.hasA2 ? command.a2 : command.a1;
-    int         id   = session.GetWatchpoints().Add (access, command.a1, last, GetMode (command));
+    WatchMode   mode = GetMode (command);
+    int         id   = 0;
     Watchpoint  entry;
 
 
 
+    if (!TryValidateCondition (session, command.expression, true, mode == WatchMode::After, reply))
+    {
+        return;
+    }
+
+    id = session.GetWatchpoints().Add (access, command.a1, last, mode, command.expression);
     session.OnStopConditionsChanged();
     session.GetWatchpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetValue
+//
+//  BPMV addr value: a value breakpoint, which stops after a write that leaves
+//  addr holding value, reported as a watchpoint hit is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetValue (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    int         id    = 0;
+    Byte        value = command.values.empty() ? (Byte) 0 : command.values[0];
+    Breakpoint  entry;
+
+
+
+    if (!TryValidateCondition (session, command.expression, true, true, reply))
+    {
+        return;
+    }
+
+    id = session.GetBreakpoints().AddMemoryValue (command.a1, value, command.expression);
+    session.OnStopConditionsChanged();
+    session.GetBreakpoints().TryFind (id, entry);
+    reply.data = BreakpointSetData { MakeInfo (entry) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryValidateCondition
+//
+//  An IF expression is evaluated once as it is set, so an unknown symbol or
+//  a read of an I/O address is reported now and creates nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryValidateCondition (
+    DebugSession      & session,
+    const Expression  & condition,
+    bool                hasAccess,
+    bool                hasValue,
+    Reply             & reply)
+{
+    std::string  error;
+    HRESULT      hr    = S_OK;
+
+
+
+    if (condition.postfix.empty())
+    {
+        return true;
+    }
+
+    hr = ConditionContext::Validate (condition, session, hasAccess, hasValue, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "invalid condition", error);
+        return false;
+    }
+
+    return true;
 }
 
 
@@ -853,6 +951,8 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
     Breakpoint           breakpoint;
     Watchpoint           watchpoint;
     bool                 isWatchpoint = false;
+    bool                 isValueKind  = false;
+    bool                 isValid      = false;
 
 
 
@@ -873,7 +973,16 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
     if (!TryMakeEntry (parsed.command, id, old, breakpoint, watchpoint, isWatchpoint))
     {
         reply.SetError (CommandStatus::Error, "invalid arguments",
-                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW or BRKOP would take it.");
+                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV or BRKOP would take it.");
+        return;
+    }
+
+    isValueKind = breakpoint.kind == BreakpointKind::MemoryValue;
+    isValid     = isWatchpoint ? TryValidateCondition (session, watchpoint.condition, true, watchpoint.mode == WatchMode::After, reply)
+                               : breakpoint.kind == BreakpointKind::Register || TryValidateCondition (session, breakpoint.condition, isValueKind, isValueKind, reply);
+
+    if (!isValid)
+    {
         return;
     }
 
@@ -927,14 +1036,24 @@ bool BreakpointHandlers::TryMakeEntry (
     watchpoint.first     = definition.a1;
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);
+    watchpoint.condition = definition.expression;
     isWatchpoint         = false;
 
     switch (definition.verb)
     {
     case DebugVerb::SetBreakpoint:
-        breakpoint.kind  = BreakpointKind::Address;
-        breakpoint.first = definition.a1;
-        breakpoint.last  = last;
+        breakpoint.kind      = BreakpointKind::Address;
+        breakpoint.first     = definition.a1;
+        breakpoint.last      = last;
+        breakpoint.condition = definition.expression;
+        return true;
+
+    case DebugVerb::SetValueBreakpoint:
+        breakpoint.kind      = BreakpointKind::MemoryValue;
+        breakpoint.first     = definition.a1;
+        breakpoint.last      = definition.a1;
+        breakpoint.value     = definition.values.empty() ? (Byte) 0 : definition.values[0];
+        breakpoint.condition = definition.expression;
         return true;
 
     case DebugVerb::SetConditionalBreakpoint:

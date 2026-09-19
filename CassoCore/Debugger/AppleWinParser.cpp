@@ -439,12 +439,23 @@ bool AppleWinParser::TryParseFlagArguments (const Arguments & args, DebugCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseBreakpointArguments (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error)
 {
     static constexpr std::string_view  kOperators = "<>=!";
-    bool  isConditional = !args.tokens.empty() && kOperators.find (args.tokens[0][0]) != std::string_view::npos;
+    Arguments                          args          = source;
+    bool                               isConditional = !args.tokens.empty() && kOperators.find (args.tokens[0][0]) != std::string_view::npos;
+    bool                               takesIf       = command.verb == DebugVerb::SetMemoryWatchpoint ||
+                                                       command.verb == DebugVerb::SetReadWatchpoint   ||
+                                                       command.verb == DebugVerb::SetWriteWatchpoint  ||
+                                                       command.verb == DebugVerb::SetValueBreakpoint  ||
+                                                       (command.verb == DebugVerb::SetBreakpoint && !isConditional);
 
 
+
+    if (takesIf && !TryParseIfClause (args.tokens, command, error))
+    {
+        return false;
+    }
 
     switch (command.verb)
     {
@@ -477,15 +488,11 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & args, DebugC
     case DebugVerb::SetWriteWatchpoint:
         return TryParseWatchpointArguments (args, command, error);
 
-    case DebugVerb::SetRegisterBreakpoint:
-        if (args.tokens.empty())
-        {
-            error = "BPR needs a register and a value.";
-            return false;
-        }
+    case DebugVerb::SetValueBreakpoint:
+        return TryParseValueBreakpoint (args, command, error);
 
-        command.text = ToUpper (args.tokens[0]);
-        return TryParseCondition (command.text, args.tokens, 1, command, error);
+    case DebugVerb::SetRegisterBreakpoint:
+        return TryParseRegisterCondition (args.tokens, command, error);
 
     case DebugVerb::BreakOnOpcode:
         return TryParseValues (args.tokens, 0, ValueWidth::Bytes, *args.context, command, error);
@@ -524,6 +531,129 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & args, DebugC
         command.text = ToUpper (args.rest);
         return true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseIfClause
+//
+//  `IF <expression>` after a breakpoint's own arguments: the expression is
+//  parsed into the command and the clause removed from the tokens, so the
+//  arguments before it parse as they would without it. Its symbols are
+//  resolved when the breakpoint is set, not here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, std::string & error)
+{
+    auto         isIf       = [] (const std::string & token) { return ToUpper (token) == "IF"; };
+    auto         found      = std::find_if (tokens.begin(), tokens.end(), isIf);
+    size_t       index      = (size_t) (found - tokens.begin());
+    std::string  expression;
+    HRESULT      hr         = S_OK;
+
+
+
+    if (found == tokens.end())
+    {
+        return true;
+    }
+
+    expression = Join (tokens, index + 1);
+    tokens.resize (index);
+
+    if (expression.empty())
+    {
+        error = "IF needs an expression.";
+        return false;
+    }
+
+    hr = DebugExpressionEvaluator::Parse (expression, command.expression, error);
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseValueBreakpoint
+//
+//  BPMV addr value: stop when a write leaves addr holding value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseValueBreakpoint (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    static constexpr Word  kMaxByte = 0xFF;
+    Word                   value    = 0;
+
+
+
+    if (args.tokens.size() != 2)
+    {
+        error = "BPMV needs an address and a byte value.";
+        return false;
+    }
+
+    if (!TryEvaluate (args.tokens[0], *args.context, command.a1, error) || !TryEvaluate (args.tokens[1], *args.context, value, error))
+    {
+        return false;
+    }
+
+    if (value > kMaxByte)
+    {
+        error = std::format ("${:X} is not a byte. BPMV compares one byte, $00-$FF.", value);
+        return false;
+    }
+
+    command.hasA1  = true;
+    command.values = { (Byte) value };
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseRegisterCondition
+//
+//  BPR's register, comparison and value, with or without spaces between
+//  them: `BPR A=0`, `BPR A = 0` and `BPR A 0` are the same breakpoint. With
+//  no operator the register is the first token and = is implied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error)
+{
+    std::string  joined = Join (tokens, 0);
+    size_t       op     = joined.find_first_of ("<>=!");
+    Tokens       name   = (op == std::string::npos) ? Tokens (tokens.begin(), tokens.begin() + std::min<size_t> (tokens.size(), 1))
+                                                    : Split (joined.substr (0, op));
+
+
+
+    if (name.size() != 1)
+    {
+        error = "BPR needs a register and a value.";
+        return false;
+    }
+
+    command.text = ToUpper (name[0]);
+
+    if (op == std::string::npos)
+    {
+        return TryParseCondition (command.text, tokens, 1, command, error);
+    }
+
+    return TryParseCondition (command.text, Split (joined.substr (op)), 0, command, error);
 }
 
 

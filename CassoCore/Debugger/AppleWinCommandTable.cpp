@@ -67,6 +67,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BPM",         V::SetMemoryWatchpoint,      F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPMR",        V::SetReadWatchpoint,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPMW",        V::SetWriteWatchpoint,       F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPMV",        V::SetValueBreakpoint,       F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPC",         V::ClearBreakpoint,          F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPD",         V::DisableBreakpoint,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPEDIT",      V::EditBreakpoint,           F::Breakpoints, A::Headless,     nullptr,     nullptr },

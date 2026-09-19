@@ -75,7 +75,7 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
             }
         }
 
-        return text;
+        return text + FormatCondition (stop);
     }
 
     text = std::format ("{} at ${:04X}", kReasons[(int) stop.reason], stop.pc);
@@ -85,12 +85,36 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
         text = std::format ("Breakpoint #{} at ${:04X}", *stop.breakpointId, stop.pc);
     }
 
+    text += FormatCondition (stop);
+
     if (stop.sourceLine > 0)
     {
         text += std::format (", {} line {}", stop.sourceFile, stop.sourceLine);
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatCondition
+//
+//  The IF expression that let the stop through and its value, or nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::FormatCondition (const StopEvent & stop)
+{
+    if (stop.condition.empty() || !stop.conditionValue.has_value())
+    {
+        return std::string();
+    }
+
+    return std::format (", IF {} is ${:X}", stop.condition, (uint32_t) *stop.conditionValue);
 }
 
 
@@ -683,7 +707,15 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::Io:        text = "on I/O at " + FormatAddress (breakpoint);                                             break;
     case BreakpointKind::Brk:       text = "on BRK";                                                                              break;
     case BreakpointKind::Interrupt: text = "on interrupt";                                                                        break;
+    case BreakpointKind::MemoryValue:
+        text = std::format ("when ${:04X} becomes ${:02X}", breakpoint.address, breakpoint.value.value_or (0));
+        break;
     default:                        text = "at " + FormatAddress (breakpoint);                                                    break;
+    }
+
+    if (breakpoint.kind != BreakpointKind::Register && !breakpoint.condition.empty())
+    {
+        text += " if " + breakpoint.condition;
     }
 
     if (breakpoint.temporary)

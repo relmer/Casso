@@ -15,7 +15,8 @@ class DebugSession;
 //
 //  BreakpointHandlers
 //
-//  Setting: BP, BPX, BPA, BPR, BPM, BPMR, BPMW, BPIO, BRK, BRKOP, BRKINT.
+//  Setting: BP, BPX, BPA, BPR, BPM, BPMR, BPMW, BPMV, BPIO, BRK, BRKOP,
+//  BRKINT. BP, BPX, BPM, BPMR, BPMW and BPMV take a trailing IF expression.
 //  Managing: BPC, BPD, BPE, BPL, BPEDIT, BPCHANGE. Saving: BPSAVE.
 //
 //  Breakpoints and watchpoints share one numbering, so every command that
@@ -48,6 +49,8 @@ private:
     static std::optional<int>  FindSourceFile (const DebugFile & file, const std::string & name);
     static void  SetCondition   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetWatchpoint  (DebugSession & session, const DebugCommand & command, WatchAccess access, Reply & reply);
+    static void  SetValue       (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static bool  TryValidateCondition (DebugSession & session, const Expression & condition, bool hasAccess, bool hasValue, Reply & reply);
     static void  SetBoth        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetBrk         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetOpcode      (DebugSession & session, const DebugCommand & command, Reply & reply);

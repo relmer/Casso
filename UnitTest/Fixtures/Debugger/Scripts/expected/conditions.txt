@@ -1,0 +1,33 @@
+>MEB 300 18 69 01 4C 00 03
+0300: 18 69 01 4C 00 03        .i.L..
+>R PC 300
+A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I..
+>BP 300 IF A=41
+Breakpoint #0 set at $0300 if A=41
+>G
+Breakpoint #0 at $0300, IF A=41 is $1
+>R
+A:41 X:00 Y:00 P:24 S:FD PC:0300  ..R..I..
+>BPL
+#0 enabled  at $0300 if A=41, hits 1
+>BPC *
+All breakpoints cleared.
+>MEB 6 0
+0006: 00                       .
+>MEB 310 E6 06 4C 10 03
+0310: E6 06 4C 10 03           f.L..
+>R PC 310
+A:41 X:00 Y:00 P:24 S:FD PC:0310  ..R..I..
+>BPMV 6 7
+Breakpoint #0 set when $0006 becomes $07
+>G
+Watchpoint #0: Write $07 to $0006 by $0310 (was $06)
+>BPL
+#0 enabled  when $0006 becomes $07, hits 1
+>BPC *
+All breakpoints cleared.
+>BP 300 IF *C000=80
+Error: invalid condition
+       The condition reads $C000, an I/O address. Reading it would change the machine.
+>BPL
+No breakpoints.

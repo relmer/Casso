@@ -47,6 +47,7 @@ enum class BreakpointKind
     Io,
     Brk,
     Interrupt,
+    MemoryValue,
 };
 
 enum class WatchAccess
@@ -134,18 +135,19 @@ struct DisassemblyData
 
 struct BreakpointInfo
 {
-    int             id        = 0;
-    BreakpointKind  kind      = BreakpointKind::Address;
-    Word            address   = 0;
-    Word            last      = 0;
-    Byte            opcode    = 0;
-    std::string     condition;
-    WatchAccess     access    = WatchAccess::ReadWrite;
-    WatchMode       mode      = WatchMode::After;
-    bool            enabled   = true;
-    bool            temporary = false;             // cleared when it fires
-    bool            stops     = true;              // false: counts hits only
-    uint32_t        hits      = 0;
+    int                  id        = 0;
+    BreakpointKind       kind      = BreakpointKind::Address;
+    Word                 address   = 0;
+    Word                 last      = 0;
+    Byte                 opcode    = 0;
+    std::optional<Byte>  value;                     // kind MemoryValue
+    std::string          condition;                 // a register predicate, or an IF expression
+    WatchAccess          access    = WatchAccess::ReadWrite;
+    WatchMode            mode      = WatchMode::After;
+    bool                 enabled   = true;
+    bool                 temporary = false;         // cleared when it fires
+    bool                 stops     = true;          // false: counts hits only
+    uint32_t             hits      = 0;
 };
 
 struct BreakpointSetData
@@ -379,13 +381,14 @@ enum class StopReason
 
 struct WatchHit
 {
-    int                  id       = 0;
-    Word                 address  = 0;
-    Byte                 value    = 0;
-    std::optional<Byte>  previous;             // a memory write's replaced byte
-    WatchAccess          access   = WatchAccess::Read;
-    Word                 accessPc = 0;
-    WatchMode            mode     = WatchMode::After;
+    int                     id       = 0;
+    Word                    address  = 0;
+    Byte                    value    = 0;
+    std::optional<Byte>     previous;             // a memory write's replaced byte
+    WatchAccess             access   = WatchAccess::Read;
+    Word                    accessPc = 0;
+    WatchMode               mode     = WatchMode::After;
+    std::optional<int32_t>  conditionValue;       // the IF expression's value, when there is one
 };
 
 struct StopEvent
@@ -401,6 +404,11 @@ struct StopEvent
     //  it: the innermost, when macros nest. An empty file means none.
     std::string              sourceFile;
     int                      sourceLine = 0;
+
+    //  The IF expression of the breakpoint or watchpoint that stopped the
+    //  machine, and its value at the hit. An empty condition means none.
+    std::string              condition;
+    std::optional<int32_t>   conditionValue;
 };
 
 
