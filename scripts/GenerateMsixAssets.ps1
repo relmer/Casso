@@ -4,37 +4,17 @@
     from the application icon in Resources/Icons.
 
 .DESCRIPTION
-    An MSIX manifest names five logos, and Windows picks among a scale
-    variant of each for every display it draws on. A package that ships only
-    the scale-100 of each looks soft on a 150% laptop and badly so on a 200%
-    tablet, because the shell upscales rather than falling back to the
-    largest available. So the set is the whole grid: five logos times five
-    scales, plus the target-size variants the taskbar and the Start list ask
-    for by pixel count rather than by scale.
+    Six logos at five scales each, plus the target sizes the shell requests
+    by pixel count. Windows upscales rather than falling back, so a package
+    with only scale-100 looks soft above 100%.
 
-    THE OUTPUT IS CHECKED IN, and this script is how it is refreshed, not a
-    build step. Three reasons. The release job runs on a hosted image whose
-    imaging stack is not ours to depend on; a logo set that changes only when
-    the icon changes has no business being recomputed on every push; and a
-    reviewer can see what ships. Run this after editing the source icon and
-    commit what it writes.
+    THE OUTPUT IS CHECKED IN. Run this after editing the source icon and
+    commit what it writes; CI does no image work.
 
-    The source is the icon Explorer already shows for Casso.exe -- the lowest
-    numbered ICON in Casso/Casso.rc -- taken from its 1024x1024 PNG original
-    rather than from the .ico, which tops out at 256. That icon is a complete
-    badge, a cassowary on a dark rounded square, not a bare glyph on nothing.
-    That distinction sets the two rules below.
-
-    FILLED, NOT PADDED, at 44x44 and at every target size. Those assets are
-    the app list, the taskbar and Alt+Tab, where the badge IS the icon and
-    Windows adds any plate it wants around it. Padding here would render
-    Casso a size smaller than every neighboring icon.
-
-    PADDED ON THE TILES. A 150x150 Start tile drawn edge to edge reads as a
-    cropped photograph rather than as an icon, so the badge takes two thirds
-    of the short edge and sits centered on transparency. Transparent, not
-    filled, because the badge carries its own dark plate: a background color
-    behind it would draw a second square around the first.
+    The source is the icon Explorer shows for Casso.exe, from its 1024x1024
+    PNG rather than the .ico, which stops at 256. It is a finished badge, so
+    it fills every asset edge to edge; padding it inside a second frame only
+    draws Casso smaller than its neighbors.
 
 .PARAMETER Source
     The PNG to generate from. Default: the Casso-0-silhouette.png that
@@ -72,31 +52,25 @@ if (-not (Test-Path $Source))
 
 Add-Type -AssemblyName System.Drawing
 
-# The scales Windows ships assets for. A display at 175% asks for 200% and
-# gets it; one at 350% asks for 400%. There is no scale between these.
+# The only scales Windows requests; 175% takes the 200% asset.
 $scales = @(100, 125, 150, 200, 400)
 
-# The pixel sizes the shell requests by count rather than by scale: the
-# taskbar, the Start list, Alt+Tab, and Explorer's largest view. Each also
-# gets an _altform-unplated twin, which is what Windows draws where it does
-# NOT paint its own colored square behind the icon -- the taskbar being the
-# one everybody sees. Same bitmap; the suffix is the whole difference.
+# Requested by pixel count, not scale. The _altform-unplated twin is what
+# Windows 11 draws in Start, search and the taskbar; same bitmap either way.
 $targetSizes = @(16, 24, 32, 48, 256)
 
-# logo name -> base size at 100%, and how much of the short edge the badge
-# takes. See the two rules in .DESCRIPTION for why these differ.
+# Base size at 100%. Fill is the fraction of the SHORT edge, which keeps the
+# badge square on the 310x150 wide tile.
 $logos = @(
     @{ Name = 'Square44x44Logo';   Width =  44; Height =  44; Fill = 1.00 },
     @{ Name = 'StoreLogo';         Width =  50; Height =  50; Fill = 1.00 },
-    @{ Name = 'Square71x71Logo';   Width =  71; Height =  71; Fill = 0.66 },
-    @{ Name = 'Square150x150Logo'; Width = 150; Height = 150; Fill = 0.66 },
-    @{ Name = 'Square310x310Logo'; Width = 310; Height = 310; Fill = 0.66 },
-    @{ Name = 'Wide310x150Logo';   Width = 310; Height = 150; Fill = 0.66 }
+    @{ Name = 'Square71x71Logo';   Width =  71; Height =  71; Fill = 1.00 },
+    @{ Name = 'Square150x150Logo'; Width = 150; Height = 150; Fill = 1.00 },
+    @{ Name = 'Square310x310Logo'; Width = 310; Height = 310; Fill = 1.00 },
+    @{ Name = 'Wide310x150Logo';   Width = 310; Height = 150; Fill = 1.00 }
 )
 
-# Draws the source badge centered on a transparent canvas of the requested
-# size, at $fill of the canvas's SHORT edge. Short edge, so the wide tile
-# keeps the badge square instead of stretching it to the tile's aspect.
+# Draws the badge centered on a transparent canvas of the requested size.
 function Write-Logo
 {
     param(
@@ -117,19 +91,15 @@ function Write-Logo
     {
         $graphics.Clear([System.Drawing.Color]::Transparent)
 
-        # HighQualityBicubic plus a Half pixel offset: without the offset the
-        # resampler reads from pixel corners rather than centers, which shifts
-        # the badge half a source pixel up and left and frays the rounded
-        # corners at the small sizes where it shows most.
+        # Half pixel offset: without it the badge shifts half a source pixel
+        # up and left and the rounded corners fray at small sizes.
         $graphics.InterpolationMode  = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
         $graphics.PixelOffsetMode    = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
         $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
         $graphics.SmoothingMode      = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
 
-        # The destination rectangle alone is not enough. GDI+ samples beyond
-        # the source rectangle's edge by default and picks up the adjacent
-        # texels, which on a transparent-bordered badge means a pale halo. A
-        # wrap mode of TileFlipXY makes the edge mirror itself instead.
+        # TileFlipXY stops GDI+ sampling past the edge, which shows as a
+        # pale halo around the badge.
         $attributes = New-Object System.Drawing.Imaging.ImageAttributes
         try
         {
@@ -154,8 +124,7 @@ function Write-Logo
 
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
 
-# Start from empty. A logo renamed or a scale dropped would otherwise leave
-# its old file behind, and MakeAppx packs whatever is in the folder.
+# Start from empty; MakeAppx packs whatever is in the folder.
 Get-ChildItem $Destination -Filter *.png -ErrorAction SilentlyContinue | Remove-Item -Force
 
 $badge = [System.Drawing.Image]::FromFile((Resolve-Path $Source).Path)
@@ -169,8 +138,7 @@ try
     {
         foreach ($scale in $scales)
         {
-            # Ceiling, not rounding: 71 at 125% is 88.75, and the name
-            # Windows looks for is Square71x71Logo.scale-125 at 89 pixels.
+            # Ceiling, not rounding: 71 at 125% is 88.75, and the asset is 89.
             $width  = [int] [Math]::Ceiling($logo.Width  * $scale / 100.0)
             $height = [int] [Math]::Ceiling($logo.Height * $scale / 100.0)
             $path   = Join-Path $Destination "$($logo.Name).scale-$scale.png"

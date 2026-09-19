@@ -1,41 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <!--
-  The MSIX manifest, as a template. scripts/BuildMsix.ps1 substitutes
-  {VERSION} and {ARCHITECTURE} and writes the result as AppxManifest.xml into
-  each per-architecture staging folder; this file is never packed as it
-  stands.
-
-  A NOTE ON THE COMMENTS BELOW. XML forbids a double hyphen inside a comment,
-  so the em dash this repository writes as two hyphens cannot appear in this
-  file. makepri rejects the manifest outright when one does, with "Incorrect
-  syntax was used in a comment". The prose here is punctuated around that.
-
-  IDENTITY IS NOT A LABEL. Publisher has to match the subject of the signing
-  certificate character for character. signtool compares the two strings and
-  refuses the package on any difference, down to the space after a comma. The
-  value here is what Azure Trusted Signing's relmer-public profile issues,
-  read off a released binary rather than typed from memory:
-
-      Get-AuthenticodeSignature Casso.exe |
-          ForEach-Object { $_.SignerCertificate.Subject }
-
-  If that certificate is ever reissued under a different subject, this line
-  moves with it, the package family name changes with it (the family name is
-  a hash of this string), and the winget manifest's PackageFamilyName has to
-  be regenerated to match. Installer/winget/README.md says how.
-
-  Name is the package identity, not the display name, and it is equally
-  load-bearing: it is the other half of the family name, so changing it makes
-  Windows treat the result as a different application that installs alongside
-  the old one rather than upgrading it. It matches the winget
-  PackageIdentifier for no reason beyond keeping one string in the head.
-
-  VERSION IS FOUR PARTS and the last one is always zero. MSIX has no
-  three-part form, and the revision field is reserved for the Store to
-  increment on a repackage, which is not something that happens here.
-  CassoCore/Version.h remains the single source of truth; BuildMsix.ps1 reads
-  it and appends the zero.
+  Template. scripts/BuildMsix.ps1 substitutes {VERSION} and {ARCHITECTURE}.
+  No comment here may contain a double hyphen; makepri rejects the manifest.
 -->
 
 <Package
@@ -46,37 +13,30 @@
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
     IgnorableNamespaces="uap uap3 desktop rescap">
 
+    <!--
+      Publisher must match the signing certificate's subject exactly. Windows
+      builds the package family name out of Name and Publisher, so changing
+      either one installs a second copy instead of upgrading the first.
+    -->
     <Identity
         Name="relmer.Casso"
         Publisher="CN=Robert Elmer, O=Robert Elmer, L=Redmond, S=Washington, C=US"
         Version="{VERSION}"
         ProcessorArchitecture="{ARCHITECTURE}" />
 
+    <!--
+      Every logo path here points at a file that does not exist. Assets holds
+      the scale-qualified variants, and the resource index BuildMsix.ps1
+      generates with makepri maps the plain name to the right one.
+    -->
     <Properties>
         <DisplayName>Casso</DisplayName>
         <PublisherDisplayName>Robert Elmer</PublisherDisplayName>
         <Logo>Assets\StoreLogo.png</Logo>
     </Properties>
 
-    <!--
-      THE LOGO PATHS IN THIS FILE NAME FILES THAT DO NOT EXIST, and that is
-      correct. Assets holds StoreLogo.scale-100.png, StoreLogo.scale-200.png
-      and so on; the unqualified name is what the resource system resolves
-      against the display it is drawing on. What makes that work is
-      resources.pri, which BuildMsix.ps1 generates with makepri before
-      packing. Without it Windows cannot resolve these names and the package
-      fails to deploy, so a change to the asset set is a change to that step
-      too.
-    -->
-
+    <!-- 1809 is the floor for app execution aliases, not for the emulator. -->
     <Dependencies>
-        <!--
-          17763 (1809) is the floor, and it is the app execution aliases that
-          set it rather than anything in the emulator: an alias registered by
-          a packaged desktop application needs 1809 to be resolved reliably
-          from a terminal. Nothing below that line is a Windows anybody
-          should be running on.
-        -->
         <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
     </Dependencies>
 
@@ -84,38 +44,19 @@
         <Resource Language="en-US" />
     </Resources>
 
-    <!--
-      runFullTrust and nothing else. Casso is a Win32 application that happens
-      to be packaged, not a sandboxed app: it talks to Direct3D, XAudio2, raw
-      input and the file system as itself, and a full-trust package is exempt
-      from capability enforcement. Listing internetClient or the rest would
-      declare restrictions that are not in force, and tell a reader something
-      untrue about what the package does.
-    -->
     <Capabilities>
         <rescap:Capability Name="runFullTrust" />
     </Capabilities>
 
     <Applications>
 
-        <!--
-          Casso, the emulator. Windows.FullTrustApplication is what makes an
-          ordinary desktop executable launchable from a package: the platform
-          starts Casso.exe as a normal process rather than in an app
-          container.
-        -->
         <Application Id="Casso" Executable="Casso.exe" EntryPoint="Windows.FullTrustApplication">
 
-            <!--
-              BackgroundColor is transparent because the icon is a complete
-              badge with its own dark rounded plate. A named color here would
-              paint a second square behind the first, visible as a border on
-              every tile. See scripts/GenerateMsixAssets.ps1.
-            -->
+            <!-- BackgroundColor is the badge's plate color. Windows 10 tiles only. -->
             <uap:VisualElements
                 DisplayName="Casso"
                 Description="An Apple II family emulator with a built-in, fully AS65-compatible assembler."
-                BackgroundColor="transparent"
+                BackgroundColor="#121016"
                 Square150x150Logo="Assets\Square150x150Logo.png"
                 Square44x44Logo="Assets\Square44x44Logo.png">
                 <uap:DefaultTile
@@ -126,17 +67,7 @@
             </uap:VisualElements>
 
             <Extensions>
-                <!--
-                  The alias is what replaces the zip's Links folder, and it is
-                  the reason this package exists. It is a real entry in the
-                  app-paths list rather than a symlink in a directory of its
-                  own, so `casso` in a terminal starts the executable from the
-                  package folder, where its runtime DLLs are.
-
-                  The .exe in the alias is required by the schema and is not
-                  what a user types. `casso` resolves to it the same way
-                  `notepad` does.
-                -->
+                <!-- Makes `casso` work in a terminal. The .exe is required here. -->
                 <uap3:Extension Category="windows.appExecutionAlias" Executable="Casso.exe" EntryPoint="Windows.FullTrustApplication">
                     <uap3:AppExecutionAlias>
                         <desktop:ExecutionAlias Alias="Casso.exe" />
@@ -146,24 +77,14 @@
 
         </Application>
 
-        <!--
-          CassoCli, the command-line half. A second Application rather than a
-          second alias on the first, because an alias names one executable and
-          these are two.
-
-          AppListEntry is none, which keeps it out of Start and the app list.
-          A console tool has nothing to show when clicked, and a second Casso
-          entry that opened and closed a window would read as a broken
-          shortcut. The alias is how it is meant to be reached, and that is
-          unaffected.
-        -->
         <Application Id="CassoCli" Executable="CassoCli.exe" EntryPoint="Windows.FullTrustApplication">
 
+            <!-- AppListEntry: a command-line tool, so no Start item for it. -->
             <uap:VisualElements
                 AppListEntry="none"
                 DisplayName="Casso CLI"
                 Description="Casso's command-line assembler, disk manager and headless 6502 runner."
-                BackgroundColor="transparent"
+                BackgroundColor="#121016"
                 Square150x150Logo="Assets\Square150x150Logo.png"
                 Square44x44Logo="Assets\Square44x44Logo.png" />
 
