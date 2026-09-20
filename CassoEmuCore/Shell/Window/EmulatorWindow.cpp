@@ -389,30 +389,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
-    //  THE CLAMP MEASURES THE VISIBLE FRAME, NOT THE WINDOW RECT. A window
-    //  rect takes in the invisible resize border -- 9px a side at 150% -- and
-    //  a window snapped to a screen edge overhangs the work area by exactly
-    //  that on purpose, so the border lands off screen and the frame the user
-    //  sees fills the region. Clamping the window rect to the work area shaved
-    //  the overhang off and left a margin down the left, right and bottom of
-    //  every restored snap. The work area grows by the frame here, so the
-    //  clamp still catches a rect that covers the taskbar and leaves a
-    //  correctly snapped one alone.
-    if (hadSavedPlacement && haveWork)
-    {
-        RECT  frame = { 0, 0, 0, 0 };
-
-
-
-        if (AdjustWindowRectExForDpi (&frame, style, FALSE, 0, dpi))
-        {
-            work.left   += frame.left;
-            work.top    += frame.top;
-            work.right  += frame.right;
-            work.bottom += frame.bottom;
-        }
-    }
-
+    //  NO FRAME ALLOWANCE HERE. A window that keeps the OS frame overhangs
+    //  the work area when snapped, by the width of its invisible resize
+    //  border, so that the frame the user sees fills the region. THIS window
+    //  is borderless: WM_NCCALCSIZE gives the whole window rect to the
+    //  client, so what it paints reaches the window edge and there is no
+    //  invisible border to hide an overhang in. Windows still hands it the
+    //  overhanging rect when it snaps, and 9px a side then hangs off the
+    //  screen and over the window below. The clamp pulls it back to the work
+    //  area, where every pixel of it is on screen.
     if (hadSavedPlacement && haveWork)
     {
         windowW = std::min (windowW, (int) (work.right  - work.left));

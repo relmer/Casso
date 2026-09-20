@@ -4,6 +4,7 @@
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiTheme.h"
 #include "Render/DxuiShadow.h"
+#include "Core/WindowTrace.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -372,6 +373,26 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
 
     hr = CreateHwndAndComposition (windowRect);
     CHRA (hr);
+
+    if (WindowTrace::IsOn())
+    {
+        RECT  actualWindow = {};
+        RECT  actualClient = {};
+
+        GetWindowRect (m_hwnd, &actualWindow);
+        GetClientRect (m_hwnd, &actualClient);
+        WindowTrace::Log ("popup.show", "popup",
+                          "card " + std::to_string (placedRect.right - placedRect.left) + "x" +
+                          std::to_string (placedRect.bottom - placedRect.top) +
+                          " asked window " + std::to_string (windowRect.right - windowRect.left) + "x" +
+                          std::to_string (windowRect.bottom - windowRect.top) +
+                          " got window " + std::to_string (actualWindow.right - actualWindow.left) + "x" +
+                          std::to_string (actualWindow.bottom - actualWindow.top) +
+                          " client " + std::to_string (actualClient.right) + "x" +
+                          std::to_string (actualClient.bottom) +
+                          " margin " + std::to_string (m_shadowMarginPx) +
+                          " dpi " + std::to_string (dpi));
+    }
 
     // No DwmExtendFrameIntoClientArea. A glass frame on a surface composited
     // with premultiplied alpha paints DWM's frame fill into the transparent
