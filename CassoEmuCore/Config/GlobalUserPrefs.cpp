@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Config/GlobalUserPrefs.h"
-#include "Config/WindowTrace.h"
+#include "Core/WindowTrace.h"
 
 
 #include "Config/MachineInputPrefs.h"

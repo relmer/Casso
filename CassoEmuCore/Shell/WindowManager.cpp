@@ -3,7 +3,7 @@
 #include "WindowManager.h"
 
 #include "Config/WindowPlacementProfile.h"
-#include "Config/WindowTrace.h"
+#include "Core/WindowTrace.h"
 #include "Config/GlobalUserPrefs.h"
 
 

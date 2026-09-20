@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Config/WindowTrace.h"
+#include "Core/WindowTrace.h"
 
 
 

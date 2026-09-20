@@ -3,7 +3,7 @@
 #include "Shell/EmulatorShell.h"
 
 #include "Config/WindowPlacementProfile.h"
-#include "Config/WindowTrace.h"
+#include "Core/WindowTrace.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebuggerController.h"
 #include "resource.h"

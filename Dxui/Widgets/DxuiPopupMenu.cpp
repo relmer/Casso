@@ -8,6 +8,7 @@
 
 #include "Core/UnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
+#include "Core/WindowTrace.h"
 #include "Render/DxuiStroke.h"
 
 
@@ -2462,11 +2463,62 @@ void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer &
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::DescribeHit
+//
+//  The pointer, the row it picked and that row's band, in one line. A menu
+//  that acts on the wrong row is a disagreement between where a row is drawn
+//  and where it is hit, and these are the numbers that name it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DxuiPopupMenu::DescribeHit (POINT localPx, int row) const
+{
+    std::ostringstream  text;
+    std::string         label;
+
+
+
+    text << "at y=" << localPx.y << " x=" << localPx.x << " -> row " << row;
+
+    if (row >= 0 && row < (int) m_rows.size())
+    {
+        int  top = GetRowTopPx (row) - GetScrollPx();
+
+        text << " [" << top << ".." << (top + GetRowHeightPx (row)) << "]";
+
+        if (m_rows[(size_t) row].command != nullptr)
+        {
+            std::wstring  wide = m_rows[(size_t) row].command->GetLabelText();
+
+            label.assign (wide.begin(), wide.end());
+            text << " " << label;
+        }
+    }
+
+    text << "  rows=" << m_rows.size() << " rowH=" << m_metrics.rowHeightPx
+         << " content=" << GetContentHeightPx() << " viewport=" << m_viewportPx
+         << " scroll=" << GetScrollPx()
+         << " bounds=" << m_boundsDip.left << "," << m_boundsDip.top
+         << " " << (m_boundsDip.right - m_boundsDip.left) << "x"
+         << (m_boundsDip.bottom - m_boundsDip.top);
+
+    return text.str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPopupMenu::OnPopupMove
-//
-//  Pointer-move inside the hosted popup (popup-local physical pixels). Maps
-//  the y to a row and applies the same hover rules as the in-window path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2476,6 +2528,11 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
     int  button = GetIconButtonAt (row, localPx.x);
 
 
+
+    if (WindowTrace::IsOn())
+    {
+        WindowTrace::Log ("menu.move", "menu", DescribeHit (localPx, row));
+    }
 
     if (button != m_iconHover)
     {
@@ -2520,6 +2577,11 @@ void DxuiPopupMenu::OnPopupClick (POINT localPx)
     int  row = GetRowAtOffset (localPx.y);
 
 
+
+    if (WindowTrace::IsOn())
+    {
+        WindowTrace::Log ("menu.click", "menu", DescribeHit (localPx, row));
+    }
 
     if (row < 0)
     {

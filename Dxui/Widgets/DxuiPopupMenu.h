@@ -364,6 +364,11 @@ private:
     int   MeasureRunPx       (const std::wstring & run, float fontDip, IDxuiTextRenderer & text) const;
     int   MeasureWidthPx     (IDxuiTextRenderer & text);
     int   GetRowAtOffset     (int relY) const;
+
+    //  One line for the trace: where the pointer landed, which row that
+    //  picked, and the band that row occupies -- the three numbers a
+    //  mis-aimed menu hit is settled with.
+    std::string   DescribeHit       (POINT localPx, int row) const;
     int   HitTestIndex       (int x, int y) const;
 
     void  ShowCore           (int                              originX,

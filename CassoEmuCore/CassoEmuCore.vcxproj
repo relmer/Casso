@@ -382,7 +382,6 @@
     <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
     <ClCompile Include="Config\WindowPlacementProfile.cpp" />
-    <ClCompile Include="Config\WindowTrace.cpp" />
     <ClCompile Include="Config\UserConfigStore.cpp" />
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Config\MachineInputPrefs.cpp" />
@@ -817,7 +816,6 @@
     <ClInclude Include="Config\IFileSystem.h" />
     <ClInclude Include="Config\Win32FileSystem.h" />
     <ClInclude Include="Config\WindowPlacementProfile.h" />
-    <ClInclude Include="Config\WindowTrace.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
     <ClInclude Include="Config\MachineInputPrefs.h" />

@@ -1898,6 +1898,10 @@ private:
     // one change is one placement, and nothing else reports those.
     bool                     m_inSizeMove     = false;
 
+    // The last maximized size the OS offered, so the trace prints a change
+    // rather than a line per pointer tick.
+    POINT                    m_lastMaxSize    = { 0, 0 };
+
     // Set when a capture band was found standing with no capture behind it,
     // and cleared by the re-dock at the top of the next frame. A flag rather
     // than the re-dock itself, because the sync that spots it runs inside the

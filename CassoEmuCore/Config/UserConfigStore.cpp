@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Config/UserConfigStore.h"
-#include "Config/WindowTrace.h"
+#include "Core/WindowTrace.h"
 
 
 #include "Core/JsonParser.h"

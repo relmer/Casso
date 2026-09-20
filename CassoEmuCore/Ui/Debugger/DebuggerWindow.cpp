@@ -4,7 +4,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
-#include "Config/WindowTrace.h"
+#include "Core/WindowTrace.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"

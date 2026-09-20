@@ -6,7 +6,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
-#include "Config/WindowTrace.h"
+#include "Core/WindowTrace.h"
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -1789,9 +1789,14 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
     info->ptMinTrackSize.x = minClient.cx + ncOverheadW;
     info->ptMinTrackSize.y = minClient.cy + ncOverheadH;
 
-    WindowTrace::LogRect ("minmax", "main", info->ptMaxPosition.x, info->ptMaxPosition.y,
-                          info->ptMaxSize.x, info->ptMaxSize.y,
-                          "the maximized rect the OS offers");
+    //  Once per change: the OS asks this on every pointer tick of a drag.
+    if (info->ptMaxSize.x != m_lastMaxSize.x || info->ptMaxSize.y != m_lastMaxSize.y)
+    {
+        m_lastMaxSize = info->ptMaxSize;
+        WindowTrace::LogRect ("minmax", "main", info->ptMaxPosition.x, info->ptMaxPosition.y,
+                              info->ptMaxSize.x, info->ptMaxSize.y,
+                              "the maximized rect the OS offers");
+    }
 
     result = DxuiMessageResult::Handled;
 

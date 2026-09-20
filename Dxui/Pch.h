@@ -41,12 +41,14 @@
 #include <cstdint>
 #include <deque>
 #include <format>
+#include <fstream>
 #include <functional>
 #include <future>
 #include <iterator>
 #include <map>
 #include <memory>
 #include <span>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
