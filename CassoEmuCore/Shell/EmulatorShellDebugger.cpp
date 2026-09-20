@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 
 #include "Config/WindowPlacementProfile.h"
+#include "Config/WindowTrace.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebuggerController.h"
 #include "resource.h"
@@ -184,6 +185,7 @@ bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
 
 
 
+    WindowTrace::Log ("restore.lookup", "debugger", "key=" + key);
     if (!profile.TryLoad (key, bounds, WindowPlacementProfile::Target::Debugger))
     {
         return false;
@@ -223,6 +225,7 @@ void EmulatorShell::SetDebuggerPlacement (const RECT & rectPx)
     bounds.w = (int) (rectPx.right - rectPx.left);
     bounds.h = (int) (rectPx.bottom - rectPx.top);
 
+    WindowTrace::LogRect ("save.prefs", "debugger", rectPx, "key=" + key);
     profile.Save (key, bounds, WindowPlacementProfile::Target::Debugger);
     SaveGlobalPrefsDeferred();
 }

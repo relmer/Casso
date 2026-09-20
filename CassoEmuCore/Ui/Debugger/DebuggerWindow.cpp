@@ -4,6 +4,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
+#include "Config/WindowTrace.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -141,6 +142,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     //  Where it opened is the baseline a close compares against, so a window
     //  the user never moved writes nothing and leaves the file to whoever did.
     GetWindowRect (GetHwnd(), &m_openedRect);
+    WindowTrace::LogWindow ("create.actual", "debugger", GetHwnd(), "after Show");
 
 Error:
     return hr;
@@ -3041,8 +3043,11 @@ void DebuggerWindow::ApplySavedPlacement()
 
     if (m_host == nullptr || !m_host->TryGetDebuggerPlacement (rect))
     {
+        WindowTrace::Log ("restore.miss", "debugger", "nothing saved for this monitor arrangement");
         return;
     }
+
+    WindowTrace::LogRect ("restore.hit", "debugger", rect, "about to apply");
 
     //  TWICE, ON PURPOSE. Moving a window across a DPI boundary makes Windows
     //  send WM_DPICHANGED and resize it by the ratio of the two scales -- a
@@ -3052,8 +3057,11 @@ void DebuggerWindow::ApplySavedPlacement()
     //  the size that was saved.
     SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
+    WindowTrace::LogWindow ("restore.first", "debugger", GetHwnd(), "after the first SetWindowPos");
+
     SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
+    WindowTrace::LogWindow ("restore.second", "debugger", GetHwnd(), "after the second");
 }
 
 
@@ -3100,13 +3108,18 @@ void DebuggerWindow::SavePlacementIfMoved()
 
     if (m_host == nullptr || !IsCreated() || !GetWindowRect (GetHwnd(), &rect))
     {
+        WindowTrace::Log ("save.skipped", "debugger", "no host or no window");
         return;
     }
 
     if (EqualRect (&rect, &m_openedRect))
     {
+        WindowTrace::LogRect ("save.unmoved", "debugger", rect, "where it opened, so the file is left alone");
         return;
     }
+
+    WindowTrace::LogRect ("save", "debugger", rect, "opened at x=" + std::to_string (m_openedRect.left) +
+                          " y=" + std::to_string (m_openedRect.top));
 
     m_openedRect = rect;
     m_host->SetDebuggerPlacement (rect);

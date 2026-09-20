@@ -6,6 +6,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
+#include "Config/WindowTrace.h"
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -396,6 +397,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         windowY = std::clamp (windowY, work.top,  std::max (work.top,  work.bottom - windowH));
     }
 
+    WindowTrace::LogRect ("create.request", "main", windowX, windowY, windowW, windowH,
+                          hadSavedPlacement ? "from saved placement" : "default placement");
+
     // Preload the app icons so DxuiHwndSource::Create can attach them
     // via WM_SETICON before the window is shown. The taskbar and
     // Win32 MessageBox dialogs pick the icon up from WM_GETICON, not
@@ -443,6 +447,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->SetClient (this);
 
     hr = m_host->Create (params);
+
+    WindowTrace::LogWindow ("create.actual", "main", m_host->GetHwnd(), "after Create");
     CHR (hr);
 
     m_hwnd = m_host->GetHwnd();
@@ -1108,6 +1114,8 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 
 void EmulatorShell::OnExitSizeMove()
 {
+    WindowTrace::LogWindow ("move.end", "main", m_hwnd, "the OS drag loop ended");
+
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
 }
 
@@ -1947,6 +1955,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     if (m_userStateChange)
     {
         m_userStateChange = false;
+        WindowTrace::LogWindow ("state.change", "main", m_hwnd, "a maximize or restore the user asked for");
         m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     }
 

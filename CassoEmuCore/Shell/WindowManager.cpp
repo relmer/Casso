@@ -3,6 +3,7 @@
 #include "WindowManager.h"
 
 #include "Config/WindowPlacementProfile.h"
+#include "Config/WindowTrace.h"
 #include "Config/GlobalUserPrefs.h"
 
 
@@ -104,6 +105,9 @@ bool WindowManager::TryLoadSavedWindowPlacement (
         outMaximized = bounds.maximized;
     }
 
+    WindowTrace::LogRect ((hMon != nullptr) ? "restore.hit" : "restore.miss", "main",
+                          bounds.x, bounds.y, bounds.w, bounds.h, "key=" + topologyKey);
+
     return hMon != nullptr;
 }
 
@@ -188,18 +192,25 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
 
     if (savable)
     {
-        topologyKey = WindowPlacementProfile::BuildTopologyKey();
+        topologyKey      = WindowPlacementProfile::BuildTopologyKey();
         bounds.x         = wr.left;
         bounds.y         = wr.top;
         bounds.w         = width;
         bounds.h         = height;
         bounds.maximized = zoomed;
 
+        WindowTrace::LogRect ("save", "main", wr, "key=" + topologyKey +
+                              (zoomed ? " maximized" : ""));
         m_profile.Save (topologyKey, bounds);
 
         if (m_savePrefs)
         {
             m_savePrefs();
         }
+    }
+    else
+    {
+        WindowTrace::LogWindow ("save.refused", "main", hwnd,
+                                fullscreen ? "fullscreen" : "not a windowed rect");
     }
 }

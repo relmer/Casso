@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Config/UserConfigStore.h"
+#include "Config/WindowTrace.h"
 
 
 #include "Core/JsonParser.h"
@@ -1785,6 +1786,10 @@ HRESULT UserConfigStore::BuildCombinedJson (
             merged.MergeUntouchedPlacements (onDisk);
         }
 
+        WindowTrace::Log ("prefs.store", "prefs",
+                          "writing " + std::to_string (merged.window.debuggerPlacements.size()) +
+                          " debugger and " + std::to_string (merged.window.placements.size()) +
+                          " main placement(s)");
         root.emplace_back (kpszGlobalKey, merged.ToJson());
     }
     else if (existingGlobal != nullptr)

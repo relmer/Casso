@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Config/GlobalUserPrefs.h"
+#include "Config/WindowTrace.h"
 
 
 #include "Config/MachineInputPrefs.h"
@@ -1037,6 +1038,10 @@ HRESULT GlobalUserPrefs::Save (
     if (SUCCEEDED (hrDisk))
     {
         merged.MergeUntouchedPlacements (onDisk);
+        WindowTrace::Log ("prefs.merge", "prefs",
+                          "disk had " + std::to_string (onDisk.window.debuggerPlacements.size()) +
+                          " debugger placement(s); writing " +
+                          std::to_string (merged.window.debuggerPlacements.size()));
     }
 
     global = merged.ToJson();
