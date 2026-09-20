@@ -1,0 +1,152 @@
+name: Package check
+
+# Builds and signs the MSIX bundle the way a release would and uploads it as
+# an artifact. Publishes nothing and touches no tag.
+#
+# The point is a REALLY SIGNED bundle: nothing about the package can be tested
+# until it installs, and an unsigned one will not. Download the artifact and
+# Add-AppxPackage it; that is the file a release would publish.
+#
+# Press it after changing anything in the packaging. Its own file, like
+# signing-check.yml, so the build matrix gains no manual trigger.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  pack-and-sign:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    # Part of the OIDC subject, so a different one proves the wrong credential.
+    environment: release
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      # No analysis or tests; ci.yml owns those.
+      - name: Build Release x64
+        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+
+      - name: Build Release ARM64
+        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+
+      - name: Read version from Version.h
+        id: ver
+        shell: pwsh
+        run: |
+          $content = Get-Content 'CassoCore/Version.h' -Raw
+          if ($content -notmatch '#define VERSION_MAJOR (\d+)') { throw 'VERSION_MAJOR missing' }
+          $major = $matches[1]
+          if ($content -notmatch '#define VERSION_MINOR (\d+)') { throw 'VERSION_MINOR missing' }
+          $minor = $matches[1]
+          if ($content -notmatch '#define VERSION_PATCH (\d+)') { throw 'VERSION_PATCH missing' }
+          $patch = $matches[1]
+          "version=$major.$minor.$patch" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Version: $major.$minor.$patch"
+
+      - name: Stage release payloads
+        shell: pwsh
+        run: scripts/StageRelease.ps1 -Platforms x64, ARM64
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Executables first: signing the bundle does not reach inside it.
+      - name: Sign the staged binaries
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/staging
+          files-folder-filter: exe
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Build the MSIX bundle
+        shell: pwsh
+        run: |
+          scripts/BuildMsix.ps1 `
+            -PayloadRoot staging `
+            -OutputDirectory artifacts `
+            -Version '${{ steps.ver.outputs.version }}' `
+            -Platforms x64, ARM64
+
+      - name: Sign the MSIX bundle
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/artifacts
+          files-folder-filter: msixbundle
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # The same assertions the release job makes.
+      - name: Report what came back
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem artifacts -Filter *.msixbundle | Select-Object -First 1
+          if (-not $bundle) { throw 'No .msixbundle was produced.' }
+
+          $sig = Get-AuthenticodeSignature $bundle.FullName
+          Write-Host "bundle:    $($bundle.Name)"
+          Write-Host "status:    $($sig.Status)"
+          Write-Host "signer:    $($sig.SignerCertificate.Subject)"
+          Write-Host "timestamp: $($sig.TimeStamperCertificate.Subject)"
+
+          if ($sig.Status -in @('NotSigned', 'HashMismatch')) {
+              throw "The bundle is $($sig.Status) and cannot be installed."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead($bundle.FullName)
+          try {
+              $entry = $zip.Entries | Where-Object { $_.FullName -eq 'AppxMetadata/AppxBundleManifest.xml' }
+              if (-not $entry) { throw 'The bundle has no AppxBundleManifest.xml.' }
+              $reader = New-Object IO.StreamReader($entry.Open())
+              try { $xml = [xml] $reader.ReadToEnd() } finally { $reader.Dispose() }
+          }
+          finally {
+              $zip.Dispose()
+          }
+
+          $publisher = $xml.Bundle.Identity.Publisher
+          Write-Host "publisher: $publisher"
+
+          if ($publisher -ne $sig.SignerCertificate.Subject) {
+              throw ("The bundle's Publisher and the certificate subject differ, so Windows " +
+                     "will reject the package.`n  manifest: $publisher`n" +
+                     "  cert:     $($sig.SignerCertificate.Subject)")
+          }
+
+          Write-Host ''
+          Write-Host 'Signed and consistent. Download the artifact and install it with:'
+          Write-Host "  Add-AppxPackage .\$($bundle.Name)"
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: msixbundle
+          path: artifacts/*.msixbundle
+          retention-days: 7

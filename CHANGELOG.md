@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.26.0]: The one with a real installer
+
+### Added
+
+- An MSIX installer for Casso.
+
 ## [1.25.0]: The one that finally has Xbox controllers
 
 ### Added

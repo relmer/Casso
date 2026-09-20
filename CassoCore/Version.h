@@ -8,7 +8,7 @@
 // identifies an individual compile when that granularity is needed.
 
 #define VERSION_MAJOR 1
-#define VERSION_MINOR 25
+#define VERSION_MINOR 26
 #define VERSION_PATCH 0
 #define VERSION_YEAR 2026
 

@@ -57,6 +57,7 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 
 - [What's New](#whats-new)
 - [Features](#features)
+- [Install](#install)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
@@ -71,6 +72,11 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
+
+### A real installer (1.26)
+
+Casso installs from an MSIX package, which adds it to Start and puts `casso`
+and `cassocli` on PATH.
 
 ### Game controllers and joysticks (1.25)
 
@@ -592,6 +598,15 @@ Harte vectors run at 200 per opcode on every build, checking each instruction's
 final state and its cycle count, undocumented opcodes included; the full 10,000
 per opcode are an opt-in download and are what you run when touching the CPU
 core. See [docs/testing.md](docs/testing.md).
+
+## Install
+
+From the [latest release](https://github.com/relmer/Casso/releases/latest):
+
+- `Casso-<version>.msixbundle` — open it to install. Adds Casso to Start and
+  puts `casso` and `cassocli` on PATH.
+- `Casso-<version>-x64.zip` or `Casso-<version>-ARM64.zip` — unpack and run
+  `Casso.exe`.
 
 ## Requirements
 
