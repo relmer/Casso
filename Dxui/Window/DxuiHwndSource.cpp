@@ -2748,8 +2748,20 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_DROPFILES:     isHandled = IsClaimed (m_client->OnDropFiles (reinterpret_cast<HDROP> (wp)), RepaintOnClaim::Yes); break;
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
         case WM_PAINT:         isHandled = IsClaimed (m_client->OnPaint(),        RepaintOnClaim::No); break;
-        case WM_GETMINMAXINFO: isHandled = IsClaimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),
-                                                      RepaintOnClaim::No); break;
+        case WM_GETMINMAXINFO:
+            //  THE DEFAULT RUNS FIRST. The OS fills MINMAXINFO for the PRIMARY
+            //  monitor with no frame adjustment, and DefWindowProc is what
+            //  corrects the maximized position and size for the monitor this
+            //  window is on and for its frame. A client that only clamps the
+            //  minimum track size still needs those corrected: the snap layout
+            //  picker sizes a window the way a maximize does, so an
+            //  uncorrected ptMaxSize left the window short of the region it
+            //  was dropped in by the width of its own invisible border.
+            DefWindowProcW (m_hwnd, msg, wp, lp);
+
+            isHandled = IsClaimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),
+                                   RepaintOnClaim::No);
+            break;
         case WM_COMMAND:       isHandled = IsClaimed (m_client->OnCommandEx (LOWORD (wp),
                                                                           HIWORD (wp),
                                                                           reinterpret_cast<HWND> (lp)),

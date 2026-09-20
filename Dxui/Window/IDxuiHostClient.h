@@ -326,7 +326,6 @@ public:
     // WM_RBUTTONDOWN / WM_RBUTTONUP. wParam = mouse-button / modifier
     // flags; lParam packs the (x, y) client-coordinate point. Used by
     // paddle-input mode for the secondary fire button. Default returns
-    // NotHandled (DxuiHwndSource calls DefWindowProc).
     virtual DxuiMessageResult  OnRButtonDown    (WPARAM wParam, LPARAM lParam)
     {
         UNREFERENCED_PARAMETER (wParam);
@@ -383,8 +382,11 @@ public:
     // with default min/max track sizes. Override to clamp the minimum
     // window size -- e.g. so a borderless window's custom chrome and
     // bottom strip can never be shrunk up into the title / menu area.
-    // Set info->ptMinTrackSize and return ``Handled``. Default returns
-    // NotHandled (DxuiHwndSource calls DefWindowProc).
+    // Set info->ptMinTrackSize and return ``Handled``. DxuiHwndSource has
+    // ALREADY run DefWindowProc on the message, so the maximized position
+    // and size in `info` are the ones corrected for this window's monitor
+    // and frame: clamp the minimum, and leave the rest alone unless the
+    // window really does want a different maximized size.
     virtual DxuiMessageResult  OnGetMinMax      (MINMAXINFO * info)
     {
         UNREFERENCED_PARAMETER (info);

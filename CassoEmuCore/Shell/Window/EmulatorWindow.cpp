@@ -389,6 +389,30 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
+    //  THE CLAMP MEASURES THE VISIBLE FRAME, NOT THE WINDOW RECT. A window
+    //  rect takes in the invisible resize border -- 9px a side at 150% -- and
+    //  a window snapped to a screen edge overhangs the work area by exactly
+    //  that on purpose, so the border lands off screen and the frame the user
+    //  sees fills the region. Clamping the window rect to the work area shaved
+    //  the overhang off and left a margin down the left, right and bottom of
+    //  every restored snap. The work area grows by the frame here, so the
+    //  clamp still catches a rect that covers the taskbar and leaves a
+    //  correctly snapped one alone.
+    if (hadSavedPlacement && haveWork)
+    {
+        RECT  frame = { 0, 0, 0, 0 };
+
+
+
+        if (AdjustWindowRectExForDpi (&frame, style, FALSE, 0, dpi))
+        {
+            work.left   += frame.left;
+            work.top    += frame.top;
+            work.right  += frame.right;
+            work.bottom += frame.bottom;
+        }
+    }
+
     if (hadSavedPlacement && haveWork)
     {
         windowW = std::min (windowW, (int) (work.right  - work.left));
@@ -1764,6 +1788,10 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
 
     info->ptMinTrackSize.x = minClient.cx + ncOverheadW;
     info->ptMinTrackSize.y = minClient.cy + ncOverheadH;
+
+    WindowTrace::LogRect ("minmax", "main", info->ptMaxPosition.x, info->ptMaxPosition.y,
+                          info->ptMaxSize.x, info->ptMaxSize.y,
+                          "the maximized rect the OS offers");
 
     result = DxuiMessageResult::Handled;
 
