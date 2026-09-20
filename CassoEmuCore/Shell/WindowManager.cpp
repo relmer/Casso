@@ -4,6 +4,7 @@
 
 #include "Config/WindowPlacementProfile.h"
 #include "Core/WindowTrace.h"
+#include "Core/DxuiWindowFrame.h"
 #include "Config/GlobalUserPrefs.h"
 
 
@@ -168,18 +169,36 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
     // window now saves its NORMAL rect (GetWindowPlacement's, which is valid
     // while zoomed) with the flag set, and restore re-maximizes from there.
     bool  zoomed  = hwnd != nullptr && IsZoomed (hwnd);
+    //  THE VISIBLE RECT IS WHAT IS STORED. A window rect takes in the
+    //  invisible resize border, and the same stored numbers then mean a
+    //  filled screen half on one window and a margin on another.
     bool  savable = hwnd != nullptr
                     && !IsIconic (hwnd)
                     && !fullscreen
                     && (GetWindowLong (hwnd, GWL_STYLE) & WS_CAPTION) == WS_CAPTION
                     && GetWindowRect (hwnd, &wr);
 
+    if (savable)
+    {
+        wr = DxuiWindowFrame::GetVisibleRect (hwnd);
+    }
+
     if (savable && zoomed)
     {
-        WINDOWPLACEMENT  wp = { sizeof (wp) };
+        WINDOWPLACEMENT  wp     = { sizeof (wp) };
+        RECT             border = DxuiWindowFrame::GetBorder (hwnd);
+
+
+
 
         savable = GetWindowPlacement (hwnd, &wp);
-        wr      = wp.rcNormalPosition;
+        //  The normal position is a WINDOW rect; everything here is stored as
+        //  a visible one, so it loses the border the same way.
+        wr             = wp.rcNormalPosition;
+        wr.left       += border.left;
+        wr.top        += border.top;
+        wr.right      -= border.right;
+        wr.bottom     -= border.bottom;
     }
 
     if (savable)

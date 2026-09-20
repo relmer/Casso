@@ -146,6 +146,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Core\DxuiFocusRing.cpp" />
+    <ClCompile Include="Core\DxuiWindowFrame.cpp" />
     <ClCompile Include="Core\WindowTrace.cpp" />
     <ClCompile Include="Core\DxuiTextElide.cpp" />
     <ClCompile Include="Core\DxuiFrameRate.cpp" />
@@ -241,6 +242,7 @@
     <ClInclude Include="Core\DxuiFrameRate.h" />
     <ClInclude Include="Core\DxuiDockLayout.h" />
     <ClInclude Include="Core\DxuiDpiScaler.h" />
+    <ClInclude Include="Core\DxuiWindowFrame.h" />
     <ClInclude Include="Core\WindowTrace.h" />
     <ClInclude Include="Core\DxuiEvents.h" />
     <ClInclude Include="Core\DxuiFocusManager.h" />

@@ -5,6 +5,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Core/WindowTrace.h"
+#include "Core/DxuiWindowFrame.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -141,7 +142,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
 
     //  Where it opened is the baseline a close compares against, so a window
     //  the user never moved writes nothing and leaves the file to whoever did.
-    GetWindowRect (GetHwnd(), &m_openedRect);
+    m_openedRect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
     WindowTrace::LogWindow ("create.actual", "debugger", GetHwnd(), "after Show");
     m_placed = true;
 
@@ -3038,31 +3039,29 @@ void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, boo
 
 void DebuggerWindow::ApplySavedPlacement()
 {
-    RECT  rect = {};
+    RECT  visible = {};
+    RECT  placed  = {};
 
 
 
-    if (m_host == nullptr || !m_host->TryGetDebuggerPlacement (rect))
+    if (m_host == nullptr || !m_host->TryGetDebuggerPlacement (visible))
     {
         WindowTrace::Log ("restore.miss", "debugger", "nothing saved for this monitor arrangement");
         return;
     }
 
-    WindowTrace::LogRect ("restore.hit", "debugger", rect, "about to apply");
+    //  What was saved is the frame the user sees. The window rect around it
+    //  is this window's own invisible border wider, and only this window can
+    //  say how wide that is.
+    placed = DxuiWindowFrame::ToWindowRect (GetHwnd(), visible);
 
-    //  TWICE, ON PURPOSE. Moving a window across a DPI boundary makes Windows
-    //  send WM_DPICHANGED and resize it by the ratio of the two scales -- a
-    //  window saved on a 120-dpi screen came back on a 144-dpi one exactly
-    //  1.2x too big. The first call lands it on the destination monitor and
-    //  takes that rescale; the second, now at the destination DPI, restores
-    //  the size that was saved.
-    SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
-                  SWP_NOZORDER | SWP_NOACTIVATE);
-    WindowTrace::LogWindow ("restore.first", "debugger", GetHwnd(), "after the first SetWindowPos");
+    WindowTrace::LogRect ("restore.hit", "debugger", visible, "the visible rect that was saved");
 
-    SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+    SetWindowPos (GetHwnd(), nullptr, placed.left, placed.top,
+                  placed.right - placed.left, placed.bottom - placed.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
-    WindowTrace::LogWindow ("restore.second", "debugger", GetHwnd(), "after the second");
+
+    WindowTrace::LogWindow ("restore.applied", "debugger", GetHwnd(), "window rect after placing");
 }
 
 
@@ -3109,11 +3108,13 @@ void DebuggerWindow::SavePlacementIfMoved()
 
     //  Until the window has been shown and its opening rect taken, the size
     //  and move events of its own creation have nothing to compare against.
-    if (!m_placed || m_host == nullptr || !IsCreated() || !GetWindowRect (GetHwnd(), &rect))
+    if (!m_placed || m_host == nullptr || !IsCreated())
     {
-        WindowTrace::Log ("save.skipped", "debugger", "no host or no window");
+        WindowTrace::Log ("save.skipped", "debugger", "not placed yet, or no host");
         return;
     }
+
+    rect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
 
     if (EqualRect (&rect, &m_openedRect))
     {

@@ -7,6 +7,7 @@
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Core/WindowTrace.h"
+#include "Core/DxuiWindowFrame.h"
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -389,37 +390,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
-    //  A SNAPPED RECT ARRIVES WITH AN OVERHANG THIS WINDOW CANNOT USE.
-    //
-    //  Windows sizes a snap for a window that keeps the OS frame: the rect
-    //  reaches past the region by the width of the invisible resize border,
-    //  so the frame the user sees fills it exactly. This window is
-    //  borderless -- its client rect IS its window rect, measured -- so it
-    //  paints every pixel of that overhang: off the side of the screen, and
-    //  over whatever sits below, which is where the debugger window lost the
-    //  top of its title bar.
-    //
-    //  The overhang names itself: whatever the rect reaches past the work
-    //  area on the left or the right is the border Windows allowed for, and
-    //  the same allowance is on the bottom, where nothing reaches past
-    //  anything and it cannot be measured. Taking it off all three leaves
-    //  the region the user actually chose.
-    if (hadSavedPlacement && haveWork)
-    {
-        int  overhang = (int) (std::max) (0L, work.left - windowX);
-
-
-
-        overhang = (std::max) (overhang, (int) ((windowX + windowW) - work.right));
-
-        if (overhang > 0)
-        {
-            windowX += overhang;
-            windowW -= overhang * 2;
-            windowH -= overhang;
-        }
-    }
-
+    //  The saved rect is the VISIBLE one, so the work area is the right
+    //  yardstick for it with no allowance either way: a rect that covers the
+    //  taskbar is still caught, and a snapped one is left alone. The window
+    //  rect that puts this visible rect on screen is worked out after the
+    //  window exists and its border can be measured.
     if (hadSavedPlacement && haveWork)
     {
         windowW = std::min (windowW, (int) (work.right  - work.left));
@@ -478,6 +453,22 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->SetClient (this);
 
     hr = m_host->Create (params);
+
+    //  Created at the visible rect, which is short by the invisible border
+    //  this window turns out to carry. Now it exists, the border can be
+    //  measured and the window rect that lands the visible frame where the
+    //  user left it applied.
+    if (hadSavedPlacement)
+    {
+        RECT  visible = { windowX, windowY, windowX + windowW, windowY + windowH };
+        RECT  placed  = DxuiWindowFrame::ToWindowRect (m_host->GetHwnd(), visible);
+
+
+
+        SetWindowPos (m_host->GetHwnd(), nullptr, placed.left, placed.top,
+                      placed.right - placed.left, placed.bottom - placed.top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 
     WindowTrace::LogWindow ("create.actual", "main", m_host->GetHwnd(), "after Create");
     CHR (hr);
@@ -1122,7 +1113,6 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
     //  windowed rect, which is what kept the transitions out before.
     if (!m_inSizeMove)
     {
-        NormalizeSnapOverhang();
         WindowTrace::LogWindow ("place.change", "main", m_hwnd, "outside the OS drag loop");
         m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     }
@@ -1133,76 +1123,6 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
     }
 
     return DxuiMessageResult::NotHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::NormalizeSnapOverhang
-//
-//  Windows sizes a snap for a window that keeps the OS frame: the rect it
-//  hands over reaches past the region by the width of the invisible resize
-//  border, so that the frame the user sees fills the region exactly. THIS
-//  window is borderless -- its client rect is its window rect -- so it paints
-//  every pixel of that overhang: off the side of the screen, and over
-//  whatever sits below, which is where the debugger window lost the top of
-//  its title bar.
-//
-//  The overhang is only measurable here, the moment it arrives: what the rect
-//  reaches past the work area on the left or the right is the allowance, and
-//  the same amount is on the bottom, where nothing sticks out to measure. A
-//  rect saved after the fact carries no trace of it.
-//
-//  Correcting it here also means the file only ever holds rects this window
-//  can actually use.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::NormalizeSnapOverhang()
-{
-    RECT         rect     = {};
-    HMONITOR     monitor  = nullptr;
-    MONITORINFO  info     = { sizeof (info) };
-    int          overhang = 0;
-
-
-
-    if (m_hwnd == nullptr || IsIconic (m_hwnd) || IsZoomed (m_hwnd) || m_d3dRenderer.IsFullscreen())
-    {
-        return;
-    }
-
-    if (!GetWindowRect (m_hwnd, &rect))
-    {
-        return;
-    }
-
-    monitor = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-
-    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
-    {
-        return;
-    }
-
-    overhang = (int) (std::max) (info.rcWork.left - rect.left, rect.right - info.rcWork.right);
-
-    if (overhang <= 0)
-    {
-        return;
-    }
-
-    WindowTrace::LogRect ("snap.overhang", "main", rect, "taking " + std::to_string (overhang) +
-                          "px off the sides and the bottom");
-
-    SetWindowPos (m_hwnd, nullptr,
-                  rect.left + overhang,
-                  rect.top,
-                  (rect.right - rect.left) - overhang * 2,
-                  (rect.bottom - rect.top) - overhang,
-                  SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 
@@ -1244,7 +1164,6 @@ void EmulatorShell::OnEnterSizeMove()
 void EmulatorShell::OnExitSizeMove()
 {
     m_inSizeMove = false;
-    NormalizeSnapOverhang();
     WindowTrace::LogWindow ("move.end", "main", m_hwnd, "the OS drag loop ended");
 
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());

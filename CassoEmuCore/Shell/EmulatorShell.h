@@ -363,7 +363,6 @@ private:
     void               ReleaseGuestKeys ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
-    void               NormalizeSnapOverhang ();
     void               OnEnterSizeMove () override;
     void               OnExitSizeMove  () override;
     void               OnUserWindowStateCommand () override;
