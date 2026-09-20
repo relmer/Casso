@@ -414,6 +414,7 @@ private:
     float       m_revealAlpha        = 1.0f;
     RECT        m_windowRectScreenPx = {};
     int         m_shadowMarginPx     = 0;
+    bool        m_tracedPaint        = false;   // one paint line per show
     UINT        m_dpi                = 0;
 
     DxuiPopupHost                         * m_parent            = nullptr;

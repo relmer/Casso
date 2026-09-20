@@ -356,6 +356,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     windowRect.right     = placedRect.right  + m_shadowMarginPx;
     windowRect.bottom    = placedRect.bottom + m_shadowMarginPx;
     m_windowRectScreenPx = windowRect;
+    m_tracedPaint        = false;
 
     // Reset the completion promise for this Show cycle.
     m_completionPromise  = std::promise<int>();
@@ -1566,6 +1567,16 @@ void DxuiPopupHost::RenderNow()
             PaintShadowAndCard();
             m_painter.SetOrigin      ((float) m_shadowMarginPx, (float) m_shadowMarginPx);
             m_textRenderer.SetOrigin ((float) m_shadowMarginPx, (float) m_shadowMarginPx);
+
+            if (WindowTrace::IsOn() && !m_tracedPaint)
+            {
+                m_tracedPaint = true;
+                WindowTrace::Log ("popup.paint", "popup",
+                                  "back buffer " + std::to_string (m_backBufferSizePx.cx) + "x" +
+                                  std::to_string (m_backBufferSizePx.cy) +
+                                  " content origin " + std::to_string (m_shadowMarginPx) +
+                                  " reveal alpha " + std::to_string (m_revealAlpha));
+            }
         }
 
         m_params.renderContent (m_painter, m_textRenderer);
