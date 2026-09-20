@@ -227,6 +227,7 @@ private:
     DebuggerKeyScheme      m_keyScheme    = DebuggerKeySchemes::kDefault;
     bool                   m_swallowSpace = false;
     RECT                   m_openedRect   = {};
+    bool                   m_placed       = false;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

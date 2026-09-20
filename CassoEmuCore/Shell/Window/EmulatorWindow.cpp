@@ -1084,6 +1084,17 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
 
+    //  A snap layout, Win+arrow or a monitor going away places the window
+    //  without the OS drag loop, so this is the only report of it. Inside the
+    //  loop the rect changes once per pixel and the end of it is the
+    //  placement. SaveWindowPlacement refuses anything that is not a settled
+    //  windowed rect, which is what kept the transitions out before.
+    if (!m_inSizeMove)
+    {
+        WindowTrace::LogWindow ("place.change", "main", m_hwnd, "outside the OS drag loop");
+        m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    }
+
     if (m_mainMenu.IsOpen())
     {
         m_mainMenu.Hide();
@@ -1112,8 +1123,24 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+void EmulatorShell::OnEnterSizeMove()
+{
+    m_inSizeMove = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnExitSizeMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void EmulatorShell::OnExitSizeMove()
 {
+    m_inSizeMove = false;
     WindowTrace::LogWindow ("move.end", "main", m_hwnd, "the OS drag loop ended");
 
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
@@ -1550,16 +1577,6 @@ void EmulatorShell::OnDestroy()
     // window happened to be doing when it closed would overwrite what they
     // last put it at deliberately. The two paths above have already stored
     // every change that was theirs.
-
-    // The debugger window is owned by this one, so it is destroyed with it:
-    // this is the last moment its HWND still answers. It writes only a rect
-    // that differs from where it opened, which is a move the user made -- the
-    // rule above, not an exception to it. A snap from the keyboard never
-    // enters the OS drag loop, and reached the file only through here.
-    if (m_debuggerWindow != nullptr)
-    {
-        m_debuggerWindow->SavePlacementIfMoved();
-    }
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.

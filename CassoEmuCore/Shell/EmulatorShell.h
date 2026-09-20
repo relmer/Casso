@@ -363,6 +363,7 @@ private:
     void               ReleaseGuestKeys ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
+    void               OnEnterSizeMove () override;
     void               OnExitSizeMove  () override;
     void               OnUserWindowStateCommand () override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
@@ -1890,6 +1891,12 @@ private:
     // notice band cannot ask for another from inside it. See
     // ReflowChromeForChangeBand.
     bool                     m_inChromeLayout = false;
+
+    // True between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE. Inside the OS drag
+    // loop the window changes once per pixel and the end of the loop is the
+    // placement; outside it -- a snap layout, Win+arrow, a monitor removed --
+    // one change is one placement, and nothing else reports those.
+    bool                     m_inSizeMove     = false;
 
     // Set when a capture band was found standing with no capture behind it,
     // and cleared by the re-dock at the top of the next frame. A flag rather

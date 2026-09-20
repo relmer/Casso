@@ -338,6 +338,9 @@ private:
     DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
     void               OnModalLoopTick () override;
+    DxuiMessageResult  OnSize        (UINT widthPx, UINT heightPx) override;
+    DxuiMessageResult  OnMove        (int x, int y) override;
+    void  OnEnterSizeMove   () override;
     void  OnExitSizeMove    () override;
     DxuiMessageResult  OnClose       () override;
     DxuiMessageResult  OnDropFiles   (HDROP drop) override;
@@ -369,6 +372,11 @@ private:
 
     std::unique_ptr<DxuiHwndSource>    m_source;
     SIZE                               m_minSizeDip      = { 0, 0 };
+
+    //  True between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE: while the OS runs
+    //  its own drag loop the geometry changes once per pixel, and the end of
+    //  the loop is the placement. Outside it, one change is one placement.
+    bool                               m_inSizeMove      = false;
     HWND                               m_ownerHwnd       = nullptr;
     const IDxuiTheme                 * m_theme           = nullptr;
     IDxuiControl                     * m_initialFocus    = nullptr;

@@ -878,15 +878,87 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnExitSizeMove
+//  OnEnterSizeMove / OnSize / OnMove
 //
-//  The end of the OS drag loop: the subclass hears where the user left the
-//  window.
+//  A window is placed by more than a drag: the snap layouts, Win+arrow, a
+//  monitor going away, an arrangement restored by the shell. All of those
+//  arrive as WM_SIZE / WM_MOVE and never enter the OS drag loop, so a hook
+//  on the end of that loop alone never hears them.
+//
+//  Reporting every change is what this used to do, and it was wrong the
+//  other way: inside the drag loop the geometry changes once per pixel.
+//  So the loop is tracked, and a change outside it is a placement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::OnEnterSizeMove()
+{
+    m_inSizeMove = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnSize (UINT widthPx, UINT heightPx)
+{
+    UNREFERENCED_PARAMETER (widthPx);
+    UNREFERENCED_PARAMETER (heightPx);
+
+
+
+    if (!m_inSizeMove)
+    {
+        OnWindowPlaced();
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnMove (int x, int y)
+{
+    UNREFERENCED_PARAMETER (x);
+    UNREFERENCED_PARAMETER (y);
+
+
+
+    if (!m_inSizeMove)
+    {
+        OnWindowPlaced();
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnExitSizeMove
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiWindow::OnExitSizeMove()
 {
+    m_inSizeMove = false;
     OnWindowPlaced();
 }
 

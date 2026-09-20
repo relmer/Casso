@@ -143,6 +143,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     //  the user never moved writes nothing and leaves the file to whoever did.
     GetWindowRect (GetHwnd(), &m_openedRect);
     WindowTrace::LogWindow ("create.actual", "debugger", GetHwnd(), "after Show");
+    m_placed = true;
 
 Error:
     return hr;
@@ -3106,7 +3107,9 @@ void DebuggerWindow::SavePlacementIfMoved()
 
 
 
-    if (m_host == nullptr || !IsCreated() || !GetWindowRect (GetHwnd(), &rect))
+    //  Until the window has been shown and its opening rect taken, the size
+    //  and move events of its own creation have nothing to compare against.
+    if (!m_placed || m_host == nullptr || !IsCreated() || !GetWindowRect (GetHwnd(), &rect))
     {
         WindowTrace::Log ("save.skipped", "debugger", "no host or no window");
         return;
