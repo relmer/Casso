@@ -116,6 +116,10 @@ public:
     //  Detaches the host, for a shell tearing down before the window.
     void     DetachHost  () { m_host = nullptr; }
 
+    //  Writes the placement if the user put the window somewhere else, for a
+    //  shell shutting down while the window is still open.
+    void     SavePlacementIfMoved ();
+
 protected:
     void     OnCreate        () override;
     void     OnWindowPlaced  () override;
@@ -222,6 +226,7 @@ private:
     DxuiFocusManager       m_focusMgr;
     DebuggerKeyScheme      m_keyScheme    = DebuggerKeySchemes::kDefault;
     bool                   m_swallowSpace = false;
+    RECT                   m_openedRect   = {};
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

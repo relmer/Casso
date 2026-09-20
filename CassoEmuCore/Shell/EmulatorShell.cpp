@@ -221,6 +221,7 @@ EmulatorShell::~EmulatorShell()
     // before either goes.
     if (m_debuggerWindow != nullptr)
     {
+        m_debuggerWindow->SavePlacementIfMoved();
         m_debuggerWindow->DetachHost();
         m_debuggerWindow.reset();
     }

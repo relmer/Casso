@@ -138,6 +138,10 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     SetTheme (m_theme);
     Show();
 
+    //  Where it opened is the baseline a close compares against, so a window
+    //  the user never moved writes nothing and leaves the file to whoever did.
+    GetWindowRect (GetHwnd(), &m_openedRect);
+
 Error:
     return hr;
 }
@@ -1346,6 +1350,8 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 
 void DebuggerWindow::OnWindowClose()
 {
+    SavePlacementIfMoved();
+
     Hide();
 
     for (const auto & entry : m_floats)
@@ -3016,6 +3022,14 @@ void DebuggerWindow::ApplySavedPlacement()
         return;
     }
 
+    //  TWICE, ON PURPOSE. Moving a window across a DPI boundary makes Windows
+    //  send WM_DPICHANGED and resize it by the ratio of the two scales -- a
+    //  window saved on a 120-dpi screen came back on a 144-dpi one exactly
+    //  1.2x too big. The first call lands it on the destination monitor and
+    //  takes that rescale; the second, now at the destination DPI, restores
+    //  the size that was saved.
+    SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+                  SWP_NOZORDER | SWP_NOACTIVATE);
     SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
 }
@@ -3029,20 +3043,51 @@ void DebuggerWindow::ApplySavedPlacement()
 //  DebuggerWindow::OnWindowPlaced
 //
 //  The user finished dragging or sizing the window, so where it is now is
-//  where it should open next time.
+//  where it should open next time. A close catches the moves that never
+//  reach this hook.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::OnWindowPlaced()
 {
+    SavePlacementIfMoved();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SavePlacementIfMoved
+//
+//  A placement is written only when the window is somewhere other than where
+//  it opened. That keeps the rule the user asked for -- two instances fight
+//  over the file only if both were moved -- and it holds for the ways a
+//  window moves WITHOUT the OS drag loop, which is the only thing
+//  OnWindowPlaced can see: a snap from the keyboard, or an arrangement made
+//  and then closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SavePlacementIfMoved()
+{
     RECT  rect = {};
 
 
 
-    if (m_host != nullptr && GetWindowRect (GetHwnd(), &rect))
+    if (m_host == nullptr || !IsCreated() || !GetWindowRect (GetHwnd(), &rect))
     {
-        m_host->SetDebuggerPlacement (rect);
+        return;
     }
+
+    if (EqualRect (&rect, &m_openedRect))
+    {
+        return;
+    }
+
+    m_openedRect = rect;
+    m_host->SetDebuggerPlacement (rect);
 }
 
 

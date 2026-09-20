@@ -31,8 +31,7 @@ public:
 
     void  SaveWindowPlacement       (HWND hwnd,
                                      bool fullscreen);
-    bool  TryLoadSavedWindowPlacement (HMONITOR  activeMonitor,
-                                       LONG    & outX,
+    bool  TryLoadSavedWindowPlacement (LONG    & outX,
                                        LONG    & outY,
                                        int     & outW,
                                        int     & outH,
@@ -40,7 +39,7 @@ public:
 
     // Exposed for tests and for callers that need the same monitor
     // topology key without going through the load/save helpers.
-    static std::string  BuildPlacementKeyForMonitor (HMONITOR activeMonitor);
+    static std::string  BuildPlacementKey();
 
 private:
     mutable WindowPlacementProfile  m_profile;

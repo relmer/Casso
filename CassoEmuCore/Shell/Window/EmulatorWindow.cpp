@@ -362,12 +362,32 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH, m_startMaximized);
+    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (windowX, windowY, windowW, windowH, m_startMaximized);
 
     // Clamp a restored placement to the work area as well: prefs written by
     // older builds could hold a full-monitor rect (a fullscreen transition
     // once saved its rect as the windowed placement), which would restore a
     // taskbar-covering "windowed" window. Pull it back onto the desktop.
+    //
+    // THE CLAMP USES THE SAVED RECT'S OWN MONITOR, not the cursor's. Clamping
+    // a placement on one screen against the work area of another drags the
+    // window onto the cursor's monitor: a window left on a second screen
+    // reopened in the primary's top-left corner, every launch.
+    if (hadSavedPlacement)
+    {
+        RECT         saved     = { windowX, windowY, windowX + windowW, windowY + windowH };
+        HMONITOR     savedMon  = MonitorFromRect (&saved, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO  savedInfo = { sizeof (savedInfo) };
+
+
+
+        if (savedMon != nullptr && GetMonitorInfoW (savedMon, &savedInfo))
+        {
+            work     = savedInfo.rcWork;
+            haveWork = true;
+        }
+    }
+
     if (hadSavedPlacement && haveWork)
     {
         windowW = std::min (windowW, (int) (work.right  - work.left));

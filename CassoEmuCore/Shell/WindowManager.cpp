@@ -27,16 +27,16 @@ WindowManager::WindowManager (GlobalUserPrefs & prefs, SavePrefsFn savePrefs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BuildPlacementKeyForMonitor
+//  BuildPlacementKey
 //
 //  Thin compatibility shim. Delegates to WindowPlacementProfile so the
 //  topology-hashing logic has exactly one home.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string WindowManager::BuildPlacementKeyForMonitor (HMONITOR activeMonitor)
+std::string WindowManager::BuildPlacementKey()
 {
-    return WindowPlacementProfile::BuildTopologyKey (activeMonitor);
+    return WindowPlacementProfile::BuildTopologyKey();
 }
 
 
@@ -66,7 +66,6 @@ std::string WindowManager::BuildPlacementKeyForMonitor (HMONITOR activeMonitor)
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WindowManager::TryLoadSavedWindowPlacement (
-    HMONITOR  activeMonitor,
     LONG    & outX,
     LONG    & outY,
     int     & outW,
@@ -80,7 +79,7 @@ bool WindowManager::TryLoadSavedWindowPlacement (
 
 
 
-    topologyKey = WindowPlacementProfile::BuildTopologyKey (activeMonitor);
+    topologyKey = WindowPlacementProfile::BuildTopologyKey();
 
     // Two ways to decline: no saved placement for this monitor topology, or
     // one that no longer lands on any monitor (DEFAULTTONULL, not
@@ -189,7 +188,7 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
 
     if (savable)
     {
-        topologyKey = WindowPlacementProfile::BuildTopologyKey (hMon);
+        topologyKey = WindowPlacementProfile::BuildTopologyKey();
         bounds.x         = wr.left;
         bounds.y         = wr.top;
         bounds.w         = width;

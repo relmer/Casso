@@ -144,17 +144,24 @@ WindowPlacementProfile::WindowPlacementProfile (GlobalUserPrefs & prefs)
 //
 //  WindowPlacementProfile::BuildTopologyKey
 //
-//  Folds the current monitor set + active monitor into a deterministic
-//  16-hex-char FNV-1a hash. Two different physical topologies will (with
-//  extremely high probability) produce different keys.
+//  Folds the current monitor set into a deterministic 16-hex-char FNV-1a
+//  hash. Two different physical topologies will (with extremely high
+//  probability) produce different keys.
+//
+//  THE ACTIVE MONITOR IS NOT PART OF THE KEY, and must never become part
+//  of it again. A window is saved against the monitor it sits on and
+//  restored before it exists, when the active monitor is whichever one the
+//  OS hands out -- so folding it in gave the two operations different keys
+//  for one arrangement. A window the user dragged to a second screen was
+//  written under one key and read back from another, and every launch
+//  restored the stale rect stored under the startup key: both windows
+//  reappeared in the same wrong place no matter where they were left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
+std::string WindowPlacementProfile::BuildTopologyKey()
 {
     std::vector<MonitorSnapshot>  monitors;
-    std::wstring                  activeDevice;
-    MONITORINFOEXW                activeInfo                 = { sizeof (activeInfo) };
     std::wstring                  canonical;
     uint64_t                      hash                       = 0;
     char                          hashHex[kHashHexChars + 1] = {};
@@ -173,11 +180,6 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
                    if (a.rcMonitor.right != b.rcMonitor.right) { return a.rcMonitor.right < b.rcMonitor.right; }
                    return a.rcMonitor.bottom < b.rcMonitor.bottom;
                });
-
-    if (activeMonitor != nullptr && GetMonitorInfoW (activeMonitor, &activeInfo))
-    {
-        activeDevice = activeInfo.szDevice;
-    }
 
     for (auto & monitor : monitors)
     {
@@ -204,9 +206,6 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
         canonical += std::to_wstring (m.flags);
         canonical += L";";
     }
-
-    canonical += L"active=";
-    canonical += activeDevice;
 
     hash = HashFNV1a64 (canonical);
     sprintf_s (hashHex, _countof (hashHex), "%016llX", hash);

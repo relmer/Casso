@@ -50,7 +50,7 @@ public:
     // monitors and folding their device name + rect + work area + flags
     // through an FNV-1a 64 hash. Pure Win32 -- unit tests exercise the
     // load / save path with literal keys instead.
-    static std::string  BuildTopologyKey (HMONITOR activeMonitor);
+    static std::string  BuildTopologyKey();
 
     static void  Touch (std::vector<std::string> & keys, const std::string & topologyKey);
 
