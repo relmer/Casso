@@ -1551,6 +1551,16 @@ void EmulatorShell::OnDestroy()
     // last put it at deliberately. The two paths above have already stored
     // every change that was theirs.
 
+    // The debugger window is owned by this one, so it is destroyed with it:
+    // this is the last moment its HWND still answers. It writes only a rect
+    // that differs from where it opened, which is a move the user made -- the
+    // rule above, not an exception to it. A snap from the keyboard never
+    // enters the OS drag loop, and reached the file only through here.
+    if (m_debuggerWindow != nullptr)
+    {
+        m_debuggerWindow->SavePlacementIfMoved();
+    }
+
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
