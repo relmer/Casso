@@ -1758,6 +1758,37 @@ void DxuiPopupHost::ApplyReveal (float t)
     //
     // The margin stays on the trailing edge, where the shadow is, and the
     // content is lifted by it as well as by the height not yet shown.
+    //  THE LAST FRAME RESTS AT THE REAL GEOMETRY. Every frame before it
+    //  holds the window short and slides the content through it, which only
+    //  works because the two cancel out on screen. Leaving that pair standing
+    //  at the end left the window a margin lower and a margin shorter than
+    //  m_windowRectScreenPx says, and the pointer arrives in the window that
+    //  is actually there while it is corrected by the margin the bookkeeping
+    //  describes -- so every hit landed one margin high, which on a menu is
+    //  the row above the one under the cursor.
+    if (t >= 1.0f && !m_revealOut)
+    {
+        SetWindowPos (m_hwnd, nullptr,
+                      m_windowRectScreenPx.left,
+                      m_windowRectScreenPx.top,
+                      m_windowRectScreenPx.right  - m_windowRectScreenPx.left,
+                      m_windowRectScreenPx.bottom - m_windowRectScreenPx.top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+
+        if (m_compVisual)
+        {
+            m_compVisual->SetOffsetY (0.0f);
+            m_compVisual->SetClip ((IDCompositionClip *) nullptr);
+
+            if (m_compDevice)
+            {
+                m_compDevice->Commit();
+            }
+        }
+
+        return;
+    }
+
     if (m_revealUpward)
     {
         top    = m_placedRectScreenPx.bottom - shownH - m_shadowMarginPx;
