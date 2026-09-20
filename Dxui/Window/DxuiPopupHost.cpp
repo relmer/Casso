@@ -1817,7 +1817,12 @@ void DxuiPopupHost::ApplyReveal (float t)
             clip.left   = 0.0f;
             clip.top    = (float) m_shadowMarginPx - offset;
             clip.right  = (float) fullW;
-            clip.bottom = (float) fullH;
+            //  The card ends a margin below fullH in the buffer -- it starts
+            //  at the margin -- so a clip that stops at fullH cuts a margin
+            //  off its bottom. That is most of a row: the last item stayed
+            //  hidden until the slide finished and the clip came off, so the
+            //  menu appeared to grow from its second-to-last row.
+            clip.bottom = (float) (m_shadowMarginPx + fullH);
 
             m_compVisual->SetClip (clip);
         }
