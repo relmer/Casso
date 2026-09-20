@@ -1659,16 +1659,47 @@ void DxuiPopupHost::ApplyReveal (float t)
         shownH = 1;
     }
 
+    // THE LAST FRAME RESTS AT THE REAL GEOMETRY. Every frame before it holds
+    // the window short and slides the content through it, which only works
+    // because the two cancel out on screen. Leaving that pair standing at the
+    // end left the window a margin lower and a margin shorter than
+    // m_windowRectScreenPx says, and the pointer arrives in the window that
+    // is actually there while it is corrected by the margin the bookkeeping
+    // describes -- so every hit landed one margin high, which on a menu is the
+    // row above the one under the cursor.
+    if (t >= 1.0f && !m_revealOut)
+    {
+        SetWindowPos (m_hwnd, nullptr,
+                      m_windowRectScreenPx.left,
+                      m_windowRectScreenPx.top,
+                      m_windowRectScreenPx.right  - m_windowRectScreenPx.left,
+                      m_windowRectScreenPx.bottom - m_windowRectScreenPx.top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+
+        if (m_compVisual)
+        {
+            m_compVisual->SetOffsetY (0.0f);
+            m_compVisual->SetClip ((IDCompositionClip *) nullptr);
+
+            if (m_compDevice)
+            {
+                m_compDevice->Commit();
+            }
+        }
+
+        return;
+    }
+
     // A SLIDE, NOT A REVEAL. The content keeps its far edge against the
     // growing edge of the window and travels, so the last row appears first
     // and slides down ahead of the rows above it. Pinning the content to the
     // window instead draws the menu on one row at a time from the top, which
     // is a different animation and not the one Windows menus use.
+    //
     // THE WINDOW IS THE CLIP, so its growing edge has to be the card's edge,
     // not the shadow margin outside it. Leaving the margin on that edge let
     // the sliding content paint a margin's worth ABOVE the menu title -- the
     // animation appeared to start partway up the title rather than under it.
-    //
     // The margin stays on the trailing edge, where the shadow is, and the
     // content is lifted by it as well as by the height not yet shown.
     if (m_revealUpward)
