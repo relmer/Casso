@@ -12,6 +12,11 @@ name: Package check
 
 on:
   workflow_dispatch:
+    inputs:
+      from_release:
+        description: 'Tag whose signed binaries to reuse, e.g. v1.26.0. Empty builds instead.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -31,30 +36,48 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
 
-      # No analysis or tests; ci.yml owns those.
+      # No analysis or tests; ci.yml owns those. Skipped entirely when
+      # reusing a release, which is the point of reusing one.
       - name: Build Release x64
+        if: inputs.from_release == ''
         run: msbuild Casso.sln -p:Configuration=Release -p:Platform=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
 
       - name: Build Release ARM64
+        if: inputs.from_release == ''
         run: msbuild Casso.sln -p:Configuration=Release -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
 
-      - name: Read version from Version.h
+      # The reused binaries carry the release's version, not the tree's.
+      - name: Work out the version
         id: ver
         shell: pwsh
         run: |
-          $content = Get-Content 'CassoCore/Version.h' -Raw
-          if ($content -notmatch '#define VERSION_MAJOR (\d+)') { throw 'VERSION_MAJOR missing' }
-          $major = $matches[1]
-          if ($content -notmatch '#define VERSION_MINOR (\d+)') { throw 'VERSION_MINOR missing' }
-          $minor = $matches[1]
-          if ($content -notmatch '#define VERSION_PATCH (\d+)') { throw 'VERSION_PATCH missing' }
-          $patch = $matches[1]
-          "version=$major.$minor.$patch" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Version: $major.$minor.$patch"
+          $tag = '${{ inputs.from_release }}'
+          if ($tag) {
+              $version = $tag -replace '^v', ''
+          } else {
+              $content = Get-Content 'CassoCore/Version.h' -Raw
+              if ($content -notmatch '#define VERSION_MAJOR (\d+)') { throw 'VERSION_MAJOR missing' }
+              $major = $matches[1]
+              if ($content -notmatch '#define VERSION_MINOR (\d+)') { throw 'VERSION_MINOR missing' }
+              $minor = $matches[1]
+              if ($content -notmatch '#define VERSION_PATCH (\d+)') { throw 'VERSION_PATCH missing' }
+              $patch = $matches[1]
+              $version = "$major.$minor.$patch"
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Version: $version"
 
       - name: Stage release payloads
         shell: pwsh
-        run: scripts/StageRelease.ps1 -Platforms x64, ARM64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = '${{ inputs.from_release }}'
+          if ($tag) {
+              scripts/StageRelease.ps1 -Platforms x64, ARM64 -FromRelease $tag
+          } else {
+              scripts/StageRelease.ps1 -Platforms x64, ARM64
+          }
 
       - name: Azure login (OIDC)
         uses: azure/login@v3
@@ -64,7 +87,9 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # Executables first: signing the bundle does not reach inside it.
+      # Reused ones arrive signed already.
       - name: Sign the staged binaries
+        if: inputs.from_release == ''
         uses: azure/artifact-signing-action@v2.0.0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}

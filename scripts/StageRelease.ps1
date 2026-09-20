@@ -27,6 +27,16 @@
 .PARAMETER Platforms
     Which architectures to stage. Default: x64 and ARM64.
 
+.PARAMETER FromRelease
+    Unpack a published release's zips instead of building. The zips already
+    hold what this script assembles, signed, so a packaging change can be
+    tested against the exact bytes that shipped without a rebuild. Only valid
+    while the code is unchanged: it stages the release's binaries, not the
+    working tree's.
+
+.PARAMETER Repository
+    owner/name to take -FromRelease zips from. Default: relmer/Casso.
+
 .PARAMETER BuildRoot
     Where the built binaries are, as <BuildRoot>/<platform>/Release. Default:
     the repository root, which is where MSBuild puts them.
@@ -41,7 +51,9 @@
 param(
     [string[]]$Platforms   = @('x64', 'ARM64'),
     [string]  $BuildRoot   = "",
-    [string]  $Destination = ""
+    [string]  $Destination = "",
+    [string]  $FromRelease = "",
+    [string]  $Repository  = "relmer/Casso"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,6 +62,41 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 
 if ([string]::IsNullOrEmpty($BuildRoot))   { $BuildRoot   = $repoRoot }
 if ([string]::IsNullOrEmpty($Destination)) { $Destination = Join-Path $repoRoot 'staging' }
+
+if (-not [string]::IsNullOrEmpty($FromRelease))
+{
+    $version = $FromRelease -replace '^v', ''
+
+    if (Test-Path $Destination) { Remove-Item $Destination -Recurse -Force }
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+
+    foreach ($plat in $Platforms)
+    {
+        $zip = Join-Path $Destination "Casso-$version-$plat.zip"
+
+        gh release download $FromRelease --repo $Repository `
+            --pattern "Casso-$version-$plat.zip" --dir $Destination
+        if ($LASTEXITCODE -ne 0) { throw "Could not download Casso-$version-$plat.zip from $FromRelease." }
+
+        # The zip already carries a Casso-<plat> folder at its root.
+        Expand-Archive -Path $zip -DestinationPath $Destination -Force
+        Remove-Item $zip
+
+        $staged = Join-Path $Destination "Casso-$plat"
+        if (-not (Test-Path (Join-Path $staged 'Casso.exe')))
+        {
+            throw "Casso-$version-$plat.zip did not unpack to Casso-$plat\Casso.exe."
+        }
+
+        $sig = Get-AuthenticodeSignature (Join-Path $staged 'Casso.exe')
+        Write-Host "  $plat from ${FromRelease}: Casso.exe $($sig.Status)"
+    }
+
+    Get-ChildItem $Destination -Recurse -File |
+        ForEach-Object { Write-Host "  staged: $($_.FullName)" }
+
+    return
+}
 
 $demos = @(
     'casso-rocks.dsk',
