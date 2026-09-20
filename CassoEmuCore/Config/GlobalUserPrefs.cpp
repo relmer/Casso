@@ -1036,21 +1036,7 @@ HRESULT GlobalUserPrefs::Save (
 
     if (SUCCEEDED (hrDisk))
     {
-        for (const auto & each : onDisk.window.placements)
-        {
-            if (std::find (window.touched.begin(), window.touched.end(), each.first) == window.touched.end())
-            {
-                merged.window.placements[each.first] = each.second;
-            }
-        }
-
-        for (const auto & each : onDisk.window.debuggerPlacements)
-        {
-            if (std::find (window.touchedDebugger.begin(), window.touchedDebugger.end(), each.first) == window.touchedDebugger.end())
-            {
-                merged.window.debuggerPlacements[each.first] = each.second;
-            }
-        }
+        merged.MergeUntouchedPlacements (onDisk);
     }
 
     global = merged.ToJson();
@@ -1099,6 +1085,40 @@ HRESULT GlobalUserPrefs::Save (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::MergeUntouchedPlacements
+//
+//  Placements this object never set come back from the file. A key is this
+//  object's own only once a window of THIS instance was put somewhere, which
+//  is what Touch records; everything else belongs to whoever wrote it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::MergeUntouchedPlacements (const GlobalUserPrefs & onDisk)
+{
+    for (const auto & each : onDisk.window.placements)
+    {
+        if (std::find (window.touched.begin(), window.touched.end(), each.first) == window.touched.end())
+        {
+            window.placements[each.first] = each.second;
+        }
+    }
+
+    for (const auto & each : onDisk.window.debuggerPlacements)
+    {
+        if (std::find (window.touchedDebugger.begin(), window.touchedDebugger.end(), each.first) ==
+            window.touchedDebugger.end())
+        {
+            window.debuggerPlacements[each.first] = each.second;
+        }
+    }
 }
 
 

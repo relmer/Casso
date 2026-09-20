@@ -511,7 +511,7 @@ void DebuggerWindow::SetCommandBarMenus()
 
 void DebuggerWindow::RunCommandBarEntry (int id)
 {
-    if (id == DebuggerCommands::kFollowPc)
+    if (id == DebuggerCommands::kShowNext)
     {
         if (m_host != nullptr)
         {
@@ -538,16 +538,38 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 //
 //  DebuggerWindow::IsCommandBarEntryEnabled
 //
-//  Run to Cursor is the one entry with a requirement of its own: a line to
-//  run to. The rest are commands the session answers whatever it is doing.
+//  A running machine has no state to step through, so everything that acts
+//  on a stopped one is off while it runs, and Pause is off while it is
+//  already stopped. Run to Cursor needs a line to run to as well. The
+//  choices that only change what the window shows stay live throughout.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 {
+    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
+
+
+
+    if (id == DebuggerCommands::kRun)
+    {
+        return paused;
+    }
+
+    if (id == DebuggerCommands::kPause)
+    {
+        return !paused;
+    }
+
+    if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
+        id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext)
+    {
+        return paused;
+    }
+
     if (id == DebuggerCommands::kRunToCursor)
     {
-        return m_codeList != nullptr && m_codeList->GetSelectedRow() >= 0;
+        return paused && m_codeList != nullptr && m_codeList->GetSelectedRow() >= 0;
     }
 
     return true;

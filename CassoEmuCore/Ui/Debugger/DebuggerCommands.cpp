@@ -13,10 +13,10 @@
 static constexpr const wchar_t *  s_kGlyphRun         = L"\uE768";   // play
 static constexpr const wchar_t *  s_kGlyphPause       = L"\uE769";   // pause bars
 static constexpr const wchar_t *  s_kGlyphStepInto    = L"\uE896";   // arrow down to a bar
-static constexpr const wchar_t *  s_kGlyphStepOver    = L"\uE893";   // play to the next mark
+static constexpr const wchar_t *  s_kGlyphStepOver    = L"\uE7A6";   // an arc up and over, to the right
 static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up from a bar
 static constexpr const wchar_t *  s_kGlyphRunToCursor = L"\uE847";   // arrow to a bar
-static constexpr const wchar_t *  s_kGlyphFollowPc    = L"\uE80F";   // home
+static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
 static constexpr const wchar_t *  s_kGlyphPanels      = L"\uE950";   // chip
 static constexpr const wchar_t *  s_kGlyphKeys        = L"\uE765";   // keyboard
@@ -41,11 +41,11 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
     {
         { kRun,         L"Run",           s_kGlyphRun,         L"Run until something stops the machine",        DxuiToolbar::Kind::Command,  0, false },
         { kPause,       L"Pause",         s_kGlyphPause,       L"Stop the running machine",                     DxuiToolbar::Kind::Command,  0, false },
-        { kStepInto,    L"Step",          s_kGlyphStepInto,    L"Step one instruction, into a call",            DxuiToolbar::Kind::Command,  1, false },
+        { kStepInto,    L"Step Into",     s_kGlyphStepInto,    L"Step one instruction, into a call",            DxuiToolbar::Kind::Command,  1, false },
         { kStepOver,    L"Step Over",     s_kGlyphStepOver,    L"Step one instruction, over a call",            DxuiToolbar::Kind::Command,  1, false },
         { kStepOut,     L"Step Out",      s_kGlyphStepOut,     L"Run to the return of the current call",        DxuiToolbar::Kind::Command,  1, false },
         { kRunToCursor, L"Run to Cursor", s_kGlyphRunToCursor, L"Run until the selected line",                  DxuiToolbar::Kind::Command,  1, false },
-        { kFollowPc,    L"Follow PC",     s_kGlyphFollowPc,    L"Bring the code pane back to the PC",           DxuiToolbar::Kind::Command,  2, false },
+        { kShowNext,    L"Show Next",     s_kGlyphShowNext,    L"Bring the code panes to the next statement",           DxuiToolbar::Kind::Command,  2, false },
         { kTrace,       L"Trace",         s_kGlyphTrace,       L"Record every instruction the machine runs",    DxuiToolbar::Kind::Toggle,   2, true  },
         { kPanels,      L"Panels",        s_kGlyphPanels,      L"Open a panel for one of the machine's devices", DxuiToolbar::Kind::DropDown, 3, false },
         { kMode,        L"Dialect",       s_kGlyphMode,        L"The command dialect the console reads",        DxuiToolbar::Kind::DropDown, 3, false },

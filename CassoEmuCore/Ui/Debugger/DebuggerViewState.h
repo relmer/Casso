@@ -122,7 +122,10 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
-    CommandMode                  mode   = CommandMode::AppleWin;
+    //  Whether the machine was stopped when this was built. The command bar
+    //  gates on it: stepping a running machine is not a command it can take.
+    bool                         isPaused      = false;
+    CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
     std::vector<CodeLine>        code;
     std::vector<RegisterRow>     registers;

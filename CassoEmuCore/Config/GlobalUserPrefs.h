@@ -261,6 +261,13 @@ struct GlobalUserPrefs
     HRESULT     Save     (const std::wstring & baseDir,
                           IFileSystem        & fs) const;
 
+    //  Takes the placements `onDisk` holds for keys this object was not told
+    //  about, so a writer never drops another instance's arrangement. EVERY
+    //  writer of the prefs document owes the file this call: the document has
+    //  two of them, and the one that skipped it wiped the debugger placements
+    //  of every instance but its own.
+    void        MergeUntouchedPlacements (const GlobalUserPrefs & onDisk);
+
     JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);
 

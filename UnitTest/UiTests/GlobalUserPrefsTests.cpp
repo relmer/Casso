@@ -327,6 +327,28 @@ public:
     //  Two Casso instances: one the user moves, one they do not. A save from
     //  the instance that was never moved -- prefs are written for all sorts
     //  of reasons -- must leave the other's placement alone.
+    TEST_METHOD (APlacementSurvivesAWriterThatWasNeverToldAboutIt)
+    {
+        GlobalUserPrefs  onDisk;
+        GlobalUserPrefs  writer;
+
+
+
+        //  What another instance left in the file.
+        onDisk.window.placements["T"]         = { 10, 20, 800, 600 };
+        onDisk.window.debuggerPlacements["T"] = { 30, 40, 700, 500 };
+
+        //  A writer that only ever set its own window, saving the whole
+        //  document: the debugger map it never touched must come back.
+        WindowPlacementProfile (writer).Save ("T", { 1, 2, 300, 200 });
+        writer.MergeUntouchedPlacements (onDisk);
+
+        Assert::AreEqual ((size_t) 1, writer.window.debuggerPlacements.size(), L"kept, not wiped");
+        Assert::AreEqual (30, writer.window.debuggerPlacements["T"].x);
+        Assert::AreEqual (1,  writer.window.placements["T"].x, L"its own window still wins");
+    }
+
+
     TEST_METHOD (APlacementIsOnlyWrittenByTheInstanceThatWasMoved)
     {
         InMemoryFileSystem  fs;

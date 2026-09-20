@@ -587,7 +587,12 @@ void EmulatorShell::PublishDebuggerView()
     //  machine does not know.
     m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
 
-    snapshot = std::make_shared<const DebuggerViewSnapshot> (m_debugViewState.Build (m_debugger->GetSession()));
+    //  The run state is the CPU manager's, not the session's, so it is
+    //  stamped on here: the command bar gates its stepping entries on it.
+    DebuggerViewSnapshot  built = m_debugViewState.Build (m_debugger->GetSession());
+
+    built.isPaused = m_cpuManager.IsPaused();
+    snapshot       = std::make_shared<const DebuggerViewSnapshot> (std::move (built));
 
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);

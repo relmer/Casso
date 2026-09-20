@@ -1765,7 +1765,27 @@ HRESULT UserConfigStore::BuildCombinedJson (
 
     if (prefs != nullptr)
     {
-        root.emplace_back (kpszGlobalKey, prefs->ToJson());
+        //  The document has two writers, and this one used to stamp its own
+        //  global section over the file whole. Placements it was never told
+        //  about -- another instance's, or this one's own from a previous run
+        //  -- came back from the file first.
+        GlobalUserPrefs  merged   = *prefs;
+        GlobalUserPrefs  onDisk;
+        HRESULT          hrGlobal = E_FAIL;
+
+
+
+        if (existingGlobal != nullptr)
+        {
+            hrGlobal = onDisk.FromJson (*existingGlobal);
+        }
+
+        if (SUCCEEDED (hrGlobal))
+        {
+            merged.MergeUntouchedPlacements (onDisk);
+        }
+
+        root.emplace_back (kpszGlobalKey, merged.ToJson());
     }
     else if (existingGlobal != nullptr)
     {
