@@ -305,7 +305,8 @@ void DebuggerWindow::ConfigureWidgets()
     //  Every column fits its contents and none stretches, so a pane is as wide
     //  as what it shows and no wider (FR-026a). The marker column alone has a
     //  set width, since its glyphs are not text a fit could measure.
-    m_codeList->SetColumns ({ { L"",            kMarkerColumnDip, false, DxuiTextHAlign::Center },
+    m_codeList->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left   },
+                              { L"",            kMarkerColumnDip, false, DxuiTextHAlign::Center },
                               { L"Address",     0, false, DxuiTextHAlign::Left },
                               { L"Bytes",       0, false, DxuiTextHAlign::Left },
                               { L"Label",       0, false, DxuiTextHAlign::Left },
@@ -317,6 +318,17 @@ void DebuggerWindow::ConfigureWidgets()
     m_codeList->SetActivateOnDoubleClick       (true);
     m_breakpointList->SetActivateOnDoubleClick (true);
     m_registerList->SetActivateOnDoubleClick   (true);
+    m_stackList->SetActivateOnDoubleClick      (true);
+
+    //  Double-clicking a stack byte shows it in memory. The pane lists the
+    //  stack newest first, so its rows run backwards through STACK's.
+    m_stackList->SetOnActivateRow ([this] (int row)
+    {
+        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->stack.size())
+        {
+            GetActiveMemoryPane()->GoTo (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address);
+        }
+    });
 
     //  Double-clicking PC shows the PC, as Show Next Statement does; P and S
     //  open an editor for the flags or the stack pointer.
@@ -331,7 +343,7 @@ void DebuggerWindow::ConfigureWidgets()
     m_registerList->SetColumns   ({ { L"Reg",         0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left },
                                     { L"",            0, false, DxuiTextHAlign::Left } });
-    m_breakpointList->SetColumns ({ { L"",            kMarkerColumnDip, false, DxuiTextHAlign::Center },
+    m_breakpointList->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left   },
                                     { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
     m_watchList->SetColumns      ({ { L"Watch",       0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left } });
@@ -944,6 +956,15 @@ void DebuggerWindow::ApplyMemoryWindows()
         {
             open[(size_t) (window.id - 1)] = true;
             m_memoryPanes[(size_t) (window.id - 1)]->SetChangedColor (GetChangedArgb());
+
+            //  Bytes are edited while the machine is stopped, as Visual
+            //  Studio's memory window allows: a running machine would
+            //  overwrite the edit, or be changed under the code using it.
+            if (m_memoryPanes[(size_t) (window.id - 1)]->GetView()->IsEditable() != m_snapshot->isPaused)
+            {
+                m_memoryPanes[(size_t) (window.id - 1)]->GetView()->SetEditable (m_snapshot->isPaused);
+            }
+
             m_memoryPanes[(size_t) (window.id - 1)]->Apply (window);
         }
     }
@@ -2230,14 +2251,15 @@ void DebuggerWindow::ApplySnapshot()
     {
         const DebuggerViewSnapshot::CodeLine & line   = m_snapshot->code[i];
         std::vector<DxuiListView::Cell>        cells;
+        DxuiListView::Cell                     gutter;
         DxuiListView::Cell                     marker;
         uint32_t                               fill   = 0;
 
-        //  The gutter: a breakpoint's dot, and the PC's arrow over it.
+        //  The gutter holds a breakpoint's dot and the next column the PC's
+        //  arrow, so a breakpoint on the PC's line shows both.
         if (line.hasBreakpoint)
         {
-            marker.text = std::wstring (1, line.isEnabled ? s_kchBlackCircle : s_kchWhiteCircle);
-            marker.argb = GetBreakpointArgb();
+            gutter.icon = GetBreakpointIcon (line.isEnabled);
         }
 
         if (line.isCurrent)
@@ -2256,14 +2278,15 @@ void DebuggerWindow::ApplySnapshot()
             fill = GetTargetRowArgb();
         }
 
-        cells = { marker,
+        cells = { gutter,
+                  marker,
                   { std::format (L"{:04X}", line.address) },
                   { Widen (line.bytes) },
                   { Widen (line.label) },
                   { Widen (line.instruction) },
                   { Widen (line.annotation) } };
 
-        cells[5].argb = GetAnnotationArgb();
+        cells[6].argb = GetAnnotationArgb();
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -2304,8 +2327,7 @@ void DebuggerWindow::ApplySnapshot()
     {
         DxuiListView::Cell  circle;
 
-        circle.text = std::wstring (1, bp.enabled ? s_kchBlackCircle : s_kchWhiteCircle);
-        circle.argb = GetBreakpointArgb();
+        circle.icon = GetBreakpointIcon (bp.enabled);
 
         rows.push_back ({ circle, { Widen (bp.text), !bp.enabled } });
     }
@@ -2660,6 +2682,12 @@ void DebuggerWindow::EditRegister (const std::string & name)
         return;
     }
 
+    if ((name == "P" || name == "S") && !m_snapshot->isPaused)
+    {
+        AppendConsole ({ "Pause the machine to edit its registers." });
+        return;
+    }
+
     if (name == "P" && value.has_value() && FlagsDialog::Ask (GetHwnd(), m_theme, *value, p))
     {
         RunCommand (std::format ("R P {:02X}", p));
@@ -2779,7 +2807,7 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
             continue;
         }
 
-        if (lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (0))
+        if (lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (0) + (list == m_codeList ? list->GetColumnEffectiveWidthPx (1) : 0))
         {
             return false;
         }
@@ -2838,7 +2866,66 @@ bool DebuggerWindow::IsDarkTheme() const
 
 uint32_t DebuggerWindow::GetBreakpointArgb() const
 {
-    return IsDarkTheme() ? 0xFFE51400 : 0xFFC50F1F;
+    //  A warm red that holds its own against a blue ground, as Visual Studio
+    //  Code's breakpoint red does; a pure red goes purple beside blue.
+    return IsDarkTheme() ? 0xFFF4524D : 0xFFD1242F;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBreakpointIcon
+//
+//  The breakpoint's dot, filled when enabled and a ring when not, drawn as an
+//  image so it can be larger than the text beside it. Rebuilt when the theme
+//  changes the color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetBreakpointIcon (bool enabled)
+{
+    static constexpr int    kSize   = 48;
+    static constexpr float  kRadius = 21.0f;
+    static constexpr float  kRing   = 5.0f;
+    uint32_t                argb    = GetBreakpointArgb();
+
+
+
+    if (argb != m_breakpointIconArgb || m_breakpointIcons[0] == nullptr)
+    {
+        m_breakpointIconArgb = argb;
+
+        for (int filled = 0; filled < 2; filled++)
+        {
+            auto  image = std::make_shared<DxuiIconImage>();
+
+            image->width  = kSize;
+            image->height = kSize;
+            image->bgraPremul.assign ((size_t) (kSize * kSize), 0u);
+
+            for (int y = 0; y < kSize; y++)
+            {
+                for (int x = 0; x < kSize; x++)
+                {
+                    float  d     = std::hypot (x + 0.5f - kSize * 0.5f, y + 0.5f - kSize * 0.5f);
+                    float  outer = std::clamp (kRadius - d + 0.5f, 0.0f, 1.0f);
+                    float  inner = filled ? 0.0f : std::clamp (kRadius - kRing - d + 0.5f, 0.0f, 1.0f);
+                    float  a     = outer - inner;
+                    auto   ch    = [a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
+
+                    image->bgraPremul[(size_t) (y * kSize + x)] = ((uint32_t) std::lround (a * 255.0f) << 24) |
+                                                                  (ch (argb >> 16) << 16) | (ch (argb >> 8) << 8) | ch (argb);
+                }
+            }
+
+            m_breakpointIcons[filled] = image;
+        }
+    }
+
+    return m_breakpointIcons[enabled ? 1 : 0];
 }
 
 
@@ -3194,6 +3281,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Wheel:
+        //  The code pane holds only the lines it shows, so the wheel scrolls
+        //  the disassembly itself, through all of memory (FR-073).
+        if (IsRoutable (m_codeList) && m_codeList->IsVisible() && DxuiDockSite::Contains (m_codeList->GetBounds(), ev.positionDip) && m_host != nullptr)
+        {
+            m_host->ScrollDebuggerCode ((int) std::lround (-ev.wheelDelta * (float) m_codeList->GetWheelLinesPerNotch()));
+            return true;
+        }
+
         for (DxuiListView * list : GetLists())
         {
             RECT  bounds = list->GetBounds();

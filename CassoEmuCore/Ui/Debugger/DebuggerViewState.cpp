@@ -1078,8 +1078,56 @@ void DebuggerViewState::SetCodeLines (int lines)
 Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc) const
 {
     bool  shown = std::find (m_shownCode.begin(), m_shownCode.end(), pc) != m_shownCode.end();
+    Word  top   = 0;
 
 
+
+    //  A navigation: the address in the middle, or as far down as there are
+    //  instructions above it to fill the lines over it.
+    if (m_centerOn.has_value())
+    {
+        top = *m_centerOn;
+
+        for (int above = m_codeLines / 2; above > 0 && top == *m_centerOn; above--)
+        {
+            top = FindStartAbove (session, *m_centerOn, above);
+        }
+
+        m_codeAddress = top;
+        m_centerOn.reset();
+    }
+
+    if (m_scrollLines != 0)
+    {
+        top = m_codeAddress.value_or (shown ? m_followAnchor : FindStartAbove (session, pc, m_codeLines / 2));
+
+        for (int i = 0; i < m_scrollLines && top < 0xFFFF; i++)
+        {
+            Word  next = (Word) (top + GetInstructionLength (session, top));
+
+            top = (next > top) ? next : top;
+        }
+
+        //  Up: the alignment that lands on the top line, from as many lines
+        //  above as can be found; a byte at a time where none can.
+        if (m_scrollLines < 0)
+        {
+            Word  from = top;
+
+            for (int above = -m_scrollLines; above > 0 && top == from; above--)
+            {
+                top = FindStartAbove (session, from, above);
+            }
+
+            if (top == from && from > 0)
+            {
+                top = (Word) (from - (Word) (std::min) ((int) from, -m_scrollLines));
+            }
+        }
+
+        m_codeAddress = top;
+        m_scrollLines = 0;
+    }
 
     if (m_codeAddress.has_value())
     {

@@ -452,6 +452,11 @@ private:
         {
             calls.push_back (std::format ("GoToDebugMemory {} {}", window, text));
         }
+
+        void     ScrollDebugCode (int lines) override
+        {
+            calls.push_back (std::format ("ScrollDebugCode {}", lines));
+        }
     };
 
 

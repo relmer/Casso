@@ -132,8 +132,10 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     {
         if (each.chainBreak.has_value())
         {
+            //  The instruction's address goes in the call-site column, as a
+            //  frame's does; the second column says what it did.
             row         = Row();
-            row.site    = L"--";
+            row.site    = std::format (L"${:04X}", each.chainBreak->pc);
             row.routine = widen (CallStack::DescribeBreak (*each.chainBreak));
             row.isBreak = true;
             row.address = each.chainBreak->pc;

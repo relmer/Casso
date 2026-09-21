@@ -216,6 +216,61 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (ANavigationPutsTheAddressInTheMiddle)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            int                   row = -1;
+
+
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0800);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            for (int i = 0; i < (int) snapshot.code.size(); i++)
+            {
+                row = (snapshot.code[(size_t) i].address == 0x0800) ? i : row;
+            }
+
+            Assert::AreEqual (10, row, L"in the middle, never on an edge");
+
+            rig.view.CenterCodeOn (0x0002);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::IsTrue (snapshot.code.front().address <= 0x0002, L"at the bottom of memory, as near the middle as it can be");
+        }
+
+
+        TEST_METHOD (TheWheelScrollsTheCodePaneThroughMemory)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  first;
+            DebuggerViewSnapshot  down;
+            DebuggerViewSnapshot  up;
+
+
+
+            rig.view.SetCodeLines (20);
+            first = rig.view.Build (rig.controller.GetSession());
+
+            rig.view.ScrollCode (3);
+            down = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual (first.code[3].address, down.code[0].address, L"three instructions down");
+
+            rig.view.ScrollCode (-3);
+            up = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual (first.code[0].address, up.code[0].address, L"and back");
+
+            for (int i = 0; i < 40; i++)
+            {
+                rig.view.ScrollCode (-20);
+                up = rig.view.Build (rig.controller.GetSession());
+            }
+
+            Assert::AreEqual ((Word) 0x0000, up.code[0].address, L"up past everything stops at $0000");
+        }
+
+
         TEST_METHOD (ABreakpointRowSaysWhetherItIsEnabled)
         {
             MachineRig            rig;

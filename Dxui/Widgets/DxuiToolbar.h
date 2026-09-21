@@ -178,6 +178,10 @@ public:
     //  code points; Windows 11 uses Fluent for its own chrome, which draws some
     //  glyphs differently (Refresh most visibly) and is not in Windows 10.
     static constexpr const wchar_t *  kMdl2IconFace   = L"Segoe MDL2 Assets";
+
+    //  A disabled entry's ink: its color at this alpha, for a decoration
+    //  that has to dim with the entry it draws on.
+    static constexpr uint32_t  kDisabledInkAlpha = 0x60000000u;
     static constexpr const wchar_t *  kFluentIconFace = L"Segoe Fluent Icons";
     void  SetTextRenderer  (IDxuiTextRenderer * text)    { m_textRenderer = text; }
     void  SetStripColors   (uint32_t stripArgb, uint32_t textArgb);
@@ -271,7 +275,6 @@ private:
     static constexpr float     kIconDip          = 15.0f;
     static constexpr float     kFallbackFontDip  = 13.0f;  // size the char estimate was taken at
     static constexpr float     kFallbackCharPx   = 7.5f;
-    static constexpr uint32_t  kDisabledInkAlpha = 0x60000000u;
 
     //  The chrome font: one size for the strip's labels, the menu bar's
     //  titles and every dropdown, read from the Windows menu settings. A

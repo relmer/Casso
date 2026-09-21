@@ -393,6 +393,21 @@ void EmulatorShell::SetDebuggerTraceTop (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ScrollDebuggerCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ScrollDebuggerCode (int lines)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll {}", lines));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GoToDebuggerMemory
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -545,9 +560,13 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
     {
         m_debugViewState.SetCodeLines ((int) *address);
     }
+    else if (view == "code" && address.has_value())
+    {
+        m_debugViewState.CenterCodeOn (*address);
+    }
     else if (view == "code")
     {
-        m_debugViewState.SetCodeAddress (address);
+        m_debugViewState.SetCodeAddress (std::nullopt);
     }
     else if (view == "memory" && address.has_value())
     {
@@ -567,6 +586,22 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
         }
     }
 
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScrollDebugCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ScrollDebugCode (int lines)
+{
+    m_debugViewState.ScrollCode (lines);
     m_isDebugViewDirty = true;
 }
 

@@ -54,6 +54,9 @@ public:
     //  acts on it when a snapshot carries the answer.
     virtual void  GoToDebuggerMemory      (int window, const std::string & text) = 0;
 
+    //  Scrolls the code pane by instructions, through the whole address space.
+    virtual void  ScrollDebuggerCode      (int lines) = 0;
+
     //  The newest snapshot, if one arrived since the last call, and every
     //  console line written since then.
     virtual bool  TakeDebuggerUpdate      (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
@@ -155,6 +158,7 @@ private:
     static constexpr int    kPaneRows           = 8;
     static constexpr int    kRegisterRows       = 6;
     static constexpr int    kMarkerColumnDip    = 20;
+    static constexpr int    kGutterColumnDip    = 24;
 
     static void  MakeDense (DxuiListView * list);
     static std::wstring  GetPromptText  (CommandMode mode);
@@ -232,6 +236,7 @@ private:
     //  destination, and the annotations' comment color.
     bool      IsDarkTheme          () const;
     uint32_t  GetBreakpointArgb    () const;
+    std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled);
     uint32_t  GetPcMarkerArgb      () const;
     uint32_t  GetPcRowArgb         () const;
     uint32_t  GetNavigatedRowArgb  () const;
@@ -248,23 +253,25 @@ private:
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
 
-    const CassoTheme            * m_theme         = nullptr;
-    IDebuggerWindowHost         * m_host          = nullptr;
-    DxuiDpiScaler                 m_scaler;
-    int                           m_widthDip      = 0;
-    int                           m_heightDip     = 0;
-    DxuiFocusManager              m_focusMgr;
-    DebuggerKeyScheme             m_keyScheme     = DebuggerKeySchemes::kDefault;
-    bool                          m_swallowSpace  = false;
-    RECT                          m_openedRect    = {};
-    bool                          m_placed        = false;
-    int                           m_codeLinesSent = 0;
-    std::optional<Word>           m_navigatedTo;
-    std::string                   m_menuState;
-    uint32_t                      m_goToSerial    = 0;
-    std::map<int, std::string>    m_watchValues;
-    float                         m_textZoom      = 1.0f;
-    DxuiTooltip                   m_tooltip;
+    const CassoTheme                      * m_theme              = nullptr;
+    IDebuggerWindowHost                   * m_host               = nullptr;
+    DxuiDpiScaler                           m_scaler;
+    int                                     m_widthDip           = 0;
+    int                                     m_heightDip          = 0;
+    DxuiFocusManager                        m_focusMgr;
+    DebuggerKeyScheme                       m_keyScheme          = DebuggerKeySchemes::kDefault;
+    bool                                    m_swallowSpace       = false;
+    RECT                                    m_openedRect         = {};
+    bool                                    m_placed             = false;
+    int                                     m_codeLinesSent      = 0;
+    std::optional<Word>                     m_navigatedTo;
+    std::string                             m_menuState;
+    uint32_t                                m_goToSerial         = 0;
+    std::map<int, std::string>              m_watchValues;
+    float                                   m_textZoom           = 1.0f;
+    DxuiTooltip                             m_tooltip;
+    std::shared_ptr<const DxuiIconImage>    m_breakpointIcons[2];
+    uint32_t                                m_breakpointIconArgb = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

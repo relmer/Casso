@@ -139,7 +139,7 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
             {
                 UNREFERENCED_PARAMETER (collapsed);
 
-                PaintRunToCursor (painter, icon, command->IsEnabled() ? theme.ButtonText() : theme.ForegroundDisabled());
+                PaintRunToCursor (painter, icon, command->IsEnabled() ? theme.ButtonText() : ((theme.ButtonText() & 0x00FFFFFFu) | DxuiToolbar::kDisabledInkAlpha));
             };
         }
 

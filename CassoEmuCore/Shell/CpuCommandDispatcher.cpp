@@ -315,6 +315,17 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         return;
     }
 
+    //  "codescroll <signed decimal>": instructions to scroll the code pane.
+    if (view == "codescroll")
+    {
+        if (!where.empty() && where.size() <= 6 && where.find_first_not_of ("-0123456789") == std::string::npos && where.find ('-', 1) == std::string::npos)
+        {
+            target.ScrollDebugCode (std::stoi (where));
+        }
+
+        return;
+    }
+
     //  "goto <window> <text>": the text is whatever was typed, resolved later.
     if (view == "goto")
     {

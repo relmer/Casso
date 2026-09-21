@@ -66,6 +66,9 @@ public:
 
     //  A memory window's Go to, as typed, to resolve against the machine.
     virtual void     GoToDebugMemory          (int window, const std::string & text)           = 0;
+
+    //  Scrolls the code pane by instructions: down when positive.
+    virtual void     ScrollDebugCode          (int lines)                                       = 0;
 };
 
 

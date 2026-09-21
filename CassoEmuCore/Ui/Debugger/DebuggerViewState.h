@@ -216,7 +216,16 @@ public:
 
     //  Where the code and memory panes start. The code pane follows the PC
     //  unless the user moved it; the memory pane starts at the zero page.
-    void  SetCodeAddress   (std::optional<Word> address) { m_codeAddress = address; }
+    void  SetCodeAddress   (std::optional<Word> address) { m_codeAddress = address; m_centerOn.reset(); m_scrollLines = 0; }
+
+    //  Moves the code pane so `address` is on its middle line, or as near the
+    //  middle as the top of memory allows. Every navigation goes through
+    //  here, so what was asked for is never on an edge.
+    void  CenterCodeOn     (Word address) { m_centerOn = address; m_scrollLines = 0; }
+
+    //  Scrolls the code pane by instructions, down when positive, up when
+    //  negative, through the whole address space.
+    void  ScrollCode       (int lines)    { m_scrollLines += lines; }
     void  SetMemoryAddress (Word address)                { m_memoryAddress = address; }
 
     //  How many lines the code pane has room for. The window measures it
@@ -354,7 +363,9 @@ private:
     //  alignment that reaches `pc` exactly.
     static Word  FindStartAbove  (DebugSession & session, Word pc, int before);
 
-    std::optional<Word>      m_codeAddress;
+    mutable std::optional<Word>  m_codeAddress;
+    mutable std::optional<Word>  m_centerOn;
+    mutable int                  m_scrollLines = 0;
 
     //  Where the code pane is anchored while it follows the PC, and the
     //  addresses it last showed. The pane re-anchors only when the PC walks
