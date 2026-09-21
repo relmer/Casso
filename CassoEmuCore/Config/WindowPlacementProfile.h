@@ -46,11 +46,32 @@ public:
                      const Bounds      & bounds,
                      Target              target = Target::Main);
 
+    // One attached monitor, as EnumDisplayMonitors hands it back. Public so
+    // the key can be built from a list a test wrote by hand: the Win32 walk
+    // is the only part of the key that needs a machine.
+    struct MonitorSnapshot
+    {
+        std::wstring  device;
+        RECT          rcMonitor = {};
+        RECT          rcWork    = {};
+        DWORD         flags     = 0;
+    };
+
     // Computes the per-monitor-topology key by enumerating attached
-    // monitors and folding their device name + rect + work area + flags
-    // through an FNV-1a 64 hash. Pure Win32 -- unit tests exercise the
-    // load / save path with literal keys instead.
+    // monitors and folding their device name and bounds through an FNV-1a
+    // 64 hash. The enumeration is the only Win32 in it; the fold is
+    // BuildTopologyKeyFrom, which tests drive directly.
     static std::string  BuildTopologyKey();
+
+    // The key for a monitor set given as data. WHAT IS IN IT AND WHAT IS
+    // NOT is the whole contract: device names and bounds, never the work
+    // area, which a taskbar changes without any screen changing.
+    static std::string  BuildTopologyKeyFrom (const std::vector<MonitorSnapshot> & monitors);
+
+    // Whether a rect is a placement at all. A minimized window is parked
+    // far off the desktop and an empty one is a window being torn down;
+    // neither is anywhere the user put anything.
+    static bool  IsPlaceableRect (const RECT & rect);
 
     static void  Touch (std::vector<std::string> & keys, const std::string & topologyKey);
 
@@ -78,18 +99,6 @@ private:
     static constexpr uint64_t  kFnvOffset    = 1469598103934665603ull;
     static constexpr uint64_t  kFnvPrime     = 1099511628211ull;
     static constexpr int       kHashHexChars = 16;
-
-    // One attached monitor, as EnumDisplayMonitors hands it back. Nested
-    // rather than file-scope: a bare struct in a .cpp has external linkage,
-    // so two translation units defining different types under one name is
-    // an ODR violation the linker will not report.
-    struct MonitorSnapshot
-    {
-        std::wstring  device;
-        RECT          rcMonitor = {};
-        RECT          rcWork    = {};
-        DWORD         flags     = 0;
-    };
 
     static uint64_t      HashFNV1a64        (const std::wstring & text);
     static bool          TryParseLong       (const std::wstring & text, LONG & outValue);

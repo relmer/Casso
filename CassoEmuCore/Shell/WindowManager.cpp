@@ -206,7 +206,7 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
         width   = wr.right - wr.left;
         height  = wr.bottom - wr.top;
         hMon    = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-        savable = width > 0 && height > 0 && hMon != nullptr;
+        savable = WindowPlacementProfile::IsPlaceableRect (wr) && hMon != nullptr;
     }
 
     if (savable)

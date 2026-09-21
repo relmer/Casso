@@ -486,6 +486,7 @@
     <ClCompile Include="UiTests\MachineInputPrefsTests.cpp" />
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UiTests\WindowPlacementKeyTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />
     <ClCompile Include="UiTests\DxuiRadioGroupTests.cpp" />

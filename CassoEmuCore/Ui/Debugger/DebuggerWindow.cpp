@@ -6,6 +6,7 @@
 #include "Debugger/Source/SourcePathList.h"
 #include "Core/WindowTrace.h"
 #include "Core/DxuiWindowFrame.h"
+#include "Config/WindowPlacementProfile.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -3062,6 +3063,18 @@ void DebuggerWindow::ApplySavedPlacement()
 
     WindowTrace::LogRect ("restore.hit", "debugger", visible, "the visible rect that was saved");
 
+    //  TWICE, ON PURPOSE. Landing on a monitor of a different scale makes
+    //  Windows send WM_DPICHANGED and resize the window by the ratio of the
+    //  two: a rect saved at 120dpi came back on a 144dpi screen exactly 1.2x
+    //  too big. The first call takes that rescale, and the border is measured
+    //  again afterwards because it scales with the window.
+
+    SetWindowPos (GetHwnd(), nullptr, placed.left, placed.top,
+                  placed.right - placed.left, placed.bottom - placed.top,
+                  SWP_NOZORDER | SWP_NOACTIVATE);
+
+    placed = DxuiWindowFrame::ToWindowRect (GetHwnd(), visible);
+
     SetWindowPos (GetHwnd(), nullptr, placed.left, placed.top,
                   placed.right - placed.left, placed.bottom - placed.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
@@ -3113,13 +3126,22 @@ void DebuggerWindow::SavePlacementIfMoved()
 
     //  Until the window has been shown and its opening rect taken, the size
     //  and move events of its own creation have nothing to compare against.
-    if (!m_placed || m_host == nullptr || !IsCreated())
+    //  A minimized window is parked far off the desktop -- x=-32000 -- and
+    //  that is not a placement anyone chose. The log caught one being
+    //  written as the arrangement for the whole monitor set.
+    if (!m_placed || m_host == nullptr || !IsCreated() || IsIconic (GetHwnd()))
     {
         WindowTrace::Log ("save.skipped", "debugger", "not placed yet, or no host");
         return;
     }
 
     rect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
+
+    if (!WindowPlacementProfile::IsPlaceableRect (rect))
+    {
+        WindowTrace::LogRect ("save.refused", "debugger", rect, "not a rect anyone put a window at");
+        return;
+    }
 
     if (EqualRect (&rect, &m_openedRect))
     {

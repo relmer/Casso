@@ -148,30 +148,56 @@ WindowPlacementProfile::WindowPlacementProfile (GlobalUserPrefs & prefs)
 //  hash. Two different physical topologies will (with extremely high
 //  probability) produce different keys.
 //
-//  THE ACTIVE MONITOR IS NOT PART OF THE KEY, and must never become part
-//  of it again. A window is saved against the monitor it sits on and
-//  restored before it exists, when the active monitor is whichever one the
-//  OS hands out -- so folding it in gave the two operations different keys
-//  for one arrangement. A window the user dragged to a second screen was
-//  written under one key and read back from another, and every launch
-//  restored the stale rect stored under the startup key: both windows
-//  reappeared in the same wrong place no matter where they were left.
+//  NEITHER THE ACTIVE MONITOR NOR THE WORK AREA IS PART OF THE KEY.
+//
+//  A window is saved against the monitor it sits on and restored before it
+//  exists, when the active monitor is whichever one the OS hands out -- so
+//  folding that in gave the two operations different keys for one
+//  arrangement, and every launch restored the stale rect stored under the
+//  startup key.
+//
+//  The work area is worse, because it moves on its own: a taskbar that
+//  auto-hides, or an appbar docking, changes it without anything about the
+//  monitors changing. The log caught three keys inside ten seconds, each
+//  holding part of one arrangement. A taskbar sliding away is not a
+//  different set of screens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string WindowPlacementProfile::BuildTopologyKey()
 {
     std::vector<MonitorSnapshot>  monitors;
-    std::wstring                  canonical;
-    uint64_t                      hash                       = 0;
-    char                          hashHex[kHashHexChars + 1] = {};
-    size_t                        i                          = 0;
 
 
 
     EnumDisplayMonitors (nullptr, nullptr, CollectMonitorsProc, reinterpret_cast<LPARAM> (&monitors));
 
-    std::sort (monitors.begin(), monitors.end(),
+    return BuildTopologyKeyFrom (monitors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::BuildTopologyKeyFrom
+//
+//  The fold, with no machine in it. Monitors are sorted first, so the order
+//  the OS happens to enumerate them in cannot change the key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WindowPlacementProfile::BuildTopologyKeyFrom (const std::vector<MonitorSnapshot> & monitors)
+{
+    std::vector<MonitorSnapshot>  sorted                     = monitors;
+    std::wstring                  canonical;
+    uint64_t                      hash                       = 0;
+    char                          hashHex[kHashHexChars + 1] = {};
+
+
+
+    std::sort (sorted.begin(), sorted.end(),
                [] (const MonitorSnapshot & a, const MonitorSnapshot & b)
                {
                    if (a.device != b.device) { return a.device < b.device; }
@@ -181,10 +207,8 @@ std::string WindowPlacementProfile::BuildTopologyKey()
                    return a.rcMonitor.bottom < b.rcMonitor.bottom;
                });
 
-    for (auto & monitor : monitors)
+    for (const MonitorSnapshot & m : sorted)
     {
-        const MonitorSnapshot & m = monitor;
-
         canonical += m.device;
         canonical += L"|";
         canonical += std::to_wstring (m.rcMonitor.left);
@@ -194,16 +218,6 @@ std::string WindowPlacementProfile::BuildTopologyKey()
         canonical += std::to_wstring (m.rcMonitor.right);
         canonical += L",";
         canonical += std::to_wstring (m.rcMonitor.bottom);
-        canonical += L"|";
-        canonical += std::to_wstring (m.rcWork.left);
-        canonical += L",";
-        canonical += std::to_wstring (m.rcWork.top);
-        canonical += L",";
-        canonical += std::to_wstring (m.rcWork.right);
-        canonical += L",";
-        canonical += std::to_wstring (m.rcWork.bottom);
-        canonical += L"|";
-        canonical += std::to_wstring (m.flags);
         canonical += L";";
     }
 
@@ -211,6 +225,36 @@ std::string WindowPlacementProfile::BuildTopologyKey()
     sprintf_s (hashHex, _countof (hashHex), "%016llX", hash);
 
     return std::string (hashHex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::IsPlaceableRect
+//
+//  A minimized window is parked at -32000, far off any desktop, and a window
+//  being torn down reports an empty rect. Neither is a place the user put
+//  anything, and one of each reached the preferences file before this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WindowPlacementProfile::IsPlaceableRect (const RECT & rect)
+{
+    //  Further out than any real desktop reaches. GetSystemMetrics gives the
+    //  virtual screen, which a minimized window sits well outside of.
+    constexpr LONG  kParked = -30000;
+
+
+
+    if (rect.right <= rect.left || rect.bottom <= rect.top)
+    {
+        return false;
+    }
+
+    return rect.left > kParked && rect.top > kParked;
 }
 
 
