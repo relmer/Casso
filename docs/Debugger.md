@@ -308,7 +308,14 @@ says where rather than guessing past it: a `TXS`, a pull into a return
 address, a frame left by a jump, a return to somewhere other than its call
 site, the stack wrapping, a reset, and the point where recording began. A
 routine that returns a few bytes past its call site, over inline parameters
-the way ProDOS's MLI does, is noted and not treated as a break.
+the way ProDOS's MLI does, is noted and not treated as a break. A store into
+a return address marks its frame when it runs, naming the store.
+
+Recording normally starts when the debugger opens, so calls made before then
+come from the walk. To record everything, start Casso with `--debugger` or
+choose Debug > Restart Under Debugger, which power-cycles the machine with the
+debugger open: the chain then ends at power-on, and nothing is guessed below
+it.
 
 ## The step filter
 

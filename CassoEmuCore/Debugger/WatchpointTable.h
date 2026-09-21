@@ -62,6 +62,14 @@ struct Watchpoint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  A write to the stack page: its address, the byte written and the byte it
+//  replaced, when there was one.
+using StackWriteSink = std::function<void (Word, Byte, std::optional<Byte>)>;
+
+
+
+
+
 class WatchpointTable : public IWatchSink
 {
 public:
@@ -74,6 +82,10 @@ public:
 
     //  Publishes the watched pages again, after the value breakpoints change.
     void   RefreshWatchedPages () { Publish(); }
+
+    //  While set, the stack page is watched and every write to it is offered
+    //  here first, whether or not a watchpoint covers it. Empty to stop.
+    void   SetStackWriteSink (StackWriteSink sink);
 
     int    Add              (WatchAccess access, Word first, Word last, WatchMode mode = WatchMode::After, const Expression & condition = {});
     bool   TryClear         (int id);
@@ -107,6 +119,7 @@ public:
 
 private:
     static constexpr int  kPageShift = 8;
+    static constexpr int  kStackPage = 1;
 
     struct Suppression
     {
@@ -131,4 +144,5 @@ private:
     Word                               m_accessPc         = 0;
     std::optional<WatchHit>            m_pendingHit;
     std::optional<Suppression>         m_suppression;
+    StackWriteSink                     m_stackWriteSink;
 };

@@ -320,8 +320,8 @@ namespace DebuggerTests
                 Assert::IsTrue (frame.isVerified);
             }
 
-            Assert::IsTrue   (data.rows[3].chainBreak.has_value() && data.rows[3].chainBreak->kind == CallBreakKind::TrackingBegan,
-                              L"below the frames: where recording began");
+            Assert::IsTrue   (data.rows[3].chainBreak.has_value() && data.rows[3].chainBreak->kind == CallBreakKind::PowerOn,
+                              L"below the frames: power-on, since the machine had run nothing before recording began");
             Assert::AreEqual (program.Symbol ("deep"), data.rows[3].chainBreak->pc);
         }
 
@@ -449,21 +449,76 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (AReturnAddressRewrittenInPlaceIsABreakAtTheRts)
+        TEST_METHOD (AReturnAddressRewrittenInPlaceMarksTheFrameAtTheStore)
         {
-            Rig            rig;
-            Program        program = Load (rig, "rewrite");
-            CallStackData  data;
+            Rig                          rig;
+            Program                      program = Load (rig, "rewrite");
+            std::vector<CallStackFrame>  frames;
+            CallStackData                data;
 
 
+
+            RunTo (rig, program.Symbol ("rewrrts"));
+            frames = Frames (Calls (rig));
+
+            Assert::AreEqual ((size_t) 1, frames.size());
+            Assert::IsTrue   (frames[0].isRewritten, L"marked when the store ran, before the RTS");
+            Assert::AreEqual (std::format ("return address changed by the store at ${:04X}", program.Symbol ("rewrsta")), frames[0].note);
 
             RunTo (rig, program.Symbol ("rewrto"));
             data = Calls (rig);
 
-            Assert::IsTrue   (Frames (data).empty());
-            Assert::IsTrue   (data.rows[0].chainBreak->kind == CallBreakKind::ReturnMismatch);
-            Assert::AreEqual (program.Symbol ("rewrrts"), data.rows[0].chainBreak->pc);
-            Assert::AreEqual ((Byte) 0x60,                data.rows[0].chainBreak->opcode);
+            Assert::IsTrue   (Frames (data).empty(), L"the RTS ended the frame");
+            Assert::AreEqual ((size_t) 1, Breaks (data).size(), L"and was not a mismatch: the store chose where it went");
+        }
+
+
+        TEST_METHOD (APushIsNotAStoreIntoAFrame)
+        {
+            Rig                          rig;
+            Program                      program = Load (rig, "inl");
+            std::vector<CallStackFrame>  frames;
+
+
+
+            RunTo (rig, program.Symbol ("inlrts"));
+            frames = Frames (Calls (rig));
+
+            Assert::AreEqual ((size_t) 1, frames.size());
+            Assert::IsFalse  (frames[0].isRewritten, L"the routine pulled its return address and pushed a new one: pushes, not stores");
+        }
+
+
+        TEST_METHOD (TasAndLasReloadTheStackAsTxsDoes)
+        {
+            std::array<Byte, 0x10000>  memory   = {};
+            CallStackRecorder          recorder;
+            CallStackData              data;
+
+
+
+            recorder.SetPeek ([&memory] (Word address) { return memory[address]; });
+            memory[0x01FE] = 0x02;
+            memory[0x01FF] = 0x08;
+
+            recorder.Begin         (0x0800, kJsr);
+            recorder.OnInstruction (0x0800, 0xFF, kJsr);
+            recorder.OnInstruction (0x0900, 0xFD, 0x9B);
+            recorder.Settle        (0x0901, 0xFD);
+
+            Assert::AreEqual ((size_t) 1, recorder.GetBreaks().size(), L"a TAS that left SP alone, as a 65C02's NOP does, is nothing");
+
+            recorder.OnInstruction (0x0901, 0xFD, 0x9B);
+            recorder.Settle        (0x0902, 0x80);
+
+            Assert::AreEqual ((size_t) 2, recorder.GetBreaks().size());
+            Assert::IsTrue   (recorder.GetBreaks().back().info.kind == CallBreakKind::Txs);
+            Assert::AreEqual (std::string ("TAS at $0901"), CallStack::DescribeBreak (recorder.GetBreaks().back().info));
+
+            recorder.OnInstruction (0x0902, 0x80, 0xBB);
+            recorder.Settle        (0x0905, 0x40);
+
+            Assert::AreEqual (std::string ("LAS at $0902"), CallStack::DescribeBreak (recorder.GetBreaks().back().info));
         }
 
 
@@ -530,6 +585,24 @@ namespace DebuggerTests
             Assert::IsTrue (Frames (data).empty(), L"no frame survives, and nothing is walked below a reset");
             Assert::AreEqual ((size_t) 1, data.rows.size());
             Assert::IsTrue (data.rows[0].chainBreak->kind == CallBreakKind::Reset);
+        }
+
+
+        TEST_METHOD (APowerCycleIsTheBottomOfTheChainAndNothingIsWalkedBelowIt)
+        {
+            Rig            rig;
+            Program        program = Load (rig, "deep");
+            CallStackData  data;
+
+
+
+            RunTo (rig, program.Symbol ("threein"));
+            rig.session.OnReset (true);
+            data = Calls (rig);
+
+            Assert::AreEqual ((size_t) 1, data.rows.size(), L"hybrid walks nothing below power-on");
+            Assert::IsTrue   (data.rows[0].chainBreak->kind == CallBreakKind::PowerOn);
+            Assert::AreEqual (std::format ("power-on at ${:04X}, cycle 0", data.rows[0].chainBreak->pc), CallStack::DescribeBreak (*data.rows[0].chainBreak));
         }
 
 

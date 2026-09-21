@@ -90,7 +90,7 @@ std::vector<CallStackFrame> StackWalker::Walk (Byte sp, const CallStackPeek & pe
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CallStackRecorder::Begin (Word pc, Byte opcode)
+void CallStackRecorder::Begin (Word pc, Byte opcode, bool isPowerOn)
 {
     Pending  at;
 
@@ -104,7 +104,7 @@ void CallStackRecorder::Begin (Word pc, Byte opcode)
 
     at.pc     = pc;
     at.opcode = opcode;
-    AddBreak (CallBreakKind::TrackingBegan, at);
+    AddBreak (isPowerOn ? CallBreakKind::PowerOn : CallBreakKind::TrackingBegan, at);
 }
 
 
@@ -188,11 +188,12 @@ void CallStackRecorder::Settle (Word pc, Byte sp)
 //
 //  CallStackRecorder::OnReset
 //
-//  Every frame recorded is void; the reset itself is the bottom of the chain.
+//  Every frame recorded is void; the reset itself is the bottom of the chain,
+//  and a power cycle is also the start of everything the machine has run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CallStackRecorder::OnReset (Word pc, Byte opcode)
+void CallStackRecorder::OnReset (Word pc, Byte opcode, bool isPowerCycle)
 {
     Pending  at;
 
@@ -210,7 +211,54 @@ void CallStackRecorder::OnReset (Word pc, Byte opcode)
 
     at.pc     = pc;
     at.opcode = opcode;
-    AddBreak (CallBreakKind::Reset, at);
+    AddBreak (isPowerCycle ? CallBreakKind::PowerOn : CallBreakKind::Reset, at);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::OnStackWrite
+//
+//  A frame's return address is the two bytes at its level and the one below.
+//  A push -- the instruction's own, or an interrupt's -- writes at or below
+//  SP as the instruction began, which the held instruction carries: a marked
+//  opcode is held while it runs, and any other leaves SP where the one held
+//  before it did. Only a store above that SP reaches a live frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackRecorder::OnStackWrite (Word address, Byte value, std::optional<Byte> previous)
+{
+    Byte  offset = (Byte) address;
+    Word  writer = 0;
+
+
+
+    if (!m_active || m_frames.empty() || (previous.has_value() && *previous == value))
+    {
+        return;
+    }
+
+    if (m_pending.has_value() && offset <= m_pending->sp)
+    {
+        return;
+    }
+
+    for (auto it = m_frames.rbegin(); it != m_frames.rend(); ++it)
+    {
+        if (offset != it->stackLevel && offset != (Byte) (it->stackLevel - 1))
+        {
+            continue;
+        }
+
+        writer          = m_locateWriter ? m_locateWriter() : 0;
+        it->isRewritten = true;
+        it->note        = std::format ("return address changed by the store at ${:04X}", writer);
+        return;
+    }
 }
 
 
@@ -223,7 +271,7 @@ void CallStackRecorder::OnReset (Word pc, Byte opcode)
 //
 //  Apply's opcodes, the pushes it counts toward a stack wrap, and the two
 //  undocumented 6502 instructions that load the stack pointer, which Apply
-//  ignores but which would otherwise move it unseen.
+//  treats as TXS.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -312,6 +360,16 @@ void CallStackRecorder::Apply (const Pending & held, Word pc, Byte sp)
 
     case s_kTxs:
         ReloadStack (held, sp);
+        break;
+
+    case s_kTas:
+    case s_kLas:
+        //  A 65C02 runs both as a NOP; where SP did not move, nothing did.
+        if (sp != held.sp)
+        {
+            ReloadStack (held, sp);
+        }
+
         break;
 
     default:
@@ -417,6 +475,8 @@ void CallStackRecorder::Push (CallFrameKind kind, const Pending & held, Word tar
 //  already, and go. The frame at the level the return reached is the one it
 //  ends: to the address pushed is a clean return, a few bytes past it from
 //  an RTS is a return past inline parameters, and anywhere else is a break.
+//  A frame whose return address a store changed returns wherever the store
+//  sent it, which the frame's note already says.
 //  A return that leaves SP below the frame's level is not the frame's own --
 //  an RTS used as a computed jump -- and changes nothing.
 //
@@ -442,6 +502,11 @@ void CallStackRecorder::Return (const Pending & held, Word pc, Byte sp)
 
     frame = m_frames.back();
     PopFrame();
+
+    if (frame.isRewritten)
+    {
+        return;
+    }
 
     expected = GetExpectedReturn (frame);
     past     = (Word) (pc - expected);
@@ -582,7 +647,8 @@ void CallStackRecorder::PopFrame()
 //
 //  A new break over the same frames as an older one replaces it, so a
 //  program that reloads its stack in a loop keeps one break, not thousands.
-//  Where recording began and a reset stay: they are the bottom of the chain.
+//  Where recording began, a reset and power-on stay: they are the bottom of
+//  the chain.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -595,7 +661,7 @@ void CallStackRecorder::AddBreak (CallBreakKind kind, const Pending & held)
 
     std::erase_if (m_breaks, [depth] (const Break & each)
     {
-        return each.depth >= depth && each.info.kind != CallBreakKind::TrackingBegan && each.info.kind != CallBreakKind::Reset;
+        return each.depth >= depth && each.info.kind != CallBreakKind::TrackingBegan && each.info.kind != CallBreakKind::Reset && each.info.kind != CallBreakKind::PowerOn;
     });
 
     added.info.kind   = kind;
@@ -868,6 +934,7 @@ const char * CallStack::GetBreakKindName (CallBreakKind kind)
     case CallBreakKind::ReturnMismatch: return "returnMismatch";
     case CallBreakKind::StackWrap:      return "stackWrap";
     case CallBreakKind::Reset:          return "reset";
+    case CallBreakKind::PowerOn:        return "powerOn";
     default:                            return "trackingBegan";
     }
 }
@@ -891,12 +958,13 @@ std::string CallStack::DescribeBreak (const CallStackBreak & chainBreak)
 
     switch (chainBreak.kind)
     {
-    case CallBreakKind::Txs:            return std::format ("TXS at ${:04X}", pc);
+    case CallBreakKind::Txs:            return std::format ("{} at ${:04X}", (chainBreak.opcode == s_kTas || chainBreak.opcode == s_kLas) ? mnemonic : "TXS", pc);
     case CallBreakKind::PulledReturn:   return std::format ("{} at ${:04X} pulled a return address", mnemonic, pc);
     case CallBreakKind::EndedByJump:    return std::format ("{} at ${:04X} ended a call without a return", mnemonic, pc);
     case CallBreakKind::ReturnMismatch: return std::format ("{} at ${:04X} returned to an address its call did not push", mnemonic, pc);
     case CallBreakKind::StackWrap:      return std::format ("{} at ${:04X} wrapped the stack pointer", mnemonic, pc);
     case CallBreakKind::Reset:          return std::format ("reset at ${:04X}", pc);
+    case CallBreakKind::PowerOn:        return std::format ("power-on at ${:04X}, cycle 0", pc);
     default:                            return std::format ("recording began at ${:04X}", pc);
     }
 }
@@ -932,6 +1000,8 @@ const char * CallStack::GetMnemonic (Byte opcode)
     case s_kPla:         return "PLA";
     case s_kPly:         return "PLY";
     case s_kTxs:         return "TXS";
+    case s_kTas:         return "TAS";
+    case s_kLas:         return "LAS";
     case s_kPhx:         return "PHX";
     case s_kPlx:         return "PLX";
     default:             return "interrupt";

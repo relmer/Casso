@@ -1311,6 +1311,19 @@ confirm it disables without being removed.
   which the recorder has no history MUST say that the recorder began there,
   when the debugger attached, and that nothing below it is known -- worded so
   it cannot be read as a reference to the trace pane.
+- **FR-100**: When recording begins before the machine has run an
+  instruction since power-on, or a power cycle happens while it records, the
+  bottom of the chain MUST be marked as power-on, with the reset address and
+  cycle 0, and the stack walk MUST NOT extend below it. The Debug menu MUST
+  offer Restart Under Debugger, which opens the debugger and power-cycles the
+  machine so the record starts at power-on. `--debugger` MUST begin recording
+  before the first instruction. Neither is the default.
+- **FR-101**: A store that changes a byte of a recorded frame's return
+  address MUST mark that frame when the store runs, naming the store's
+  address, and the frame's return MUST NOT then be reported as a mismatch.
+  Pushes, including those that replace a pulled return address, are not
+  stores. The undocumented 6502 instructions that load the stack pointer
+  (`TAS`, `LAS`) MUST be treated as `TXS`.
 
 **Device panels**
 
@@ -1657,11 +1670,12 @@ confirm it disables without being removed.
   command table and input behavior; no code from it is copied.
 
 - **Call-stack recording starts when the debugger attaches**, as FR-068 says,
-  until planning decides whether it may run from machine boot. The only
-  measurement so far is the attached debugger's whole cost (about 1.5% on the
-  50-million-cycle benchmark, SC-009); the recorder's own share has not been
-  measured, and recording from boot would impose it on every session whether or
-  not a debugger ever opens.
+  and from power-on only when asked for (FR-100). Measured 2026-09-21, pinned,
+  against the bare machine: +1.9% at boot and +1.4% at the Applesoft prompt,
+  and +124% on a loop that is one-third JSR/RTS, still about 220 times real
+  //e speed. Attaching with recording off costs nothing measurable. Watching
+  the stack page for FR-101 adds nothing measurable at boot or idle and 30% on
+  the call loop. The cost is host time only; the guest's clock is unchanged.
 - **Backward disassembly can be wrong over data** (FR-073). The code pane
   assumes code above the line it scrolls from, as other disassemblers do.
 - **The annotation format of FR-078 is settled in planning** after a survey of

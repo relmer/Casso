@@ -365,20 +365,24 @@ enum class CallBreakKind
     StackWrap,
     Reset,
     TrackingBegan,
+    PowerOn,
 };
 
 // callSite is the JSR or BRK, or the interrupted instruction; target is the
 // routine entered or the handler the vector took. stackLevel is SP before
 // the push, which is what ends the frame (R-033). A frame below a break is
-// unverified. note is empty unless something about the frame is worth saying.
+// unverified. isRewritten is set once a store changes a byte of its return
+// address, so where it returns to is the program's choice, not a mismatch.
+// note is empty unless something about the frame is worth saying.
 struct CallStackFrame
 {
-    Word            callSite   = 0;
-    Word            target     = 0;
-    CallFrameKind   kind       = CallFrameKind::Call;
-    CallProvenance  provenance = CallProvenance::Recorded;
-    Byte            stackLevel = 0;
-    bool            isVerified = true;
+    Word            callSite    = 0;
+    Word            target      = 0;
+    CallFrameKind   kind        = CallFrameKind::Call;
+    CallProvenance  provenance  = CallProvenance::Recorded;
+    Byte            stackLevel  = 0;
+    bool            isVerified  = true;
+    bool            isRewritten = false;
     std::string     symbol;
     std::string     note;
 };

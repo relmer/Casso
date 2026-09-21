@@ -50,6 +50,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetValueBreakpoints (&m_breakpoints);
     m_watchpoints.SetTarget           (&m_target);
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
+    m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
     CallStackRecorder::MarkOpcodes    (m_callOpcodes.data());
     RefreshHookFilter();
     LoadRomSymbols();
@@ -883,7 +884,7 @@ void DebugSession::OnReset (bool isPowerCycle)
 
 
 
-    m_callRecorder.OnReset (pc, PeekByte (pc));
+    m_callRecorder.OnReset (pc, PeekByte (pc), isPowerCycle);
     m_sink.OnReset (isPowerCycle);
 }
 
@@ -1629,6 +1630,45 @@ void DebugSession::PushMonitorReturn()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::FindStoreInProgress
+//
+//  Called from inside a bus write. The CPU has fetched the whole instruction
+//  by the time it stores, so PC is already past it; a store that can reach
+//  the stack page is three bytes (absolute, absolute indexed) or two
+//  (indirect), and the one whose length ends at PC is the one running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word DebugSession::FindStoreInProgress() const
+{
+    const Microcode  * set = m_target.GetInstructionSet();
+    Word               pc  = m_target.GetRegisters().pc;
+    Disassembler       disassembler (set);
+
+
+
+    if (set == nullptr)
+    {
+        return pc;
+    }
+
+    for (Word length : { (Word) 3, (Word) 2 })
+    {
+        if (disassembler.GetLength (PeekByte ((Word) (pc - length))) == length)
+        {
+            return (Word) (pc - length);
+        }
+    }
+
+    return pc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::SetCallRecording
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1646,12 +1686,17 @@ void DebugSession::SetCallRecording (bool isOn)
 
     if (isOn)
     {
-        m_callRecorder.Begin (pc, PeekByte (pc));
+        m_callRecorder.Begin (pc, PeekByte (pc), m_target.GetCycleCount() == 0);
         m_target.SetOpcodeWatch (m_callOpcodes.data(), this);
+        m_watchpoints.SetStackWriteSink ([this] (Word address, Byte value, std::optional<Byte> previous)
+        {
+            m_callRecorder.OnStackWrite (address, value, previous);
+        });
     }
     else
     {
         m_target.SetOpcodeWatch (nullptr, nullptr);
+        m_watchpoints.SetStackWriteSink (nullptr);
         m_callRecorder.End();
     }
 }

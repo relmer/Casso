@@ -360,7 +360,7 @@ a preference, and the window swaps its active map when it changes.
 
 | Field | Type | Notes |
 |---|---|---|
-| kind | `Txs`, `PulledReturn`, `EndedByJump`, `ReturnMismatch`, `StackWrap`, `Reset`, `TrackingBegan` | FR-069 |
+| kind | `Txs`, `PulledReturn`, `EndedByJump`, `ReturnMismatch`, `StackWrap`, `Reset`, `TrackingBegan`, `PowerOn` | FR-069 |
 | pc | `Word` | the instruction that caused it |
 | opcode | `Byte` | |
 

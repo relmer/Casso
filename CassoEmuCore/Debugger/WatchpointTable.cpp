@@ -412,6 +412,8 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 
 
 
+    pages[kStackPage] = m_stackWriteSink != nullptr;
+
     for (const Watchpoint & entry : m_entries)
     {
         if (!entry.enabled || entry.mode != WatchMode::After)
@@ -464,6 +466,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     int                     hitId          = 0;
 
 
+
+    if (m_stackWriteSink != nullptr && access == BusAccess::Write && (address >> kPageShift) == kStackPage)
+    {
+        m_stackWriteSink (address, value, previous);
+    }
 
     if (IsSuppressed (address))
     {
@@ -584,6 +591,22 @@ bool WatchpointTable::IsAccessMatch (WatchAccess watched, BusAccess actual)
     return watched == WatchAccess::ReadWrite                                ||
            (watched == WatchAccess::Read  && actual == BusAccess::Read)     ||
            (watched == WatchAccess::Write && actual == BusAccess::Write);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::SetStackWriteSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SetStackWriteSink (StackWriteSink sink)
+{
+    m_stackWriteSink = std::move (sink);
+    Publish();
 }
 
 

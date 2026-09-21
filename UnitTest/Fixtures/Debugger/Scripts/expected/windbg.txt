@@ -26,7 +26,7 @@ a=00 x=00 y=00 sp=fb pc=0310 nv-bdIzc
 0:000> k
 #  call site  target        how
 00 0300       0310          JSR recorded
--- recording began at $FA62 --
+-- power-on at $FA62, cycle 0 --
 0:000> p
 Step at $0312
 a=41 x=00 y=00 sp=fb pc=0312 nv-bdIzc

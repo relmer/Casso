@@ -60,7 +60,9 @@ public:
 //  above the frames it leaves unverified: TXS, a pull into a frame's return
 //  address, a frame ended by a jump, a return to an address other than the
 //  one pushed, a stack pointer that wraps, a reset, and the point at which
-//  recording began. A break is dropped once the frames beneath it have
+//  recording began, or power-on, below which nothing ran. A store into a
+//  frame's return address marks that frame where it happens. A break is
+//  dropped once the frames beneath it have
 //  returned, since the chain it cast doubt on is gone. A return a few bytes
 //  past the address pushed is the inline-parameter idiom and is noted, not
 //  broken.
@@ -83,15 +85,24 @@ public:
 
     void    SetPeek       (CallStackPeek peek) { m_peek = std::move (peek); }
 
+    //  The address of the instruction making a bus write now. Asked only when
+    //  a write reaches a frame's return address.
+    void    SetWriterLocator (std::function<Word ()> locate) { m_locateWriter = std::move (locate); }
+
     //  Recording starts at the instruction at pc, with nothing known about
-    //  the calls already on the stack.
-    void    Begin         (Word pc, Byte opcode);
+    //  the calls already on the stack -- unless the machine has not run an
+    //  instruction since power-on, when there are none.
+    void    Begin         (Word pc, Byte opcode, bool isPowerOn = false);
     void    End           ();
     bool    IsActive      () const { return m_active; }
 
     void    OnInstruction (Word pc, Byte sp, Byte opcode);
     void    Settle        (Word pc, Byte sp);
-    void    OnReset       (Word pc, Byte opcode);
+    void    OnReset       (Word pc, Byte opcode, bool isPowerCycle = false);
+
+    //  A write to the stack page. One that changes a byte of a frame's return
+    //  address marks that frame with the instruction that wrote it.
+    void    OnStackWrite  (Word address, Byte value, std::optional<Byte> previous);
 
     //  Marks, in a 256-entry table, every opcode an instruction of which can
     //  change the record: the calls, returns, jumps, pushes and pulls, and
@@ -133,6 +144,7 @@ private:
     static Word  GetExpectedReturn (const CallStackFrame & frame);
 
     CallStackPeek                  m_peek;
+    std::function<Word ()>         m_locateWriter;
     bool                           m_active     = false;
     std::optional<Pending>         m_pending;
     std::vector<CallStackFrame>    m_frames;

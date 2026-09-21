@@ -242,6 +242,7 @@ private:
     void   RefreshHookFilter     ();
     void   SettleCallRecord      ();
     Byte   PeekByte              (Word address) const;
+    Word   FindStoreInProgress   () const;
     bool   HasStopConditions     () const;
     bool   TryMatchBeforeWatchpoint (Word pc);
     bool   IsVideoBreakHit       () const;

@@ -66,7 +66,7 @@ rewrite jsr rewr
 rewrx   jmp rewrx
 rewr    tsx
         lda #<(rewrto-1)
-        sta $0101,x
+rewrsta sta $0101,x
         lda #>(rewrto-1)
         sta $0102,x
 rewrrts rts
