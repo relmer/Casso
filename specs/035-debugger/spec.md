@@ -1155,7 +1155,12 @@ confirm it disables without being removed.
 - **FR-080**: Double-clicking the PC in the registers pane MUST move the code
   pane to the PC.
 - **FR-081**: The registers pane MUST show the flags decoded, one letter per
-  flag (N V - B D I Z C), in a third column on the P register's row.
+  flag (N V - B D I Z C), in a third column on the P register's row, labeled
+  "Flags:". Hovering them MUST show each flag's name and value, one per line.
+  Double-clicking P MUST open an editor with a checkbox per flag, and
+  double-clicking S an editor for the stack pointer; each writes through `R`.
+  The flags remain settable by command (`SEC`, `CLC` and the other set and
+  clear forms, `R P`).
 - **FR-082**: The stack pane MUST list the stack newest first: the most
   recently pushed byte at the top, the oldest at the bottom, as the call-stack
   pane lists frames.
@@ -1163,7 +1168,8 @@ confirm it disables without being removed.
   the text size of every debugger content pane, floating panes included, and
   MUST NOT change any other Casso window, the debugger's caption, or its
   command bar.
-- **FR-084**: Every pane MUST have a context menu of actions on its content.
+- **FR-084**: Every pane MUST have a context menu of actions on its content,
+  drawn by the debugger's own menu widget like every other menu in Casso.
   Actions on the tab or window (dock, float, auto-hide, close) MUST be in the
   tab's own context menu.
 - **FR-085**: The command bar's Dialect, Panels and Keys entries MUST open

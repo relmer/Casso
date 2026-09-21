@@ -11,6 +11,8 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Widgets/DxuiContextMenu.h"
+#include "Ui/Debugger/FlagsDialog.h"
+#include "Cassque/CassquePromptDialog.h"
 #include "Core/DxuiClipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
 
@@ -316,13 +318,13 @@ void DebuggerWindow::ConfigureWidgets()
     m_breakpointList->SetActivateOnDoubleClick (true);
     m_registerList->SetActivateOnDoubleClick   (true);
 
-    //  Double-clicking PC shows the PC, as Show Next Statement does.
+    //  Double-clicking PC shows the PC, as Show Next Statement does; P and S
+    //  open an editor for the flags or the stack pointer.
     m_registerList->SetOnActivateRow ([this] (int row)
     {
-        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->registers.size() &&
-            m_snapshot->registers[(size_t) row].name == "PC")
+        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->registers.size())
         {
-            ShowCode (std::nullopt);
+            EditRegister (m_snapshot->registers[(size_t) row].name);
         }
     });
 
@@ -410,6 +412,8 @@ void DebuggerWindow::ConfigureCommandBar()
 
     m_commandBar->SetTextRenderer (GetTextRenderer());
     m_commandBar->SetPopupHost    (GetPopupHost());
+    m_tooltip.SetPopupHost        (GetPopupHost());
+    m_tooltip.SetTheme            (*m_theme);
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_commandBar->EnableSeeMore   (L"\uE712", L"See more");
     m_commandBar->SetEntries      (m_commands->BuildEntries());
@@ -1568,6 +1572,8 @@ void DebuggerWindow::LayoutWidgets()
     m_commandBar->SetTextRenderer   (GetTextRenderer());
     m_commandBar->SetHostClientRect (RECT { 0, 0, width, height });
     m_commandBar->Layout (RECT { pad, rowY, width - pad, rowY + buttonH }, m_scaler);
+    m_tooltip.SetDpi          (m_scaler.GetDpi());
+    m_tooltip.SetViewportSize (width, height);
 
     top  = rowY + buttonH;
     barY = height - pad;
@@ -1853,38 +1859,34 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
 
 void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 {
-    std::vector<DxuiDockSite::MenuItem>  items  = m_dockSite->GetDockToMenu (pane);
-    HMENU                                menu   = nullptr;
-    POINT                                screen = clientPx;
-    int                                  chosen = 0;
+    std::vector<DxuiDockSite::MenuItem>  items = m_dockSite->GetDockToMenu (pane);
+    std::vector<DxuiPopupMenuItem>       menu;
+    DxuiHwndSource                     * host  = GetPopupHost();
+    auto                                 found = m_floats.find (m_routingPane);
 
 
 
-    if (items.empty())
+    //  A floating pane's menu opens in its own window, where the click was.
+    if (!m_routingPane.empty() && found != m_floats.end())
+    {
+        host = found->second->GetPopupHost();
+    }
+
+    if (items.empty() || host == nullptr)
     {
         return;
     }
 
-    menu = CreatePopupMenu();
+    m_menuCommands.clear();
+    SetCommandBarMenus();
 
-    if (menu == nullptr)
+    for (const DxuiDockSite::MenuItem & item : items)
     {
-        return;
+        m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { (void) action(); }));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
-    for (size_t i = 0; i < items.size(); i++)
-    {
-        AppendMenuW (menu, MF_STRING, (UINT_PTR) (i + 1), items[i].label.c_str());
-    }
-
-    ClientToScreen (GetRoutingHwnd(), &screen);
-    chosen = (int) TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, screen.x, screen.y, 0, GetRoutingHwnd(), nullptr);
-    DestroyMenu (menu);
-
-    if (chosen >= 1 && chosen <= (int) items.size())
-    {
-        (void) items[(size_t) (chosen - 1)].action();
-    }
+    DxuiContextMenu::Show (*host, clientPx.x, clientPx.y, std::move (menu));
 }
 
 
@@ -2125,6 +2127,11 @@ void DebuggerWindow::RenderFrame()
         GetPopupHost()->GetContextMenu().Tick (now);
     }
 
+    if (m_tooltip.WantsTick())
+    {
+        m_tooltip.Tick (now);
+    }
+
     for (MemoryPane * pane : GetOpenMemoryPanes())
     {
         pane->FollowScroll();
@@ -2233,7 +2240,7 @@ void DebuggerWindow::ApplySnapshot()
     //  face -- where a bit changing moves nothing else.
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
-        rows.push_back ({ { Widen (reg.name) }, { Widen (reg.value) }, { reg.name == "P" ? Widen (m_snapshot->flags) : L"" } });
+        rows.push_back ({ { Widen (reg.name) }, { Widen (reg.value) }, { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" } });
     }
 
     m_registerList->SetRows (std::move (rows));
@@ -2544,6 +2551,117 @@ void DebuggerWindow::SubmitPokeBox()
     }
 
     m_pokeBox->SetText (L"");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetRegisterByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) const
+{
+    Word  value = 0;
+
+
+
+    for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
+    {
+        if (reg.name == name && TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
+        {
+            return (Byte) value;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EditRegister
+//
+//  P opens the flags a checkbox each; S asks for a new pointer. Either one
+//  is written by R, the command a person would type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EditRegister (const std::string & name)
+{
+    std::optional<Byte>  value = GetRegisterByte (name);
+    Byte                 p     = 0;
+    std::wstring         text;
+    Word                 typed = 0;
+
+
+
+    if (name == "PC")
+    {
+        ShowCode (std::nullopt);
+        return;
+    }
+
+    if (name == "P" && value.has_value() && FlagsDialog::Ask (GetHwnd(), m_theme, *value, p))
+    {
+        RunCommand (std::format ("R P {:02X}", p));
+    }
+    else if (name == "S" && value.has_value() &&
+             CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Stack pointer", L"S, in hex ($00-$FF):", std::format (L"{:02X}", *value), 4, text) &&
+             TryParseHexWord (text, typed) && typed <= 0xFF)
+    {
+        RunCommand (std::format ("R S {:02X}", typed));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UpdateTooltip
+//
+//  Over the flags on P's row, what each letter is, one to a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateTooltip (POINT clientPx)
+{
+    RECT                 bounds = m_registerList->GetBounds();
+    RECT                 cell   = {};
+    int                  row    = -1;
+    int64_t              now    = (int64_t) GetTickCount64();
+    std::optional<Byte>  p;
+
+
+
+    if (m_snapshot != nullptr && IsRoutable (m_registerList) && m_registerList->IsVisible() && DxuiDockSite::Contains (bounds, clientPx))
+    {
+        row = m_registerList->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
+    }
+
+    if (row >= 0 && row < (int) m_snapshot->registers.size() && m_snapshot->registers[(size_t) row].name == "P" &&
+        m_registerList->GetCellTextRectPx (row, 2, cell) &&
+        clientPx.x - bounds.left >= cell.left && clientPx.x - bounds.left < cell.right)
+    {
+        p = GetRegisterByte ("P");
+    }
+
+    if (!p.has_value())
+    {
+        m_tooltip.RequestHide (now);
+        return;
+    }
+
+    OffsetRect (&cell, bounds.left, bounds.top);
+    m_tooltip.RequestShow (cell, FlagsDialog::Describe (*p), now);
 }
 
 
@@ -2936,6 +3054,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         //  The command bar and the memory bar never leave this window.
         if (m_routingPane.empty())
         {
+            UpdateTooltip (ev.positionDip);
+
             for (DxuiButton * button : GetMemoryButtons())
             {
                 button->SetMouse (x, y, button->HitTest (x, y) && lbDown);

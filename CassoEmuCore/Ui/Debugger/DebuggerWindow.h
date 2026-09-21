@@ -221,6 +221,9 @@ private:
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     bool     ClickGutter      (const DxuiMouseEvent & ev);
     void     ShowCode         (std::optional<Word> address);
+    void     EditRegister     (const std::string & name);
+    void     UpdateTooltip    (POINT clientPx);
+    std::optional<Byte>  GetRegisterByte (const std::string & name) const;
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the
     //  PC's arrow and row, the row another pane brought into view, a branch's
@@ -259,6 +262,7 @@ private:
     uint32_t                      m_goToSerial    = 0;
     std::map<int, std::string>    m_watchValues;
     float                         m_textZoom      = 1.0f;
+    DxuiTooltip                   m_tooltip;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
