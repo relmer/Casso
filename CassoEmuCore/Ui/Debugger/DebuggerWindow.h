@@ -150,15 +150,16 @@ private:
     //  Pane metrics (FR-026a): the monospace face at a size whose line height
     //  a row barely exceeds, small cell padding, and eight rows owed to every
     //  pane at the default size.
-    static constexpr float  kPaneFontDip        = 12.0f;
-    static constexpr int    kPaneRowDip         = 16;
-    static constexpr int    kPaneHeaderDip      = 22;
-    static constexpr int    kPaneEdgeDip        = 6;
-    static constexpr int    kPanePadDip         = 4;
-    static constexpr int    kPaneRows           = 8;
-    static constexpr int    kRegisterRows       = 6;
-    static constexpr int    kMarkerColumnDip    = 20;
-    static constexpr int    kGutterColumnDip    = 24;
+    static constexpr float  kPaneFontDip           = 12.0f;
+    static constexpr int    kPaneRowDip            = 16;
+    static constexpr int    kPaneHeaderDip         = 22;
+    static constexpr int    kPaneEdgeDip           = 6;
+    static constexpr int    kPanePadDip            = 4;
+    static constexpr int    kPaneRows              = 8;
+    static constexpr int    kRegisterRows          = 6;
+    static constexpr int    kMarkerColumnDip       = 20;
+    static constexpr int    kGutterColumnDip       = 24;
+    static constexpr int    kCodeInstructionColumn = 5;
 
     static void  MakeDense (DxuiListView * list);
     static std::wstring  GetPromptText  (CommandMode mode);
@@ -189,7 +190,9 @@ private:
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
-    void     AddListMenuItems   (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void     AddListMenuItems   (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void     AddShowInMemory    (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    static int  GetColumnAt     (const DxuiListView * list, int xPx);
     bool     RouteDockKey       (const DxuiKeyEvent & ev);
     void     ApplySavedPlacement ();
 
@@ -229,6 +232,7 @@ private:
     void     ShowCode         (std::optional<Word> address);
     void     EditRegister     (const std::string & name);
     void     UpdateTooltip    (POINT clientPx);
+    bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     std::optional<Byte>  GetRegisterByte (const std::string & name) const;
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the

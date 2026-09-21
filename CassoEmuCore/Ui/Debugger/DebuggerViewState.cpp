@@ -126,6 +126,12 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
             row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
             row.annotation    = GetAnnotation (session, line, session.GetTarget().GetRegisters());
 
+            if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))
+            {
+                row.memoryOperand = line.instruction.operand;
+                row.shownOperand  = line.GetShownOperand();
+            }
+
             for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
             {
                 if (bp.address == row.address)

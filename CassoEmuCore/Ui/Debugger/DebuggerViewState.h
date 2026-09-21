@@ -43,6 +43,12 @@ struct DebuggerViewSnapshot
         std::optional<Word>  target;
         std::string          annotation;
 
+        //  The operand as written in hex, which Go to resolves, and as shown,
+        //  with a symbol for its address; empty for an operand that names no
+        //  memory (immediate, implied, the accumulator).
+        std::string          memoryOperand;
+        std::string          shownOperand;
+
         //  The outermost source line that produced this address, where a
         //  debug file is loaded and one did.
         int          sourceFileId  = -1;

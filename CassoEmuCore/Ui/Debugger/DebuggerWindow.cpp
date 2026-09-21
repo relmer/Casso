@@ -12,6 +12,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Ui/Debugger/FlagsDialog.h"
+#include "Debugger/SymbolDescriptions.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Core/DxuiClipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -2002,7 +2003,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
             list->SetSelectedRow (row);
         }
 
-        AddListMenuItems (list, row, items);
+        AddListMenuItems (list, row, GetColumnAt (list, clientPx.x - bounds.left), items);
     }
 
     for (MemoryPane * each : GetOpenMemoryPanes())
@@ -2045,13 +2046,71 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetColumnAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::GetColumnAt (const DxuiListView * list, int xPx)
+{
+    int  right = -list->GetLeftPx();
+
+
+
+    for (size_t c = 0; c < list->GetColumnCount(); c++)
+    {
+        right += list->GetColumnEffectiveWidthPx (c);
+
+        if (xPx < right)
+        {
+            return (int) c;
+        }
+    }
+
+    return (int) list->GetColumnCount() - 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddShowInMemory
+//
+//  "Show <what> in Memory N" for every memory pane open, each resolving the
+//  same Go to text in its own pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddShowInMemory (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
+{
+    for (MemoryPane * pane : GetOpenMemoryPanes())
+    {
+        int  id = pane->GetId();
+
+        items.push_back ({ std::format (L"Show {} in Memory {}", what, id), [this, id, goTo]
+        {
+            if (m_host != nullptr)
+            {
+                m_host->GoToDebuggerMemory (id, goTo);
+            }
+        } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::AddListMenuItems
 //
 //  A list pane's menu, for the row under the pointer where there is one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
+void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
 {
     const DebuggerViewSnapshot  & s    = *m_snapshot;
     auto                          copy = [this, list] { DxuiClipboard::SetText (GetHwnd(), list->GetSelectionText()); };
@@ -2060,13 +2119,25 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, std::vector
 
     if (list == m_codeList && row >= 0 && row < (int) s.code.size())
     {
-        Word  at = s.code[(size_t) row].address;
+        const DebuggerViewSnapshot::CodeLine & line = s.code[(size_t) row];
+        Word                                   at   = line.address;
+
+        //  What was right-clicked leads (FR-084): the instruction's operand,
+        //  resolved through its addressing mode, or the line's own address;
+        //  one entry for each memory pane open.
+        if (column >= kCodeInstructionColumn && !line.memoryOperand.empty())
+        {
+            AddShowInMemory (Widen (line.shownOperand), line.memoryOperand, items);
+        }
+        else
+        {
+            AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
+        }
 
         items.push_back ({ s.code[(size_t) row].hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
                            [this, at] { RunCommand (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, at)); } });
         items.push_back ({ L"Run to cursor",       [this, at] { RunCommand (DebuggerViewState::GetRunToCursorLine (at)); } });
         items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
-        items.push_back ({ L"Show in memory",      [this, at] { GetActiveMemoryPane()->GoTo (at); } });
         items.push_back ({ L"Copy",                copy });
     }
     else if (list == m_breakpointList && row >= 0 && row < (int) s.breakpoints.size())
@@ -2090,16 +2161,15 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, std::vector
     {
         const DebuggerViewSnapshot::WatchLine  watch = s.watches[(size_t) row];
 
-        items.push_back ({ L"Show in memory", [this, watch] { GetActiveMemoryPane()->GoTo (watch.address); } });
+        AddShowInMemory (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
         items.push_back ({ L"Remove",         [this, watch] { RunCommand (std::format ("WC {}", watch.id)); } });
         items.push_back ({ L"Copy",           copy });
     }
-    else if (list == m_stackList && row >= 0)
+    else if (list == m_stackList && row >= 0 && row < (int) s.stack.size())
     {
-        items.push_back ({ L"Show in memory", [this, row]
-        {
-            GetActiveMemoryPane()->GoTo ((Word) (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address));
-        } });
+        Word  at = s.stack[s.stack.size() - 1 - (size_t) row].address;
+
+        AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
         items.push_back ({ L"Copy", copy });
     }
     else if (list == m_callStackList && row >= 0 && row < (int) CallStackPane::GetRows (s.callStack).size())
@@ -2118,7 +2188,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, std::vector
             items.push_back ({ L"Show in code", [this] { ShowCode (std::nullopt); } });
         }
 
-        items.push_back ({ L"Show in memory", [this, name] { if (m_host != nullptr) { m_host->GoToDebuggerMemory (GetActiveMemoryPane()->GetId(), name); } } });
+        AddShowInMemory (Widen (name), name, items);
         items.push_back ({ L"Copy",           copy });
     }
     else if (list == m_consoleList)
@@ -2719,6 +2789,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     int                  row    = -1;
     int64_t              now    = (int64_t) GetTickCount64();
     std::optional<Byte>  p;
+    std::wstring         text;
 
 
 
@@ -2734,14 +2805,108 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         p = GetRegisterByte ("P");
     }
 
-    if (!p.has_value())
+    if (p.has_value())
     {
-        m_tooltip.RequestHide (now);
+        OffsetRect (&cell, bounds.left, bounds.top);
+        m_tooltip.RequestShow (cell, FlagsDialog::Describe (*p), now);
         return;
     }
 
-    OffsetRect (&cell, bounds.left, bounds.top);
-    m_tooltip.RequestShow (cell, FlagsDialog::Describe (*p), now);
+    if (TryGetSymbolTip (clientPx, cell, text))
+    {
+        m_tooltip.RequestShow (cell, text, now);
+        return;
+    }
+
+    m_tooltip.RequestHide (now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetSymbolTip
+//
+//  Over a name in the code pane -- a line's label, or the symbol an operand
+//  is written with -- where it lives and what it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    RECT           bounds  = m_codeList->GetBounds();
+    int            row     = -1;
+    int            column  = -1;
+    std::string    name;
+    Word           address = 0;
+    const char   * about   = nullptr;
+
+
+
+    if (m_snapshot == nullptr || !IsRoutable (m_codeList) || !m_codeList->IsVisible() || !DxuiDockSite::Contains (bounds, clientPx))
+    {
+        return false;
+    }
+
+    row    = m_codeList->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
+    column = GetColumnAt (m_codeList, clientPx.x - bounds.left);
+
+    if (row < 0 || row >= (int) m_snapshot->code.size())
+    {
+        return false;
+    }
+
+    const DebuggerViewSnapshot::CodeLine & line = m_snapshot->code[(size_t) row];
+
+    if (column == kCodeInstructionColumn - 1 && !line.label.empty())
+    {
+        name    = line.label;
+        address = line.address;
+    }
+    else if (column == kCodeInstructionColumn && line.shownOperand != line.memoryOperand)
+    {
+        for (char ch : line.shownOperand)
+        {
+            if (std::isalnum ((unsigned char) ch) || ch == '_')
+            {
+                name += ch;
+            }
+            else if (!name.empty())
+            {
+                break;
+            }
+        }
+
+        for (char ch : line.memoryOperand)
+        {
+            if (std::isxdigit ((unsigned char) ch))
+            {
+                address = (Word) ((address << 4) | (Word) std::stoi (std::string (1, ch), nullptr, 16));
+            }
+            else if (ch == ',' || ch == ')')
+            {
+                break;
+            }
+        }
+    }
+
+    if (name.empty() || !m_codeList->GetCellTextRectPx (row, (size_t) column, anchor))
+    {
+        return false;
+    }
+
+    about = SymbolDescriptions::Find (name);
+    text  = std::format (L"{} = ${:04X}", Widen (name), address);
+
+    if (about != nullptr)
+    {
+        text += L"\n" + Widen (about);
+    }
+
+    OffsetRect (&anchor, bounds.left, bounds.top);
+    return true;
 }
 
 
