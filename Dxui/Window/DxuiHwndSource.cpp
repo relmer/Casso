@@ -3049,6 +3049,26 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 
     BAIL_OUT_IF (!haveClient, S_OK);
 
+    //  OUTSIDE THE CLIENT RECT IS THE OS's FRAME, AND ITS CLASSIFICATION.
+    //
+    //  A window that keeps the OS frame has a client rect inset from its
+    //  window rect by the resize border -- 11px a side at 150%. The
+    //  classifier below measures its bands from the CLIENT edge, so every
+    //  point in that border answered HTCLIENT and the band began 11px into
+    //  the window. Two of those pixels are the frame the user can see and
+    //  aim at, so grabbing the edge of a window against the side of a screen
+    //  did nothing until the pointer came inside it.
+    //
+    //  DefWindowProc answers for that border, which is what it is for. A
+    //  borderless window has no border to ask about: its client rect is its
+    //  window rect, so this never fires and the bands below are the whole
+    //  story, as before.
+    if (!PtInRect (&rcClient, ptClient))
+    {
+        result = DefaultProc (WM_NCHITTEST, 0, lp);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     // Convert client-pixel point to client-DIP before running the
     // classifier — controls store bounds in DIPs.
     ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
