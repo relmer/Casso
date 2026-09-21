@@ -15,7 +15,7 @@ static constexpr const wchar_t *  s_kGlyphPause       = L"\uE769";   // pause ba
 static constexpr const wchar_t *  s_kGlyphStepInto    = L"\uE896";   // arrow down to a bar
 static constexpr const wchar_t *  s_kGlyphStepOver    = L"\uE7A6";   // an arc up and over, to the right
 static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up from a bar
-static constexpr const wchar_t *  s_kGlyphRunToCursor = L"\uE89F";   // an arrow running right into a bar
+static constexpr const wchar_t *  s_kGlyphRunToCursor = L" ";         // blank, to hold the icon's place: MDL2 has no arrow into a bar, so PaintRunToCursor draws it
 static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
 static constexpr const wchar_t *  s_kGlyphPanels      = L"\uE950";   // chip
@@ -129,10 +129,53 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
         entry.command = Find (row.id);
         entry.kind    = row.kind;
         entry.group   = row.group;
+
+        if (row.id == kRunToCursor)
+        {
+            entry.decoration = [command = entry.command] (IDxuiPainter             & painter,
+                                                          const IDxuiTheme         & theme,
+                                                          const DxuiToolbarIconBox & icon,
+                                                          bool                       collapsed)
+            {
+                UNREFERENCED_PARAMETER (collapsed);
+
+                PaintRunToCursor (painter, icon, command->IsEnabled() ? theme.ButtonText() : theme.ForegroundDisabled());
+            };
+        }
+
         entries.push_back (std::move (entry));
     }
 
     return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintRunToCursor
+//
+//  Visual Studio's Run to Cursor: an arrow pointing right that ends at a
+//  vertical bar, in strokes as thin as the icon font's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ink)
+{
+    float  s      = icon.size;
+    float  cy     = icon.top + icon.rowH * 0.5f;
+    float  stroke = (std::max) (1.0f, s / 14.0f);
+    float  tipX   = icon.x + s * 0.74f;
+    float  barX   = icon.x + s * 0.92f;
+
+
+
+    painter.DrawLineApprox (icon.x + s * 0.02f, cy, tipX, cy, stroke, ink);
+    painter.DrawLineApprox (tipX, cy, tipX - s * 0.30f, cy - s * 0.30f, stroke, ink);
+    painter.DrawLineApprox (tipX, cy, tipX - s * 0.30f, cy + s * 0.30f, stroke, ink);
+    painter.DrawLineApprox (barX, cy - s * 0.42f, barX, cy + s * 0.42f, stroke, ink);
 }
 
 

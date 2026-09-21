@@ -475,11 +475,14 @@ void DebuggerWindow::SetCommandBarMenus()
         }
     }
 
-    for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+    for (const auto & [mode, label] : { std::pair { CommandMode::AppleWin,  L"AppleWin"  },
+                                        std::pair { CommandMode::Monitor,   L"Monitor"   },
+                                        std::pair { CommandMode::GSSquared, L"GSSquared" },
+                                        std::pair { CommandMode::WinDbg,    L"WinDbg"    } })
     {
         bool  current = (m_snapshot != nullptr) && m_snapshot->mode == mode;
 
-        m_menuCommands.push_back (MakeMenuCommand (Widen (CommandModeNames::GetName (mode)), current, [this, mode]
+        m_menuCommands.push_back (MakeMenuCommand (label, current, [this, mode]
         {
             RunCommand ("MODE " + CommandModeNames::GetUpperName (mode));
         }));
@@ -507,6 +510,40 @@ void DebuggerWindow::SetCommandBarMenus()
     m_commandBar->SetDropDownItems (DebuggerCommands::kPanels,    std::move (panels));
     m_commandBar->SetDropDownItems (DebuggerCommands::kMode,      std::move (modes));
     m_commandBar->SetDropDownItems (DebuggerCommands::kKeyScheme, std::move (schemes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMenuState
+//
+//  What the drop-downs show: the command mode, and each panel and whether it
+//  is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerWindow::GetMenuState() const
+{
+    std::string  state;
+
+
+
+    if (m_snapshot == nullptr)
+    {
+        return state;
+    }
+
+    state = CommandModeNames::GetName (m_snapshot->mode);
+
+    for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
+    {
+        state += std::format ("|{}={}", panel.id, panel.open ? 1 : 0);
+    }
+
+    return state;
 }
 
 
@@ -1741,6 +1778,14 @@ void DebuggerWindow::RenderFrame()
         {
             m_snapshot = std::move (snapshot);
             ApplySnapshot();
+
+            //  The drop-downs carry the mode and the panels they were built
+            //  with, so they are rebuilt when either changes.
+            if (GetMenuState() != m_menuState)
+            {
+                m_menuState = GetMenuState();
+                SetCommandBarMenus();
+            }
         }
 
         AppendConsole (console);
@@ -1749,6 +1794,14 @@ void DebuggerWindow::RenderFrame()
     for (DxuiListView * list : GetLists())
     {
         list->Tick (now);
+    }
+
+    //  A drop-down slides open on ticks its host supplies. Without them the
+    //  menu stayed at the first frame of its reveal, a sliver under the
+    //  entry, and Panels, Dialect and Keys looked as if they did nothing.
+    if (m_commandBar->WantsTick())
+    {
+        m_commandBar->TickMenus (now);
     }
 
     for (MemoryPane * pane : GetOpenMemoryPanes())

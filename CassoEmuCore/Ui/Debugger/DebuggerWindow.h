@@ -169,6 +169,7 @@ private:
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
     void     SetCommandBarMenus  ();
+    std::string  GetMenuState   () const;
     void     RunCommandBarEntry  (int id);
     bool     IsCommandBarEntryEnabled (int id) const;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
@@ -246,6 +247,7 @@ private:
     bool                   m_placed        = false;
     int                    m_codeLinesSent = 0;
     std::optional<Word>    m_navigatedTo;
+    std::string            m_menuState;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

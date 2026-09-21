@@ -73,6 +73,7 @@ private:
     };
 
     static const std::vector<Row> &  GetRows ();
+    static void  PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ink);
 
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
