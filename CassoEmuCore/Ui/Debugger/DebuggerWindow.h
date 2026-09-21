@@ -157,6 +157,8 @@ private:
     static constexpr int    kMarkerColumnDip    = 20;
 
     static void  MakeDense (DxuiListView * list);
+    static std::wstring  GetPromptText  (CommandMode mode);
+    static std::wstring  GetHelpCommand (CommandMode mode);
     void     ApplyTextZoom (float zoom);
 
     void     ConfigureWidgets ();

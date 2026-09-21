@@ -375,7 +375,8 @@ void DebuggerWindow::ConfigureWidgets()
         box->SetMaxLength (256);
     }
 
-    m_commandBox->SetPlaceholder (L"Command (Enter to run)");
+    m_commandBox->SetPrompt      (GetPromptText (CommandMode::AppleWin));
+    m_commandBox->SetPlaceholder (L"Command (Enter to run, HELP for help)");
     m_memoryBox->SetPlaceholder  (L"Go to: 0300, PC, (3E),Y");
     m_pokeBox->SetPlaceholder    (L"Poke: 0300 A9");
 
@@ -414,6 +415,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetPopupHost    (GetPopupHost());
     m_tooltip.SetPopupHost        (GetPopupHost());
     m_tooltip.SetTheme            (*m_theme);
+    m_tooltip.SetMonospace        (true);
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_commandBar->EnableSeeMore   (L"\uE712", L"See more");
     m_commandBar->SetEntries      (m_commands->BuildEntries());
@@ -659,6 +661,51 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
     }
 
     return lists;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPromptText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetPromptText (CommandMode mode)
+{
+    switch (mode)
+    {
+    case CommandMode::Monitor:   return L"Monitor>";
+    case CommandMode::GSSquared: return L"GSSquared>";
+    case CommandMode::WinDbg:    return L"WinDbg>";
+    default:                     return L"AppleWin>";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHelpCommand
+//
+//  How each dialect asks for help: Monitor mode reaches HELP through its
+//  slash, as it reaches every AppleWin command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetHelpCommand (CommandMode mode)
+{
+    switch (mode)
+    {
+    case CommandMode::Monitor:   return L"/HELP";
+    case CommandMode::GSSquared: return L"help";
+    case CommandMode::WinDbg:    return L".help";
+    default:                     return L"HELP";
+    }
 }
 
 
@@ -2244,6 +2291,11 @@ void DebuggerWindow::ApplySnapshot()
     }
 
     m_registerList->SetRows (std::move (rows));
+
+    //  The console reads as a command prompt in the dialect in force, with
+    //  that dialect's own help command in its hint.
+    m_commandBox->SetPrompt      (GetPromptText (m_snapshot->mode));
+    m_commandBox->SetPlaceholder (std::format (L"Command (Enter to run, {} for help)", GetHelpCommand (m_snapshot->mode)));
     m_tracePane->Apply      (m_snapshot->trace);
 
     rows.clear();

@@ -481,9 +481,9 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        y         = (float) m_boundsDip.top;
     float        w         = (float) (m_boundsDip.right  - m_boundsDip.left);
     float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float        padL      = m_scaler.ToPxf (s_kPadLeftDip);
-    float        padR      = m_scaler.ToPxf (s_kPadRightDip);
     float        fontPx    = m_scaler.ToPxf (m_fontDip);
+    float        padL      = m_scaler.ToPxf (s_kPadLeftDip) + MeasurePrompt (text, fontPx);
+    float        padR      = m_scaler.ToPxf (s_kPadRightDip);
     // Floored at zero: a control laid out against a window with no client
     // area yet is zero DIPs wide, and the padding inset would otherwise take
     // that below zero -- a width no clip rect or text box can mean.
@@ -553,6 +553,13 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         if (caretX - m_scrollPx > innerW)          { m_scrollPx = caretX - innerW; }
         if (fullTextW - m_scrollPx < innerW)       { m_scrollPx = fullTextW - innerW; }
         if (m_scrollPx < 0.0f)                     { m_scrollPx = 0.0f; }
+    }
+
+    if (!m_prompt.empty())
+    {
+        hr = text.DrawString (m_prompt.c_str(), x + m_scaler.ToPxf (s_kPadLeftDip), y, m_promptPx + 1.0f, h, fgArgb, fontPx, GetFace(),
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     hr = text.PushClipRect (x + padL, y, innerW, h);
@@ -795,7 +802,7 @@ void DxuiTextInput::GetWordSpan (
 size_t DxuiTextInput::GetCharIndexFromX (IDxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr     = S_OK;
-    float         padL   = m_scaler.ToPxf (s_kPadLeftDip);
+    float         padL   = m_scaler.ToPxf (s_kPadLeftDip) + m_promptPx;
     float         fontPx = m_scaler.ToPxf (m_fontDip);
     float         target = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w      = 0.0f;
@@ -820,6 +827,39 @@ size_t DxuiTextInput::GetCharIndexFromX (IDxuiTextRenderer & text, int xPx) cons
     }
 
     return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasurePrompt
+//
+//  The prompt's width and a space after it, kept for the click tests, which
+//  run between paints.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextInput::MeasurePrompt (IDxuiTextRenderer & text, float fontPx) const
+{
+    HRESULT  hr = S_OK;
+    float    w  = 0.0f;
+    float    h  = 0.0f;
+
+
+
+    m_promptPx = 0.0f;
+
+    if (!m_prompt.empty())
+    {
+        hr = text.MeasureString ((m_prompt + L" ").c_str(), fontPx, GetFace(), w, h);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_promptPx = w;
+    }
+
+    return m_promptPx;
 }
 
 
@@ -854,7 +894,7 @@ size_t DxuiTextInput::GetCharIndexFromX (IDxuiTextRenderer & text, int xPx) cons
 size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr       = S_OK;
-    float         padL     = m_scaler.ToPxf (s_kPadLeftDip);
+    float         padL     = m_scaler.ToPxf (s_kPadLeftDip) + m_promptPx;
     float         fontPx   = m_scaler.ToPxf (m_fontDip);
     float         target   = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w        = 0.0f;

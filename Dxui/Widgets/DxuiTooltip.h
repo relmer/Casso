@@ -42,6 +42,9 @@ public:
     void  SetDwellOpenMs  (int ms) { m_dwellOpenMs = ms; }
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
+
+    //  A fixed-width face, for a tip whose lines are columns.
+    void  SetMonospace    (bool mono) { m_monospace = mono; }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
@@ -85,6 +88,7 @@ public:
     const RECT         & GetAnchor () const { return m_anchor;  }
 
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
 
     //
     //  IDxuiControl overrides — additive shims so DxuiTooltip can
@@ -132,6 +136,7 @@ private:
     int               m_dwellOpenMs   = 500;
     int               m_dwellCloseMs  = 100;
     float             m_fontDip       = 12.0f;
+    bool              m_monospace     = false;
     uint32_t          m_bgArgb        = 0xFF2D2D2D;
     uint32_t          m_borderArgb    = 0xFF606060;
     uint32_t          m_textArgb      = 0xFFE8EEF4;

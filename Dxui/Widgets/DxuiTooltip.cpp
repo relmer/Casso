@@ -12,7 +12,6 @@
 static constexpr float     s_kPadXDip         = 8.0f;
 static constexpr float     s_kPadYDip         = 4.0f;
 static constexpr float     s_kBorderDip       = 1.0f;
-static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
 
 //
 //  Text wider than this wraps onto additional lines instead of growing the
@@ -323,7 +322,7 @@ void DxuiTooltip::ShowPopup()
         // ARE pixels and it measures whatever size it is handed. If it is
         // unavailable (test mode) fall back to a glyph-count estimate wrapped
         // the same way.
-        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, s_kFontFamily,
+        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(),
                                                 maxWPx, textWPx, textHPx);
         if (FAILED (hr) || textWPx <= 0.0f)
         {
@@ -462,7 +461,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     }
 
     hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
-             m_text.c_str(), fontPx, s_kFontFamily,
+             m_text.c_str(), fontPx, GetFace(),
              m_scaler.ToPxf (s_kMaxTextWidthDip), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -506,7 +505,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
-                          s_kFontFamily);
+                          GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -591,6 +590,6 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
-                          s_kFontFamily);
+                          GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

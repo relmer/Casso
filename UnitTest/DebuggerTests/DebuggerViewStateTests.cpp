@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/MonitorParser.h"
@@ -871,6 +872,28 @@ namespace DebuggerViewStateTests
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
             }
         }
+
+        //  The Dialect menu sends MODE in whatever dialect is in force, and
+        //  every dialect has to take it, or one of them is a trap.
+        TEST_METHOD (EveryDialect_TakesMode)
+        {
+            MachineRig  rig;
+
+
+
+            for (CommandMode from : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+            {
+                Reply  reply;
+
+                rig.controller.GetSession().ExecuteLine ("MODE " + CommandModeNames::GetUpperName (from));
+                Assert::IsTrue (rig.controller.GetSession().GetMode() == from);
+                reply = rig.controller.GetSession().ExecuteLine ("mode applewin");
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+                Assert::IsTrue   (rig.controller.GetSession().GetMode() == CommandMode::AppleWin);
+            }
+        }
+
 
         //  Monitor mode reads an AppleWin line after its `/`, so the Step
         //  button steps there instead of reaching the Monitor's own T.

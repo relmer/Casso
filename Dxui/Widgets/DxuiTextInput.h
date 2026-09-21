@@ -82,6 +82,10 @@ public:
     // empty (e.g. "Search"). Empty by default.
     void  SetPlaceholder (const std::wstring & text)  { m_placeholder = text; }
 
+    //  Fixed text ahead of what is typed, as a command prompt shows: drawn in
+    //  the field, never part of the text, and out of the caret's reach.
+    void  SetPrompt      (const std::wstring & text)  { m_prompt = text; }
+
     //  Draws the placeholder in italics and the disabled color, as File
     //  Explorer's search box draws its hint.
     void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
@@ -136,6 +140,7 @@ public:
 private:
     void   ClampCaret ();
     size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
+    float  MeasurePrompt (IDxuiTextRenderer & text, float fontPx) const;
     size_t GetWordBoundary (size_t from, bool forward) const;
     const wchar_t *  GetFace () const;
 
@@ -168,6 +173,8 @@ private:
     static bool IsAltKeyDown     () { return (GetKeyState (VK_MENU)    & 0x8000) != 0; }
     std::wstring         m_text;
     std::wstring         m_placeholder;
+    std::wstring         m_prompt;
+    mutable float        m_promptPx          = 0.0f;
     size_t               m_maxLen            = 64;
     size_t               m_caret             = 0;
     size_t               m_anchor            = 0;

@@ -99,7 +99,7 @@ std::wstring FlagsDialog::Describe (Byte p)
             text += L"\n";
         }
 
-        text += std::format (L"{}  {}  {}", flag.letter, flag.name, (p & flag.bit) ? 1 : 0);
+        text += std::format (L"{}  {:<18} {}", flag.letter, flag.name, (p & flag.bit) ? 1 : 0);
     }
 
     return text;

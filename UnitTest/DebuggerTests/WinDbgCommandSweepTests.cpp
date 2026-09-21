@@ -104,6 +104,7 @@ namespace DebuggerTests
                 { "l+s",               "SRC ON"       },
                 { "l-s",               "SRC OFF"      },
                 { "lsa",               "SRC"          },
+                { ".help",             "HELP"         },
                 { "!switches",         "SWITCHES"     },
                 { "!mode applewin",    "MODE APPLEWIN" },
                 { "!skip cout",        "SKIP cout"    },
