@@ -2924,12 +2924,17 @@ void DxuiListView::PaintDataRows (
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {
-            uint32_t  argb      = cells[c].dim ? pal.fgDim : pal.fg;
+            uint32_t  argb      = (cells[c].argb != 0) ? cells[c].argb : (cells[c].dim ? pal.fgDim : pal.fg);
             float     iconShift = 0.0f;
 
             if (!m_columns[c].visible || colWPx[c] <= 0)
             {
                 continue;
+            }
+
+            if (cells[c].background != 0)
+            {
+                painter.FillRect (x + colOff + (float) colXPx[c], ry, (float) colWPx[c], rowH, cells[c].background);
             }
 
             if (cells[c].icon && !cells[c].icon->bgraPremul.empty())

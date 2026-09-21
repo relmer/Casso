@@ -35,6 +35,13 @@ struct DebuggerViewSnapshot
         std::string  label;
         bool         isCurrent     = false;
         bool         hasBreakpoint = false;
+        bool         isEnabled     = true;
+
+        //  Where a branch or jump goes, and what the instruction acts on as
+        //  the registers stand: its effective address and the byte there, or
+        //  the flag a branch tests (FR-078).
+        std::optional<Word>  target;
+        std::string          annotation;
 
         //  The outermost source line that produced this address, where a
         //  debug file is loaded and one did.
@@ -308,6 +315,7 @@ private:
     static Word                 GetPreviousInstruction (DebugSession & session, Word address);
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
+    static std::string          GetAnnotation          (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers);
 
     //  Where the code pane starts this build: the pinned address, the anchor
     //  it already had while the PC is among the lines it produced, or a new

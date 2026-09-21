@@ -100,9 +100,9 @@ public:
 //  DebuggerViewState, so what a click does is exactly what typing the command
 //  would do.
 //
-//  THE CURRENT LINE AND BREAKPOINTS ARE MARKED WITH GLYPHS. A list row cannot
-//  be colored, so the code pane's first column carries a triangle for the PC and
-//  a bullet for a breakpoint.
+//  THE CURRENT LINE AND BREAKPOINTS ARE MARKED IN A GUTTER. The code pane's
+//  first column carries the PC's arrow and a breakpoint's dot, and a click
+//  there sets or clears the breakpoint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,6 +210,20 @@ private:
     void     ApplyDiagnostics   ();
     DiagnosticsPane *  GetDiagnosticsPane (const std::wstring & pane) const;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
+    bool     ClickGutter      (const DxuiMouseEvent & ev);
+    void     ShowCode         (std::optional<Word> address);
+
+    //  The debugger's colors, from the active theme: a breakpoint's red, the
+    //  PC's arrow and row, the row another pane brought into view, a branch's
+    //  destination, and the annotations' comment color.
+    bool      IsDarkTheme          () const;
+    uint32_t  GetBreakpointArgb    () const;
+    uint32_t  GetPcMarkerArgb      () const;
+    uint32_t  GetPcRowArgb         () const;
+    uint32_t  GetNavigatedRowArgb  () const;
+    uint32_t  GetTargetRowArgb     () const;
+    uint32_t  GetAnnotationArgb    () const;
+    uint32_t  GetChangedArgb       () const;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;
@@ -231,6 +245,7 @@ private:
     RECT                   m_openedRect    = {};
     bool                   m_placed        = false;
     int                    m_codeLinesSent = 0;
+    std::optional<Word>    m_navigatedTo;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

@@ -56,6 +56,12 @@ public:
 
         //  Drawn at the start of the cell, the text moved along past it.
         std::shared_ptr<const DxuiIconImage>  icon;
+
+        //  The text's color in place of the palette's, and a fill behind the
+        //  cell. Zero leaves each as the list would draw it. A fill given on
+        //  every cell of a row marks the row.
+        uint32_t  argb       = 0;
+        uint32_t  background = 0;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates

@@ -145,6 +145,53 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (AnInstructionIsAnnotatedWithWhatItActsOn)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0400, 0x5A);
+            rig.machine.GetMemoryBus().WriteByte (0x0306, 0xF0);    // BEQ $0306
+            rig.machine.GetMemoryBus().WriteByte (0x0307, 0xFE);
+            rig.machine.GetMemoryBus().WriteByte (0x0308, 0x9D);    // STA $0400,X
+            rig.machine.GetMemoryBus().WriteByte (0x0309, 0x00);
+            rig.machine.GetMemoryBus().WriteByte (0x030A, 0x04);
+            rig.machine.GetMemoryBus().WriteByte (0x0402, 0x77);
+            rig.machine.GetMemoryBus().WriteByte (0x0305, 0xEA);    // NOP, in place of the RTS
+
+            r.x = 0x02;
+            r.p = (Byte) (r.p | 0x02);
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual (std::string (""),          LineAt (snapshot, 0x0300).annotation, L"an immediate operand touches no memory");
+            Assert::AreEqual (std::string ("$0400=5A"),  LineAt (snapshot, 0x0302).annotation);
+            Assert::AreEqual (std::string ("Z=1"),       LineAt (snapshot, 0x0306).annotation, L"a branch shows the flag it tests");
+            Assert::AreEqual (std::string ("$0402=77"),  LineAt (snapshot, 0x0308).annotation, L"indexed: the address the CPU would use");
+            Assert::IsTrue   (LineAt (snapshot, 0x0306).target == std::optional<Word> (0x0306));
+        }
+
+
+        TEST_METHOD (ABreakpointRowSaysWhetherItIsEnabled)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.Run ("BP 0302");
+            rig.Run ("BPD *");
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue  (LineAt (snapshot, 0x0302).hasBreakpoint);
+            Assert::IsFalse (LineAt (snapshot, 0x0302).isEnabled);
+        }
+
+
         TEST_METHOD (TheCodePaneHoldsStillWhileThePcIsOnALineItShows)
         {
             MachineRig            rig;

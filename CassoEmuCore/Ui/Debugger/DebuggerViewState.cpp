@@ -8,6 +8,7 @@
 #include "Debugger/Source/SourcePathList.h"
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/MonitorParser.h"
+#include "Debugger/EffectiveAddress.h"
 
 
 
@@ -121,8 +122,17 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
                                                                  : line.instruction.mnemonic + " " + line.GetShownOperand();
             row.label         = line.label;
             row.isCurrent     = row.address == snapshot.pc;
-            row.hasBreakpoint = std::any_of (snapshot.breakpoints.begin(), snapshot.breakpoints.end(),
-                                             [&] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.address == row.address; });
+            row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
+            row.annotation    = GetAnnotation (session, line, session.GetTarget().GetRegisters());
+
+            for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+            {
+                if (bp.address == row.address)
+                {
+                    row.isEnabled     = row.hasBreakpoint ? (row.isEnabled || bp.enabled) : bp.enabled;
+                    row.hasBreakpoint = true;
+                }
+            }
 
             snapshot.code.push_back (row);
 
@@ -1310,6 +1320,63 @@ std::optional<Word> DebuggerViewState::GetReturnAddress (DebugSession & session)
     }
 
     return (Word) (((high << 8) | low) + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetAnnotation
+//
+//  In the manner of AppleWin's and VICE's monitors: a branch shows the flag it
+//  tests, and an instruction that touches memory shows the address it would
+//  touch now and the byte there, `$067B=A0`. An indexed or indirect operand is
+//  resolved against the registers, so the address is the one the CPU would
+//  use. An I/O address shows no byte, since reading one changes the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetAnnotation (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers)
+{
+    static const std::pair<const char *, std::pair<char, Byte>>  kBranches[] =
+    {
+        { "BCC", { 'C', 0x01 } }, { "BCS", { 'C', 0x01 } },
+        { "BNE", { 'Z', 0x02 } }, { "BEQ", { 'Z', 0x02 } },
+        { "BVC", { 'V', 0x40 } }, { "BVS", { 'V', 0x40 } },
+        { "BPL", { 'N', 0x80 } }, { "BMI", { 'N', 0x80 } },
+    };
+    AccessPrediction  prediction;
+    HRESULT           hr     = S_OK;
+    Word              where  = 0;
+    Byte              value  = 0;
+
+
+
+    for (const auto & [mnemonic, flag] : kBranches)
+    {
+        if (line.instruction.mnemonic == mnemonic)
+        {
+            return std::format ("{}={}", flag.first, (registers.p & flag.second) ? 1 : 0);
+        }
+    }
+
+    hr = EffectiveAddress::Predict (session.GetTarget().GetInstructionSet(), line.instruction.address, registers, session, prediction);
+
+    if (FAILED (hr) || prediction.touches.empty())
+    {
+        return {};
+    }
+
+    where = prediction.touches.back().address;
+
+    if (session.GetTarget().GetRegion (where) == MemoryRegion::Io || !session.TryPeek (where, value))
+    {
+        return std::format ("${:04X}", where);
+    }
+
+    return std::format ("${:04X}={:02X}", where, value);
 }
 
 

@@ -215,7 +215,7 @@ void DebuggerWindow::OnCreate()
             return (m_host != nullptr) ? m_host->FindDebuggerSource (record, path, key) : SourceLookup();
         },
         [this] (const std::string & line) { RunCommand (line); },
-        [this] (Word address)             { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (address); } });
+        [this] (Word address)             { ShowCode (address); });
 
     m_sourceView->SetVisible   (false);
     m_sourceBanner->SetVisible (false);
@@ -223,7 +223,7 @@ void DebuggerWindow::OnCreate()
     m_callStackPane = std::make_unique<CallStackPane> (
         m_callStackList, m_callStackButton,
         [this] (const std::string & line) { RunCommand (line); },
-        [this] (Word address)             { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (address); } });
+        [this] (Word address)             { ShowCode (address); });
 
     //  Every device panel the window can place; each shows while its device
     //  is present and its panel open.
@@ -305,26 +305,30 @@ void DebuggerWindow::ConfigureWidgets()
                               { L"Address",     0, false, DxuiTextHAlign::Left },
                               { L"Bytes",       0, false, DxuiTextHAlign::Left },
                               { L"Label",       0, false, DxuiTextHAlign::Left },
-                              { L"Instruction", 0, false, DxuiTextHAlign::Left } });
+                              { L"Instruction", 0, false, DxuiTextHAlign::Left },
+                              { L"",            0, false, DxuiTextHAlign::Left } });
 
-    //  A single click only selects, so a line can be chosen for Run to Cursor
-    //  without also toggling its breakpoint.
+    //  A breakpoint is set from the gutter (see ClickGutter), as in an editor;
+    //  a double-click on a line is a click on text and changes nothing.
     m_codeList->SetActivateOnDoubleClick       (true);
     m_breakpointList->SetActivateOnDoubleClick (true);
+    m_registerList->SetActivateOnDoubleClick   (true);
 
-    //  Activating a line -- a double-click or Enter -- toggles its breakpoint,
-    //  the way a margin click does in an editor.
-    m_codeList->SetOnActivateRow ([this, run] (int row)
+    //  Double-clicking PC shows the PC, as Show Next Statement does.
+    m_registerList->SetOnActivateRow ([this] (int row)
     {
-        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->code.size())
+        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->registers.size() &&
+            m_snapshot->registers[(size_t) row].name == "PC")
         {
-            run (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, m_snapshot->code[(size_t) row].address));
+            ShowCode (std::nullopt);
         }
     });
 
     m_registerList->SetColumns   ({ { L"Reg",         0, false, DxuiTextHAlign::Left },
-                                    { L"Value",       0, false, DxuiTextHAlign::Left } });
-    m_breakpointList->SetColumns ({ { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
+                                    { L"Value",       0, false, DxuiTextHAlign::Left },
+                                    { L"",            0, false, DxuiTextHAlign::Left } });
+    m_breakpointList->SetColumns ({ { L"",            kMarkerColumnDip, false, DxuiTextHAlign::Center },
+                                    { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
     m_watchList->SetColumns      ({ { L"Watch",       0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left } });
     m_stackList->SetColumns      ({ { L"Stack",       0, false, DxuiTextHAlign::Left },
@@ -332,12 +336,13 @@ void DebuggerWindow::ConfigureWidgets()
     m_consoleList->SetColumns    ({ { L"Console",     0, false, DxuiTextHAlign::Left } });
     m_consoleList->EnableStickyTail (true);
 
-    //  Activating a breakpoint in the list clears it.
-    m_breakpointList->SetOnActivateRow ([this, run] (int row)
+    //  Activating a breakpoint shows its address; its circle, in the gutter,
+    //  turns it on and off.
+    m_breakpointList->SetOnActivateRow ([this] (int row)
     {
         if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->breakpoints.size())
         {
-            run (std::format ("BPC {}", m_snapshot->breakpoints[(size_t) row].id));
+            ShowCode (m_snapshot->breakpoints[(size_t) row].address);
         }
     });
 
@@ -522,11 +527,7 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 {
     if (id == DebuggerCommands::kShowNext)
     {
-        if (m_host != nullptr)
-        {
-            m_host->SetDebuggerCodeAddress (std::nullopt);
-        }
-
+        ShowCode (std::nullopt);
         return;
     }
 
@@ -1782,29 +1783,63 @@ void DebuggerWindow::ApplySnapshot()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     int                                           current = -1;
+    std::optional<Word>                           target;
 
 
+
+    for (const DebuggerViewSnapshot::CodeLine & line : m_snapshot->code)
+    {
+        if (line.isCurrent && line.target.has_value())
+        {
+            target = line.target;
+        }
+    }
 
     for (size_t i = 0; i < m_snapshot->code.size(); i++)
     {
         const DebuggerViewSnapshot::CodeLine & line   = m_snapshot->code[i];
-        std::wstring                           marker;
+        std::vector<DxuiListView::Cell>        cells;
+        DxuiListView::Cell                     marker;
+        uint32_t                               fill   = 0;
+
+        //  The gutter: a breakpoint's dot, and the PC's arrow over it.
+        if (line.hasBreakpoint)
+        {
+            marker.text = std::wstring (1, line.isEnabled ? s_kchBlackCircle : s_kchWhiteCircle);
+            marker.argb = GetBreakpointArgb();
+        }
 
         if (line.isCurrent)
         {
-            marker  = s_kpszTriangleRight;
-            current = (int) i;
+            marker.text = s_kpszTriangleRight;
+            marker.argb = GetPcMarkerArgb();
+            fill        = GetPcRowArgb();
+            current     = (int) i;
         }
-        else if (line.hasBreakpoint)
+        else if (m_navigatedTo.has_value() && *m_navigatedTo == line.address)
         {
-            marker = std::wstring (1, s_kchBullet);
+            fill = GetNavigatedRowArgb();
+        }
+        else if (target.has_value() && *target == line.address)
+        {
+            fill = GetTargetRowArgb();
         }
 
-        rows.push_back ({ { marker },
-                          { std::format (L"{:04X}", line.address) },
-                          { Widen (line.bytes) },
-                          { Widen (line.label) },
-                          { Widen (line.instruction) } });
+        cells = { marker,
+                  { std::format (L"{:04X}", line.address) },
+                  { Widen (line.bytes) },
+                  { Widen (line.label) },
+                  { Widen (line.instruction) },
+                  { Widen (line.annotation) } };
+
+        cells[5].argb = GetAnnotationArgb();
+
+        for (DxuiListView::Cell & cell : cells)
+        {
+            cell.background = fill;
+        }
+
+        rows.push_back (std::move (cells));
     }
 
     m_codeList->SetRows (std::move (rows));
@@ -1816,16 +1851,12 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
-    //  THE FLAGS ARE A REGISTER. They are the P register written so a person
-    //  can read it, and they belong beside the byte they come from, in the
-    //  same monospace column -- where a bit changing moves nothing else on
-    //  the row. They sat at the end of the command strip in the proportional
-    //  chrome face, which is neither.
-    rows.push_back ({ { L"Flags" }, { Widen (m_snapshot->flags) } });
-
+    //  THE FLAGS ARE THE P REGISTER written so a person can read it, so they
+    //  sit on P's row beside the byte they come from, in the same monospace
+    //  face -- where a bit changing moves nothing else.
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
-        rows.push_back ({ { Widen (reg.name) }, { Widen (reg.value) } });
+        rows.push_back ({ { Widen (reg.name) }, { Widen (reg.value) }, { reg.name == "P" ? Widen (m_snapshot->flags) : L"" } });
     }
 
     m_registerList->SetRows (std::move (rows));
@@ -1835,7 +1866,12 @@ void DebuggerWindow::ApplySnapshot()
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : m_snapshot->breakpoints)
     {
-        rows.push_back ({ { Widen (bp.text), !bp.enabled } });
+        DxuiListView::Cell  circle;
+
+        circle.text = std::wstring (1, bp.enabled ? s_kchBlackCircle : s_kchWhiteCircle);
+        circle.argb = GetBreakpointArgb();
+
+        rows.push_back ({ circle, { Widen (bp.text), !bp.enabled } });
     }
 
     m_breakpointList->SetRows (std::move (rows));
@@ -1851,9 +1887,11 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
-    for (const DebuggerViewSnapshot::StackLine & entry : m_snapshot->stack)
+    //  Newest first, as the call stack lists its frames: STACK reads from
+    //  $01FF down, so the pane turns it over.
+    for (auto it = m_snapshot->stack.rbegin(); it != m_snapshot->stack.rend(); ++it)
     {
-        rows.push_back ({ { std::format (L"${:04X}", entry.address) }, { std::format (L"{:02X}", entry.value) } });
+        rows.push_back ({ { std::format (L"${:04X}", it->address) }, { std::format (L"{:02X}", it->value) } });
     }
 
     m_stackList->SetRows (std::move (rows));
@@ -2116,6 +2154,233 @@ void DebuggerWindow::SubmitPokeBox()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ShowCode
+//
+//  Moves the code pane to an address another pane chose, and remembers it so
+//  the row is marked as the one brought into view. No address follows the PC
+//  again, which marks nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowCode (std::optional<Word> address)
+{
+    m_navigatedTo = address;
+
+    if (m_host != nullptr)
+    {
+        m_host->SetDebuggerCodeAddress (address);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClickGutter
+//
+//  A press on the first column of the code pane sets or clears the
+//  breakpoint on that row; on the breakpoints pane it turns the breakpoint
+//  on or off without removing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
+{
+    int   row = -1;
+    RECT  bounds;
+    int   lx  = 0;
+    int   ly  = 0;
+
+
+
+    if (m_snapshot == nullptr)
+    {
+        return false;
+    }
+
+    for (DxuiListView * list : { m_codeList, m_breakpointList })
+    {
+        bounds = list->GetBounds();
+        lx     = ev.positionDip.x - bounds.left;
+        ly     = ev.positionDip.y - bounds.top;
+
+        if (!IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || ev.positionDip.x >= bounds.right || ev.positionDip.y >= bounds.bottom)
+        {
+            continue;
+        }
+
+        if (lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (0))
+        {
+            return false;
+        }
+
+        row = list->HitTestRow (lx, ly);
+
+        if (list == m_codeList && row >= 0 && row < (int) m_snapshot->code.size())
+        {
+            RunCommand (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, m_snapshot->code[(size_t) row].address));
+            return true;
+        }
+
+        if (list == m_breakpointList && row >= 0 && row < (int) m_snapshot->breakpoints.size())
+        {
+            const DebuggerViewSnapshot::BreakpointLine & bp = m_snapshot->breakpoints[(size_t) row];
+
+            RunCommand (std::format ("{} {}", bp.enabled ? "BPD" : "BPE", bp.id));
+            return true;
+        }
+
+        return false;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsDarkTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsDarkTheme() const
+{
+    uint32_t  bg    = (m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000;
+    uint32_t  luma  = ((bg >> 16) & 0xFF) * 299 + ((bg >> 8) & 0xFF) * 587 + (bg & 0xFF) * 114;
+
+
+
+    return luma < 128 * 1000;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBreakpointArgb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetBreakpointArgb() const
+{
+    return IsDarkTheme() ? 0xFFE51400 : 0xFFC50F1F;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPcMarkerArgb
+//
+//  Visual Studio's yellow, which reads on either background.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetPcMarkerArgb() const
+{
+    return IsDarkTheme() ? 0xFFFFE34D : 0xFFD8A800;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPcRowArgb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetPcRowArgb() const
+{
+    return IsDarkTheme() ? 0x50C8A000 : 0x60FFE34D;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetNavigatedRowArgb
+//
+//  Visual Studio's green for a frame a call stack brought into view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetNavigatedRowArgb() const
+{
+    return IsDarkTheme() ? 0x4A3C8C3C : 0x5096D796;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTargetRowArgb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetTargetRowArgb() const
+{
+    uint32_t  accent = (m_theme != nullptr) ? m_theme->Accent() : 0xFF3C8CE6;
+
+
+
+    return (accent & 0x00FFFFFFu) | 0x38000000u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetAnnotationArgb
+//
+//  The comment green of Visual Studio's editor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetAnnotationArgb() const
+{
+    return IsDarkTheme() ? 0xFF57A64A : 0xFF008000;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetChangedArgb
+//
+//  Visual Studio's red for a value that changed since the last stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetChangedArgb() const
+{
+    return IsDarkTheme() ? 0xFFFF6B68 : 0xFFD00000;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ForwardToList
 //
 //  A list takes coordinates relative to itself.
@@ -2287,6 +2552,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     case DxuiMouseEventKind::Down:
         if (ev.button != DxuiMouseButton::Left)
+        {
+            return true;
+        }
+
+        if (ClickGutter (ev))
         {
             return true;
         }

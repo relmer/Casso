@@ -17,6 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr wchar_t s_kchBullet         = L'\x2022';       // U+2022 BULLET (•)
+static constexpr wchar_t s_kchBlackCircle    = L'\x25CF';       // U+25CF BLACK CIRCLE
+static constexpr wchar_t s_kchWhiteCircle    = L'\x25CB';       // U+25CB WHITE CIRCLE
 static constexpr wchar_t s_kchEmDash         = L'\x2014';       // U+2014 EM DASH (—)
 static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for ranges
 static constexpr wchar_t s_kchEllipsis       = L'\x2026';       // U+2026 HORIZONTAL ELLIPSIS (…)
