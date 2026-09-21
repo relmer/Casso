@@ -1440,7 +1440,11 @@ void DebuggerWindow::LayoutWidgets()
     int   width    = m_widthDip;
     int   height   = m_heightDip;
     int   captionH = GetCaptionHeightPx();
-    int   rowY     = captionH + pad;
+    //  FLUSH UNDER THE CAPTION, AND THE PANES FLUSH UNDER IT. The strip
+    //  carries its own margin around its buttons; padding it as well put
+    //  body color between the caption and the buttons, which reads as a gap
+    //  the bottom edge does not have.
+    int   rowY     = captionH;
     int   top      = 0;
     int   barY     = 0;
     int   x        = pad;
@@ -1460,7 +1464,7 @@ void DebuggerWindow::LayoutWidgets()
     m_commandBar->SetHostClientRect (RECT { 0, 0, width, height });
     m_commandBar->Layout (RECT { pad, rowY, width - pad, rowY + buttonH }, m_scaler);
 
-    top  = rowY + buttonH + pad;
+    top  = rowY + buttonH;
     barY = std::max (top + px (120), height - pad - boxH);
 
     m_dockSite->Layout (RECT { pad, top, width - pad, barY - pad }, m_scaler);
