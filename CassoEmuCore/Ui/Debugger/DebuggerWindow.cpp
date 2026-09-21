@@ -336,6 +336,14 @@ void DebuggerWindow::ConfigureWidgets()
     m_consoleList->SetColumns    ({ { L"Console",     0, false, DxuiTextHAlign::Left } });
     m_consoleList->EnableStickyTail (true);
 
+    //  THE CONSOLE IS A LOG, NOT A LIST. Its lines select as text does -- a
+    //  drag or Shift+click takes a run of lines, in the color a text
+    //  control selects with, and Ctrl+C copies them -- rather than lighting
+    //  one row as a pick from a list.
+    m_consoleList->SetMultiSelect         (true);
+    m_consoleList->SetTextSelectionColors (true);
+    m_consoleList->SetOwnerWindow         (GetHwnd());
+
     //  Activating a breakpoint shows its address; its circle, in the gutter,
     //  turns it on and off.
     m_breakpointList->SetOnActivateRow ([this] (int row)
@@ -2025,9 +2033,26 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
+    //  A value that differs from the one the previous snapshot showed for the
+    //  same watch is drawn in the changed color (FR-098).
     for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
     {
-        rows.push_back ({ { std::format (L"#{} ${:04X}", watch.id, watch.address) }, { Widen (watch.value) } });
+        DxuiListView::Cell  value = { Widen (watch.value) };
+        auto                was   = m_watchValues.find (watch.id);
+
+        if (was != m_watchValues.end() && was->second != watch.value)
+        {
+            value.argb = GetChangedArgb();
+        }
+
+        rows.push_back ({ { std::format (L"#{} ${:04X}", watch.id, watch.address) }, value });
+    }
+
+    m_watchValues.clear();
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
+    {
+        m_watchValues[watch.id] = watch.value;
     }
 
     m_watchList->SetRows (std::move (rows));

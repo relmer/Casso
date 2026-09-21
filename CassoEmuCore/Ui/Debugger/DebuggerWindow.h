@@ -240,20 +240,21 @@ private:
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
 
-    const CassoTheme     * m_theme         = nullptr;
-    IDebuggerWindowHost  * m_host          = nullptr;
-    DxuiDpiScaler          m_scaler;
-    int                    m_widthDip      = 0;
-    int                    m_heightDip     = 0;
-    DxuiFocusManager       m_focusMgr;
-    DebuggerKeyScheme      m_keyScheme     = DebuggerKeySchemes::kDefault;
-    bool                   m_swallowSpace  = false;
-    RECT                   m_openedRect    = {};
-    bool                   m_placed        = false;
-    int                    m_codeLinesSent = 0;
-    std::optional<Word>    m_navigatedTo;
-    std::string            m_menuState;
-    uint32_t               m_goToSerial    = 0;
+    const CassoTheme            * m_theme         = nullptr;
+    IDebuggerWindowHost         * m_host          = nullptr;
+    DxuiDpiScaler                 m_scaler;
+    int                           m_widthDip      = 0;
+    int                           m_heightDip     = 0;
+    DxuiFocusManager              m_focusMgr;
+    DebuggerKeyScheme             m_keyScheme     = DebuggerKeySchemes::kDefault;
+    bool                          m_swallowSpace  = false;
+    RECT                          m_openedRect    = {};
+    bool                          m_placed        = false;
+    int                           m_codeLinesSent = 0;
+    std::optional<Word>           m_navigatedTo;
+    std::string                   m_menuState;
+    uint32_t                      m_goToSerial    = 0;
+    std::map<int, std::string>    m_watchValues;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
