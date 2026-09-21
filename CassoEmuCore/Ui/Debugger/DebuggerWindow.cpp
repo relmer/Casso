@@ -169,7 +169,6 @@ Error:
 void DebuggerWindow::OnCreate()
 {
     m_commandBar        = CreateChild<DxuiToolbar>   ();
-    m_flagsLabel        = CreateChild<DxuiLabel>     (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_codeList          = CreateChild<DxuiListView>  ();
     m_registerList      = CreateChild<DxuiListView>  ();
     m_breakpointList    = CreateChild<DxuiListView>  ();
@@ -1439,7 +1438,6 @@ void DebuggerWindow::LayoutWidgets()
     int   height   = m_heightDip;
     int   captionH = GetCaptionHeightPx();
     int   rowY     = captionH + pad;
-    int   flagsW   = px (150);
     int   top      = 0;
     int   barY     = 0;
     int   x        = pad;
@@ -1457,8 +1455,7 @@ void DebuggerWindow::LayoutWidgets()
     //  arrives with the backend, after the window was built.
     m_commandBar->SetTextRenderer   (GetTextRenderer());
     m_commandBar->SetHostClientRect (RECT { 0, 0, width, height });
-    m_commandBar->Layout (RECT { pad, rowY, width - pad - flagsW, rowY + buttonH }, m_scaler);
-    m_flagsLabel->Layout (RECT { width - pad - flagsW, rowY, width - pad, rowY + buttonH }, m_scaler);
+    m_commandBar->Layout (RECT { pad, rowY, width - pad, rowY + buttonH }, m_scaler);
 
     top  = rowY + buttonH + pad;
     barY = std::max (top + px (120), height - pad - boxH);
@@ -1798,13 +1795,19 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
+    //  THE FLAGS ARE A REGISTER. They are the P register written so a person
+    //  can read it, and they belong beside the byte they come from, in the
+    //  same monospace column -- where a bit changing moves nothing else on
+    //  the row. They sat at the end of the command strip in the proportional
+    //  chrome face, which is neither.
+    rows.push_back ({ { L"Flags" }, { Widen (m_snapshot->flags) } });
+
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
         rows.push_back ({ { Widen (reg.name) }, { Widen (reg.value) } });
     }
 
     m_registerList->SetRows (std::move (rows));
-    m_flagsLabel->SetText   (L"Flags  " + Widen (m_snapshot->flags));
     m_tracePane->Apply      (m_snapshot->trace);
 
     rows.clear();

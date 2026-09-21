@@ -244,7 +244,6 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_sourceFrame;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
-    DxuiLabel                                                                      * m_flagsLabel         = nullptr;
     DxuiListView                                                                   * m_codeList           = nullptr;
     DxuiListView                                                                   * m_registerList       = nullptr;
     DxuiListView                                                                   * m_breakpointList     = nullptr;
