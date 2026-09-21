@@ -2324,9 +2324,18 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             }
         }
 
+        //  A release goes to the list UNDER THE POINTER, the same as a press. A
+        //  list mid-drag already had it above, whatever the pointer is over.
+        //  Sending it to every list reached the ones hidden behind a tab as
+        //  well: the Stack and Call Stack panes share a rect, so a click on the
+        //  fifth Stack row released onto the fifth Call Stack row -- which
+        //  activated it and moved the code pane to that frame's call site.
         for (DxuiListView * list : GetLists())
         {
-            if (IsRoutable (list))
+            RECT  bounds = list->GetBounds();
+
+            if (IsRoutable (list) && list->IsVisible() &&
+                x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
             {
                 ForwardToList (list, ev);
             }
