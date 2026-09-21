@@ -61,6 +61,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
 
 
     snapshot.mode    = session.GetMode();
+    snapshot.goTo    = m_goTo;
     snapshot.machine = session.GetTarget().GetMachineInfo().name;
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
@@ -1478,6 +1479,167 @@ std::optional<DebugVerb> DebuggerViewState::GetMissingFileVerb (const std::strin
 std::string DebuggerViewState::GetLineWithFileName (const std::string & line, const std::string & path)
 {
     return std::format ("{}\"{}\"", line, path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ResolveGoTo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> DebuggerViewState::ResolveGoTo (const std::string & text, const Cpu6502Registers & registers, const GoToPeek & peek)
+{
+    std::string          s;
+    std::string          core;
+    std::string          index;
+    bool                 indirect    = false;
+    bool                 indexInside = false;
+    unsigned long        value       = 0;
+    bool                 isZeroPage  = false;
+    std::optional<Byte>  lo;
+    std::optional<Byte>  hi;
+    Word                 pointer     = 0;
+
+
+
+    for (char ch : text)
+    {
+        if (!std::isspace ((unsigned char) ch))
+        {
+            s += (char) std::toupper ((unsigned char) ch);
+        }
+    }
+
+    if (s == "PC")              { return registers.pc; }
+    if (s == "A")               { return (Word) registers.a; }
+    if (s == "X")               { return (Word) registers.x; }
+    if (s == "Y")               { return (Word) registers.y; }
+    if (s == "S" || s == "SP")  { return (Word) (0x0100 + registers.sp); }
+
+    //  (zp,X), (zp),Y and (abs): the parentheses, and where the index sits.
+    if (s.starts_with ("("))
+    {
+        indirect = true;
+
+        if (s.ends_with (",X)"))
+        {
+            indexInside = true;
+            index       = "X";
+            core        = s.substr (1, s.size() - 4);
+        }
+        else if (s.ends_with ("),Y"))
+        {
+            index = "Y";
+            core  = s.substr (1, s.size() - 4);
+        }
+        else if (s.ends_with (")"))
+        {
+            core = s.substr (1, s.size() - 2);
+        }
+        else
+        {
+            return std::nullopt;
+        }
+    }
+    else if (s.ends_with (",X") || s.ends_with (",Y"))
+    {
+        index = s.substr (s.size() - 1);
+        core  = s.substr (0, s.size() - 2);
+    }
+    else
+    {
+        core = s;
+    }
+
+    if (core.starts_with ("$"))
+    {
+        core = core.substr (1);
+    }
+
+    if (core.empty() || core.size() > 4 || core.find_first_not_of ("0123456789ABCDEF") != std::string::npos)
+    {
+        return std::nullopt;
+    }
+
+    value      = std::stoul (core, nullptr, 16);
+    isZeroPage = core.size() <= 2;
+
+    if (!indirect)
+    {
+        if (index.empty())
+        {
+            return (Word) value;
+        }
+
+        value += (index == "X") ? registers.x : registers.y;
+        return isZeroPage ? (Word) (value & 0xFF) : (Word) value;
+    }
+
+    //  (abs) takes any address; the indexed forms, a zero-page pointer.
+    if (!index.empty() && !isZeroPage)
+    {
+        return std::nullopt;
+    }
+
+    pointer = indexInside ? (Word) ((value + registers.x) & 0xFF) : (Word) value;
+    lo      = peek (pointer);
+    hi      = peek (isZeroPage ? (Word) ((pointer + 1) & 0xFF) : (Word) (pointer + 1));
+
+    if (!lo.has_value() || !hi.has_value())
+    {
+        return std::nullopt;
+    }
+
+    value = (unsigned long) (*lo | (*hi << 8));
+
+    if (index == "Y")
+    {
+        value += registers.y;
+    }
+
+    return (Word) value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::RequestGoTo
+//
+//  Resolved here, on the CPU thread, where the registers and memory are; a
+//  pointer in I/O is not read, since reading one changes the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::RequestGoTo (DebugSession & session, int window, const std::string & text)
+{
+    DebuggerViewSnapshot::GoTo  goTo;
+    IDebugTarget              & target = session.GetTarget();
+
+
+
+    goTo.window  = window;
+    goTo.text    = text;
+    goTo.serial  = m_goTo.has_value() ? m_goTo->serial + 1 : 1;
+    goTo.address = ResolveGoTo (text, target.GetRegisters(), [&session, &target] (Word address) -> std::optional<Byte>
+    {
+        Byte  value = 0;
+
+        if (target.GetRegion (address) == MemoryRegion::Io || !session.TryPeek (address, value))
+        {
+            return std::nullopt;
+        }
+
+        return value;
+    });
+
+    m_goTo = goTo;
 }
 
 

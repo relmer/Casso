@@ -283,6 +283,7 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuC
 //  "memory2" to "memory4" with a hex address or "close" for the others, which
 //  is passed on as no address. "lines <hex>" is how many lines the code pane
 //  has room for. "trace <decimal>" and "trace end" place the trace pane.
+//  "goto <window> <text>" is a memory window's Go to, as typed.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
 //
@@ -309,6 +310,19 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         else if (!where.empty() && where.size() <= kMaxEntryDigits && where.find_first_not_of ("0123456789") == std::string::npos)
         {
             target.SetDebugTraceView (std::stoull (where));
+        }
+
+        return;
+    }
+
+    //  "goto <window> <text>": the text is whatever was typed, resolved later.
+    if (view == "goto")
+    {
+        space = where.find (' ');
+
+        if (space == 1 && where[0] >= '1' && where[0] <= '4')
+        {
+            target.GoToDebugMemory (where[0] - '0', where.substr (2));
         }
 
         return;

@@ -253,6 +253,7 @@ public:
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  OnFocusEntered (bool forward) override;
+    void  OnFocusChanged (bool focused) override { m_hasFocus = focused; }
     bool  QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
     bool  InvokeCommand  (DxuiStandardCommand command) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
@@ -315,6 +316,9 @@ private:
 
     //  The addresses' strength as a fraction of the bytes'.
     static constexpr float  s_kAddressStrength  = 0.55f;
+
+    //  The ink on the byte the keys act on, over the accent.
+    static constexpr uint32_t  s_kCaretInkArgb  = 0xFFFFFFFF;
 
     //  Cells one value spends, its text, and the fill behind a selected one.
     int           GetValueCells         () const;
@@ -418,6 +422,7 @@ private:
     std::vector<uint8_t>    m_rowBytes;
     std::vector<uint8_t>    m_rowMarks;
     bool                    m_editable  = false;
+    bool                    m_hasFocus  = false;
     std::wstring            m_pending;
     uint64_t                m_editStart = 0;
     WriteRefusedFn          m_onWriteRefused;

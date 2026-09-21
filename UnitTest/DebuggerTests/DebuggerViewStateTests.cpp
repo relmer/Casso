@@ -176,6 +176,45 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (GoToResolvesRegistersAndEveryAddressingForm)
+        {
+            Cpu6502Registers              r;
+            std::map<Word, Byte>          memory = { { 0x0010, 0x34 }, { 0x0011, 0x12 },
+                                                     { 0x0014, 0x78 }, { 0x0015, 0x56 },
+                                                     { 0x0300, 0xCD }, { 0x0301, 0xAB } };
+            DebuggerViewState::GoToPeek   peek   = [&memory] (Word address) -> std::optional<Byte>
+            {
+                if (address >= 0xC000 && address < 0xC100) { return std::nullopt; }
+                return memory.contains (address) ? memory[address] : (Byte) 0;
+            };
+            auto                          go     = [&] (const char * text) { return DebuggerViewState::ResolveGoTo (text, r, peek); };
+
+
+
+            r.pc = 0x0812;
+            r.a  = 0x42;
+            r.x  = 0x04;
+            r.y  = 0x02;
+            r.sp = 0xF6;
+
+            Assert::IsTrue (go ("0400")      == std::optional<Word> (0x0400));
+            Assert::IsTrue (go ("$fff0")     == std::optional<Word> (0xFFF0));
+            Assert::IsTrue (go ("pc")        == std::optional<Word> (0x0812));
+            Assert::IsTrue (go ("A")         == std::optional<Word> (0x0042), L"A: its value on the zero page");
+            Assert::IsTrue (go ("S")         == std::optional<Word> (0x01F6));
+            Assert::IsTrue (go ("FE,X")      == std::optional<Word> (0x0002), L"zp,X wraps in the zero page");
+            Assert::IsTrue (go ("10,Y")      == std::optional<Word> (0x0012));
+            Assert::IsTrue (go ("0300,X")    == std::optional<Word> (0x0304));
+            Assert::IsTrue (go ("0300,Y")    == std::optional<Word> (0x0302));
+            Assert::IsTrue (go ("(10,X)")    == std::optional<Word> (0x5678), L"(zp,X): the pointer at zp+X");
+            Assert::IsTrue (go ("($10),Y")   == std::optional<Word> (0x1236), L"(zp),Y: the pointer at zp, plus Y");
+            Assert::IsTrue (go ("(0300)")    == std::optional<Word> (0xABCD));
+            Assert::IsFalse (go ("(C000)").has_value(),  L"a pointer in I/O is not read");
+            Assert::IsFalse (go ("(0300),Y").has_value(), L"(abs),Y is not a 6502 form");
+            Assert::IsFalse (go ("KBD").has_value());
+        }
+
+
         TEST_METHOD (ABreakpointRowSaysWhetherItIsEnabled)
         {
             MachineRig            rig;

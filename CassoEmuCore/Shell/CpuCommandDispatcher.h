@@ -63,6 +63,9 @@ public:
 
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void     SetDebugTraceView        (std::optional<uint64_t> first)                   = 0;
+
+    //  A memory window's Go to, as typed, to resolve against the machine.
+    virtual void     GoToDebugMemory          (int window, const std::string & text)           = 0;
 };
 
 

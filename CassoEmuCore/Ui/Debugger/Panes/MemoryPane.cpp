@@ -56,9 +56,13 @@ void MemoryPane::Configure (HWND hwnd)
     m_view->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
     m_view->SetEditable     (true);
 
-    m_view->SetMarkColor ([] (uint8_t mark, uint32_t & outArgb)
+    m_view->SetMarkColor ([this] (uint8_t mark, uint32_t & outArgb)
     {
-        if (mark == MemoryEditModel::kMarkIo)
+        if (mark == MemoryEditModel::kMarkChanged)
+        {
+            outArgb = m_changedArgb;
+        }
+        else if (mark == MemoryEditModel::kMarkIo)
         {
             outArgb = s_kIoArgb;
         }
@@ -115,7 +119,7 @@ void MemoryPane::Apply (const DebuggerViewSnapshot::MemoryWindow & window)
 
 void MemoryPane::FollowScroll()
 {
-    std::optional<Word>  start = GetReadStartFor (m_readFirst, m_view->GetTopRow() * kBytesPerRow, m_view->GetRowCap());
+    std::optional<Word>  start = GetReadStartFor (m_readFirst, GetTopAddress(), m_view->GetRowCap());
 
 
 
@@ -139,11 +143,18 @@ void MemoryPane::FollowScroll()
 void MemoryPane::GoTo (Word address)
 {
     Word  first = (Word) (address & ~(kBytesPerRow - 1));
+    Word  phase = (Word) (address - first);
 
 
 
-    m_view->SetTopRow  ((uint64_t) first / kBytesPerRow);
-    m_view->GoToOffset (address);
+    //  The rows start at the address itself (FR-091): the view's offsets move
+    //  by the address's distance from its row boundary, and its labels with
+    //  them.
+    m_model.SetPhase        (phase);
+    m_view->SetOriginAddress (phase);
+    m_view->SetTopRow        (0);
+    m_view->SetTopRow        ((uint64_t) first / kBytesPerRow);
+    m_view->GoToOffset       ((uint64_t) first);
 
     m_requested = first;
     m_move (m_id, first);
@@ -214,7 +225,8 @@ std::optional<Word> MemoryPane::GetReadStartFor (Word readFirst, uint64_t topOff
 
 void MemoryPane::NoteRefusal (uint64_t offset) const
 {
-    std::optional<MemoryRegion>  region = m_model.TryGetRegion ((Word) offset);
+    Word                         address = m_model.GetAddressOf (offset);
+    std::optional<MemoryRegion>  region  = m_model.TryGetRegion (address);
 
 
 
@@ -225,10 +237,10 @@ void MemoryPane::NoteRefusal (uint64_t offset) const
 
     if (region == MemoryRegion::Io)
     {
-        m_note (std::format ("${:04X} is I/O, which an edit does not write; use OUT.", (Word) offset));
+        m_note (std::format ("${:04X} is I/O, which an edit does not write; use OUT.", address));
     }
     else
     {
-        m_note (std::format ("${:04X} cannot be edited until the window has read it.", (Word) offset));
+        m_note (std::format ("${:04X} cannot be edited until the window has read it.", address));
     }
 }

@@ -41,7 +41,13 @@ public:
     DxuiHexView *  GetView  () const { return m_view; }
     int            GetGrouping () const { return m_grouping; }
 
+    //  The address of the first byte on screen.
+    Word           GetTopAddress () const { return m_model.GetAddressOf (m_view->GetTopRow() * kBytesPerRow); }
+
     void  Configure (HWND hwnd);
+
+    //  The ink for a byte that changed since the previous snapshot.
+    void  SetChangedColor (uint32_t argb) { m_changedArgb = argb; }
 
     //  The bytes the snapshot read for this window. The first one places the
     //  view there; later ones leave the view where the user has it.
@@ -68,13 +74,14 @@ private:
 
     void  NoteRefusal (uint64_t offset) const;
 
-    int                    m_id        = 0;
-    DxuiHexView          * m_view      = nullptr;
+    int                    m_id          = 0;
+    DxuiHexView          * m_view        = nullptr;
     MemoryEditModel        m_model;
     MoveFn                 m_move;
     RunFn                  m_note;
-    Word                   m_readFirst = 0;
-    bool                   m_placed    = false;
-    int                    m_grouping  = 1;
+    Word                   m_readFirst   = 0;
+    bool                   m_placed      = false;
+    int                    m_grouping    = 1;
     std::optional<Word>    m_requested;
+    uint32_t               m_changedArgb = 0xFFFF6B68;
 };

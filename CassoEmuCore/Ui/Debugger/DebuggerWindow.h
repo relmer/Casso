@@ -50,6 +50,10 @@ public:
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void  SetDebuggerTraceTop     (std::optional<uint64_t> first) = 0;
 
+    //  A memory window's Go to text, resolved on the CPU thread; the window
+    //  acts on it when a snapshot carries the answer.
+    virtual void  GoToDebuggerMemory      (int window, const std::string & text) = 0;
+
     //  The newest snapshot, if one arrived since the last call, and every
     //  console line written since then.
     virtual bool  TakeDebuggerUpdate      (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
@@ -204,6 +208,7 @@ private:
     static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();    void     ApplyMemoryWindows ();
     void     AddMemoryWindow    ();
     void     RemoveMemoryWindow ();
+    void     PlaceMemoryBar     ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource);
@@ -248,6 +253,7 @@ private:
     int                    m_codeLinesSent = 0;
     std::optional<Word>    m_navigatedTo;
     std::string            m_menuState;
+    uint32_t               m_goToSerial    = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
@@ -276,6 +282,8 @@ private:
     DxuiListView                                                                   * m_traceList          = nullptr;
     std::unique_ptr<TracePane>                                                       m_tracePane;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
+    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
+    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;
     DxuiButton                                                                     * m_groupButton        = nullptr;
     DxuiButton                                                                     * m_addMemoryButton    = nullptr;
     DxuiButton                                                                     * m_removeMemoryButton = nullptr;

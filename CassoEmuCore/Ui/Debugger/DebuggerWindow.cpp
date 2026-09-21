@@ -364,8 +364,8 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     m_commandBox->SetPlaceholder (L"Command (Enter to run)");
-    m_memoryBox->SetPlaceholder  (L"Memory at (hex)");
-    m_pokeBox->SetPlaceholder    (L"Address byte, e.g. 0300 A9");
+    m_memoryBox->SetPlaceholder  (L"Go to: 0300, PC, (3E),Y");
+    m_pokeBox->SetPlaceholder    (L"Poke: 0300 A9");
 
     m_focusMgr.Attach   (this);
     m_focusMgr.SetTheme (m_theme);
@@ -811,6 +811,23 @@ void DebuggerWindow::ApplyMemoryWindows()
 
 
 
+    //  A Go to the CPU thread resolved, once.
+    if (m_snapshot->goTo.has_value() && m_snapshot->goTo->serial != m_goToSerial)
+    {
+        const DebuggerViewSnapshot::GoTo & goTo = *m_snapshot->goTo;
+
+        m_goToSerial = goTo.serial;
+
+        if (goTo.address.has_value() && goTo.window >= 1 && goTo.window <= DebuggerViewState::kMaxMemoryWindows)
+        {
+            m_memoryPanes[(size_t) (goTo.window - 1)]->GoTo (*goTo.address);
+        }
+        else
+        {
+            AppendConsole ({ std::format ("Go to: \"{}\" is not an address, a register or a 6502 operand this can resolve.", goTo.text) });
+        }
+    }
+
     if (m_snapshot->machine != m_machine)
     {
         m_machine = m_snapshot->machine;
@@ -826,6 +843,7 @@ void DebuggerWindow::ApplyMemoryWindows()
         if (window.id >= 1 && window.id <= DebuggerViewState::kMaxMemoryWindows)
         {
             open[(size_t) (window.id - 1)] = true;
+            m_memoryPanes[(size_t) (window.id - 1)]->SetChangedColor (GetChangedArgb());
             m_memoryPanes[(size_t) (window.id - 1)]->Apply (window);
         }
     }
@@ -870,7 +888,7 @@ void DebuggerWindow::ApplyMemoryWindows()
 
 void DebuggerWindow::AddMemoryWindow()
 {
-    Word  at = (Word) (GetActiveMemoryPane()->GetView()->GetTopRow() * DebuggerViewState::kMemoryRowBytes);
+    Word  at = GetActiveMemoryPane()->GetTopAddress();
 
 
 
@@ -1503,9 +1521,9 @@ void DebuggerWindow::LayoutWidgets()
     m_commandBar->Layout (RECT { pad, rowY, width - pad, rowY + buttonH }, m_scaler);
 
     top  = rowY + buttonH;
-    barY = std::max (top + px (120), height - pad - boxH);
+    barY = height - pad;
 
-    m_dockSite->Layout (RECT { pad, top, width - pad, barY - pad }, m_scaler);
+    m_dockSite->Layout (RECT { pad, top, width - pad, barY }, m_scaler);
 
     //  The code pane holds as many lines as it has room for, so the pane is
     //  full whatever height the user drags it to. Only a change is sent: the
@@ -1521,14 +1539,77 @@ void DebuggerWindow::LayoutWidgets()
         }
     }
 
-    x = pad;
-    m_memoryBox->Layout  (RECT { x, barY, x + px (170), barY + boxH }, m_scaler);  x += px (170) + pad;
-    m_pokeBox->Layout    (RECT { x, barY, x + px (230), barY + boxH }, m_scaler);  x += px (230) + pad;
+    PlaceMemoryBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceMemoryBar
+//
+//  The Go to box, the poke box and the memory buttons sit in the bar of the
+//  memory pane they act on: the active one when it is shown here, or else
+//  the first memory pane shown. With none shown in this window, they hide.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceMemoryBar()
+{
+    auto                 px    = [this] (int dip) { return m_scaler.ToPx (dip); };
+    int                  pad   = px (6);
+    DebuggerPaneFrame  * bar   = nullptr;
+    MemoryPane         * owner = GetActiveMemoryPane();
+    RECT                 slot  = {};
+    int                  x     = 0;
+    auto                 isHere = [this] (size_t i)
+    {
+        return m_memoryBars[i] != nullptr && m_memoryBars[i]->IsVisible() &&
+               !m_floats.contains (DebuggerLayout::GetMemoryPaneId ((int) i + 1));
+    };
+
+
+
+    if (owner != nullptr && isHere ((size_t) (owner->GetId() - 1)))
+    {
+        bar = m_memoryBars[(size_t) (owner->GetId() - 1)].get();
+    }
+
+    for (size_t i = 0; bar == nullptr && i < m_memoryBars.size(); i++)
+    {
+        if (isHere (i))
+        {
+            bar = m_memoryBars[i].get();
+        }
+    }
+
+    for (IDxuiControl * control : { (IDxuiControl *) m_memoryBox, (IDxuiControl *) m_pokeBox })
+    {
+        control->SetVisible (bar != nullptr);
+    }
 
     for (DxuiButton * button : GetMemoryButtons())
     {
-        button->Layout (RECT { x, barY, x + px (90), barY + boxH }, m_scaler);
-        x += px (90) + pad;
+        button->SetVisible (bar != nullptr);
+    }
+
+    if (bar == nullptr)
+    {
+        return;
+    }
+
+    slot = bar->GetBounds();
+    x    = slot.left;
+
+    m_memoryBox->Layout (RECT { x, slot.top, x + px (150), slot.bottom }, m_scaler);  x += px (150) + pad;
+    m_pokeBox->Layout   (RECT { x, slot.top, x + px (190), slot.bottom }, m_scaler);  x += px (190) + pad;
+
+    for (DxuiButton * button : GetMemoryButtons())
+    {
+        button->Layout (RECT { x, slot.top, x + px (80), slot.bottom }, m_scaler);
+        x += px (80) + pad;
     }
 }
 
@@ -1579,10 +1660,20 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call Stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceList);
 
+    //  A memory pane is its command bar over its bytes (FR-089). The bar is a
+    //  place held at the pane's top; the controls, shared by every memory
+    //  pane, are put in the bar of the one they act on (PlaceMemoryBar).
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
+        size_t  i = (size_t) (pane->GetId() - 1);
+
+        m_memoryBars[i]   = std::make_unique<DebuggerPaneFrame> (L"Memory commands");
+        m_memoryFrames[i] = std::make_unique<DebuggerPaneFrame> (std::format (L"Memory {}", pane->GetId()));
+        m_memoryFrames[i]->AddPart (m_memoryBars[i].get(), boxHeight);
+        m_memoryFrames[i]->AddPart (pane->GetView());
+
         m_dockSite->AddPane (DebuggerLayout::GetMemoryPaneId (pane->GetId()),
-                             std::format (L"Memory {}", pane->GetId()), pane->GetView());
+                             std::format (L"Memory {}", pane->GetId()), m_memoryFrames[i].get());
     }
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
@@ -1813,6 +1904,7 @@ void DebuggerWindow::RenderFrame()
     m_tracePane->FollowScroll();
 
     SyncFloats();
+    PlaceMemoryBar();
     m_sourcePane->FollowMarkedLine();
 
     for (const auto & entry : m_floats)
@@ -2160,6 +2252,10 @@ void DebuggerWindow::SubmitMemoryBox()
     if (TryParseHexWord (m_memoryBox->GetText(), address))
     {
         GetActiveMemoryPane()->GoTo (address);
+    }
+    else if (m_host != nullptr)
+    {
+        m_host->GoToDebuggerMemory (GetActiveMemoryPane()->GetId(), SourcePathList::WideToUtf8 (m_memoryBox->GetText()));
     }
 }
 
@@ -2715,7 +2811,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     {
         if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
         {
-            return { memory->GetView() };
+            return { m_memoryBars[(size_t) (memory->GetId() - 1)].get(), memory->GetView() };
         }
     }
 
@@ -2759,6 +2855,14 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     if (pane == DebuggerLayout::kCallStack)
     {
         return m_callStackFrame.get();
+    }
+
+    for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
+    {
+        if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
+        {
+            return m_memoryFrames[(size_t) (memory->GetId() - 1)].get();
+        }
     }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))

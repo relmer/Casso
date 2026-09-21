@@ -14,6 +14,20 @@
 
 void MemoryEditModel::SetContents (Word first, std::vector<std::optional<Byte>> bytes, std::vector<MemoryRegion> regions)
 {
+    size_t  previous = 0;
+
+
+
+    m_changed.assign (bytes.size(), false);
+
+    for (size_t i = 0; i < bytes.size(); i++)
+    {
+        if (bytes[i].has_value() && TryGetShown ((uint64_t) first + i, previous) && m_bytes[previous].has_value())
+        {
+            m_changed[i] = *m_bytes[previous] != *bytes[i];
+        }
+    }
+
     m_first   = first;
     m_bytes   = std::move (bytes);
     m_regions = std::move (regions);
@@ -84,7 +98,7 @@ void MemoryEditModel::ReadBytes (uint64_t offset, std::span<uint8_t> out) const
 
     for (size_t i = 0; i < out.size(); i++)
     {
-        out[i] = TryGetShown (offset + i, index) ? m_bytes[index].value_or (0) : 0;
+        out[i] = TryGetShown (GetAddressOf (offset + i), index) ? m_bytes[index].value_or (0) : 0;
     }
 }
 
@@ -97,7 +111,8 @@ void MemoryEditModel::ReadBytes (uint64_t offset, std::span<uint8_t> out) const
 //  MemoryEditModel::ReadMarks
 //
 //  I/O and ROM each get a mark, so a window can color the bytes an edit
-//  cannot reach and the ones it patches rather than writes.
+//  cannot reach and the ones it patches rather than writes. A byte that
+//  changed since the last read is marked so above either.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,7 +126,11 @@ void MemoryEditModel::ReadMarks (uint64_t offset, std::span<uint8_t> out) const
     {
         out[i] = kMarkNone;
 
-        if (TryGetShown (offset + i, index) && index < m_regions.size())
+        if (TryGetShown (GetAddressOf (offset + i), index) && index < m_changed.size() && m_changed[index])
+        {
+            out[i] = kMarkChanged;
+        }
+        else if (TryGetShown (GetAddressOf (offset + i), index) && index < m_regions.size())
         {
             switch (m_regions[index])
             {
@@ -143,11 +162,11 @@ bool MemoryEditModel::WriteBytes (uint64_t offset, std::span<const uint8_t> byte
 
 
 
-    edit.address = (Word) offset;
+    edit.address = GetAddressOf (offset);
 
     for (size_t i = 0; i < bytes.size(); i++)
     {
-        if (!TryGetShown (offset + i, index) || !m_bytes[index].has_value() ||
+        if (!TryGetShown (GetAddressOf (offset + i), index) || !m_bytes[index].has_value() ||
             (index < m_regions.size() && m_regions[index] == MemoryRegion::Io))
         {
             return false;
@@ -158,12 +177,12 @@ bool MemoryEditModel::WriteBytes (uint64_t offset, std::span<const uint8_t> byte
 
     for (size_t i = 0; i < bytes.size(); i++)
     {
-        (void) TryGetShown (offset + i, index);
+        (void) TryGetShown (GetAddressOf (offset + i), index);
         m_bytes[index] = bytes[i];
     }
 
     m_history.push_back (std::move (edit));
-    SendPatch ((Word) offset, bytes);
+    SendPatch (edit.address, bytes);
 
     return true;
 }

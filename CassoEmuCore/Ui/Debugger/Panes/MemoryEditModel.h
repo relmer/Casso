@@ -33,22 +33,30 @@
 class MemoryEditModel : public IDxuiHexSource
 {
 public:
-    static constexpr uint8_t  kMarkNone = 0;
-    static constexpr uint8_t  kMarkIo   = 1;
-    static constexpr uint8_t  kMarkRom  = 2;
+    static constexpr uint8_t  kMarkNone    = 0;
+    static constexpr uint8_t  kMarkIo      = 1;
+    static constexpr uint8_t  kMarkRom     = 2;
+    static constexpr uint8_t  kMarkChanged = 3;
 
     using CommandFn = std::function<void (const std::string & line)>;
 
     void  SetOnCommand (CommandFn fn) { m_onCommand = std::move (fn); }
 
     //  The bytes a snapshot read for this window, one region per byte; an
-    //  unreadable (I/O) byte is empty.
+    //  unreadable (I/O) byte is empty. A byte whose value differs from the
+    //  one the previous snapshot read at its address is marked changed.
     void  SetContents (Word first, std::vector<std::optional<Byte>> bytes, std::vector<MemoryRegion> regions);
 
     uint64_t  GetByteCount () const override { return kAddressSpace; }
     void      ReadBytes    (uint64_t offset, std::span<uint8_t> out) const override;
     void      ReadMarks    (uint64_t offset, std::span<uint8_t> out) const override;
     bool      WriteBytes   (uint64_t offset, std::span<const uint8_t> bytes) const override;
+
+    //  Where the view's rows start relative to a 16-byte boundary. Offset 0 is
+    //  address `phase`, so Go to can put any address at a row's start.
+    void  SetPhase     (Word phase) { m_phase = (Word) (phase & 0x000F); }
+    Word  GetPhase     () const     { return m_phase; }
+    Word  GetAddressOf (uint64_t offset) const { return (Word) ((offset + m_phase) & 0xFFFF); }
 
     //  The region of a byte this window was shown, for saying why an edit there
     //  was refused.
@@ -71,6 +79,8 @@ private:
     void  SendPatch     (Word address, std::span<const Byte> bytes) const;
 
     Word                                        m_first = 0;
+    std::vector<bool>                           m_changed;
+    Word                                        m_phase = 0;
     mutable std::vector<std::optional<Byte>>    m_bytes;
     std::vector<MemoryRegion>                   m_regions;
     mutable std::vector<Edit>                   m_history;

@@ -302,6 +302,21 @@ public:
     }
 
 
+    TEST_METHOD (AGoToCarriesItsWindowAndTextAsTyped)
+    {
+        Notebook  target;
+
+
+
+        Dispatch (IDM_DEBUG_VIEW, "goto 2 ($3E),Y", target);
+        Dispatch (IDM_DEBUG_VIEW, "goto 5 PC",      target);
+        Dispatch (IDM_DEBUG_VIEW, "goto",           target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size(), L"only windows 1 to 4");
+        Assert::AreEqual (std::string ("GoToDebugMemory 2 ($3E),Y"), target.calls[0]);
+    }
+
+
     TEST_METHOD (APauseChangeSaysWhichWay)
     {
         Notebook  target;
@@ -431,6 +446,11 @@ private:
         void     SetDebugTraceView (std::optional<uint64_t> first) override
         {
             calls.push_back (first.has_value() ? std::format ("SetDebugTraceView {}", *first) : std::string ("SetDebugTraceView end"));
+        }
+
+        void     GoToDebugMemory (int window, const std::string & text) override
+        {
+            calls.push_back (std::format ("GoToDebugMemory {} {}", window, text));
         }
     };
 

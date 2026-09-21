@@ -2814,7 +2814,15 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
             selected = selected || IsByteSelected (offset + (uint64_t) index);
         }
 
-        if (selected)
+        //  The byte the keys act on, while the view has them, stands out from
+        //  a selection: the accent behind it and the brightest ink on it.
+        if (m_hasFocus && m_caret >= offset && m_caret < offset + (uint64_t) present)
+        {
+            FillCell (text, GetValueSelectionRect (offset, cell), theme.Accent());
+            argb     = s_kCaretInkArgb;
+            selected = false;
+        }
+        else if (selected)
         {
             FillCell (text, GetValueSelectionRect (offset, cell), theme.SelectionBackground());
         }
@@ -2839,8 +2847,14 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         uint32_t      argb    = GetByteColor (theme, m_rowMarks[(size_t) index]);
         std::wstring  charOf  = { GetCharFor (m_rowBytes[(size_t) index]) };
 
-        //  Selected bytes are drawn in the full foreground, over the selection.
-        if (IsByteSelected (offset))
+        //  Selected bytes are drawn in the full foreground, over the selection;
+        //  the byte the keys act on, in the brightest ink over the accent.
+        if (m_hasFocus && offset == m_caret)
+        {
+            FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), theme.Accent());
+            argb = s_kCaretInkArgb;
+        }
+        else if (IsByteSelected (offset))
         {
             FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), theme.SelectionBackground());
             argb = theme.Foreground();

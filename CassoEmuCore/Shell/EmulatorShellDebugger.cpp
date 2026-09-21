@@ -393,6 +393,21 @@ void EmulatorShell::SetDebuggerTraceTop (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GoToDebuggerMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::GoToDebuggerMemory (int window, const std::string & text)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("goto {} {}", window, text));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TakeDebuggerUpdate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -553,6 +568,25 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
     }
 
     m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GoToDebugMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::GoToDebugMemory (int window, const std::string & text)
+{
+    if (m_debugger != nullptr)
+    {
+        m_debugViewState.RequestGoTo (m_debugger->GetSession(), window, text);
+        m_isDebugViewDirty = true;
+    }
 }
 
 

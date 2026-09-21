@@ -75,6 +75,49 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (AByteThatChangedSinceTheLastReadIsMarked)
+        {
+            Rig                               rig;
+            std::vector<std::optional<Byte>>  bytes;
+            std::vector<MemoryRegion>         regions (16, MemoryRegion::MainRam);
+            std::array<uint8_t, 16>           marks   = {};
+
+
+
+            for (int i = 0; i < 16; i++)
+            {
+                bytes.push_back ((Byte) (i == 5 ? 0xAA : i));
+            }
+
+            rig.model.SetContents (0x0300, bytes, regions);
+            rig.model.ReadMarks   (0x0300, marks);
+
+            for (int i = 0; i < 16; i++)
+            {
+                Assert::AreEqual ((int) (i == 5 ? MemoryEditModel::kMarkChanged : MemoryEditModel::kMarkNone), (int) marks[(size_t) i]);
+            }
+
+            rig.model.SetContents (0x0300, bytes, regions);
+            rig.model.ReadMarks   (0x0300, marks);
+            Assert::AreEqual ((int) MemoryEditModel::kMarkNone, (int) marks[5], L"unchanged since the read before");
+        }
+
+
+        TEST_METHOD (APhaseStartsTheRowsAtAnyAddress)
+        {
+            Rig  rig;
+
+
+
+            rig.model.SetPhase (3);
+
+            Assert::AreEqual ((Word) 0x0303, rig.model.GetAddressOf (0x0300));
+            Assert::AreEqual ((Byte) 3,      rig.Read (0x0300), L"offset $0300 is address $0303");
+            Assert::IsTrue   (rig.Write (0x0300, { 0x77 }));
+            Assert::AreEqual (std::string ("PATCH 0303 77"), rig.lines.back());
+        }
+
+
         TEST_METHOD (TheWholeAddressSpaceIsTheSource)
         {
             Rig  rig;

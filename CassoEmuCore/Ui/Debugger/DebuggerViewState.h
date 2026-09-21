@@ -157,6 +157,19 @@ struct DebuggerViewSnapshot
 
     std::vector<PanelInfo>            panels;
     std::vector<DiagnosticsSnapshot>  diagnostics;
+
+    //  The last Go to resolved on the CPU thread: which memory window, where
+    //  (nothing when the text did not resolve), what was typed, and a serial
+    //  that tells a new one from one already acted on.
+    struct GoTo
+    {
+        int                  window = 0;
+        std::optional<Word>  address;
+        std::string          text;
+        uint32_t             serial = 0;
+    };
+
+    std::optional<GoTo>  goTo;
 };
 
 
@@ -297,6 +310,18 @@ public:
 
     static std::string  GetRegionLabel (MemoryRegion region);
 
+    //  A memory pane's Go to (FR-090): a hex address; PC, A, X, Y or S; or a
+    //  6502 operand -- zp, abs, zp,X, zp,Y, abs,X, abs,Y, (zp,X), (zp),Y or
+    //  (abs) -- resolved against the registers and the bytes `peek` returns.
+    //  Two hex digits or fewer is a zero-page operand. Nothing when the text
+    //  is none of these, or a pointer would be read from I/O (peek empty).
+    using GoToPeek = std::function<std::optional<Byte> (Word address)>;
+    static std::optional<Word>  ResolveGoTo (const std::string & text, const Cpu6502Registers & registers, const GoToPeek & peek);
+
+    //  Resolves a Go to on the CPU thread, for the window to act on when the
+    //  next snapshot carries it.
+    void  RequestGoTo (DebugSession & session, int window, const std::string & text);
+
 private:
     void  MoveCodePane   (DebugSession & session, const std::string & name, Reply & reply);
 
@@ -342,6 +367,7 @@ private:
     int                        m_codeLines     = kCodeLines;
     Word                       m_memoryAddress = 0x0000;
     std::optional<uint64_t>    m_traceTop;
+    std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
 
