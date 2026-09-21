@@ -89,7 +89,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
         {
             snapshot.breakpoints.push_back ({ info.id, info.address,
                                               std::format ("#{} ${:04X}{}", info.id, info.address, info.enabled ? "" : " (off)"),
-                                              info.enabled });
+                                              info.enabled, info });
         }
     }
 

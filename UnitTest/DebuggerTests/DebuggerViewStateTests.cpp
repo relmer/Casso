@@ -11,6 +11,7 @@
 #include "TestHelpers.h"
 #include "MockDebugTarget.h"
 #include "Shell/CpuManager.h"
+#include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -268,6 +269,41 @@ namespace DebuggerViewStateTests
             }
 
             Assert::AreEqual ((Word) 0x0000, up.code[0].address, L"up past everything stops at $0000");
+        }
+
+
+        TEST_METHOD (TheBreakpointDialogWritesADefinitionBpeditTakes)
+        {
+            using Type = BreakpointDialog::Type;
+
+            const std::tuple<Type, const char *, const char *, const char *, const char *>  cases[] =
+            {
+                { Type::Execute,   "0300",      "",     "A == 1", "BP 0300 IF A == 1" },
+                { Type::Read,      "0400:040F", "",     "",    "BPMR 0400:040F"      },
+                { Type::Write,     "0400",      "",     "",    "BPMW 0400"           },
+                { Type::ReadWrite, "0400",      "",     "",    "BPM 0400"            },
+                { Type::Value,     "0400",      "41",   "",    "BPMV 0400 41"        },
+                { Type::Register,  "",          "A=41", "",    "BPR A=41"            },
+                { Type::Opcode,    "",          "EA",   "",    "BRKOP EA"            },
+            };
+
+            MachineRig  rig;
+            Reply       set = rig.Run ("BP 0300");
+            int         id  = std::get<BreakpointSetData> (set.data).breakpoint.id;
+
+
+
+
+            for (const auto & [type, address, value, condition, expected] : cases)
+            {
+                std::string  definition = BreakpointDialog::MakeDefinition (type, address, value, condition);
+                Reply        reply      = rig.Run (std::format ("BPEDIT {} {}", id, definition));
+
+                Assert::AreEqual (std::string (expected), definition);
+                std::string  why = definition + ": " + reply.error.detail;
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (why.begin(), why.end()).c_str());
+            }
         }
 
 

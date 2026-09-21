@@ -12,6 +12,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Ui/Debugger/FlagsDialog.h"
+#include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/SymbolDescriptions.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Core/DxuiClipboard.h"
@@ -2148,13 +2149,16 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunCommand (std::format ("{} {}", bp.enabled ? "BPD" : "BPE", bp.id)); } });
         items.push_back ({ L"Remove",                           [this, bp] { RunCommand (std::format ("BPC {}", bp.id)); } });
 
-        //  The definition is retyped after BPEDIT, which takes any form BP,
-        //  BPX, BPR, BPM, BPMR, BPMW, BPMV or BRKOP would: its type and the
-        //  fields that type needs (FR-094).
+        //  Its type and the fields that type needs, in a dialog; the result is
+        //  the BPEDIT line a person could have typed (FR-094).
         items.push_back ({ L"Edit...", [this, bp]
         {
-            m_commandBox->SetText (Widen (std::format ("BPEDIT {} BP {:04X}", bp.id, bp.address)));
-            SetFocusedControl (m_commandBox);
+            std::optional<std::string>  definition = BreakpointDialog::Ask (GetHwnd(), m_theme, bp.info);
+
+            if (definition.has_value())
+            {
+                RunCommand (std::format ("BPEDIT {} {}", bp.id, *definition));
+            }
         } });
     }
     else if (list == m_watchList && row >= 0 && row < (int) s.watches.size())

@@ -87,10 +87,11 @@ struct DebuggerViewSnapshot
 
     struct BreakpointLine
     {
-        int          id      = 0;
-        Word         address = 0;
-        std::string  text;
-        bool         enabled = true;
+        int             id      = 0;
+        Word            address = 0;
+        std::string     text;
+        bool            enabled = true;
+        BreakpointInfo  info;
     };
 
     struct WatchLine
