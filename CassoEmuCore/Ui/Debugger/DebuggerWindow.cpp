@@ -182,7 +182,7 @@ void DebuggerWindow::OnCreate()
     m_stackList         = CreateChild<DxuiListView>  ();
     m_callStackList     = CreateChild<DxuiListView>  ();
     m_callStackButton   = CreateChild<DxuiButton>    (L"Hybrid");
-    m_consoleList       = CreateChild<DxuiListView>  ();
+    m_consoleView       = CreateChild<DxuiTextView>  ();
     m_traceList         = CreateChild<DxuiListView>  ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
@@ -355,16 +355,10 @@ void DebuggerWindow::ConfigureWidgets()
                                     { L"Value",       0, false, DxuiTextHAlign::Left } });
     m_stackList->SetColumns      ({ { L"Stack",       0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left } });
-    m_consoleList->SetColumns    ({ { L"Console",     0, false, DxuiTextHAlign::Left } });
-    m_consoleList->EnableStickyTail (true);
-
-    //  THE CONSOLE IS A LOG, NOT A LIST. Its lines select as text does -- a
-    //  drag or Shift+click takes a run of lines, in the color a text
-    //  control selects with, and Ctrl+C copies them -- rather than lighting
-    //  one row as a pick from a list.
-    m_consoleList->SetMultiSelect         (true);
-    m_consoleList->SetTextSelectionColors (true);
-    m_consoleList->SetOwnerWindow         (GetHwnd());
+    //  THE CONSOLE IS TEXT, NOT A LIST: no columns or rows to pick, a
+    //  selection that runs through the text as an editor's does, and Ctrl+C
+    //  to copy it.
+    m_consoleView->SetOwnerWindow (GetHwnd());
 
     //  Activating a breakpoint shows its address; its circle, in the gutter,
     //  turns it on and off.
@@ -381,10 +375,6 @@ void DebuggerWindow::ConfigureWidgets()
         MakeDense (list);
     }
 
-    //  The console can hold thousands of lines, so it fits its column from a
-    //  character count rather than measuring every line it has ever held. The
-    //  trace pane shows a window of a far longer list, so it does the same.
-    m_consoleList->SetPreciseAutoFit (false);
     m_tracePane->Configure();
 
     for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
@@ -669,7 +659,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_consoleList, m_traceList };
+                                           m_traceList };
 
 
 
@@ -785,6 +775,7 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
     }
 
     m_sourceView->SetZoom (m_textZoom);
+    m_consoleView->SetZoom (m_textZoom);
 
     LayoutWidgets();
     Invalidate();
@@ -1182,6 +1173,48 @@ bool DebuggerWindow::RouteSourceMouse (const DxuiMouseEvent & ev)
     }
 
     (void) m_sourceView->OnMouse (ev);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteConsoleMouse
+//
+//  The console's text takes a press or the wheel inside it, and everything
+//  while a selection drag or its scrollbar is under way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteConsoleMouse (const DxuiMouseEvent & ev)
+{
+    if (!m_consoleView->IsVisible() || !IsRoutable (m_consoleView))
+    {
+        return false;
+    }
+
+    if (m_consoleView->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
+    {
+        (void) m_consoleView->OnMouse (ev);
+        return true;
+    }
+
+    if (!DxuiDockSite::Contains (m_consoleView->GetBounds(), ev.positionDip) ||
+        (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel) ||
+        (ev.kind == DxuiMouseEventKind::Down && ev.button != DxuiMouseButton::Left))
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        SetFocusedControl (m_consoleView);
+    }
+
+    (void) m_consoleView->OnMouse (ev);
     return true;
 }
 
@@ -1770,7 +1803,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_sourceFrame->AddPart (m_sourceView);
 
     m_consoleFrame = std::make_unique<DebuggerPaneFrame> (L"Console");
-    m_consoleFrame->AddPart (m_consoleList);
+    m_consoleFrame->AddPart (m_consoleView);
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
 
     m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call Stack");
@@ -1915,7 +1948,7 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
         return L"";
     }
 
-    if (focused == m_consoleList || focused == m_commandBox)
+    if (focused == m_consoleView || focused == m_commandBox)
     {
         return DebuggerLayout::kConsole;
     }
@@ -2035,6 +2068,12 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         {
             memory = each;
         }
+    }
+
+    if (DxuiDockSite::Contains (m_consoleView->GetBounds(), clientPx) && m_consoleView->IsVisible() && GetPaneOfControl (m_consoleView) == pane)
+    {
+        items.push_back ({ L"Copy",  [this] { m_consoleView->CopySelection(); } });
+        items.push_back ({ L"Clear", [this] { m_console.clear(); m_consoleView->SetRows ({}); } });
     }
 
     if (memory != nullptr)
@@ -2216,11 +2255,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         AddShowInMemory (Widen (name), name, items);
         items.push_back ({ L"Copy",           copy });
-    }
-    else if (list == m_consoleList)
-    {
-        items.push_back ({ L"Copy",  copy });
-        items.push_back ({ L"Clear", [this] { m_console.clear(); m_consoleList->SetRows ({}); } });
     }
     else if (list == m_traceList)
     {
@@ -2577,7 +2611,8 @@ DiagnosticsPane * DebuggerWindow::GetDiagnosticsPane (const std::wstring & pane)
 
 void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 {
-    std::vector<std::vector<DxuiListView::Cell>>  rows;
+    std::vector<DxuiTextView::Row>  rows;
+    bool                            atEnd = m_consoleView->GetTopLine() + m_consoleView->GetLineCap() >= m_consoleView->GetLineCount();
 
 
 
@@ -2595,15 +2630,23 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 
     for (const std::string & line : m_console)
     {
-        rows.push_back ({ { Widen (line) } });
+        DxuiTextView::Row  row;
+
+        row.cells = { Widen (line) };
+        rows.push_back (std::move (row));
     }
 
-    m_consoleList->SetRows (std::move (rows));
-    m_consoleList->UpdateAutoFitFromRows();
-    m_consoleList->EnsureVisible ((int) m_console.size() - 1);
+    m_consoleView->SetRows (std::move (rows));
+
+    //  A console scrolled back to read stays where it was; one at its end
+    //  follows the output.
+    if (atEnd)
+    {
+        m_consoleView->SetTopLine (m_consoleView->GetLineCount());
+    }
 
     //  Output to a console out of sight marks its tab (FR-041).
-    if (m_dockSite != nullptr && !m_consoleList->IsVisible())
+    if (m_dockSite != nullptr && !m_consoleView->IsVisible())
     {
         m_dockSite->SetIndicator (DebuggerLayout::kConsole, true);
     }
@@ -3364,7 +3407,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (RouteMemoryMouse (ev) || RouteSourceMouse (ev))
+    if (RouteMemoryMouse (ev) || RouteSourceMouse (ev) || RouteConsoleMouse (ev))
     {
         return true;
     }
@@ -3514,7 +3557,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
 {
     if (pane == DebuggerLayout::kCode)        { return { m_codeList };                   }
     if (pane == DebuggerLayout::kSource)      { return { m_sourceBanner, m_sourceView }; }
-    if (pane == DebuggerLayout::kConsole)     { return { m_consoleList, m_commandBox };  }
+    if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox };  }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList };                  }

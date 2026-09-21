@@ -223,6 +223,7 @@ private:
     void     PlaceMemoryBar     ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
+    bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource);
     void     ApplySource        ();
     void     ApplyDiagnostics   ();
@@ -311,7 +312,7 @@ private:
     DxuiButton                                                                     * m_removeMemoryButton = nullptr;
     MemoryPane                                                                     * m_activePane         = nullptr;
     std::string                                                                      m_machine;
-    DxuiListView                                                                   * m_consoleList        = nullptr;
+    DxuiTextView                                                                   * m_consoleView        = nullptr;
     DxuiTextInput                                                                  * m_commandBox         = nullptr;
     DxuiTextInput                                                                  * m_memoryBox          = nullptr;
     DxuiTextInput                                                                  * m_pokeBox            = nullptr;
