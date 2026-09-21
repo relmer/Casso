@@ -182,6 +182,8 @@ private:
     bool     IsPaneShown        (const std::wstring & pane) const;
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
+    bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
+    void     AddListMenuItems   (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     bool     RouteDockKey       (const DxuiKeyEvent & ev);
     void     ApplySavedPlacement ();
 

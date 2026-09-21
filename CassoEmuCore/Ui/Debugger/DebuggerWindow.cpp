@@ -10,6 +10,8 @@
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Widgets/DxuiContextMenu.h"
+#include "Core/DxuiClipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 
@@ -1891,6 +1893,181 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ShowContentMenu
+//
+//  The actions on what was right-clicked: a line, a breakpoint, a watch, a
+//  byte. Reports false when the point is not on the pane's content, which
+//  leaves it to the pane's own menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
+{
+    std::vector<std::pair<std::wstring, std::function<void()>>>  items;
+    std::vector<DxuiPopupMenuItem>                               menu;
+    MemoryPane                                                 * memory = nullptr;
+    int                                                          row    = -1;
+    RECT                                                         bounds = {};
+
+
+
+    if (m_snapshot == nullptr || GetPopupHost() == nullptr || !m_routingPane.empty())
+    {
+        return false;
+    }
+
+    for (DxuiListView * list : GetLists())
+    {
+        bounds = list->GetBounds();
+
+        if (GetPaneOfControl (list) != pane || !list->IsVisible() || !DxuiDockSite::Contains (bounds, clientPx))
+        {
+            continue;
+        }
+
+        row = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
+
+        if (row >= 0)
+        {
+            list->SetSelectedRow (row);
+        }
+
+        AddListMenuItems (list, row, items);
+    }
+
+    for (MemoryPane * each : GetOpenMemoryPanes())
+    {
+        if (DxuiDockSite::Contains (each->GetView()->GetBounds(), clientPx) && each->GetView()->IsVisible())
+        {
+            memory = each;
+        }
+    }
+
+    if (memory != nullptr)
+    {
+        m_activePane = memory;
+        items.push_back ({ L"Copy",         [memory] { memory->GetView()->CopySelection(); } });
+        items.push_back ({ L"Go to...",     [this]   { SetFocusedControl (m_memoryBox); } });
+        items.push_back ({ L"Change bytes per value", [memory] { (void) memory->CycleGrouping(); } });
+    }
+
+    if (items.empty())
+    {
+        return false;
+    }
+
+    m_menuCommands.clear();
+    SetCommandBarMenus();
+
+    for (auto & [label, action] : items)
+    {
+        m_menuCommands.push_back (MakeMenuCommand (label, false, action));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), clientPx.x, clientPx.y, std::move (menu));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddListMenuItems
+//
+//  A list pane's menu, for the row under the pointer where there is one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
+{
+    const DebuggerViewSnapshot  & s    = *m_snapshot;
+    auto                          copy = [this, list] { DxuiClipboard::SetText (GetHwnd(), list->GetSelectionText()); };
+
+
+
+    if (list == m_codeList && row >= 0 && row < (int) s.code.size())
+    {
+        Word  at = s.code[(size_t) row].address;
+
+        items.push_back ({ s.code[(size_t) row].hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
+                           [this, at] { RunCommand (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, at)); } });
+        items.push_back ({ L"Run to cursor",       [this, at] { RunCommand (DebuggerViewState::GetRunToCursorLine (at)); } });
+        items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
+        items.push_back ({ L"Show in memory",      [this, at] { GetActiveMemoryPane()->GoTo (at); } });
+        items.push_back ({ L"Copy",                copy });
+    }
+    else if (list == m_breakpointList && row >= 0 && row < (int) s.breakpoints.size())
+    {
+        const DebuggerViewSnapshot::BreakpointLine  bp = s.breakpoints[(size_t) row];
+
+        items.push_back ({ L"Show code",                        [this, bp] { ShowCode (bp.address); } });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunCommand (std::format ("{} {}", bp.enabled ? "BPD" : "BPE", bp.id)); } });
+        items.push_back ({ L"Remove",                           [this, bp] { RunCommand (std::format ("BPC {}", bp.id)); } });
+
+        //  The definition is retyped after BPEDIT, which takes any form BP,
+        //  BPX, BPR, BPM, BPMR, BPMW, BPMV or BRKOP would: its type and the
+        //  fields that type needs (FR-094).
+        items.push_back ({ L"Edit...", [this, bp]
+        {
+            m_commandBox->SetText (Widen (std::format ("BPEDIT {} BP {:04X}", bp.id, bp.address)));
+            SetFocusedControl (m_commandBox);
+        } });
+    }
+    else if (list == m_watchList && row >= 0 && row < (int) s.watches.size())
+    {
+        const DebuggerViewSnapshot::WatchLine  watch = s.watches[(size_t) row];
+
+        items.push_back ({ L"Show in memory", [this, watch] { GetActiveMemoryPane()->GoTo (watch.address); } });
+        items.push_back ({ L"Remove",         [this, watch] { RunCommand (std::format ("WC {}", watch.id)); } });
+        items.push_back ({ L"Copy",           copy });
+    }
+    else if (list == m_stackList && row >= 0)
+    {
+        items.push_back ({ L"Show in memory", [this, row]
+        {
+            GetActiveMemoryPane()->GoTo ((Word) (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address));
+        } });
+        items.push_back ({ L"Copy", copy });
+    }
+    else if (list == m_callStackList && row >= 0 && row < (int) CallStackPane::GetRows (s.callStack).size())
+    {
+        Word  at = CallStackPane::GetRows (s.callStack)[(size_t) row].address;
+
+        items.push_back ({ L"Show call site", [this, at] { ShowCode (at); } });
+        items.push_back ({ L"Copy",           copy });
+    }
+    else if (list == m_registerList && row >= 0 && row < (int) s.registers.size())
+    {
+        std::string  name = s.registers[(size_t) row].name;
+
+        if (name == "PC")
+        {
+            items.push_back ({ L"Show in code", [this] { ShowCode (std::nullopt); } });
+        }
+
+        items.push_back ({ L"Show in memory", [this, name] { if (m_host != nullptr) { m_host->GoToDebuggerMemory (GetActiveMemoryPane()->GetId(), name); } } });
+        items.push_back ({ L"Copy",           copy });
+    }
+    else if (list == m_consoleList)
+    {
+        items.push_back ({ L"Copy",  copy });
+        items.push_back ({ L"Clear", [this] { m_console.clear(); m_consoleList->SetRows ({}); } });
+    }
+    else if (list == m_traceList)
+    {
+        items.push_back ({ L"Copy", copy });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RenderFrame
 //
 //  Once per UI frame: take whatever the CPU thread published, then repaint.
@@ -1937,9 +2114,15 @@ void DebuggerWindow::RenderFrame()
     //  A drop-down slides open on ticks its host supplies. Without them the
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
+    //  The content menus are the same.
     if (m_commandBar->WantsTick())
     {
         m_commandBar->TickMenus (now);
+    }
+
+    if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
+    {
+        GetPopupHost()->GetContextMenu().Tick (now);
     }
 
     for (MemoryPane * pane : GetOpenMemoryPanes())
@@ -2715,7 +2898,9 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     {
         pane = m_routingPane.empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_routingPane;
 
-        if (!pane.empty())
+        //  Over a pane's content, the content's own menu (FR-084); over its
+        //  tab or title, the menu of what can be done with the pane.
+        if (!pane.empty() && !ShowContentMenu (pane, ev.positionDip))
         {
             ShowDockToMenu (pane, ev.positionDip);
         }
