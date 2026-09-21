@@ -2873,6 +2873,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    //  Ctrl+wheel sizes the panes' text as Ctrl+Plus and Ctrl+Minus do, over
+    //  any pane, before a view that would take the wheel for itself.
+    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
+    {
+        ApplyTextZoom (ev.wheelDelta > 0.0f ? m_textZoom * 1.1f : m_textZoom / 1.1f);
+        return true;
+    }
+
     //  The command bar first: it owns its strip and whatever menu it has
     //  open.
     if (m_routingPane.empty() && RouteCommandBarMouse (ev))
