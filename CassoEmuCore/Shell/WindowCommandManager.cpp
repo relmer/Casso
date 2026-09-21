@@ -432,6 +432,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DEBUGGER)                                      { route = WindowCommandRoute::View; }
+    else if (id == IDM_DEBUG_RESTART)                                      { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_CONTROLLER_SETTINGS)                           { route = WindowCommandRoute::View; }
     else if (id == IDM_PRINTER_DISCARD)                                    { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_COPY)                                       { route = WindowCommandRoute::Printer; }
@@ -999,6 +1000,15 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_DEBUGGER:
         {
             m_shell.OpenDebuggerWindow();
+            break;
+        }
+
+        case IDM_DEBUG_RESTART:
+        {
+            // Both go to the CPU queue in order: the channel opens, which
+            // starts the call-stack recorder, before the power cycle runs.
+            m_shell.OpenDebuggerWindow();
+            m_shell.PostCommand (IDM_MACHINE_POWERCYCLE);
             break;
         }
 

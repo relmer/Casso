@@ -58,6 +58,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
     { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input Debug...",         L"Ctrl+Shift+I"  },
     { IDM_VIEW_DEBUGGER,            MainMenuId::Debug,   L"Debugger...",            L""              },
+    { IDM_DEBUG_RESTART,            MainMenuId::Debug,   L"&Restart Under Debugger", L""              },
 };
 
 // The toolbar's entries, in strip order. The order is also the COLLAPSE

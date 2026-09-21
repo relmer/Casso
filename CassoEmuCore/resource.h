@@ -74,6 +74,10 @@
 #define IDM_DEBUG_PAUSE             40153
 #define IDM_DEBUG_VIEW              40154
 
+//  Power-cycles the machine with the debugger window open, so the call stack
+//  is recorded from the first instruction the machine runs.
+#define IDM_DEBUG_RESTART           40157
+
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
 #define IDM_VIEW_AMBER              40032

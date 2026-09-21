@@ -64,6 +64,7 @@ public:
         IDM_VIEW_RESET_SIZE,
         IDM_VIEW_DISK2_DEBUG,
         IDM_VIEW_DEBUGGER,
+        IDM_DEBUG_RESTART,
 
         IDM_HELP_KEYMAP,
         IDM_HELP_ABOUT,
@@ -122,6 +123,7 @@ public:
         { L"IDM_VIEW_INPUT_DEBUG",          IDM_VIEW_INPUT_DEBUG          },
         { L"IDM_VIEW_DISK2_DEBUG",          IDM_VIEW_DISK2_DEBUG          },
         { L"IDM_VIEW_DEBUGGER",             IDM_VIEW_DEBUGGER             },
+        { L"IDM_DEBUG_RESTART",             IDM_DEBUG_RESTART             },
         { L"IDM_DEBUG_COMMAND",             IDM_DEBUG_COMMAND             },
         { L"IDM_DEBUG_PAUSE_CHANGED",       IDM_DEBUG_PAUSE_CHANGED       },
         { L"IDM_DEBUG_OPEN",                IDM_DEBUG_OPEN                },

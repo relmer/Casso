@@ -344,7 +344,8 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--trace",   " [size]",  "Record a CPU execution trace and write it out on "
                               "exit or on a crash. A size takes a K, M or G suffix." },
     { "--debugger", "",        "Open the debugger window and the debug channel at "
-                              "start, without pausing the machine." },
+                              "start, without pausing the machine. The call stack "
+                              "is recorded from the first instruction." },
     { "--help",    "",         "Show this message and exit." },
 };
 
