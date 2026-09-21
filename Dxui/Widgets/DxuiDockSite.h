@@ -67,6 +67,9 @@ public:
     void  SetShownFn   (DxuiPaneLayout::ShownFn fn)   { m_shown   = std::move (fn); }
     void  SetMinSizeFn (DxuiPaneLayout::MinSizeFn fn) { m_minSize = std::move (fn); }
     void  SetOnChanged (ChangedFn fn)                 { m_onChanged = std::move (fn); }
+
+    //  A + on the tab groups `shown` picks, running `add` when pressed.
+    void  SetNewTab    (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::NewTabFn add);
     void  SetOnFloatRequested (FloatFn fn)            { m_onFloat   = std::move (fn); }
 
     //  Lays the panes out again in the current bounds.
@@ -151,6 +154,8 @@ private:
     std::vector<DxuiPaneLayout::SplitRect>        m_splits;
     DxuiDpiScaler                                 m_scaler;
     ChangedFn                                     m_onChanged;
+    DxuiTabGroup::NewTabShownFn                   m_newTabShown;
+    DxuiTabGroup::NewTabFn                        m_newTab;
     FloatFn                                       m_onFloat;
 
     std::wstring                                  m_dragPane;

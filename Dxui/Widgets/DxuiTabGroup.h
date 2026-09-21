@@ -56,6 +56,13 @@ public:
     void  SetOnActivated (ActivatedFn fn) { m_onActivated = std::move (fn); }
     void  SetOnDragStart (DragFn fn)      { m_onDragStart = std::move (fn); }
 
+    //  A + just past the last tab, as a browser puts one, shown while `shown`
+    //  answers true and running `add` when pressed. Neither set: no +.
+    using NewTabShownFn = std::function<bool (const DxuiTabGroup & group)>;
+    using NewTabFn      = std::function<void (const DxuiTabGroup & group)>;
+    void  SetNewTab      (NewTabShownFn shown, NewTabFn add) { m_newTabShown = std::move (shown); m_newTab = std::move (add); }
+    RECT  GetNewTabRect  () const;
+
     //  The tab under a point in the bounds' coordinates, or -1.
     int   HitTestTab   (POINT pointDip) const;
     RECT  GetTabRect   (int index) const;
@@ -73,6 +80,7 @@ public:
     static constexpr int  kCharDip      = 7;
     static constexpr int  kIndicatorDip = 10;
     static constexpr int  kDragDip      = 4;
+    static constexpr int  kNewTabDip    = 24;
 
 private:
     struct Tab
@@ -86,11 +94,14 @@ private:
     int   GetTabWidthDip (int index) const;
 
     std::vector<Tab>  m_tabs;
-    int               m_active     = -1;
+    int               m_active      = -1;
     DxuiDpiScaler     m_scaler;
     ActivatedFn       m_onActivated;
     DragFn            m_onDragStart;
-    int               m_pressedTab = -1;
-    POINT             m_pressedAt  = {};
-    bool              m_dragging   = false;
+    int               m_pressedTab  = -1;
+    POINT             m_pressedAt   = {};
+    bool              m_dragging    = false;
+    NewTabShownFn     m_newTabShown;
+    NewTabFn          m_newTab;
+    bool              m_hoverNewTab = false;
 };

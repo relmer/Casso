@@ -284,6 +284,10 @@ void DebuggerWindow::ConfigureWidgets()
     });
 
     m_addMemoryButton->SetOnClick    ([this] { AddMemoryWindow();    });
+
+    //  The + after the memory tabs adds a window now; the button is kept for
+    //  the keyboard's sake but not shown.
+    m_addMemoryButton->SetVisible (false);
     m_removeMemoryButton->SetOnClick ([this] { RemoveMemoryWindow(); });
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
@@ -826,7 +830,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 std::vector<DxuiButton *> DebuggerWindow::GetMemoryButtons() const
 {
-    return { m_pokeButton, m_groupButton, m_addMemoryButton, m_removeMemoryButton };
+    return { m_pokeButton, m_groupButton, m_removeMemoryButton };
 }
 
 
@@ -1807,6 +1811,24 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
+
+    //  A + after the memory tabs opens the next memory window, as a browser
+    //  opens a tab, until all four are open.
+    m_dockSite->SetNewTab ([this] (const DxuiTabGroup & group)
+    {
+        bool  hasMemory = false;
+
+        for (size_t i = 0; i < group.GetTabCount(); i++)
+        {
+            for (const std::unique_ptr<DebuggerPaneFrame> & frame : m_memoryFrames)
+            {
+                hasMemory = hasMemory || group.GetContent ((int) i) == frame.get();
+            }
+        }
+
+        return hasMemory && std::count (m_memoryOpen.begin(), m_memoryOpen.end(), true) < DebuggerViewState::kMaxMemoryWindows;
+    },
+    [this] (const DxuiTabGroup &) { AddMemoryWindow(); });
     savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
     restored = DebuggerLayout::Restore (savedText);
     restored.PlaceOnMonitors (GetMonitors());

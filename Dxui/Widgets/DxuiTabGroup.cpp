@@ -263,6 +263,37 @@ RECT DxuiTabGroup::GetTabRect (int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabGroup::GetNewTabRect
+//
+//  Past the last tab, or empty when the group shows no +.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTabGroup::GetNewTabRect() const
+{
+    long  x = m_boundsDip.left;
+
+
+
+    if (!m_newTab || !m_newTabShown || !m_newTabShown (*this))
+    {
+        return RECT {};
+    }
+
+    if (!m_tabs.empty())
+    {
+        x = GetTabRect ((int) m_tabs.size() - 1).right;
+    }
+
+    return RECT { x, m_boundsDip.top, std::min ((long) m_boundsDip.right, x + (long) m_scaler.ToPx (kNewTabDip)), m_boundsDip.top + m_scaler.ToPx (kStripDip) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabGroup::GetBodyRect
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -407,6 +438,20 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         }
     }
 
+    if (RECT plus = GetNewTabRect(); plus.right > plus.left)
+    {
+        if (m_hoverNewTab)
+        {
+            painter.FillRect ((float) plus.left, (float) plus.top, (float) (plus.right - plus.left), strip, theme.HoverBackground());
+        }
+
+        hr = text.DrawString (L"+", (float) plus.left, (float) plus.top, (float) (plus.right - plus.left), strip,
+                              m_hoverNewTab ? theme.Foreground() : theme.ForegroundMuted(),
+                              m_scaler.ToPxf (font.sizeDip * 1.3f), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     painter.FillRect (left, top + strip - line, width, line, theme.Divider());
 }
 
@@ -428,6 +473,19 @@ bool DxuiTabGroup::OnMouse (const DxuiMouseEvent & ev)
     int  hit = HitTestTab (ev.positionDip);
 
 
+
+    RECT  plus    = GetNewTabRect();
+    bool  onPlus  = ev.positionDip.x >= plus.left && ev.positionDip.x < plus.right && ev.positionDip.y >= plus.top && ev.positionDip.y < plus.bottom;
+
+
+
+    m_hoverNewTab = onPlus && ev.kind != DxuiMouseEventKind::Leave;
+
+    if (onPlus && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    {
+        m_newTab (*this);
+        return true;
+    }
 
     switch (ev.kind)
     {

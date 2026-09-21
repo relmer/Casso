@@ -10,6 +10,27 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::SetNewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetNewTab (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::NewTabFn add)
+{
+    m_newTabShown = std::move (shown);
+    m_newTab      = std::move (add);
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->SetNewTab (m_newTabShown, m_newTab);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::AddPane
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,6 +184,8 @@ void DxuiDockSite::Arrange()
         {
             BeginDrag (GetPaneOf (raw->GetContent (index)));
         });
+
+        raw->SetNewTab (m_newTabShown, m_newTab);
 
         m_groups.push_back (std::move (group));
     }
