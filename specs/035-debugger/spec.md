@@ -83,6 +83,17 @@ competitors in the parts a user sees first would waste the launch.
 - Q: Does stepping into a call ever have to land inside the ROM? -> A: No. A step filter, reachable from every mode, lists routines a step into treats as a step over.
 - Q: What did GSSquared's source settle about its mode? -> A: Its typed command table (FR-022a); that stepping in its window is by key (Space and F10 step, O over, R out, Return resumes), so typed `o` and `r` are Casso's additions for scripts; that an address may be bank-qualified with `/` and only bank `00` exists here; and that `m`, `x`, `map` and `video` are IIgs commands, refused with a message.
 
+### Session 2026-09-21 (fit-and-finish review)
+
+- Q: How does the code pane follow the PC without jumping on every update? -> A: It moves only when it has to. While the PC is on a line the pane already shows, the pane stays put and only the PC marker moves. When the PC leaves the shown lines, the pane re-anchors with the PC in its vertical middle, so the code that led there is on screen with it. The pane shows as many lines as fit its height.
+- Q: How far can the code pane scroll, given the 6502 cannot be disassembled backward? -> A: Through the whole 64 KB. Above the first shown line it disassembles backward by assuming the preceding bytes are code and choosing the alignment that ends exactly on an instruction boundary at the line already shown. Over data this can be wrong; that is accepted, as it is in other disassemblers.
+- Q: How is a breakpoint set in the code pane? -> A: By clicking the left gutter of its row. Double-clicking a row no longer toggles a breakpoint; the pane otherwise behaves as text, so a double-click selects the word under the pointer.
+- Q: Does the call-stack pane still offer a choice of mechanism? -> A: No selector in the window. The pane always shows the best data available: recorded frames where the recorder has them, extended below by the stack walk. `CALLS MODE` keeps all three mechanisms as a command. Each frame says in plain words where it came from.
+- Q: What does the memory pane's address box accept? -> A: It is a Go to box. It takes a hex address, a register, or a 6502 addressing expression resolved against the current registers and memory, and goes to the effective address, which is placed at the pane's top-left rather than at the start of its 16-byte row.
+- Q: What are automatic watches drawn from? -> A: Every register, memory address and individual flag read or written by the instruction at the current PC or at the previous PC. They are listed above manual watches with a separator; an automatic watch's expression is fixed, its value editable.
+- Q: What does Ctrl+Plus, Ctrl+Minus and Ctrl+0 affect? -> A: The text size of every debugger content pane, floating panes included, and nothing else: not other Casso windows, not the caption, not the command bar. Whether this is a font-size change or a zoom is a planning decision.
+- Q: Where do the command bar's icons come from where the icon font has no matching glyph? -> A: They are drawn, to match Visual Studio's debugging toolbar icons. Run to Cursor is a right arrow ending at a vertical bar.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -671,6 +682,97 @@ confirm the same step stops at `COUT`'s first instruction.
 
 ---
 
+### User Story 16 - Read the program in the code pane (Priority: P1)
+
+A user stepping through their program watches the code pane. It stays still
+while the PC moves down the lines it shows, and when the PC leaves them it
+comes back with the PC in the middle. Beside each instruction the pane shows
+what the instruction will touch: the byte at its effective address, the value
+behind a symbol, the flags a branch tests. The user scrolls up through the
+code that led here, clicks the gutter to set a breakpoint, and double-clicks a
+word to select it.
+
+**Why this priority**: The code pane is where a debugging session is spent.
+A pane that jumps on every update, hides what led to the PC, or makes the user
+compute effective addresses by hand fails the window's first purpose.
+
+**Independent Test**: Pause on a loop, step through it, and confirm the pane's
+first line does not change while the PC stays on shown lines; step out of the
+shown lines and confirm the PC returns mid-pane; scroll to $0000 and to $FFFF;
+confirm `STA $067B` shows the byte at $067B and `BEQ` shows Z.
+
+**Acceptance Scenarios**:
+
+1. **Given** the PC on a shown line, **When** the user steps to another shown
+   line, **Then** the pane does not scroll and only the PC marker moves.
+2. **Given** the PC on a shown line, **When** a step takes it off the shown
+   lines, **Then** the pane re-anchors with the PC in its vertical middle.
+3. **Given** a pane of any height, **When** it is displayed, **Then** it is
+   filled with lines.
+4. **Given** the pane at any address, **When** the user scrolls up or down,
+   **Then** it scrolls through the whole address space.
+5. **Given** a row, **When** the user clicks its left gutter, **Then** a
+   breakpoint is set there, shown as a filled red dot; clicking again clears it.
+6. **Given** a row, **When** the user double-clicks a word in it, **Then** the
+   word is selected and no breakpoint changes.
+7. **Given** `STA $067B`, `LDA KBD` and `BEQ $C918`, **When** they are shown,
+   **Then** they carry the byte at $067B; KBD's address and the byte there; and
+   the value of Z.
+8. **Given** the current instruction is a branch or jump whose destination is
+   on screen, **When** the pane is shown, **Then** the destination row is
+   highlighted.
+9. **Given** another pane moves the code pane to an address, **When** the
+   pane scrolls, **Then** the target row is marked.
+
+---
+
+### User Story 17 - Work the data panes directly (Priority: P2)
+
+A user inspects and changes state from the panes themselves. They type an
+addressing expression into the memory pane's Go to box and land on the
+effective address at the top-left. Bytes that change between updates light
+up. In the watch pane, automatic watches show what the current instruction
+touches; the user adds their own watches, edits an expression or a value in
+place, and undoes a change. In the breakpoints pane they disable a breakpoint
+by its circle, jump to one by double-clicking it, and edit its type from a
+context menu.
+
+**Why this priority**: These panes exist to be worked, not only read; each
+interaction here replaces a typed command with the gesture the user already
+knows from Visual Studio.
+
+**Independent Test**: Enter `(3E),Y` in Go to and confirm the pane's first cell
+is the effective address; change a byte from the console and confirm it is
+highlighted in the pane; double-click a watch value, type a new byte, and
+confirm memory holds it and undo restores it; click a breakpoint's circle and
+confirm it disables without being removed.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Go to box, **When** the user enters a hex address, a register
+   or an addressing expression, **Then** the pane goes to the effective address
+   and shows it at its top-left.
+2. **Given** a memory pane, **When** a shown byte changes between updates,
+   **Then** it is highlighted, and unchanged bytes are not.
+3. **Given** a focused byte, **When** the pane is shown, **Then** it has a
+   distinctive background and a bright foreground.
+4. **Given** an instruction at the PC, **When** the watch pane updates, **Then**
+   its automatic watches list what that instruction and the previous one read
+   or write, above a separator and the manual watches.
+5. **Given** a manual watch, **When** the user double-clicks its expression or
+   its value and types, **Then** the expression is replaced or the value is
+   written; undo in the watch pane reverses it without touching the memory
+   pane's history.
+6. **Given** a breakpoint row, **When** the user clicks its circle, **Then** it
+   toggles between enabled (filled) and disabled (outline).
+7. **Given** a breakpoint row, **When** the user double-clicks it, **Then** the
+   code pane goes to its address and the breakpoint remains.
+8. **Given** a breakpoint row, **When** the user opens its context menu,
+   **Then** it can be removed, or edited including its type and the fields that
+   type needs.
+
+---
+
 ### Edge Cases
 
 - **Syntax collision in Monitor mode**: AppleWin commands written entirely in
@@ -769,6 +871,21 @@ confirm the same step stops at `COUT`'s first instruction.
   "unknown command".
 - **Filtered routine that never returns**: the step continues until a
   breakpoint, a pause, or the budget, as a step over of any such call does.
+
+- **Scrolling backward into data**: the backward disassembly assumes code and
+  may misalign over data; the lines already shown stay as they were, and the
+  misalignment is confined to what scrolled into view.
+- **Go to expression that reads an I/O address**: resolving `(abs)` or
+  `(zp),Y` reads memory to find the effective address; a read that would
+  touch an I/O address is not made, and the box reports that the expression
+  cannot be resolved without changing the machine.
+- **Watch or annotation on an I/O address**: the value is shown as unavailable
+  rather than read, as the memory pane does; writing a watch value to an I/O
+  address is refused, as FR-037 refuses it from a memory window.
+- **PC in data**: the code pane anchors on the PC itself when no alignment
+  reaches it from above, as it did before this review.
+- **Change highlight after a pane moves**: bytes newly scrolled into view are
+  not highlighted; only a byte that changed while shown is.
 
 ## Requirements *(mandatory)*
 
@@ -988,9 +1105,8 @@ confirm the same step stops at `COUT`'s first instruction.
   command line in the selected mode and a console for its replies,
   disassembly with the current line marked and breakpoints marked, registers
   and flags, memory windows, a stack pane, a watch pane, a breakpoint pane, a
-  trace pane, a source pane, device panels, double-click to set and clear
-  breakpoints, and controls for step, step over, step out, run, run to cursor
-  and pause.
+  trace pane, a source pane, device panels, a breakpoint gutter (FR-075),
+  and controls for step, step over, step out, run, run to cursor and pause.
 - **FR-026a**: Every pane MUST use a monospace font; rows MUST be no taller
   than the font's line height plus minor padding; columns MUST be sized to
   their contents with minor padding, and MUST NOT stretch to fill unused
@@ -1003,6 +1119,60 @@ confirm the same step stops at `COUT`'s first instruction.
   F9), AppleWin's (Space, Ctrl+Space, Enter, and its function keys) and
   GSSquared's (Space and F10, Return, O, R). The scheme is saved in preferences and
   is independent of the command mode.
+
+- **FR-071**: While the code pane follows the PC, it MUST NOT scroll as long
+  as the PC is on a line it already shows; only the PC marker moves. When the
+  PC leaves the shown lines, the pane MUST re-anchor with the PC in its
+  vertical middle. A pane moved away from the PC stays where it was put.
+- **FR-072**: The code pane MUST show as many lines as fit its height.
+- **FR-073**: The code pane MUST scroll through the entire address space in
+  both directions. Above the first shown line it MUST disassemble backward by
+  assuming the preceding bytes are code and choosing the alignment that ends
+  exactly on an instruction boundary at the line below; where no alignment
+  reaches it, the line below anchors the view.
+- **FR-074**: The PC's row MUST have a highlighted background and its marker a
+  bright, distinctive color, both from the active theme.
+- **FR-075**: Breakpoints MUST be shown in a left gutter as a filled red dot,
+  or an outline circle when disabled, sized to read at a glance and colored
+  from the active theme. Clicking a row's gutter MUST toggle a breakpoint on
+  that row.
+- **FR-076**: Apart from the gutter, the code pane MUST behave as text:
+  double-clicking selects the word under the pointer, a drag selects text, and
+  a selection can be copied. Double-clicking MUST NOT change a breakpoint.
+- **FR-077**: When another pane moves the code pane to an address (a call-stack
+  frame, a breakpoint, a register, a watch), the target row MUST be marked so
+  that what was brought into view is plain.
+- **FR-078**: Each instruction MUST carry an annotation, in a comment-like
+  color to the right of it, showing what it acts on: for a memory operand, the
+  effective address where it is computed from registers (indexed and indirect
+  modes) and the byte found there; for an operand given as a symbol, the
+  symbol's address and the byte there; and the registers and individual flags
+  the instruction reads (a conditional branch shows the flag it tests). The
+  annotation's format MUST follow established practice in other disassembly
+  viewers, to be surveyed in planning.
+- **FR-079**: When the current instruction is a branch or jump, its
+  destination row MUST be highlighted if it is on screen.
+- **FR-080**: Double-clicking the PC in the registers pane MUST move the code
+  pane to the PC.
+- **FR-081**: The registers pane MUST show the flags decoded, one letter per
+  flag (N V - B D I Z C), in a third column on the P register's row.
+- **FR-082**: The stack pane MUST list the stack newest first: the most
+  recently pushed byte at the top, the oldest at the bottom, as the call-stack
+  pane lists frames.
+- **FR-083**: Ctrl+Plus, Ctrl+Minus and Ctrl+0 MUST enlarge, reduce and reset
+  the text size of every debugger content pane, floating panes included, and
+  MUST NOT change any other Casso window, the debugger's caption, or its
+  command bar.
+- **FR-084**: Every pane MUST have a context menu of actions on its content.
+  Actions on the tab or window (dock, float, auto-hide, close) MUST be in the
+  tab's own context menu.
+- **FR-085**: The command bar's Dialect, Panels and Keys entries MUST open
+  drop-down menus in the style of the main window's Theme and Color entries.
+- **FR-086**: The command bar's icons MUST match Visual Studio's debugging
+  toolbar icons for the same actions (continue, break, stop, restart, show next
+  statement, step into, step over, step out, run to cursor), drawn where the
+  icon font has no matching glyph. Run to cursor is a right arrow ending at a
+  vertical bar.
 
 **Memory editing**
 
@@ -1022,6 +1192,49 @@ confirm the same step stops at `COUT`'s first instruction.
   patch MUST survive a ROM bank switch on machines that have one, and undo
   MUST restore the original byte. An I/O address MUST NOT be editable from a
   memory window; the `OUT` command remains the way to write one.
+
+- **FR-087**: A memory window MUST highlight, in a theme color, each shown byte
+  whose value changed since the previous update.
+- **FR-088**: The byte with keyboard focus MUST have a distinctive background
+  and a bright foreground, both from the active theme.
+- **FR-089**: A memory window's controls (the Go to box, the poke box, Poke,
+  Bytes, and adding and removing a memory window) MUST sit in a command bar at
+  the top of the memory pane.
+- **FR-090**: The address box MUST be a Go to box accepting a hex address; a
+  register (PC goes to the address the PC holds, and A, X and Y go to their
+  value on the zero page); or a 6502 addressing expression resolved against
+  the current registers and memory -- `zp`, `abs`, `zp,X`, `zp,Y`, `abs,X`,
+  `abs,Y`, `(zp,X)`, `(zp),Y` and `(abs)` -- going to the effective address.
+  Resolving an expression MUST NOT read an I/O address.
+- **FR-091**: Go to MUST place the target address at the pane's top-left, not
+  at the start of the 16-byte row containing it.
+
+**Breakpoints pane**
+
+- **FR-092**: Each breakpoint row MUST begin with a circle, filled red when
+  enabled and outlined when disabled; clicking it MUST toggle the breakpoint
+  enabled without removing it.
+- **FR-093**: Double-clicking a breakpoint row MUST move the code pane to the
+  breakpoint's address and MUST NOT change the breakpoint.
+- **FR-094**: A breakpoint row's context menu MUST offer removing the
+  breakpoint and editing it, including its type and the fields that type
+  requires.
+
+**Watch pane**
+
+- **FR-095**: The watch pane MUST list automatic watches above manual watches,
+  divided by a separator. Automatic watches MUST be every register, memory
+  address and individual flag read or written by the instruction at the
+  current PC and by the instruction at the previous PC. An automatic watch's
+  expression MUST NOT be editable; its value MUST be.
+- **FR-096**: A manual watch MUST edit in place: double-clicking its expression
+  replaces the expression with what is typed, and double-clicking its value
+  writes what is typed to the watched address. A manual watch MUST be
+  removable with Delete and from its context menu.
+- **FR-097**: The watch pane MUST keep an undo history of its own value and
+  expression edits, separate from every memory window's.
+- **FR-098**: The watch pane MUST highlight each value that changed since the
+  previous update.
 
 **Docking**
 
@@ -1074,14 +1287,15 @@ confirm the same step stops at `COUT`'s first instruction.
   first: each frame's call-site address and symbol, and for an interrupt frame
   the vector taken. Double-clicking a frame MUST move the disassembly to the
   call site. The same chain MUST be available as a command in every mode.
-- **FR-068**: The pane MUST offer three mechanisms, selectable by the user:
-  recorded calls (a record kept as `JSR`, `BRK`, interrupt dispatch, `RTS`
-  and `RTI` execute, kept only while the debugger is attached); stack walk
-  (the stack page scanned for return addresses whose preceding opcode is
-  `JSR` and, when a debug file is loaded, whose `JSR` targets a known routine
-  entry); and hybrid, the default, which uses recorded frames where they exist
-  and extends below them with the walk. Every frame MUST be labeled with the
-  mechanism that produced it.
+- **FR-068**: Three mechanisms MUST exist: recorded calls (a record kept as
+  `JSR`, `BRK`, interrupt dispatch, `RTS` and `RTI` execute, kept only while
+  the debugger is attached); stack walk (the stack page scanned for return
+  addresses whose preceding opcode is `JSR` and, when a debug file is loaded,
+  whose `JSR` targets a known routine entry); and hybrid, which uses recorded
+  frames where they exist and extends below them with the walk. The pane MUST
+  always show hybrid, with no selector; all three MUST be selectable by
+  command (`CALLS MODE`). Every frame MUST say which mechanism produced it
+  (FR-099).
 - **FR-069**: The pane MUST detect and show, as a separator row naming the
   instruction and its address, each event that breaks a chain: `TXS`
   reloading the stack pointer; a pull that consumes a frame's return address;
@@ -1091,6 +1305,12 @@ confirm the same step stops at `COUT`'s first instruction.
   not yet begun. Frames below a break MUST be shown as unverified. A return
   whose address is a few bytes past the one pushed MUST be reported as
   returning past inline parameters and MUST NOT be treated as a break.
+
+- **FR-099**: Each frame MUST state its source in plain words (for example,
+  "recorded" or "found on the stack"), and the marker for the point below
+  which the recorder has no history MUST say that the recorder began there,
+  when the debugger attached, and that nothing below it is known -- worded so
+  it cannot be read as a reference to the trace pane.
 
 **Device panels**
 
@@ -1289,6 +1509,21 @@ confirm the same step stops at `COUT`'s first instruction.
   replies that it has no meaning here.
 - **SC-020**: With `COUT` in the step filter, no step into `JSR COUT` stops
   inside the ROM, in 100% of fixture cases.
+- **SC-021**: Stepping through any run of instructions that stays on the code
+  pane's shown lines changes its first line 0 times; a step that leaves them
+  puts the PC within one line of the pane's vertical middle, in 100% of cases.
+- **SC-022**: Every address from $0000 to $FFFF can be brought into the code
+  pane by scrolling alone.
+- **SC-023**: For each addressing form in FR-090, a Go to entry lands the memory
+  pane with its effective address as the first cell, matching a hand-computed
+  address in 100% of test cases.
+- **SC-024**: Between two updates, every shown memory byte and watch value that
+  changed is highlighted and no unchanged one is, in 100% of test cases.
+- **SC-025**: For an instruction of each 6502 addressing mode, the automatic
+  watches list exactly the registers, flags and addresses it reads or writes --
+  none missing, none extra.
+- **SC-026**: A text-size change reaches every debugger content pane, floating
+  ones included, and changes the size of nothing outside them.
 
 ## Assumptions
 
@@ -1420,6 +1655,21 @@ confirm the same step stops at `COUT`'s first instruction.
 - **Clean-room**: AppleWin is consulted for command names and behavior only,
   and its implementation is not read. GSSquared's source was read for its
   command table and input behavior; no code from it is copied.
+
+- **Call-stack recording starts when the debugger attaches**, as FR-068 says,
+  until planning decides whether it may run from machine boot. The only
+  measurement so far is the attached debugger's whole cost (about 1.5% on the
+  50-million-cycle benchmark, SC-009); the recorder's own share has not been
+  measured, and recording from boot would impose it on every session whether or
+  not a debugger ever opens.
+- **Backward disassembly can be wrong over data** (FR-073). The code pane
+  assumes code above the line it scrolls from, as other disassemblers do.
+- **The annotation format of FR-078 is settled in planning** after a survey of
+  other disassembly viewers; the requirement fixes what an annotation says, not
+  how it is laid out.
+- **Whether FR-083 is a font-size change or a zoom** is a planning decision;
+  either satisfies the requirement if nothing outside the content panes changes
+  size.
 
 ### References
 

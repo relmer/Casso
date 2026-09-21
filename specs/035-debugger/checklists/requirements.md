@@ -3,6 +3,7 @@
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-09-13
 **Updated**: 2026-09-18 (expanded scope: window, memory editing, docking, trace, device panels, source-level debugging, expression breakpoints, GSSquared mode, profiling; design review: call-stack pane, WinDbg mode, step filter, engine-command markers)
+**Updated**: 2026-09-21 (fit-and-finish review: code pane follow, fill, scroll, gutter, annotations; registers, stack, call-stack, memory, breakpoints and watch pane interactions; text size; context menus; command bar menus and icons)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -37,3 +38,6 @@
 - cc65's debug-info format is a file-format contract that other tools consume, so its record names appear in FR-033; how Casso reads or writes it does not.
 - Three facts are stated as assumptions to be verified during planning rather than as [NEEDS CLARIFICATION] markers, since each has one reasonable default and the answer changes no story: how real Merlin listings mark `PUT` files, which `line` record keys carry macro nesting in cc65's format, and whether the UI library can move a pane between windows without recreating it.
 - The 2026-09-18 clarifications were settled in conversation before this revision and are recorded under Clarifications. `/speckit-clarify` (2026-09-18) settled five more: device panels are read-only; the output format is a setting separate from the input mode; one layout for all machines; three selectable keyboard schemes; Merlin 8/16 listings only, with Merlin 32 as a follow-up issue. The memory-edit scope and the step-over rule were confirmed in conversation and are in the spec as decisions.
+- The 2026-09-21 fit-and-finish review added User Stories 16 and 17, FR-071 to FR-099 and SC-021 to SC-026, and amended two requirements that the review contradicted rather than extended: FR-026 (breakpoints are set from a gutter, not by double-click) and FR-068 (the pane shows hybrid with no selector; all three mechanisms stay available by command).
+- Four decisions from that review are recorded under Assumptions rather than as [NEEDS CLARIFICATION] markers, since each has a working default and none changes a story: whether call-stack recording may start at boot (default: at attach, pending a measurement of the recorder alone); that backward disassembly may misalign over data; the annotation format (to follow a survey of other disassembly viewers); and whether text size is a font change or a zoom.
+- Three review findings were bugs rather than requirement changes and are not in the spec: the command strip's extra top margin, the stack pane appearing to navigate (a mouse release reaching the hidden call-stack list), and the console's full-row selection.
