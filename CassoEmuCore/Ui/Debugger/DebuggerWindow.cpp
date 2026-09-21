@@ -1432,7 +1432,10 @@ void DebuggerWindow::LayoutWidgets()
 {
     auto  px       = [this] (int dip) { return m_scaler.ToPx (dip); };
     int   pad      = px (8);
-    int   buttonH  = px (30);
+    //  The strip gets the thickness the toolbar is drawn for. Given less, it
+    //  keeps its fixed margin and shrinks the buttons instead, which leaves
+    //  a squeezed hover pill floating in air.
+    int   buttonH  = px (DxuiToolbar::GetBandDip());
     int   boxH     = px (30);
     int   width    = m_widthDip;
     int   height   = m_heightDip;

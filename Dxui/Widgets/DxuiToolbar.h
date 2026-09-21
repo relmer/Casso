@@ -167,6 +167,13 @@ public:
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
     void  SetIconDip       (float dip)                   { m_iconDip = dip; }
 
+    //  The thickness the strip is drawn for: a button plus the margin above
+    //  and below it. A host that lays the strip out shorter than this does
+    //  not get smaller margins, it gets shorter buttons -- the margin is
+    //  fixed -- and the squeeze shows as air above and below a shrunken
+    //  hover pill.
+    static constexpr int  GetBandDip () { return kBandDp; }
+
     //  The two icon fonts for the glyphs in UnicodeSymbols.h. They use the same
     //  code points; Windows 11 uses Fluent for its own chrome, which draws some
     //  glyphs differently (Refresh most visibly) and is not in Windows 10.
