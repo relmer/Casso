@@ -1141,7 +1141,9 @@ confirm it disables without being removed.
   a selection can be copied. Double-clicking MUST NOT change a breakpoint.
 - **FR-077**: When another pane moves the code pane to an address (a call-stack
   frame, a breakpoint, a register, a watch), the target row MUST be marked so
-  that what was brought into view is plain.
+  that what was brought into view is plain, and MUST be on the pane's middle
+  line, or as near it as the ends of memory allow. No navigation leaves its
+  target on the top or bottom line.
 - **FR-078**: Each instruction MUST carry an annotation, in a comment-like
   color to the right of it, showing what it acts on: for a memory operand, the
   effective address where it is computed from registers (indexed and indirect
@@ -1149,7 +1151,10 @@ confirm it disables without being removed.
   symbol's address and the byte there; and the registers and individual flags
   the instruction reads (a conditional branch shows the flag it tests). The
   annotation's format MUST follow established practice in other disassembly
-  viewers, to be surveyed in planning.
+  viewers, to be surveyed in planning. Hovering a label or an operand's symbol
+  MUST show the symbol's address and, for a shipped ROM symbol, a line saying
+  what it is (a soft switch's read and write behavior, a zero-page location,
+  a routine).
 - **FR-079**: When the current instruction is a branch or jump, its
   destination row MUST be highlighted if it is on screen.
 - **FR-080**: Double-clicking the PC in the registers pane MUST move the code
@@ -1204,8 +1209,9 @@ confirm it disables without being removed.
 - **FR-088**: The byte with keyboard focus MUST have a distinctive background
   and a bright foreground, both from the active theme.
 - **FR-089**: A memory window's controls (the Go to box, the poke box, Poke,
-  Bytes, and adding and removing a memory window) MUST sit in a command bar at
-  the top of the memory pane.
+  Bytes, and removing a memory window) MUST sit in a command bar at the top of
+  the memory pane. A + after the last memory tab MUST open the next memory
+  window, as a browser opens a tab, until four are open.
 - **FR-090**: The address box MUST be a Go to box accepting a hex address; a
   register (PC goes to the address the PC holds, and A, X and Y go to their
   value on the zero page); or a 6502 addressing expression resolved against
@@ -1223,8 +1229,21 @@ confirm it disables without being removed.
 - **FR-093**: Double-clicking a breakpoint row MUST move the code pane to the
   breakpoint's address and MUST NOT change the breakpoint.
 - **FR-094**: A breakpoint row's context menu MUST offer removing the
-  breakpoint and editing it, including its type and the fields that type
+  breakpoint and editing it, in a dialog of its type and the fields that type
   requires.
+- **FR-102**: The console MUST read as a command prompt: the dialect in force
+  as a fixed prompt ahead of what is typed ("WinDbg>"), which cannot be edited,
+  and a hint naming that dialect's help command. `MODE` MUST work in every
+  dialect, so the session can always be switched out of any of them. The
+  console's output MUST be text, not a list of rows.
+- **FR-103**: Memory, flags and registers MUST be edited only while the machine
+  is paused; while it runs, the memory panes are read-only and the register
+  editors say to pause.
+- **FR-104**: Right-clicking a code line MUST offer showing, in each open memory
+  pane, the address clicked or, over the operand, the operand's address
+  resolved through its addressing mode ("Show (BASL),Y in Memory 1").
+- **FR-105**: The code pane MUST scroll by instructions with the mouse wheel
+  through the whole address space, paused or running.
 
 **Watch pane**
 
