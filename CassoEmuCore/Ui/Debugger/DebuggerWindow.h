@@ -157,6 +157,7 @@ private:
     static constexpr int    kMarkerColumnDip    = 20;
 
     static void  MakeDense (DxuiListView * list);
+    void     ApplyTextZoom (float zoom);
 
     void     ConfigureWidgets ();
     void     LayoutWidgets    ();
@@ -255,6 +256,7 @@ private:
     std::string                   m_menuState;
     uint32_t                      m_goToSerial    = 0;
     std::map<int, std::string>    m_watchValues;
+    float                         m_textZoom      = 1.0f;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

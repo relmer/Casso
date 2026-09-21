@@ -686,6 +686,45 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ApplyTextZoom
+//
+//  A size change, not a zoom of the window: every content pane's text and
+//  rows grow or shrink together, floating ones included since they are the
+//  same controls, and the caption, the command bar and every other Casso
+//  window keep their size. The code pane refits its line count at the next
+//  layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyTextZoom (float zoom)
+{
+    m_textZoom = std::clamp (zoom, 0.6f, 2.5f);
+
+    for (DxuiListView * list : GetLists())
+    {
+        list->SetFontSizeDip     (kPaneFontDip * m_textZoom);
+        list->SetRowHeightDip    ((int) std::lround (kPaneRowDip * m_textZoom));
+        list->SetHeaderHeightDip ((int) std::lround (kPaneHeaderDip * m_textZoom));
+        list->ResetAutoFit();
+    }
+
+    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+    {
+        pane->GetView()->SetZoom (m_textZoom);
+    }
+
+    m_sourceView->SetZoom (m_textZoom);
+
+    LayoutWidgets();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetPressTargets
 //
 //  Every control a mouse press is offered to before the lists.
@@ -3746,6 +3785,18 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Char)
     {
         return m_commandBox->OnKey (ev) || m_memoryBox->OnKey (ev) || m_pokeBox->OnKey (ev);
+    }
+
+    //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text (FR-083).
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt)
+    {
+        switch (ev.vk)
+        {
+        case VK_OEM_PLUS:  case VK_ADD:       ApplyTextZoom (m_textZoom * 1.1f); return true;
+        case VK_OEM_MINUS: case VK_SUBTRACT:  ApplyTextZoom (m_textZoom / 1.1f); return true;
+        case '0':          case VK_NUMPAD0:   ApplyTextZoom (1.0f);              return true;
+        default:                                                                 break;
+        }
     }
 
     //  Ctrl+Z in a memory window undoes that window's last edit.
