@@ -41,6 +41,30 @@ namespace DebuggerViewStateTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
+    //  The code pane puts the PC in the middle, so a row is found by its
+    //  address rather than by counting from the top.
+    static const DebuggerViewSnapshot::CodeLine & LineAt (const DebuggerViewSnapshot & snapshot, Word address)
+    {
+        static DebuggerViewSnapshot::CodeLine  none;
+
+
+
+        for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
+        {
+            if (line.address == address)
+            {
+                return line;
+            }
+        }
+
+        Assert::Fail (L"the code pane does not show that address");
+        return none;
+    }
+
+
+
+
+
     class MachineRig
     {
     public:
@@ -101,19 +125,87 @@ namespace DebuggerViewStateTests
     {
     public:
 
-        TEST_METHOD (TheCodePaneStartsAtThePcAndFlagsThatLine)
+        TEST_METHOD (TheCodePaneShowsThePcWithWhatLedToItAbove)
         {
             MachineRig            rig;
             DebuggerViewSnapshot  snapshot = rig.view.Build (rig.controller.GetSession());
+            int                   current  = -1;
 
 
 
-            Assert::IsFalse  (snapshot.code.empty());
-            Assert::AreEqual ((Word) 0x0300, snapshot.code[0].address);
-            Assert::IsTrue   (snapshot.code[0].isCurrent,              L"the PC's line is flagged");
-            Assert::IsFalse  (snapshot.code[1].isCurrent,              L"and only that line");
-            Assert::AreEqual (std::string ("A9 41"), snapshot.code[0].bytes);
-            Assert::IsTrue   (snapshot.code[0].instruction.find ("LDA") == 0);
+            for (int i = 0; i < (int) snapshot.code.size(); i++)
+            {
+                current = snapshot.code[(size_t) i].isCurrent ? i : current;
+            }
+
+            Assert::IsTrue   (current > 0, L"the PC is shown, and not jammed against the top edge");
+            Assert::AreEqual ((Word) 0x0300, snapshot.code[(size_t) current].address);
+            Assert::AreEqual (std::string ("A9 41"), snapshot.code[(size_t) current].bytes);
+            Assert::IsTrue   (snapshot.code[(size_t) current].instruction.find ("LDA") == 0);
+        }
+
+
+        TEST_METHOD (TheCodePaneHoldsStillWhileThePcIsOnALineItShows)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  first  = rig.view.Build (rig.controller.GetSession());
+            Cpu6502Registers      r      = rig.controller.GetSession().GetTarget().GetRegisters();
+            DebuggerViewSnapshot  second;
+
+
+
+            //  One instruction on, still among the lines already shown.
+            r.pc = 0x0302;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+
+            second = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual (first.code[0].address, second.code[0].address,
+                              L"the pane does not move while the PC is on it");
+
+            for (const DebuggerViewSnapshot::CodeLine & line : second.code)
+            {
+                Assert::AreEqual (line.address == 0x0302, line.isCurrent, L"only the marker moved");
+            }
+        }
+
+
+        TEST_METHOD (TheCodePaneMovesWhenThePcLeavesIt)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  first   = rig.view.Build (rig.controller.GetSession());
+            Cpu6502Registers      r       = rig.controller.GetSession().GetTarget().GetRegisters();
+            DebuggerViewSnapshot  second;
+            int                   current = -1;
+
+
+
+            r.pc = 0x0800;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+
+            second = rig.view.Build (rig.controller.GetSession());
+
+            for (int i = 0; i < (int) second.code.size(); i++)
+            {
+                current = second.code[(size_t) i].isCurrent ? i : current;
+            }
+
+            Assert::AreNotEqual (first.code[0].address, second.code[0].address, L"it followed");
+            Assert::IsTrue      (current > 0, L"and the PC came back with code above it, not at the top");
+        }
+
+
+        TEST_METHOD (TheCodePaneFillsTheLinesItIsGiven)
+        {
+            MachineRig  rig;
+
+
+
+            rig.view.SetCodeLines (30);
+            Assert::AreEqual ((size_t) 30, rig.view.Build (rig.controller.GetSession()).code.size());
+
+            rig.view.SetCodeLines (8);
+            Assert::AreEqual ((size_t) 8, rig.view.Build (rig.controller.GetSession()).code.size());
         }
 
 
@@ -242,7 +334,7 @@ namespace DebuggerViewStateTests
 
             Assert::AreEqual ((size_t) 1, snapshot.breakpoints.size());
             Assert::AreEqual ((Word) 0x0302, snapshot.breakpoints[0].address);
-            Assert::IsTrue   (snapshot.code[1].hasBreakpoint, L"the code pane marks the line");
+            Assert::IsTrue   (LineAt (snapshot, 0x0302).hasBreakpoint, L"the code pane marks the line");
 
             Assert::AreEqual ((size_t) 1, snapshot.watches.size());
             Assert::AreEqual ((Word) 0x0400, snapshot.watches[0].address);
@@ -489,12 +581,12 @@ namespace DebuggerViewStateTests
             rig.Run (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300));
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsTrue (snapshot.code[0].hasBreakpoint, L"set");
+            Assert::IsTrue (LineAt (snapshot, 0x0300).hasBreakpoint, L"set");
 
             rig.Run (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300));
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsFalse (snapshot.code[0].hasBreakpoint, L"and cleared");
+            Assert::IsFalse (LineAt (snapshot, 0x0300).hasBreakpoint, L"and cleared");
         }
 
 
@@ -597,7 +689,7 @@ namespace DebuggerViewStateTests
             rig.controller.Pump();
 
             snapshot = rig.view.Build (rig.controller.GetSession());
-            Assert::IsTrue (snapshot.code[1].hasBreakpoint, L"the client's breakpoint is in the pane");
+            Assert::IsTrue (LineAt (snapshot, 0x0302).hasBreakpoint, L"the client's breakpoint is in the pane");
 
             rig.Run (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0305));
 
@@ -1077,8 +1169,8 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (0, snapshot.source->fileId);
             Assert::AreEqual (2, snapshot.source->line);
             Assert::AreEqual (0, snapshot.source->depth);
-            Assert::AreEqual (2, snapshot.code[0].sourceLine);
-            Assert::AreEqual (3, snapshot.code[1].sourceLine, L"the outermost line: the invocation, not the body");
+            Assert::AreEqual (2, LineAt (snapshot, 0x0300).sourceLine);
+            Assert::AreEqual (3, LineAt (snapshot, 0x0302).sourceLine, L"the outermost line: the invocation, not the body");
             Assert::AreEqual (std::wstring (L"C:\\Work\\main.dbg"), snapshot.source->debugFilePath);
         }
 

@@ -501,6 +501,7 @@ private:
     // IDebuggerWindowHost, called by the window on the UI thread.
     void    RunDebuggerCommand       (const std::string & line) override;
     void    PauseDebugger            () override;
+    void    SetDebuggerCodeLines     (int lines) override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address) override;
     void    SetDebuggerMemoryWindow  (int id, std::optional<Word> address) override;
     void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;

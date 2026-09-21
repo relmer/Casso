@@ -42,6 +42,8 @@ public:
 
     virtual void  RunDebuggerCommand      (const std::string & line)       = 0;
     virtual void  PauseDebugger           ()                               = 0;
+    //  How many lines the code pane has room for, measured by the window.
+    virtual void  SetDebuggerCodeLines    (int lines)                       = 0;
     virtual void  SetDebuggerCodeAddress  (std::optional<Word> address)    = 0;
     virtual void  SetDebuggerMemoryWindow (int id, std::optional<Word> address) = 0;
 
@@ -218,16 +220,17 @@ private:
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
 
-    const CassoTheme     * m_theme        = nullptr;
-    IDebuggerWindowHost  * m_host         = nullptr;
+    const CassoTheme     * m_theme         = nullptr;
+    IDebuggerWindowHost  * m_host          = nullptr;
     DxuiDpiScaler          m_scaler;
-    int                    m_widthDip     = 0;
-    int                    m_heightDip    = 0;
+    int                    m_widthDip      = 0;
+    int                    m_heightDip     = 0;
     DxuiFocusManager       m_focusMgr;
-    DebuggerKeyScheme      m_keyScheme    = DebuggerKeySchemes::kDefault;
-    bool                   m_swallowSpace = false;
-    RECT                   m_openedRect   = {};
-    bool                   m_placed       = false;
+    DebuggerKeyScheme      m_keyScheme     = DebuggerKeySchemes::kDefault;
+    bool                   m_swallowSpace  = false;
+    RECT                   m_openedRect    = {};
+    bool                   m_placed        = false;
+    int                    m_codeLinesSent = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

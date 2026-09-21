@@ -327,6 +327,21 @@ void EmulatorShell::PauseDebugger()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+void EmulatorShell::SetDebuggerCodeLines (int lines)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines {:04X}", (Word) lines));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerCodeAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void EmulatorShell::SetDebuggerCodeAddress (std::optional<Word> address)
 {
     m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code {:04X}", *address)
@@ -511,7 +526,11 @@ void EmulatorShell::PauseDebugRun()
 
 void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> address)
 {
-    if (view == "code")
+    if (view == "lines" && address.has_value())
+    {
+        m_debugViewState.SetCodeLines ((int) *address);
+    }
+    else if (view == "code")
     {
         m_debugViewState.SetCodeAddress (address);
     }

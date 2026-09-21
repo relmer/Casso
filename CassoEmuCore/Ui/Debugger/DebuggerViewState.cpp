@@ -91,8 +91,15 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
         }
     }
 
-    codeStart = m_codeAddress.value_or (snapshot.pc);
-    code      = session.ExecuteLine (std::format ("U {:04X}", codeStart), CommandMode::AppleWin);
+    codeStart = ChooseCodeStart (session, snapshot.pc);
+    //  A range, so the count is ours rather than the command's default: the
+    //  pane holds as many lines as it has room for, and three bytes an
+    //  instruction covers the longest the 6502 has.
+    code = session.ExecuteLine (std::format ("U {:04X}:{:04X}", codeStart,
+                                             (Word) (codeStart + (Word) (m_codeLines * 3))),
+                                CommandMode::AppleWin);
+
+    m_shownCode.clear();
 
     if (const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data))
     {
@@ -117,9 +124,11 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
             row.hasBreakpoint = std::any_of (snapshot.breakpoints.begin(), snapshot.breakpoints.end(),
                                              [&] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.address == row.address; });
 
-            snapshot.code.push_back (std::move (row));
+            snapshot.code.push_back (row);
 
-            if ((int) snapshot.code.size() >= kCodeLines)
+            m_shownCode.push_back (row.address);
+
+            if ((int) snapshot.code.size() >= m_codeLines)
             {
                 break;
             }
@@ -1024,12 +1033,115 @@ const IDiagnosticsProvider * DebuggerViewState::FindProvider (const std::vector<
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::SetCodeLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::SetCodeLines (int lines)
+{
+    //  A pane too short to hold anything still gets a line; the ceiling keeps
+    //  a dragged-tall pane from disassembling half the address space.
+    m_codeLines = (std::clamp) (lines, 1, 200);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ChooseCodeStart
+//
+//  A pinned pane stays where it was put. A following pane MOVES ONLY WHEN IT
+//  HAS TO: while the PC is among the lines already shown, the anchor is left
+//  alone and the marker moves down the rows the user is reading. Anchoring on
+//  the PC itself, which is what this replaces, re-disassembled from a new
+//  address on every snapshot -- a window that never holds still, and one that
+//  always showed the PC on its top line with nothing above it.
+//
+//  When the PC does leave, it comes back in the MIDDLE, so what led there is
+//  on screen with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc) const
+{
+    bool  shown = std::find (m_shownCode.begin(), m_shownCode.end(), pc) != m_shownCode.end();
+
+
+
+    if (m_codeAddress.has_value())
+    {
+        return *m_codeAddress;
+    }
+
+    if (!shown)
+    {
+        m_followAnchor = FindStartAbove (session, pc, m_codeLines / 2);
+    }
+
+    return m_followAnchor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::FindStartAbove
+//
+//  The 6502 cannot be disassembled backwards: an instruction begins where the
+//  one before it ended, and reading the bytes above an address says nothing
+//  about where they start. So this walks FORWARD from as far back as `before`
+//  instructions could reach -- three bytes each -- and keeps the first
+//  alignment that arrives exactly at `pc`, which is the one the machine was
+//  executing. Where none does, the PC anchors the pane itself, which is what
+//  the pane did before and is right for a PC in data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int before)
+{
+    Word   first   = 0;
+    Reply  reply;
+    int    index   = 0;
+
+
+
+    if (before <= 0 || pc < (Word) (before * 3))
+    {
+        return pc;
+    }
+
+    first = (Word) (pc - (Word) (before * 3));
+    reply = session.ExecuteLine (std::format ("U {:04X}:{:04X}", first, pc), CommandMode::AppleWin);
+
+    if (const DisassemblyData * data = std::get_if<DisassemblyData> (&reply.data))
+    {
+        for (index = 0; index < (int) data->lines.size(); index++)
+        {
+            if (data->lines[(size_t) index].instruction.address == pc)
+            {
+                //  `before` lines above the PC, or as many as were found.
+                return data->lines[(size_t) (std::max) (0, index - before)].instruction.address;
+            }
+        }
+    }
+
+    return pc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::MoveCodePane
 //
-//  `.` returns to the PC; RET goes to the return address on the stack; `->`
-//  goes to the address the top instruction names. `^` and `V` move one
-//  instruction, PAGEUP and PAGEDN a pane's worth, and the 256 and 4K forms
-//  that many bytes.
+//  Where the code pane is pinned, by name: "." lets it follow the PC again,
+//  and the rest move it to an address the name stands for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

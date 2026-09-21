@@ -281,9 +281,10 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuC
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
 //  "memory2" to "memory4" with a hex address or "close" for the others, which
-//  is passed on as no address. "trace <decimal>" and "trace end" place the
-//  trace pane. Anything else asks for nothing: a pane moved to an address
-//  nobody meant is worse than a pane left where it was.
+//  is passed on as no address. "lines <hex>" is how many lines the code pane
+//  has room for. "trace <decimal>" and "trace end" place the trace pane.
+//  Anything else asks for nothing: a pane moved to an address nobody meant is
+//  worse than a pane left where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,7 +314,7 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         return;
     }
 
-    if (view != "code" && view != "memory" && !isExtraWin)
+    if (view != "code" && view != "memory" && view != "lines" && !isExtraWin)
     {
         return;
     }

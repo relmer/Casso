@@ -1469,6 +1469,20 @@ void DebuggerWindow::LayoutWidgets()
 
     m_dockSite->Layout (RECT { pad, top, width - pad, barY - pad }, m_scaler);
 
+    //  The code pane holds as many lines as it has room for, so the pane is
+    //  full whatever height the user drags it to. Only a change is sent: the
+    //  count crosses to the CPU thread, which rebuilds the snapshot.
+    if (m_codeList != nullptr)
+    {
+        int  fits = m_codeList->GetVisibleRowCapacity();
+
+        if (fits > 0 && fits != m_codeLinesSent && m_host != nullptr)
+        {
+            m_codeLinesSent = fits;
+            m_host->SetDebuggerCodeLines (fits);
+        }
+    }
+
     x = pad;
     m_memoryBox->Layout  (RECT { x, barY, x + px (170), barY + boxH }, m_scaler);  x += px (170) + pad;
     m_pokeBox->Layout    (RECT { x, barY, x + px (230), barY + boxH }, m_scaler);  x += px (230) + pad;

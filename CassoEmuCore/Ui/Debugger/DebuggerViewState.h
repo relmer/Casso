@@ -199,6 +199,11 @@ public:
     void  SetCodeAddress   (std::optional<Word> address) { m_codeAddress = address; }
     void  SetMemoryAddress (Word address)                { m_memoryAddress = address; }
 
+    //  How many lines the code pane has room for. The window measures it
+    //  and says; the default is what fits the smallest pane worth having.
+    void  SetCodeLines     (int lines);
+    int   GetCodeLines     () const { return m_codeLines; }
+
     std::optional<Word>  GetCodeAddress   () const { return m_codeAddress; }
     Word                 GetMemoryAddress () const { return m_memoryAddress; }
 
@@ -304,9 +309,31 @@ private:
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
 
+    //  Where the code pane starts this build: the pinned address, the anchor
+    //  it already had while the PC is among the lines it produced, or a new
+    //  anchor that puts the PC in the middle.
+    Word         ChooseCodeStart (DebugSession & session, Word pc) const;
+
+    //  An address to disassemble from so that `pc` lands `before` lines in,
+    //  or `pc` itself when no such address is found. The 6502 cannot be
+    //  disassembled backwards -- an instruction is only where the one before
+    //  it ended -- so this walks forward from far enough back and takes the
+    //  alignment that reaches `pc` exactly.
+    static Word  FindStartAbove  (DebugSession & session, Word pc, int before);
+
     std::optional<Word>      m_codeAddress;
-    Word                     m_memoryAddress = 0x0000;
-    std::optional<uint64_t>  m_traceTop;
+
+    //  Where the code pane is anchored while it follows the PC, and the
+    //  addresses it last showed. The pane re-anchors only when the PC walks
+    //  out of those; anchoring on the PC itself re-disassembled from a new
+    //  address every snapshot, which is a window that never holds still.
+    //  Mutable for the same reason as the open panels below: a build is const
+    //  and these are what it learned while running.
+    mutable Word               m_followAnchor  = 0;
+    mutable std::vector<Word>  m_shownCode;
+    int                        m_codeLines     = kCodeLines;
+    Word                       m_memoryAddress = 0x0000;
+    std::optional<uint64_t>    m_traceTop;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
 
