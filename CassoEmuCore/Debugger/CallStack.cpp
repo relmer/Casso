@@ -965,7 +965,7 @@ std::string CallStack::DescribeBreak (const CallStackBreak & chainBreak)
     case CallBreakKind::StackWrap:      return std::format ("{} at ${:04X} wrapped the stack pointer", mnemonic, pc);
     case CallBreakKind::Reset:          return std::format ("reset at ${:04X}", pc);
     case CallBreakKind::PowerOn:        return std::format ("power-on at ${:04X}, cycle 0", pc);
-    default:                            return std::format ("recording began at ${:04X}", pc);
+    default:                            return std::format ("debugger opened at ${:04X}; no calls before it were recorded", pc);
     }
 }
 

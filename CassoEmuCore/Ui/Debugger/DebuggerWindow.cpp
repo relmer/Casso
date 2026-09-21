@@ -1527,7 +1527,9 @@ void DebuggerWindow::ConfigureDockSite()
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
 
     m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call Stack");
-    m_callStackFrame->AddPart (m_callStackButton, boxHeight);
+    //  The pane always shows hybrid; CALLS MODE picks another (FR-068), so
+    //  the button that cycled them is not shown.
+    m_callStackButton->SetVisible (false);
     m_callStackFrame->AddPart (m_callStackList);
 
     m_dockSite->AddPane (DebuggerLayout::kCode,        L"Disassembly", m_codeList);

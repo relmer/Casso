@@ -109,7 +109,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
 
         made.site    = std::format (L"${:04X}", frame.callSite);
         made.routine = std::format (L"{} ${:04X}", widen (CallStack::GetKindName (frame.kind)), frame.target);
-        made.foundBy = (frame.provenance == CallProvenance::Recorded) ? L"recorded" : L"guessed";
+        made.foundBy = (frame.provenance == CallProvenance::Recorded) ? L"recorded as it ran" : L"found on the stack";
         made.isDim   = !frame.isVerified;
         made.address = frame.callSite;
 

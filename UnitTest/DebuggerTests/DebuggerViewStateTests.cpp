@@ -293,7 +293,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((Word) 0x0310, snapshot.callStack.rows[0].frame->callSite);
             Assert::AreEqual ((Word) 0x0320, snapshot.callStack.rows[0].frame->target);
             Assert::AreEqual (std::wstring (L"$0310"),    rows[0].site);
-            Assert::AreEqual (std::wstring (L"recorded"), rows[0].foundBy);
+            Assert::AreEqual (std::wstring (L"recorded as it ran"), rows[0].foundBy);
             Assert::AreEqual ((Word) 0x0310,              rows[0].address, L"activating the row shows the call site");
             Assert::IsTrue   (rows[1].isBreak,            L"where recording began is a separator row");
             Assert::AreEqual (std::string ("CALLS MODE RECORDED"), CallStackPane::GetNextModeLine (snapshot.callStack.mechanism));

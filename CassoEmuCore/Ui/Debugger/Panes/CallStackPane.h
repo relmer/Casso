@@ -15,8 +15,8 @@
 //  The chain of calls to PC (FR-067), separate from the raw stack pane: a row
 //  a frame, innermost first, with the call site, the routine and which
 //  mechanism found it, and a break as a separator row where the chain cannot
-//  be trusted (FR-069). A button above the list shows the mechanism and
-//  moves to the next one (FR-068).
+//  be trusted (FR-069). The window hides the button that cycles the
+//  mechanism: the pane shows hybrid, and CALLS MODE picks another (FR-068).
 //
 //  Activating a row -- a double-click or Enter -- moves the disassembly to
 //  the frame's call site, or to the instruction that broke the chain.
