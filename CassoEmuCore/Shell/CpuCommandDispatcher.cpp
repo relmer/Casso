@@ -277,6 +277,36 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuC
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetCodeView
+//
+//  `base` names the first code view and `base` followed by 2 to 4 the others;
+//  index is 0 to 3.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetCodeView (const std::string & view, const std::string & base, int & index)
+{
+    if (view == base)
+    {
+        index = 0;
+        return true;
+    }
+
+    if (view.size() == base.size() + 1 && view.starts_with (base) && view.back() >= '2' && view.back() <= '4')
+    {
+        index = view.back() - '1';
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchDebugView
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
@@ -298,6 +328,8 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
     bool                     isExtraWin = view == "memory2" || view == "memory3" || view == "memory4";
     unsigned int             value      = 0;
     size_t                   used       = 0;
+    int                      index      = 0;
+    bool                     isCode     = false;
 
 
 
@@ -315,14 +347,22 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         return;
     }
 
-    //  "codescroll <signed decimal>": instructions to scroll the code pane.
-    if (view == "codescroll")
+    //  "codescroll[N] <signed decimal>": instructions to scroll a code view.
+    if (TryGetCodeView (view, "codescroll", index))
     {
         if (!where.empty() && where.size() <= 6 && where.find_first_not_of ("-0123456789") == std::string::npos && where.find ('-', 1) == std::string::npos)
         {
-            target.ScrollDebugCode (std::stoi (where));
+            target.ScrollDebugCode (std::stoi (where), index);
         }
 
+        return;
+    }
+
+    //  "follow <N>" hands following the PC to code view N; "codeclose <N>"
+    //  closes view N, which is never the first.
+    if ((view == "follow" || view == "codeclose") && where.size() == 1 && where[0] >= (view == "follow" ? '1' : '2') && where[0] <= '4')
+    {
+        target.SetDebugView (view, (Word) (where[0] - '1'));
         return;
     }
 
@@ -339,12 +379,14 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         return;
     }
 
-    if (view != "code" && view != "memory" && view != "lines" && !isExtraWin)
+    isCode = TryGetCodeView (view, "code", index) || TryGetCodeView (view, "lines", index);
+
+    if (view != "memory" && !isCode && !isExtraWin)
     {
         return;
     }
 
-    if ((view == "code" && where == "pc") || (isExtraWin && where == "close"))
+    if ((view.starts_with ("code") && where == "pc") || (isExtraWin && where == "close"))
     {
         target.SetDebugView (view, std::nullopt);
         return;

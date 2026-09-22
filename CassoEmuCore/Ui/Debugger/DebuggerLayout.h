@@ -40,6 +40,10 @@ public:
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);
 
+    //  "code" for the first disassembly view (index 0), "code2" to "code4"
+    //  for the others.
+    static std::wstring    GetCodePaneId   (int view);
+
     //  A device panel is "diag-" and its provider's id. The panels the window
     //  can place are these, each with the title its tab shows, and each hidden
     //  until its device is present and its panel open.

@@ -323,13 +323,37 @@ void EmulatorShell::PauseDebugger()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDebuggerCodeAddress
+//  GetCodeViewSuffix
+//
+//  Nothing for the first code view, 2 to 4 for the others, as the CPU
+//  thread's view names read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerCodeLines (int lines)
+std::string EmulatorShell::GetCodeViewSuffix (int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines {:04X}", (Word) lines));
+    return (view <= 0) ? std::string() : std::to_string (view + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerFollowView / CloseDebuggerCodeView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerFollowView (int view)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("follow {}", view + 1));
+}
+
+
+void EmulatorShell::CloseDebuggerCodeView (int view)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeclose {}", view + 1));
 }
 
 
@@ -342,10 +366,25 @@ void EmulatorShell::SetDebuggerCodeLines (int lines)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerCodeAddress (std::optional<Word> address)
+void EmulatorShell::SetDebuggerCodeLines (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code {:04X}", *address)
-                                                                 : std::string ("code pc"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerCodeAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerCodeAddress (std::optional<Word> address, int view)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code{} {:04X}", GetCodeViewSuffix (view), *address)
+                                                                 : std::format ("code{} pc", GetCodeViewSuffix (view)));
 }
 
 
@@ -397,9 +436,9 @@ void EmulatorShell::SetDebuggerTraceTop (std::optional<uint64_t> first)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ScrollDebuggerCode (int lines)
+void EmulatorShell::ScrollDebuggerCode (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll {}", lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll{} {}", GetCodeViewSuffix (view), lines));
 }
 
 
@@ -556,17 +595,33 @@ void EmulatorShell::PauseDebugRun()
 
 void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> address)
 {
-    if (view == "lines" && address.has_value())
+    int  index = 0;
+
+
+
+    if (view == "follow" && address.has_value())
     {
-        m_debugViewState.SetCodeLines ((int) *address);
+        m_debugViewState.SetFollowView ((int) *address);
     }
-    else if (view == "code" && address.has_value())
+    else if (view == "codeclose" && address.has_value())
     {
-        m_debugViewState.CenterCodeOn (*address);
+        m_debugViewState.CloseCodeView ((int) *address);
     }
-    else if (view == "code")
+    else if (CpuCommandDispatcher::TryGetCodeView (view, "lines", index) && address.has_value())
     {
-        m_debugViewState.SetCodeAddress (std::nullopt);
+        m_debugViewState.SetCodeLines ((int) *address, index);
+    }
+    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value() && !m_debugViewState.IsCodeViewOpen (index))
+    {
+        m_debugViewState.OpenCodeView (index, *address);
+    }
+    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value())
+    {
+        m_debugViewState.CenterCodeOn (*address, index);
+    }
+    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index))
+    {
+        m_debugViewState.SetCodeAddress (std::nullopt, index);
     }
     else if (view == "memory" && address.has_value())
     {
@@ -599,9 +654,9 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ScrollDebugCode (int lines)
+void EmulatorShell::ScrollDebugCode (int lines, int view)
 {
-    m_debugViewState.ScrollCode (lines);
+    m_debugViewState.ScrollCode (lines, view);
     m_isDebugViewDirty = true;
 }
 

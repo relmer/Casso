@@ -43,6 +43,10 @@ public:
     void  SetTitle     (IDxuiControl * content, const std::wstring & title);
     void  SetIndicator (IDxuiControl * content, bool on);
 
+    //  A dot ahead of a tab's title, in a color the caller picks, zero for
+    //  none: a mark of the tab's own state, not a change to look at.
+    void  SetLeadingDot (IDxuiControl * content, uint32_t argb);
+
     size_t          GetTabCount   () const { return m_tabs.size(); }
     int             GetActive     () const { return m_active; }
     IDxuiControl *  GetContent    (int index) const;
@@ -88,6 +92,7 @@ private:
         std::wstring    title;
         IDxuiControl  * content   = nullptr;
         bool            indicator = false;
+        uint32_t        leadDot   = 0;
     };
 
     void  LayoutContent ();

@@ -41,6 +41,21 @@ std::wstring DebuggerLayout::GetMemoryPaneId (int window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerLayout::GetCodePaneId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::GetCodePaneId (int view)
+{
+    return (view <= 0) ? std::wstring (kCode) : std::format (L"code{}", view + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerLayout::GetDiagnosticsPanels
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +128,11 @@ std::vector<std::wstring> DebuggerLayout::GetPaneIds()
     std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace };
 
 
+
+    for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        ids.push_back (GetCodePaneId (view));
+    }
 
     for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
     {
@@ -190,6 +210,11 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return GetMemoryPaneId (1);
     }
 
+    if (pane.starts_with (kCode) && pane != kCode)
+    {
+        return kCode;
+    }
+
     if ((pane == kCallStack || pane.starts_with (s_kpszDiagnosticsPrefix)) && layout.Contains (kStack))
     {
         return kStack;
@@ -240,6 +265,12 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
         layout.Add (GetMemoryPaneId (window), memory1);
     }
 
+    for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        layout.Add (GetCodePaneId (view), kCode);
+    }
+
+    layout.Activate   (kCode);
     layout.Add        (kStack,       L"");
     layout.DockToSide (kStack,       memory1,      DxuiDockSide::Right);
     layout.Add        (kCallStack,   kStack);

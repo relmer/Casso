@@ -131,6 +131,28 @@ void DxuiTabGroup::SetIndicator (IDxuiControl * content, bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabGroup::SetLeadingDot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabGroup::SetLeadingDot (IDxuiControl * content, uint32_t argb)
+{
+    int  index = IndexOf (content);
+
+
+
+    if (index >= 0)
+    {
+        m_tabs[(size_t) index].leadDot = argb;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabGroup::GetContent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,7 +247,7 @@ int DxuiTabGroup::GetTabWidthDip (int index) const
 
 
 
-    return m_scaler.ToPx (2 * kTabPadDip + (int) tab.title.size() * kCharDip + (tab.indicator ? kIndicatorDip : 0));
+    return m_scaler.ToPx (2 * kTabPadDip + (int) tab.title.size() * kCharDip + (tab.indicator ? kIndicatorDip : 0) + (tab.leadDot != 0 ? kIndicatorDip : 0));
 }
 
 
@@ -423,9 +445,17 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             painter.FillRect ((float) tab.left, (float) tab.top, (float) (tab.right - tab.left), line * 2, theme.Accent());
         }
 
+        float  lead = 0.0f;
+
+        if (m_tabs[(size_t) i].leadDot != 0)
+        {
+            lead = m_scaler.ToPxf ((float) kIndicatorDip);
+            painter.FillCircleApprox ((float) tab.left + pad + lead * 0.35f, (float) tab.top + strip / 2, m_scaler.ToPxf (3.5f), m_tabs[(size_t) i].leadDot);
+        }
+
         hr = text.DrawString (m_tabs[(size_t) i].title.c_str(),
-                              (float) tab.left + pad, (float) tab.top,
-                              (float) (tab.right - tab.left) - pad, strip,
+                              (float) tab.left + pad + lead, (float) tab.top,
+                              (float) (tab.right - tab.left) - pad - lead, strip,
                               color, m_scaler.ToPxf (font.sizeDip), font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);

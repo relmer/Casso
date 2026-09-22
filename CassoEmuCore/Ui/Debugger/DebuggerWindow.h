@@ -43,8 +43,12 @@ public:
     virtual void  RunDebuggerCommand      (const std::string & line)       = 0;
     virtual void  PauseDebugger           ()                               = 0;
     //  How many lines the code pane has room for, measured by the window.
-    virtual void  SetDebuggerCodeLines    (int lines)                       = 0;
-    virtual void  SetDebuggerCodeAddress  (std::optional<Word> address)    = 0;
+    virtual void  SetDebuggerCodeLines    (int lines, int view)             = 0;
+    //  A code view: 0 is the first, 1 to 3 the others. An address given for
+    //  a closed view opens it there.
+    virtual void  SetDebuggerCodeAddress  (std::optional<Word> address, int view) = 0;
+    virtual void  SetDebuggerFollowView   (int view)                       = 0;
+    virtual void  CloseDebuggerCodeView   (int view)                       = 0;
     virtual void  SetDebuggerMemoryWindow (int id, std::optional<Word> address) = 0;
 
     //  Where the trace pane reads from: an entry, or the newest when empty.
@@ -55,7 +59,7 @@ public:
     virtual void  GoToDebuggerMemory      (int window, const std::string & text) = 0;
 
     //  Scrolls the code pane by instructions, through the whole address space.
-    virtual void  ScrollDebuggerCode      (int lines) = 0;
+    virtual void  ScrollDebuggerCode      (int lines, int view) = 0;
 
     //  The newest snapshot, if one arrived since the last call, and every
     //  console line written since then.
@@ -231,6 +235,13 @@ private:
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     bool     ClickGutter      (const DxuiMouseEvent & ev);
     void     ShowCode         (std::optional<Word> address);
+    void     ConfigureCodeList (int view);
+    int      GetCodeViewOf    (const IDxuiControl * control) const;
+    bool     GroupHasMemory   (const DxuiTabGroup & group) const;
+    bool     GroupHasCode     (const DxuiTabGroup & group) const;
+    int      GetOpenCodeViewCount () const;
+    const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;
+    void     ApplyCodeView    (int view);
     void     EditRegister     (const std::string & name);
     void     UpdateTooltip    (POINT clientPx);
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
@@ -270,6 +281,7 @@ private:
     bool                                    m_placed             = false;
     int                                     m_codeLinesSent      = 0;
     std::optional<Word>                     m_navigatedTo;
+    int                                     m_navigatedView      = 0;
     std::string                             m_menuState;
     uint32_t                                m_goToSerial         = 0;
     std::map<int, std::string>              m_watchValues;
@@ -294,6 +306,11 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
     DxuiListView                                                                   * m_codeList           = nullptr;
+    std::array<DxuiListView *, DebuggerViewState::kMaxCodeViews>                     m_codeLists          = {};
+    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxCodeViews> m_codeFrames;
+    std::array<bool, DebuggerViewState::kMaxCodeViews>                               m_codeOpen           = { true };
+    std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
+    int                                                                              m_activeCode         = 0;
     DxuiListView                                                                   * m_registerList       = nullptr;
     DxuiListView                                                                   * m_breakpointList     = nullptr;
     DxuiListView                                                                   * m_watchList          = nullptr;

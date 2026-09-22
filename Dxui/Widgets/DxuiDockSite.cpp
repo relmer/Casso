@@ -213,6 +213,7 @@ void DxuiDockSite::Arrange()
 
             active = (pane == groups[i].active) ? (int) group->GetTabCount() : active;
             group->AddTab (found->second.title, found->second.content);
+            group->SetLeadingDot (found->second.content, found->second.leadDot);
             placed.insert (found->second.content);
         }
 
@@ -569,6 +570,89 @@ void DxuiDockSite::SetIndicator (const std::wstring & pane, bool on)
     {
         group->SetIndicator (found->second.content, on);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetLeadingDot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetLeadingDot (const std::wstring & pane, uint32_t argb)
+{
+    auto  found = m_panes.find (pane);
+
+
+
+    if (found == m_panes.end() || found->second.leadDot == argb)
+    {
+        return;
+    }
+
+    found->second.leadDot = argb;
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->SetLeadingDot (found->second.content, argb);
+    }
+
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetTabTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetTabTip (const std::wstring & pane, const std::wstring & tip)
+{
+    auto  found = m_panes.find (pane);
+
+
+
+    if (found != m_panes.end())
+    {
+        found->second.tip = tip;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetTabAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDockSite::GetTabAt (POINT pointDip, RECT & tab, std::wstring & tip) const
+{
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        int  index = group->IsVisible() ? group->HitTestTab (pointDip) : -1;
+
+        if (index >= 0)
+        {
+            std::wstring  pane  = GetPaneOf (group->GetContent (index));
+            auto          found = m_panes.find (pane);
+
+            tab = group->GetTabRect (index);
+            tip = (found != m_panes.end()) ? found->second.tip : std::wstring();
+            return pane;
+        }
+    }
+
+    return {};
 }
 
 

@@ -67,8 +67,8 @@ public:
     //  A memory window's Go to, as typed, to resolve against the machine.
     virtual void     GoToDebugMemory          (int window, const std::string & text)           = 0;
 
-    //  Scrolls the code pane by instructions: down when positive.
-    virtual void     ScrollDebugCode          (int lines)                                       = 0;
+    //  Scrolls a code view by instructions: down when positive.
+    virtual void     ScrollDebugCode          (int lines, int view)                             = 0;
 };
 
 
@@ -94,6 +94,10 @@ class CpuCommandDispatcher
 public:
 
     static void  Dispatch (const EmulatorCommand & cmd, ICpuCommandTarget & target);
+
+    //  A code view's name: `base` for the first, `base` with 2 to 4 after it
+    //  for the others; index is 0 to 3.
+    static bool  TryGetCodeView (const std::string & view, const std::string & base, int & index);
 
 private:
 

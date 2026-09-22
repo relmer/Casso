@@ -1248,6 +1248,15 @@ confirm it disables without being removed.
   resolved through its addressing mode ("Show (BASL),Y in Memory 1").
 - **FR-105**: The code pane MUST scroll by instructions with the mouse wheel
   through the whole address space, paused or running.
+- **FR-106**: A + after the disassembly tabs MUST open another disassembly view
+  at the PC, up to four. Exactly one view follows the PC; the rest stay where
+  they are put and still show the PC's arrow and row when it is on their
+  lines. The tabs are named Disassembly 1 to 4. Once a second view is open,
+  the tab of the view following the PC MUST carry a dot in the PC marker's
+  color ahead of its title and a tip saying it follows the PC, the first view
+  following at first. Every other disassembly tab's menu MUST offer Follow PC,
+  which hands the PC to it and leaves the one giving it up where it stands.
+  Closing the view that follows hands the PC back to the first.
 
 **Watch pane**
 

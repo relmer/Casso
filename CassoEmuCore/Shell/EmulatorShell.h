@@ -495,7 +495,7 @@ private:
     void    SetDebugView       (const std::string & view, std::optional<Word> address);
     void    SetDebugTraceView  (std::optional<uint64_t> first);
     void    GoToDebugMemory    (int window, const std::string & text);
-    void    ScrollDebugCode    (int lines);
+    void    ScrollDebugCode    (int lines, int view);
 
     // Rebuilds the window's snapshot when it is showing and due. CPU thread.
     void    PublishDebuggerView ();
@@ -503,12 +503,15 @@ private:
     // IDebuggerWindowHost, called by the window on the UI thread.
     void    RunDebuggerCommand       (const std::string & line) override;
     void    PauseDebugger            () override;
-    void    SetDebuggerCodeLines     (int lines) override;
-    void    SetDebuggerCodeAddress   (std::optional<Word> address) override;
+    void    SetDebuggerCodeLines     (int lines, int view) override;
+    void    SetDebuggerCodeAddress   (std::optional<Word> address, int view) override;
+    void    SetDebuggerFollowView    (int view) override;
+    void    CloseDebuggerCodeView    (int view) override;
+    static std::string  GetCodeViewSuffix (int view);
     void    SetDebuggerMemoryWindow  (int id, std::optional<Word> address) override;
     void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
-    void    ScrollDebuggerCode       (int lines) override;
+    void    ScrollDebuggerCode       (int lines, int view) override;
     bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                       std::vector<std::string>                     & consoleLines) override;
     void    OnDebuggerWindowClosed   () override;
