@@ -186,8 +186,26 @@ bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
 
 
     WindowTrace::Log ("restore.lookup", "debugger", "key=" + key);
+
+    //  THE KEY NAMES THE MONITOR ARRANGEMENT, and an arrangement that differs
+    //  by a screen not yet attached at startup is a different key with
+    //  nothing under it. Rather than open at a default the user never chose,
+    //  any placement they made under another arrangement is taken, so long as
+    //  it still lands on a screen.
     if (!profile.TryLoad (key, bounds, WindowPlacementProfile::Target::Debugger))
     {
+        for (const auto & [otherKey, other] : profile.GetAll (WindowPlacementProfile::Target::Debugger))
+        {
+            RECT  candidate = RECT { other.x, other.y, other.x + other.w, other.y + other.h };
+
+            if (other.w > 0 && other.h > 0 && MonitorFromRect (&candidate, MONITOR_DEFAULTTONULL) != nullptr)
+            {
+                WindowTrace::LogRect ("restore.other", "debugger", candidate, "saved under key=" + otherKey);
+                rectPx = candidate;
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -621,7 +639,7 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
     }
     else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index))
     {
-        m_debugViewState.SetCodeAddress (std::nullopt, index);
+        m_debugViewState.ShowPcIn (index);
     }
     else if (view == "memory" && address.has_value())
     {

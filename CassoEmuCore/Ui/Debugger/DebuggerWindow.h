@@ -175,6 +175,7 @@ private:
     void     LayoutWidgets    ();
     void     ApplySnapshot    ();
     void     UpdateChanges    ();
+    void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
     void     SubmitMemoryBox  ();
@@ -261,6 +262,7 @@ private:
     uint32_t  GetTargetRowArgb     () const;
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
+    uint32_t  GetEffectArgb        () const;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;

@@ -18,6 +18,7 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/InstructionEffect.h"
 #include "Ui/Debugger/StopChanges.h"
 #include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
@@ -306,6 +307,54 @@ namespace DebuggerViewStateTests
             }
 
             Assert::AreEqual ((Word) 0x0000, up.code[0].address, L"up past everything stops at $0000");
+        }
+
+
+        TEST_METHOD (TheEffectSaysWhatTheInstructionWillLeaveBehind)
+        {
+            InstructionEffect::Input  input;
+            auto                      run = [&input] (const char * mnemonic)
+            {
+                input.mnemonic = mnemonic;
+                return InstructionEffect::Describe (input);
+            };
+
+
+
+            input.registers    = {};
+            input.registers.a  = 0xA0;
+            input.registers.x  = 0x05;
+            input.registers.y  = 0x00;
+            input.registers.sp = 0xF8;
+            input.registers.p  = 0x00;
+            input.value        = 0x8D;
+            input.next         = 0x0302;
+
+            Assert::AreEqual (std::string ("N=0 Z=0 C=1"),      run ("CMP"), L"A0 is above 8D, so carry is set");
+            Assert::AreEqual (std::string ("A=8D N=1 Z=0"),     run ("LDA"));
+            Assert::AreEqual (std::string ("A=80 N=1 Z=0"),     run ("AND"));
+            Assert::AreEqual (std::string ("A=2D N=0 Z=0 C=1 V=1"), run ("ADC"), L"A0 + 8D carries out, and two negatives making a positive overflow");
+            Assert::AreEqual (std::string ("X=06 N=0 Z=0"),     run ("INX"));
+            Assert::AreEqual (std::string ("C=1"),              run ("SEC"));
+
+            input.value   = std::nullopt;
+            input.address = 0x067B;
+            Assert::AreEqual (std::string ("$067B=A0"), run ("STA"));
+
+            //  A branch says where the PC lands and whether it is taken, from
+            //  the flags as they stand.
+            input.address = std::nullopt;
+            input.target  = 0x0400;
+            Assert::AreEqual (std::string ("PC=$0302 not taken"), run ("BEQ"), L"Z is clear");
+            Assert::AreEqual (std::string ("PC=$0400 taken"),     run ("BNE"));
+            Assert::AreEqual (std::string ("PC=$0400"),           run ("JMP"));
+
+            //  Decimal mode is not predicted rather than predicted wrongly.
+            input.registers.p = 0x08;
+            input.value       = 0x01;
+            input.target      = std::nullopt;
+            Assert::AreEqual (std::string(), run ("ADC"));
+            Assert::AreEqual (std::string(), run ("XYZ"), L"an instruction with no model says nothing");
         }
 
 

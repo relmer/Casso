@@ -1690,6 +1690,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     icon.top  = bt;
     icon.size = iconDip;
     icon.rowH = bh;
+    icon.ink  = ink;
 
     PaintEntryIcon (slot, text, icon, ink);
 

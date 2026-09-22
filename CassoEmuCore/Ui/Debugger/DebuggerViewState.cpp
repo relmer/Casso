@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/InstructionEffect.h"
 
 #include "Debugger/DebugSession.h"
 #include "Debugger/AppleWinParser.h"
@@ -1052,6 +1053,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
             row.isCurrent     = row.address == snapshot.pc;
             row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
             row.annotation    = GetAnnotation (session, line, session.GetTarget().GetRegisters());
+            row.effect        = row.isCurrent ? GetEffect (session, line, session.GetTarget().GetRegisters()) : std::string();
 
             if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))
             {
@@ -1208,6 +1210,12 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     Word        top   = 0;
 
 
+
+    if (v.centerOnPc)
+    {
+        v.centerOn   = pc;
+        v.centerOnPc = false;
+    }
 
     //  The following view put somewhere -- scrolled, or navigated to -- holds
     //  there only until the PC moves. It then follows again from where it
@@ -1547,6 +1555,12 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
         { "BVC", { 'V', 0x40 } }, { "BVS", { 'V', 0x40 } },
         { "BPL", { 'N', 0x80 } }, { "BMI", { 'N', 0x80 } },
     };
+    static const std::pair<const char *, char>  kRegisterReads[] =
+    {
+        { "CMP", 'A' }, { "CPX", 'X' }, { "CPY", 'Y' },
+        { "AND", 'A' }, { "ORA", 'A' }, { "EOR", 'A' },
+        { "ADC", 'A' }, { "SBC", 'A' }, { "BIT", 'A' },
+    };
     AccessPrediction  prediction;
     HRESULT           hr     = S_OK;
     Word              where  = 0;
@@ -1566,6 +1580,16 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 
     if (FAILED (hr) || prediction.touches.empty())
     {
+        //  An instruction that touches no memory still reads a register, and
+        //  which register that is answers "compared with what?".
+        for (const auto & [mnemonic, reg] : kRegisterReads)
+        {
+            if (line.instruction.mnemonic == mnemonic)
+            {
+                return std::format ("{}={:02X}", reg, (reg == 'A') ? registers.a : ((reg == 'X') ? registers.x : registers.y));
+            }
+        }
+
         return {};
     }
 
@@ -1577,6 +1601,94 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
     }
 
     return std::format ("${:04X}={:02X}", where, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetImmediate
+//
+//  The byte of an immediate operand, `#$8D`; nothing for any other form.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Byte> DebuggerViewState::GetImmediate (const std::string & operand)
+{
+    unsigned  value = 0;
+
+
+
+    if (operand.size() < 4 || operand[0] != '#' || operand[1] != '$' ||
+        std::from_chars (operand.data() + 2, operand.data() + 4, value, 16).ptr != operand.data() + 4)
+    {
+        return std::nullopt;
+    }
+
+    return (Byte) value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetEffect
+//
+//  What the instruction would leave behind, for the PC's line (FR-107). The
+//  operand's value is the immediate itself, the byte at the effective
+//  address, or -- for the instructions that work on the accumulator -- A.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetEffect (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers)
+{
+    InstructionEffect::Input  input;
+    AccessPrediction          prediction;
+    HRESULT                   hr    = S_OK;
+    Byte                      value = 0;
+
+
+
+    input.mnemonic  = line.instruction.mnemonic;
+    input.registers = registers;
+    input.target    = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
+    input.next      = (Word) (line.instruction.address + line.instruction.bytes.size());
+    input.value     = GetImmediate (line.instruction.operand);
+
+    //  A shift or count with no operand works on the accumulator.
+    if (!input.value.has_value() && line.instruction.operand.empty())
+    {
+        input.value = registers.a;
+    }
+
+    if (!input.value.has_value())
+    {
+        hr = EffectiveAddress::Predict (session.GetTarget().GetInstructionSet(), line.instruction.address, registers, session, prediction);
+    }
+
+    if (SUCCEEDED (hr) && !input.value.has_value() && !prediction.touches.empty())
+    {
+        input.address = prediction.touches.back().address;
+
+        //  Reading an I/O byte would change the machine, so an instruction
+        //  over I/O is predicted only as far as the address it writes.
+        if (session.GetTarget().GetRegion (*input.address) != MemoryRegion::Io && session.TryPeek (*input.address, value))
+        {
+            input.value = value;
+        }
+    }
+
+    //  A pull reads the byte above the stack pointer.
+    if ((input.mnemonic == "PLA" || input.mnemonic == "PLP") && session.TryPeek ((Word) (0x0100 + (Byte) (registers.sp + 1)), value))
+    {
+        input.value = value;
+    }
+
+    return InstructionEffect::Describe (input);
 }
 
 

@@ -30,6 +30,10 @@ struct DxuiToolbarIconBox
     float  top  = 0.0f;   // entry top; the icon is centered in rowH
     float  size = 0.0f;   // icon em, px
     float  rowH = 0.0f;   // entry height, px
+
+    //  The ink the entry's own glyph is drawn in, disabled alpha included,
+    //  so a decoration matches the icons beside it.
+    uint32_t  ink = 0xFF000000u;
 };
 
 

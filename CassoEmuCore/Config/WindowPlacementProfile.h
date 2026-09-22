@@ -46,6 +46,11 @@ public:
                      const Bounds      & bounds,
                      Target              target = Target::Main);
 
+    //  Every placement saved for this target, by topology key, so a caller
+    //  with no entry for the current monitor set can fall back to one the
+    //  user chose under another.
+    const std::map<std::string, Bounds> &  GetAll (Target target) const;
+
     // One attached monitor, as EnumDisplayMonitors hands it back. Public so
     // the key can be built from a list a test wrote by hand: the Win32 walk
     // is the only part of the key that needs a machine.

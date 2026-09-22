@@ -1257,6 +1257,21 @@ confirm it disables without being removed.
   following at first. Every other disassembly tab's menu MUST offer Follow PC,
   which hands the PC to it and leaves the one giving it up where it stands.
   Closing the view that follows hands the PC back to the first.
+- **FR-107**: The code pane MUST annotate the line at the PC with what
+  executing that instruction would leave behind -- the value it writes to a
+  register or an address, the flags it sets, or where it puts the PC -- in a
+  column of its own and a color distinct from the operand annotations of
+  FR-078. NO OTHER LINE CARRIES ONE, since only the PC's line has register
+  values that are true. An instruction whose result is not modeled, decimal
+  arithmetic among them, MUST be left unannotated rather than guessed at. An
+  instruction that reads a register without touching memory (a compare
+  against an immediate, for one) MUST show that register's value among its
+  operand annotations.
+- **FR-108**: Show Next Statement MUST bring the disassembly view following
+  the PC to the front of its tabs and put the PC on its middle line.
+- **FR-109**: Each command bar entry MUST carry a tip naming it, the key that
+  runs it in the keyboard scheme in force, and what it does, and the tip MUST
+  follow a change of scheme.
 
 **Watch pane**
 

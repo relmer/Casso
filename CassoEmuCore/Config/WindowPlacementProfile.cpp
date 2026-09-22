@@ -304,6 +304,30 @@ bool WindowPlacementProfile::TryLoad (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WindowPlacementProfile::GetAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::map<std::string, WindowPlacementProfile::Bounds> & WindowPlacementProfile::GetAll (Target target) const
+{
+    static const std::map<std::string, Bounds>  none;
+
+
+
+    if (m_prefs == nullptr)
+    {
+        return none;
+    }
+
+    return (target == Target::Debugger) ? m_prefs->window.debuggerPlacements : m_prefs->window.placements;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WindowPlacementProfile::Save
 //
 //  Writes the bounds into the GlobalUserPrefs window-placements map.

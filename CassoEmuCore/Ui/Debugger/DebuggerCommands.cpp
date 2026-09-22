@@ -132,14 +132,17 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
 
         if (row.id == kRunToCursor)
         {
-            entry.decoration = [command = entry.command] (IDxuiPainter             & painter,
-                                                          const IDxuiTheme         & theme,
-                                                          const DxuiToolbarIconBox & icon,
-                                                          bool                       collapsed)
+            entry.decoration = [] (IDxuiPainter             & painter,
+                                   const IDxuiTheme         & theme,
+                                   const DxuiToolbarIconBox & icon,
+                                   bool                       collapsed)
             {
+                UNREFERENCED_PARAMETER (theme);
                 UNREFERENCED_PARAMETER (collapsed);
 
-                PaintRunToCursor (painter, icon, command->IsEnabled() ? theme.ButtonText() : ((theme.ButtonText() & 0x00FFFFFFu) | DxuiToolbar::kDisabledInkAlpha));
+                //  The ink the strip drew its own glyphs in, so this icon is
+                //  the same color as the entries beside it, enabled or not.
+                PaintRunToCursor (painter, icon, icon.ink);
             };
         }
 

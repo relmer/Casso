@@ -1683,9 +1683,27 @@ void DebuggerWindow::LayoutWidgets()
 
     m_dockSite->Layout (RECT { pad, top, width - pad, barY }, m_scaler);
 
-    //  The code pane holds as many lines as it has room for, so the pane is
-    //  full whatever height the user drags it to. Only a change is sent: the
-    //  count crosses to the CPU thread, which rebuilds the snapshot.
+    UpdateCodeLines();
+    PlaceMemoryBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UpdateCodeLines
+//
+//  Each disassembly view holds as many lines as it has room for, so a pane is
+//  full whatever height it is dragged to. Only a change is sent: the count
+//  crosses to the CPU thread, which rebuilds the snapshot. A view opened in a
+//  tab of its own is measured here too, since no window resize follows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateCodeLines()
+{
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         int  fits = m_codeLists[(size_t) view]->GetVisibleRowCapacity();
@@ -1696,8 +1714,6 @@ void DebuggerWindow::LayoutWidgets()
             m_host->SetDebuggerCodeLines (fits, view);
         }
     }
-
-    PlaceMemoryBar();
 }
 
 
@@ -2475,9 +2491,11 @@ void DebuggerWindow::ApplyCodeView (int view)
                   { Widen (line.bytes) },
                   { Widen (line.label) },
                   { Widen (line.instruction) },
-                  { Widen (line.annotation) } };
+                  { Widen (line.annotation) },
+                  { Widen (line.effect) } };
 
         cells[6].argb = GetAnnotationArgb();
+        cells[7].argb = GetEffectArgb();
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -2529,6 +2547,7 @@ void DebuggerWindow::ApplySnapshot()
             }
 
             m_dockSite->Relayout();
+            UpdateCodeLines();
         }
     }
 
@@ -3019,7 +3038,8 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
     if (barTip != nullptr && *barTip != L'\0')
     {
-        m_tooltip.RequestShow (cell, barTip, now);
+        m_tooltip.SetMonospace (false);
+        m_tooltip.RequestShow  (cell, barTip, now);
         return;
     }
 
@@ -3038,19 +3058,23 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (p.has_value())
     {
         OffsetRect (&cell, bounds.left, bounds.top);
-        m_tooltip.RequestShow (cell, FlagsDialog::Describe (*p), now);
+        m_tooltip.SetMonospace (true);
+        m_tooltip.RequestShow  (cell, FlagsDialog::Describe (*p), now);
         return;
     }
 
     if (TryGetSymbolTip (clientPx, cell, text))
     {
-        m_tooltip.RequestShow (cell, text, now);
+        m_tooltip.SetMonospace (true);
+        m_tooltip.RequestShow  (cell, text, now);
         return;
     }
 
+    //  A tab's tip is a sentence, not a table, so it reads in the body face.
     if (!m_dockSite->GetTabAt (clientPx, cell, text).empty() && !text.empty())
     {
-        m_tooltip.RequestShow (cell, text, now);
+        m_tooltip.SetMonospace (false);
+        m_tooltip.RequestShow  (cell, text, now);
         return;
     }
 
@@ -3195,6 +3219,7 @@ void DebuggerWindow::ConfigureCodeList (int view)
                         { L"Bytes",       0, false, DxuiTextHAlign::Left },
                         { L"Label",       0, false, DxuiTextHAlign::Left },
                         { L"Instruction", 0, false, DxuiTextHAlign::Left },
+                        { L"",            0, false, DxuiTextHAlign::Left },
                         { L"",            0, false, DxuiTextHAlign::Left } });
 
     //  A breakpoint is set from the gutter (see ClickGutter), as in an editor;
@@ -3343,6 +3368,14 @@ void DebuggerWindow::ShowCode (std::optional<Word> address)
 
     m_navigatedTo   = address;
     m_navigatedView = view;
+
+    //  The view that answers comes to the front, so what was asked for is
+    //  looked at rather than drawn on a tab behind another.
+    if (m_dockSite != nullptr && m_codeOpen[(size_t) view])
+    {
+        (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetCodePaneId (view));
+        m_dockSite->Relayout();
+    }
 
     if (m_host != nullptr)
     {
@@ -3593,6 +3626,24 @@ uint32_t DebuggerWindow::GetTargetRowArgb() const
 uint32_t DebuggerWindow::GetAnnotationArgb() const
 {
     return IsDarkTheme() ? 0xFF57A64A : 0xFF008000;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetEffectArgb
+//
+//  What the instruction WILL do, told apart from what it reads by color: the
+//  editor's teal for a value about to change, never the annotation's green.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetEffectArgb() const
+{
+    return IsDarkTheme() ? 0xFF4EC9B0 : 0xFF0F7B72;
 }
 
 

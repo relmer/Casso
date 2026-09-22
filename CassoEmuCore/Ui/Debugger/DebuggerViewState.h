@@ -43,6 +43,10 @@ struct DebuggerViewSnapshot
         std::optional<Word>  target;
         std::string          annotation;
 
+        //  What executing this instruction would leave behind, on the PC's
+        //  line alone: no other line's register values are known (FR-107).
+        std::string          effect;
+
         //  The operand as written in hex, which Go to resolves, and as shown,
         //  with a symbol for its address; empty for an operand that names no
         //  memory (immediate, implied, the accumulator).
@@ -243,6 +247,11 @@ public:
     //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.
     void  ScrollCode       (int lines, int view = 0)    { m_code[(size_t) view].scrollLines += lines; }
+
+    //  Show next statement: the view follows the PC again AND brings it to
+    //  the middle, where following alone would leave a PC already on screen
+    //  wherever it sat.
+    void  ShowPcIn         (int view)                   { CodeView & v = m_code[(size_t) view]; v.address.reset(); v.pinnedAtPc.reset(); v.scrollLines = 0; v.centerOnPc = true; }
     void  SetMemoryAddress (Word address)                { m_memoryAddress = address; }
 
     //  How many lines a code view has room for. The window measures it and
@@ -378,6 +387,8 @@ private:
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
     static std::string          GetAnnotation          (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers);
+    static std::string          GetEffect              (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers);
+    static std::optional<Byte>  GetImmediate           (const std::string & operand);
 
     //  Where the code pane starts this build: the pinned address, the anchor
     //  it already had while the PC is among the lines it produced, or a new
@@ -403,6 +414,7 @@ private:
     {
         std::optional<Word>  address;
         std::optional<Word>  pinnedAtPc;
+        bool                 centerOnPc   = false;
         std::optional<Word>  centerOn;
         int                  scrollLines  = 0;
         Word                 followAnchor = 0;
