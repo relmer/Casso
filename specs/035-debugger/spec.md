@@ -1233,8 +1233,9 @@ confirm it disables without being removed.
   requires.
 - **FR-102**: The console MUST read as a command prompt: the dialect in force
   as a fixed prompt ahead of what is typed ("WinDbg>"), which cannot be edited,
-  and a hint naming that dialect's help command. `MODE` MUST work in every
-  dialect, so the session can always be switched out of any of them. The
+  and a hint naming that dialect's help command. Every control that sends an
+  engine command (the Dialect menu's `MODE` among them) MUST send it through
+  the dialect's marker (FR-014), so no dialect can trap the session. The
   console's output MUST be text, not a list of rows.
 - **FR-103**: Memory, flags and registers MUST be edited only while the machine
   is paused; while it runs, the memory panes are read-only and the register

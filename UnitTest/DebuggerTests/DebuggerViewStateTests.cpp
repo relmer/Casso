@@ -964,8 +964,9 @@ namespace DebuggerViewStateTests
             }
         }
 
-        //  The Dialect menu sends MODE in whatever dialect is in force, and
-        //  every dialect has to take it, or one of them is a trap.
+        //  The Dialect menu sends MODE through the marker of whatever dialect
+        //  is in force (FR-014), and every dialect has to take it that way, or
+        //  one of them is a trap.
         TEST_METHOD (EveryDialect_TakesMode)
         {
             MachineRig  rig;
@@ -978,7 +979,7 @@ namespace DebuggerViewStateTests
 
                 rig.controller.GetSession().ExecuteLine ("MODE " + CommandModeNames::GetUpperName (from));
                 Assert::IsTrue (rig.controller.GetSession().GetMode() == from);
-                reply = rig.controller.GetSession().ExecuteLine ("mode applewin");
+                reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(), DebuggerViewState::GetModeLine ("MODE APPLEWIN", from), from);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
                 Assert::IsTrue   (rig.controller.GetSession().GetMode() == CommandMode::AppleWin);

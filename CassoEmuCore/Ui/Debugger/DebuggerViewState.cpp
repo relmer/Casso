@@ -618,6 +618,8 @@ std::string DebuggerViewState::GetModeLine (const std::string & line, CommandMod
 //  DebuggerViewState::GetWinDbgLine
 //
 //  A control's AppleWin line in WinDbg's words: t, p, gu, g, bp, bc and eb.
+//  Any other goes through WinDbg mode's engine marker, `!`, which is how
+//  that mode reaches Casso's own commands (FR-014) -- MODE among them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -638,7 +640,7 @@ std::string DebuggerViewState::GetWinDbgLine (const std::string & name, const st
         }
     }
 
-    return line;
+    return "!" + line;
 }
 
 

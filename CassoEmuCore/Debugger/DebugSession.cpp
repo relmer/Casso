@@ -301,12 +301,6 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
         return reply;
     }
 
-    //  MODE is the one command every dialect knows by its AppleWin name, so a
-    //  session can always be switched back out of whichever it is in.
-    if (IsModeLine (text))
-    {
-        mode = CommandMode::AppleWin;
-    }
 
     switch (mode)
     {
@@ -318,25 +312,6 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 
     reply.command = line;
     return reply;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::IsModeLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::IsModeLine (const std::string & text)
-{
-    std::string  word = text.substr (0, text.find_first_of (" \t"));
-
-
-
-    return word.size() == 4 && std::equal (word.begin(), word.end(), "MODE", [] (char a, char b) { return std::toupper ((unsigned char) a) == b; });
 }
 
 

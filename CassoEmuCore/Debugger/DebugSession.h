@@ -91,9 +91,6 @@ public:
     // own mode is left as it was, so a channel request naming a mode does not
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
-
-    //  "MODE" or "MODE name", in any case.
-    static bool  IsModeLine (const std::string & text);
     void   FormatReply           (Reply & reply) const;
     void   FormatReply           (Reply & reply, CommandMode mode) const;
 
