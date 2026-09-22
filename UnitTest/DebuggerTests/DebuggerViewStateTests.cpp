@@ -242,6 +242,42 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (OneDisassemblyViewFollowsThePcAndTheRestStayPut)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  first;
+            DebuggerViewSnapshot  moved;
+            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            auto                  contains = [] (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word address)
+            {
+                return std::any_of (lines.begin(), lines.end(), [address] (const DebuggerViewSnapshot::CodeLine & line) { return line.address == address; });
+            };
+
+
+
+            rig.view.SetCodeLines (20, 0);
+            rig.view.SetCodeLines (20, 1);
+            rig.view.OpenCodeView (1, 0x0800);
+            first = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue   (first.codeOpen[1]);
+            Assert::IsTrue   (contains (first.codeViews[1], 0x0800), L"a new view opens where it was asked to");
+            Assert::IsTrue   (contains (first.codeViews[0], 0x0300), L"the first still shows the PC");
+            Assert::AreEqual (0, first.followView);
+
+            rig.view.SetFollowView (1);
+            r.pc = 0x0900;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            moved = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue   (contains (moved.codeViews[1], 0x0900), L"the view following the PC goes to it");
+            Assert::AreEqual (first.codeViews[0].front().address, moved.codeViews[0].front().address, L"the view that gave it up stays put");
+
+            rig.view.CloseCodeView (1);
+            Assert::AreEqual (0, rig.view.GetFollowView(), L"closing the follower hands the PC back to the first");
+        }
+
+
         TEST_METHOD (TheWheelScrollsTheCodePaneThroughMemory)
         {
             MachineRig            rig;

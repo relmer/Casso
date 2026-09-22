@@ -142,16 +142,22 @@ struct DebuggerViewSnapshot
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
     std::vector<CodeLine>        code;
-    std::vector<RegisterRow>     registers;
-    std::string                  flags;
-    std::vector<MemoryLine>      memory;
-    std::vector<MemoryWindow>    memoryWindows;
-    std::vector<StackLine>       stack;
-    CallStackData                callStack;
-    std::vector<BreakpointLine>  breakpoints;
-    std::vector<WatchLine>       watches;
-    std::optional<SourceState>   source;
-    TraceState                   trace;
+
+    //  Every disassembly view's lines, the first repeated in `code`; which
+    //  are open, and which follows the PC.
+    std::array<std::vector<CodeLine>, 4>  codeViews;
+    std::array<bool, 4>                   codeOpen      = {};
+    int                                   followView    = 0;
+    std::vector<RegisterRow>              registers;
+    std::string                           flags;
+    std::vector<MemoryLine>               memory;
+    std::vector<MemoryWindow>             memoryWindows;
+    std::vector<StackLine>                stack;
+    CallStackData                         callStack;
+    std::vector<BreakpointLine>           breakpoints;
+    std::vector<WatchLine>                watches;
+    std::optional<SourceState>            source;
+    TraceState                            trace;
 
     //  Every device of the machine that publishes a panel, whether its panel
     //  is open, and the rows of each open one.
@@ -221,26 +227,41 @@ public:
     //  the machine runs, and at once after an action or a stop or start.
     static bool  IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, uint64_t nowMs, uint64_t builtAtMs);
 
-    //  Where the code and memory panes start. The code pane follows the PC
-    //  unless the user moved it; the memory pane starts at the zero page.
-    void  SetCodeAddress   (std::optional<Word> address) { m_codeAddress = address; m_centerOn.reset(); m_scrollLines = 0; }
+    //  Up to four disassembly views; the first is always open. Each call
+    //  names a view, the first when it does not.
+    static constexpr int  kMaxCodeViews = 4;
 
-    //  Moves the code pane so `address` is on its middle line, or as near the
+    //  Where a code view starts. The one following the PC follows it unless
+    //  the user moved it; the memory pane starts at the zero page.
+    void  SetCodeAddress   (std::optional<Word> address, int view = 0) { CodeView & v = m_code[(size_t) view]; v.address = address; v.centerOn.reset(); v.scrollLines = 0; }
+
+    //  Moves a code view so `address` is on its middle line, or as near the
     //  middle as the top of memory allows. Every navigation goes through
     //  here, so what was asked for is never on an edge.
-    void  CenterCodeOn     (Word address) { m_centerOn = address; m_scrollLines = 0; }
+    void  CenterCodeOn     (Word address, int view = 0) { m_code[(size_t) view].centerOn = address; m_code[(size_t) view].scrollLines = 0; }
 
-    //  Scrolls the code pane by instructions, down when positive, up when
+    //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.
-    void  ScrollCode       (int lines)    { m_scrollLines += lines; }
+    void  ScrollCode       (int lines, int view = 0)    { m_code[(size_t) view].scrollLines += lines; }
     void  SetMemoryAddress (Word address)                { m_memoryAddress = address; }
 
-    //  How many lines the code pane has room for. The window measures it
-    //  and says; the default is what fits the smallest pane worth having.
-    void  SetCodeLines     (int lines);
-    int   GetCodeLines     () const { return m_codeLines; }
+    //  How many lines a code view has room for. The window measures it and
+    //  says; the default is what fits the smallest pane worth having.
+    void  SetCodeLines     (int lines, int view = 0);
+    int   GetCodeLines     (int view = 0) const { return m_code[(size_t) view].lines; }
 
-    std::optional<Word>  GetCodeAddress   () const { return m_codeAddress; }
+    std::optional<Word>  GetCodeAddress   (int view = 0) const { return m_code[(size_t) view].address; }
+
+    //  Views 2 to 4 (indexes 1 to 3) open centered on an address, and close;
+    //  a view closing while it follows the PC hands following to the first.
+    void  OpenCodeView     (int view, Word address);
+    void  CloseCodeView    (int view);
+    bool  IsCodeViewOpen   (int view) const { return view == 0 || m_code[(size_t) view].open; }
+
+    //  Which open view follows the PC; exactly one does. The one giving it up
+    //  stays where it was.
+    void  SetFollowView    (int view);
+    int   GetFollowView    () const { return m_follow; }
     Word                 GetMemoryAddress () const { return m_memoryAddress; }
 
     //  Windows 2 to 4 open at an address or close; window 1 is the memory pane
@@ -361,7 +382,8 @@ private:
     //  Where the code pane starts this build: the pinned address, the anchor
     //  it already had while the PC is among the lines it produced, or a new
     //  anchor that puts the PC in the middle.
-    Word         ChooseCodeStart (DebugSession & session, Word pc) const;
+    Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
+    std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
 
     //  An address to disassemble from so that `pc` lands `before` lines in,
     //  or `pc` itself when no such address is found. The 6502 cannot be
@@ -370,21 +392,28 @@ private:
     //  alignment that reaches `pc` exactly.
     static Word  FindStartAbove  (DebugSession & session, Word pc, int before);
 
-    mutable std::optional<Word>  m_codeAddress;
-    mutable std::optional<Word>  m_centerOn;
-    mutable int                  m_scrollLines = 0;
+    //  One disassembly view. `address` pins it; `centerOn` and `scrollLines`
+    //  are moves the next build makes. `followAnchor` and `shown` are where a
+    //  view following the PC is anchored and the addresses it last showed: it
+    //  re-anchors only when the PC walks out of those, since anchoring on the
+    //  PC itself re-disassembled from a new address every snapshot, a window
+    //  that never holds still. Mutable because a build is const and these are
+    //  what it learned while running.
+    struct CodeView
+    {
+        std::optional<Word>  address;
+        std::optional<Word>  centerOn;
+        int                  scrollLines  = 0;
+        Word                 followAnchor = 0;
+        std::vector<Word>    shown;
+        int                  lines        = kCodeLines;
+        bool                 open         = false;
+    };
 
-    //  Where the code pane is anchored while it follows the PC, and the
-    //  addresses it last showed. The pane re-anchors only when the PC walks
-    //  out of those; anchoring on the PC itself re-disassembled from a new
-    //  address every snapshot, which is a window that never holds still.
-    //  Mutable for the same reason as the open panels below: a build is const
-    //  and these are what it learned while running.
-    mutable Word               m_followAnchor  = 0;
-    mutable std::vector<Word>  m_shownCode;
-    int                        m_codeLines     = kCodeLines;
-    Word                       m_memoryAddress = 0x0000;
-    std::optional<uint64_t>    m_traceTop;
+    mutable std::array<CodeView, kMaxCodeViews>  m_code;
+    int                                          m_follow        = 0;
+    Word                                         m_memoryAddress = 0x0000;
+    std::optional<uint64_t>                      m_traceTop;
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
