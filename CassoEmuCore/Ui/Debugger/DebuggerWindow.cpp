@@ -2513,7 +2513,8 @@ void DebuggerWindow::ApplySnapshot()
 
     //  Each disassembly view open, and which follows the PC: once a second
     //  view is open, the follower's tab carries the PC's yellow dot and says
-    //  so in its tip.
+    //  so in its tip. Every view's open state is taken before any dot is set,
+    //  so the first view's dot sees a second view opened in this snapshot.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         bool  open = m_snapshot->codeOpen[(size_t) view];
@@ -2529,7 +2530,11 @@ void DebuggerWindow::ApplySnapshot()
 
             m_dockSite->Relayout();
         }
+    }
 
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        bool  open = m_codeOpen[(size_t) view];
 
         m_dockSite->SetLeadingDot (DebuggerLayout::GetCodePaneId (view),
                                    (GetOpenCodeViewCount() > 1 && m_snapshot->followView == view) ? GetPcMarkerArgb() : 0);
