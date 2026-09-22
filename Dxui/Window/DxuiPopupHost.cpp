@@ -1619,12 +1619,13 @@ void DxuiPopupHost::BeginFadeOut (int durationMs)
 
 void DxuiPopupHost::ApplyReveal (float t)
 {
-    float  eased  = 0.0f;
-    int    fullW  = 0;
-    int    fullH  = 0;
-    int    shownH = 0;
-    int    top    = 0;
-    float  offset = 0.0f;
+    float       eased  = 0.0f;
+    int         fullW  = 0;
+    int         fullH  = 0;
+    int         shownH = 0;
+    int         top    = 0;
+    float       offset = 0.0f;
+    D2D_RECT_F  clip   = {};
 
 
 
@@ -1720,6 +1721,29 @@ void DxuiPopupHost::ApplyReveal (float t)
     if (m_compVisual)
     {
         m_compVisual->SetOffsetY (offset);
+
+        //  The window carries the shadow's margin above the card, and a slide
+        //  shows the menu through that margin, which starts the drop above the
+        //  anchor by the margin's height. While the slide runs, nothing is
+        //  drawn above the card's top edge; the finished frame clears the clip.
+        if (!m_revealUpward && t < 1.0f)
+        {
+            clip.left   = 0.0f;
+            clip.top    = (float) m_shadowMarginPx - offset;
+            clip.right  = (float) fullW;
+            //  The card ends a margin below fullH in the buffer -- it starts
+            //  at the margin -- so a clip that stops at fullH cuts a margin
+            //  off its bottom. That is most of a row: the last item stayed
+            //  hidden until the slide finished and the clip came off, so the
+            //  menu appeared to grow from its second-to-last row.
+            clip.bottom = (float) (m_shadowMarginPx + fullH);
+
+            m_compVisual->SetClip (clip);
+        }
+        else
+        {
+            m_compVisual->SetClip ((IDCompositionClip *) nullptr);
+        }
 
         if (m_compDevice)
         {
