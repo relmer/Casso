@@ -495,6 +495,9 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.WINGET_PAT }}
+          # wingetcreate reads the token from this variable; passing it with
+          # --token puts it on the command line, where it can end up in logs.
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_PAT }}
         run: |
           $version = '${{ steps.ver.outputs.version }}'
           $tag     = '${{ steps.ver.outputs.tag }}'
@@ -572,7 +575,7 @@ jobs:
           & $dest update $pkgId `
             --version $version `
             --urls "$baseUrl/Casso-$version.msixbundle" `
-            --submit --token $env:GH_TOKEN
+            --submit
 
           if ($LASTEXITCODE -ne 0) {
               throw "wingetcreate failed ($LASTEXITCODE). The release itself is published and unaffected."
