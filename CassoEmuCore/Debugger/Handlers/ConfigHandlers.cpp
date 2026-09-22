@@ -6,6 +6,7 @@
 #include "Config/IFileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/AppleWinCommandTable.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/DebugSession.h"
@@ -39,7 +40,7 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::Print:                Print           (session, command, reply); return true;
     case DebugVerb::PrintFormatted:       PrintFormatted  (session, command, reply); return true;
     case DebugVerb::Calculate:            reply.data = CalcData { command.a1 };      return true;
-    case DebugVerb::Help:                 Help            (command, reply);          return true;
+    case DebugVerb::Help:                 Help            (session, command, reply); return true;
     case DebugVerb::ShowVersion:          reply.data = MessageData { { "Casso " VERSION_STRING } }; return true;
     case DebugVerb::ShowOutputFormat:
     case DebugVerb::SetOutputFormat:      Output          (session, command, reply); return true;
@@ -550,18 +551,41 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigHandlers::Help (const DebugCommand & command, Reply & reply)
+void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::string                    name    = ToUpper (command.text);
-    const AppleWinCommand        * entry   = nullptr;
-    std::map<int, std::string>     families;
-    MessageData                    message;
-    std::string                    text;
+    std::string                     name    = ToUpper (command.text);
+    CommandMode                     mode    = session.GetMode();
+    const AppleWinCommand         * entry   = nullptr;
+    const CommandModeHelp::Entry  * word    = CommandModeHelp::Find (mode, command.text);
+    std::map<int, std::string>      families;
+    MessageData                     message;
+    std::string                     text;
+    size_t                          width   = 0;
 
 
 
     if (name.empty())
     {
+        //  Another mode's help leads with its own commands, as its user types
+        //  them, then the engine commands the mode reaches through its marker.
+        for (const CommandModeHelp::Entry & form : CommandModeHelp::GetEntries (mode))
+        {
+            width = (std::max) (width, strlen (form.syntax));
+        }
+
+        if (width > 0)
+        {
+            message.lines.push_back (std::string (CommandModeHelp::GetTitle (mode)) + " commands:");
+
+            for (const CommandModeHelp::Entry & form : CommandModeHelp::GetEntries (mode))
+            {
+                message.lines.push_back (std::format ("  {:<{}}  {}", form.syntax, width, form.description));
+            }
+
+            message.lines.push_back ("");
+            message.lines.push_back (std::format ("Casso commands, {}:", CommandModeHelp::GetEngineRoute (mode)));
+        }
+
         for (const AppleWinCommand & candidate : AppleWinCommandTable::GetAll())
         {
             if (candidate.availability == CommandAvailability::Headless)
@@ -572,10 +596,16 @@ void ConfigHandlers::Help (const DebugCommand & command, Reply & reply)
 
         for (const auto & [family, names] : families)
         {
-            message.lines.push_back (std::string (GetFamilyName (family)) + ": " + names);
+            message.lines.push_back (std::string (width > 0 ? "  " : "") + GetFamilyName (family) + ": " + names);
         }
 
         reply.data = message;
+        return;
+    }
+
+    if (word != nullptr)
+    {
+        reply.data = MessageData { { std::format ("{}: {}", word->syntax, word->description) } };
         return;
     }
 

@@ -79,7 +79,7 @@ DebuggerCommands::DebuggerCommands (Handlers handlers)
         command->id    = row.id;
         command->label = row.label;
         command->glyph = row.glyph;
-        command->tip   = row.tip;
+        command->tip   = GetTip (row, L"");
 
         command->dispatch = [this, id]
         {
@@ -207,6 +207,28 @@ std::shared_ptr<DxuiCommand> DebuggerCommands::Find (int id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerCommands::GetTip
+//
+//  The entry's name with the key that runs it in the scheme in force, as
+//  Visual Studio writes its toolbar tips, then what it does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerCommands::GetTip (const Row & row, const std::wstring & accelerator)
+{
+    std::wstring  title = accelerator.empty() ? std::wstring (row.label) : std::format (L"{} ({})", row.label, accelerator);
+
+
+
+    return title + L"\n" + row.tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerCommands::ApplyKeyScheme
 //
 //  The strip shows each command's key as the scheme in force binds it, so
@@ -220,8 +242,11 @@ void DebuggerCommands::ApplyKeyScheme (DebuggerKeyScheme scheme)
 
 
 
-    for (const std::shared_ptr<DxuiCommand> & command : m_commands)
+    for (size_t i = 0; i < m_commands.size() && i < GetRows().size(); i++)
     {
-        command->accelerator = map.GetChordText (command->id);
+        DxuiCommand &  command = *m_commands[i];
+
+        command.accelerator = map.GetChordText (command.id);
+        command.tip         = GetTip (GetRows()[i], command.accelerator);
     }
 }

@@ -179,6 +179,49 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (HELP_ListsTheModesOwnCommandsFirst)
+        {
+            const std::tuple<const char *, const char *, const char *, const char *>  modes[] =
+            {
+                { "WINDBG",    ".help", "WinDbg commands:",    "Casso commands, after !" },
+                { "MONITOR",   "/HELP", "Monitor commands:",   "Casso commands, after /" },
+                { "GSSQUARED", "help",  "GSSquared commands:", "Casso commands, by name" },
+            };
+
+
+
+            for (const auto & [mode, help, heading, engine] : modes)
+            {
+                Rig                       rig;
+                std::vector<std::string>  lines;
+                bool                      hasEngine = false;
+
+
+
+                (void) rig.session.ExecuteLine (std::string ("MODE ") + mode, CommandMode::AppleWin);
+                lines = rig.RunOk (help).text;
+
+                for (const std::string & line : lines)
+                {
+                    hasEngine |= line.starts_with (engine);
+                }
+
+                Assert::AreEqual (std::string (heading), lines.at (0));
+                Assert::IsTrue   (hasEngine, L"the engine commands follow, with the way the mode reaches them");
+            }
+
+            {
+                Rig  rig;
+
+
+
+                (void) rig.session.ExecuteLine ("MODE WINDBG", CommandMode::AppleWin);
+                Assert::AreEqual (std::string ("ba r1|w1|e1 addr: Break on a read, write or execution of addr"), rig.RunOk (".help ba").text.at (0));
+                Assert::AreEqual (std::string ("BPM (Breakpoints)"), rig.RunOk (".help bpm").text.at (0), L"an engine command still answers");
+            }
+        }
+
+
 
         TEST_METHOD (DISASM_Settings)
         {

@@ -73,6 +73,7 @@ private:
     };
 
     static const std::vector<Row> &  GetRows ();
+    static std::wstring              GetTip  (const Row & row, const std::wstring & accelerator);
     static void  PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ink);
 
     Handlers                                   m_handlers;

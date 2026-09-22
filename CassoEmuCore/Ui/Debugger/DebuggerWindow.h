@@ -13,6 +13,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -173,6 +174,7 @@ private:
     void     ConfigureWidgets ();
     void     LayoutWidgets    ();
     void     ApplySnapshot    ();
+    void     UpdateChanges    ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
     void     SubmitMemoryBox  ();
@@ -284,7 +286,7 @@ private:
     int                                     m_navigatedView      = 0;
     std::string                             m_menuState;
     uint32_t                                m_goToSerial         = 0;
-    std::map<int, std::string>              m_watchValues;
+    StopChanges                             m_stopChanges;
     float                                   m_textZoom           = 1.0f;
     DxuiTooltip                             m_tooltip;
     std::shared_ptr<const DxuiIconImage>    m_breakpointIcons[2];

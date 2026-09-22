@@ -477,11 +477,10 @@ void DebuggerWindow::SetCommandBarMenus()
         {
             std::string  id   = panel.id;
             bool         open = panel.open;
-            CommandMode  mode = m_snapshot->mode;
 
-            m_menuCommands.push_back (MakeMenuCommand (Widen (panel.title), open, [this, id, open, mode]
+            m_menuCommands.push_back (MakeMenuCommand (Widen (panel.title), open, [this, id, open]
             {
-                RunCommand (DebuggerViewState::GetPanelLine (id, !open, mode));
+                RunCommand (DebuggerViewState::GetPanelLine (id, !open));
             }));
 
             panels.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -2545,12 +2544,24 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
+    UpdateChanges();
+
     //  THE FLAGS ARE THE P REGISTER written so a person can read it, so they
     //  sit on P's row beside the byte they come from, in the same monospace
-    //  face -- where a bit changing moves nothing else.
+    //  face -- where a bit changing moves nothing else. A register that
+    //  changed since the last stop is drawn in the changed color (FR-098).
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
-        rows.push_back ({ { Widen (reg.name) }, { Widen (reg.value) }, { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" } });
+        DxuiListView::Cell  value = { Widen (reg.value) };
+        DxuiListView::Cell  flags = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
+
+        if (m_stopChanges.IsChanged ("R:" + reg.name))
+        {
+            value.argb = GetChangedArgb();
+            flags.argb = GetChangedArgb();
+        }
+
+        rows.push_back ({ { Widen (reg.name) }, value, flags });
     }
 
     m_registerList->SetRows (std::move (rows));
@@ -2576,26 +2587,18 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
-    //  A value that differs from the one the previous snapshot showed for the
-    //  same watch is drawn in the changed color (FR-098).
+    //  A watch whose value changed since the last stop is drawn in the
+    //  changed color (FR-098).
     for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
     {
         DxuiListView::Cell  value = { Widen (watch.value) };
-        auto                was   = m_watchValues.find (watch.id);
 
-        if (was != m_watchValues.end() && was->second != watch.value)
+        if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
         {
             value.argb = GetChangedArgb();
         }
 
         rows.push_back ({ { std::format (L"#{} ${:04X}", watch.id, watch.address) }, value });
-    }
-
-    m_watchValues.clear();
-
-    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
-    {
-        m_watchValues[watch.id] = watch.value;
     }
 
     m_watchList->SetRows (std::move (rows));
@@ -2615,6 +2618,35 @@ void DebuggerWindow::ApplySnapshot()
     ApplyMemoryWindows();
     ApplySource();
     ApplyDiagnostics();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UpdateChanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateChanges()
+{
+    StopChanges::Values  values;
+
+
+
+    for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
+    {
+        values["R:" + reg.name] = reg.value;
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
+    {
+        values[std::format ("W:{}", watch.id)] = watch.value;
+    }
+
+    m_stopChanges.Update (m_snapshot->isPaused, std::move (values));
 }
 
 
@@ -2969,8 +3001,22 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     int64_t              now    = (int64_t) GetTickCount64();
     std::optional<Byte>  p;
     std::wstring         text;
+    const wchar_t      * barTip = nullptr;
 
 
+
+    //  The command bar's entries: what each does and its key in the scheme
+    //  in force.
+    if (m_commandBar != nullptr && m_commandBar->IsVisible())
+    {
+        barTip = m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
+    if (barTip != nullptr && *barTip != L'\0')
+    {
+        m_tooltip.RequestShow (cell, barTip, now);
+        return;
+    }
 
     if (m_snapshot != nullptr && IsRoutable (m_registerList) && m_registerList->IsVisible() && DxuiDockSite::Contains (bounds, clientPx))
     {

@@ -18,6 +18,7 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/StopChanges.h"
 #include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
 
@@ -307,6 +308,60 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((Word) 0x0000, up.code[0].address, L"up past everything stops at $0000");
         }
 
+
+        TEST_METHOD (ChangesAreMarkedAgainstThePreviousStopAndHeld)
+        {
+            StopChanges  changes;
+
+
+
+            changes.Update (true, { { "R:A", "00" }, { "R:X", "01" } });
+            Assert::IsFalse (changes.IsChanged ("R:A"), L"the first stop has nothing to compare with");
+
+            changes.Update (true, { { "R:A", "05" }, { "R:X", "01" } });
+            Assert::IsTrue  (changes.IsChanged ("R:A"), L"a step that changed A");
+            Assert::IsFalse (changes.IsChanged ("R:X"));
+
+            changes.Update (true, { { "R:A", "05" }, { "R:X", "01" } });
+            Assert::IsTrue  (changes.IsChanged ("R:A"), L"a repeated snapshot of the same stop keeps the mark");
+
+            changes.Update (false, { { "R:A", "77" }, { "R:X", "02" } });
+            Assert::IsFalse (changes.IsChanged ("R:A"), L"nothing is marked while running");
+
+            changes.Update (true, { { "R:A", "05" }, { "R:X", "09" } });
+            Assert::IsFalse (changes.IsChanged ("R:A"), L"against the previous stop, not the running values");
+            Assert::IsTrue  (changes.IsChanged ("R:X"));
+            Assert::IsFalse (changes.IsChanged ("W:1"), L"a key never shown is not changed");
+        }
+
+
+        TEST_METHOD (AScrolledFollowingViewFollowsAgainOnceThePcMoves)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  scrolled;
+            DebuggerViewSnapshot  stepped;
+            DebuggerViewSnapshot  left;
+            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+
+
+
+            rig.view.SetCodeLines (20);
+            (void) rig.view.Build (rig.controller.GetSession());
+            rig.view.ScrollCode (2);
+            scrolled = rig.view.Build (rig.controller.GetSession());
+
+            r.pc = scrolled.code[5].address;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            stepped = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual (scrolled.code[0].address, stepped.code[0].address, L"a PC still on the lines moves the marker, not the view");
+            Assert::IsTrue   (stepped.code[5].isCurrent);
+
+            r.pc = 0x0900;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            left = rig.view.Build (rig.controller.GetSession());
+            Assert::IsTrue (std::any_of (left.code.begin(), left.code.end(), [] (const DebuggerViewSnapshot::CodeLine & line) { return line.isCurrent; }),
+                            L"a PC off the lines brings the view to it");
+        }
 
         TEST_METHOD (TheBreakpointDialogWritesADefinitionBpeditTakes)
         {
@@ -1760,9 +1815,9 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (TheMenuSendsPanelLines)
         {
-            Assert::AreEqual (std::string ("PANEL disk"),        DebuggerViewState::GetPanelLine ("disk", true,  CommandMode::AppleWin));
-            Assert::AreEqual (std::string ("PANEL CLOSE disk"),  DebuggerViewState::GetPanelLine ("disk", false, CommandMode::AppleWin));
-            Assert::AreEqual (std::string ("/PANEL disk"),       DebuggerViewState::GetPanelLine ("disk", true,  CommandMode::Monitor));
+            Assert::AreEqual (std::string ("PANEL disk"),        DebuggerViewState::GetPanelLine ("disk", true));
+            Assert::AreEqual (std::string ("PANEL CLOSE disk"),  DebuggerViewState::GetPanelLine ("disk", false));
+            Assert::AreEqual (std::string ("/PANEL disk"),       DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("disk", true), CommandMode::Monitor));
         }
 
 

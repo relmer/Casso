@@ -303,9 +303,9 @@ public:
     static std::string  GetRunLine              ()             { return "G"; }
     static std::string  GetRunToCursorLine      (Word address);
 
-    //  PANEL to open or close a device panel, marked as an AppleWin line when
-    //  the command box is in Monitor mode.
-    static std::string  GetPanelLine            (const std::string & id, bool open, CommandMode mode);
+    //  PANEL to open or close a device panel, as an AppleWin line; RunCommand
+    //  marks it for the current mode.
+    static std::string  GetPanelLine            (const std::string & id, bool open);
 
     //  The command line a keyboard-scheme action sends, which is the line its
     //  button sends. The cursor actions use the selected code line (toggling
@@ -402,6 +402,7 @@ private:
     struct CodeView
     {
         std::optional<Word>  address;
+        std::optional<Word>  pinnedAtPc;
         std::optional<Word>  centerOn;
         int                  scrollLines  = 0;
         Word                 followAnchor = 0;

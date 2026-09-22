@@ -702,9 +702,9 @@ std::string DebuggerViewState::GetRunToCursorLine (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DebuggerViewState::GetPanelLine (const std::string & id, bool open, CommandMode mode)
+std::string DebuggerViewState::GetPanelLine (const std::string & id, bool open)
 {
-    return std::format ("{}PANEL {}{}", mode == CommandMode::Monitor ? "/" : "", open ? "" : "CLOSE ", id);
+    return std::format ("PANEL {}{}", open ? "" : "CLOSE ", id);
 }
 
 
@@ -1209,6 +1209,16 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
 
 
+    //  The following view put somewhere -- scrolled, or navigated to -- holds
+    //  there only until the PC moves. It then follows again from where it
+    //  stands, so a PC still on its lines moves the marker, not the view.
+    if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && *v.pinnedAtPc != pc)
+    {
+        v.followAnchor = *v.address;
+        v.address.reset();
+        v.pinnedAtPc.reset();
+    }
+
     //  A view that does not follow the PC and has not been put anywhere
     //  starts with the PC in its middle, and stays there after.
     if (view != m_follow && !v.address.has_value() && !v.centerOn.has_value())
@@ -1265,8 +1275,15 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
     if (v.address.has_value())
     {
+        if (!v.pinnedAtPc.has_value())
+        {
+            v.pinnedAtPc = pc;
+        }
+
         return *v.address;
     }
+
+    v.pinnedAtPc.reset();
 
     if (!shown)
     {
