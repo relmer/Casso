@@ -175,7 +175,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string (""),          LineAt (snapshot, 0x0300).annotation, L"an immediate operand touches no memory");
             Assert::AreEqual (std::string ("$0400=5A"),  LineAt (snapshot, 0x0302).annotation);
             Assert::AreEqual (std::string ("Z=1"),       LineAt (snapshot, 0x0306).annotation, L"a branch shows the flag it tests");
-            Assert::AreEqual (std::string ("$0402=77"),  LineAt (snapshot, 0x0308).annotation, L"indexed: the address the CPU would use");
+            Assert::AreEqual (std::string ("X=02 $0402=77"), LineAt (snapshot, 0x0308).annotation, L"indexed: the index, then the address the CPU would use");
             Assert::IsTrue   (LineAt (snapshot, 0x0306).target == std::optional<Word> (0x0306));
         }
 

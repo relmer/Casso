@@ -1577,6 +1577,43 @@ void DxuiToolbar::OpenDropDown (int commandId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::Flatten
+//
+//  `ink` composited over `behind`, so a translucent color becomes the opaque
+//  color it would have looked like. Alpha in `behind` is ignored: it is what
+//  is already on the surface.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiToolbar::Flatten (uint32_t ink, uint32_t behind)
+{
+    unsigned  alpha = (ink >> 24) & 0xFFu;
+    unsigned  out   = 0xFF000000u;
+
+
+
+    if (alpha == 0xFFu)
+    {
+        return ink;
+    }
+
+    for (int shift = 0; shift <= 16; shift += 8)
+    {
+        unsigned  front = (ink    >> shift) & 0xFFu;
+        unsigned  back  = (behind >> shift) & 0xFFu;
+
+        out |= (((front * alpha + back * (255u - alpha) + 127u) / 255u) & 0xFFu) << shift;
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::PaintEntryIcon
 //
 //  One glyph in the icon face, left-aligned in its column and vertically
@@ -1584,12 +1621,21 @@ void DxuiToolbar::OpenDropDown (int commandId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink)
+void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink)
 {
     HRESULT          hr    = S_OK;
     const wchar_t *  glyph = (slot.entry.command != nullptr) ? slot.entry.command->glyph : nullptr;
 
 
+
+    //  A drawn icon stands in for the glyph, in the same box and the same
+    //  ink: whatever this path decided about hover, disabling and theme
+    //  reaches both kinds of icon or neither.
+    if (slot.entry.icon)
+    {
+        slot.entry.icon (painter, icon);
+        return;
+    }
 
     if (glyph == nullptr || glyph[0] == 0)
     {
@@ -1617,9 +1663,10 @@ void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, c
 //  toggle's command is checked. An idle toolbar shows bare icons on the bar,
 //  which is what keeps a row of ten buttons from reading as ten boxes.
 //
-//  Disabled entries dim the ink by rewriting its ALPHA rather than
-//  substituting a theme color, so the disabled look follows whatever the
-//  theme's foreground is instead of needing a matching swatch per theme.
+//  Disabled entries take the theme's own disabled foreground, so a theme
+//  that wants a particular dimmed color gets it rather than an alpha the
+//  strip chose. A strip with overridden colors keeps its own hue at that
+//  color's alpha.
 //
 //  The decoration is handed the ICON's box, not the entry's rect, so
 //  whatever it draws stays pinned to the glyph regardless of how much label
@@ -1652,7 +1699,8 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
     if (!enabled)
     {
-        ink = (ink & 0x00FFFFFFu) | kDisabledInkAlpha;
+        ink = m_stripColorsSet ? ((m_textOverride & 0x00FFFFFFu) | (theme.ForegroundDisabled() & 0xFF000000u))
+                               : theme.ForegroundDisabled();
     }
 
     if (active)
@@ -1690,9 +1738,15 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     icon.top  = bt;
     icon.size = iconDip;
     icon.rowH = bh;
-    icon.ink  = ink;
 
-    PaintEntryIcon (slot, text, icon, ink);
+    //  A DECORATION IS GIVEN AN OPAQUE INK. Text draws a partly transparent
+    //  color once, but strokes are laid down as overlapping rects, and each
+    //  overlap blends again -- the same color would come out solid. So the
+    //  ink is flattened against what it will be drawn on first.
+    icon.ink  = Flatten (ink, active ? ((slot.pressed || checked) ? theme.ButtonPressed()
+                                                                  : (slot.hovered ? theme.ButtonHover() : theme.ButtonIdle()))
+                                     : (m_stripColorsSet ? m_stripOverride : theme.Background()));
+    PaintEntryIcon (slot, painter, text, icon, ink);
 
     if (slot.entry.decoration)
     {

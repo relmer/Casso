@@ -15,7 +15,7 @@ static constexpr const wchar_t *  s_kGlyphPause       = L"\uE769";   // pause ba
 static constexpr const wchar_t *  s_kGlyphStepInto    = L"\uE896";   // arrow down to a bar
 static constexpr const wchar_t *  s_kGlyphStepOver    = L"\uE7A6";   // an arc up and over, to the right
 static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up from a bar
-static constexpr const wchar_t *  s_kGlyphRunToCursor = L" ";         // blank, to hold the icon's place: MDL2 has no arrow into a bar, so PaintRunToCursor draws it
+static constexpr const wchar_t *  s_kGlyphRunToCursor = L"";         // MDL2 has no arrow into a bar, so the entry draws its own icon
 static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
 static constexpr const wchar_t *  s_kGlyphPanels      = L"\uE950";   // chip
@@ -132,16 +132,11 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
 
         if (row.id == kRunToCursor)
         {
-            entry.decoration = [] (IDxuiPainter             & painter,
-                                   const IDxuiTheme         & theme,
-                                   const DxuiToolbarIconBox & icon,
-                                   bool                       collapsed)
+            //  Drawn rather than a glyph, but through the strip's own icon
+            //  path: hover, disabling and theme are decided once, for every
+            //  entry, and handed here as the box's ink.
+            entry.icon = [] (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
             {
-                UNREFERENCED_PARAMETER (theme);
-                UNREFERENCED_PARAMETER (collapsed);
-
-                //  The ink the strip drew its own glyphs in, so this icon is
-                //  the same color as the entries beside it, enabled or not.
                 PaintRunToCursor (painter, icon, icon.ink);
             };
         }

@@ -126,6 +126,12 @@ public:
     };
 
     using ChoiceFn     = std::function<void (int index)>;
+
+    //  An entry whose icon is a shape rather than a glyph: the strip calls
+    //  this where it would have drawn the glyph, with the box and the ink it
+    //  would have used, so a drawn icon and a font icon go through one path
+    //  and cannot disagree about hover, disabling or theme.
+    using IconFn       = std::function<void (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)>;
     using DecorationFn = std::function<void (IDxuiPainter              & painter,
                                              const IDxuiTheme          & theme,
                                              const DxuiToolbarIconBox  & icon,
@@ -136,6 +142,7 @@ public:
         std::shared_ptr<const DxuiCommand>   command;
         Kind                                 kind       = Kind::Command;
         int                                  group      = 0;
+        IconFn                               icon;
         DecorationFn                         decoration;
         IDxuiToolbarCustomEntry            * custom     = nullptr;
 
@@ -334,7 +341,10 @@ private:
     void          ForwardToFlyout      (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, bool & handled);
 
     void  PaintSlot      (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink);
+    void  PaintEntryIcon (const Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink);
+
+    //  A translucent ink as the opaque color it looks like over ehind.
+    static uint32_t  Flatten (uint32_t ink, uint32_t behind);
     void  PaintFlyout    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
 

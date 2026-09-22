@@ -1565,6 +1565,7 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
     HRESULT           hr     = S_OK;
     Word              where  = 0;
     Byte              value  = 0;
+    std::string       index;
 
 
 
@@ -1595,12 +1596,24 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 
     where = prediction.touches.back().address;
 
-    if (session.GetTarget().GetRegion (where) == MemoryRegion::Io || !session.TryPeek (where, value))
+    //  AN INDEXED OPERAND SAYS WHAT INDEXED IT. $D044 alone leaves the
+    //  reader to work out how $D000,Y arrived there; the index's value is
+    //  the missing half of that arithmetic.
+    if (line.instruction.operand.ends_with (",Y") || line.instruction.operand.ends_with ("),Y"))
     {
-        return std::format ("${:04X}", where);
+        index = std::format ("Y={:02X} ", registers.y);
+    }
+    else if (line.instruction.operand.ends_with (",X") || line.instruction.operand.ends_with (",X)"))
+    {
+        index = std::format ("X={:02X} ", registers.x);
     }
 
-    return std::format ("${:04X}={:02X}", where, value);
+    if (session.GetTarget().GetRegion (where) == MemoryRegion::Io || !session.TryPeek (where, value))
+    {
+        return std::format ("{}${:04X}", index, where);
+    }
+
+    return std::format ("{}${:04X}={:02X}", index, where, value);
 }
 
 
