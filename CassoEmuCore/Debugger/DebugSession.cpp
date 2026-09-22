@@ -211,6 +211,16 @@ Reply DebugSession::Execute (const DebugCommand & command)
         return reply;
     }
 
+    //  Registers and memory are changed only with the machine stopped
+    //  (FR-103): a running program would overwrite the change, or be changed
+    //  under the code using it.
+    if (IsMachineWrite (command.verb) && (m_state == RunState::FreeRunning || m_state == RunState::DebugRun))
+    {
+        SetError (reply, CommandStatus::Error, "machine running",
+                  std::format ("{} changes registers or memory; pause the machine first.", command.sourceName));
+        return reply;
+    }
+
     for (IDebugCommandHandler * handler : m_handlers)
     {
         if (handler->TryExecute (*this, command, reply))
@@ -222,6 +232,46 @@ Reply DebugSession::Execute (const DebugCommand & command)
     SetError (reply, CommandStatus::NotAvailable, "command not available",
               std::format ("{} is not available yet.", command.sourceName));
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::IsMachineWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::IsMachineWrite (DebugVerb verb)
+{
+    switch (verb)
+    {
+    case DebugVerb::SetProgramCounter:
+    case DebugVerb::WriteNop:
+    case DebugVerb::SetRegister:
+    case DebugVerb::ClearFlag:
+    case DebugVerb::SetFlag:
+    case DebugVerb::PopStack:
+    case DebugVerb::PopStackWord:
+    case DebugVerb::PushStack:
+    case DebugVerb::EnterBytes:
+    case DebugVerb::EnterWords:
+    case DebugVerb::PatchBytes:
+    case DebugVerb::MoveMemory:
+    case DebugVerb::FillMemory:
+    case DebugVerb::LoadBinary:
+    case DebugVerb::WriteIo:
+    case DebugVerb::Deposit:
+    case DebugVerb::EditRegisters:
+    case DebugVerb::ReadFile:
+    case DebugVerb::EnterAssembler:
+        return true;
+
+    default:
+        return false;
+    }
 }
 
 

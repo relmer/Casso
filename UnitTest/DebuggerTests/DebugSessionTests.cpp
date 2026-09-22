@@ -192,6 +192,29 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (RegisterAndMemoryWrites_WaitForAPausedMachine)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     running (target, sink, RunState::FreeRunning);
+            DebugSession     paused  (target, sink, RunState::Paused);
+
+
+
+            for (const char * line : { "R A 41", "SEC", "MEB 0300 41", "F 0300 0310 00" })
+            {
+                Reply  refused  = running.ExecuteLine (line);
+                Reply  accepted = paused.ExecuteLine (line);
+
+                Assert::AreEqual ((int) CommandStatus::Error, (int) refused.status, std::wstring (line, line + strlen (line)).c_str());
+                Assert::AreEqual (std::string ("machine running"), refused.error.label);
+                Assert::AreNotEqual (std::string ("machine running"), accepted.error.label, L"paused, the write goes on to its handler");
+            }
+
+            Assert::AreNotEqual (std::string ("machine running"), running.ExecuteLine ("R").error.label, L"reading them is fine while it runs");
+        }
+
+
         TEST_METHOD (Step_SetsStepping_StopReturnsToPaused)
         {
             MockDebugTarget  target;

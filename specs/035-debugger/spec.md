@@ -1238,8 +1238,11 @@ confirm it disables without being removed.
   the dialect's marker (FR-014), so no dialect can trap the session. The
   console's output MUST be text, not a list of rows.
 - **FR-103**: Memory, flags and registers MUST be edited only while the machine
-  is paused; while it runs, the memory panes are read-only and the register
-  editors say to pause.
+  is paused; while it runs, the memory panes are read-only, the register
+  editors say to pause, and every command that writes registers or memory
+  (`R`, the flag commands, the memory entry, fill, move and patch commands,
+  loads into memory, stack pushes and pulls, the assembler) is refused with
+  the same instruction, from any way in.
 - **FR-104**: Right-clicking a code line MUST offer showing, in each open memory
   pane, the address clicked or, over the operand, the operand's address
   resolved through its addressing mode ("Show (BASL),Y in Memory 1").

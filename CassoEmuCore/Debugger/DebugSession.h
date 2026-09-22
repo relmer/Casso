@@ -91,6 +91,9 @@ public:
     // own mode is left as it was, so a channel request naming a mode does not
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
+
+    //  A command that changes registers or memory, refused while the machine runs.
+    static bool  IsMachineWrite  (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;
     void   FormatReply           (Reply & reply, CommandMode mode) const;
 
