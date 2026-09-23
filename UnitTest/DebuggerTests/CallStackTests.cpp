@@ -540,6 +540,38 @@ namespace DebuggerTests
         }
 
 
+        //  A routine calling itself forever wraps the stack every 128 calls.
+        //  The frames are capped, and a wrap below the frames kept goes with
+        //  them, so the breaks stay as few as the frames that hold them.
+        TEST_METHOD (ARunawayRecursionKeepsItsBreaksBounded)
+        {
+            std::array<Byte, 0x10000>  memory = {};
+            CallStackRecorder          recorder;
+            Byte                       sp     = 0xFF;
+
+
+
+            recorder.SetPeek ([&memory] (Word address) { return memory[address]; });
+            recorder.Begin   (0x0300, kJsr);
+
+            for (int call = 0; call < 2000; call++)
+            {
+                recorder.OnInstruction (0x0300, sp, kJsr);
+
+                memory[0x0100 + sp]              = 0x03;
+                memory[0x0100 + (Byte) (sp - 1)] = 0x02;
+                sp                               = (Byte) (sp - 2);
+            }
+
+            recorder.Settle (0x0300, sp);
+
+            Assert::AreEqual ((size_t) 256, recorder.GetFrames().size(), L"the frames are capped");
+            Assert::IsTrue   (recorder.GetBreaks().size() <= 4,
+                              std::format (L"{} breaks: where recording began and one wrap per 128 frames kept, not one per wrap ever",
+                                           recorder.GetBreaks().size()).c_str());
+        }
+
+
         TEST_METHOD (AnInterruptIsAFramePushedOnDispatchAndPoppedOnRti)
         {
             Rig                          rig;

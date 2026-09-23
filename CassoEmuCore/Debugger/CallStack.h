@@ -142,6 +142,7 @@ private:
 
     static int   GetStackDelta (Byte opcode);
     static Word  GetExpectedReturn (const CallStackFrame & frame);
+    static bool  IsBottom (CallBreakKind kind);
 
     CallStackPeek                  m_peek;
     std::function<Word ()>         m_locateWriter;

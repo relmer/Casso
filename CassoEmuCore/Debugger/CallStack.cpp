@@ -443,9 +443,18 @@ void CallStackRecorder::Push (CallFrameKind kind, const Pending & held, Word tar
 
 
 
+    //  Dropping the oldest frame drops a break below it too: it described a
+    //  chain no longer kept, and a runaway recursion that wraps the stack
+    //  again and again would otherwise pile its breaks up at the bottom
+    //  without end. The bottom markers stay, as they do in AddBreak.
     if (m_frames.size() >= kMaxFrames)
     {
         m_frames.erase (m_frames.begin());
+
+        std::erase_if (m_breaks, [] (const Break & each)
+        {
+            return each.depth == 0 && !IsBottom (each.info.kind);
+        });
 
         for (Break & each : m_breaks)
         {
@@ -661,7 +670,7 @@ void CallStackRecorder::AddBreak (CallBreakKind kind, const Pending & held)
 
     std::erase_if (m_breaks, [depth] (const Break & each)
     {
-        return each.depth >= depth && each.info.kind != CallBreakKind::TrackingBegan && each.info.kind != CallBreakKind::Reset && each.info.kind != CallBreakKind::PowerOn;
+        return each.depth >= depth && !IsBottom (each.info.kind);
     });
 
     added.info.kind   = kind;
@@ -670,6 +679,24 @@ void CallStackRecorder::AddBreak (CallBreakKind kind, const Pending & held)
     added.depth       = depth;
 
     m_breaks.push_back (added);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::IsBottom
+//
+//  Where recording began, a reset and power-on: the bottom of the chain,
+//  which no later break or dropped frame removes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CallStackRecorder::IsBottom (CallBreakKind kind)
+{
+    return kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::Reset || kind == CallBreakKind::PowerOn;
 }
 
 
