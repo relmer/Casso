@@ -337,6 +337,42 @@ static constexpr std::pair<const char *, const char *>  s_kDescriptions[] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SymbolDescriptions::GetAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SymbolDescriptions::GetAction (const std::string & name)
+{
+    static constexpr const char *  kPrefixes[] = { "Read or write: ", "Read: ", "Write: " };
+    const char                  *  description = Find (name);
+    std::string                    text;
+
+
+
+    if (description == nullptr)
+    {
+        return {};
+    }
+
+    text = description;
+
+    for (const char * prefix : kPrefixes)
+    {
+        if (text.starts_with (prefix))
+        {
+            return text.substr (strlen (prefix));
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolDescriptions::ChooseByDirection
 //
 //  A description opening "Write:" belongs to a write and one opening "Read:"

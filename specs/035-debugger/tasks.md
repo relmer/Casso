@@ -780,11 +780,18 @@ every soft-switch operand shows the switch that instruction operates.
   hi-res are one switch under two names, neither claiming a direction, so the
   first stands whichever way it is touched. The test covers that as well as
   `$C000`.
-- [ ] T187 FR-112: annotate an operand in `$C000-$C0FF` with the switch's
+- [X] T187 FR-112: annotate an operand in `$C000-$C0FF` with the switch's
   description rather than a byte value, from `SymbolDescriptions`, and have
   the result column give a write's action ("speaker toggle") rather than
   claim a store. The value is not merely unread there -- it does not exist
-  until a read happens, and the read is what makes the sound.
+  until a read happens, and the read is what makes the sound. **As built:**
+  `SymbolDescriptions::GetAction` drops the description's leading "Read:",
+  "Write:" or "Read or write:", since the instruction already shows the
+  direction; `InstructionEffect::Describe` takes a lookup for the addresses it
+  reports as written, and the code pane supplies one that answers for the I/O
+  page. So `LDA KBD` reads "keyboard data; bit 7 set when a key is waiting"
+  and `STA SPKR` reads "Toggle the speaker (each access is a click)" in both
+  columns.
 - [ ] T188 Fill the gaps the review found in `RomSymbols.cpp` and
   `SymbolDescriptions.cpp`: `$C084-$C08F` (3 of the 16 language-card switches
   have titles), all of `$C0E0-$C0EF` (the disk controller -- phases, motor,

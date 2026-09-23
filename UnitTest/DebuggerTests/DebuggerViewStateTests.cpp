@@ -310,6 +310,55 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (ASoftSwitchIsAnnotatedWithWhatItDoesRatherThanAValue)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            DebuggerViewSnapshot  snapshot;
+            Cpu6502Registers      r      = rig.controller.GetSession().GetTarget().GetRegisters();
+            auto                  lineAt = [] (const DebuggerViewSnapshot & shot, Word address) -> DebuggerViewSnapshot::CodeLine
+            {
+                for (const DebuggerViewSnapshot::CodeLine & line : shot.code)
+                {
+                    if (line.address == address)
+                    {
+                        return line;
+                    }
+                }
+
+                return {};
+            };
+
+
+
+            //  LDA KBD, then STA SPKR: a read of a switch and a write to one.
+            (void) target.TryPoke (0x0300, 0xAD);
+            (void) target.TryPoke (0x0301, 0x00);
+            (void) target.TryPoke (0x0302, 0xC0);
+            (void) target.TryPoke (0x0303, 0x8D);
+            (void) target.TryPoke (0x0304, 0x30);
+            (void) target.TryPoke (0x0305, 0xC0);
+
+            r.pc = 0x0303;
+            target.SetRegisters (r);
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            //  What the switch does, never a byte: the byte does not exist
+            //  until a read happens, and the read operates the machine.
+            Assert::AreEqual (std::string ("keyboard data; bit 7 set when a key is waiting"),
+                              lineAt (snapshot, 0x0300).annotation, L"a read of KBD says what KBD is");
+            Assert::AreEqual (std::string ("Toggle the speaker (each access is a click)"),
+                              lineAt (snapshot, 0x0303).annotation, L"a write to SPKR says what it does");
+
+            //  And the result of running it is the action, not a store.
+            Assert::AreEqual (std::string ("Toggle the speaker (each access is a click)"),
+                              lineAt (snapshot, 0x0303).effect, L"the PC's line: a write to a switch stores nothing");
+        }
+
+
         TEST_METHOD (ASoftSwitchOperandTakesTheSymbolForItsDirection)
         {
             //  Each address here is two switches; which one the line shows

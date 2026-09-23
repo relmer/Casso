@@ -81,7 +81,14 @@ public:
     //  refuses, or an instruction that changes nothing a person can see.
     //  `next` is the address of the following instruction, so a PC that
     //  merely advanced is not reported and a branch or jump is.
-    static std::string  Describe (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Word next);
+    //
+    //  `describeWrite` is asked about each address written. Where it answers,
+    //  its words stand in place of "address=value": a write to a soft switch
+    //  stores nothing, it operates the machine (FR-112).
+    using WriteText = std::function<std::string (Word address)>;
+
+    static std::string  Describe (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Word next,
+                                  const WriteText & describeWrite = nullptr);
 
 private:
     static std::string  GetFlagChanges (Byte before, Byte after);

@@ -25,4 +25,10 @@ public:
     //  descriptions say which each one is, in their opening word. An address
     //  with one name keeps it whichever way it is touched.
     static std::string   ChooseByDirection (const std::vector<std::string> & names, bool isWrite);
+
+    //  What touching this switch does, with the leading "Read:", "Write:" or
+    //  "Read or write:" dropped: the instruction already shows the direction,
+    //  and the pane has room for the action, not for saying it twice. Empty
+    //  for a symbol with no shipped description.
+    static std::string   GetAction (const std::string & name);
 };

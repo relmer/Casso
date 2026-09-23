@@ -10,6 +10,7 @@
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/MonitorParser.h"
 #include "Debugger/EffectiveAddress.h"
+#include "Debugger/SymbolDescriptions.h"
 
 
 
@@ -1614,7 +1615,19 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
         index = std::format ("X={:02X} ", registers.x);
     }
 
-    if (session.GetTarget().GetRegion (where) == MemoryRegion::Io || !session.TryPeek (where, value))
+    //  A SOFT SWITCH HAS NO VALUE TO SHOW. The byte does not exist until a
+    //  read happens, and the read is the machine being operated -- a click of
+    //  the speaker, a keystroke thrown away, a bank switched. What the switch
+    //  does is the useful answer, and it costs no access at all (FR-112).
+    if (session.GetTarget().GetRegion (where) == MemoryRegion::Io)
+    {
+        std::string  action = SymbolDescriptions::GetAction (line.operandSymbol);
+
+        return action.empty() ? std::format ("{}${:04X}", index, where)
+                              : std::format ("{}{}", index, action);
+    }
+
+    if (!session.TryPeek (where, value))
     {
         return std::format ("{}${:04X}", index, where);
     }
@@ -1640,7 +1653,26 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 
 std::string DebuggerViewState::GetEffect (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers)
 {
-    return InstructionEffect::Describe (session, registers, (Word) (line.instruction.address + line.instruction.bytes.size()));
+    //  A write to a soft switch stores no byte: it operates the machine, and
+    //  what it operates is what the line should say (FR-112).
+    auto  describeWrite = [&session] (Word address) -> std::string
+    {
+        std::vector<std::string>  names;
+
+        if (session.GetTarget().GetRegion (address) != MemoryRegion::Io)
+        {
+            return {};
+        }
+
+        session.GetSymbols().FindNames (address, names);
+
+        return SymbolDescriptions::GetAction (SymbolDescriptions::ChooseByDirection (names, true));
+    };
+
+
+
+    return InstructionEffect::Describe (session, registers, (Word) (line.instruction.address + line.instruction.bytes.size()),
+                                        describeWrite);
 }
 
 

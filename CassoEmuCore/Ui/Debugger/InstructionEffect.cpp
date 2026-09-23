@@ -136,7 +136,8 @@ std::string InstructionEffect::GetFlagChanges (Byte before, Byte after)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string InstructionEffect::Describe (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Word next)
+std::string InstructionEffect::Describe (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Word next,
+                                         const WriteText & describeWrite)
 {
     ShadowCpu         cpu (memory);
     Cpu6502Registers  after  = {};
@@ -164,7 +165,10 @@ std::string InstructionEffect::Describe (const IDebugExpressionContext & memory,
 
     for (const ShadowCpu::Write & write : cpu.GetWrites())
     {
-        text += std::format (" ${:04X}={:02X}", write.address, write.value);
+        std::string  what = describeWrite ? describeWrite (write.address) : std::string();
+
+        text += what.empty() ? std::format (" ${:04X}={:02X}", write.address, write.value)
+                             : " " + what;
     }
 
     text += GetFlagChanges (registers.p, after.p);
