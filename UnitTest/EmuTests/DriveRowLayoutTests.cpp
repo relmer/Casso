@@ -98,25 +98,4 @@ public:
         Assert::AreEqual (280, DriveRowLayout::ComputeWidgetX (280, 0, 200, 40));
         Assert::AreEqual (520, DriveRowLayout::ComputeWidgetX (280, 1, 200, 40));
     }
-
-
-    TEST_METHOD (SkewLeansEachDriveTowardTheClientCenter)
-    {
-        //  Drives left of center lean right and drives right of center lean
-        //  left, so a pair reads as two objects on one desk under one monitor
-        //  rather than as the same sprite drawn twice.
-        int  left  = DriveRowLayout::ComputePerspectiveSkewPx (1000, 100, 200);
-        int  right = DriveRowLayout::ComputePerspectiveSkewPx (1000, 700, 200);
-
-        Assert::IsTrue (left  > 0, L"a drive left of center leans toward it");
-        Assert::IsTrue (right < 0, L"and one right of center leans back the other way");
-    }
-
-
-    TEST_METHOD (ADriveOnTheCenterLineDoesNotLean)
-    {
-        //  Centered widget: its center is the vanishing point, so there is
-        //  nowhere to lean.
-        Assert::AreEqual (0, DriveRowLayout::ComputePerspectiveSkewPx (1000, 400, 200));
-    }
 };

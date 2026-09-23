@@ -62,12 +62,9 @@ static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWi
 static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHeightPx;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
-// Gap between the two drives. The compact presentation needs a wide one,
-// because it puts each drive's caption on the same line as the other's rail
-// and a narrow gap left "DRIVE 2" reading as a label on drive 1's bar. The
-// modeled drives have no caption beside them and keep the close spacing:
-// standing them 44 dp apart would push the pair out to the window's edges.
-static constexpr int     s_kDriveWidgetGapDp        = 16;
+// Gap between the two drive widgets. A wide one, because each drive's caption
+// sits on the same line as the other's rail, and a narrow gap left "DRIVE 2"
+// reading as a label on drive 1's bar.
 static constexpr int     s_kCompactDriveWidgetGapDp = 44;
 
 //  How long the change band stands before closing itself. Long enough to read
