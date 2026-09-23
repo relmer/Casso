@@ -66,6 +66,7 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
 
             record.instruction = instruction.operand.empty() ? instruction.mnemonic
                                                              : instruction.mnemonic + " " + instruction.operand;
+            record.length      = (Byte) instruction.bytes.size();
         }
 
         record.symbol.clear();

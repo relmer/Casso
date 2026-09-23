@@ -22,6 +22,7 @@ void TracePane::Configure()
     m_list->SetColumns ({ { L"Entry",       0, false, DxuiTextHAlign::Right },
                           { L"Cycles",      0, false, DxuiTextHAlign::Right },
                           { L"PC",          0, false, DxuiTextHAlign::Left  },
+                          { L"Bytes",       0, false, DxuiTextHAlign::Left  },
                           { L"Label",       0, false, DxuiTextHAlign::Left  },
                           { L"Instruction", 0, false, DxuiTextHAlign::Left  },
                           { L"Registers",   0, false, DxuiTextHAlign::Left  },
@@ -135,10 +136,11 @@ std::optional<uint64_t> TracePane::GetReadStartFor (uint64_t first, uint64_t hel
 
 void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) const
 {
-    static constexpr size_t  kColumns = 7;
+    static constexpr size_t  kColumns = 8;
     uint64_t                 index    = (uint64_t) row;
     const TraceRecord      * record   = nullptr;
     std::string              access;
+    std::string              bytes;
 
 
 
@@ -157,16 +159,19 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
                               record->accessAddress, record->accessData, record->accessSymbol);
     }
 
+    bytes = AppleWinFormatter::FormatTraceBytes (*record);
+
     out[0].text = std::format (L"{}", record->index);
     out[1].text = std::format (L"{}", record->cycles);
     out[2].text = std::format (L"{:04X}", record->pc);
-    out[3].text = std::wstring (record->symbol.begin(), record->symbol.end());
-    out[4].text = std::wstring (record->instruction.begin(), record->instruction.end());
-    out[5].text = std::format (L"A={:02X} X={:02X} Y={:02X} SP={:02X} ", record->a, record->x, record->y, record->sp);
-    out[6].text = std::wstring (access.begin(), access.end());
+    out[3].text = std::wstring (bytes.begin(), bytes.end());
+    out[4].text = std::wstring (record->symbol.begin(), record->symbol.end());
+    out[5].text = std::wstring (record->instruction.begin(), record->instruction.end());
+    out[6].text = std::format (L"A={:02X} X={:02X} Y={:02X} SP={:02X} ", record->a, record->x, record->y, record->sp);
+    out[7].text = std::wstring (access.begin(), access.end());
 
     for (char ch : AppleWinFormatter::FormatFlags (record->p))
     {
-        out[5].text += (wchar_t) ch;
+        out[6].text += (wchar_t) ch;
     }
 }

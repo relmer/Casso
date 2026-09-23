@@ -291,6 +291,10 @@ namespace DebuggerTests
             write.index         = 41;
             write.cycles        = 5678;
             write.pc            = 0x0302;
+            write.opcode        = 0x8D;
+            write.op1           = 0x00;
+            write.op2           = 0x04;
+            write.length        = 3;
             write.instruction   = "STA $0400";
             write.symbol        = "START";
             write.sp            = 0xFF;
@@ -303,6 +307,9 @@ namespace DebuggerTests
             entry.index         = 42;
             entry.cycles        = 5682;
             entry.pc            = 0x0305;
+            entry.opcode        = 0xE8;
+            entry.op1           = 0x9A;
+            entry.length        = 1;
             entry.instruction   = "INX";
             entry.isInterrupt   = true;
             data.isOn           = false;
@@ -313,8 +320,23 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 3, lines.size());
             Assert::AreEqual (std::string ("Trace off, 100000 entries retained."), lines[0]);
-            Assert::AreEqual (std::string ("    41        5678  0302 START    STA $0400      A=00 X=00 Y=00 SP=FF ..RB....  W 0400=05 SCREEN"), lines[1]);
-            Assert::AreEqual (std::string ("    42        5682  0305          INX            A=00 X=00 Y=00 SP=00 ........  [interrupt]"),       lines[2]);
+            Assert::AreEqual (std::string ("    41        5678  0302  8D 00 04  START    STA $0400      A=00 X=00 Y=00 SP=FF ..RB....  W 0400=05 SCREEN"), lines[1]);
+            Assert::AreEqual (std::string ("    42        5682  0305  E8                 INX            A=00 X=00 Y=00 SP=00 ........  [interrupt]"),
+                              lines[2], L"only the instruction's own byte, not the one after it");
+        }
+
+
+        TEST_METHOD (TraceBytes_AnEntryNotYetDisassembledShowsAllThree)
+        {
+            TraceRecord  record;
+
+
+
+            record.opcode = 0xA9;
+            record.op1    = 0x41;
+            record.op2    = 0x60;
+
+            Assert::AreEqual (std::string ("A9 41 60"), AppleWinFormatter::FormatTraceBytes (record));
         }
 
 

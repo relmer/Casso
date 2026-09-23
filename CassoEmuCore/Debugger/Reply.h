@@ -429,6 +429,7 @@ struct TraceRecord
     Byte         opcode        = 0;
     Byte         op1           = 0;
     Byte         op2           = 0;
+    Byte         length        = 0;       // the instruction's bytes; 0 until it is disassembled, which shows all three
     Byte         a             = 0;
     Byte         x             = 0;
     Byte         y             = 0;

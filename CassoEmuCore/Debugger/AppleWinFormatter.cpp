@@ -660,11 +660,12 @@ void AppleWinFormatter::FormatTrace (const TraceData & data, Lines & lines)
 //
 //  AppleWinFormatter::FormatTraceLine
 //
-//  Entry number, cycle count, address and its symbol, the instruction, the
-//  registers before it, and the access: R or W, the address, the byte, and
-//  the address's symbol. An interrupt handler's first instruction is marked.
+//  Entry number, cycle count, address, the opcode bytes, the address's symbol,
+//  the instruction, the registers before it, and the access: R or W, the
+//  address, the byte, and the address's symbol. An interrupt handler's first
+//  instruction is marked.
 //
-//      1234    5678901  0300 START    LDA $C000      A=00 X=00 Y=00 SP=FF nv-BdIzc  R C000=8D KBD
+//      1234    5678901  0300  AD 00 C0  START    LDA $C000      A=00 X=00 Y=00 SP=FF nv-BdIzc  R C000=8D KBD
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -674,8 +675,8 @@ std::string AppleWinFormatter::FormatTraceLine (const TraceRecord & record)
 
 
 
-    line = std::format ("{:>6}  {:>10}  {:04X} {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
-                        record.index, record.cycles, record.pc, record.symbol, record.instruction,
+    line = std::format ("{:>6}  {:>10}  {:04X}  {:<8}  {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
+                        record.index, record.cycles, record.pc, FormatTraceBytes (record), record.symbol, record.instruction,
                         record.a, record.x, record.y, record.sp, FormatFlags (record.p));
 
     if (record.hasAccess)
@@ -694,6 +695,36 @@ std::string AppleWinFormatter::FormatTraceLine (const TraceRecord & record)
     }
 
     return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatTraceBytes
+//
+//  An entry not yet disassembled has no length, and shows all three bytes the
+//  trace keeps rather than guessing which of them the instruction used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::FormatTraceBytes (const TraceRecord & record)
+{
+    static constexpr Byte  kKept  = 3;
+    const Byte             held[] = { record.opcode, record.op1, record.op2 };
+    Byte                   count  = (record.length == 0 || record.length > kKept) ? kKept : record.length;
+    std::string            text;
+
+
+
+    for (Byte i = 0; i < count; i++)
+    {
+        text += std::format ("{}{:02X}", i == 0 ? "" : " ", held[i]);
+    }
+
+    return text;
 }
 
 

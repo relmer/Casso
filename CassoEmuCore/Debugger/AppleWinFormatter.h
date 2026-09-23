@@ -28,7 +28,10 @@ public:
     static std::string  FormatAddress   (const BreakpointInfo & breakpoint);
 
     // One HISTORY line, as the trace pane and HISTORY SAVE show it too.
-    static std::string  FormatTraceLine (const TraceRecord & record);
+    static std::string  FormatTraceLine  (const TraceRecord & record);
+
+    // An entry's opcode bytes, as many as its instruction has ("8D 00 04").
+    static std::string  FormatTraceBytes (const TraceRecord & record);
 
     // A breakpoint's kind and place in words, as BPL lists it.
     static std::string  DescribeBreakpoint (const BreakpointInfo & breakpoint);
