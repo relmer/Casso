@@ -44,6 +44,25 @@ and block reads and writes need the folder picker or a drag), §3 and §5
 (they need Casso running with a disk and its menus), §4 (drags), the
 Ctrl shortcuts of §6 other than through the command message, and §7.
 
+### Shipping, 2026-09-22
+
+Run on the renamed tree with a Release x64 build.
+
+| Check | Result |
+|---|---|
+| `scripts/StageRelease.ps1 -Platforms x64` into a scratch folder | `CassoExplorer.exe` staged beside `Casso.exe` and `CassoCli.exe`, with `msvcp140.dll`, `msvcp140_atomic_wait.dll`, `vcruntime140.dll` and `vcruntime140_1.dll` |
+| The staged `CassoExplorer.exe`, started from that folder | Opens, titled "Casso Explorer"; no build tree needed |
+| `scripts/GenerateMsixAssets.ps1 -Source Resources/Icons/CassoExplorer.png -Prefix Explorer` | 40 pictures written; Casso's 40 left alone |
+| The same script with no prefix | 40 written; Casso Explorer's 40 left alone |
+| `scripts/BuildMsix.ps1` over the staged payload | Bundle built; the package holds `Casso.exe`, `CassoCli.exe` and `CassoExplorer.exe`, and 35 Explorer tile pictures |
+| `Installer/Package.appxmanifest` | Parses; three applications: Casso, CassoExplorer, CassoCli |
+
+Not yet checked: installing the package and starting Casso Explorer from the
+Start menu, from its executable's name at a prompt, and from Casso's Browse
+disks command (T131, SC-014), and unpacking the zip on a machine with no
+build tools (SC-015). Both need a signed package or a development
+certificate.
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of

@@ -45,11 +45,11 @@ public:
         CassoExplorerLaunchOptions  options;
         HWND                        owner   = (HWND) (UINT_PTR) 0x1A2B3C;
 
-        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (Split (LaunchCommand::MakeCassoExplorerArguments (owner, L"033 cassque")), options));
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (Split (LaunchCommand::MakeCassoExplorerArguments (owner, L"033 explorer")), options));
 
         Assert::IsTrue   (options.hasOwner);
         Assert::IsTrue   (options.owner == owner);
-        Assert::AreEqual (std::wstring (L"033 cassque"), options.titlePrefix);
+        Assert::AreEqual (std::wstring (L"033 explorer"), options.titlePrefix);
     }
 
 
