@@ -108,6 +108,13 @@ public:
     //  15 pixels of ink at 120 DPI.
     static constexpr float     kNavIconDip         = 12.0f;
 
+    //  File Explorer's command bar, measured at 125%: buttons 48 dip apart
+    //  center to center, which a 12 dip icon reaches with 16 dip either side
+    //  and the toolbar's 4 dip gap; label cap height 11 px against the
+    //  chrome font's 13.
+    static constexpr float     kCommandBarPadDip     = 16.0f;
+    static constexpr float     kCommandBarLabelScale = 11.0f / 13.0f;
+
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
 

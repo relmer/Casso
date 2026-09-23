@@ -173,6 +173,17 @@ public:
     //  the emulator's own chrome does not.
     void  SetChevronOnIcons (bool on)                    { m_chevronOnIcons = on; }
 
+    //  Whether a line divides one group of buttons from the next, as File
+    //  Explorer's command bar has. Off for the emulator's own chrome.
+    void  SetGroupSeparators (bool on)                   { m_groupSeparators = on; }
+
+    //  The space inside a button around what it shows, and the size of its
+    //  label as a share of the system's chrome font. The emulator's chrome
+    //  keeps the defaults; a bar following File Explorer widens the one and
+    //  shrinks the other to Explorer's measure.
+    void  SetButtonPadDip   (float dip)                  { m_buttonPadDip = dip; }
+    void  SetLabelScale     (float scale)                { m_labelScale   = scale; }
+
     //  The two icon fonts for the glyphs in UnicodeSymbols.h. They use the same
     //  code points; Windows 11 uses Fluent for its own chrome, which draws some
     //  glyphs differently (Refresh most visibly) and is not in Windows 10.
@@ -276,7 +287,8 @@ private:
     //  titles and every dropdown, read from the Windows menu settings. A
     //  toolbar label in a font its OWN picker did not use is the mismatch
     //  this avoids -- the pickers are popup menus and paint in that font.
-    float  GetChromeFontPx () const { return m_metrics.fontPx; }
+    float  GetChromeFontPx () const { return m_metrics.fontPx * m_labelScale; }
+    int    GetButtonPadPx  () const { return (int) std::lround (m_scaler.ToPxf (m_buttonPadDip)); }
     void   RefreshMetrics  ();
 
     //  Runtime state the strip keeps per entry.
@@ -306,6 +318,15 @@ private:
     static bool  HasGlyph (const Slot & slot) { return slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0; }
 
     static constexpr int  kChevronDp = 8;
+
+    //  How much of the label's ink the chevron takes: File Explorer draws its
+    //  chevron #B7B7B7 beside a #FFFFFF label, which is this share.
+    static constexpr uint32_t  kChevronAlphaPercent = 72;
+
+    //  How far a group separator stops short of the bar's top and bottom.
+    static constexpr float  kSeparatorInsetDip = 6.0f;
+
+    void  PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme & theme);
 
     const Slot *  FindSlot             (int commandId) const;
     Slot       *  FindSlot             (int commandId);
@@ -344,16 +365,19 @@ private:
     RECT                     m_flyoutRc       = {};
     int                      m_focusIndex     = -1;
 
-    IDxuiTextRenderer             * m_textRenderer   = nullptr;
-    const wchar_t                 * m_iconFace       = kMdl2IconFace;
-    float                           m_iconDip        = kIconDip;
-    bool                            m_chevronOnIcons = false;
-    RECT                            m_barRect        = {};
-    RECT                            m_freeRect       = {};
-    RECT                            m_hostClient     = {};
+    IDxuiTextRenderer             * m_textRenderer    = nullptr;
+    const wchar_t                 * m_iconFace        = kMdl2IconFace;
+    float                           m_iconDip         = kIconDip;
+    bool                            m_chevronOnIcons  = false;
+    bool                            m_groupSeparators = false;
+    float                           m_buttonPadDip    = (float) kBtnPadXDp;
+    float                           m_labelScale      = 1.0f;
+    RECT                            m_barRect         = {};
+    RECT                            m_freeRect        = {};
+    RECT                            m_hostClient      = {};
     DxuiDpiScaler                   m_scaler;
     DxuiMenuMetrics                 m_metrics;
-    int                             m_labeledCount   = 0;
+    int                             m_labeledCount    = 0;
     std::shared_ptr<DxuiCommand>    m_seeMore;
 
     bool                     m_stripColorsSet = false;

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/UnicodeSymbols.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiToolbar.h"
@@ -736,7 +737,7 @@ int DxuiToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
 
 int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 {
-    int           padX    = m_scaler.ToPx (kBtnPadXDp);
+    int           padX    = GetButtonPadPx();
     int           iconGap = m_scaler.ToPx (kIconGapDp);
     float         fontPx  = GetChromeFontPx();
     int           iconW   = (int) (m_scaler.ToPxf (m_iconDip) + 0.5f);
@@ -1641,7 +1642,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     float                bh      = (float) (slot.rc.bottom - slot.rc.top);
     float                fontDip = GetChromeFontPx();
     float                iconDip = m_scaler.ToPxf (m_iconDip);
-    int                  padX    = m_scaler.ToPx (kBtnPadXDp);
+    int                  padX    = GetButtonPadPx();
     int                  iconGap = m_scaler.ToPx (kIconGapDp);
     uint32_t             ink     = m_stripColorsSet ? m_textOverride : theme.ButtonText();
     float                textX   = 0.0f;
@@ -1715,15 +1716,20 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         }
     }
 
+    //  The font's ChevronDown rather than two drawn lines, which stair-step:
+    //  the glyph is smoothed the way the icon beside it is. It is drawn in
+    //  the secondary ink File Explorer uses, a step dimmer than the label.
     if (slot.entry.kind == Kind::DropDown && (m_chevronOnIcons || !HasGlyph (slot)))
     {
-        float  size = m_scaler.ToPxf ((float) kChevronDp);
-        float  pen  = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
-        float  cx   = (float) slot.rc.right - (float) padX - size * 0.5f;
-        float  cy   = bt + bh * 0.5f;
+        float     size      = m_scaler.ToPxf ((float) kChevronDp);
+        float     left      = (float) slot.rc.right - (float) padX - size;
+        uint32_t  secondary = (ink & 0x00FFFFFFu) | ((((ink >> 24) & 0xFFu) * kChevronAlphaPercent / 100u) << 24);
 
-        painter.DrawLineApprox (cx - size * 0.5f, cy - size * 0.25f, cx, cy + size * 0.25f, pen, ink);
-        painter.DrawLineApprox (cx, cy + size * 0.25f, cx + size * 0.5f, cy - size * 0.25f, pen, ink);
+        hr = text.DrawString (s_kpszMdl2ChevronDown, left, bt, size, bh,
+                              secondary, (float) kChevronDp, m_iconFace,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -1771,12 +1777,65 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         }
     }
 
+    if (m_groupSeparators)
+    {
+        PaintGroupSeparators (painter, theme);
+    }
+
     // The flyout paints LAST: it hangs below the bar over whatever is there,
     // and everything on the bar must be under it. The menu is a real popup
     // window and paints itself.
     if (m_flyoutOpen)
     {
         PaintFlyout (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::PaintGroupSeparators
+//
+//  A line centered in each gap where one group gives way to the next. Only
+//  a gap of the ordinary group width gets one: the stretch that pushes a
+//  group to the far end of the bar is space, not a division.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme & theme)
+{
+    const Slot  * previous = nullptr;
+    int           groupGap = m_scaler.ToPx (kGroupGapDp);
+    float         inset    = m_scaler.ToPxf (kSeparatorInsetDip);
+    float         top      = (float) m_barRect.top + inset;
+    float         height   = (float) (m_barRect.bottom - m_barRect.top) - inset * 2.0f;
+    float         width    = (std::max) (1.0f, (float) m_scaler.ToPx (1));
+
+
+
+    for (const Slot & slot : m_slots)
+    {
+        int  gap = 0;
+
+        if (slot.hidden)
+        {
+            continue;
+        }
+
+        if (previous != nullptr && previous->entry.group != slot.entry.group)
+        {
+            gap = (int) slot.rc.left - (int) previous->rc.right;
+
+            if (gap > 0 && gap <= groupGap + groupGap / 2)
+            {
+                painter.FillRect ((float) previous->rc.right + (float) (gap / 2), top, width, height, theme.Divider());
+            }
+        }
+
+        previous = &slot;
     }
 }
 

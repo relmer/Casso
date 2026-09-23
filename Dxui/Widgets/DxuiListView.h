@@ -626,7 +626,7 @@ private:
     //  The cells' face and the height of a row, which a fixed-width list
     //  (a hex dump, a disassembly) changes together.
     const wchar_t *  GetBodyFace   () const  { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
-    int              GetRowHeightPx() const  { return m_scaler.ToPx (m_rowHeightDip); }
+    int              GetRowHeightPx() const  { return (int) m_scaler.ToPxf ((float) m_rowHeightDip); }
 
     bool                      m_monospace    = false;
     int                       m_rowHeightDip = s_kRowHeightDip;
