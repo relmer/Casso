@@ -445,8 +445,8 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T083 [P] Write `docs/Debugger.md`: ways in, both modes, the `/` prefix, Casso engine commands, symbol and binary formats, and batch examples. Link it from `README.md` and update README's feature list and test counts.
-- [ ] T084 [P] Add `CHANGELOG.md` entries under `[Unreleased]` for each merged phase. Keep them terse, give only the user-visible effect with `GH #51` first, and show them for approval before pushing.
+- [X] T083 [P] Write `docs/Debugger.md`: ways in, both modes, the `/` prefix, Casso engine commands, symbol and binary formats, and batch examples. Link it from `README.md` and update README's feature list and test counts. **As built:** written as the user guide and extended with every story by T163; the fit-and-finish work since (watch pane, result annotations, text selection, soft-switch naming) is covered by T166's release pass.
+- [X] T084 [P] Add `CHANGELOG.md` entries under `[Unreleased]` for each merged phase. Keep them terse, give only the user-visible effect with `GH #51` first, and show them for approval before pushing. **Folded into T166:** the changelog records the branch's net effect in one entry at the end, not an entry per phase, so this is done by T166 rather than separately.
 - [X] T085 Run the pre-merge gate for each phase merge:
   - `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`;
   - the full Debug and Release suites with `scripts/RunTests.ps1`;
@@ -892,3 +892,14 @@ Phases 1-8: the engine, AppleWin and Monitor modes, batch mode, the channel, and
 8. **Release**: screenshot, docs, changelog, the measured gates, and the merge to master.
 
 Each story lands as its own merge to the branch behind the full suite. Nothing merges to master until the release phase, by the owner's decision (R-020), and not before 033-casso-explorer has, since 035 carries its Dxui.
+
+
+## Phase 23: Convergence
+
+**Purpose**: What the 2026-09-23 audit of spec.md against the code found unfinished. FR-071 through FR-109 came from the fit-and-finish review and were built without task entries; the audit found each of them in the code, and this phase carries only what remains.
+
+- [ ] T189 FR-086: once 033-casso-explorer is on master (T167), draw Continue, Break, Stop, Restart, Show Next Statement, Step Into, Step Over and Step Out as `DxuiVectorIcon` shapes matching Visual Studio's debugging toolbar, move Run to Cursor from `DxuiToolbar::Entry::icon` onto `DxuiVectorIcon`, and delete `Entry::icon` and the `Flatten` helper in `Dxui/Widgets/DxuiToolbar.{h,cpp}`; command entries stay in `CassoEmuCore/Ui/Debugger/DebuggerCommands.cpp`. Check each icon on screen, enabled and disabled, in every theme, beside a Visual Studio screenshot per FR-086 (partial)
+- [ ] T190 US7: restyle the debugger's dock tab strip, which the owner reports looks like neither Casso's own chrome nor Visual Studio's tabs. First survey Visual Studio's tool-window and document tabs: active and inactive fill, the accent line, hover, the close glyph and when it shows, the `+` new-tab button, and where a leading marker such as the PC triangle sits. Write down the design, get the owner's approval, then apply it in `Dxui/Widgets/DxuiTabGroup.{h,cpp}` and `Dxui/Widgets/DxuiDockSite.{h,cpp}` with colors from the active theme, and compare captures of every theme against both references per FR-084 and FR-106 (partial)
+- [ ] T191 Walk every debugger pane and control by hand with the owner (code, registers, stack, call stack, memory, breakpoints, watch, trace, profile, console, device panels, command bar, tabs, floating windows) and record each usability problem found as its own task below this one, with the pane, what happens, and what should happen. Then fix those tasks. Owner's 2026-09-23 review (partial)
+- [ ] T192 [P] SC-026: add a test that one text-size change reaches every debugger content pane, a floating one included, and leaves the caption and the command bar at their size, in `UnitTest/EmuTests/` next to the other debugger window tests (missing)
+- [ ] T193 [P] SC-022: extend `TheWheelScrollsTheCodePaneThroughMemory` in `UnitTest/EmuTests/DebuggerViewStateTests.cpp` to scroll down until the last shown line reaches $FFFF, so both ends of the address space are covered by scrolling alone (partial)
