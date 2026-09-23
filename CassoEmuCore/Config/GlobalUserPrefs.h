@@ -240,6 +240,12 @@ struct GlobalUserPrefs
     // the window cannot read gives the default arrangement.
     std::string  debuggerLayout;
 
+    // Which of the debugger's optional views were open, so a restart brings
+    // them back where they were: disassembly views 2 to 4 and the one
+    // following the PC, memory windows 2 to 4, and device panels. The layout
+    // above says where each view sits; this says which exist.
+    std::string  debuggerOpenViews;
+
     // Folders where the debugger found source files, most-recent-first: for
     // every program, and for each program by its debug file's SHA-1. A
     // program's own list is searched before the global one.

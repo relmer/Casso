@@ -505,6 +505,7 @@ private:
     void    PauseDebugger            () override;
     void    SetDebuggerCodeLines     (int lines, int view) override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address, int view) override;
+    void    SetDebuggerCodeTop       (Word top, int view) override;
     void    SetDebuggerFollowView    (int view) override;
     void    CloseDebuggerCodeView    (int view) override;
     static std::string  GetCodeViewSuffix (int view);
@@ -519,6 +520,8 @@ private:
     void         SetDebuggerKeyScheme (const std::string & name) override;
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;
+    std::string  GetDebuggerOpenViews () override;
+    void         SetDebuggerOpenViews (const std::string & text) override;
     std::string  GetDebuggerPlacementKey () const;
     bool         TryGetDebuggerPlacement (RECT & rectPx) override;
     void         SetDebuggerPlacement    (const RECT & rectPx) override;

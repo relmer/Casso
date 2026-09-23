@@ -265,6 +265,23 @@ public:
     }
 
 
+    TEST_METHOD (ACodeViewReopensWithItsTopLineWhereItWas)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_VIEW, "codetop2 E000", target);
+        Dispatch (IDM_DEBUG_VIEW, "codetop4 0300", target);
+
+        //  A fifth view does not exist, and the top needs an address.
+        Dispatch (IDM_DEBUG_VIEW, "codetop5 E000", target);
+        Dispatch (IDM_DEBUG_VIEW, "codetop2 zz",   target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("SetDebugView codetop2 E000"), target.calls[0]);
+        Assert::AreEqual (std::string ("SetDebugView codetop4 0300"), target.calls[1]);
+    }
+
+
     TEST_METHOD (MemoryWindowsTwoToFourOpenMoveAndClose)
     {
         Notebook  target;

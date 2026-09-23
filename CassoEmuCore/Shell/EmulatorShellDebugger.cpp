@@ -149,6 +149,42 @@ void EmulatorShell::SetDebuggerLayout (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDebuggerOpenViews
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string EmulatorShell::GetDebuggerOpenViews()
+{
+    return m_globalPrefs.debuggerOpenViews;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerOpenViews
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerOpenViews (const std::string & text)
+{
+    if (m_globalPrefs.debuggerOpenViews == text)
+    {
+        return;
+    }
+
+    m_globalPrefs.debuggerOpenViews = text;
+    SaveGlobalPrefsDeferred();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDebuggerPlacementKey
 //
 //  Saving and restoring must agree on the key. The topology key names the
@@ -411,6 +447,21 @@ void EmulatorShell::SetDebuggerCodeAddress (std::optional<Word> address, int vie
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerCodeTop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerCodeTop (Word top, int view)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codetop{} {:04X}", GetCodeViewSuffix (view), top));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebuggerMemoryWindow
 //
 //  Window 1 is the "memory" view; 2 to 4 are "memory2" and on, and no
@@ -624,6 +675,10 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
     else if (view == "codeclose" && address.has_value())
     {
         m_debugViewState.CloseCodeView ((int) *address);
+    }
+    else if (CpuCommandDispatcher::TryGetCodeView (view, "codetop", index) && address.has_value())
+    {
+        m_debugViewState.OpenCodeViewAt (index, *address);
     }
     else if (CpuCommandDispatcher::TryGetCodeView (view, "lines", index) && address.has_value())
     {

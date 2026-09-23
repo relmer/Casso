@@ -281,6 +281,10 @@ public:
     //  Views 2 to 4 (indexes 1 to 3) open centered on an address, and close;
     //  a view closing while it follows the PC hands following to the first.
     void  OpenCodeView     (int view, Word address);
+
+    //  A view reopened as it was left: `top` on its first line, where
+    //  OpenCodeView would put the address in the middle.
+    void  OpenCodeViewAt   (int view, Word top);
     void  CloseCodeView    (int view);
     bool  IsCodeViewOpen   (int view) const { return view == 0 || m_code[(size_t) view].open; }
 
@@ -357,6 +361,22 @@ public:
 
     static std::optional<WatchUndo>  GetWatchUndo (const DebuggerViewSnapshot & before,
                                                    std::optional<int> watchId, std::optional<int> autoIndex, int column);
+
+    //  Which optional views are open, as the text the preferences keep, so a
+    //  restart brings them back: `code2=E000 follow=2 memory3=0300 panel=mmu`.
+    //  A disassembly view keeps the address at its top, and a memory window
+    //  its first byte. The first disassembly view and the first memory window
+    //  are always open and are not written.
+    struct OpenViews
+    {
+        std::array<std::optional<Word>, kMaxCodeViews>      code;
+        int                                                 follow  = 0;
+        std::array<std::optional<Word>, kMaxMemoryWindows>  memory;
+        std::vector<std::string>                            panels;
+    };
+
+    static std::string  FormatOpenViews (const DebuggerViewSnapshot & snapshot);
+    static OpenViews    ParseOpenViews  (const std::string & text);
     static std::string  GetStepLine             ()             { return "T"; }
     static std::string  GetStepOverLine         ()             { return "P"; }
     static std::string  GetStepOutLine          ()             { return "RTS"; }

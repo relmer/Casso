@@ -434,6 +434,44 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (TheOpenViewsSurviveARestartAsText)
+        {
+            DebuggerViewSnapshot          snapshot;
+            DebuggerViewState::OpenViews  views;
+            std::string                   text;
+
+
+
+            //  Disassembly 3 open around $E000, following the PC; memory 2 at
+            //  $0300; the MMU panel open and the clock closed.
+            snapshot.codeOpen[2]  = true;
+            snapshot.codeViews[2] = { { 0xDFFC }, { 0xE000 }, { 0xE002 } };
+            snapshot.followView   = 2;
+            snapshot.memoryWindows = { { 1, 0x0000 }, { 2, 0x0300 } };
+            snapshot.panels        = { { "mmu", "MMU", true }, { "clock", "Clock", false } };
+
+            text = DebuggerViewState::FormatOpenViews (snapshot);
+            Assert::AreEqual (std::string ("code3=DFFC follow=3 memory2=0300 panel=mmu"), text,
+                              L"the top line, which the view reopens on; the first views are never written");
+
+            views = DebuggerViewState::ParseOpenViews (text);
+            Assert::IsTrue   (views.code[2] == std::optional<Word> (0xDFFC));
+            Assert::IsFalse  (views.code[1].has_value());
+            Assert::AreEqual (2, views.follow);
+            Assert::IsTrue   (views.memory[1] == std::optional<Word> (0x0300));
+            Assert::AreEqual ((size_t) 1, views.panels.size());
+            Assert::AreEqual (std::string ("mmu"), views.panels[0]);
+
+            //  What a later build might write is passed over, not fatal.
+            views = DebuggerViewState::ParseOpenViews ("code2=0400 hexdump9=FFFF code9=0000 memory2=zz panel=disk");
+            Assert::IsTrue   (views.code[1] == std::optional<Word> (0x0400));
+            Assert::IsFalse  (views.memory[1].has_value(), L"not hex");
+            Assert::AreEqual (std::string ("disk"), views.panels.at (0));
+
+            Assert::AreEqual (std::string(), DebuggerViewState::FormatOpenViews (DebuggerViewSnapshot {}), L"nothing optional open");
+        }
+
+
         TEST_METHOD (AWatchEditBecomesTheCommandAnyoneCouldHaveTyped)
         {
             DebuggerViewSnapshot  snapshot;

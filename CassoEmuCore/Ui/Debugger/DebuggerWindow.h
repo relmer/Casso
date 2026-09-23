@@ -48,6 +48,8 @@ public:
     //  A code view: 0 is the first, 1 to 3 the others. An address given for
     //  a closed view opens it there.
     virtual void  SetDebuggerCodeAddress  (std::optional<Word> address, int view) = 0;
+    //  Opens a code view with `top` on its first line rather than centered.
+    virtual void  SetDebuggerCodeTop      (Word top, int view)             = 0;
     virtual void  SetDebuggerFollowView   (int view)                       = 0;
     virtual void  CloseDebuggerCodeView   (int view)                       = 0;
     virtual void  SetDebuggerMemoryWindow (int id, std::optional<Word> address) = 0;
@@ -80,6 +82,11 @@ public:
     //  The pane arrangement as DxuiPaneLayout text, kept the same way.
     virtual std::string  GetDebuggerLayout    ()                           = 0;
     virtual void         SetDebuggerLayout    (const std::string & text)   = 0;
+
+    //  Which optional views were open, in DebuggerViewState's text for them,
+    //  kept the same way.
+    virtual std::string  GetDebuggerOpenViews ()                           = 0;
+    virtual void         SetDebuggerOpenViews (const std::string & text)   = 0;
 
     //  Where the user last put the debugger window, for this monitor
     //  arrangement. False when there is nothing to restore.
@@ -180,6 +187,7 @@ private:
     void     EndWatchEdit     (bool commit);
     void     RemoveSelectedWatch ();
     void     UndoWatchEdit    ();
+    void     KeepOpenViews    ();
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
@@ -325,10 +333,19 @@ private:
     //  The watch pane's own undo history (FR-097), apart from every memory
     //  window's: Ctrl+Z in the watch pane puts back its last edit only.
     std::vector<DebuggerViewState::WatchUndo>  m_watchUndo;
-    float                                      m_textZoom           = 1.0f;
-    DxuiTooltip                                m_tooltip;
-    std::shared_ptr<const DxuiIconImage>       m_breakpointIcons[2];
-    uint32_t                                   m_breakpointIconArgb = 0;
+
+    //  The optional views open at the last save, and whether the ones saved
+    //  before have been reopened yet. Reopening is asynchronous, so saving
+    //  waits until a snapshot shows them -- or a few pass without -- rather
+    //  than write back the empty set the window started with.
+    static constexpr int                  kSettlingSnapshots   = 10;
+    std::string                           m_openViewsSaved;
+    bool                                  m_openViewsRestored  = false;
+    int                                   m_openViewsSettling  = 0;
+    float                                 m_textZoom           = 1.0f;
+    DxuiTooltip                           m_tooltip;
+    std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
+    uint32_t                              m_breakpointIconArgb = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

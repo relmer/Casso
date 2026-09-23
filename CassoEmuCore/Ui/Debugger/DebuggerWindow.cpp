@@ -2743,6 +2743,7 @@ void DebuggerWindow::ApplySnapshot()
     ApplyMemoryWindows();
     ApplySource();
     ApplyDiagnostics();
+    KeepOpenViews();
 }
 
 
@@ -2970,6 +2971,91 @@ void DebuggerWindow::UndoWatchEdit()
     for (const std::string & line : undo.lines)
     {
         RunCommand (line);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::KeepOpenViews
+//
+//  The first snapshot reopens whatever was open when Casso last closed; each
+//  later one saves the set when it changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::KeepOpenViews()
+{
+    std::string                   text = DebuggerViewState::FormatOpenViews (*m_snapshot);
+    DebuggerViewState::OpenViews  views;
+
+
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    if (!m_openViewsRestored)
+    {
+        m_openViewsRestored = true;
+        m_openViewsSaved    = m_host->GetDebuggerOpenViews();
+        m_openViewsSettling = m_openViewsSaved.empty() ? 0 : kSettlingSnapshots;
+        views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
+
+        for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
+        {
+            if (views.code[(size_t) view].has_value())
+            {
+                m_host->SetDebuggerCodeTop (*views.code[(size_t) view], view);
+            }
+        }
+
+        if (views.follow != 0)
+        {
+            m_host->SetDebuggerFollowView (views.follow);
+        }
+
+        for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+        {
+            if (views.memory[(size_t) (window - 1)].has_value())
+            {
+                m_host->SetDebuggerMemoryWindow (window, views.memory[(size_t) (window - 1)]);
+            }
+        }
+
+        for (const std::string & panel : views.panels)
+        {
+            RunCommand (DebuggerViewState::GetPanelLine (panel, true));
+        }
+
+        return;
+    }
+
+    //  Until the reopened views show up, the set on screen is the one the
+    //  window started with, not a choice the user made. Once they have, what
+    //  is on screen is taken as the starting point WITHOUT being written: a
+    //  view reopened on its address can land a line away from where it was
+    //  saved, and writing that back would walk it further every restart.
+    if (m_openViewsSettling > 0)
+    {
+        m_openViewsSettling = (text == m_openViewsSaved) ? 0 : m_openViewsSettling - 1;
+
+        if (m_openViewsSettling == 0)
+        {
+            m_openViewsSaved = text;
+        }
+
+        return;
+    }
+
+    if (text != m_openViewsSaved)
+    {
+        m_openViewsSaved = text;
+        m_host->SetDebuggerOpenViews (text);
     }
 }
 

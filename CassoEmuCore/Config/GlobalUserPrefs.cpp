@@ -86,6 +86,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "screenshotFolder",
     "debuggerKeyScheme",
     "debuggerLayout",
+    "debuggerOpenViews",
     "debuggerSourceFolders",
     "debuggerProgramSourceFolders"
 };
@@ -1246,6 +1247,7 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     root.emplace_back ("debuggerKeyScheme",  JsonValue (debuggerKeyScheme));
     root.emplace_back ("debuggerLayout",     JsonValue (debuggerLayout));
+    root.emplace_back ("debuggerOpenViews",  JsonValue (debuggerOpenViews));
     root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debuggerSourceFolders));
     root.emplace_back ("debuggerProgramSourceFolders", FolderMapToJson (debuggerProgramSourceFolders));
 
@@ -1466,6 +1468,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     debuggerKeyScheme  = GetStringOpt   (v, "debuggerKeyScheme",  debuggerKeyScheme);
     debuggerLayout     = GetStringOpt   (v, "debuggerLayout",     debuggerLayout);
+    debuggerOpenViews  = GetStringOpt   (v, "debuggerOpenViews",  debuggerOpenViews);
 
     debuggerSourceFolders.clear();
     if (v.HasArray ("debuggerSourceFolders", sourceFolderArr))
