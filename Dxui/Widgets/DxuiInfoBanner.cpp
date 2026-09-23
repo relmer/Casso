@@ -394,9 +394,9 @@ void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
         float  a0 = 6.2831853f * (float) i       / (float) s_kSegments;
         float  a1 = 6.2831853f * (float) (i + 1) / (float) s_kSegments;
 
-        painter.DrawLineApprox (cx + radiusPx * std::cos (a0), cy + radiusPx * std::sin (a0),
-                                cx + radiusPx * std::cos (a1), cy + radiusPx * std::sin (a1),
-                                strokePx, argb);
+        painter.DrawLine (cx + radiusPx * std::cos (a0), cy + radiusPx * std::sin (a0),
+                          cx + radiusPx * std::cos (a1), cy + radiusPx * std::sin (a1),
+                          strokePx, argb);
     }
 }
 
@@ -535,7 +535,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         dotR  = stroke * 0.55f;
 
         StrokeCircle     (painter, iconCx, iconCy, ringR, stroke, theme.Accent());
-        painter.FillCircleApprox (iconCx, iconCy - iconR * 0.42f, dotR, theme.Accent());
+        painter.FillCircle (iconCx, iconCy - iconR * 0.42f, dotR, theme.Accent());
         painter.FillRect         (iconCx - stroke * 0.5f, iconCy - iconR * 0.12f,
                                   stroke, stemH, theme.Accent());
     }

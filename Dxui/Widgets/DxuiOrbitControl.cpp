@@ -342,8 +342,8 @@ void DxuiOrbitControl::Paint (IDxuiPainter      & painter,
 
     // The pool: two circles, the outer fainter, a cheap two-ring feather of
     // the HUD notice's shadow idea.
-    painter.FillCircleApprox (cx, cy, reach,         s_kBackdropArgb);
-    painter.FillCircleApprox (cx, cy, reach * 0.82f, s_kBackdropArgb);
+    painter.FillCircle (cx, cy, reach,         s_kBackdropArgb);
+    painter.FillCircle (cx, cy, reach * 0.82f, s_kBackdropArgb);
 
     // The orb, with a rim so it reads as a thing rather than a dot.
     {
@@ -352,8 +352,8 @@ void DxuiOrbitControl::Paint (IDxuiPainter      & painter,
                        : hot                                ? s_kHoverArgb
                                                             : s_kIdleArgb;
 
-        painter.FillCircleApprox (cx, cy, orbR * 1.18f, s_kOrbRimArgb);
-        painter.FillCircleApprox (cx, cy, orbR,          fill);
+        painter.FillCircle (cx, cy, orbR * 1.18f, s_kOrbRimArgb);
+        painter.FillCircle (cx, cy, orbR,          fill);
     }
 
     // The arrows: an isoceles triangle per compass point, base toward the
