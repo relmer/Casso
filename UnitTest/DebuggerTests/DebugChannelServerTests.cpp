@@ -55,6 +55,12 @@ namespace DebuggerTests
             ran.push_back (Ran { line, mode, budget });
             reply.command = line;
 
+            if (startsRun)
+            {
+                startsRun = false;
+                running   = true;
+            }
+
             if (stopFrom != nullptr && stopWith.has_value())
             {
                 StopEvent  stop;
@@ -72,9 +78,10 @@ namespace DebuggerTests
             ++pauses;
         }
 
-        //  Set by a test whose command starts a run that is still going when
-        //  the command returns, as the emulator's does.
-        bool running = false;
+        //  A run in progress; startsRun makes the next line start one that is
+        //  still going when it returns, as the emulator's does.
+        bool running   = false;
+        bool startsRun = false;
 
         bool IsRunInProgress() const override
         {
@@ -370,7 +377,7 @@ namespace DebuggerTests
             server.Open();
             client = transport.Connect();
 
-            runner.running = true;
+            runner.startsRun = true;
             transport.Send (client, Command ("g", 5));
             server.Pump();
 
@@ -385,6 +392,42 @@ namespace DebuggerTests
 
             Assert::IsTrue   (Parsed (transport.Written (client)[1]).HasInt ("causeId", causeId));
             Assert::AreEqual (5, causeId);
+        }
+
+
+
+        //  A command sent while another's run goes on did not start it: its
+        //  reply promises no stop, and the stop still names the command that
+        //  started the run.
+        TEST_METHOD (ACommandDuringAnotherRunWaitsForNothing)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client  = 0;
+            StopEvent              stop;
+            int                    causeId = 0;
+            bool                   running = false;
+
+
+
+            server.Open();
+            client = transport.Connect();
+
+            runner.startsRun = true;
+            transport.Send (client, Command ("g", 5));
+            transport.Send (client, Command ("r", 6));
+            server.Pump();
+
+            Assert::IsFalse (Parsed (transport.Written (client)[1]).HasBool ("running", running),
+                             L"the R started no run, so there is nothing for it to wait for");
+
+            stop.reason = StopReason::Breakpoint;
+            server.OnStopped (stop);
+            server.Pump();
+
+            Assert::IsTrue   (Parsed (transport.Written (client)[2]).HasInt ("causeId", causeId));
+            Assert::AreEqual (5, causeId, L"the stop is the G's, not the R's");
         }
 
 

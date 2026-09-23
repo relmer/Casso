@@ -158,7 +158,8 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
 {
     ChannelHello  hello;
     Reply         reply;
-    bool          isRunning = false;
+    bool          wasRunning = false;
+    bool          isRunning  = false;
 
 
 
@@ -183,8 +184,17 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
         break;
     }
 
+    //  A line can start a run only when none is in progress; the session
+    //  answers "already running" otherwise. So a run going before the line is
+    //  someone else's -- the window's, another client's -- and this line
+    //  neither causes its stop nor has a stop to wait for. Treating it as the
+    //  cause made an `R` sent during another's run wait out its timeout and
+    //  then pause the machine.
+    wasRunning = m_runner.IsRunInProgress();
+
     //  Named before the line runs, because a synchronous machine can deliver
     //  the stop before RunLine returns.
+    if (!wasRunning)
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
@@ -196,9 +206,9 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
     //  A line that started no run, or whose run has already ended, leaves
     //  nothing for a later stop to be caused by. Without this a pause long
     //  after an ordinary `R` would be reported as that `R`'s outcome.
-    isRunning = m_runner.IsRunInProgress();
+    isRunning = !wasRunning && m_runner.IsRunInProgress();
 
-    if (!isRunning)
+    if (!wasRunning && !isRunning)
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
