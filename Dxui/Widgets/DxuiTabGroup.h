@@ -43,9 +43,20 @@ public:
     void  SetTitle     (IDxuiControl * content, const std::wstring & title);
     void  SetIndicator (IDxuiControl * content, bool on);
 
-    //  A dot ahead of a tab's title, in a color the caller picks, zero for
-    //  none: a mark of the tab's own state, not a change to look at.
-    void  SetLeadingDot (IDxuiControl * content, uint32_t argb);
+    //  A mark ahead of a tab's title: a mark of the tab's own state, not a
+    //  change to look at. A glyph drawn in the given face, so a caller can
+    //  repeat a mark its content already uses, or a dot when no glyph is
+    //  given. A zero color is no mark.
+    struct LeadingMark
+    {
+        std::wstring  glyph;
+        std::wstring  face;
+        uint32_t      argb = 0;
+
+        bool  operator== (const LeadingMark &) const = default;
+    };
+
+    void  SetLeadingMark (IDxuiControl * content, const LeadingMark & mark);
 
     size_t          GetTabCount   () const { return m_tabs.size(); }
     int             GetActive     () const { return m_active; }
@@ -92,7 +103,7 @@ private:
         std::wstring    title;
         IDxuiControl  * content   = nullptr;
         bool            indicator = false;
-        uint32_t        leadDot   = 0;
+        LeadingMark     leadMark;
     };
 
     void  LayoutContent ();

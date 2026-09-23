@@ -131,11 +131,11 @@ void DxuiTabGroup::SetIndicator (IDxuiControl * content, bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTabGroup::SetLeadingDot
+//  DxuiTabGroup::SetLeadingMark
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTabGroup::SetLeadingDot (IDxuiControl * content, uint32_t argb)
+void DxuiTabGroup::SetLeadingMark (IDxuiControl * content, const LeadingMark & mark)
 {
     int  index = IndexOf (content);
 
@@ -143,7 +143,7 @@ void DxuiTabGroup::SetLeadingDot (IDxuiControl * content, uint32_t argb)
 
     if (index >= 0)
     {
-        m_tabs[(size_t) index].leadDot = argb;
+        m_tabs[(size_t) index].leadMark = mark;
     }
 }
 
@@ -247,7 +247,7 @@ int DxuiTabGroup::GetTabWidthDip (int index) const
 
 
 
-    return m_scaler.ToPx (2 * kTabPadDip + (int) tab.title.size() * kCharDip + (tab.indicator ? kIndicatorDip : 0) + (tab.leadDot != 0 ? kIndicatorDip : 0));
+    return m_scaler.ToPx (2 * kTabPadDip + (int) tab.title.size() * kCharDip + (tab.indicator ? kIndicatorDip : 0) + (tab.leadMark.argb != 0 ? kIndicatorDip : 0));
 }
 
 
@@ -447,10 +447,21 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         float  lead = 0.0f;
 
-        if (m_tabs[(size_t) i].leadDot != 0)
+        if (const LeadingMark & mark = m_tabs[(size_t) i].leadMark; mark.argb != 0)
         {
             lead = m_scaler.ToPxf ((float) kIndicatorDip);
-            painter.FillCircleApprox ((float) tab.left + pad + lead * 0.35f, (float) tab.top + strip / 2, m_scaler.ToPxf (3.5f), m_tabs[(size_t) i].leadDot);
+
+            if (mark.glyph.empty())
+            {
+                painter.FillCircleApprox ((float) tab.left + pad + lead * 0.35f, (float) tab.top + strip / 2, m_scaler.ToPxf (3.5f), mark.argb);
+            }
+            else
+            {
+                hr = text.DrawString (mark.glyph.c_str(), (float) tab.left + pad, (float) tab.top, lead, strip,
+                                      mark.argb, m_scaler.ToPxf (font.sizeDip), mark.face.empty() ? font.face : mark.face.c_str(),
+                                      DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
         }
 
         hr = text.DrawString (m_tabs[(size_t) i].title.c_str(),

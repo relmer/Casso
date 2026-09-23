@@ -2622,12 +2622,20 @@ void DebuggerWindow::ApplySnapshot()
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
-        bool  open = m_codeOpen[(size_t) view];
+        bool                       open    = m_codeOpen[(size_t) view];
+        bool                       follows = GetOpenCodeViewCount() > 1 && m_snapshot->followView == view;
+        DxuiTabGroup::LeadingMark  mark;
 
-        m_dockSite->SetLeadingDot (DebuggerLayout::GetCodePaneId (view),
-                                   (GetOpenCodeViewCount() > 1 && m_snapshot->followView == view) ? GetPcMarkerArgb() : 0);
-        m_dockSite->SetTabTip     (DebuggerLayout::GetCodePaneId (view),
-                                   (GetOpenCodeViewCount() > 1 && m_snapshot->followView == view) ? L"This disassembly follows the PC" : L"");
+        //  The tab of the view following the PC carries the PC's own marker:
+        //  the same character, face and color as the arrow on the PC's line,
+        //  so the two read as one sign.
+        if (follows)
+        {
+            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, GetPcMarkerArgb() };
+        }
+
+        m_dockSite->SetLeadingMark (DebuggerLayout::GetCodePaneId (view), mark);
+        m_dockSite->SetTabTip      (DebuggerLayout::GetCodePaneId (view), follows ? L"This disassembly follows the PC" : L"");
 
         if (open)
         {

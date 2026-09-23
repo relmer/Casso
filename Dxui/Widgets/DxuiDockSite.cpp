@@ -213,7 +213,7 @@ void DxuiDockSite::Arrange()
 
             active = (pane == groups[i].active) ? (int) group->GetTabCount() : active;
             group->AddTab (found->second.title, found->second.content);
-            group->SetLeadingDot (found->second.content, found->second.leadDot);
+            group->SetLeadingMark (found->second.content, found->second.leadMark);
             placed.insert (found->second.content);
         }
 
@@ -578,26 +578,26 @@ void DxuiDockSite::SetIndicator (const std::wstring & pane, bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::SetLeadingDot
+//  DxuiDockSite::SetLeadingMark
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDockSite::SetLeadingDot (const std::wstring & pane, uint32_t argb)
+void DxuiDockSite::SetLeadingMark (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark)
 {
     auto  found = m_panes.find (pane);
 
 
 
-    if (found == m_panes.end() || found->second.leadDot == argb)
+    if (found == m_panes.end() || found->second.leadMark == mark)
     {
         return;
     }
 
-    found->second.leadDot = argb;
+    found->second.leadMark = mark;
 
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        group->SetLeadingDot (found->second.content, argb);
+        group->SetLeadingMark (found->second.content, mark);
     }
 
     Relayout();

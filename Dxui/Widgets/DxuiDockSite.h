@@ -79,9 +79,9 @@ public:
     void  ActivatePane (const std::wstring & pane);
     void  SetIndicator (const std::wstring & pane, bool on);
 
-    //  A colored dot ahead of a pane's tab title, zero for none, and a tip for
-    //  its tab. Both stay with the pane as it moves between groups.
-    void  SetLeadingDot (const std::wstring & pane, uint32_t argb);
+    //  A mark ahead of a pane's tab title (see DxuiTabGroup::LeadingMark), and
+    //  a tip for its tab. Both stay with the pane as it moves between groups.
+    void  SetLeadingMark (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark);
     void  SetTabTip     (const std::wstring & pane, const std::wstring & tip);
 
     //  The pane whose tab is under a point, with the tab's rect and tip, or
@@ -133,11 +133,11 @@ public:
 private:
     struct Pane
     {
-        std::wstring    title;
-        IDxuiControl  * content   = nullptr;
-        bool            indicator = false;
-        uint32_t        leadDot   = 0;
-        std::wstring    tip;
+        std::wstring                 title;
+        IDxuiControl               * content   = nullptr;
+        bool                         indicator = false;
+        DxuiTabGroup::LeadingMark    leadMark;
+        std::wstring                 tip;
     };
 
     struct EdgeTab
