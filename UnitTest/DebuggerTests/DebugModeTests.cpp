@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "EmuTests/FixtureProvider.h"
 #include "EmuTests/FixtureRomSource.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "UiTests/InMemoryFileSystem.h"
@@ -543,6 +544,30 @@ namespace DebugModeTests
             Assert::AreEqual (0, rig.Run (""));
             Assert::IsTrue (rig.result.output.find ("Slot 6, drive 1: C:\\Work\\merlin.dsk") != std::string::npos, rig.Widen (rig.result.output).c_str());
             Assert::IsTrue (rig.result.output.find ("Slot 6, drive 2: empty") != std::string::npos, rig.Widen (rig.result.output).c_str());
+        }
+
+        //  The drive reads the disk the store mounted, so the boot ROM loads
+        //  its first sector and leaves $C600 for the code it read.
+        TEST_METHOD (Disk_Boots)
+        {
+            BatchRig          rig;
+            DebugBatchRunner  runner (rig.roms, rig.files);
+            Word              pc = 0;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\merlin.dsk", rig.Fixture ("Disks/Merlin-proDos2.23.dsk"));
+            rig.options.disk1     = "C:\\Work\\merlin.dsk";
+            rig.options.maxCycles = 3'000'000;
+            rig.options.commands  = { "G" };
+
+            Assert::AreEqual (S_OK, runner.Prepare (rig.options, rig.result));
+            Assert::IsTrue (runner.GetHost()->GetRefs().diskController->HasExternalDisk (0), L"drive 1 reads the store's image");
+
+            runner.Execute (rig.options, "", rig.result);
+
+            pc = runner.GetHost()->GetCpu()->GetCpu6502()->GetRegisters().pc;
+            Assert::IsTrue (pc < 0xC600 || pc > 0xC6FF, rig.Widen (rig.result.output).c_str());
         }
 
         //  What the guest writes stays in the overlay unless --write-disks.

@@ -80,6 +80,7 @@ private:
 
     HRESULT  BuildMachine (const CommandLineOptions::DebugOptions & options, DebugBatchResult & result);
     void     RouteDiskIo  (bool writeThrough);
+    void     FollowBays   ();
     HRESULT  MountDisk    (const std::string & path, int drive, DebugBatchResult & result);
     void     RunLines     (const CommandLineOptions::DebugOptions & options, const std::vector<std::string> & lines, DebugSession & session, DebugBatchResult & result);
 

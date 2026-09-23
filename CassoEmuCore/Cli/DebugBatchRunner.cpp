@@ -8,6 +8,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/ReplyJson.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/IRomSource.h"
 
@@ -74,6 +75,7 @@ HRESULT DebugBatchRunner::Prepare (const CommandLineOptions::DebugOptions & opti
     CHR (hr);
 
     RouteDiskIo (options.writeDisks);
+    FollowBays();
 
     if (!options.disk1.empty())
     {
@@ -244,6 +246,36 @@ void DebugBatchRunner::RouteDiskIo (bool writeThrough)
     {
         store.SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugBatchRunner::FollowBays
+//
+//  The store holds the image, but the controller reads whatever it was last
+//  pointed at, so each insert, swap or eject in slot 6 re-points the drive --
+//  what the emulator's disk manager does for its own mounts. Without it the
+//  drive keeps reading the controller's own empty disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugBatchRunner::FollowBays()
+{
+    m_host->GetDiskStore().SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    {
+        Disk2Controller * controller = m_host->GetRefs().diskController;
+
+
+
+        if (slot == kDiskSlot && controller != nullptr)
+        {
+            controller->SetExternalDisk (drive, m_host->GetDiskStore().GetImage (slot, drive));
+        }
+    });
 }
 
 
