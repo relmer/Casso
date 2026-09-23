@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Changed
+
+- Circles, rounded corners, diagonal lines and glyph shapes in the UI are now
+  smoothly anti-aliased; straight edges are unchanged.
+
 ## [1.26.0]: The one with a real installer
 
 ### Added
