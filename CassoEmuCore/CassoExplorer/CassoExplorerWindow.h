@@ -115,10 +115,18 @@ public:
     //  toolbar's 4 dip gap keep the 48.
     static constexpr float     kCommandBarIconDip    = 20.0f;
     static constexpr float     kCommandBarPadDip     = 12.0f;
-    static constexpr float     kCommandBarLabelScale = 11.0f / 13.0f;
+    static constexpr float     kCommandBarLabelDip   = 12.0f;
+    static constexpr int       kCommandBarGroupGapDp = 8;
 
-    //  Explorer's command bar is 57 pixels at 125% with a line under it: 46 dip.
-    static constexpr int       kCommandBarBandDp     = 46;
+    //  Explorer's two strips, measured at 100, 125, 150 and 200%: the command
+    //  bar is 47 dip rounded down, its line included; the address bar's strip
+    //  is 48 dip rounded down with its line added. The address box is 32 dip
+    //  tall, and the command bar starts 5 dip in.
+    static constexpr float     kCommandBarDip        = 47.0f;
+    static constexpr float     kNavStripFillDip      = 48.0f;
+    static constexpr int       kAddressBoxDip        = 32;
+    static constexpr int       kCommandBarPadXDp     = 5;
+    static constexpr UINT      kListRowHalfDip       = 14;
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
@@ -182,6 +190,15 @@ public:
 
     //  The strip a pointer event goes to: the command bar over its band, the
     //  navigation toolbar anywhere else.
+    //  File Explorer's list row, measured at nine scales from 100% to 350%:
+    //  twice 14 dip rounded up, and a pixel more at any scale that is not a
+    //  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.
+    static int  GetListRowHeightPx (UINT dpi);
+
+    //  The address box: the toolbar's free span, 32 dip tall and centered
+    //  in the strip above its bottom line.
+    static RECT  GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
+
     static DxuiToolbar &  GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar);
 
 protected:

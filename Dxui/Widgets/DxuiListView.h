@@ -286,6 +286,11 @@ public:
     void  SetRowHeightDip              (int dip)               { m_rowHeightDip = (dip > 0) ? dip : s_kRowHeightDip; }
     int   GetRowHeightDip              () const                { return m_rowHeightDip; }
 
+    //  A row height in pixels for a DPI, for a list that has to match one
+    //  whose rows are not a single size scaled. Replaces the row height in
+    //  dip while it is set.
+    void  SetRowHeightPxFn             (std::function<int (UINT dpi)> fn) { m_rowHeightPxFn = std::move (fn); }
+
     void  SetHorizontalScrollEnabled   (bool b)                { m_hScrollEnabled = b; }
     bool  IsHorizontalScrollEnabled    () const                { return m_hScrollEnabled; }
     int   GetContentWidthPx            () const;
@@ -626,10 +631,11 @@ private:
     //  The cells' face and the height of a row, which a fixed-width list
     //  (a hex dump, a disassembly) changes together.
     const wchar_t *  GetBodyFace   () const  { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
-    int              GetRowHeightPx() const  { return (int) m_scaler.ToPxf ((float) m_rowHeightDip); }
+    int              GetRowHeightPx() const  { return m_rowHeightPxFn ? m_rowHeightPxFn (m_scaler.GetDpi()) : (int) m_scaler.ToPxf ((float) m_rowHeightDip); }
 
     bool                      m_monospace    = false;
     int                       m_rowHeightDip = s_kRowHeightDip;
+    std::function<int (UINT)> m_rowHeightPxFn;
     mutable std::vector<int>  m_measuredWPx;
     std::vector<int>          m_overrideWPx;
     // Monotonic max glyph count per auto column (header + widest cell);

@@ -289,6 +289,7 @@
     <ClCompile Include="EmuTests\GoldenImage.cpp" />
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerFixtureTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerMetricsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerToolbarRoutingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />

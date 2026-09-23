@@ -625,7 +625,7 @@ bool DxuiToolbar::HitTest (int x, int y) const
 
 int DxuiToolbar::GetBandDp() const
 {
-    return m_bandDp;
+    return kBandDp;
 }
 
 
@@ -786,9 +786,9 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
 int DxuiToolbar::GetTotalWidthPx (int labeledCount) const
 {
-    int  barPad   = m_scaler.ToPx (kBarPadXDp);
+    int  barPad   = m_scaler.ToPx (m_barPadDp);
     int  btnGap   = m_scaler.ToPx (kBtnGapDp);
-    int  groupGap = m_scaler.ToPx (kGroupGapDp);
+    int  groupGap = m_scaler.ToPx (m_groupGapDp);
     int  width    = barPad * 2;
     int  index    = 0;
 
@@ -873,7 +873,7 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
     m_labeledCount = labeled;
 
-    return m_bandDp;
+    return kBandDp;
 }
 
 
@@ -911,8 +911,8 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
     marginY  = m_scaler.ToPx (kBtnMarginYDp);
     btnGap   = m_scaler.ToPx (kBtnGapDp);
-    groupGap = m_scaler.ToPx (kGroupGapDp);
-    barPad   = m_scaler.ToPx (kBarPadXDp);
+    groupGap = m_scaler.ToPx (m_groupGapDp);
+    barPad   = m_scaler.ToPx (m_barPadDp);
     x        = boundsDip.left + barPad;
     top      = boundsDip.top + marginY;
     bottom   = boundsDip.bottom - marginY;
@@ -1782,7 +1782,7 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     }
 
     painter.FillRect (bl, btTop, bw, bhAll, strip);
-    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f,
+    painter.FillRect (bl, (float) (m_barRect.bottom - GetEdgePx (m_scaler)), bw, (float) GetEdgePx (m_scaler),
                       (m_edgeOverride != 0) ? m_edgeOverride : theme.ContentEdge());
 
     for (Slot & slot : m_slots)
@@ -1824,11 +1824,10 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 void DxuiToolbar::PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme & theme)
 {
     const Slot  * previous = nullptr;
-    int           groupGap = m_scaler.ToPx (kGroupGapDp);
-    float         inset    = m_scaler.ToPxf (kSeparatorInsetDip);
-    float         top      = (float) m_barRect.top + inset;
-    float         height   = (float) (m_barRect.bottom - m_barRect.top) - inset * 2.0f;
-    float         width    = (std::max) (1.0f, (float) m_scaler.ToPx (1));
+    int           groupGap = m_scaler.ToPx (m_groupGapDp);
+    float         top      = (float) m_barRect.top + m_scaler.ToPxf (kSeparatorTopDip);
+    float         height   = (float) m_barRect.bottom - m_scaler.ToPxf (kSeparatorBottomDip) - top;
+    float         width    = (std::max) (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
 
 
 

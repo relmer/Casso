@@ -292,8 +292,9 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar->SetChevronOnIcons (true);
     m_commandBar->SetGroupSeparators (true);
     m_commandBar->SetButtonPadDip    (kCommandBarPadDip);
-    m_commandBar->SetLabelScale      (kCommandBarLabelScale);
-    m_commandBar->SetBandDp          (kCommandBarBandDp);
+    m_commandBar->SetLabelFontDip    (kCommandBarLabelDip);
+    m_commandBar->SetGroupGapDp      (kCommandBarGroupGapDp);
+    m_commandBar->SetBarPadDp        (kCommandBarPadXDp);
     SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
 
@@ -414,6 +415,7 @@ void CassoExplorerWindow::ConfigureWidgets()
 
 
     m_list->SetShowHeader (true);
+    m_list->SetRowHeightPxFn (&CassoExplorerWindow::GetListRowHeightPx);
     m_list->SetColumns (CassoExplorerBrowser::GetColumns());
     m_list->SetPreciseAutoFit (true);
 
@@ -734,8 +736,8 @@ void CassoExplorerWindow::RecomputeLayout()
     m_commandBar->PlanForWidth (m_client.right - m_client.left, m_scaler);
 
     m_tabBand.SetThickness     (m_scaler.ToPx (kTabHeightDip));
-    m_menuBand.SetThickness    (m_scaler.ToPx (m_commandBar->GetBandDp()));
-    m_toolbarBand.SetThickness (m_scaler.ToPx (m_toolbar->GetBandDp()));
+    m_menuBand.SetThickness    ((int) std::floor (m_scaler.ToPxf (kCommandBarDip)));
+    m_toolbarBand.SetThickness ((int) std::floor (m_scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_scaler));
     m_statusBand.SetThickness  (m_scaler.ToPx (DxuiStatusBar::GetBandDp()));
 
     m_dock.Arrange (m_client, m_scaler, bands);
@@ -755,7 +757,7 @@ void CassoExplorerWindow::RecomputeLayout()
 
     m_toolbar->SetHostClientRect (m_client);
     m_toolbar->Layout (m_toolbarBand.GetBounds(), m_scaler);
-    m_address->Layout (m_toolbar->GetFreeRect(), m_scaler);
+    m_address->Layout (GetAddressRect (m_toolbar->GetFreeRect(), m_toolbarBand.GetBounds(), m_scaler), m_scaler);
 
     m_tooltip.SetDpi (m_scaler.GetDpi());
     m_tooltip.SetViewportSize (m_client.right - m_client.left, m_client.bottom - m_client.top);
@@ -6564,6 +6566,55 @@ int64_t CassoExplorerWindow::GetNowMs()
 {
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetListRowHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerWindow::GetListRowHeightPx (UINT dpi)
+{
+    int  half    = (int) ((kListRowHalfDip * dpi + 95) / 96);
+    int  partial = (dpi % 96 != 0) ? 1 : 0;
+
+
+
+    return 2 * half + partial;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetAddressRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoExplorerWindow::GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler)
+{
+    int   height = scaler.ToPx (kAddressBoxDip);
+    int   middle = (strip.top + strip.bottom - DxuiToolbar::GetEdgePx (scaler)) / 2;
+    RECT  rect   = free;
+
+
+
+    if (free.right <= free.left)
+    {
+        return free;
+    }
+
+    rect.top    = middle - height / 2;
+    rect.bottom = rect.top + height;
+
+    return rect;
 }
 
 

@@ -202,8 +202,18 @@ public:
     //  content edge.
     void  SetEdgeColor     (uint32_t edgeArgb)           { m_edgeOverride = edgeArgb; }
 
-    //  The strip's thickness, including the edge line.
-    void  SetBandDp        (int bandDp)                  { m_bandDp = bandDp; }
+    //  The line along the bottom edge is 1 dip rounded, never less than a
+    //  pixel: 2 at 150%, as Explorer draws its own.
+    static int  GetEdgePx (const DxuiDpiScaler & scaler) { return (std::max) (1, (int) std::lround (scaler.ToPxf (1.0f))); }
+
+    //  The strip's padding at each end; the default is kBarPadXDp.
+    void  SetBarPadDp      (int barPadDp)                { m_barPadDp = barPadDp; }
+
+    //  The space between groups; the default is kGroupGapDp.
+    void  SetGroupGapDp    (int groupGapDp)              { m_groupGapDp = groupGapDp; }
+
+    //  The labels' font size; zero, the default, is the chrome font.
+    void  SetLabelFontDip  (float fontDip)               { m_labelFontDip = fontDip; }
 
     //  Decides how many entries can still afford their label at this width
     //  and returns the band thickness (dp) the strip needs. Call BEFORE
@@ -299,7 +309,7 @@ private:
     //  titles and every dropdown, read from the Windows menu settings. A
     //  toolbar label in a font its OWN picker did not use is the mismatch
     //  this avoids -- the pickers are popup menus and paint in that font.
-    float  GetChromeFontPx () const { return m_metrics.fontPx * m_labelScale; }
+    float  GetChromeFontPx () const { return (m_labelFontDip > 0.0f) ? m_scaler.ToPxf (m_labelFontDip) : m_metrics.fontPx * m_labelScale; }
     int    GetButtonPadPx  () const { return (int) std::lround (m_scaler.ToPxf (m_buttonPadDip)); }
     void   RefreshMetrics  ();
 
@@ -337,7 +347,8 @@ private:
     static constexpr uint32_t  kChevronAlphaPercent = 72;
 
     //  How far a group separator stops short of the bar's top and bottom.
-    static constexpr float  kSeparatorInsetDip = 6.0f;
+    static constexpr float  kSeparatorTopDip    = 8.0f;
+    static constexpr float  kSeparatorBottomDip = 7.0f;
 
     void  PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme & theme);
 
@@ -398,5 +409,7 @@ private:
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;
     uint32_t                 m_edgeOverride   = 0;
-    int                      m_bandDp         = kBandDp;
+    int                      m_groupGapDp     = kGroupGapDp;
+    int                      m_barPadDp       = kBarPadXDp;
+    float                    m_labelFontDip   = 0.0f;
 };
