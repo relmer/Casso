@@ -180,6 +180,10 @@ public:
     static constexpr int       kDropTagList          = 0;
     static constexpr int       kDropTagTree          = 1;
 
+    //  The strip a pointer event goes to: the command bar over its band, the
+    //  navigation toolbar anywhere else.
+    static DxuiToolbar &  GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar);
+
 protected:
     void  OnCreate        () override;
     void  OnWindowClose   () override;

@@ -1985,10 +1985,26 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (RouteToolbarMouse (*m_toolbar, ev))
+    //  The strip under the pointer takes the event and drives the tooltip; the
+    //  other still sees a move, so its hover clears when the pointer crosses.
     {
-        Invalidate();
-        return true;
+        DxuiToolbar &  under = GetToolbarUnder (m_menuBand.GetBounds(), point, *m_toolbar, *m_commandBar);
+        DxuiToolbar &  other = (&under == m_commandBar) ? *m_toolbar : *m_commandBar;
+
+        if (ev.kind == DxuiMouseEventKind::Move)
+        {
+            other.OnToolbarMouseMove (ev.positionDip.x, ev.positionDip.y);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Leave)
+        {
+            other.OnToolbarMouseLeave();
+        }
+
+        if (RouteToolbarMouse (under, ev) || (ev.kind == DxuiMouseEventKind::Up && RouteToolbarMouse (other, ev)))
+        {
+            Invalidate();
+            return true;
+        }
     }
 
     if (m_treeSplitter->OnMouse (ev) || (m_previewSplitter->IsVisible() && m_previewSplitter->OnMouse (ev)))
@@ -6548,6 +6564,21 @@ int64_t CassoExplorerWindow::GetNowMs()
 {
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetToolbarUnder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar & CassoExplorerWindow::GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar)
+{
+    return Contains (commandBarBand, point) ? commandBar : navToolbar;
 }
 
 
