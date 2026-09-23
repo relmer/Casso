@@ -149,6 +149,7 @@ private:
     void                 OnNewProfile       ();
     void                 OpenNewProfileDialog ();
     void                 SwitchController   (size_t index);
+    void                 ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit);
     void                 AskToSaveProfileEdits (std::function<void ()> proceed);
     void                 OnRenameProfile    ();
     void                 OnDeleteProfile    ();

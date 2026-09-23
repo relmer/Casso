@@ -1388,22 +1388,53 @@ void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
         return;
     }
 
+    std::optional<ControllerUnitKey>  pick      = m_playerUnits[player][(size_t) item];
     std::optional<ControllerUnitKey>  playerOne = m_state->GetMultiplayer().players[0].unit;
+    bool                              movesOne  = false;
 
 
 
-    m_state->SetMultiplayerUnit (player, m_playerUnits[player][(size_t) item]);
+    // Player one changes when its own drop-down picks something else, or
+    // when player two takes player one's controller and swaps.
+    movesOne = (player == 0) ? pick != playerOne
+                             : pick.has_value() && pick == playerOne;
 
-    // The slots decide which rows below are in play, so the whole page
-    // follows a pick here.
-    Relayout();
-
-    // A swap can change player one from player two's drop-down too, so this
-    // compares the result rather than looking at which drop-down moved.
-    if (m_state->GetMultiplayer().players[0].unit != playerOne)
+    if (!movesOne)
     {
-        FollowPlayerOne();
+        ApplyPlayerController (player, pick);
+        return;
     }
+
+    // ASKED BEFORE THE PICK IS APPLIED, not after. Editing follows player one,
+    // so a pick that moves player one leaves the edited profile; asking first
+    // means Cancel takes back the whole gesture -- the assignment as well as
+    // the move -- rather than leaving the players swapped and Editing on a
+    // controller that is no longer player one's. The prompt re-syncs the
+    // drop-downs as it opens, so a canceled pick shows as never made.
+    AskToSaveProfileEdits ([this, player, pick] ()
+    {
+        ApplyPlayerController (player, pick);
+        FollowPlayerOne();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyPlayerController
+//
+//  The slots decide which rows below are in play, so the whole page follows a
+//  pick here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit)
+{
+    m_state->SetMultiplayerUnit (player, unit);
+    Relayout();
 }
 
 
