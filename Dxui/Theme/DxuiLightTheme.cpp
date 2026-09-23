@@ -14,17 +14,19 @@
 //  text #5D5D5D, stroke #E5E5E5, and the light accent #005FB8. Selection is
 //  the pale accent Explorer draws behind a selected row.
 //
-//  The strip under the tabs takes the layer fill, a step above the caption,
-//  as the dark theme's does, so the selected tab that joins it shows, and the
-//  address box set into it is white, a step above again. Unlike the dark
-//  theme's, these have not yet been measured against Explorer.
+//  The chrome is measured from Explorer, as the dark theme's is, with its
+//  window inactive at 120 dpi on 2026-09-23: the caption is #E8E8E8, the strip
+//  under the tabs #F8F8F8, and the address box set into it #FDFDFD. The list,
+//  the command bar and the strip along the bottom are all #FFFFFF, with a
+//  #D6D6D6 line above and below the command bar. A row under the pointer is
+//  #E5F3FF.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiLightTheme::DxuiLightTheme()
 {
-    titleBarTop              = 0xFFF3F3F3;
-    titleBarBottom           = 0xFFF3F3F3;
+    titleBarTop              = 0xFFE8E8E8;
+    titleBarBottom           = 0xFFE8E8E8;
     titleText                = DxuiWindowsThemeColors::kCaptionForegroundLight;
     bodyText                 = 0xFF1A1A1A;
     sysButtonIdle            = 0x00000000;
@@ -33,7 +35,7 @@ DxuiLightTheme::DxuiLightTheme()
     sysButtonCloseHover      = DxuiWindowsThemeColors::kCloseButtonColor;
     sysButtonCloseHoverGlyph = DxuiWindowsThemeColors::kCloseButtonGlyphHoverColor;
     sysButtonClosePressed    = DxuiWindowsThemeColors::kCloseButtonColor;
-    navStrip                 = 0xFFFBFBFB;
+    navStrip                 = 0xFFF8F8F8;
     navHover                 = 0xFFCCE4F7;
     navItemText              = 0xFF1A1A1A;
     dropdownBg               = 0xFFF9F9F9;
@@ -48,8 +50,11 @@ DxuiLightTheme::DxuiLightTheme()
     //  invisible in the light theme for every widget that draws one.
     contentSelectionEdge     = 0xFF5D5D5D;
     panelBg                  = 0xFFFBFBFB;
-    panelEdge                = 0xFFE5E5E5;
-    controlBg                = 0xFFFFFFFF;
+    panelEdge                = 0xFFD6D6D6;
+    contentBg                = 0xFFFFFFFF;
+    statusBg                 = 0xFFFFFFFF;
+    contentHover             = 0xFFE5F3FF;
+    controlBg                = 0xFFFDFDFD;
     buttonIdle               = 0xFFFBFBFB;
     buttonHover              = 0xFFF6F6F6;
     buttonPressed            = 0xFFF0F0F0;
