@@ -285,6 +285,7 @@ void CassoExplorerWindow::OnCreate()
                                    ? DxuiToolbar::kFluentIconFace
                                    : DxuiToolbar::kMdl2IconFace);
     m_commandBar->SetIconDip      (kNavIconDip);
+    m_commandBar->SetChevronOnIcons (true);
     SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
 

@@ -759,7 +759,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
         width += (HasGlyph (slot) ? iconGap : 0) + MeasureLabelPx (label.c_str(), fontPx);
     }
 
-    if (slot.entry.kind == Kind::DropDown && !HasGlyph (slot))
+    if (slot.entry.kind == Kind::DropDown && (m_chevronOnIcons || !HasGlyph (slot)))
     {
         width += iconGap + m_scaler.ToPx (kChevronDp);
     }
@@ -1715,7 +1715,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         }
     }
 
-    if (slot.entry.kind == Kind::DropDown && !HasGlyph (slot))
+    if (slot.entry.kind == Kind::DropDown && (m_chevronOnIcons || !HasGlyph (slot)))
     {
         float  size = m_scaler.ToPxf ((float) kChevronDp);
         float  pen  = (std::max) (1.0f, m_scaler.ToPxf (1.0f));

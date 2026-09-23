@@ -1,11 +1,62 @@
 # Research: Casso Explorer
 
-**Feature**: 033-cassque | **Date**: 2026-09-10
+**Feature**: 033-casso-explorer | **Date**: 2026-09-10
 
 Every question here is settled by reading the tree. Where the tree
 contradicts an assumption the spec was written under, the correction is
 stated and the spec's requirement is kept unless the correction makes it
 impossible.
+
+## File Explorer's command bar and list, measured
+
+Measured 2026-09-23 on Windows 11, both windows 1600x900 device pixels at
+125%, dark theme, the same folder of three files open in each, nothing
+selected. Figures are device pixels with the dip equivalent beside them,
+read from the captures rather than from any documentation.
+
+### The command bar
+
+| | File Explorer | Casso Explorer |
+|---|---|---|
+| Bar items, left to right | New (chevron), cut, copy, paste, rename, share, delete, Sort (chevron), View (chevron), overflow | New, cut, copy, paste, rename, delete, Sort, View, overflow |
+| First icon center, x | 41 | 32 |
+| Icon-only button pitch | 60 px = 48 dip | 46 px = 37 dip |
+| Icon ink height | 16 px = 12.8 dip | 15 px = 12 dip |
+| Label cap height | 11 px = 8.8 dip | 13 px = 10.4 dip |
+| Dropdown chevron | 6x4 px, #B7B7B7, after New, Sort and View | none |
+| Disabled icon ink | #616060 | #7B7B7B |
+| Right end | Details pane toggle | Preview toggle, Theme |
+
+Both dim the clipboard and file buttons with nothing selected, so the
+disabled state itself matches; the ink does not.
+
+### The list
+
+| | File Explorer | Casso Explorer |
+|---|---|---|
+| List background | #191919 | #191919 |
+| Header background | #191919 | #191919 |
+| Row pitch | 37 px = 29.6 dip | 38 px = 30.4 dip |
+| Row text cap height | 11 px = 8.8 dip | 12 px = 9.6 dip |
+
+### What this asks of Casso Explorer
+
+1. The icon-only buttons sit 11 dip closer together than Explorer's.
+2. Nothing marks the buttons that open a menu; Explorer draws a chevron on
+   each of the three.
+3. Disabled ink is lighter than Explorer's, so a disabled button reads as
+   more available than it is.
+4. Row pitch is 0.8 dip taller and the text about 1 dip larger.
+
+The departures the spec already allows -- Preview and Theme where Explorer
+has its Details toggle, and no Share button, Share being a context-menu verb
+here -- are not in that list.
+
+### Still to measure
+
+100% and 200%. This machine runs both monitors at 125%, and neither other
+scale can be measured without changing the display setting for the whole
+desktop.
 
 ## R1. Executable shape
 

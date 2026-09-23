@@ -167,6 +167,12 @@ public:
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
     void  SetIconDip       (float dip)                   { m_iconDip = dip; }
 
+    //  Whether a drop-down that shows an icon also shows the chevron that
+    //  says it opens a menu. One without an icon always shows it. File
+    //  Explorer draws it on both, so a toolbar following Explorer sets this;
+    //  the emulator's own chrome does not.
+    void  SetChevronOnIcons (bool on)                    { m_chevronOnIcons = on; }
+
     //  The two icon fonts for the glyphs in UnicodeSymbols.h. They use the same
     //  code points; Windows 11 uses Fluent for its own chrome, which draws some
     //  glyphs differently (Refresh most visibly) and is not in Windows 10.
@@ -338,15 +344,16 @@ private:
     RECT                     m_flyoutRc       = {};
     int                      m_focusIndex     = -1;
 
-    IDxuiTextRenderer             * m_textRenderer = nullptr;
-    const wchar_t                 * m_iconFace     = kMdl2IconFace;
-    float                           m_iconDip      = kIconDip;
-    RECT                            m_barRect      = {};
-    RECT                            m_freeRect     = {};
-    RECT                            m_hostClient   = {};
+    IDxuiTextRenderer             * m_textRenderer   = nullptr;
+    const wchar_t                 * m_iconFace       = kMdl2IconFace;
+    float                           m_iconDip        = kIconDip;
+    bool                            m_chevronOnIcons = false;
+    RECT                            m_barRect        = {};
+    RECT                            m_freeRect       = {};
+    RECT                            m_hostClient     = {};
     DxuiDpiScaler                   m_scaler;
     DxuiMenuMetrics                 m_metrics;
-    int                             m_labeledCount = 0;
+    int                             m_labeledCount   = 0;
     std::shared_ptr<DxuiCommand>    m_seeMore;
 
     bool                     m_stripColorsSet = false;
