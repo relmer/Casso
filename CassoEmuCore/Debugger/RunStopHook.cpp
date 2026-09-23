@@ -257,7 +257,8 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
         break;
 
     case RunKind::StepOut:
-        isComplete = sp > m_startSp && IsTransfer (m_lastOpcode);
+        isComplete = m_request.hasLeftFrame ? m_request.hasLeftFrame (pc, sp)
+                                            : sp > m_startSp && IsTransfer (m_lastOpcode);
         break;
 
     case RunKind::Go:

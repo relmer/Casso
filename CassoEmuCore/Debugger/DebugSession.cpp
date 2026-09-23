@@ -1626,6 +1626,11 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty()) ? &m_lineTable : nullptr;
     request.stepFilter = (isStep && !m_stepFilter.IsEmpty()) ? &m_stepFilter : nullptr;
 
+    if (request.kind == RunKind::StepOut)
+    {
+        SetStepOutFrame (request);
+    }
+
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;
     UpdateHookInstalled();
 
@@ -1637,6 +1642,57 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         UpdateHookInstalled();
         SetError (reply, CommandStatus::Error, "run failed", "The machine could not start the run.");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::SetStepOutFrame
+//
+//  A step out leaves the innermost recorded frame: a call by its return, an
+//  interrupt by the RTI that goes back to the instruction it stopped. The
+//  stack pointer alone cannot tell that when code between the handler and
+//  the interrupted instruction keeps a return frame of its own, as the
+//  enhanced //e's ROM does around an interrupt, or pulls bytes and jumps.
+//
+//  The record takes in each instruction at the next one's fetch, which is
+//  after the stop hook asks about it, so it is settled first, from the
+//  registers the next instruction will run with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetStepOutFrame (RunRequest & request)
+{
+    CallStackFrame  frame;
+
+
+
+    SettleCallRecord();
+
+    if (!m_callRecorder.IsActive() || m_callRecorder.GetFrames().empty())
+    {
+        return;
+    }
+
+    frame = m_callRecorder.GetFrames().back();
+
+    request.hasLeftFrame = [this, frame] (Word pc, Byte sp)
+    {
+        const std::vector<CallStackFrame> & frames = m_callRecorder.GetFrames();
+
+
+
+        m_callRecorder.Settle (pc, sp);
+
+        return std::none_of (frames.begin(), frames.end(), [&frame] (const CallStackFrame & each)
+        {
+            return each.callSite == frame.callSite && each.target == frame.target &&
+                   each.kind == frame.kind && each.stackLevel == frame.stackLevel;
+        });
+    };
 }
 
 

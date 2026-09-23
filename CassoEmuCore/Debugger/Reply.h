@@ -614,4 +614,10 @@ struct RunRequest
 
     //  The routines a step into runs as a step over, when there are any.
     const StepFilter       * stepFilter = nullptr;
+
+    //  Present for a step out that began inside a recorded call or interrupt:
+    //  asked before each instruction, with the PC and stack pointer it will
+    //  run with, whether that frame has ended. Absent, a step out ends on the
+    //  stack pointer alone.
+    std::function<bool (Word pc, Byte sp)>  hasLeftFrame;
 };

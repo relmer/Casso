@@ -602,6 +602,52 @@ namespace DebuggerTests
         }
 
 
+        //  Out of a handler is back at the instruction the interrupt stopped.
+        //  The enhanced //e's ROM pushes a return frame of its own before
+        //  jumping to the handler, so the handler's RTI lands in the ROM, and
+        //  the ROM then pulls bytes and jumps before its own RTI; neither is
+        //  the way out. The interrupt's frame ending is.
+        TEST_METHOD (StepOutOfAnInterruptHandlerReturnsToTheInterruptedInstruction)
+        {
+            for (const char * machine : { "Apple2e", "Apple2eEnhanced" })
+            {
+                Rig      rig (machine);
+                Program  program = Load (rig, "irqwait");
+                Word     handler = program.Symbol ("irqh");
+
+
+
+                rig.target.TryPoke (kIrqUserVector,     (Byte) (handler & 0xFF));
+                rig.target.TryPoke (kIrqUserVector + 1, (Byte) (handler >> 8));
+                rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kMaskable, true);
+
+                RunTo (rig, handler);
+                rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kMaskable, false);
+
+                rig.RunOk ("RTS");
+
+                Assert::AreEqual (program.Symbol ("irqspin"), rig.LastStop().pc,
+                                  std::format (L"{}: one step out of the handler", machine[7] == 'E' ? L"enhanced //e" : L"//e").c_str());
+            }
+        }
+
+
+        //  Out of a routine that pulls its return address and jumps away ends
+        //  where the jump lands, as the frame ends there.
+        TEST_METHOD (StepOutOfARoutineThatJumpsAwayStopsWhereItLands)
+        {
+            Rig      rig;
+            Program  program = Load (rig, "away");
+
+
+
+            RunTo (rig, program.Symbol ("discard"));
+            rig.RunOk ("RTS");
+
+            Assert::AreEqual (program.Symbol ("awayto"), rig.LastStop().pc);
+        }
+
+
         TEST_METHOD (AResetDiscardsTheRecord)
         {
             Rig            rig;

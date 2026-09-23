@@ -25,8 +25,10 @@ class MachineHost;
 //  call is over once the stack pointer is back at its level before the JSR
 //  and a return or a jump has just executed, so a routine that returns past
 //  inline parameters, a recursive routine and one that discards its return
-//  address and jumps away all end the step. Stepping out ends the same way,
-//  once the stack pointer is above its level when the step began.
+//  address and jumps away all end the step. Stepping out ends when the call or
+//  interrupt the step began in has ended, as the call-stack record tells it;
+//  with no recorded frame, once the stack pointer is above its level when the
+//  step began and a return or a jump has just executed.
 //
 //  A request with a line table steps by source line: into stops at the first
 //  instruction of another line, the innermost one when macros nest; over

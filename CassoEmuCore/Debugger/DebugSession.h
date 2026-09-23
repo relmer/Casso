@@ -232,6 +232,7 @@ private:
 
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
+    void   SetStepOutFrame       (RunRequest & request);
     void   ExecuteSource         (const DebugCommand & command, Reply & reply);
     void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
