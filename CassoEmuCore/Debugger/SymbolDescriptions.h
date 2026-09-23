@@ -18,4 +18,11 @@ class SymbolDescriptions
 public:
     //  Nothing for a name the shipped tables do not have.
     static const char *  Find (const std::string & name);
+
+    //  Which of the names an address carries belongs to an access in this
+    //  direction. One soft-switch address is two switches -- $C000 read is
+    //  the keyboard, $C000 written turns 80STORE off -- and the shipped
+    //  descriptions say which each one is, in their opening word. An address
+    //  with one name keeps it whichever way it is touched.
+    static std::string   ChooseByDirection (const std::vector<std::string> & names, bool isWrite);
 };

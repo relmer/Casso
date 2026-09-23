@@ -67,11 +67,16 @@ public:
                              const IDebugExpressionContext & memory,
                              AccessPrediction              & prediction);
 
+    //  Whether an opcode reads its operand, writes it, or both. A property of
+    //  the opcode alone, so it holds for a disassembled line as much as for
+    //  the instruction about to run.
+    static PredictedAccess  ClassifyOperand (const Microcode & microcode);
+
 private:
     static constexpr Word  kZeroPageMask = 0x00FF;
     static constexpr Word  kPageMask     = 0xFF00;
 
     static bool             TryPeekWord     (const IDebugExpressionContext & memory, Word lo, Word hi, Word & value);
-    static PredictedAccess  ClassifyOperand (const Microcode & microcode);
+
     static bool             TouchesOperand  (GlobalAddressingMode::AddressingMode mode);
 };

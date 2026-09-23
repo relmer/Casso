@@ -3,6 +3,8 @@
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 
 #include "Debugger/DebugSession.h"
+#include "Debugger/EffectiveAddress.h"
+#include "Debugger/SymbolDescriptions.h"
 #include "Disassembler.h"
 
 
@@ -81,7 +83,7 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
 
             if (line.instruction.hasOperandAddress)
             {
-                session.GetSymbols().TryFindName (line.instruction.operandAddress, line.operandSymbol, symbolTable);
+                ChooseOperandSymbol (session, line);
             }
         }
 
@@ -90,6 +92,47 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
     }
 
     return (Word) address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataDirectiveHandlers::ChooseOperandSymbol
+//
+//  ONE SOFT-SWITCH ADDRESS IS TWO SWITCHES. Reading $C000 gives the keyboard;
+//  writing it turns 80STORE off, and the tables hold a symbol for each.
+//  Taking whichever came first showed `STA KBD` -- a store to the keyboard,
+//  which the machine cannot do -- so the opcode's own direction picks between
+//  them.
+//
+//  Everywhere else an address has one symbol and the direction never arises.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataDirectiveHandlers::ChooseOperandSymbol (DebugSession & session, DisassemblyLine & line)
+{
+    const Microcode           * instructionSet = session.GetTarget().GetInstructionSet();
+    SymbolTableId               table          = SymbolTableId::Main;
+    std::vector<std::string>    names;
+    Byte                        opcode         = 0;
+
+
+
+    if (line.instruction.operandAddress < kIoFirst || line.instruction.operandAddress > kIoLast ||
+        instructionSet == nullptr || line.instruction.bytes.empty())
+    {
+        session.GetSymbols().TryFindName (line.instruction.operandAddress, line.operandSymbol, table);
+        return;
+    }
+
+    session.GetSymbols().FindNames (line.instruction.operandAddress, names);
+    opcode = line.instruction.bytes[0];
+
+    line.operandSymbol = SymbolDescriptions::ChooseByDirection (
+        names, EffectiveAddress::ClassifyOperand (instructionSet[opcode]) != PredictedAccess::Read);
 }
 
 

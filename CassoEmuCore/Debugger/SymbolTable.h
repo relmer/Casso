@@ -36,6 +36,11 @@ public:
     bool     TryResolve   (const std::string & name, Word & address, SymbolTableId & table) const;
     bool     TryFindName  (Word address, std::string & name, SymbolTableId & table) const;
 
+    //  Every enabled table's name for one address, in table order. One
+    //  address carries two names wherever reading it and writing it operate
+    //  different soft switches ($C000 is KBD read, 80STOREOFF written).
+    void     FindNames    (Word address, std::vector<std::string> & names) const;
+
     // In one table only, whether or not it is enabled.
     bool     TryResolveIn (SymbolTableId table, const std::string & name, Word & address) const;
     bool     TryFindNameIn (SymbolTableId table, Word address, std::string & name) const;

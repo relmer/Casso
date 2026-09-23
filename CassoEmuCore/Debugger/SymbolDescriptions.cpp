@@ -337,6 +337,40 @@ static constexpr std::pair<const char *, const char *>  s_kDescriptions[] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SymbolDescriptions::ChooseByDirection
+//
+//  A description opening "Write:" belongs to a write and one opening "Read:"
+//  to a read; "Read or write:" and an undescribed name suit either. Where
+//  nothing matches, the first name stands, which is what the caller would
+//  have shown anyway.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SymbolDescriptions::ChooseByDirection (const std::vector<std::string> & names, bool isWrite)
+{
+    const char *  wanted = isWrite ? "Write:" : "Read:";
+
+
+
+    for (const std::string & name : names)
+    {
+        const char *  description = Find (name);
+
+        if (description != nullptr && std::string_view (description).starts_with (wanted))
+        {
+            return name;
+        }
+    }
+
+    return names.empty() ? std::string() : names.front();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolDescriptions::Find
 //
 ////////////////////////////////////////////////////////////////////////////////

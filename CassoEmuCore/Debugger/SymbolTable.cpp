@@ -234,6 +234,37 @@ bool SymbolTable::TryFindName (Word address, std::string & name, SymbolTableId &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SymbolTable::FindNames
+//
+//  Every name an address carries, rather than the first one found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolTable::FindNames (Word address, std::vector<std::string> & names) const
+{
+    for (int i = 0; i < kTableCount; i++)
+    {
+        if (!m_enabled[i])
+        {
+            continue;
+        }
+
+        for (const Entry & entry : m_tables[i])
+        {
+            if (entry.address == address)
+            {
+                names.push_back (entry.name);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolTable::TryResolveIn
 //
 ////////////////////////////////////////////////////////////////////////////////

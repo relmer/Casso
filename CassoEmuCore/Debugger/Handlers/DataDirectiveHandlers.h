@@ -32,6 +32,10 @@ public:
     static Word  Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data);
 
 private:
+    // The symbol for a line's operand. In $C000-$C0FF the direction of the
+    // access decides which of the address's two soft switches it is (FR-112).
+    static void  ChooseOperandSymbol (DebugSession & session, DisassemblyLine & line);
+
     static constexpr int   kDefaultLines   = 20;
     static constexpr int   kMaxLines       = 0x10000;
     static constexpr int   kFloatBytes     = 5;
@@ -39,6 +43,8 @@ private:
     static constexpr int   kBytesPerLine   = 8;
     static constexpr int   kWordsPerLine   = 4;
     static constexpr int   kTextPerLine    = 32;
+    static constexpr Word  kIoFirst        = 0xC000;
+    static constexpr Word  kIoLast         = 0xC0FF;
     static constexpr Byte  kHighBit        = 0x80;
     static constexpr Byte  kLowBits        = 0x7F;
     static constexpr Byte  kFirstPrint     = 0x20;

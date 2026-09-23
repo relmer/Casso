@@ -310,6 +310,51 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (ASoftSwitchOperandTakesTheSymbolForItsDirection)
+        {
+            //  Each address here is two switches; which one the line shows
+            //  turns on whether the instruction reads it or writes it.
+            const std::tuple<const wchar_t *, std::vector<Byte>, const char *>  cases[] =
+            {
+                { L"LDA $C000 reads the keyboard",   { 0xAD, 0x00, 0xC0 }, "KBD"        },
+                { L"STA $C000 turns 80STORE off",    { 0x8D, 0x00, 0xC0 }, "80STOREOFF" },
+                { L"INC $C000 both reads and writes",    { 0xEE, 0x00, 0xC0 }, "80STOREOFF" },
+                { L"LDA $FDED has one symbol either way", { 0xAD, 0xED, 0xFD }, "COUT"     },
+
+                //  $C05E is ONE switch under two names -- annunciator 3 and,
+                //  on a //e, double hi-res -- not a read and a write. Neither
+                //  description claims a direction, so the first stands
+                //  whichever way the instruction touches it.
+                { L"LDA $C05E",                          { 0xAD, 0x5E, 0xC0 }, "SETAN3"     },
+                { L"STA $C05E",                          { 0x8D, 0x5E, 0xC0 }, "SETAN3"     },
+            };
+
+
+
+            for (const auto & [what, bytes, expected] : cases)
+            {
+                MachineRig               rig;
+                IDebugTarget           & target = rig.controller.GetSession().GetTarget();
+                Reply                    code;
+                const DisassemblyData  * data   = nullptr;
+
+
+
+                for (size_t i = 0; i < bytes.size(); i++)
+                {
+                    (void) target.TryPoke ((Word) (0x0300 + i), bytes[i]);
+                }
+
+                code = rig.controller.GetSession().ExecuteLine ("U 0300", CommandMode::AppleWin);
+                data = std::get_if<DisassemblyData> (&code.data);
+
+                Assert::IsNotNull (data, what);
+                Assert::IsTrue    (data != nullptr && !data->lines.empty(), what);
+                Assert::AreEqual  (std::string (expected), data->lines[0].operandSymbol, what);
+            }
+        }
+
+
         TEST_METHOD (AnnotationsAreBuiltOnlyWhileTheMachineIsPaused)
         {
             MachineRig            rig;

@@ -765,13 +765,21 @@ every soft-switch operand shows the switch that instruction operates.
   a branch both taken and not -- predicting each, then stepping the real
   machine and restating what changed in the same words. The old table was
   wrong or silent on most of those.
-- [ ] T186 FR-112: choose which of a soft switch's two titles to show by
+- [X] T186 FR-112: choose which of a soft switch's two titles to show by
   direction. `$C000` read is KBD and `$C000` written is 80STOREOFF, and
   `SymbolTable::TryFindName` returns whichever table matched first, so the
   pane can show `STA $C000` as `STA KBD` today -- a store to the keyboard,
   which the machine cannot do. The instruction's direction is already known,
   from the same prediction the annotation uses. Test both directions of
-  every address that carries two titles.
+  every address that carries two titles. **As built:** `SymbolTable::FindNames`
+  gives every symbol at an address, `SymbolDescriptions::ChooseByDirection`
+  picks by the opening word of the shipped description ("Read:", "Write:"),
+  and `DataDirectiveHandlers::ChooseOperandSymbol` asks
+  `EffectiveAddress::ClassifyOperand`, now public, for the opcode's
+  direction. `$C05E` turned out NOT to be a pair: annunciator 3 and double
+  hi-res are one switch under two names, neither claiming a direction, so the
+  first stands whichever way it is touched. The test covers that as well as
+  `$C000`.
 - [ ] T187 FR-112: annotate an operand in `$C000-$C0FF` with the switch's
   description rather than a byte value, from `SymbolDescriptions`, and have
   the result column give a write's action ("speaker toggle") rather than
