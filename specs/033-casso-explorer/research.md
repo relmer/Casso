@@ -52,11 +52,39 @@ The departures the spec already allows -- Preview and Theme where Explorer
 has its Details toggle, and no Share button, Share being a context-menu verb
 here -- are not in that list.
 
-### Still to measure
+### At 100%, 125%, 150% and 200%
 
-100% and 200%. This machine runs both monitors at 125%, and neither other
-scale can be measured without changing the display setting for the whole
-desktop.
+Measured 2026-09-23 with both windows on the portrait monitor, its scale set
+to each value in turn and then restored to 150%; 125% is the primary
+display. Device pixels.
+
+| | 100% | 125% | 150% | 200% | Rule |
+|---|---|---|---|---|---|
+| Address strip, fill | 48 | 60 | 72 | 96 | 48 dip, rounded down |
+| Command bar, fill and line | 47 | 58 | 70 | 94 | 47 dip, rounded down |
+| Line under each strip | 1 | 1 | 2 | 2 | 1 dip, rounded |
+| Address box height | 32 | 40 | 48 | 64 | 32 dip |
+| Icon-only button pitch | 48 | 60 | 72 | 96 | 48 dip |
+| Group separator, width | 1 | 1 | 1 | 2 | 1 dip, rounded down |
+| Group separator, height | 32 | 39 | 48 | 62 | 8 dip below the bar's top, 7 above its bottom |
+| Label cap height | 8 | 11 | 13 | 17 | a 12 dip font |
+| Tree row pitch | 32 | 40 | 48 | 64 | 32 dip |
+| List row pitch | 28 | 37 | 43 | 56 | see below |
+
+Casso Explorer now matches every row to within 2 pixels. Its label cap height
+is 9 pixels at 100% against Explorer's 8, the same 12 dip font drawn with
+different hinting. The command bar starts 5 dip in, and a group gap is 8 dip,
+the separator in its middle.
+
+The list row is not one size scaled: 28 dip at 100% and 200%, but taller at
+125% and 150%. Five more scales on the portrait monitor gave:
+
+| Scale | 100 | 125 | 150 | 175 | 200 | 225 | 250 | 300 | 350 |
+|---|---|---|---|---|---|---|---|---|---|
+| Row, px | 28 | 37 | 43 | 51 | 56 | 65 | 71 | 84 | 99 |
+
+Every one is twice 14 dip rounded up, plus one pixel at a scale that is not a
+whole multiple of 100%. Casso Explorer's list computes its rows that way.
 
 ## R1. Executable shape
 
