@@ -149,6 +149,14 @@ public:
     //  without the pointer or a menu, which is how a walkthrough is driven
     //  from outside the process; a popup menu does not take posted clicks.
     static constexpr UINT      kRunCommandMessage    = WM_APP + 0x33;
+
+private:
+    //  A right-drag's menu, opened after the drop returns. Holding the drop
+    //  open while a menu is up would hold the dragging program's own loop
+    //  open with it.
+    static constexpr UINT      kDropMenuMessage      = WM_APP + 0x34;
+
+public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
 
     //  How long to let a burst settle before re-reading. Copying a hundred
@@ -375,6 +383,8 @@ private:
     bool  TryGetDropLocation     (int tag, POINT screen, Location & outLocation);
     DWORD GetDropEffect          (IDataObject * data, int tag, POINT screen);
     void  ShowDropTarget         (int tag, POINT screen, bool accepted);
+    void  ShowDropMenu           ();
+    void  RunDrop                (CassqueActions::Conversion conversion);
     void  ClearDropTarget        ();
     void  OnDrop                 (IDataObject * data, int tag, POINT screen);
     void  RefreshAfterHostChange ();
@@ -436,6 +446,25 @@ private:
     Pane                                         m_focus             = Pane::Tree;
     int                                          m_toolbarFocus      = 0;
     int                                          m_commandBarFocus   = 0;
+
+    //  What a right-drag dropped, held between the drop and the menu's
+    //  answer: where it landed, and either the host files or the entries of
+    //  the image they came from.
+    struct PendingDrop
+    {
+        bool                       valid       = false;
+        Location                   location;
+        VolumeKind                 targetKind  = VolumeKind::Unknown;
+        std::string                inner;
+        POINT                      screen      = {};
+        std::vector<std::wstring>  hostPaths;
+        bool                       fromImage   = false;
+        std::string                sourceImage;
+        VolumeKind                 sourceKind  = VolumeKind::Unknown;
+        std::vector<std::string>   catalogPaths;
+    };
+
+    PendingDrop                                  m_pendingDrop;
     std::vector<BrowserModel::AddressSegment>    m_addressSegments;
     BrowserModel::AddressRoot                    m_addressRoot;
 

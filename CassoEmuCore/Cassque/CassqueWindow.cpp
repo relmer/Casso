@@ -4231,6 +4231,7 @@ void CassqueWindow::OnDrop (IDataObject * data, int tag, POINT screen)
     VolumeListing              listing;
     CassqueActions::Outcome    outcome;
     bool                       decoded      = false;
+    BOOL                       posted       = FALSE;
 
 
 
@@ -4264,11 +4265,7 @@ void CassqueWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         ReleaseStgMedium (&medium);
     }
 
-    if (decoded)
-    {
-        outcome = m_actions.CopyEntriesInto (source, sourceKind, catalogPaths, location.path, targetKind, inner);
-    }
-    else
+    if (!decoded)
     {
         hr = DxuiDragDropTarget::ExtractHDropPaths (data, paths);
 
@@ -4276,7 +4273,35 @@ void CassqueWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         {
             return;
         }
+    }
 
+    //  A right-drag asks what the drop means, once this call has returned and
+    //  the drag itself is over.
+    if (m_dropTarget.IsRightDrag())
+    {
+        m_pendingDrop              = PendingDrop();
+        m_pendingDrop.valid        = true;
+        m_pendingDrop.location     = location;
+        m_pendingDrop.targetKind   = targetKind;
+        m_pendingDrop.inner        = inner;
+        m_pendingDrop.screen       = screen;
+        m_pendingDrop.hostPaths    = paths;
+        m_pendingDrop.fromImage    = decoded;
+        m_pendingDrop.sourceImage  = source;
+        m_pendingDrop.sourceKind   = sourceKind;
+        m_pendingDrop.catalogPaths = catalogPaths;
+
+        posted = PostMessageW (GetHwnd(), kDropMenuMessage, 0, 0);
+        IGNORE_RETURN_VALUE (posted, TRUE);
+        return;
+    }
+
+    if (decoded)
+    {
+        outcome = m_actions.CopyEntriesInto (source, sourceKind, catalogPaths, location.path, targetKind, inner);
+    }
+    else
+    {
         outcome = m_actions.PutInto (location.path, targetKind, inner, paths, MakeAddressPrompt());
     }
 
@@ -4925,6 +4950,13 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     if (msg == kFolderChangedMessage)
     {
         SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kDropMenuMessage)
+    {
+        ShowDropMenu();
 
         return DxuiMessageResult::Handled;
     }
@@ -6139,6 +6171,106 @@ void CassqueWindow::BeginDragOut()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowDropMenu
+//
+//  What a right-drag's drop does, asked at the point it landed. A file whose
+//  name or container records what it is leaves nothing to choose, so the
+//  menu names that and offers it alone; a file that records nothing offers
+//  the conversions a put can make.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowDropMenu()
+{
+    std::vector<DxuiPopupMenuItem>     items;
+    CassqueActions::DropKind           kind;
+    std::wstring                       label;
+
+
+
+    if (!m_pendingDrop.valid)
+    {
+        return;
+    }
+
+    m_menuCommands.clear();
+
+    if (m_pendingDrop.fromImage)
+    {
+        //  Entries from another image go across as they are, types mapped.
+        AddMenuCommand (items, L"&Copy here", [this]() { RunDrop (CassqueActions::Conversion::ByContent); });
+    }
+    else
+    {
+        kind = m_actions.DescribeDrop (m_pendingDrop.hostPaths, m_pendingDrop.targetKind);
+
+        if (kind.determined)
+        {
+            label = L"&Copy here as " + kind.label;
+            AddMenuCommand (items, label.c_str(), [this]() { RunDrop (CassqueActions::Conversion::ByContent); });
+        }
+        else
+        {
+            AddMenuCommand (items, L"&Copy here",                   [this]() { RunDrop (CassqueActions::Conversion::ByContent); });
+            AddMenuCommand (items, L"Copy here as &text",           [this]() { RunDrop (CassqueActions::Conversion::Text); });
+            AddMenuCommand (items, L"Copy here as Applesoft &BASIC", [this]() { RunDrop (CassqueActions::Conversion::Applesoft); });
+            AddMenuCommand (items, L"Copy here as &binary...",      [this]() { RunDrop (CassqueActions::Conversion::Binary); });
+        }
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    AddMenuCommand (items, L"Ca&ncel", [this]() { m_pendingDrop = PendingDrop(); });
+
+    DxuiContextMenu::Show (*GetPopupHost(), m_pendingDrop.screen.x, m_pendingDrop.screen.y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RunDrop
+//
+//  The drop the menu settled, with the conversion it chose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RunDrop (CassqueActions::Conversion conversion)
+{
+    PendingDrop              drop    = m_pendingDrop;
+    CassqueActions::Outcome  outcome;
+
+
+
+    m_pendingDrop = PendingDrop();
+
+    if (!drop.valid)
+    {
+        return;
+    }
+
+    if (drop.fromImage)
+    {
+        outcome = m_actions.CopyEntriesInto (drop.sourceImage, drop.sourceKind, drop.catalogPaths,
+                                             drop.location.path, drop.targetKind, drop.inner);
+    }
+    else
+    {
+        outcome = m_actions.PutInto (drop.location.path, drop.targetKind, drop.inner, drop.hostPaths,
+                                     MakeAddressPrompt(), conversion);
+    }
+
+    ReportOutcome (outcome, L"Put");
+    RefreshAfterHostChange();
 }
 
 

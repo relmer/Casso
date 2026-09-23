@@ -83,6 +83,12 @@ public:
     bool                 IsDragAcceptedType () const { return m_fDragHasSupportedFile;  }
     int                  GetHoveredTag      () const { return m_lastHitTag;             }
 
+    //  Which buttons the drag is holding, as OLE last reported them. A host
+    //  reads it in its drop handler to tell a right-drag, which Windows ends
+    //  with a menu rather than the drop itself.
+    DWORD                GetDragKeyState    () const { return m_dragKeys;               }
+    bool                 IsRightDrag        () const { return (m_dragKeys & MK_RBUTTON) != 0; }
+
     // Drop completion sets a one-shot flag so the next WM_LBUTTONUP
     // posted by the OS (the synthetic release at the end of an OLE drag)
     // doesn't get treated as a real click. Consume returns the flag and
@@ -106,6 +112,7 @@ private:
     DropFn               m_drop;
     FilterFn             m_filter;
     int                  m_lastHitTag            = -1;
+    DWORD                m_dragKeys              = 0;
     bool                 m_fDragActive           = false;
     bool                 m_fDragHasSupportedFile = false;
     bool                 m_fSuppressNextClick    = false;

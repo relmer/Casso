@@ -65,6 +65,21 @@ public:
         Share,
     };
 
+    //  What a put does with the bytes. ByContent is the rule a left-drag
+    //  follows: the name's type first, then the content. The others are the
+    //  choices a right-drag's menu offers when the content rule would be a
+    //  guess.
+    enum class Conversion { ByContent, Text, Applesoft, Binary };
+
+    //  Whether the files a drop carries already say what they are, and the
+    //  one row a menu shows when they do: "BIN $2000" for a recorded type,
+    //  "Applesoft BASIC" for a listing a name promises.
+    struct DropKind
+    {
+        bool          determined = false;
+        std::wstring  label;
+    };
+
     struct Outcome
     {
         HRESULT       hr      = S_OK;
@@ -88,6 +103,10 @@ public:
         Word           loadAddress      = 0;
         FilePayload    payload;
         bool           guessedAddress   = false;
+
+        //  The file said what it is -- a type or a conversion in its name, or
+        //  an AppleSingle container -- rather than the content rule deciding.
+        bool           namedItself      = false;
         std::wstring   refusal;
     };
 
@@ -112,7 +131,11 @@ public:
     //  directories, so a folder there is refused by name rather than
     //  flattened. A disk image goes in as a file.
     Outcome  PutInto        (const std::wstring & imagePath, VolumeKind kind, const std::string & directory,
-                             const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {});
+                             const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {},
+                             Conversion conversion = Conversion::ByContent);
+
+    //  What the files of a drop are, for the menu a right-drag opens.
+    DropKind  DescribeDrop  (const std::vector<std::wstring> & hostPaths, VolumeKind kind);
 
     //  Whether host files and folders fit on a new 140K disk of this kind,
     //  counted by the blocks or sectors each takes. Empty when they fit;
@@ -193,6 +216,8 @@ public:
 
     static PutPlan  PlanPut (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
     void            GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome);
+    static std::wstring  DescribePlan (const PutPlan & plan, VolumeKind kind);
+    static PutPlan  PlanForced      (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
     static PutPlan  PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind);
     static void     SetTypedPayload (PutPlan & plan, const std::vector<Byte> & bytes, Byte type, bool hasAux, Word aux, bool isDos);
 
@@ -250,9 +275,9 @@ private:
     static constexpr int  kMaxCopyDepth = 16;
     bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);
     void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
-                        const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Outcome & inOutOutcome);
+                        const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Conversion conversion, Outcome & inOutOutcome);
     void  PutFolder    (const std::string & image, VolumeKind kind, const std::string & directory,
-                        const std::wstring & hostFolder, const AddressFn & askAddress, Outcome & inOutOutcome);
+                        const std::wstring & hostFolder, const AddressFn & askAddress, Conversion conversion, Outcome & inOutOutcome);
 
     void  FinishWrite (const std::wstring & imagePath);
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/CassqueActions.h"
+#include "Cassque/Model/CatalogModel.h"
 #include "Cassque/Model/ContentSniffer.h"
 #include "Cassque/Model/DragPayload.h"
 #include "Core/AppleSingleCodec.h"
@@ -343,6 +344,165 @@ void CassqueActions::SetTypedPayload (PutPlan & plan, const std::vector<Byte> & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueActions::PlanForced
+//
+//  The conversion a right-drag's menu chose, in place of the rule the
+//  content would follow. A binary still asks for its load address, since
+//  nothing in the file records one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::PutPlan CassqueActions::PlanForced (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion)
+{
+    PutPlan                  plan;
+    Word                     suggested = 0;
+    ContentSniffer::Verdict  verdict   = ContentSniffer::Classify (std::span<const Byte> (bytes.data(), bytes.size()), suggested);
+
+
+
+    IGNORE_RETURN_VALUE (verdict, ContentSniffer::Verdict::Binary);
+
+    plan.catalogName = MakeCatalogName (hostName, kind);
+
+    switch (conversion)
+    {
+        case Conversion::Text:
+            plan.encoding = Encoding::Text;
+            break;
+
+        case Conversion::Applesoft:
+            plan.encoding = Encoding::Basic;
+            break;
+
+        default:
+            plan.encoding       = Encoding::Verbatim;
+            plan.typeName       = "B";
+            plan.hasLoadAddress = true;
+            plan.loadAddress    = suggested;
+            plan.guessedAddress = true;
+            break;
+    }
+
+    return plan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::DescribeDrop
+//
+//  A file whose name or container records its type says what it is, and a
+//  name promising a conversion says which; only a file that records nothing
+//  leaves the choice open. A drop of several is determined when every one of
+//  them is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::DropKind CassqueActions::DescribeDrop (const std::vector<std::wstring> & hostPaths, VolumeKind kind)
+{
+    DropKind  outcome;
+
+
+
+    for (const std::wstring & hostPath : hostPaths)
+    {
+        std::string        content;
+        std::vector<Byte>  bytes;
+        PutPlan            plan;
+        HRESULT            hr    = S_OK;
+        std::wstring       label;
+
+        if (IsHostFolder (hostPath))
+        {
+            label = L"the files it holds";
+        }
+        else
+        {
+            hr = m_fs.ReadAllText (hostPath, content);
+
+            if (FAILED (hr))
+            {
+                return DropKind();
+            }
+
+            bytes.assign (content.begin(), content.end());
+            plan  = PlanPut (hostPath, bytes, kind);
+            label = DescribePlan (plan, kind);
+        }
+
+        if (label.empty())
+        {
+            return DropKind();
+        }
+
+        //  Several files agree only when they describe themselves the same
+        //  way; otherwise the menu offers the conversions instead.
+        if (outcome.determined && outcome.label != label)
+        {
+            return DropKind();
+        }
+
+        outcome.determined = true;
+        outcome.label      = label;
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::DescribePlan
+//
+//  What a plan says the file is, for a menu row: the type a payload carries
+//  with its address, or the conversion a name promised. Empty when the
+//  content rule did the deciding, which is a guess and not a description.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueActions::DescribePlan (const PutPlan & plan, VolumeKind kind)
+{
+    wchar_t  address[16] = {};
+
+
+
+    if (!plan.namedItself)
+    {
+        return std::wstring();
+    }
+
+    if (plan.usePayload)
+    {
+        swprintf_s (address, L" $%04X", (unsigned) plan.payload.auxType);
+
+        return CatalogModel::GetTypeText (plan.payload.type, kind) + (plan.payload.hasLoadAddress ? address : L"");
+    }
+
+    if (plan.encoding == Encoding::Basic)
+    {
+        return L"Applesoft BASIC";
+    }
+
+    if (plan.encoding == Encoding::Text)
+    {
+        return L"text";
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueActions::PlanAppleSingle
 //
 //  The data fork under the real name, with the ProDOS type and aux type the
@@ -366,6 +526,7 @@ CassqueActions::PutPlan CassqueActions::PlanAppleSingle (const std::wstring & ho
     }
 
     plan.catalogName = SanitizeCatalogName (name, kind);
+    plan.namedItself = true;
 
     if (file.hasProDosInfo)
     {
@@ -424,19 +585,22 @@ CassqueActions::PutPlan CassqueActions::PlanPut (const std::wstring & hostName, 
 
         if (parsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing)
         {
-            plan.encoding = Encoding::Basic;
+            plan.encoding    = Encoding::Basic;
+            plan.namedItself = true;
             return plan;
         }
 
         if (parsed.converted != ParsedHostName::ConvertedKind::None)
         {
-            plan.encoding = Encoding::Text;
+            plan.encoding    = Encoding::Text;
+            plan.namedItself = true;
             return plan;
         }
 
         if (parsed.hasType)
         {
             SetTypedPayload (plan, bytes, parsed.type, parsed.hasAux, parsed.aux, isDos);
+            plan.namedItself = true;
             return plan;
         }
     }
@@ -660,13 +824,14 @@ CassqueActions::Outcome CassqueActions::PutInto (
     VolumeKind                         kind,
     const std::string                & directory,
     const std::vector<std::wstring>  & hostPaths,
-    const AddressFn                  & askAddress)
+    const AddressFn                  & askAddress,
+    Conversion                         conversion)
 {
     Outcome  outcome;
 
 
 
-    PutItems (TextEncoding::WideToNarrow (imagePath), kind, directory, hostPaths, askAddress, outcome);
+    PutItems (TextEncoding::WideToNarrow (imagePath), kind, directory, hostPaths, askAddress, conversion, outcome);
 
     if (outcome.written > 0)
     {
@@ -708,6 +873,7 @@ void CassqueActions::PutItems (
     const std::string                & directory,
     const std::vector<std::wstring>  & hostPaths,
     const AddressFn                  & askAddress,
+    Conversion                         conversion,
     Outcome                          & inOutOutcome)
 {
     for (const std::wstring & hostPath : hostPaths)
@@ -719,7 +885,7 @@ void CassqueActions::PutItems (
 
         if (IsHostFolder (hostPath))
         {
-            PutFolder (image, kind, directory, hostPath, askAddress, inOutOutcome);
+            PutFolder (image, kind, directory, hostPath, askAddress, conversion, inOutOutcome);
             continue;
         }
 
@@ -732,7 +898,8 @@ void CassqueActions::PutItems (
         }
 
         bytes.assign (content.begin(), content.end());
-        plan = PlanPut (hostPath, bytes, kind);
+        plan = (conversion == Conversion::ByContent) ? PlanPut (hostPath, bytes, kind)
+                                                     : PlanForced (hostPath, bytes, kind, conversion);
 
         if (!plan.refusal.empty())
         {
@@ -948,6 +1115,7 @@ void CassqueActions::PutFolder (
     const std::string    & directory,
     const std::wstring   & hostFolder,
     const AddressFn      & askAddress,
+    Conversion             conversion,
     Outcome              & inOutOutcome)
 {
     std::vector<FileSystemEntry>  entries;
@@ -979,7 +1147,7 @@ void CassqueActions::PutFolder (
         children.push_back (CassqueBrowser::JoinPath (hostFolder, entry.name));
     }
 
-    PutItems (image, kind, target, children, askAddress, inOutOutcome);
+    PutItems (image, kind, target, children, askAddress, conversion, inOutOutcome);
 }
 
 

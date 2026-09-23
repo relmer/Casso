@@ -401,7 +401,7 @@ Error:
 
 STDMETHODIMP DxuiDragDropTarget::DragEnter (
     IDataObject * pData,
-    DWORD         /*grfKeyState*/,
+    DWORD         grfKeyState,
     POINTL        pt,
     DWORD       * pdwEffect)
 {
@@ -410,6 +410,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
 
 
 
+    m_dragKeys              = grfKeyState;
     m_fDragActive           = true;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
@@ -458,7 +459,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP DxuiDragDropTarget::DragOver (
-    DWORD     /*grfKeyState*/,
+    DWORD     grfKeyState,
     POINTL    pt,
     DWORD   * pdwEffect)
 {
@@ -466,6 +467,8 @@ STDMETHODIMP DxuiDragDropTarget::DragOver (
     int      tag = -1;
 
 
+
+    m_dragKeys = grfKeyState;
 
     CBREx (pdwEffect != nullptr, E_POINTER);
 
@@ -509,6 +512,7 @@ STDMETHODIMP DxuiDragDropTarget::DragLeave()
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
     m_lastHitTag            = -1;
+    m_dragKeys              = 0;
 
     if (m_leave)
     {
@@ -530,12 +534,16 @@ STDMETHODIMP DxuiDragDropTarget::DragLeave()
 
 STDMETHODIMP DxuiDragDropTarget::Drop (
     IDataObject * pData,
-    DWORD         /*grfKeyState*/,
+    DWORD         grfKeyState,
     POINTL        pt,
     DWORD       * pdwEffect)
 {
     int    tag    = PickAtScreen (pt);
     DWORD  effect = DROPEFFECT_NONE;
+
+
+
+    m_dragKeys = grfKeyState;
 
 
 

@@ -579,6 +579,26 @@ public:
         Assert::AreEqual (0, calls.drop);
     }
 
+    TEST_METHOD (RightDrag_IsReportedToTheHost)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_COPY, true);
+
+        (void) target.DragEnter (&obj, MK_LBUTTON, POINTL { 1, 1 }, &effect);
+        Assert::IsFalse (target.IsRightDrag(), L"A left drag is not a right one");
+
+        (void) target.DragOver (MK_RBUTTON, POINTL { 2, 2 }, &effect);
+        Assert::IsTrue  (target.IsRightDrag(), L"The host asks this to know a drop needs a menu");
+
+        (void) target.DragLeave();
+        Assert::IsFalse (target.IsRightDrag(), L"The drag is over");
+    }
+
+
     TEST_METHOD (ExtractHDropPaths_ReturnsTheDraggedFile)
     {
         std::vector<std::wstring>  paths;

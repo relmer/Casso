@@ -177,6 +177,75 @@ public:
     }
 
 
+    TEST_METHOD (DescribeDrop_AFileThatRecordsItsTypeNeedsNoChoice)
+    {
+        Host  host;
+
+        host.SeedBytes (std::vector<Byte> (40, 0xEA), L"C:\\Drop\\PIC#062000");
+        host.SeedBytes (std::vector<Byte> { 'h', 'i' }, L"C:\\Drop\\NOTES.Text.txt");
+
+        CassqueActions::DropKind  typed     = host.actions.DescribeDrop ({ L"C:\\Drop\\PIC#062000" },   VolumeKind::ProDos);
+        CassqueActions::DropKind  converted = host.actions.DescribeDrop ({ L"C:\\Drop\\NOTES.Text.txt" }, VolumeKind::ProDos);
+
+        Assert::IsTrue   (typed.determined, L"A CiderPress name says what the file is");
+        Assert::AreEqual (std::wstring (L"BIN $2000"), typed.label);
+
+        Assert::IsTrue   (converted.determined, L"A descriptive name says which conversion");
+        Assert::AreEqual (std::wstring (L"text"), converted.label);
+    }
+
+
+    TEST_METHOD (DescribeDrop_AFileThatRecordsNothingLeavesTheChoiceOpen)
+    {
+        Host  host;
+
+        //  A binary with no suffix: only the content rule could decide, and
+        //  that is a guess, so the menu must offer the conversions.
+        host.SeedBytes (std::vector<Byte> (64, 0x80), L"C:\\Drop\\download");
+        host.SeedBytes (std::vector<Byte> (40, 0xEA), L"C:\\Drop\\PIC#062000");
+
+        Assert::IsFalse (host.actions.DescribeDrop ({ L"C:\\Drop\\download" }, VolumeKind::ProDos).determined);
+
+        //  Two files that describe themselves differently agree on nothing.
+        Assert::IsFalse (host.actions.DescribeDrop ({ L"C:\\Drop\\download", L"C:\\Drop\\PIC#062000" }, VolumeKind::ProDos).determined);
+    }
+
+
+    TEST_METHOD (PutInto_ForcedConversion_OverridesTheContentRule)
+    {
+        Host                     host;
+        CassqueActions::Outcome  outcome;
+        VolumeListing            listing;
+        VolumeKind               kind    = VolumeKind::Unknown;
+        bool                     asText  = false;
+
+        host.OpenImage();
+
+        //  Printable bytes, which the content rule would put as text; forced
+        //  to binary they go down raw at the address the sniffer suggests.
+        host.SeedBytes (std::vector<Byte> (300, 0x41), L"C:\\Drop\\PLAIN");
+
+        outcome = host.actions.PutInto (L"C:\\Disks\\dos33.dsk", VolumeKind::Dos33, std::string(), { L"C:\\Drop\\PLAIN" },
+                                        [] (const std::wstring &, Word, Word & out) { out = 0x0803; return true; },
+                                        CassqueActions::Conversion::Binary);
+
+        Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
+
+        AssertSucceeded (host.browser.GetOperations().List ("C:\\Disks\\dos33.dsk", listing, kind).hr, L"List");
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            if (entry.name == "PLAIN")
+            {
+                asText = entry.type == Dos33Volume::kTypeText;
+                Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) entry.type, L"Forced binary, not the content rule's text");
+            }
+        }
+
+        Assert::IsFalse (asText);
+    }
+
+
     TEST_METHOD (PlanPut_CiderPressSuffixWritesATypedPayload)
     {
         std::vector<Byte>        bytes (100, 0xEA);
