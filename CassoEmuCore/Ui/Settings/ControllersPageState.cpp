@@ -269,17 +269,33 @@ bool ControllersPageState::IsMultiplayerEnabled() const
 //  paddles the first one already has; leaving the choice to be emptied by
 //  normalization read as the drop-down ignoring the pick.
 //
+//  PICKING THE OTHER PLAYER'S CONTROLLER SWAPS THE TWO. The other player takes
+//  the controller this one gave up, or none if this one held none. Leaving
+//  that controller out of the list, as the page once did, meant two players
+//  could never trade controllers, and emptying the other slot made every
+//  trade two steps.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPageState::SetMultiplayerUnit (size_t player, const std::optional<ControllerUnitKey> & unit)
 {
-    std::vector<PlayerAxisTarget>  choices;
+    std::vector<PlayerAxisTarget>     choices;
+    std::optional<ControllerUnitKey>  previous;
+    size_t                            other    = 0;
 
 
 
     if (player >= MultiplayerSetup::kPlayerCount)
     {
         return;
+    }
+
+    previous = m_multiplayer.players[player].unit;
+    other    = (player == 0) ? 1 : 0;
+
+    if (unit.has_value() && m_multiplayer.players[other].unit == unit)
+    {
+        m_multiplayer.players[other].unit = previous;
     }
 
     m_multiplayer.players[player].unit = unit;

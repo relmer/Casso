@@ -256,7 +256,8 @@ Error:
 //  Every attached controller exactly once: one entry per connected XInput
 //  slot, then the DirectInput devices that are not XInput devices in disguise.
 //  Xbox-class controllers share one model key (FR-018a) and are told apart by
-//  their slot, which is all XInput exposes. Two devices that describe
+//  vendor and product, the steadiest thing XInput exposes; a slot is only
+//  their identity when those cannot be read. Two devices that describe
 //  themselves identically get a number appended once the whole list is built.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,23 +282,60 @@ HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceIn
         }
     }
 
-    for (int slot = 0; slot < kXInputSlotCount; slot++)
+    // Identity by product, not by slot: XInput hands slots out in the order
+    // controllers connect, so the same two controllers powered on in the
+    // other order would otherwise trade every setting keyed by unit.
     {
-        ControllerDeviceInfo  info;
+        std::vector<int>          slots;
+        std::vector<XInputIds>    ids;
+        std::vector<std::string>  productIds;
 
-        if (!m_xinputConnected.test ((size_t) slot))
+        for (int slot = 0; slot < kXInputSlotCount; slot++)
         {
-            continue;
+            WORD  vendorId  = 0;
+            WORD  productId = 0;
+
+            m_xinputUnits[(size_t) slot] = ControllerUnitKey();
+
+            if (!m_xinputConnected.test ((size_t) slot))
+            {
+                continue;
+            }
+
+            slots.push_back (slot);
+            ids.push_back   (TryGetXInputIds ((DWORD) slot, vendorId, productId)
+                                 ? XInputIds (std::make_pair (vendorId, productId))
+                                 : XInputIds());
         }
 
-        info.unit.model.kind = ControllerKind::XInput;
-        info.unit.unitId     = std::to_string (slot);
-        info.unit.source     = ControllerUnitSource::XInputSlot;
-        info.description     = GetXInputDescription ((DWORD) slot);
-        info.xinputSlot      = slot;
-        info.controls        = XInputSampleDecoder::ListControls();
+        productIds = AssignXInputProductIds (ids);
 
-        outDevices.push_back (info);
+        for (size_t i = 0; i < slots.size(); i++)
+        {
+            ControllerDeviceInfo  info;
+            int                   slot = slots[i];
+
+            info.unit.model.kind = ControllerKind::XInput;
+            info.description     = GetXInputDescription ((DWORD) slot);
+            info.xinputSlot      = slot;
+            info.controls        = XInputSampleDecoder::ListControls();
+
+            // A slot whose vendor and product cannot be read keeps the slot
+            // as its identity: there is nothing steadier to key it by.
+            if (productIds[i].empty())
+            {
+                info.unit.unitId = std::to_string (slot);
+                info.unit.source = ControllerUnitSource::XInputSlot;
+            }
+            else
+            {
+                info.unit.unitId = productIds[i];
+                info.unit.source = ControllerUnitSource::XInputProduct;
+            }
+
+            m_xinputUnits[(size_t) slot] = info.unit;
+            outDevices.push_back (info);
+        }
     }
 
     CloseDevices();
@@ -589,21 +627,24 @@ Error:
 //
 //  ReadXInput
 //
-//  The unit's own slot, or the lowest connected slot for a unit that carries
-//  none, which is what a preferences file written before XInput units carried
-//  a slot holds and means whichever Xbox-class controller is connected. An
-//  unchanged packet number means the state did not change, so the previous
-//  sample is returned without decoding it again.
+//  The slot the unit is in now: for a unit keyed by product, the slot that
+//  held it at the last enumeration, wherever XInput put it; for one keyed by
+//  slot, that slot; and for one carrying neither, which is what a preferences
+//  file written before XInput units carried an identity holds, the lowest
+//  connected slot. An unchanged packet number means the state did not change,
+//  so the previous sample is returned without decoding it again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ControllerBackend::ReadXInput (const ControllerUnitKey & unit, ControllerSample & outSample)
 {
-    HRESULT             hr      = S_OK;
-    int                 slot    = -1;
-    bool                hasSlot = unit.source == ControllerUnitSource::XInputSlot;
-    XINPUT_STATE        state   = {};
-    DWORD               result  = ERROR_DEVICE_NOT_CONNECTED;
+    HRESULT             hr         = S_OK;
+    int                 slot       = -1;
+    bool                hasSlot    = unit.source == ControllerUnitSource::XInputSlot;
+    bool                hasProduct = unit.source == ControllerUnitSource::XInputProduct;
+    bool                isMatch    = false;
+    XINPUT_STATE        state      = {};
+    DWORD               result     = ERROR_DEVICE_NOT_CONNECTED;
     XInputGamepadState  gamepad;
 
 
@@ -615,7 +656,11 @@ HRESULT Win32ControllerBackend::ReadXInput (const ControllerUnitKey & unit, Cont
             continue;
         }
 
-        if (!hasSlot || unit.unitId == std::to_string (index))
+        isMatch = hasProduct ? m_xinputUnits[(size_t) index] == unit
+                : hasSlot    ? unit.unitId == std::to_string (index)
+                :              true;
+
+        if (isMatch)
         {
             slot = index;
         }
@@ -1081,6 +1126,48 @@ std::wstring Win32ControllerBackend::GetKnownModelName (WORD vendorId, WORD prod
         case 0x02e0: return L"Xbox One S Controller";
         default:     return std::wstring();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssignXInputProductIds
+//
+//  Units of the same product are numbered in slot order, which is the one
+//  place slot order still decides anything: nothing XInput exposes tells two
+//  controllers of one product apart, so those two can still trade places with
+//  each other. Controllers of different products never can.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> Win32ControllerBackend::AssignXInputProductIds (const std::vector<XInputIds> & idsBySlot)
+{
+    std::vector<std::string>              productIds;
+    std::map<std::pair<WORD, WORD>, int>  seen;
+    int                                   ordinal    = 0;
+
+
+
+    productIds.reserve (idsBySlot.size());
+
+    for (const XInputIds & ids : idsBySlot)
+    {
+        if (!ids.has_value())
+        {
+            productIds.push_back (std::string());
+            continue;
+        }
+
+        ordinal = ++seen[ids.value()];
+
+        productIds.push_back (ordinal == 1 ? std::format ("{:04x}:{:04x}",    ids->first, ids->second)
+                                           : std::format ("{:04x}:{:04x}:{}", ids->first, ids->second, ordinal));
+    }
+
+    return productIds;
 }
 
 

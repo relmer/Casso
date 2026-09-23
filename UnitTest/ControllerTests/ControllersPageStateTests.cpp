@@ -1062,7 +1062,10 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (MultiplayerSlots_ASecondSlotRepeatingTheFirst_IsEmptied)
+        // Two people cannot share one controller, so picking the other
+        // player's hands them the one given up: the two trade controllers in
+        // one step, and each keeps the paddles it maps to.
+        TEST_METHOD (MultiplayerSlots_PickingTheOtherPlayersController_Swaps)
         {
             ControllersPageState  page;
             ControllerDeviceInfo  first  = MakeStick ("{A}");
@@ -1072,10 +1075,40 @@ namespace ControllerTests
             page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 4);
             page.SetMultiplayerUnit (1, first.unit);
 
-            Assert::IsFalse (page.GetMultiplayer().players[1].unit.has_value(),
-                L"two people cannot share one controller, so the later slot gives way");
+            Assert::IsTrue (page.GetMultiplayer().players[1].unit.value() == first.unit,  L"player two takes the pick");
+            Assert::IsTrue (page.GetMultiplayer().players[0].unit.value() == second.unit, L"and player one takes what player two gave up");
+            Assert::IsTrue (page.GetMultiplayer().players[0].target == PlayerAxisTarget::Joystick0, L"each keeps its own paddles");
+            Assert::IsTrue (page.GetMultiplayer().players[1].target == PlayerAxisTarget::Joystick1);
+        }
 
-            page.SetMultiplayerUnit (1, second.unit);
+
+        // With nothing to give up, the other player is left with nothing.
+        TEST_METHOD (MultiplayerSlots_TakingAControllerFromAnEmptySlot_EmptiesTheOther)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            MultiplayerSetup      setup  = MakeTwoPlayers (first.unit, second.unit);
+
+            setup.players[1].unit.reset();
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (setup, 4);
+            page.SetMultiplayerUnit (1, first.unit);
+
+            Assert::IsTrue  (page.GetMultiplayer().players[1].unit.value() == first.unit);
+            Assert::IsFalse (page.GetMultiplayer().players[0].unit.has_value());
+        }
+
+
+        TEST_METHOD (MultiplayerSlots_AnOverlappingPaddle_EmptiesTheLaterSlot)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 4);
             page.SetMultiplayerTarget (1, PlayerAxisTarget::Paddle0);
 
             Assert::IsFalse (page.GetMultiplayer().players[1].unit.has_value(),
