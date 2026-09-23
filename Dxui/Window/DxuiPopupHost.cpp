@@ -1808,14 +1808,16 @@ void DxuiPopupHost::ApplyReveal (float t)
     {
         m_compVisual->SetOffsetY (offset);
 
-        //  The window carries the shadow's margin above the card, and a slide
-        //  shows the menu through that margin, which starts the drop above the
-        //  anchor by the margin's height. While the slide runs, nothing is
-        //  drawn above the card's top edge; the finished frame clears the clip.
+        //  A downward slide's window starts at the card's own top -- the
+        //  shadow's margin is off the growing edge -- so the buffer row at the
+        //  window's top is -offset, and nothing above it is drawn while the
+        //  slide runs. Adding the margin there hid a margin's worth of the
+        //  card, about a row, that blinked in when the finished frame cleared
+        //  the clip.
         if (!m_revealUpward && t < 1.0f)
         {
             clip.left   = 0.0f;
-            clip.top    = (float) m_shadowMarginPx - offset;
+            clip.top    = -offset;
             clip.right  = (float) fullW;
             //  The card ends a margin below fullH in the buffer -- it starts
             //  at the margin -- so a clip that stops at fullH cuts a margin
