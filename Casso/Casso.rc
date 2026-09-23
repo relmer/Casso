@@ -29,19 +29,10 @@ IDR_MACHINE_APPLE2E_ENHANCED RCDATA "..\\Resources\\Machines\\Apple2eEnhanced\\A
 // Sources live under Resources/Themes/<Name>/; the runtime
 // Themes/ tree is .gitignored.
 IDR_THEME_SKEUO_THEME_JSON         RCDATA "..\\Resources\\Themes\\Skeuomorphic\\theme.json"
-IDR_THEME_SKEUO_FONT_TTF           RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\Inter-Regular.ttf"
-IDR_THEME_SKEUO_FONT_OFL           RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\OFL.txt"
-IDR_THEME_SKEUO_FONT_TODO          RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\TODO_FONTS.md"
 
 IDR_THEME_DARK_THEME_JSON          RCDATA "..\\Resources\\Themes\\DarkModern\\theme.json"
-IDR_THEME_DARK_FONT_TTF            RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\Inter-Regular.ttf"
-IDR_THEME_DARK_FONT_OFL            RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\OFL.txt"
-IDR_THEME_DARK_FONT_TODO           RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\TODO_FONTS.md"
 
 IDR_THEME_RETRO_THEME_JSON         RCDATA "..\\Resources\\Themes\\RetroTerminal\\theme.json"
-IDR_THEME_RETRO_FONT_TTF           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\VT323-Regular.ttf"
-IDR_THEME_RETRO_FONT_OFL           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\OFL.txt"
-IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\TODO_FONTS.md"
 
 // Symbol font for the open and closed Apple glyphs, registered with DirectWrite
 // at startup rather than extracted (AssetBootstrap::RegisterSymbolFont).

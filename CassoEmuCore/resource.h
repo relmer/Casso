@@ -149,19 +149,10 @@
 //   DarkModern:     320..339
 //   RetroTerminal:  340..359
 #define IDR_THEME_SKEUO_THEME_JSON          300
-#define IDR_THEME_SKEUO_FONT_TTF            310
-#define IDR_THEME_SKEUO_FONT_OFL            311
-#define IDR_THEME_SKEUO_FONT_TODO           312
 
 #define IDR_THEME_DARK_THEME_JSON           320
-#define IDR_THEME_DARK_FONT_TTF             330
-#define IDR_THEME_DARK_FONT_OFL             331
-#define IDR_THEME_DARK_FONT_TODO            332
 
 #define IDR_THEME_RETRO_THEME_JSON          340
-#define IDR_THEME_RETRO_FONT_TTF            350
-#define IDR_THEME_RETRO_FONT_OFL            351
-#define IDR_THEME_RETRO_FONT_TODO           352
 
 // Casso's own symbol font: the open and closed Apple keycap glyphs at
 // U+E000 / U+E001. Unlike the theme fonts above it is never extracted to

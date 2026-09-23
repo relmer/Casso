@@ -846,9 +846,6 @@ struct EmbeddedTheme
 static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 {
     { IDR_THEME_SKEUO_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_SKEUO_FONT_TTF,           "fonts/Inter-Regular.ttf" },
-    { IDR_THEME_SKEUO_FONT_OFL,           "fonts/OFL.txt"       },
-    { IDR_THEME_SKEUO_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
 
@@ -857,9 +854,6 @@ static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 {
     { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_DARK_FONT_TTF,           "fonts/Inter-Regular.ttf" },
-    { IDR_THEME_DARK_FONT_OFL,           "fonts/OFL.txt"       },
-    { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
 
@@ -868,9 +862,6 @@ static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 {
     { IDR_THEME_RETRO_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_RETRO_FONT_TTF,           "fonts/VT323-Regular.ttf" },
-    { IDR_THEME_RETRO_FONT_OFL,           "fonts/OFL.txt"       },
-    { IDR_THEME_RETRO_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
 
