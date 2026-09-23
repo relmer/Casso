@@ -290,6 +290,7 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar->SetGroupSeparators (true);
     m_commandBar->SetButtonPadDip    (kCommandBarPadDip);
     m_commandBar->SetLabelScale      (kCommandBarLabelScale);
+    m_commandBar->SetBandDp          (kCommandBarBandDp);
     SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
 

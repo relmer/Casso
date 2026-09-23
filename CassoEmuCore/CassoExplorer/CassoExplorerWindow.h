@@ -117,6 +117,9 @@ public:
     static constexpr float     kCommandBarPadDip     = 12.0f;
     static constexpr float     kCommandBarLabelScale = 11.0f / 13.0f;
 
+    //  Explorer's command bar is 57 pixels at 125% with a line under it: 46 dip.
+    static constexpr int       kCommandBarBandDp     = 46;
+
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
 

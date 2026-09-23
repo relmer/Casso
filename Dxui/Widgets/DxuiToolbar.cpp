@@ -625,7 +625,7 @@ bool DxuiToolbar::HitTest (int x, int y) const
 
 int DxuiToolbar::GetBandDp() const
 {
-    return kBandDp;
+    return m_bandDp;
 }
 
 
@@ -873,7 +873,7 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
     m_labeledCount = labeled;
 
-    return kBandDp;
+    return m_bandDp;
 }
 
 

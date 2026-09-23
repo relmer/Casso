@@ -202,6 +202,9 @@ public:
     //  content edge.
     void  SetEdgeColor     (uint32_t edgeArgb)           { m_edgeOverride = edgeArgb; }
 
+    //  The strip's thickness, including the edge line.
+    void  SetBandDp        (int bandDp)                  { m_bandDp = bandDp; }
+
     //  Decides how many entries can still afford their label at this width
     //  and returns the band thickness (dp) the strip needs. Call BEFORE
     //  docking the chrome bands.
@@ -395,4 +398,5 @@ private:
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;
     uint32_t                 m_edgeOverride   = 0;
+    int                      m_bandDp         = kBandDp;
 };
