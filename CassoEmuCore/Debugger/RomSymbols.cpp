@@ -66,7 +66,16 @@ static constexpr const char * s_kpszMonitorSymbols =
     "CLRAN1=$C05B\n"  "SETAN2=$C05C\n"  "CLRAN2=$C05D\n"  "SETAN3=$C05E\n"
     "CLRAN3=$C05F\n"  "TAPEIN=$C060\n"  "BUTN0=$C061\n"   "BUTN1=$C062\n"
     "BUTN2=$C063\n"   "PADDL0=$C064\n"  "PADDL1=$C065\n"  "PADDL2=$C066\n"
-    "PADDL3=$C067\n"  "PTRIG=$C070\n";
+    "PADDL3=$C067\n"  "PTRIG=$C070\n"
+    //  The Disk II controller in slot 6, where every Apple II boots from.
+    //  Source: Apple Disk II reference; the controller's own behavior is in
+    //  Disk2Controller. A controller in another slot answers at $C080 + slot
+    //  * 16, which these symbols do not cover.
+    "; Disk II, slot 6\n"
+    "PHASE0OFF=$C0E0\n" "PHASE0ON=$C0E1\n" "PHASE1OFF=$C0E2\n" "PHASE1ON=$C0E3\n"
+    "PHASE2OFF=$C0E4\n" "PHASE2ON=$C0E5\n" "PHASE3OFF=$C0E6\n" "PHASE3ON=$C0E7\n"
+    "MOTOROFF=$C0E8\n"  "MOTORON=$C0E9\n"  "DRV0EN=$C0EA\n"    "DRV1EN=$C0EB\n"
+    "Q6L=$C0EC\n"       "Q6H=$C0ED\n"      "Q7L=$C0EE\n"       "Q7H=$C0EF\n";
 
 
 
@@ -93,7 +102,18 @@ static constexpr const char * s_kpszIieSymbols =
     "RDCXROM=$C015\n"    "RDALTZP=$C016\n"   "RDC3ROM=$C017\n"   "RD80STORE=$C018\n"
     "RDVBL=$C019\n"      "RDTEXT=$C01A\n"    "RDMIXED=$C01B\n"   "RDPAGE2=$C01C\n"
     "RDHIRES=$C01D\n"    "RDALTCHAR=$C01E\n" "RD80COL=$C01F\n"   "DHIRESON=$C05E\n"
-    "DHIRESOFF=$C05F\n"  "LCBANK2=$C083\n"   "LCBANK1=$C08B\n"   "ROMIN=$C081\n";
+    "DHIRESOFF=$C05F\n"  "LCBANK2=$C083\n"   "LCBANK1=$C08B\n"   "ROMIN=$C081\n"
+    //  The rest of the bank-switched RAM switches. $C080-$C083 and
+    //  $C088-$C08B each repeat four addresses higher; the mirrors are left
+    //  without symbols rather than given invented ones, since one name must
+    //  not stand for two addresses.
+    "READBSR2=$C080\n"   "OFFBSR2=$C082\n"   "READBSR1=$C088\n"
+    "WRITEBSR1=$C089\n"  "OFFBSR1=$C08A\n"
+    //  The IOU access switches, which decide whether $C058-$C05F are the
+    //  annunciators or the mouse and VBL switches. Both pairs drive the one
+    //  latch. Source: Apple //c Technical Note #9.
+    "IOUDISON=$C078\n"   "IOUDISOFF=$C079\n" "SETIOUDIS=$C07E\n" "CLRIOUDIS=$C07F\n"
+    "RDIOUDIS=$C07E\n"   "RDDHIRES=$C07F\n";
 
 
 

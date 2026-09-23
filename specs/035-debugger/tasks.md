@@ -792,13 +792,22 @@ every soft-switch operand shows the switch that instruction operates.
   page. So `LDA KBD` reads "keyboard data; bit 7 set when a key is waiting"
   and `STA SPKR` reads "Toggle the speaker (each access is a click)" in both
   columns.
-- [ ] T188 Fill the gaps the review found in `RomSymbols.cpp` and
+- [X] T188 Fill the gaps the review found in `RomSymbols.cpp` and
   `SymbolDescriptions.cpp`: `$C084-$C08F` (3 of the 16 language-card switches
   have titles), all of `$C0E0-$C0EF` (the disk controller -- phases, motor,
   drive select, read and write mode, which is most of a boot ROM single-step),
   and `$C068-$C07F`. The existing test that every shipped title has a
   description covers the new rows; datasheets and the Apple II reference,
-  never another emulator's source.
+  never another emulator's source. **As built:** the Disk II block at
+  `$C0E0-$C0EF` (phases, motor, drive select, Q6 and Q7), five more
+  bank-switched RAM switches, and the four IOU access switches, which include
+  a genuine read/write pair at `$C07E` and `$C07F`. TWO THINGS LEFT
+  DELIBERATELY UNNAMED: the `$C084-$C087` and `$C08C-$C08F` mirrors, because
+  one name must not stand for two addresses, and because a mirror symbol
+  would misread disk code -- a boot ROM reads the controller as `$C08C,X`
+  with X holding the slot, so a language-card symbol on `$C08C` would claim a
+  bank switch where the drive is being read. The slot-6 symbols help only
+  code that writes `$C0Ex` outright.
 
 **Checkpoint**: Every claim the code pane makes about an instruction comes
 from the emulator or from a switch the machine documents, and none of it is

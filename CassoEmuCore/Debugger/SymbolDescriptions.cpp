@@ -188,6 +188,44 @@ static constexpr std::pair<const char *, const char *>  s_kDescriptions[] =
     { "PADDL2", "Read: paddle 2 timer in bit 7" },
     { "PADDL3", "Read: paddle 3 timer in bit 7" },
     { "PTRIG", "Start the paddle timers" },
+
+    //  The Disk II controller. Every access here is the drive being worked:
+    //  the head steps on the phase switches, and the data path changes under
+    //  Q6 and Q7.
+    { "PHASE0OFF", "Drive stepper phase 0 off" },
+    { "PHASE0ON",  "Drive stepper phase 0 on (steps the head)" },
+    { "PHASE1OFF", "Drive stepper phase 1 off" },
+    { "PHASE1ON",  "Drive stepper phase 1 on (steps the head)" },
+    { "PHASE2OFF", "Drive stepper phase 2 off" },
+    { "PHASE2ON",  "Drive stepper phase 2 on (steps the head)" },
+    { "PHASE3OFF", "Drive stepper phase 3 off" },
+    { "PHASE3ON",  "Drive stepper phase 3 on (steps the head)" },
+    { "MOTOROFF",  "Drive motor off" },
+    { "MOTORON",   "Drive motor on (the disk takes about a second to reach speed)" },
+    { "DRV0EN",    "Select drive 1" },
+    { "DRV1EN",    "Select drive 2" },
+    { "Q6L",       "Q6 off: read the data register, or shift a byte out while writing" },
+    { "Q6H",       "Q6 on: load the data register, and read the write-protect bit" },
+    { "Q7L",       "Q7 off: reading mode" },
+    { "Q7H",       "Q7 on: writing mode" },
+
+    //  The bank-switched RAM switches not already above. Write-enabling
+    //  takes TWO consecutive reads of an odd address; one read leaves the
+    //  RAM write-protected.
+    { "READBSR2",  "Read RAM bank 2, RAM write-protected" },
+    { "OFFBSR2",   "Read ROM, RAM write-protected" },
+    { "READBSR1",  "Read RAM bank 1, RAM write-protected" },
+    { "WRITEBSR1", "Read ROM, write-enable RAM bank 1 (read twice)" },
+    { "OFFBSR1",   "Read ROM, RAM write-protected" },
+
+    //  IOU access, which decides what $C058-$C05F are.
+    { "IOUDISON",  "IOU access on: $C058-$C05F are the mouse and VBL switches" },
+    { "IOUDISOFF", "IOU access off: $C058-$C05F are the annunciators" },
+    { "SETIOUDIS", "Write: IOU access off, leaving $C058-$C05F as annunciators" },
+    { "CLRIOUDIS", "Write: IOU access on, making $C058-$C05F the mouse and VBL switches" },
+    { "RDIOUDIS",  "Read: bit 7 set when IOU access is off" },
+    { "RDDHIRES",  "Read: bit 7 set when double hi-res is on" },
+
     { "80STOREOFF", "Write: PAGE2 selects the display page" },
     { "80STOREON", "Write: PAGE2 selects main or aux display memory" },
     { "RAMRDOFF", "Write: read $0200-$BFFF from main memory" },

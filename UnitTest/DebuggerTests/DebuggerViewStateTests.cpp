@@ -368,7 +368,10 @@ namespace DebuggerViewStateTests
                 { L"LDA $C000 reads the keyboard",   { 0xAD, 0x00, 0xC0 }, "KBD"        },
                 { L"STA $C000 turns 80STORE off",    { 0x8D, 0x00, 0xC0 }, "80STOREOFF" },
                 { L"INC $C000 both reads and writes",    { 0xEE, 0x00, 0xC0 }, "80STOREOFF" },
-                { L"LDA $FDED has one symbol either way", { 0xAD, 0xED, 0xFD }, "COUT"     },
+                { L"LDA $FDED has one symbol either way", { 0xAD, 0xED, 0xFD }, "COUT"       },
+                { L"LDA $C07E reads the IOUDIS bit",     { 0xAD, 0x7E, 0xC0 }, "RDIOUDIS"   },
+                { L"STA $C07E turns IOU access off",     { 0x8D, 0x7E, 0xC0 }, "SETIOUDIS"  },
+                { L"LDA $C0E9 starts the drive motor",   { 0xAD, 0xE9, 0xC0 }, "MOTORON"    },
 
                 //  $C05E is ONE switch under two names -- annunciator 3 and,
                 //  on a //e, double hi-res -- not a read and a write. Neither
