@@ -83,8 +83,8 @@ public:
 
     // Glyph-painting primitives (input-device selector). Defaulted
     // to no-ops on the interface so test mocks and simple painters compile
-    // unchanged; the concrete DxuiPainter implements them with the same
-    // rect-slicing technique as FillCircleApprox. The quad must be convex,
+    // unchanged; the concrete DxuiPainter implements them with analytic
+    // edge coverage, as it does FillCircleApprox. The quad must be convex,
     // its points given in order (clockwise or counter-clockwise).
     virtual void  FillConvexQuad    (float x0, float y0, float x1, float y1,
                                      float x2, float y2, float x3, float y3,
