@@ -639,11 +639,15 @@ void CassoExplorerWindow::ApplyTheme()
 
     if (m_toolbar != nullptr)
     {
+        //  Explorer's command bar is the list body's color, not the strip's
+        //  above it, with a border line above and below it.
         m_toolbar->SetStripColors (m_theme->navStrip, m_theme->navItemText);
+        m_toolbar->SetEdgeColor   (m_theme->Border());
 
         if (m_commandBar != nullptr)
         {
-            m_commandBar->SetStripColors (m_theme->navStrip, m_theme->navItemText);
+            m_commandBar->SetStripColors (m_theme->ContentBackground(), m_theme->navItemText);
+            m_commandBar->SetEdgeColor   (m_theme->Border());
         }
 
         m_tooltip.SetTheme (*m_theme);

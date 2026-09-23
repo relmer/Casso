@@ -198,6 +198,10 @@ public:
     void  SetStripColors   (uint32_t stripArgb, uint32_t textArgb);
     void  ClearStripColors ()                            { m_stripColorsSet = false; }
 
+    //  The line along the bottom edge; zero, the default, is the theme's
+    //  content edge.
+    void  SetEdgeColor     (uint32_t edgeArgb)           { m_edgeOverride = edgeArgb; }
+
     //  Decides how many entries can still afford their label at this width
     //  and returns the band thickness (dp) the strip needs. Call BEFORE
     //  docking the chrome bands.
@@ -390,4 +394,5 @@ private:
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;
+    uint32_t                 m_edgeOverride   = 0;
 };

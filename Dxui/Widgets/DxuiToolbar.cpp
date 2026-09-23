@@ -1782,7 +1782,8 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     }
 
     painter.FillRect (bl, btTop, bw, bhAll, strip);
-    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.ContentEdge());
+    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f,
+                      (m_edgeOverride != 0) ? m_edgeOverride : theme.ContentEdge());
 
     for (Slot & slot : m_slots)
     {
