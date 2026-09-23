@@ -25,15 +25,10 @@ class CassoExplorerAbout
 public:
     //  The three icons the body explains the name with. The body sets the
     //  size each is shown at; any left empty gives way to text.
-    struct Pictures
-    {
-        DialogImage  cask;
-        DialogImage  casso;
-        DialogImage  cassque;
-    };
-
-    //  The dialog's text and pictures, the links included.
-    static std::vector<DialogTextRun>  GetBody (const Pictures & pictures);
+    //  The dialog's text, the links included. The icon leads the line that
+    //  says what the application is; an icon that failed to load leaves the
+    //  line as text alone.
+    static std::vector<DialogTextRun>  GetBody (const DialogImage & icon);
 
     //  Decodes one embedded PNG for the dialog, to be shown at displayDp.
     static HRESULT  LoadPicture (HINSTANCE instance, int resourceId, float displayDp, DialogImage & outImage);
@@ -41,7 +36,6 @@ public:
     static void  Show (HWND owner, const IDxuiTheme * theme, HINSTANCE instance);
 
     static constexpr float            kHeaderPictureDp   = 128.0f;
-    static constexpr float            kEquationPictureDp = 48.0f;
     static constexpr float            kRowPictureDp      = 32.0f;
 
     static constexpr const wchar_t *  kPhotoCreditUrl = L"https://bunyipco.blogspot.com/2015/04/cassowary-update.html";
@@ -50,7 +44,6 @@ public:
     static constexpr const wchar_t *  kLicenseUrl     = L"https://github.com/relmer/Casso/blob/master/LICENSE";
 
 private:
-    static Pictures       LoadPictures   (HINSTANCE instance);
     static DialogImage    MakeSized      (const DialogImage & image, float displayDp);
     static DialogTextRun  MakeLeadingRun (const DialogImage & picture, const wchar_t * text);
     static DialogTextRun  MakeLink       (const std::wstring & text, const wchar_t * url);

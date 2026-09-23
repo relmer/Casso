@@ -6,14 +6,8 @@
 // shows for CassoExplorer.exe, and it is the only one.
 IDI_CASSO_EXPLORER                  ICON "..\\Resources\\Icons\\CassoExplorer.ico"
 
-// The cask and casque the About box shows; the casque is from a photo by
-// Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0 -- see Assets/ATTRIBUTION.txt.
+// The application's icon, which the About box shows beside what it is.
 IDR_CASSO_EXPLORER_PICTURE_PNG      RCDATA "Assets\\CassoExplorer.png"
-
-// The bare cask and Casso's icon, which the About box sets beside CassoExplorer's
-// own to explain the name.
-IDR_CASSO_EXPLORER_CASK_PNG         RCDATA "Assets\\CassoExplorerCask.png"
-IDR_CASSO_EXPLORER_CASSO_PNG        RCDATA "Assets\\CassoExplorerCasso.png"
 
 // The photograph itself, which heads the About box.
 IDR_CASSO_EXPLORER_CASSOWARY_PNG    RCDATA "Assets\\Cassowary.png"

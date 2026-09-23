@@ -26,7 +26,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DialogTextRun> CassoExplorerAbout::GetBody (const Pictures & pictures)
+std::vector<DialogTextRun> CassoExplorerAbout::GetBody (const DialogImage & icon)
 {
     std::vector<DialogTextRun>  runs;
     std::wstring                repository = L"Casso on GitHub ";
@@ -39,7 +39,8 @@ std::vector<DialogTextRun> CassoExplorerAbout::GetBody (const Pictures & picture
     runs.push_back ({ L"Version " VERSION_STRING });
     runs.push_back ({ L"Built " VERSION_BUILD_TIMESTAMP });
     runs.push_back ({ L"" });
-    runs.push_back ({ L"Casso's Apple II disk image explorer." });
+    runs.push_back (icon.rgba.empty() ? DialogTextRun { L"Casso's Apple II disk image explorer." }
+                                      : MakeLeadingRun (icon, L"Casso's Apple II disk image explorer."));
     runs.push_back ({ L"" });
 
     repository += s_kchEmDash;
@@ -183,41 +184,10 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerAbout::LoadPictures
-//
-//  An icon that fails to load stays empty, and the body shows its word.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-CassoExplorerAbout::Pictures CassoExplorerAbout::LoadPictures (HINSTANCE instance)
-{
-    Pictures  pictures;
-    HRESULT   hr       = S_OK;
-
-
-
-    hr = LoadPicture (instance, IDR_CASSO_EXPLORER_CASK_PNG, kRowPictureDp, pictures.cask);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = LoadPicture (instance, IDR_CASSO_EXPLORER_CASSO_PNG, kRowPictureDp, pictures.casso);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = LoadPicture (instance, IDR_CASSO_EXPLORER_PICTURE_PNG, kRowPictureDp, pictures.cassque);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    return pictures;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerAbout::Show
 //
-//  The pictures are optional: a build without them still says what the name
-//  means.
+//  The pictures are optional: a build whose resources lack them still
+//  says what the application is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,13 +199,17 @@ void CassoExplorerAbout::Show (HWND owner, const IDxuiTheme * theme, HINSTANCE i
     std::unique_ptr<DialogBodyContent>  content          = std::make_unique<DialogBodyContent>();
     MessageDialog                       dialog;
     DxuiWindow::CreateParams            params;
+    DialogImage                         icon;
     DialogImage                         photo;
     HRESULT                             hr               = S_OK;
     int                                 result           = 0;
 
 
 
-    content->SetRuns (GetBody (LoadPictures (instance)));
+    hr = LoadPicture (instance, IDR_CASSO_EXPLORER_PICTURE_PNG, kRowPictureDp, icon);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    content->SetRuns (GetBody (icon));
     content->SetImagePlacement (DialogBodyContent::ImagePlacement::TrailingBeside);
 
     hr = LoadPicture (instance, IDR_CASSO_EXPLORER_CASSOWARY_PNG, kHeaderPictureDp, photo);

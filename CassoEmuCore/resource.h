@@ -129,8 +129,6 @@
 // in its own module, and the cassowary picture its About box shows.
 #define IDI_CASSO_EXPLORER                 107
 #define IDR_CASSO_EXPLORER_PICTURE_PNG     600
-#define IDR_CASSO_EXPLORER_CASK_PNG        601
-#define IDR_CASSO_EXPLORER_CASSO_PNG       602
 #define IDR_CASSO_EXPLORER_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
