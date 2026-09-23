@@ -1678,7 +1678,7 @@ confirm it disables without being removed.
 - **No standalone console**: interactive command entry is through the window's
   command line; scripting is through batch mode and the channel.
 - **The window builds on `032-dxui-command-widgets`** (merged) and on the
-  resizable-pane control delivered by `033-cassque`; the docking framework is
+  resizable-pane control delivered by `033-casso-explorer`; the docking framework is
   new to this feature and belongs to the UI library so other windows can use
   it.
 - **cc65's debug-info format** is version 2 as written by its linker. Its

@@ -36,8 +36,8 @@ The approach turns on these facts from research:
   device resources, so a pane floats by moving its `unique_ptr` into a new
   `DxuiWindow`'s panel. Docking is a pane layout over `DxuiSplitter` and a
   new tab-group control, and it is generic, so it lives in `Dxui`.
-- **033-cassque's Dxui is the base.** `DxuiSplitter`, `DxuiHexView`,
-  `DxuiTextView` and `DxuiCommandRouter` are on `origin/033-cassque` (91
+- **033-casso-explorer's Dxui is the base.** `DxuiSplitter`, `DxuiHexView`,
+  `DxuiTextView` and `DxuiCommandRouter` are on `origin/033-casso-explorer` (91
   Dxui commits ahead of master) and stable; 035 merges that branch first,
   builds on them, and merges to master only after 033 has.
 - **Every device's state is already a getter** (R-034). Diagnostics is one
@@ -193,7 +193,7 @@ Standard rules. Points needing attention:
 - The trace's bus hook and the profile's hook run per instruction while on;
   they are small, allocation-free and take no locks.
 - `DxuiPanel`'s detach returns the `unique_ptr`; ownership is never shared.
-- `DxuiKeyMap`'s chord struct matches `CassqueCommands::kKeys` so Cassque
+- `DxuiKeyMap`'s chord struct matches `CassoExplorerCommands::kKeys` so Casso Explorer
   can move onto it (agreed with 033); `IDxuiHexSource::WriteBytes` defaults
   to refusing so read-only sources stay read-only.
 - ROM patch functions take an offset the memory view has already validated;
@@ -358,7 +358,7 @@ close still follow the controller.
 Stories 1-3 and the first window are done. The rest, by spec priority, each
 landing as its own merge to the branch and gated by the full suite:
 
-1. **Window (story 4, P1)**: merge `origin/033-cassque` first; then dense
+1. **Window (story 4, P1)**: merge `origin/033-casso-explorer` first; then dense
    `DxuiListView` metrics and the mono face
    (R-029); symbolic disassembly with per-line labels and operand symbols
    (FR-010a); breakpoint, watch and stack panes sized by content; the
@@ -413,7 +413,7 @@ landing as its own merge to the branch and gated by the full suite:
 - **GSSquared's output has to be captured from a build of GSSquared**
   (R-027). If it cannot be built, the documented examples fix the format
   and the deviation is recorded; SC-016 then measures against those.
-- **035 carries 033's unmerged Dxui.** Merging `origin/033-cassque` brings
+- **035 carries 033's unmerged Dxui.** Merging `origin/033-casso-explorer` brings
   199 commits, and 033's own merge waits on its owner's review. The cost is
   ordering only: 035 cannot merge before 033, which the release phase
   already requires; if 033's history is rewritten, 035 re-merges.
@@ -518,7 +518,7 @@ CassoEmuCore/Ui/Debugger/
 │   └── RegistersPane, StackPane, WatchesPane, BreakpointsPane, ConsolePane  # NEW: split out of the first window
 └── (floating panes are DxuiDockedWindows; nothing debugger-specific)
 
-Dxui/                                        # DxuiSplitter, DxuiHexView, DxuiTextView, DxuiCommandRouter come from 033-cassque
+Dxui/                                        # DxuiSplitter, DxuiHexView, DxuiTextView, DxuiCommandRouter come from 033-casso-explorer
 ├── Core/DxuiPanel.h/.cpp                    # CHANGE: DetachChild returns the unique_ptr
 ├── Core/DxuiKeyMap.h/.cpp                   # NEW: named chord -> command id table; swappable per window
 ├── Core/DxuiPaneLayout.h/.cpp               # NEW: split/tab tree, floating, auto-hide, JSON, fallback monitor

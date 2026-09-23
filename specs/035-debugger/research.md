@@ -344,7 +344,7 @@ type) and knows nothing about memory, disks or the debugger, which is why it
 is not under `Debugger/`. `BinaryImageReader` therefore lives in
 `CassoEmuCore/Debugger/`, not `CassoCore`, since `CassoCore` cannot reference
 `CassoEmuCore`. `BinaryImageReader` uses the codec here, and
-033-cassque uses it for put, get, preview and its host naming style. Casso
+033-casso-explorer uses it for put, get, preview and its host naming style. Casso
 itself does nothing with a `.as` file, and a container is never treated as a
 disk image.
 
@@ -979,7 +979,7 @@ lists use the monospace face, a row of the font's line height plus 2 DIP,
 state, focus that advances on completion, and a text column whose cells are
 single characters. `DxuiListView` has whole-row selection and no caret;
 `DxuiTextInput` has a caret but is one line. `DxuiHexView` on
-`origin/033-cassque` already has grouping by 1, 2, 4 or 8, hex and text
+`origin/033-casso-explorer` already has grouping by 1, 2, 4 or 8, hex and text
 columns as tab stops, a host-supplied `IDxuiHexSource` that is asked only
 for the rows it draws, and per-byte marks; it is read-only. Agreed with 033:
 `IDxuiHexSource` gains a `WriteBytes` that defaults to refusing, and the
@@ -994,7 +994,7 @@ per-window undo list of `{address, written, replaced}`.
 chord to command id, chosen in preferences and swapped at run time.
 
 **Facts**: 033's `DxuiCommandRouter` owns one key table for the seven
-standard focus-following commands and nothing else; Cassque keeps a private
+standard focus-following commands and nothing else; Casso Explorer keeps a private
 `kKeys` chord table. No generic application key map exists, and 033 has no
 objection to one provided the chord struct matches `kKeys` and a window can
 swap maps. `DxuiWindow` consults its active map in `OnKeyDown` after the
