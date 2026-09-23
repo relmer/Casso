@@ -2095,6 +2095,26 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         }
     }
 
+    //  A memory window other than the first closes from its own tab, as a
+    //  disassembly view does; the "- Memory" button closes only the last one
+    //  opened.
+    for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    {
+        if (pane == DebuggerLayout::GetMemoryPaneId (window))
+        {
+            m_menuCommands.push_back (MakeMenuCommand (L"Close", false, [this, window]
+            {
+                if (m_host != nullptr)
+                {
+                    m_host->SetDebuggerMemoryWindow (window, std::nullopt);
+                }
+            }));
+
+            menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+            menu.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+    }
+
     for (const DxuiDockSite::MenuItem & item : items)
     {
         m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { (void) action(); }));
