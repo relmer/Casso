@@ -38,6 +38,10 @@ public:
     bool                       IsComplete () const { return m_isComplete; }
     const std::vector<Write> & GetWrites  () const { return m_writes; }
 
+    //  Every address read, the instruction's own bytes among them: the
+    //  caller knows where the instruction sits and drops those itself.
+    const std::vector<Word>  & GetReads   () const { return m_reads; }
+
     void  WriteByte    (Word address, Byte value) override;
     void  WriteWord    (Word address, Word value) override;
     Byte  ReadByteSlow (Word address)             override;
@@ -46,6 +50,7 @@ public:
 private:
     const IDebugExpressionContext  * m_memory     = nullptr;
     std::vector<Write>               m_writes;
+    std::vector<Word>                m_reads;
     bool                             m_isComplete = true;
 };
 

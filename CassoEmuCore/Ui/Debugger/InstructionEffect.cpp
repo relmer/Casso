@@ -53,6 +53,8 @@ Byte ShadowCpu::ReadByteSlow (Word address)
 
 
 
+    m_reads.push_back (address);
+
     for (auto it = m_writes.rbegin(); it != m_writes.rend(); ++it)
     {
         if (it->address == address)

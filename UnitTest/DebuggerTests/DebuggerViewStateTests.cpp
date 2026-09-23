@@ -18,6 +18,7 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/AutomaticWatches.h"
 #include "Ui/Debugger/InstructionEffect.h"
 #include "Ui/Debugger/StopChanges.h"
 #include "Core/UnicodeSymbols.h"
@@ -430,6 +431,78 @@ namespace DebuggerViewStateTests
             Assert::IsTrue  (anyAnnotation (paused),   L"a paused machine annotates what the instructions act on");
             Assert::IsFalse (anyAnnotation (running),  L"a running machine annotates nothing: the values would be from mid-flight");
             Assert::AreEqual (paused.code.size(), running.code.size(), L"the lines themselves are built either way");
+        }
+
+
+        TEST_METHOD (TheAutomaticWatchesAreWhatTheInstructionTouches)
+        {
+            using Kind = AutomaticWatches::Kind;
+
+            MachineRig                           rig;
+            IDebugTarget                       & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers                     r      = rig.controller.GetSession().GetTarget().GetRegisters();
+            std::vector<AutomaticWatches::Item>  items;
+            auto                                 has    = [&items] (Kind kind, const char * name, Word address, bool isRead, bool isWrite)
+            {
+                return std::any_of (items.begin(), items.end(), [&] (const AutomaticWatches::Item & item)
+                {
+                    return item.kind == kind && item.name == name && item.address == address &&
+                           item.isRead == isRead && item.isWrite == isWrite;
+                });
+            };
+
+
+
+            r.pc = 0x0300;
+            r.a  = 0x10;
+            r.x  = 0x02;
+            r.y  = 0x00;
+            r.p  = 0x01;                              // carry set
+            r.sp = 0xF8;
+            target.SetRegisters (r);
+
+            //  ADC $0400,X: reads A, X, carry and the byte at $0402; writes A
+            //  and the arithmetic flags. Nothing says so in a table -- each
+            //  one is found by running the instruction again with that input
+            //  changed.
+            (void) target.TryPoke (0x0300, 0x7D);
+            (void) target.TryPoke (0x0301, 0x00);
+            (void) target.TryPoke (0x0302, 0x04);
+            (void) target.TryPoke (0x0402, 0x7F);
+
+            items = AutomaticWatches::Find (rig.controller.GetSession(), r, 0x0300, 3);
+
+            Assert::IsTrue  (has (Kind::Address,  "",  0x0402, true, false), L"the byte it adds");
+            Assert::IsTrue  (has (Kind::Register, "A", 0,      true, true),  L"A is read and written");
+            Assert::IsTrue  (has (Kind::Register, "X", 0,      true, false), L"X indexes the address");
+            Assert::IsTrue  (has (Kind::Flag,     "C", 0,      true, true),  L"carry goes in and comes out");
+            Assert::IsTrue  (has (Kind::Flag,     "V", 0,      false, true), L"overflow is written, never read");
+            Assert::IsFalse (has (Kind::Register, "Y", 0,      true, false), L"Y has nothing to do with it");
+            Assert::IsFalse (has (Kind::Flag,     "I", 0,      true, false), L"nor does the interrupt flag");
+
+            //  A branch reads the flag it tests and writes nothing at all.
+            items.clear();
+            (void) target.TryPoke (0x0300, 0xF0);      // BEQ +$10
+            (void) target.TryPoke (0x0301, 0x10);
+
+            items = AutomaticWatches::Find (rig.controller.GetSession(), r, 0x0300, 2);
+
+            Assert::IsTrue  (has (Kind::Flag, "Z", 0, true, false), L"BEQ reads Z");
+            Assert::IsFalse (has (Kind::Flag, "C", 0, true, false), L"and no other flag");
+            Assert::IsTrue  (std::none_of (items.begin(), items.end(),
+                                           [] (const AutomaticWatches::Item & item) { return item.isWrite; }),
+                             L"a branch writes nothing");
+
+            //  A store writes memory and reads the register it stores.
+            items.clear();
+            (void) target.TryPoke (0x0300, 0x8D);      // STA $0400
+            (void) target.TryPoke (0x0301, 0x00);
+            (void) target.TryPoke (0x0302, 0x04);
+
+            items = AutomaticWatches::Find (rig.controller.GetSession(), r, 0x0300, 3);
+
+            Assert::IsTrue (has (Kind::Address,  "",  0x0400, false, true), L"the address it stores to");
+            Assert::IsTrue (has (Kind::Register, "A", 0,      true,  false), L"A is read, not changed");
         }
 
 
