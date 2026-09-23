@@ -28,10 +28,10 @@ enum class RecordedPaintKind
     OutlineRect,
     OutlineRoundedRect,
     FillRoundedRect,
-    FillCircleApprox,
+    FillCircle,
     FillConvexQuad,       // recorded as the quad's bounding box
-    FillEllipseApprox,    // recorded as the ellipse's bounding box
-    DrawLineApprox,       // recorded as the segment's bounding box
+    FillEllipse,          // recorded as the ellipse's bounding box
+    DrawLine,             // recorded as the segment's bounding box
 };
 
 
@@ -64,11 +64,11 @@ public:
     void  OutlineRect       (float xPx, float yPx, float widthPx, float heightPx, float thicknessPx, uint32_t argbColor) override;
     void  OutlineRoundedRect (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, float thicknessPx, uint32_t argbColor) override;
     void  FillRoundedRect   (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, uint32_t argbColor) override;
-    void  FillCircleApprox  (float cxPx, float cyPx, float radiusPx, uint32_t argbColor) override;
+    void  FillCircle        (float cxPx, float cyPx, float radiusPx, uint32_t argbColor) override;
     void  FillConvexQuad    (float x0, float y0, float x1, float y1,
                              float x2, float y2, float x3, float y3, uint32_t argbColor) override;
-    void  FillEllipseApprox (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor) override;
-    void  DrawLineApprox    (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor) override;
+    void  FillEllipse       (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor) override;
+    void  DrawLine          (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor) override;
 
 private:
     std::vector<RecordedPaintCall>  m_calls;

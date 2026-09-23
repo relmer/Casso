@@ -83,9 +83,9 @@ void InputDeviceGlyphs::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, 
         p.FillConvexQuad  (g.X (85), g.Y (37), g.X (85), g.Y (85), g.X (69), g.Y (69), g.X (69), g.Y (53), kFacetRight);
         p.FillConvexQuad  (g.X (37), g.Y (85), g.X (85), g.Y (85), g.X (69), g.Y (69), g.X (53), g.Y (69), kFacetBot);
         p.FillRect        (g.X (53), g.Y (53), g.S (16), g.S (16), kHole);
-        p.FillCircleApprox (g.X (61), g.Y (61), g.S (11), kKnobEdge);
-        p.FillCircleApprox (g.X (61), g.Y (61), g.S (10), kKnob);
-        p.FillCircleApprox (g.X (58), g.Y (58), g.S (4),  kHighlight);
+        p.FillCircle      (g.X (61), g.Y (61), g.S (11), kKnobEdge);
+        p.FillCircle      (g.X (61), g.Y (61), g.S (10), kKnob);
+        p.FillCircle      (g.X (58), g.Y (58), g.S (4),  kHighlight);
         p.FillRect        (g.X (36), g.Y (11), g.S (16), g.S (16), kOrange);
         p.OutlineRect     (g.X (36), g.Y (11), g.S (16), g.S (16), g.S (1.5f), kOrangeEdge);
         p.FillRect        (g.X (11), g.Y (36), g.S (16), g.S (16), kOrange);
@@ -99,12 +99,12 @@ void InputDeviceGlyphs::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, 
     p.FillConvexQuad  (g.X (74), g.Y (58), g.X (86), g.Y (42), g.X (86), g.Y (74), g.X (74), g.Y (90), kSideFace);
     p.FillRect        (g.X (10), g.Y (58), g.S (64), g.S (32), kCase);
     p.OutlineRect     (g.X (10), g.Y (58), g.S (64), g.S (32), g.S (2), kCaseEdge);
-    p.DrawLineApprox  (g.X (13), g.Y (76), g.X (71), g.Y (76), g.S (1.2f), kSeam);
+    p.DrawLine        (g.X (13), g.Y (76), g.X (71), g.Y (76), g.S (1.2f), kSeam);
     p.FillRect        (g.X (10), g.Y (77), g.S (64), g.S (13), 0x0F000000);
     p.FillConvexQuad  (g.X (10), g.Y (58), g.X (22), g.Y (42), g.X (86), g.Y (42), g.X (74), g.Y (58), kCaseLight);
-    p.DrawLineApprox  (g.X (10), g.Y (58), g.X (22), g.Y (42), g.S (1.6f), kCaseEdge);
-    p.DrawLineApprox  (g.X (22), g.Y (42), g.X (86), g.Y (42), g.S (1.6f), kCaseEdge);
-    p.DrawLineApprox  (g.X (86), g.Y (42), g.X (74), g.Y (58), g.S (1.6f), kCaseEdge);
+    p.DrawLine        (g.X (10), g.Y (58), g.X (22), g.Y (42), g.S (1.6f), kCaseEdge);
+    p.DrawLine        (g.X (22), g.Y (42), g.X (86), g.Y (42), g.S (1.6f), kCaseEdge);
+    p.DrawLine        (g.X (86), g.Y (42), g.X (74), g.Y (58), g.S (1.6f), kCaseEdge);
     // well (top-down (36,36)-(86,86) mapped) + inner facet
     p.FillConvexQuad  (g.X (33.4f), g.Y (57.2f), g.X (71.7f), g.Y (57.2f), g.X (78.8f), g.Y (47.7f), g.X (40.6f), g.Y (47.7f), kHole);
     p.FillConvexQuad  (g.X (40.6f), g.Y (47.7f), g.X (78.8f), g.Y (47.7f), g.X (64), g.Y (51), g.X (49), g.Y (51), 0xFF8D8877);
@@ -119,8 +119,8 @@ void InputDeviceGlyphs::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, 
     // stick over the well center
     p.FillRect        (g.X (54.4f), g.Y (42.5f), g.S (3.2f), g.S (10), kShaft);
     p.FillConvexQuad  (g.X (52.5f), g.Y (44.5f), g.X (59.5f), g.Y (44.5f), g.X (62), g.Y (14), g.X (50), g.Y (14), kStick);
-    p.FillCircleApprox (g.X (56), g.Y (14), g.S (6.5f), kStick);
-    p.FillEllipseApprox (g.X (54), g.Y (12), g.S (2.2f), g.S (3), 0x38FFFFFF);
+    p.FillCircle      (g.X (56), g.Y (14), g.S (6.5f), kStick);
+    p.FillEllipse     (g.X (54), g.Y (12), g.S (2.2f), g.S (3), 0x38FFFFFF);
 }
 
 
@@ -171,24 +171,24 @@ void InputDeviceGlyphs::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bo
         {
             float  y   = 60.0f + 6.0f * (float) i;
             float  inw = 1.0f + 0.8f * (float) i;
-            p.DrawLineApprox (g.X (37.5f + inw), g.Y (y), g.X (58.5f - inw), g.Y (y), g.S (1.6f), kRib);
+            p.DrawLine (g.X (37.5f + inw), g.Y (y), g.X (58.5f - inw), g.Y (y), g.S (1.6f), kRib);
         }
 
-        p.FillCircleApprox (g.X (48), g.Y (34), g.S (25), kCaseEdge);
-        p.FillCircleApprox (g.X (48), g.Y (34), g.S (24), kCase);
-        p.FillCircleApprox (g.X (48), g.Y (34), g.S (19.8f), kDialEdge);
-        p.FillCircleApprox (g.X (48), g.Y (34), g.S (19), kDial);
+        p.FillCircle (g.X (48), g.Y (34), g.S (25), kCaseEdge);
+        p.FillCircle (g.X (48), g.Y (34), g.S (24), kCase);
+        p.FillCircle (g.X (48), g.Y (34), g.S (19.8f), kDialEdge);
+        p.FillCircle (g.X (48), g.Y (34), g.S (19), kDial);
         for (int i = 0; i < 12; i++)
         {
             float  a  = (float) i * 6.2831853f / 12.0f;
             float  ca = cosf (a), sa = sinf (a);
-            p.DrawLineApprox (g.X (48 + ca * 18.5f), g.Y (34 + sa * 18.5f),
-                              g.X (48 + ca * 13.5f), g.Y (34 + sa * 13.5f), g.S (1.6f), kTick);
+            p.DrawLine (g.X (48 + ca * 18.5f), g.Y (34 + sa * 18.5f),
+                        g.X (48 + ca * 13.5f), g.Y (34 + sa * 13.5f), g.S (1.6f), kTick);
         }
 
-        p.FillCircleApprox (g.X (48), g.Y (34), g.S (10.8f), kDialEdge);
-        p.FillCircleApprox (g.X (48), g.Y (34), g.S (10), kKnob);
-        p.FillCircleApprox (g.X (45), g.Y (31), g.S (3.5f), 0x4DFFFFFF);
+        p.FillCircle (g.X (48), g.Y (34), g.S (10.8f), kDialEdge);
+        p.FillCircle (g.X (48), g.Y (34), g.S (10), kKnob);
+        p.FillCircle (g.X (45), g.Y (31), g.S (3.5f), 0x4DFFFFFF);
         return;
     }
 
@@ -211,9 +211,9 @@ void InputDeviceGlyphs::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bo
     // the disc base ellipse. Draw order: SE side face, bottom edge, tip
     // face, disc wall (covers the junction), disc top, handle top.
     p.FillConvexQuad  (g.X (26.8f), g.Y (66.9f), g.X (74.3f), g.Y (42.6f), g.X (74.3f), g.Y (52.6f), g.X (26.8f), g.Y (76.9f), 0xFFB3AD9C);
-    p.DrawLineApprox  (g.X (26.8f), g.Y (76.9f), g.X (73), g.Y (53.2f), g.S (1.4f), 0xFF8F8A7A);
+    p.DrawLine        (g.X (26.8f), g.Y (76.9f), g.X (73), g.Y (53.2f), g.S (1.4f), 0xFF8F8A7A);
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (76.9f), g.X (11.2f), g.Y (73.8f), kSideFace);
-    p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
+    p.FillEllipse     (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
     p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
     // No explicit disc-base seating stroke: the disc sits sunk in the handle
     // (base ellipse at y48, below the handle top), so any drawn base rim
@@ -222,7 +222,7 @@ void InputDeviceGlyphs::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bo
     // already meets the handle as a clean tonal edge, so the disc reads as
     // seated with no stray line segment.
     // unified top surface: disc top + handle top, one cream body
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
+    p.FillEllipse     (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (38.4f), g.Y (35.4f), g.X (74.3f), g.Y (42.6f), g.X (26.8f), g.Y (66.9f), kCase);
     // grip lines: full width NW edge -> SE shoulder; equal edge stations
     // pair up because both edges span tip -> tangency together, and each
@@ -232,45 +232,45 @@ void InputDeviceGlyphs::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bo
         float  t  = 0.20f + 0.08f * (float) i;
         float  lx = 11.2f + 27.2f * t, ly = 63.8f - 28.4f * t;   // on the NW edge
         float  sx = 26.8f + 47.5f * t, sy = 66.9f - 24.3f * t;   // on the SE shoulder
-        p.DrawLineApprox (g.X (lx), g.Y (ly), g.X (sx), g.Y (sy), g.S (1.3f), kRib);
+        p.DrawLine (g.X (lx), g.Y (ly), g.X (sx), g.Y (sy), g.S (1.3f), kRib);
         // grip lines wrap over the SE shoulder onto the side face
-        p.DrawLineApprox (g.X (sx), g.Y (sy), g.X (sx), g.Y (sy + 2.2f), g.S (1.1f), 0xFF98927F);
+        p.DrawLine (g.X (sx), g.Y (sy), g.X (sx), g.Y (sy + 2.2f), g.S (1.1f), 0xFF98927F);
     }
 
     // Apple badge chip in the smooth patch near the tip, parting seam
     p.FillConvexQuad  (g.X (20.2f), g.Y (63.5f), g.X (23.1f), g.Y (64.1f), g.X (25.2f), g.Y (61.9f), g.X (22.3f), g.Y (61.3f), 0x99A9A392);
     // shell parting seam along the SE side wall, continuing to the disc
-    p.DrawLineApprox  (g.X (27), g.Y (71.9f), g.X (61), g.Y (54.4f), g.S (1.0f), 0xB38F8A7A);
-    p.DrawLineApprox  (g.X (61), g.Y (54.4f), g.X (73.5f), g.Y (48), g.S (1.0f), 0x998F8A7A);
+    p.DrawLine        (g.X (27), g.Y (71.9f), g.X (61), g.Y (54.4f), g.S (1.0f), 0xB38F8A7A);
+    p.DrawLine        (g.X (61), g.Y (54.4f), g.X (73.5f), g.Y (48), g.S (1.0f), 0x998F8A7A);
     // dark opening the dial sits in (dial concentric with the disc)
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
+    p.FillEllipse (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
     // dial lower cylinder: flat top, 6-unit knurl band on its wall
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (17.5f), g.S (6.1f), kDialSide);
+    p.FillEllipse (g.X (58), g.Y (38), g.S (17.5f), g.S (6.1f), kDialSide);
     p.FillRect          (g.X (40.5f), g.Y (32), g.S (35), g.S (6), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (32), g.S (17.5f), g.S (6.1f), kDial);
+    p.FillEllipse (g.X (58), g.Y (32), g.S (17.5f), g.S (6.1f), kDial);
     for (int i = -6; i <= 6; i++)
     {
         float  dx = 2.6f * (float) i;
         float  s  = sqrtf (1.0f - (dx / 17.5f) * (dx / 17.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (32 + 6.1f * s), g.X (58 + dx), g.Y (38 + 6.1f * s), g.S (1.1f), kTick);
+        p.DrawLine (g.X (58 + dx), g.Y (32 + 6.1f * s), g.X (58 + dx), g.Y (38 + 6.1f * s), g.S (1.1f), kTick);
     }
 
     // small-radius fillet where the cap cylinder meets the flat top
-    p.FillEllipseApprox (g.X (58), g.Y (31.3f), g.S (10), g.S (3.5f), 0xFFA6A08E);
+    p.FillEllipse (g.X (58), g.Y (31.3f), g.S (10), g.S (3.5f), 0xFFA6A08E);
     // dial upper cylinder (knurled cap), then the groove-and-"0" top
-    p.FillEllipseApprox (g.X (58), g.Y (32), g.S (7.5f), g.S (2.6f), kDialSide);
+    p.FillEllipse (g.X (58), g.Y (32), g.S (7.5f), g.S (2.6f), kDialSide);
     p.FillRect          (g.X (50.5f), g.Y (23), g.S (15), g.S (9), kDialSide);
     for (int i = -3; i <= 3; i++)
     {
         float  dx = 2.4f * (float) i;
         float  s  = sqrtf (1.0f - (dx / 7.5f) * (dx / 7.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (23 + 2.6f * s), g.X (58 + dx), g.Y (32 + 2.6f * s), g.S (1.1f), kTick);
+        p.DrawLine (g.X (58 + dx), g.Y (23 + 2.6f * s), g.X (58 + dx), g.Y (32 + 2.6f * s), g.S (1.1f), kTick);
     }
 
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (7.5f), g.S (2.6f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (4.4f), g.S (1.5f), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (3.3f), g.S (1.1f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (1.5f), g.S (0.55f), kDialSide);
+    p.FillEllipse (g.X (58), g.Y (23), g.S (7.5f), g.S (2.6f), kKnob);
+    p.FillEllipse (g.X (58), g.Y (23), g.S (4.4f), g.S (1.5f), kDialSide);
+    p.FillEllipse (g.X (58), g.Y (23), g.S (3.3f), g.S (1.1f), kKnob);
+    p.FillEllipse (g.X (58), g.Y (23), g.S (1.5f), g.S (0.55f), kDialSide);
     // fire button: rim-concentric arc segment (quads sample the arcs at
     // 3:00 / 3:45 / 4:30) — lit top band, orange outer wall, dark S cut
     p.FillConvexQuad  (g.X (82.4f), g.Y (37.8f), g.X (82.4f), g.Y (44.3f), g.X (81), g.Y (47.9f), g.X (81), g.Y (41.4f), kOrange);
@@ -321,7 +321,7 @@ void InputDeviceGlyphs::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, boo
         p.OutlineRect  (g.X (27), g.Y (13), g.S (42), g.S (70), g.S (1), 0xE69B9686);
         p.FillRect     (g.X (30), g.Y (14), g.S (36), g.S (24), kMouseBtn);
         p.OutlineRect  (g.X (30), g.Y (14), g.S (36), g.S (24), g.S (1.8f), kMouseBtnEdge);
-        p.DrawLineApprox (g.X (30), g.Y (42), g.X (66), g.Y (42), g.S (1.4f), 0xCC9B9686);
+        p.DrawLine (g.X (30), g.Y (42), g.X (66), g.Y (42), g.S (1.4f), 0xCC9B9686);
         return;
     }
 
@@ -344,28 +344,28 @@ void InputDeviceGlyphs::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, boo
     p.FillConvexQuad  (g.X(83.5f), g.Y(54.7f), g.X(85.3f), g.Y(53.1f), g.X(85.3f), g.Y(33.1f), g.X(83.5f), g.Y(33.7f), 0xFFBFB9A8);
     p.FillConvexQuad  (g.X(85.3f), g.Y(53.1f), g.X(85.5f), g.Y(51.5f), g.X(85.5f), g.Y(32.5f), g.X(85.3f), g.Y(33.1f), 0xFFBFB9A8);
     // parting seam + base foot line along the wall
-    p.DrawLineApprox  (g.X(12.7f), g.Y(62.9f), g.X(14.1f), g.Y(64.3f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(14.1f), g.Y(64.3f), g.X(16.9f), g.Y(65.3f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(16.9f), g.Y(65.3f), g.X(28.5f), g.Y(67.6f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(28.5f), g.Y(67.6f), g.X(40.1f), g.Y(69.9f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(40.1f), g.Y(69.9f), g.X(43.9f), g.Y(70.3f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(43.9f), g.Y(70.3f), g.X(48.0f), g.Y(70.0f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(48.0f), g.Y(70.0f), g.X(51.9f), g.Y(69.1f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(51.9f), g.Y(69.1f), g.X(55.0f), g.Y(67.7f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(55.0f), g.Y(67.7f), g.X(83.5f), g.Y(50.3f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(83.5f), g.Y(50.3f), g.X(85.3f), g.Y(48.7f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(85.3f), g.Y(48.7f), g.X(85.5f), g.Y(47.0f), g.S(1.0f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(12.7f), g.Y(66.1f), g.X(14.1f), g.Y(67.5f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(14.1f), g.Y(67.5f), g.X(16.9f), g.Y(68.4f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(16.9f), g.Y(68.4f), g.X(28.5f), g.Y(70.8f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(28.5f), g.Y(70.8f), g.X(40.1f), g.Y(73.1f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(40.1f), g.Y(73.1f), g.X(43.9f), g.Y(73.4f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(43.9f), g.Y(73.4f), g.X(48.0f), g.Y(73.1f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(48.0f), g.Y(73.1f), g.X(51.9f), g.Y(72.3f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(51.9f), g.Y(72.3f), g.X(55.0f), g.Y(70.9f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(55.0f), g.Y(70.9f), g.X(83.5f), g.Y(53.5f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(83.5f), g.Y(53.5f), g.X(85.3f), g.Y(51.8f), g.S(0.9f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(85.3f), g.Y(51.8f), g.X(85.5f), g.Y(50.2f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(12.7f), g.Y(62.9f), g.X(14.1f), g.Y(64.3f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(14.1f), g.Y(64.3f), g.X(16.9f), g.Y(65.3f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(16.9f), g.Y(65.3f), g.X(28.5f), g.Y(67.6f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(28.5f), g.Y(67.6f), g.X(40.1f), g.Y(69.9f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(40.1f), g.Y(69.9f), g.X(43.9f), g.Y(70.3f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(43.9f), g.Y(70.3f), g.X(48.0f), g.Y(70.0f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(48.0f), g.Y(70.0f), g.X(51.9f), g.Y(69.1f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(51.9f), g.Y(69.1f), g.X(55.0f), g.Y(67.7f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(55.0f), g.Y(67.7f), g.X(83.5f), g.Y(50.3f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(83.5f), g.Y(50.3f), g.X(85.3f), g.Y(48.7f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(85.3f), g.Y(48.7f), g.X(85.5f), g.Y(47.0f), g.S(1.0f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(12.7f), g.Y(66.1f), g.X(14.1f), g.Y(67.5f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(14.1f), g.Y(67.5f), g.X(16.9f), g.Y(68.4f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(16.9f), g.Y(68.4f), g.X(28.5f), g.Y(70.8f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(28.5f), g.Y(70.8f), g.X(40.1f), g.Y(73.1f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(40.1f), g.Y(73.1f), g.X(43.9f), g.Y(73.4f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(43.9f), g.Y(73.4f), g.X(48.0f), g.Y(73.1f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(48.0f), g.Y(73.1f), g.X(51.9f), g.Y(72.3f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(51.9f), g.Y(72.3f), g.X(55.0f), g.Y(70.9f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(55.0f), g.Y(70.9f), g.X(83.5f), g.Y(53.5f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(83.5f), g.Y(53.5f), g.X(85.3f), g.Y(51.8f), g.S(0.9f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(85.3f), g.Y(51.8f), g.X(85.5f), g.Y(50.2f), g.S(0.9f), 0xFF8F8A7A);
     // top: chamfer band (outer) then the flat top (inner)
     p.FillConvexQuad  (g.X(48.1f), g.Y(43.4f), g.X(28.5f), g.Y(58.9f), g.X(40.1f), g.Y(61.2f), g.X(43.9f), g.Y(61.4f), 0xFFC9C3B2);
     p.FillConvexQuad  (g.X(48.1f), g.Y(43.4f), g.X(43.9f), g.Y(61.4f), g.X(48.0f), g.Y(60.5f), g.X(51.9f), g.Y(58.7f), 0xFFC9C3B2);
@@ -389,48 +389,48 @@ void InputDeviceGlyphs::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, boo
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(17.5f), g.Y(46.7f), g.X(16.3f), g.Y(48.5f), g.X(16.1f), g.Y(50.2f), 0xFFE4DFD0);
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(16.1f), g.Y(50.2f), g.X(17.1f), g.Y(51.6f), g.X(18.9f), g.Y(52.3f), 0xFFE4DFD0);
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(18.9f), g.Y(52.3f), g.X(30.6f), g.Y(54.7f), g.X(42.2f), g.Y(57.0f), 0xFFE4DFD0);
-    p.DrawLineApprox  (g.X(28.5f), g.Y(58.9f), g.X(40.1f), g.Y(61.2f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(40.1f), g.Y(61.2f), g.X(43.9f), g.Y(61.4f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(43.9f), g.Y(61.4f), g.X(48.0f), g.Y(60.5f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(48.0f), g.Y(60.5f), g.X(51.9f), g.Y(58.7f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(51.9f), g.Y(58.7f), g.X(55.0f), g.Y(56.3f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(55.0f), g.Y(56.3f), g.X(83.5f), g.Y(33.7f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(83.5f), g.Y(33.7f), g.X(85.3f), g.Y(33.1f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(85.3f), g.Y(33.1f), g.X(85.5f), g.Y(32.5f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(85.5f), g.Y(32.5f), g.X(84.2f), g.Y(31.8f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(84.2f), g.Y(31.8f), g.X(81.4f), g.Y(31.1f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(81.4f), g.Y(31.1f), g.X(58.1f), g.Y(26.4f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(58.1f), g.Y(26.4f), g.X(54.4f), g.Y(25.8f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(54.4f), g.Y(25.8f), g.X(50.3f), g.Y(25.5f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(50.3f), g.Y(25.5f), g.X(46.4f), g.Y(25.4f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(46.4f), g.Y(25.4f), g.X(43.3f), g.Y(25.6f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(43.3f), g.Y(25.6f), g.X(14.7f), g.Y(48.2f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(14.7f), g.Y(48.2f), g.X(12.9f), g.Y(50.9f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(12.9f), g.Y(50.9f), g.X(12.7f), g.Y(53.4f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(12.7f), g.Y(53.4f), g.X(14.1f), g.Y(55.4f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(14.1f), g.Y(55.4f), g.X(16.9f), g.Y(56.6f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(16.9f), g.Y(56.6f), g.X(28.5f), g.Y(58.9f), g.S(1.6f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(30.6f), g.Y(54.7f), g.X(42.2f), g.Y(57.0f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(42.2f), g.Y(57.0f), g.X(44.7f), g.Y(57.1f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(44.7f), g.Y(57.1f), g.X(47.5f), g.Y(56.5f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(47.5f), g.Y(56.5f), g.X(50.1f), g.Y(55.3f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(50.1f), g.Y(55.3f), g.X(52.2f), g.Y(53.7f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(52.2f), g.Y(53.7f), g.X(80.8f), g.Y(31.0f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(80.8f), g.Y(31.0f), g.X(82.0f), g.Y(30.7f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(82.0f), g.Y(30.7f), g.X(82.1f), g.Y(30.2f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(82.1f), g.Y(30.2f), g.X(81.2f), g.Y(29.7f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(81.2f), g.Y(29.7f), g.X(79.3f), g.Y(29.3f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(79.3f), g.Y(29.3f), g.X(56.0f), g.Y(24.6f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(56.0f), g.Y(24.6f), g.X(53.5f), g.Y(24.2f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(53.5f), g.Y(24.2f), g.X(50.8f), g.Y(24.0f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(50.8f), g.Y(24.0f), g.X(48.1f), g.Y(23.9f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(48.1f), g.Y(23.9f), g.X(46.0f), g.Y(24.1f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(46.0f), g.Y(24.1f), g.X(17.5f), g.Y(46.7f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(17.5f), g.Y(46.7f), g.X(16.3f), g.Y(48.5f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(16.3f), g.Y(48.5f), g.X(16.1f), g.Y(50.2f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(16.1f), g.Y(50.2f), g.X(17.1f), g.Y(51.6f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(17.1f), g.Y(51.6f), g.X(18.9f), g.Y(52.3f), g.S(1.0f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X(18.9f), g.Y(52.3f), g.X(30.6f), g.Y(54.7f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(28.5f), g.Y(58.9f), g.X(40.1f), g.Y(61.2f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(40.1f), g.Y(61.2f), g.X(43.9f), g.Y(61.4f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(43.9f), g.Y(61.4f), g.X(48.0f), g.Y(60.5f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(48.0f), g.Y(60.5f), g.X(51.9f), g.Y(58.7f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(51.9f), g.Y(58.7f), g.X(55.0f), g.Y(56.3f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(55.0f), g.Y(56.3f), g.X(83.5f), g.Y(33.7f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(83.5f), g.Y(33.7f), g.X(85.3f), g.Y(33.1f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(85.3f), g.Y(33.1f), g.X(85.5f), g.Y(32.5f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(85.5f), g.Y(32.5f), g.X(84.2f), g.Y(31.8f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(84.2f), g.Y(31.8f), g.X(81.4f), g.Y(31.1f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(81.4f), g.Y(31.1f), g.X(58.1f), g.Y(26.4f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(58.1f), g.Y(26.4f), g.X(54.4f), g.Y(25.8f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(54.4f), g.Y(25.8f), g.X(50.3f), g.Y(25.5f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(50.3f), g.Y(25.5f), g.X(46.4f), g.Y(25.4f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(46.4f), g.Y(25.4f), g.X(43.3f), g.Y(25.6f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(43.3f), g.Y(25.6f), g.X(14.7f), g.Y(48.2f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(14.7f), g.Y(48.2f), g.X(12.9f), g.Y(50.9f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(12.9f), g.Y(50.9f), g.X(12.7f), g.Y(53.4f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(12.7f), g.Y(53.4f), g.X(14.1f), g.Y(55.4f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(14.1f), g.Y(55.4f), g.X(16.9f), g.Y(56.6f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(16.9f), g.Y(56.6f), g.X(28.5f), g.Y(58.9f), g.S(1.6f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(30.6f), g.Y(54.7f), g.X(42.2f), g.Y(57.0f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(42.2f), g.Y(57.0f), g.X(44.7f), g.Y(57.1f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(44.7f), g.Y(57.1f), g.X(47.5f), g.Y(56.5f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(47.5f), g.Y(56.5f), g.X(50.1f), g.Y(55.3f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(50.1f), g.Y(55.3f), g.X(52.2f), g.Y(53.7f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(52.2f), g.Y(53.7f), g.X(80.8f), g.Y(31.0f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(80.8f), g.Y(31.0f), g.X(82.0f), g.Y(30.7f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(82.0f), g.Y(30.7f), g.X(82.1f), g.Y(30.2f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(82.1f), g.Y(30.2f), g.X(81.2f), g.Y(29.7f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(81.2f), g.Y(29.7f), g.X(79.3f), g.Y(29.3f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(79.3f), g.Y(29.3f), g.X(56.0f), g.Y(24.6f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(56.0f), g.Y(24.6f), g.X(53.5f), g.Y(24.2f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(53.5f), g.Y(24.2f), g.X(50.8f), g.Y(24.0f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(50.8f), g.Y(24.0f), g.X(48.1f), g.Y(23.9f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(48.1f), g.Y(23.9f), g.X(46.0f), g.Y(24.1f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(46.0f), g.Y(24.1f), g.X(17.5f), g.Y(46.7f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(17.5f), g.Y(46.7f), g.X(16.3f), g.Y(48.5f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(16.3f), g.Y(48.5f), g.X(16.1f), g.Y(50.2f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(16.1f), g.Y(50.2f), g.X(17.1f), g.Y(51.6f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(17.1f), g.Y(51.6f), g.X(18.9f), g.Y(52.3f), g.S(1.0f), 0xFFB4AE9C);
+    p.DrawLine        (g.X(18.9f), g.Y(52.3f), g.X(30.6f), g.Y(54.7f), g.S(1.0f), 0xFFB4AE9C);
     // button: soft step, then the slightly-proud darker top + seam
     p.FillConvexQuad  (g.X(60.3f), g.Y(29.2f), g.X(53.3f), g.Y(32.0f), g.X(66.0f), g.Y(34.5f), g.X(67.8f), g.Y(34.6f), 0xFFBFB9A8);
     p.FillConvexQuad  (g.X(60.3f), g.Y(29.2f), g.X(67.8f), g.Y(34.6f), g.X(69.9f), g.Y(34.3f), g.X(71.8f), g.Y(34.0f), 0xFFBFB9A8);
@@ -454,25 +454,25 @@ void InputDeviceGlyphs::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, boo
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(39.5f), g.Y(25.7f), g.X(38.6f), g.Y(26.4f), g.X(38.5f), g.Y(27.1f), 0xFFC2BCAB);
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(38.5f), g.Y(27.1f), g.X(39.2f), g.Y(27.9f), g.X(40.5f), g.Y(28.5f), 0xFFC2BCAB);
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(40.5f), g.Y(28.5f), g.X(53.3f), g.Y(31.0f), g.X(66.0f), g.Y(33.6f), 0xFFC2BCAB);
-    p.DrawLineApprox  (g.X(53.3f), g.Y(31.0f), g.X(66.0f), g.Y(33.6f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(66.0f), g.Y(33.6f), g.X(67.8f), g.Y(33.7f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(67.8f), g.Y(33.7f), g.X(69.9f), g.Y(33.4f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(69.9f), g.Y(33.4f), g.X(71.8f), g.Y(33.0f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(71.8f), g.Y(33.0f), g.X(73.4f), g.Y(32.4f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(73.4f), g.Y(32.4f), g.X(81.9f), g.Y(29.7f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(81.9f), g.Y(29.7f), g.X(82.8f), g.Y(29.5f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(82.8f), g.Y(29.5f), g.X(82.9f), g.Y(29.2f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(82.9f), g.Y(29.2f), g.X(82.2f), g.Y(28.8f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(82.2f), g.Y(28.8f), g.X(80.8f), g.Y(28.4f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(80.8f), g.Y(28.4f), g.X(55.4f), g.Y(23.4f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(55.4f), g.Y(23.4f), g.X(53.5f), g.Y(23.1f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(53.5f), g.Y(23.1f), g.X(51.5f), g.Y(22.9f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(51.5f), g.Y(22.9f), g.X(49.5f), g.Y(22.9f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(49.5f), g.Y(22.9f), g.X(48.0f), g.Y(22.9f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(48.0f), g.Y(22.9f), g.X(39.5f), g.Y(25.7f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(39.5f), g.Y(25.7f), g.X(38.6f), g.Y(26.4f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(38.6f), g.Y(26.4f), g.X(38.5f), g.Y(27.1f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(38.5f), g.Y(27.1f), g.X(39.2f), g.Y(27.9f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(39.2f), g.Y(27.9f), g.X(40.5f), g.Y(28.5f), g.S(1.3f), 0xFF8F8A7A);
-    p.DrawLineApprox  (g.X(40.5f), g.Y(28.5f), g.X(53.3f), g.Y(31.0f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(53.3f), g.Y(31.0f), g.X(66.0f), g.Y(33.6f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(66.0f), g.Y(33.6f), g.X(67.8f), g.Y(33.7f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(67.8f), g.Y(33.7f), g.X(69.9f), g.Y(33.4f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(69.9f), g.Y(33.4f), g.X(71.8f), g.Y(33.0f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(71.8f), g.Y(33.0f), g.X(73.4f), g.Y(32.4f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(73.4f), g.Y(32.4f), g.X(81.9f), g.Y(29.7f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(81.9f), g.Y(29.7f), g.X(82.8f), g.Y(29.5f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(82.8f), g.Y(29.5f), g.X(82.9f), g.Y(29.2f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(82.9f), g.Y(29.2f), g.X(82.2f), g.Y(28.8f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(82.2f), g.Y(28.8f), g.X(80.8f), g.Y(28.4f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(80.8f), g.Y(28.4f), g.X(55.4f), g.Y(23.4f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(55.4f), g.Y(23.4f), g.X(53.5f), g.Y(23.1f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(53.5f), g.Y(23.1f), g.X(51.5f), g.Y(22.9f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(51.5f), g.Y(22.9f), g.X(49.5f), g.Y(22.9f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(49.5f), g.Y(22.9f), g.X(48.0f), g.Y(22.9f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(48.0f), g.Y(22.9f), g.X(39.5f), g.Y(25.7f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(39.5f), g.Y(25.7f), g.X(38.6f), g.Y(26.4f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(38.6f), g.Y(26.4f), g.X(38.5f), g.Y(27.1f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(38.5f), g.Y(27.1f), g.X(39.2f), g.Y(27.9f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(39.2f), g.Y(27.9f), g.X(40.5f), g.Y(28.5f), g.S(1.3f), 0xFF8F8A7A);
+    p.DrawLine        (g.X(40.5f), g.Y(28.5f), g.X(53.3f), g.Y(31.0f), g.S(1.3f), 0xFF8F8A7A);
 }

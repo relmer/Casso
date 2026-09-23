@@ -63,9 +63,9 @@ void InputMonoGlyphs::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
         float  a0 = 6.2831853f * (float) i       / (float) s_kSegments;
         float  a1 = 6.2831853f * (float) (i + 1) / (float) s_kSegments;
 
-        painter.DrawLineApprox (cx + r * std::cos (a0), cy + r * std::sin (a0),
-                                cx + r * std::cos (a1), cy + r * std::sin (a1),
-                                stroke, ink);
+        painter.DrawLine (cx + r * std::cos (a0), cy + r * std::sin (a0),
+                          cx + r * std::cos (a1), cy + r * std::sin (a1),
+                          stroke, ink);
     }
 }
 
@@ -96,7 +96,7 @@ void InputMonoGlyphs::PaintJoystick (IDxuiPainter & painter, const RECT & box, u
 
 
     StrokeCircle           (painter, cx, knobY, knobR, stroke, ink);
-    painter.DrawLineApprox (cx, knobY + knobR, cx, baseT, stroke, ink);
+    painter.DrawLine (cx, knobY + knobR, cx, baseT, stroke, ink);
     painter.OutlineRect    (cx - baseHalf, baseT, baseHalf * 2.0f, baseH, stroke, ink);
 }
 
@@ -139,16 +139,16 @@ void InputMonoGlyphs::PaintPaddle (IDxuiPainter & painter, const RECT & box, uin
         float  t0 = aL + (aR + 2.0f * s_kPi - aL) * (float) i       / (float) s_kArcSegments;
         float  t1 = aL + (aR + 2.0f * s_kPi - aL) * (float) (i + 1) / (float) s_kArcSegments;
 
-        painter.DrawLineApprox (cx + outerR * std::cos (t0), cy + outerR * std::sin (t0),
-                                cx + outerR * std::cos (t1), cy + outerR * std::sin (t1),
-                                stroke, ink);
+        painter.DrawLine (cx + outerR * std::cos (t0), cy + outerR * std::sin (t0),
+                          cx + outerR * std::cos (t1), cy + outerR * std::sin (t1),
+                          stroke, ink);
     }
 
-    painter.DrawLineApprox (cx + outerR * std::cos (aL), cy + outerR * std::sin (aL),
-                            cx - botHalf, botY, stroke, ink);
-    painter.DrawLineApprox (cx + outerR * std::cos (aR), cy + outerR * std::sin (aR),
-                            cx + botHalf, botY, stroke, ink);
-    painter.DrawLineApprox (cx - botHalf, botY, cx + botHalf, botY, stroke, ink);
+    painter.DrawLine (cx + outerR * std::cos (aL), cy + outerR * std::sin (aL),
+                      cx - botHalf, botY, stroke, ink);
+    painter.DrawLine (cx + outerR * std::cos (aR), cy + outerR * std::sin (aR),
+                      cx + botHalf, botY, stroke, ink);
+    painter.DrawLine (cx - botHalf, botY, cx + botHalf, botY, stroke, ink);
 
     StrokeCircle (painter, cx, cy, outerR * 0.42f, stroke, ink);
 }
@@ -186,17 +186,17 @@ void InputMonoGlyphs::PaintGamepad (IDxuiPainter & painter, const RECT & box, ui
 
     // The body: a flat top between the shoulders, straight sides, and a
     // bottom edge that the two grips hang from.
-    painter.DrawLineApprox (bodyL, bodyT, bodyR, bodyT, stroke, ink);
-    painter.DrawLineApprox (bodyL, bodyT, bodyL, bodyB, stroke, ink);
-    painter.DrawLineApprox (bodyR, bodyT, bodyR, bodyB, stroke, ink);
+    painter.DrawLine (bodyL, bodyT, bodyR, bodyT, stroke, ink);
+    painter.DrawLine (bodyL, bodyT, bodyL, bodyB, stroke, ink);
+    painter.DrawLine (bodyR, bodyT, bodyR, bodyB, stroke, ink);
 
     // Grips: the outer edge falls away from each bottom corner and returns to
     // the middle of the underside, leaving the notch between them.
-    painter.DrawLineApprox (bodyL, bodyB, bodyL + w * 0.06f, gripB, stroke, ink);
-    painter.DrawLineApprox (bodyL + w * 0.06f, gripB, cx - w * 0.06f, bodyB, stroke, ink);
-    painter.DrawLineApprox (bodyR, bodyB, bodyR - w * 0.06f, gripB, stroke, ink);
-    painter.DrawLineApprox (bodyR - w * 0.06f, gripB, cx + w * 0.06f, bodyB, stroke, ink);
-    painter.DrawLineApprox (cx - w * 0.06f, bodyB, cx + w * 0.06f, bodyB, stroke, ink);
+    painter.DrawLine (bodyL, bodyB, bodyL + w * 0.06f, gripB, stroke, ink);
+    painter.DrawLine (bodyL + w * 0.06f, gripB, cx - w * 0.06f, bodyB, stroke, ink);
+    painter.DrawLine (bodyR, bodyB, bodyR - w * 0.06f, gripB, stroke, ink);
+    painter.DrawLine (bodyR - w * 0.06f, gripB, cx + w * 0.06f, bodyB, stroke, ink);
+    painter.DrawLine (cx - w * 0.06f, bodyB, cx + w * 0.06f, bodyB, stroke, ink);
 
     // Two thumbsticks, which is the other half of what says gamepad.
     StrokeCircle (painter, cx - w * 0.20f, stickY, stickR, stroke, ink);

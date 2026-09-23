@@ -60,11 +60,11 @@ public:
 
 
 
-        painter.FillCircleApprox (kSizePx, kSizePx, kSizePx, 0xFFFFFFFF);
-        Assert::AreEqual (kVerticesPerQuad, painter.GetPendingVertexCount(), L"FillCircleApprox");
+        painter.FillCircle (kSizePx, kSizePx, kSizePx, 0xFFFFFFFF);
+        Assert::AreEqual (kVerticesPerQuad, painter.GetPendingVertexCount(), L"FillCircle");
 
-        painter.FillEllipseApprox (kSizePx, kSizePx, kSizePx, kRadiusPx, 0xFFFFFFFF);
-        Assert::AreEqual (2 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"FillEllipseApprox");
+        painter.FillEllipse (kSizePx, kSizePx, kSizePx, kRadiusPx, 0xFFFFFFFF);
+        Assert::AreEqual (2 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"FillEllipse");
 
         painter.FillRoundedRect (0.0f, 0.0f, kSizePx, kSizePx, kRadiusPx, 0xFFFFFFFF);
         Assert::AreEqual (3 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"FillRoundedRect");
@@ -72,8 +72,8 @@ public:
         painter.OutlineRoundedRect (0.0f, 0.0f, kSizePx, kSizePx, kRadiusPx, 1.0f, 0xFFFFFFFF);
         Assert::AreEqual (4 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"OutlineRoundedRect");
 
-        painter.DrawLineApprox (0.0f, 0.0f, kSizePx, kSizePx, 1.0f, 0xFFFFFFFF);
-        Assert::AreEqual (5 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"DrawLineApprox");
+        painter.DrawLine (0.0f, 0.0f, kSizePx, kSizePx, 1.0f, 0xFFFFFFFF);
+        Assert::AreEqual (5 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"DrawLine");
 
         painter.FillConvexQuad (0.0f, 0.0f, kSizePx, 0.0f, kSizePx, kSizePx, 0.0f, kRadiusPx, 0xFFFFFFFF);
         Assert::AreEqual (6 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"FillConvexQuad");
