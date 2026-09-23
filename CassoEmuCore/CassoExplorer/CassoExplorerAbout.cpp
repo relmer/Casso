@@ -26,7 +26,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DialogTextRun> CassoExplorerAbout::GetBody (const DialogImage & icon)
+std::vector<DialogTextRun> CassoExplorerAbout::GetBody()
 {
     std::vector<DialogTextRun>  runs;
     std::wstring                repository = L"Casso on GitHub ";
@@ -39,8 +39,7 @@ std::vector<DialogTextRun> CassoExplorerAbout::GetBody (const DialogImage & icon
     runs.push_back ({ L"Version " VERSION_STRING });
     runs.push_back ({ L"Built " VERSION_BUILD_TIMESTAMP });
     runs.push_back ({ L"" });
-    runs.push_back (icon.rgba.empty() ? DialogTextRun { L"Casso's Apple II disk image explorer." }
-                                      : MakeLeadingRun (icon, L"Casso's Apple II disk image explorer."));
+    runs.push_back ({ L"An Apple II disk image explorer." });
     runs.push_back ({ L"" });
 
     repository += s_kchEmDash;
@@ -193,24 +192,20 @@ Error:
 
 void CassoExplorerAbout::Show (HWND owner, const IDxuiTheme * theme, HINSTANCE instance)
 {
-    static constexpr int                kWidthDip        = 480;
+    static constexpr int                kWidthDip        = 440;
     static constexpr int                kChromeHeightDip = 108;
     static constexpr int                kMaxHeightDip    = 760;
     std::unique_ptr<DialogBodyContent>  content          = std::make_unique<DialogBodyContent>();
     MessageDialog                       dialog;
     DxuiWindow::CreateParams            params;
-    DialogImage                         icon;
     DialogImage                         photo;
     HRESULT                             hr               = S_OK;
     int                                 result           = 0;
 
 
 
-    hr = LoadPicture (instance, IDR_CASSO_EXPLORER_PICTURE_PNG, kRowPictureDp, icon);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    content->SetRuns (GetBody (icon));
-    content->SetImagePlacement (DialogBodyContent::ImagePlacement::TrailingBeside);
+    content->SetRuns (GetBody());
+    content->SetImagePlacement (DialogBodyContent::ImagePlacement::CenteredAbove);
 
     hr = LoadPicture (instance, IDR_CASSO_EXPLORER_CASSOWARY_PNG, kHeaderPictureDp, photo);
 

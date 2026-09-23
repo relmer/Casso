@@ -2327,7 +2327,7 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body.push_back ({ L"Casso Emulator\nCopyright (C) by Robert Elmer"
                                   L"\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
-                                  L"\n\nAn Apple 2 family emulator.",
+                                  L"\n\nAn Apple II family emulator.",
                                   false, L"" });
 
             // Body runs flow at the body line height with no inter-run gap, so

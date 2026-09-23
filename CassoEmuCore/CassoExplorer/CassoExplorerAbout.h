@@ -25,10 +25,8 @@ class CassoExplorerAbout
 public:
     //  The three icons the body explains the name with. The body sets the
     //  size each is shown at; any left empty gives way to text.
-    //  The dialog's text, the links included. The icon leads the line that
-    //  says what the application is; an icon that failed to load leaves the
-    //  line as text alone.
-    static std::vector<DialogTextRun>  GetBody (const DialogImage & icon);
+    //  The dialog's text, the links included.
+    static std::vector<DialogTextRun>  GetBody ();
 
     //  Decodes one embedded PNG for the dialog, to be shown at displayDp.
     static HRESULT  LoadPicture (HINSTANCE instance, int resourceId, float displayDp, DialogImage & outImage);

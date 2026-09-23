@@ -37,7 +37,7 @@ public:
 
     TEST_METHOD (Body_StampsTheVersionAndDescribesTheApp)
     {
-        std::vector<DialogTextRun>  runs      = CassoExplorerAbout::GetBody ({});
+        std::vector<DialogTextRun>  runs      = CassoExplorerAbout::GetBody();
         bool                        copyright = false;
         bool                        version   = false;
         bool                        built     = false;
@@ -48,7 +48,7 @@ public:
             copyright = copyright || run.text.find (L"Copyright (C) by Robert Elmer") != std::wstring::npos;
             version   = version   || run.text.find (L"Version ") == 0;
             built     = built     || run.text.find (L"Built ")   == 0;
-            described = described || run.text == L"Casso's Apple II disk image explorer.";
+            described = described || run.text == L"An Apple II disk image explorer.";
         }
 
         Assert::IsTrue (copyright);
@@ -60,7 +60,7 @@ public:
 
     TEST_METHOD (Body_CarriesTheSameLinksCassoDoes)
     {
-        std::vector<DialogTextRun>  runs  = CassoExplorerAbout::GetBody ({});
+        std::vector<DialogTextRun>  runs  = CassoExplorerAbout::GetBody();
         std::vector<std::wstring>   urls;
 
         for (const DialogTextRun & run : runs)
