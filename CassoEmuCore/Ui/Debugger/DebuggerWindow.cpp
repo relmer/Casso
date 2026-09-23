@@ -2294,13 +2294,38 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             }
         } });
     }
-    else if (list == m_watchList && row >= 0 && row < (int) s.watches.size())
+    else if (list == m_watchList && row >= 0 && row < (int) m_watchRows.size())
     {
-        const DebuggerViewSnapshot::WatchLine  watch = s.watches[(size_t) row];
+        //  The row map says what the row is: the pane mixes headings,
+        //  automatic watches and the user's own, so a row number is not an
+        //  index into any one of them.
+        const WatchRow  what = m_watchRows[(size_t) row];
 
-        AddShowInMemory (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
-        items.push_back ({ L"Remove",         [this, watch] { RunCommand (std::format ("WC {}", watch.id)); } });
-        items.push_back ({ L"Copy",           copy });
+        if (what.kind == WatchRowKind::Manual)
+        {
+            auto  found = std::find_if (s.watches.begin(), s.watches.end(),
+                                        [&what] (const DebuggerViewSnapshot::WatchLine & w) { return w.id == what.index; });
+
+            if (found != s.watches.end())
+            {
+                const DebuggerViewSnapshot::WatchLine  watch = *found;
+
+                AddShowInMemory (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
+                items.push_back ({ L"Remove", [this, watch] { RunCommand (std::format ("WC {}", watch.id)); } });
+            }
+        }
+        else if (what.kind == WatchRowKind::Automatic && what.index < (int) s.autoWatches.size() &&
+                 s.autoWatches[(size_t) what.index].key.starts_with ("M:"))
+        {
+            std::string  hex = s.autoWatches[(size_t) what.index].key.substr (2);
+
+            AddShowInMemory (L"$" + Widen (hex), hex, items);
+        }
+
+        if (what.kind != WatchRowKind::Heading)
+        {
+            items.push_back ({ L"Copy", copy });
+        }
     }
     else if (list == m_stackList && row >= 0 && row < (int) s.stack.size())
     {
@@ -2611,8 +2636,39 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
-    //  A watch whose value changed since the last stop is drawn in the
-    //  changed color (FR-098).
+    //  What the instruction at the PC and the one just executed touch, then
+    //  the watches the user added, each section under a heading of its own
+    //  (FR-095). A value that changed since the last stop is drawn in the
+    //  changed color (FR-098); one the instruction touched and left as it was
+    //  is shown plainly, since it was still an input or an output.
+    m_watchRows.clear();
+
+    if (!m_snapshot->autoWatches.empty())
+    {
+        rows.push_back (MakeWatchHeading (L"Automatic"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+
+        for (size_t i = 0; i < m_snapshot->autoWatches.size(); i++)
+        {
+            const DebuggerViewSnapshot::AutoWatchLine & line  = m_snapshot->autoWatches[i];
+            DxuiListView::Cell                          name  = { Widen (line.label) };
+            DxuiListView::Cell                          value = { Widen (line.value) };
+
+            name.dim = line.isPrevious;
+
+            if (m_stopChanges.IsChanged ("A:" + line.key))
+            {
+                value.argb = GetChangedArgb();
+            }
+
+            rows.push_back ({ name, value });
+            m_watchRows.push_back ({ WatchRowKind::Automatic, (int) i });
+        }
+
+        rows.push_back (MakeWatchHeading (L"Watches"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+    }
+
     for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
     {
         DxuiListView::Cell  value = { Widen (watch.value) };
@@ -2623,6 +2679,7 @@ void DebuggerWindow::ApplySnapshot()
         }
 
         rows.push_back ({ { std::format (L"#{} ${:04X}", watch.id, watch.address) }, value });
+        m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
     }
 
     m_watchList->SetRows (std::move (rows));
@@ -2650,6 +2707,33 @@ void DebuggerWindow::ApplySnapshot()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::MakeWatchHeading
+//
+//  A row that divides the watch pane rather than holding a watch: its title
+//  in the heading color, on the fill that marks a whole row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Cell> DebuggerWindow::MakeWatchHeading (const std::wstring & title) const
+{
+    DxuiListView::Cell  label = { title };
+    DxuiListView::Cell  blank = { L"" };
+
+
+
+    label.argb       = m_theme->HeadingForeground();
+    label.background = m_theme->HoverBackground();
+    blank.background = m_theme->HoverBackground();
+
+    return { label, blank };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::UpdateChanges
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2668,6 +2752,11 @@ void DebuggerWindow::UpdateChanges()
     for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
     {
         values[std::format ("W:{}", watch.id)] = watch.value;
+    }
+
+    for (const DebuggerViewSnapshot::AutoWatchLine & line : m_snapshot->autoWatches)
+    {
+        values["A:" + line.key] = line.value;
     }
 
     m_stopChanges.Update (m_snapshot->isPaused, std::move (values));

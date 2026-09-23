@@ -106,6 +106,21 @@ struct DebuggerViewSnapshot
         std::string  value;
     };
 
+    //  One thing the instruction at the PC, or the one just executed, reads or
+    //  writes (FR-095): what it is, and what it holds now. `key` is stable
+    //  across stops, for the changed highlight.
+    struct AutoWatchLine
+    {
+        std::string  key;
+        std::string  label;
+        std::string  value;
+        bool         isRead  = false;
+        bool         isWrite = false;
+
+        //  Only the instruction that ran before this stop touched it.
+        bool         isPrevious = false;
+    };
+
     //  The loaded debug file, as the source pane needs it.
     struct SourceState
     {
@@ -161,6 +176,7 @@ struct DebuggerViewSnapshot
     CallStackData                         callStack;
     std::vector<BreakpointLine>           breakpoints;
     std::vector<WatchLine>                watches;
+    std::vector<AutoWatchLine>            autoWatches;
     std::optional<SourceState>            source;
     TraceState                            trace;
 
@@ -403,6 +419,11 @@ private:
     //  anchor that puts the PC in the middle.
     Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
+    void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
+    static void  AddAutoWatches   (DebugSession & session, const InstructionTouches::Result & touches,
+                                   const Cpu6502Registers & now, bool isPrevious,
+                                   std::vector<DebuggerViewSnapshot::AutoWatchLine> & lines);
 
     //  An address to disassemble from so that `pc` lands `before` lines in,
     //  or `pc` itself when no such address is found. The 6502 cannot be
@@ -438,6 +459,25 @@ private:
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
+
+    //  The instruction at the last stop and where it would leave the
+    //  machine. At the next stop, if the registers are exactly that, it IS
+    //  the instruction that just ran -- a step -- and its touches are shown
+    //  as the previous instruction's. After a free run they are not, and it
+    //  is left out rather than shown for an instruction that did not just run.
+    //
+    //  A paused machine rebuilds on every click, so the stop is recognized by
+    //  its registers: the same registers are the same stop, and what was
+    //  worked out on arriving there stands.
+    struct LastStop
+    {
+        Cpu6502Registers                           at       = {};
+        InstructionTouches::Result                 here;
+        std::optional<InstructionTouches::Result>  previous;
+        bool                                       isValid  = false;
+    };
+
+    mutable LastStop  m_lastStop;
 
     //  Mutable so a build can close the panel of a device that has left.
     mutable std::set<std::string>  m_openPanels;

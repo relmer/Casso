@@ -1296,7 +1296,14 @@ confirm it disables without being removed.
   divided by a separator. Automatic watches MUST be every register, memory
   address and individual flag read or written by the instruction at the
   current PC and by the instruction at the previous PC. An automatic watch's
-  expression MUST NOT be editable; its value MUST be.
+  expression MUST NOT be editable; its value MUST be. What an instruction
+  touches is a property of the instruction, not of the values: `AND #$00`
+  reads A though the answer is 0 whatever A held, and a flag an instruction
+  writes is listed whether or not it moved. Only the highlight asks whether
+  a value changed. The previous instruction is the one that just ran, known
+  only when the stop is exactly where it would have left the machine -- a
+  step; after a free run it is left out rather than shown for an
+  instruction that did not just run.
 - **FR-096**: A manual watch MUST edit in place: double-clicking its expression
   replaces the expression with what is typed, and double-clicking its value
   writes what is typed to the watched address. A manual watch MUST be

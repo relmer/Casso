@@ -318,7 +318,14 @@ private:
 
     //  An entry without a glyph is its label alone: it spends no room on an
     //  icon, never collapses to one, and as a drop-down shows a chevron.
-    static bool  HasGlyph (const Slot & slot) { return slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0; }
+    //  An icon of either kind: a glyph from the icon font, or a drawn one.
+    //  Layout reserves the icon's room from this, so a drawn icon that did
+    //  not count would be painted over its own label.
+    static bool  HasGlyph (const Slot & slot)
+    {
+        return static_cast<bool> (slot.entry.icon) ||
+               (slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0);
+    }
 
     static constexpr int  kChevronDp = 8;
 

@@ -175,6 +175,7 @@ private:
     void     LayoutWidgets    ();
     void     ApplySnapshot    ();
     void     UpdateChanges    ();
+    std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
@@ -289,6 +290,19 @@ private:
     std::string                             m_menuState;
     uint32_t                                m_goToSerial         = 0;
     StopChanges                             m_stopChanges;
+
+    //  What each row of the watch pane is, since the list mixes headings,
+    //  automatic watches and the user's own: an automatic row carries its
+    //  index into the snapshot, a manual one its watch id.
+    enum class WatchRowKind { Heading, Automatic, Manual };
+
+    struct WatchRow
+    {
+        WatchRowKind  kind  = WatchRowKind::Heading;
+        int           index = 0;
+    };
+
+    std::vector<WatchRow>                   m_watchRows;
     float                                   m_textZoom           = 1.0f;
     DxuiTooltip                             m_tooltip;
     std::shared_ptr<const DxuiIconImage>    m_breakpointIcons[2];

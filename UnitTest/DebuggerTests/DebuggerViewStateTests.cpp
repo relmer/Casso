@@ -434,6 +434,72 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (TheAutomaticWatchesAreTheCurrentAndTheJustExecutedInstructions)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r      = target.GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+            auto                  find   = [&snapshot] (const char * key) -> const DebuggerViewSnapshot::AutoWatchLine *
+            {
+                for (const DebuggerViewSnapshot::AutoWatchLine & line : snapshot.autoWatches)
+                {
+                    if (line.key == key)
+                    {
+                        return &line;
+                    }
+                }
+
+                return nullptr;
+            };
+
+
+
+            //  LDX #$05, then STA $0400,X.
+            (void) target.TryPoke (0x0300, 0xA2);
+            (void) target.TryPoke (0x0301, 0x05);
+            (void) target.TryPoke (0x0302, 0x9D);
+            (void) target.TryPoke (0x0303, 0x00);
+            (void) target.TryPoke (0x0304, 0x04);
+
+            r.pc = 0x0300;
+            r.a  = 0x42;
+            target.SetRegisters (r);
+
+            snapshot = rig.view.Build (rig.controller.GetSession(), true);
+
+            Assert::IsNotNull (find ("R:X"), L"LDX writes X");
+            Assert::IsNotNull (find ("F:Z"), L"and Z");
+            Assert::IsNull    (find ("R:A"), L"and has nothing to do with A");
+
+            //  One step: the previous instruction is known, and what it
+            //  touched shows below what the current one touches.
+            rig.machine.StepOne();
+            snapshot = rig.view.Build (rig.controller.GetSession(), true);
+
+            Assert::IsNotNull (find ("R:A"),    L"STA reads A");
+            Assert::IsNotNull (find ("M:0405"), L"and writes $0400 + X");
+            Assert::IsNotNull (find ("R:X"),    L"X indexes it");
+            Assert::IsFalse   (find ("R:X")->isPrevious, L"X is listed once, for the current instruction");
+            Assert::IsTrue    (find ("F:Z") != nullptr && find ("F:Z")->isPrevious, L"Z only the previous one wrote");
+
+            //  The same stop rebuilt, as every click does, keeps the previous.
+            snapshot = rig.view.Build (rig.controller.GetSession(), true);
+            Assert::IsTrue (find ("F:Z") != nullptr, L"a rebuild at the same stop keeps the previous instruction");
+
+            //  After anything that is not a step, the previous instruction is
+            //  unknown and is left out rather than shown for the wrong one.
+            r    = target.GetRegisters();
+            r.pc = 0x0300;
+            target.SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession(), true);
+
+            Assert::IsTrue (std::none_of (snapshot.autoWatches.begin(), snapshot.autoWatches.end(),
+                                          [] (const DebuggerViewSnapshot::AutoWatchLine & line) { return line.isPrevious; }),
+                            L"not a step: no previous instruction");
+        }
+
+
         TEST_METHOD (TheInstructionTouchesAreWhatTheInstructionTouches)
         {
             using Kind = InstructionTouches::Kind;

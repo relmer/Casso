@@ -175,11 +175,163 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
         }
     }
 
+    if (isPaused)
+    {
+        BuildAutoWatches (session, snapshot);
+    }
+
     BuildSource (session, snapshot);
     BuildTrace  (session, snapshot);
     BuildPanels (session, snapshot);
 
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildAutoWatches
+//
+//  What the instruction at the PC touches, then what the one just executed
+//  touched that this one does not (FR-095). Both come from InstructionTouches,
+//  the same account the code pane annotates from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    const Cpu6502Registers  & now    = session.GetTarget().GetRegisters();
+    Reply                     code   = session.ExecuteLine (std::format ("U {:04X}", now.pc), CommandMode::AppleWin);
+    Word                        length  = 1;
+    InstructionTouches::Result  current;
+
+
+
+    if (const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data); data != nullptr && !data->lines.empty())
+    {
+        length = (Word) data->lines[0].instruction.bytes.size();
+    }
+
+    current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
+
+    AddAutoWatches (session, current, now, false, snapshot.autoWatches);
+
+    //  A new stop. The instruction that just ran is known only when this stop
+    //  is exactly where the last one's instruction would have left the
+    //  machine, which is what a step looks like; after a free run it is not
+    //  known, and is left out rather than shown for the wrong instruction.
+    if (!m_lastStop.isValid || !IsSameRegisters (m_lastStop.at, now))
+    {
+        bool  isStep = m_lastStop.isValid && m_lastStop.here.isKnown && IsSameRegisters (m_lastStop.here.after, now);
+
+        m_lastStop.previous = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
+        m_lastStop.here     = current;
+        m_lastStop.at       = now;
+        m_lastStop.isValid  = true;
+    }
+
+    if (m_lastStop.previous.has_value())
+    {
+        AddAutoWatches (session, *m_lastStop.previous, now, true, snapshot.autoWatches);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::IsSameRegisters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsSameRegisters (const Cpu6502Registers & left, const Cpu6502Registers & right)
+{
+    return left.pc == right.pc && left.a == right.a && left.x == right.x &&
+           left.y  == right.y  && left.sp == right.sp && left.p == right.p;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::AddAutoWatches
+//
+//  Each register, flag and address the instruction touches, with what it holds
+//  NOW. Something already listed for the current instruction is not listed
+//  again for the previous one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::AddAutoWatches (DebugSession & session, const InstructionTouches::Result & touches,
+                                        const Cpu6502Registers & now, bool isPrevious,
+                                        std::vector<DebuggerViewSnapshot::AutoWatchLine> & lines)
+{
+    static constexpr std::pair<char, Byte>  kFlagBits[] =
+    {
+        { 'C', 0x01 }, { 'Z', 0x02 }, { 'I', 0x04 }, { 'D', 0x08 }, { 'V', 0x40 }, { 'N', 0x80 },
+    };
+
+
+
+    for (const InstructionTouches::Item & item : touches.items)
+    {
+        DebuggerViewSnapshot::AutoWatchLine  line;
+        std::string                          symbol;
+        SymbolTableId                        table = SymbolTableId::Main;
+        Byte                                 value = 0;
+
+
+
+        line.isRead     = item.isRead;
+        line.isWrite    = item.isWrite;
+        line.isPrevious = isPrevious;
+
+        if (item.kind == InstructionTouches::Kind::Register)
+        {
+            Byte  held = (item.name == "A") ? now.a : (item.name == "X") ? now.x : (item.name == "Y") ? now.y : now.sp;
+
+            line.key   = "R:" + item.name;
+            line.label = item.name;
+            line.value = std::format ("{:02X}", held);
+        }
+        else if (item.kind == InstructionTouches::Kind::Flag)
+        {
+            line.key   = "F:" + item.name;
+            line.label = item.name;
+
+            for (const auto & [letter, bit] : kFlagBits)
+            {
+                if (item.name[0] == letter)
+                {
+                    line.value = (now.p & bit) ? "1" : "0";
+                }
+            }
+        }
+        else
+        {
+            session.GetSymbols().TryFindName (item.address, symbol, table);
+
+            line.key   = std::format ("M:{:04X}", item.address);
+            line.label = symbol.empty() ? std::format ("${:04X}", item.address) : std::format ("{} ${:04X}", symbol, item.address);
+
+            //  A soft switch has no value to read without operating it.
+            line.value = (session.GetTarget().GetRegion (item.address) == MemoryRegion::Io || !session.TryPeek (item.address, value))
+                         ? std::string ("--") : std::format ("{:02X}", value);
+        }
+
+        if (std::none_of (lines.begin(), lines.end(),
+                          [&line] (const DebuggerViewSnapshot::AutoWatchLine & other) { return other.key == line.key; }))
+        {
+            lines.push_back (std::move (line));
+        }
+    }
 }
 
 
