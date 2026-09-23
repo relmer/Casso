@@ -176,6 +176,9 @@ private:
     void     ApplySnapshot    ();
     void     UpdateChanges    ();
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
+    void     BeginWatchEdit   (int row, int column);
+    void     EndWatchEdit     (bool commit);
+    void     RemoveSelectedWatch ();
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
@@ -303,6 +306,20 @@ private:
     };
 
     std::vector<WatchRow>                   m_watchRows;
+
+    //  Editing a watch in place (FR-096): a box laid over the cell, as Visual
+    //  Studio's watch window opens one. Column 0 is the expression, 1 the
+    //  value; an automatic watch's expression is not editable.
+    struct WatchEdit
+    {
+        int       row    = -1;
+        int       column = 0;
+        WatchRow  what;
+    };
+
+    DxuiTextInput                         * m_watchEditor        = nullptr;
+    WatchEdit                               m_watchEdit;
+    POINT                                   m_lastPressPx        = {};
     float                                   m_textZoom           = 1.0f;
     DxuiTooltip                             m_tooltip;
     std::shared_ptr<const DxuiIconImage>    m_breakpointIcons[2];

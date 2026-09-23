@@ -434,6 +434,46 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (AWatchEditBecomesTheCommandAnyoneCouldHaveTyped)
+        {
+            DebuggerViewSnapshot  snapshot;
+            auto                  lines = [&snapshot] (std::optional<int> id, std::optional<int> index, int column, const char * typed)
+            {
+                std::vector<std::string>  got = DebuggerViewState::GetWatchEditLines (snapshot, id, index, column, typed);
+                std::string               all;
+
+                for (const std::string & line : got)
+                {
+                    all += (all.empty() ? "" : " | ") + line;
+                }
+
+                return all;
+            };
+
+
+
+            snapshot.registers   = { { "A", "10" }, { "P", "24" } };
+            snapshot.watches     = { { 3, 0x0400, "1234" } };
+            snapshot.autoWatches = { { "R:A", "A", "10" }, { "F:C", "C", "0" }, { "M:0402", "$0402", "7F" } };
+
+            //  A manual watch: the expression moves it, the value writes the
+            //  word it watches.
+            Assert::AreEqual (std::string ("WC 3 | W 0500"),  lines (3, std::nullopt, 0, "0500"));
+            Assert::AreEqual (std::string ("MEW 0400 BEEF"),  lines (3, std::nullopt, 1, " BEEF "), L"typed space is not part of it");
+
+            //  An automatic watch writes what it stands for.
+            Assert::AreEqual (std::string ("R A 42"),         lines (std::nullopt, 0, 1, "42"));
+            Assert::AreEqual (std::string ("R P 25"),         lines (std::nullopt, 1, 1, "1"),  L"carry set in P $24");
+            Assert::AreEqual (std::string ("MEB 0402 99"),    lines (std::nullopt, 2, 1, "99"));
+
+            //  And what cannot be written sends nothing.
+            Assert::AreEqual (std::string(), lines (std::nullopt, 0, 0, "X"),  L"an automatic watch's expression is not the user's");
+            Assert::AreEqual (std::string(), lines (std::nullopt, 1, 1, "7"),  L"a flag is 0 or 1");
+            Assert::AreEqual (std::string(), lines (3, std::nullopt, 1, "  "), L"nothing typed");
+            Assert::AreEqual (std::string(), lines (9, std::nullopt, 1, "12"), L"a watch that is gone");
+        }
+
+
         TEST_METHOD (TheAutomaticWatchesAreTheCurrentAndTheJustExecutedInstructions)
         {
             MachineRig            rig;

@@ -838,6 +838,103 @@ std::string DebuggerViewState::GetPokeLine (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetWatchEditLines
+//
+//  Each edit becomes the command anyone could have typed, so it lands in the
+//  console and the session's history like one:
+//
+//    manual watch, expression   the watch moved to the new address
+//    manual watch, value        the word written to the watched address
+//    automatic register         R <register> <value>
+//    automatic flag             R P with that one bit set or cleared
+//    automatic address          the byte written there
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebuggerViewState::GetWatchEditLines (const DebuggerViewSnapshot & snapshot,
+                                                              std::optional<int> watchId, std::optional<int> autoIndex,
+                                                              int column, const std::string & typed)
+{
+    static constexpr std::pair<char, Byte>  kFlagBits[] =
+    {
+        { 'C', 0x01 }, { 'Z', 0x02 }, { 'I', 0x04 }, { 'D', 0x08 }, { 'V', 0x40 }, { 'N', 0x80 },
+    };
+    std::string  text = typed;
+    std::string  key;
+
+
+
+    while (!text.empty() && isspace ((unsigned char) text.back()))  { text.pop_back(); }
+    while (!text.empty() && isspace ((unsigned char) text.front())) { text.erase (0, 1); }
+
+    if (text.empty())
+    {
+        return {};
+    }
+
+    if (watchId.has_value())
+    {
+        for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
+        {
+            if (watch.id == *watchId)
+            {
+                return (column == 0) ? std::vector<std::string> { std::format ("WC {}", watch.id), std::format ("W {}", text) }
+                                     : std::vector<std::string> { std::format ("MEW {:04X} {}", watch.address, text) };
+            }
+        }
+
+        return {};
+    }
+
+    if (!autoIndex.has_value() || *autoIndex < 0 || *autoIndex >= (int) snapshot.autoWatches.size() || column == 0)
+    {
+        return {};
+    }
+
+    key = snapshot.autoWatches[(size_t) *autoIndex].key;
+
+    if (key.starts_with ("R:"))
+    {
+        return { std::format ("R {} {}", key.substr (2), text) };
+    }
+
+    if (key.starts_with ("M:"))
+    {
+        return { std::format ("MEB {} {}", key.substr (2), text) };
+    }
+
+    //  A flag is 0 or 1 and nothing else; it is written as the whole status
+    //  register with that one bit changed.
+    if (key.starts_with ("F:") && (text == "0" || text == "1"))
+    {
+        for (const DebuggerViewSnapshot::RegisterRow & reg : snapshot.registers)
+        {
+            unsigned  p = 0;
+
+            if (reg.name != "P" || std::from_chars (reg.value.data(), reg.value.data() + reg.value.size(), p, 16).ec != std::errc())
+            {
+                continue;
+            }
+
+            for (const auto & [letter, bit] : kFlagBits)
+            {
+                if (key[2] == letter)
+                {
+                    return { std::format ("R P {:02X}", (text == "1") ? (Byte) (p | bit) : (Byte) (p & ~bit)) };
+                }
+            }
+        }
+    }
+
+    return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetRunToCursorLine
 //
 ////////////////////////////////////////////////////////////////////////////////

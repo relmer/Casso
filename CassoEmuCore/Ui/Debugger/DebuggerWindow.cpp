@@ -254,6 +254,13 @@ void DebuggerWindow::OnCreate()
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
 
+    //  After even the site, so a watch being edited is drawn over its row.
+    m_watchEditor = CreateChild<DxuiTextInput>();
+    m_watchEditor->SetVisible      (false);
+    m_watchEditor->SetOverText     (true);
+    m_watchEditor->SetHwnd         (GetHwnd());
+    m_watchEditor->SetMaxLength    (64);
+
     ConfigureWidgets();
     ConfigureDockSite();
 }
@@ -314,6 +321,23 @@ void DebuggerWindow::ConfigureWidgets()
     m_breakpointList->SetActivateOnDoubleClick (true);
     m_registerList->SetActivateOnDoubleClick   (true);
     m_stackList->SetActivateOnDoubleClick      (true);
+    m_watchList->SetActivateOnDoubleClick      (true);
+
+    //  Double-clicking a watch edits the cell under the pointer in place: the
+    //  expression on the left, the value on the right (FR-096).
+    m_watchList->SetOnActivateRow ([this] (int row)
+    {
+        RECT  value  = {};
+        RECT  list   = m_watchList->GetBounds();
+        int   column = 0;
+
+        if (m_watchList->GetCellTextRectPx (row, 1, value))
+        {
+            column = (m_lastPressPx.x - list.left >= value.left) ? 1 : 0;
+        }
+
+        BeginWatchEdit (row, column);
+    });
 
     //  Double-clicking a stack byte shows it in memory. The pane lists the
     //  stack newest first, so its rows run backwards through STACK's.
@@ -2734,6 +2758,149 @@ std::vector<DxuiListView::Cell> DebuggerWindow::MakeWatchHeading (const std::wst
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::BeginWatchEdit
+//
+//  A box over the cell, holding what the cell shows, all of it selected so
+//  typing replaces it -- as Visual Studio's watch window opens one. A heading
+//  edits nothing, and an automatic watch's expression is what the
+//  instruction touches, so only its value edits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BeginWatchEdit (int row, int column)
+{
+    RECT          cell = {};
+    RECT          list = m_watchList->GetBounds();
+    WatchRow      what;
+    std::wstring  text;
+
+
+
+    if (m_snapshot == nullptr || row < 0 || row >= (int) m_watchRows.size())
+    {
+        return;
+    }
+
+    what = m_watchRows[(size_t) row];
+
+    if (what.kind == WatchRowKind::Heading || (what.kind == WatchRowKind::Automatic && column == 0))
+    {
+        return;
+    }
+
+    if (!m_watchList->GetCellTextRectPx (row, (size_t) column, cell))
+    {
+        return;
+    }
+
+    if (what.kind == WatchRowKind::Automatic)
+    {
+        text = Widen (m_snapshot->autoWatches[(size_t) what.index].value);
+    }
+    else
+    {
+        for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
+        {
+            if (watch.id == what.index)
+            {
+                text = (column == 0) ? std::format (L"{:04X}", watch.address) : Widen (watch.value);
+            }
+        }
+    }
+
+    OffsetRect (&cell, list.left, list.top);
+
+    m_watchEdit = WatchEdit { row, column, what };
+
+    //  In the list's own face and size, so the text does not jump when the
+    //  box opens over it.
+    m_watchEditor->SetTextRenderer (GetTextRenderer());
+    m_watchEditor->SetFont         (DxuiTheme::kMonoFace, m_watchList->GetFontSizeDip());
+    m_watchEditor->SetText    (text);
+    m_watchEditor->Layout     (cell, m_scaler);
+    m_watchEditor->SetVisible (true);
+    m_focusMgr.SetFocused     (m_watchEditor);
+    m_watchEditor->SelectAll();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EndWatchEdit
+//
+//  Enter keeps what was typed, Escape leaves the watch as it was, and a
+//  click anywhere else keeps it, as a click away from a rename does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EndWatchEdit (bool commit)
+{
+    std::wstring              typed = m_watchEditor->GetText();
+    std::vector<std::string>  lines;
+
+
+
+    if (m_watchEdit.row < 0)
+    {
+        return;
+    }
+
+    if (commit && m_snapshot != nullptr)
+    {
+        bool  isManual = m_watchEdit.what.kind == WatchRowKind::Manual;
+
+        lines = DebuggerViewState::GetWatchEditLines (*m_snapshot,
+                                                      isManual ? std::optional<int> (m_watchEdit.what.index) : std::nullopt,
+                                                      isManual ? std::nullopt : std::optional<int> (m_watchEdit.what.index),
+                                                      m_watchEdit.column, TextEncoding::WideToNarrow (typed));
+    }
+
+    m_watchEdit = WatchEdit {};
+    m_watchEditor->SetVisible (false);
+    m_focusMgr.SetFocused     (m_watchList);
+    Invalidate();
+
+    for (const std::string & line : lines)
+    {
+        RunCommand (line);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RemoveSelectedWatch
+//
+//  Delete on a manual watch removes it (FR-096). Automatic watches come and
+//  go with the instruction, so there is nothing of theirs to remove.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RemoveSelectedWatch()
+{
+    int  row = m_watchList->GetSelectedRow();
+
+
+
+    if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
+    {
+        RunCommand (std::format ("WC {}", m_watchRows[(size_t) row].index));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::UpdateChanges
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3852,6 +4019,30 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        m_lastPressPx = POINT { x, y };
+    }
+
+    //  A watch being edited takes the pointer while it is over the box; a
+    //  press or a wheel anywhere else keeps the edit and lets it through.
+    if (m_watchEdit.row >= 0)
+    {
+        RECT  box = m_watchEditor->GetBounds();
+
+        if (DxuiDockSite::Contains (box, POINT { x, y }))
+        {
+            m_watchEditor->OnMouse (ev);
+            Invalidate();
+            return true;
+        }
+
+        if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
+        {
+            EndWatchEdit (true);
+        }
+    }
+
     //  Ctrl+wheel sizes the panes' text as Ctrl+Plus and Ctrl+Minus do, over
     //  any pane, before a view that would take the wheel for itself.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
@@ -4958,6 +5149,40 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     bool            handled = false;
 
 
+
+    //  A watch being edited takes every key: Enter keeps what was typed,
+    //  Escape leaves the watch as it was.
+    if (m_watchEdit.row >= 0)
+    {
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
+        {
+            EndWatchEdit (ev.vk == VK_RETURN);
+        }
+        else
+        {
+            m_watchEditor->OnKey (ev);
+        }
+
+        Invalidate();
+        return true;
+    }
+
+    //  Delete removes a manual watch; F2 edits the selected one's value, as
+    //  it does in Visual Studio's watch window.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && !ev.ctrl && !ev.alt)
+    {
+        if (ev.vk == VK_DELETE)
+        {
+            RemoveSelectedWatch();
+            return true;
+        }
+
+        if (ev.vk == VK_F2)
+        {
+            BeginWatchEdit (m_watchList->GetSelectedRow(), 1);
+            return true;
+        }
+    }
 
     if (RouteBoxKey (ev, handled))
     {

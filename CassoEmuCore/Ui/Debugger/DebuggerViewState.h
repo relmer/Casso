@@ -329,6 +329,15 @@ public:
     //  The command a control stands for.
     static std::string  GetToggleBreakpointLine (const DebuggerViewSnapshot & snapshot, Word address);
     static std::string  GetPokeLine             (Word address, Byte value);
+
+    //  The commands a finished watch edit sends (FR-096). `watchId` picks a
+    //  manual watch and `autoIndex` an automatic one; exactly one is set.
+    //  Column 0 is the expression, 1 the value. Empty for text that says
+    //  nothing writable, or an edit that is not allowed -- an automatic
+    //  watch's expression is what the instruction touches, not the user's.
+    static std::vector<std::string>  GetWatchEditLines (const DebuggerViewSnapshot & snapshot,
+                                                        std::optional<int> watchId, std::optional<int> autoIndex,
+                                                        int column, const std::string & typed);
     static std::string  GetStepLine             ()             { return "T"; }
     static std::string  GetStepOverLine         ()             { return "P"; }
     static std::string  GetStepOutLine          ()             { return "RTS"; }
