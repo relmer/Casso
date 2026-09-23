@@ -104,6 +104,12 @@ public:
 
 
 
+    static bool Offers (const std::vector<CassoExplorerActions::Verb> & verbs, CassoExplorerActions::Verb verb)
+    {
+        return std::find (verbs.begin(), verbs.end(), verb) != verbs.end();
+    }
+
+
     static std::vector<Byte> Bytes (const char * text)
     {
         return std::vector<Byte> (text, text + strlen (text));
@@ -174,6 +180,48 @@ public:
         Assert::AreEqual (std::string ("PICTURE"), plan.catalogName, L"With no real name, the host name without .as");
         Assert::AreEqual ((int) ProDosVolume::kTypeBinary, (int) plan.payload.type);
         Assert::AreEqual ((int) 0x2000, (int) plan.payload.auxType);
+    }
+
+
+    TEST_METHOD (WriteProtected_OffersReadingButNotWriting)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        bool                                     readOnly = false;
+
+        AssertSucceeded (host.fs.SetReadOnlyAttribute (L"C:\\Disks\\dos33.dsk", true));
+        AssertSucceeded (host.fs.GetReadOnlyAttribute (L"C:\\Disks\\dos33.dsk", readOnly));
+        Assert::IsTrue  (readOnly, L"the fake file system must hold the attribute");
+
+        host.OpenImage();
+        Assert::IsTrue (host.browser.IsWriteProtected(), L"the browser reads it when the image loads");
+
+        host.browser.SetSelectedRows ({ 0 });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::IsTrue  (Offers (verbs, CassoExplorerActions::Verb::Get),    L"copying a file out reads only");
+        Assert::IsFalse (Offers (verbs, CassoExplorerActions::Verb::Delete), L"delete would write");
+        Assert::IsFalse (Offers (verbs, CassoExplorerActions::Verb::Rename), L"rename would write");
+        Assert::IsFalse (Offers (verbs, CassoExplorerActions::Verb::Put),    L"put would write");
+        Assert::IsFalse (Offers (verbs, CassoExplorerActions::Verb::Format), L"format would write");
+    }
+
+
+    TEST_METHOD (Writable_OffersTheWritingVerbs)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+
+        host.OpenImage();
+        Assert::IsFalse (host.browser.IsWriteProtected());
+
+        host.browser.SetSelectedRows ({ 0 });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::IsTrue (Offers (verbs, CassoExplorerActions::Verb::Delete));
+        Assert::IsTrue (Offers (verbs, CassoExplorerActions::Verb::Rename));
+        Assert::IsTrue (Offers (verbs, CassoExplorerActions::Verb::Put));
+        Assert::IsTrue (Offers (verbs, CassoExplorerActions::Verb::Format));
     }
 
 

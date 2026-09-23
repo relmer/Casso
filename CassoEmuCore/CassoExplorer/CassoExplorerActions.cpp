@@ -51,15 +51,21 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
 
     if (m_browser.IsImageLocation())
     {
+        bool  writable = !m_browser.IsWriteProtected();
+
         m_browser.GetSelectedEntries (entries);
 
         if (!entries.empty())
         {
             verbs.push_back (Verb::Get);
-            verbs.push_back (Verb::Delete);
+
+            if (writable)
+            {
+                verbs.push_back (Verb::Delete);
+            }
         }
 
-        if (entries.size() == 1)
+        if (entries.size() == 1 && writable)
         {
             verbs.push_back (Verb::Rename);
 
@@ -71,11 +77,14 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
             }
         }
 
-        verbs.push_back (Verb::Put);
+        if (writable)
+        {
+            verbs.push_back (Verb::Put);
+        }
 
         //  Formatting takes the whole disk, which is not what a subdirectory
         //  shows.
-        if (!nested)
+        if (!nested && writable)
         {
             verbs.push_back (Verb::Format);
         }

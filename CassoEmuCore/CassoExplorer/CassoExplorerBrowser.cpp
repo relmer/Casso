@@ -230,6 +230,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     m_listing      = VolumeListing();
     m_kind         = VolumeKind::Unknown;
     m_isImage      = false;
+    m_writeProtected = false;
     m_listError.clear();
     m_selectedRows.clear();
 
@@ -366,7 +367,8 @@ Error:
 HRESULT CassoExplorerBrowser::LoadImage (const std::wstring & path, const std::string & directory)
 {
     DiskOperations::Result  result;
-    bool                    cached = directory.empty() && m_model.TryGetCachedCatalog (path, m_listing, m_kind);
+    HRESULT                 hrReadOnly = S_OK;
+    bool                    cached     = directory.empty() && m_model.TryGetCachedCatalog (path, m_listing, m_kind);
 
 
 
@@ -390,6 +392,11 @@ HRESULT CassoExplorerBrowser::LoadImage (const std::wstring & path, const std::s
 
     m_isImage = true;
     CatalogModel::FromListing (m_listing, m_kind, m_rows);
+
+    //  A read-only file refuses every write the runner would make, so the
+    //  verbs that write are offered grayed rather than failing at the end.
+    hrReadOnly = m_fs.GetReadOnlyAttribute (path, m_writeProtected);
+    IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
 
     return S_OK;
 }

@@ -2488,8 +2488,9 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kRenameItem:        return IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kDeleteItems:       return IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kNew:               return !m_browser.IsImageLocation() ? m_browser.GetLocation().kind == Location::Kind::HostFolder
-                                                                                      : m_browser.GetVolumeKind() == VolumeKind::ProDos;
-        case CassoExplorerCommands::kNewFolder:         return !m_browser.IsImageLocation() || m_browser.GetVolumeKind() == VolumeKind::ProDos;
+                                                                                      : (m_browser.GetVolumeKind() == VolumeKind::ProDos && !m_browser.IsWriteProtected());
+        case CassoExplorerCommands::kNewFolder:         return !m_browser.IsImageLocation() ? true
+                                                                                      : (m_browser.GetVolumeKind() == VolumeKind::ProDos && !m_browser.IsWriteProtected());
         case CassoExplorerCommands::kNewDisk:           return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder;
         default:                                  return true;
     }

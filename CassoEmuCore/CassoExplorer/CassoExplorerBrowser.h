@@ -156,6 +156,11 @@ public:
     Location                         GetLocation   () const;
     VolumeKind                       GetVolumeKind () const { return m_kind; }
     bool                             IsImageLocation () const { return m_isImage; }
+
+    //  Whether the image shown is write-protected, read once when it loads:
+    //  the commands that would write to it ask on every repaint, which is too
+    //  often to hit the file system.
+    bool                             IsWriteProtected () const { return m_writeProtected; }
     const VolumeListing &            GetListing    () const { return m_listing; }
 
     //  The catalog entries behind the selected rows, in row order, when the
@@ -231,11 +236,12 @@ private:
     std::vector<TreeNode>               m_rootChildren;
     std::wstring                        m_rootId;
     VolumeListing                       m_listing;
-    VolumeKind                          m_kind         = VolumeKind::Unknown;
-    bool                                m_isImage      = false;
+    VolumeKind                          m_kind           = VolumeKind::Unknown;
+    bool                                m_isImage        = false;
+    bool                                m_writeProtected = false;
     std::vector<int>                    m_selectedRows;
     PreviewContent                      m_preview;
     std::wstring                        m_listError;
     Status                              m_status;
-    IShellIcons                       * m_shellIcons   = nullptr;
+    IShellIcons                       * m_shellIcons     = nullptr;
 };
