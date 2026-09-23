@@ -223,6 +223,7 @@
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
     <ClCompile Include="DebuggerTests\CallRecorderCostTests.cpp" />
     <ClCompile Include="DebuggerTests\ShadowCpuCostTests.cpp" />
+    <ClCompile Include="DebuggerTests\InstructionSemanticsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolDescriptionsTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsProviderTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsVisualsTests.cpp" />

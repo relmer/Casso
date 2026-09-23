@@ -1056,10 +1056,21 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
             row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
             //  Only while the machine is paused (FR-110): a running machine
             //  is somewhere else by the time these are drawn.
+            //
+            //  ONE RUN ANSWERS BOTH COLUMNS. What the instruction reads is
+            //  the left annotation and what it leaves is the right one, and
+            //  both come from the same trip through the core.
             if (snapshot.isPaused)
             {
-                row.annotation = GetAnnotation (session, line, session.GetTarget().GetRegisters());
-                row.effect     = row.isCurrent ? GetEffect (session, line, session.GetTarget().GetRegisters()) : std::string();
+                const Cpu6502Registers    & now     = session.GetTarget().GetRegisters();
+                InstructionTouches::Result  touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(),
+                                                                                now, line.instruction.address,
+                                                                                (Word) line.instruction.bytes.size());
+
+                row.annotation = GetAnnotation (session, line, now, touches);
+                row.effect     = row.isCurrent ? GetEffect (session, now, touches,
+                                                            (Word) (line.instruction.address + line.instruction.bytes.size()))
+                                               : std::string();
             }
 
             if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))
@@ -1545,94 +1556,97 @@ std::optional<Word> DebuggerViewState::GetReturnAddress (DebugSession & session)
 //
 //  DebuggerViewState::GetAnnotation
 //
-//  In the manner of AppleWin's and VICE's monitors: a branch shows the flag it
-//  tests, and an instruction that touches memory shows the address it would
-//  touch now and the byte there, `$067B=A0`. An indexed or indirect operand is
-//  resolved against the registers, so the address is the one the CPU would
-//  use. An I/O address shows no byte, since reading one changes the machine.
+//  What the instruction acts on, in the manner of AppleWin's and VICE's
+//  monitors: the registers and flags it reads, the address it would touch
+//  with the registers as they stand, and the byte there -- `X=02 $067B=A0
+//  C=1`.
+//
+//  EVERY PART OF THAT COMES FROM InstructionTouches, which asks the core
+//  itself. A branch shows the flag it tests, and a compare the register it
+//  compares, because running the instruction with that input changed lands
+//  it somewhere else -- not because a table here says so.
+//
+//  An I/O address shows what the switch does instead of a byte: the byte
+//  does not exist until a read happens, and that read operates the machine
+//  (FR-112).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DebuggerViewState::GetAnnotation (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers)
+std::string DebuggerViewState::GetAnnotation (DebugSession & session, const DisassemblyLine & line,
+                                              const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
 {
-    static const std::pair<const char *, std::pair<char, Byte>>  kBranches[] =
-    {
-        { "BCC", { 'C', 0x01 } }, { "BCS", { 'C', 0x01 } },
-        { "BNE", { 'Z', 0x02 } }, { "BEQ", { 'Z', 0x02 } },
-        { "BVC", { 'V', 0x40 } }, { "BVS", { 'V', 0x40 } },
-        { "BPL", { 'N', 0x80 } }, { "BMI", { 'N', 0x80 } },
-    };
-    static const std::pair<const char *, char>  kRegisterReads[] =
-    {
-        { "CMP", 'A' }, { "CPX", 'X' }, { "CPY", 'Y' },
-        { "AND", 'A' }, { "ORA", 'A' }, { "EOR", 'A' },
-        { "ADC", 'A' }, { "SBC", 'A' }, { "BIT", 'A' },
-    };
-    AccessPrediction  prediction;
-    HRESULT           hr     = S_OK;
-    Word              where  = 0;
-    Byte              value  = 0;
-    std::string       index;
+    std::string  registerText;
+    std::string  addressText;
+    std::string  flagText;
+    Byte         value = 0;
 
 
 
-    for (const auto & [mnemonic, flag] : kBranches)
+    for (const InstructionTouches::Item & item : touches.items)
     {
-        if (line.instruction.mnemonic == mnemonic)
+        if (!item.isRead)
         {
-            return std::format ("{}={}", flag.first, (registers.p & flag.second) ? 1 : 0);
+            continue;
         }
-    }
 
-    hr = EffectiveAddress::Predict (session.GetTarget().GetInstructionSet(), line.instruction.address, registers, session, prediction);
-
-    if (FAILED (hr) || prediction.touches.empty())
-    {
-        //  An instruction that touches no memory still reads a register, and
-        //  which register that is answers "compared with what?".
-        for (const auto & [mnemonic, reg] : kRegisterReads)
+        if (item.kind == InstructionTouches::Kind::Register)
         {
-            if (line.instruction.mnemonic == mnemonic)
+            Byte  held = (item.name == "A") ? registers.a : (item.name == "X") ? registers.x
+                       : (item.name == "Y") ? registers.y : registers.sp;
+
+            registerText += std::format ("{}={:02X} ", item.name, held);
+        }
+        else if (item.kind == InstructionTouches::Kind::Flag)
+        {
+            static constexpr std::pair<char, Byte>  kBits[] =
             {
-                return std::format ("{}={:02X}", reg, (reg == 'A') ? registers.a : ((reg == 'X') ? registers.x : registers.y));
+                { 'C', 0x01 }, { 'Z', 0x02 }, { 'I', 0x04 }, { 'D', 0x08 }, { 'V', 0x40 }, { 'N', 0x80 },
+            };
+
+            for (const auto & [letter, bit] : kBits)
+            {
+                if (item.name[0] == letter)
+                {
+                    flagText += std::format ("{}={} ", letter, (registers.p & bit) ? 1 : 0);
+                }
             }
         }
-
-        return {};
     }
 
-    where = prediction.touches.back().address;
-
-    //  AN INDEXED OPERAND SAYS WHAT INDEXED IT. $D044 alone leaves the
-    //  reader to work out how $D000,Y arrived there; the index's value is
-    //  the missing half of that arithmetic.
-    if (line.instruction.operand.ends_with (",Y") || line.instruction.operand.ends_with ("),Y"))
+    //  The address the instruction works on is the last one it touched: an
+    //  indirect mode reads its pointer first, and the pointer is not what the
+    //  line is about.
+    for (const InstructionTouches::Item & item : touches.items)
     {
-        index = std::format ("Y={:02X} ", registers.y);
+        if (item.kind != InstructionTouches::Kind::Address)
+        {
+            continue;
+        }
+
+        if (session.GetTarget().GetRegion (item.address) == MemoryRegion::Io)
+        {
+            std::string  action = SymbolDescriptions::GetAction (line.operandSymbol);
+
+            addressText = action.empty() ? std::format ("${:04X}", item.address) : action;
+        }
+        else if (session.TryPeek (item.address, value))
+        {
+            addressText = std::format ("${:04X}={:02X}", item.address, value);
+        }
+        else
+        {
+            addressText = std::format ("${:04X}", item.address);
+        }
     }
-    else if (line.instruction.operand.ends_with (",X") || line.instruction.operand.ends_with (",X)"))
+
+    std::string  text = registerText + addressText + (addressText.empty() ? "" : " ") + flagText;
+
+    while (!text.empty() && text.back() == ' ')
     {
-        index = std::format ("X={:02X} ", registers.x);
+        text.pop_back();
     }
 
-    //  A SOFT SWITCH HAS NO VALUE TO SHOW. The byte does not exist until a
-    //  read happens, and the read is the machine being operated -- a click of
-    //  the speaker, a keystroke thrown away, a bank switched. What the switch
-    //  does is the useful answer, and it costs no access at all (FR-112).
-    if (session.GetTarget().GetRegion (where) == MemoryRegion::Io)
-    {
-        std::string  action = SymbolDescriptions::GetAction (line.operandSymbol);
-
-        return action.empty() ? std::format ("{}${:04X}", index, where)
-                              : std::format ("{}{}", index, action);
-    }
-
-    if (!session.TryPeek (where, value))
-    {
-        return std::format ("{}${:04X}", index, where);
-    }
-
-    return std::format ("{}${:04X}={:02X}", index, where, value);
+    return text;
 }
 
 
@@ -1643,15 +1657,13 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 //
 //  DebuggerViewState::GetEffect
 //
-//  What the instruction at the PC would leave behind (FR-107), from the
-//  emulator's own execution of it over a CPU that reads the machine without
-//  touching it and writes nowhere (FR-111). The session is that CPU's memory:
-//  its peek is the view the memory pane shows, and it refuses $C000-$C0FF, so
-//  an instruction reading a soft switch predicts nothing at all.
+//  What running the PC's instruction would leave behind (FR-107), written
+//  from the run InstructionTouches already made (FR-111).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DebuggerViewState::GetEffect (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers)
+std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502Registers & registers,
+                                          const InstructionTouches::Result & touches, Word next)
 {
     //  A write to a soft switch stores no byte: it operates the machine, and
     //  what it operates is what the line should say (FR-112).
@@ -1671,8 +1683,12 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Disassem
 
 
 
-    return InstructionEffect::Describe (session, registers, (Word) (line.instruction.address + line.instruction.bytes.size()),
-                                        describeWrite);
+    if (!touches.isKnown)
+    {
+        return {};
+    }
+
+    return InstructionEffect::Format (registers, touches.after, touches.writes, next, describeWrite);
 }
 
 

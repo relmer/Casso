@@ -8,6 +8,59 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShadowCpu::GetRegisterName
+//
+//  A pointer into this CPU's own register file, as a letter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ShadowCpu::GetRegisterName (const Byte * which) const
+{
+    if (which == &A)  { return "A"; }
+    if (which == &X)  { return "X"; }
+    if (which == &Y)  { return "Y"; }
+    if (which == &SP) { return "S"; }
+    if (which == &status.status) { return "P"; }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShadowCpu::GetSourceRegister
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ShadowCpu::GetSourceRegister (Byte opcode) const
+{
+    return GetRegisterName (GetMicrocode (opcode).pSourceRegister);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShadowCpu::GetDestinationRegister
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ShadowCpu::GetDestinationRegister (Byte opcode) const
+{
+    return GetRegisterName (GetMicrocode (opcode).pDestinationRegister);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShadowCpu::WriteByte
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,41 +184,29 @@ std::string InstructionEffect::GetFlagChanges (Byte before, Byte after)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InstructionEffect::Describe
+//  InstructionEffect::Format
 //
-//  The registers, writes and flags that differ once the core has executed the
-//  instruction at the PC.
+//  The registers, writes and flags that differ, from a run the caller
+//  already made.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string InstructionEffect::Describe (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Word next,
-                                         const WriteText & describeWrite)
+std::string InstructionEffect::Format (const Cpu6502Registers              & before,
+                                       const Cpu6502Registers              & after,
+                                       const std::vector<ShadowCpu::Write> & writes,
+                                       Word                                  next,
+                                       const WriteText                     & describeWrite)
 {
-    ShadowCpu         cpu (memory);
-    Cpu6502Registers  after  = {};
-    uint32_t          cycles = 0;
-    HRESULT           hr     = S_OK;
-    std::string       text;
+    std::string  text;
 
 
 
-    cpu.SetRegisters (registers);
+    if (after.a  != before.a)  { text += std::format (" A={:02X}", after.a);  }
+    if (after.x  != before.x)  { text += std::format (" X={:02X}", after.x);  }
+    if (after.y  != before.y)  { text += std::format (" Y={:02X}", after.y);  }
+    if (after.sp != before.sp) { text += std::format (" S={:02X}", after.sp); }
 
-    hr = cpu.Step (cycles);
-
-    if (FAILED (hr) || !cpu.IsComplete())
-    {
-        return {};
-    }
-
-    after = cpu.GetRegisters();
-
-    if (after.a  != registers.a)  { text += std::format (" A={:02X}", after.a);  }
-    if (after.x  != registers.x)  { text += std::format (" X={:02X}", after.x);  }
-    if (after.y  != registers.y)  { text += std::format (" Y={:02X}", after.y);  }
-    if (after.sp != registers.sp) { text += std::format (" S={:02X}", after.sp); }
-
-    for (const ShadowCpu::Write & write : cpu.GetWrites())
+    for (const ShadowCpu::Write & write : writes)
     {
         std::string  what = describeWrite ? describeWrite (write.address) : std::string();
 
@@ -173,7 +214,7 @@ std::string InstructionEffect::Describe (const IDebugExpressionContext & memory,
                              : " " + what;
     }
 
-    text += GetFlagChanges (registers.p, after.p);
+    text += GetFlagChanges (before.p, after.p);
 
     //  A PC that merely walked past the instruction is where anyone would
     //  expect it; a branch taken, a jump, a call or a return is not.

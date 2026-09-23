@@ -18,7 +18,7 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/Panes/TracePane.h"
-#include "Ui/Debugger/AutomaticWatches.h"
+#include "Ui/Debugger/InstructionTouches.h"
 #include "Ui/Debugger/InstructionEffect.h"
 #include "Ui/Debugger/StopChanges.h"
 #include "Core/UnicodeSymbols.h"
@@ -174,9 +174,9 @@ namespace DebuggerViewStateTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual (std::string (""),          LineAt (snapshot, 0x0300).annotation, L"an immediate operand touches no memory");
-            Assert::AreEqual (std::string ("$0400=5A"),  LineAt (snapshot, 0x0302).annotation);
+            Assert::AreEqual (std::string ("A=00 $0400=5A"), LineAt (snapshot, 0x0302).annotation, L"a store reads A, whatever A holds");
             Assert::AreEqual (std::string ("Z=1"),       LineAt (snapshot, 0x0306).annotation, L"a branch shows the flag it tests");
-            Assert::AreEqual (std::string ("X=02 $0402=77"), LineAt (snapshot, 0x0308).annotation, L"indexed: the index, then the address the CPU would use");
+            Assert::AreEqual (std::string ("A=00 X=02 $0402=77"), LineAt (snapshot, 0x0308).annotation, L"a store reads A, and the index that formed the address");
             Assert::IsTrue   (LineAt (snapshot, 0x0306).target == std::optional<Word> (0x0306));
         }
 
@@ -351,8 +351,8 @@ namespace DebuggerViewStateTests
             //  until a read happens, and the read operates the machine.
             Assert::AreEqual (std::string ("keyboard data; bit 7 set when a key is waiting"),
                               lineAt (snapshot, 0x0300).annotation, L"a read of KBD says what KBD is");
-            Assert::AreEqual (std::string ("Toggle the speaker (each access is a click)"),
-                              lineAt (snapshot, 0x0303).annotation, L"a write to SPKR says what it does");
+            Assert::AreEqual (std::string ("A=00 Toggle the speaker (each access is a click)"),
+                              lineAt (snapshot, 0x0303).annotation, L"a write to SPKR says what it does, and STA reads A");
 
             //  And the result of running it is the action, not a store.
             Assert::AreEqual (std::string ("Toggle the speaker (each access is a click)"),
@@ -434,17 +434,17 @@ namespace DebuggerViewStateTests
         }
 
 
-        TEST_METHOD (TheAutomaticWatchesAreWhatTheInstructionTouches)
+        TEST_METHOD (TheInstructionTouchesAreWhatTheInstructionTouches)
         {
-            using Kind = AutomaticWatches::Kind;
+            using Kind = InstructionTouches::Kind;
 
-            MachineRig                           rig;
-            IDebugTarget                       & target = rig.controller.GetSession().GetTarget();
-            Cpu6502Registers                     r      = rig.controller.GetSession().GetTarget().GetRegisters();
-            std::vector<AutomaticWatches::Item>  items;
+            MachineRig                               rig;
+            IDebugTarget                           & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers                         r      = rig.controller.GetSession().GetTarget().GetRegisters();
+            std::vector<InstructionTouches::Item>    items;
             auto                                 has    = [&items] (Kind kind, const char * name, Word address, bool isRead, bool isWrite)
             {
-                return std::any_of (items.begin(), items.end(), [&] (const AutomaticWatches::Item & item)
+                return std::any_of (items.begin(), items.end(), [&] (const InstructionTouches::Item & item)
                 {
                     return item.kind == kind && item.name == name && item.address == address &&
                            item.isRead == isRead && item.isWrite == isWrite;
@@ -470,7 +470,7 @@ namespace DebuggerViewStateTests
             (void) target.TryPoke (0x0302, 0x04);
             (void) target.TryPoke (0x0402, 0x7F);
 
-            items = AutomaticWatches::Find (rig.controller.GetSession(), r, 0x0300, 3);
+            items = InstructionTouches::Find (rig.controller.GetSession(), target.GetInstructionSet(), r, 0x0300, 3).items;
 
             Assert::IsTrue  (has (Kind::Address,  "",  0x0402, true, false), L"the byte it adds");
             Assert::IsTrue  (has (Kind::Register, "A", 0,      true, true),  L"A is read and written");
@@ -485,12 +485,12 @@ namespace DebuggerViewStateTests
             (void) target.TryPoke (0x0300, 0xF0);      // BEQ +$10
             (void) target.TryPoke (0x0301, 0x10);
 
-            items = AutomaticWatches::Find (rig.controller.GetSession(), r, 0x0300, 2);
+            items = InstructionTouches::Find (rig.controller.GetSession(), target.GetInstructionSet(), r, 0x0300, 2).items;
 
             Assert::IsTrue  (has (Kind::Flag, "Z", 0, true, false), L"BEQ reads Z");
             Assert::IsFalse (has (Kind::Flag, "C", 0, true, false), L"and no other flag");
             Assert::IsTrue  (std::none_of (items.begin(), items.end(),
-                                           [] (const AutomaticWatches::Item & item) { return item.isWrite; }),
+                                           [] (const InstructionTouches::Item & item) { return item.isWrite; }),
                              L"a branch writes nothing");
 
             //  A store writes memory and reads the register it stores.
@@ -499,7 +499,7 @@ namespace DebuggerViewStateTests
             (void) target.TryPoke (0x0301, 0x00);
             (void) target.TryPoke (0x0302, 0x04);
 
-            items = AutomaticWatches::Find (rig.controller.GetSession(), r, 0x0300, 3);
+            items = InstructionTouches::Find (rig.controller.GetSession(), target.GetInstructionSet(), r, 0x0300, 3).items;
 
             Assert::IsTrue (has (Kind::Address,  "",  0x0400, false, true), L"the address it stores to");
             Assert::IsTrue (has (Kind::Register, "A", 0,      true,  false), L"A is read, not changed");
@@ -536,11 +536,12 @@ namespace DebuggerViewStateTests
 
             for (const auto & [what, bytes, a, x, y, p] : cases)
             {
-                MachineRig        rig;
-                IDebugTarget    & target = rig.controller.GetSession().GetTarget();
-                Cpu6502Registers  before = target.GetRegisters();
-                std::string       predicted;
-                std::string       actual;
+                MachineRig                    rig;
+                IDebugTarget                & target    = rig.controller.GetSession().GetTarget();
+                Cpu6502Registers              before    = target.GetRegisters();
+                InstructionTouches::Result    touches;
+                std::string                   predicted;
+                std::string                   actual;
 
 
 
@@ -565,8 +566,10 @@ namespace DebuggerViewStateTests
                 before.p  = p;
                 target.SetRegisters (before);
 
-                predicted = InstructionEffect::Describe (rig.controller.GetSession(), before,
-                                                         (Word) (0x0300 + bytes.size()));
+                touches   = InstructionTouches::Find (rig.controller.GetSession(), target.GetInstructionSet(),
+                                                      before, 0x0300, (Word) bytes.size());
+                predicted = InstructionEffect::Format (before, touches.after, touches.writes,
+                                                       (Word) (0x0300 + bytes.size()));
 
                 //  THE MACHINE ITSELF, one instruction, and what it left.
                 actual = StepAndDescribe (rig, before);

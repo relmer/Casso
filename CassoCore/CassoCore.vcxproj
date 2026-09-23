@@ -170,6 +170,7 @@
     <ClCompile Include="Debugger\GSSquaredParser.cpp" />
     <ClCompile Include="Debugger\CommandModeNames.cpp" />
     <ClCompile Include="Debugger\CommandModeHelp.cpp" />
+    <ClCompile Include="Debugger\InstructionSemantics.cpp" />
     <ClCompile Include="Debugger\EffectiveAddress.cpp" />
     <ClCompile Include="Debugger\SymbolFileReader.cpp" />
     <ClCompile Include="Debugger\WinDbgParser.cpp" />
@@ -245,6 +246,7 @@
     <ClInclude Include="Debugger\GSSquaredParser.h" />
     <ClInclude Include="Debugger\CommandModeNames.h" />
     <ClInclude Include="Debugger\CommandModeHelp.h" />
+    <ClInclude Include="Debugger\InstructionSemantics.h" />
     <ClInclude Include="Debugger\MonitorState.h" />
     <ClInclude Include="Debugger\EffectiveAddress.h" />
     <ClInclude Include="Debugger\SymbolFileReader.h" />

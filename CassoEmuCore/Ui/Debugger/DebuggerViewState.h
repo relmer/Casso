@@ -4,6 +4,7 @@
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
+#include "Ui/Debugger/InstructionTouches.h"
 
 class DebugSession;
 class IDiagnosticsProvider;
@@ -392,8 +393,10 @@ private:
     static Word                 GetPreviousInstruction (DebugSession & session, Word address);
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
-    static std::string          GetAnnotation          (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers);
-    static std::string          GetEffect              (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers);
+    static std::string          GetAnnotation          (DebugSession & session, const DisassemblyLine & line,
+                                                       const Cpu6502Registers & registers, const InstructionTouches::Result & touches);
+    static std::string          GetEffect              (DebugSession & session, const Cpu6502Registers & registers,
+                                                       const InstructionTouches::Result & touches, Word next);
 
     //  Where the code pane starts this build: the pinned address, the anchor
     //  it already had while the PC is among the lines it produced, or a new
