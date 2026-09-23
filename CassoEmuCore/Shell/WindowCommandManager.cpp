@@ -24,6 +24,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Dialogs/AttributionsText.h"
 #include "Ui/Dialogs/CreateDiskDialog.h"
 #include "Ui/FileBrowseModel.h"
 #include "Shell/CpuManager.h"
@@ -2320,6 +2321,8 @@ void WindowCommandManager::OnHelpCommand (int id)
 
         case IDM_HELP_ABOUT:
         {
+            static constexpr int  kAttributionsResult = 100;
+
             DialogDefinition def = {};
             def.title = L"About Casso";
             def.icon  = DialogIcon::AppPhotoreal;
@@ -2347,10 +2350,21 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body.push_back ({ L"", false, L"" });
             def.body.push_back ({ L"MIT License",
                                   true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });
-            def.body.push_back ({ L"ImageWriter II sounds by Scott Lawrence (CC BY 4.0)",
-                                  true, L"https://github.com/BleuLlama/ImageWriterIISimulator" });
+            def.buttons.push_back ({ L"Attributions", kAttributionsResult, false, false, true });
             def.buttons.push_back ({ L"OK", 0, true, true });
-            (void) m_shell.ShowModalDialog (def);
+
+            //  The works under someone else's license, one dialog deeper, so
+            //  the About box stays about Casso.
+            if (m_shell.ShowModalDialog (def) == kAttributionsResult)
+            {
+                DialogDefinition  credits = {};
+
+                credits.title = L"Attributions";
+                credits.body  = AttributionsText::BuildBody();
+                credits.buttons.push_back ({ L"OK", 0, true, true });
+                (void) m_shell.ShowModalDialog (credits);
+            }
+
             break;
         }
     }

@@ -58,7 +58,7 @@ public:
     }
 
 
-    TEST_METHOD (Body_CarriesTheSameLinksCassoDoes)
+    TEST_METHOD (Body_HasTheSameLinksCassoDoes)
     {
         std::vector<DialogTextRun>  runs  = CassoExplorerAbout::GetBody();
         std::vector<std::wstring>   urls;
@@ -71,11 +71,12 @@ public:
             }
         }
 
-        Assert::AreEqual ((size_t) 4, urls.size());
-        Assert::AreEqual (std::wstring (CassoExplorerAbout::kRepositoryUrl),  urls[0]);
-        Assert::AreEqual (std::wstring (CassoExplorerAbout::kBugReportUrl),   urls[1]);
-        Assert::AreEqual (std::wstring (CassoExplorerAbout::kLicenseUrl),     urls[2]);
-        Assert::AreEqual (std::wstring (CassoExplorerAbout::kPhotoCreditUrl), urls[3]);
+        //  The photograph's credit is in the Attributions dialog, which the
+        //  About box opens; AttributionsTextTests pins what that holds.
+        Assert::AreEqual ((size_t) 3, urls.size());
+        Assert::AreEqual (std::wstring (CassoExplorerAbout::kRepositoryUrl), urls[0]);
+        Assert::AreEqual (std::wstring (CassoExplorerAbout::kBugReportUrl),  urls[1]);
+        Assert::AreEqual (std::wstring (CassoExplorerAbout::kLicenseUrl),    urls[2]);
     }
 
 

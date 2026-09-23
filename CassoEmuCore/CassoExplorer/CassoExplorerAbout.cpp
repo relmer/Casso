@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Printer/PngCodec.h"
+#include "Ui/Dialogs/AttributionsText.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Version.h"
@@ -51,7 +52,6 @@ std::vector<DialogTextRun> CassoExplorerAbout::GetBody()
     runs.push_back (MakeLink (L"Log a bug", kBugReportUrl));
     runs.push_back ({ L"" });
     runs.push_back (MakeLink (L"MIT License", kLicenseUrl));
-    runs.push_back (MakeLink (L"Cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0", kPhotoCreditUrl));
 
     return runs;
 }
@@ -215,6 +215,63 @@ void CassoExplorerAbout::Show (HWND owner, const IDxuiTheme * theme, HINSTANCE i
     }
 
     params.title                    = L"About Casso Explorer";
+    params.hInstance                = instance;
+    params.ownerHwnd                = owner;
+    params.initialSizeDip           = { kWidthDip, (std::min) (kChromeHeightDip + content->GetPreferredHeightDip(), kMaxHeightDip) };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    dialog.Configure (std::move (content),
+                      { { L"Attributions", kAttributionsResult, false, false }, { L"OK", IDOK, true, true } },
+                      IDOK);
+
+    hr = dialog.Create (params);
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    dialog.SetTheme (theme);
+    result = dialog.TranslateResult (dialog.ShowModalDialog (dialog.GetDefaultCommandId()));
+
+    if (result == kAttributionsResult)
+    {
+        ShowAttributions (owner, theme, instance);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerAbout::ShowAttributions
+//
+//  The same list Casso shows, from AttributionsText, in a dialog of the same
+//  width as the About box it opens from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerAbout::ShowAttributions (HWND owner, const IDxuiTheme * theme, HINSTANCE instance)
+{
+    static constexpr int                kWidthDip        = 440;
+    static constexpr int                kChromeHeightDip = 108;
+    static constexpr int                kMaxHeightDip    = 760;
+    std::unique_ptr<DialogBodyContent>  content          = std::make_unique<DialogBodyContent>();
+    MessageDialog                       dialog;
+    DxuiWindow::CreateParams            params;
+    HRESULT                             hr               = S_OK;
+    int                                 result           = 0;
+
+
+
+    content->SetRuns (AttributionsText::BuildBody());
+
+    params.title                    = L"Attributions";
     params.hInstance                = instance;
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { kWidthDip, (std::min) (kChromeHeightDip + content->GetPreferredHeightDip(), kMaxHeightDip) };

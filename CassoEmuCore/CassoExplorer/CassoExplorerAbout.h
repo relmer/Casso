@@ -28,6 +28,12 @@ public:
     //  The dialog's text, the links included.
     static std::vector<DialogTextRun>  GetBody ();
 
+    //  The works under someone else's license, one dialog deeper, so the
+    //  About box stays about the application.
+    static void  ShowAttributions (HWND owner, const IDxuiTheme * theme, HINSTANCE instance);
+
+    static constexpr int  kAttributionsResult = 100;
+
     //  Decodes one embedded PNG for the dialog, to be shown at displayDp.
     static HRESULT  LoadPicture (HINSTANCE instance, int resourceId, float displayDp, DialogImage & outImage);
 
