@@ -1080,22 +1080,26 @@ void EmulatorShell::ExecuteCpuSlices()
         m_clipboardManager->DrainPasteBuffer (sliceTarget);
 
         sliceActual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
-
-        // No CPU (a rebuild failed after teardown): nothing advances, so
-        // leave rather than spin on a budget no one can consume.
-        if (sliceActual == 0)
-        {
-            break;
-        }
-
-        executed += sliceActual;
+        executed   += sliceActual;
 
         // A debugger run ends HERE, on the thread that ran it, because this is
         // where a stop becomes observable: the hook stopped the CPU partway
         // through the slice above, which is why RunCycles came back short.
         // Carrying on with the rest of the frame would run the guest past the
         // instruction the client was told it stopped on.
+        //
+        // AHEAD OF THE ZERO TEST BELOW: a stop before the slice's first
+        // instruction runs nothing, and a run told nothing of it never ends.
+        // The machine then stays running at the breakpoint, and a pause,
+        // which is also delivered here, never lands.
         if (m_debugRunDriver != nullptr && m_debugRunDriver->OnSliceExecuted (sliceActual))
+        {
+            break;
+        }
+
+        // No CPU (a rebuild failed after teardown): nothing advances, so
+        // leave rather than spin on a budget no one can consume.
+        if (sliceActual == 0)
         {
             break;
         }

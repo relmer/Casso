@@ -295,6 +295,54 @@ namespace EmulatorDebugWiringTests
 
         ////////////////////////////////////////////////////////////////////////////
         //
+        //  AStopBeforeASlicesFirstInstructionEndsTheRun
+        //
+        //  A slice can end exactly ahead of the instruction the run stops on. The
+        //  next slice then runs nothing, and its zero is the report the run ends
+        //  on; the slice loop has to pass it on rather than treat it as a machine
+        //  with no CPU. Missing it left the emulator running at a breakpoint on
+        //  an interrupt handler, deaf to pause.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (AStopBeforeASlicesFirstInstructionEndsTheRun)
+        {
+            Rig         rig;
+            RunRequest  request = Rig::Go();
+            uint64_t    ran     = 0;
+
+
+
+            rig.target.TryPoke (0x0300, 0xEA);
+            rig.target.TryPoke (0x0301, 0xEA);
+            rig.target.TryPoke (0x0302, 0xEA);
+            rig.machine.GetCpu()->SetPC (0x0300);
+
+            request.kind       = RunKind::RunTo;
+            request.hasUntilPc = true;
+            request.untilPc    = 0x0302;
+            rig.StartOk (request);
+
+            ran = rig.machine.RunCycles (4);
+            Assert::AreEqual ((uint64_t) 4, ran, L"two NOPs fill the first slice and stop short of $0302");
+            Assert::IsFalse (rig.driver.OnSliceExecuted ((uint32_t) ran));
+
+            ran = rig.machine.RunCycles (1023);
+            Assert::AreEqual ((uint64_t) 0, ran, L"the next slice stops before its first instruction");
+            Assert::IsTrue  (rig.driver.OnSliceExecuted ((uint32_t) ran), L"and its zero ends the run");
+            Assert::IsFalse (rig.driver.IsRunning());
+            Assert::IsTrue  (rig.cpuManager.IsPaused());
+
+            Assert::AreEqual ((size_t) 1, rig.observer.stops.size());
+            Assert::AreEqual ((Word) 0x0302, rig.observer.stops[0].pc);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
         //  ASliceWithNoRunInProgressIsIgnored
         //
         //  The cost the slice loop pays on a machine nobody is debugging, and the
