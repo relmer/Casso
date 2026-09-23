@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  A stretch column fills the width the other columns leave, but is never
 //  narrower than its declared width. Previously, in a pane narrower than the
 //  fixed columns it got zero width while the horizontal scroll range still
-//  included its declared width, so Cassque's file list opened without its Name
+//  included its declared width, so CassoExplorer's file list opened without its Name
 //  column.
 //
 //  96 DPI, so a DIP is a pixel.

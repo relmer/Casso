@@ -74,7 +74,7 @@
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
-  <!-- The entry point is wCassoMain in CassoEmuCore/Gui/GuiMain.cpp. Cassque's
+  <!-- The entry point is wCassoMain in CassoEmuCore/Gui/GuiMain.cpp. CassoExplorer's
        entry point lives in the same library, and a library keeps only one
        definition of a symbol, so neither program's is called wWinMain.
        /ALTERNATENAME maps the C runtime's call to wWinMain onto this one. -->

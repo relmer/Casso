@@ -7,7 +7,7 @@
 **Status**: Draft
 
 **Input**: User description: "Bring Dxui's command surfaces up to the model
-WPF and WinUI use, so the upcoming Cassque file browser can be built on
+WPF and WinUI use, so the upcoming Casso Explorer file browser can be built on
 them: one command object shared by menu items, toolbar buttons and context
 menu items; a toolbar widget extracted from the emulator's CommandToolbar,
 which is deleted; one dropdown widget that the menu bar, the toolbar's
@@ -31,7 +31,7 @@ label, icon, description, accelerator, action, and checked and enabled
 state. A menu item, a toolbar button and a context menu item are each a view
 of a command. A dropdown is one widget, whatever opens it. This feature
 brings Dxui to that model. The emulator's chrome moves onto it with no
-visible change, and the Cassque file browser, the next feature, is built on
+visible change, and the Casso Explorer file browser, the next feature, is built on
 it from the start.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -117,7 +117,7 @@ list of commands with separators. Highlight, keyboard navigation, disabled
 rows, check marks, accelerator hints, submenus, preview on highlight, and
 commit on selection behave the same in all three.
 
-**Why this priority**: Cassque's context menus need the menu bar's item
+**Why this priority**: Casso Explorer's context menus need the menu bar's item
 model on a right-click popup, and today no widget has both.
 
 **Independent Test**: A unit test opens one dropdown from each of the three
@@ -339,4 +339,4 @@ cluster and to nothing about buttons, collapse or dropdown mechanics.
 - The screenshot matrix is the pixel oracle at the default window size; the
   open dropdowns and the other themes are captured by hand against a master
   binary on the same machine and DPI.
-- Cassque is a separate feature and this one is complete without it.
+- Casso Explorer is a separate feature and this one is complete without it.

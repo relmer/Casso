@@ -25,8 +25,8 @@ TEST_CLASS (ProDosModifiedDateTests)
 {
 public:
 
-    static constexpr const char *  kDos33Fixture  = "Cassque/dos33.dsk";
-    static constexpr const char *  kProDosFixture = "Cassque/prodos.po";
+    static constexpr const char *  kDos33Fixture  = "CassoExplorer/dos33.dsk";
+    static constexpr const char *  kProDosFixture = "CassoExplorer/prodos.po";
 
     //  1984-08-17 12:34, the stamp the fixture script writes on every entry.
     static constexpr int64_t  kFixtureStampUnix = 461594040;

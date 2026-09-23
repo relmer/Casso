@@ -45,7 +45,7 @@ public:
 private:
     static constexpr UINT            s_kFirstCommandId = 1;
     static constexpr UINT            s_kLastCommandId  = 0x7FFF;
-    static constexpr const wchar_t * s_kClassName      = L"CassqueShellMenuHost";
+    static constexpr const wchar_t * s_kClassName      = L"CassoExplorerShellMenuHost";
 
     //  The canonical verb of Explorer's Share command, which opens the same
     //  share sheet an app would through the data transfer manager.

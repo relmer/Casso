@@ -452,7 +452,7 @@ public:
 //
 //  DragDropTargetDataHandlerTests
 //
-//  A host that judges the whole drag -- Cassque, which takes files and other
+//  A host that judges the whole drag -- CassoExplorer, which takes files and other
 //  images' entries onto a row or tree node -- sets data handlers instead of
 //  the path callbacks. These pin what that host relies on: it is asked with
 //  the drag's own data object wherever the pointer is over a widget that

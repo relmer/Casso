@@ -16,7 +16,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
-#include "Cassque/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Window/DxuiMessageBox.h"
 
@@ -581,7 +581,7 @@ static void ReportAssertion (const wchar_t * message)
 //  Process entry point. Everything here is startup ORDERING -- each step is
 //  placed before something that depends on it.
 //
-//  The name is Casso's own rather than wWinMain because Cassque's entry point
+//  The name is Casso's own rather than wWinMain because CassoExplorer's entry point
 //  lives in this same library, and a library keeps only one definition of a
 //  symbol. Casso.vcxproj maps the C runtime's call to wWinMain onto this
 //  function with /ALTERNATENAME, which is also why it has C linkage.

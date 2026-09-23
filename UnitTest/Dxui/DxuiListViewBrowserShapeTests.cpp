@@ -42,7 +42,7 @@ public:
 
         scaler.SetDpi (96);
 
-        //  CassqueBrowser::GetColumns.
+        //  CassoExplorerBrowser::GetColumns.
         cols.push_back (DxuiListView::Column { L"Name",     200, true,  DxuiTextHAlign::Left  });
         cols.push_back (DxuiListView::Column { L"Type",     0,   false, DxuiTextHAlign::Left  });
         cols.push_back (DxuiListView::Column { L"Size",     0,   false, DxuiTextHAlign::Right });

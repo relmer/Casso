@@ -28,8 +28,8 @@ TEST_CLASS (VolumeRenameTests)
 {
 public:
 
-    static constexpr const char *  kDos33Fixture  = "Cassque/dos33.dsk";
-    static constexpr const char *  kProDosFixture = "Cassque/prodos.po";
+    static constexpr const char *  kDos33Fixture  = "CassoExplorer/dos33.dsk";
+    static constexpr const char *  kProDosFixture = "CassoExplorer/prodos.po";
 
     //  The two catalog layouts, restated from the format references rather
     //  than borrowed from the volumes, so a test that finds an entry agrees

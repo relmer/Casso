@@ -56,7 +56,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
-#include "Cassque/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/TextEncoding.h"
 

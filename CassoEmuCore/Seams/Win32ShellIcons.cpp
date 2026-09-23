@@ -2,7 +2,7 @@
 
 #include "Seams/Win32ShellIcons.h"
 
-#include "Cassque/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
 
 
 

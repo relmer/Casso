@@ -110,7 +110,7 @@ public:
         { L"IDM_DISK_SALVAGE1",             IDM_DISK_SALVAGE1             },
         { L"IDM_DISK_SALVAGE2",             IDM_DISK_SALVAGE2             },
         { L"IDM_DISK_RESOLVE_CHANGE",       IDM_DISK_RESOLVE_CHANGE       },
-        { L"IDM_DISK_OPEN_CASSQUE",         IDM_DISK_OPEN_CASSQUE         },
+        { L"IDM_DISK_OPEN_CASSO_EXPLORER",         IDM_DISK_OPEN_CASSO_EXPLORER         },
         { L"IDM_VIEW_COLOR",                IDM_VIEW_COLOR                },
         { L"IDM_VIEW_GREEN",                IDM_VIEW_GREEN                },
         { L"IDM_VIEW_AMBER",                IDM_VIEW_AMBER                },

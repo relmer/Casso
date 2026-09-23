@@ -44,7 +44,7 @@
 #define IDM_DISK_SALVAGE2           40071
 
 // Start the disk browser beside this executable.
-#define IDM_DISK_OPEN_CASSQUE       40080
+#define IDM_DISK_OPEN_CASSO_EXPLORER       40080
 
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
@@ -125,13 +125,13 @@
 #define IDI_CASSO_FLAT_COLOR_HEAD   105
 #define IDI_CASSO_PHOTOREAL         106
 #define IDI_CASSO                   IDI_CASSO_SILHOUETTE
-// Cassque, the disk-image browser: its application icon, the lowest icon id
+// CassoExplorer, the disk-image browser: its application icon, the lowest icon id
 // in its own module, and the cassowary picture its About box shows.
-#define IDI_CASSQUE                 107
-#define IDR_CASSQUE_PICTURE_PNG     600
-#define IDR_CASSQUE_CASK_PNG        601
-#define IDR_CASSQUE_CASSO_PNG       602
-#define IDR_CASSQUE_CASSOWARY_PNG   603
+#define IDI_CASSO_EXPLORER                 107
+#define IDR_CASSO_EXPLORER_PICTURE_PNG     600
+#define IDR_CASSO_EXPLORER_CASK_PNG        601
+#define IDR_CASSO_EXPLORER_CASSO_PNG       602
+#define IDR_CASSO_EXPLORER_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
 // first run when the user has no Machines/ folder.

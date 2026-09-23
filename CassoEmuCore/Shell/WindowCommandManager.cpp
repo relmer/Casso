@@ -29,8 +29,8 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
-#include "Cassque/Model/KnownFolderStore.h"
-#include "Cassque/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/PathResolver.h"
 #include "Seams/Win32ProcessLauncher.h"
@@ -426,7 +426,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
-    else if (id == IDM_DISK_OPEN_CASSQUE)                                  { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                                  { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
@@ -1442,9 +1442,9 @@ void WindowCommandManager::OnDiskCommand (int id)
             break;
         }
 
-        case IDM_DISK_OPEN_CASSQUE:
+        case IDM_DISK_OPEN_CASSO_EXPLORER:
         {
-            OpenCassque();
+            OpenCassoExplorer();
             break;
         }
     }
@@ -1456,7 +1456,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpenCassque
+//  OpenCassoExplorer
 //
 //  Starts the disk browser beside this executable, telling it which emulator
 //  launched it. A browser this emulator already launched fronts itself and
@@ -1464,7 +1464,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WindowCommandManager::OpenCassque()
+void WindowCommandManager::OpenCassoExplorer()
 {
     Win32ProcessLauncher     launcher;
     std::wstring             moduleDir = PathResolver::GetExecutableDirectory().wstring();
@@ -1473,17 +1473,17 @@ void WindowCommandManager::OpenCassque()
 
 
 
-    outcome = LaunchCommand::LaunchCassque (launcher, moduleDir, m_shell.m_hwnd, m_shell.m_titlePrefix);
+    outcome = LaunchCommand::LaunchCassoExplorer (launcher, moduleDir, m_shell.m_hwnd, m_shell.m_titlePrefix);
 
     if (outcome == LaunchCommand::Outcome::Missing)
     {
-        message = LaunchCommand::DescribeMissing (LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassqueExe));
+        message = LaunchCommand::DescribeMissing (LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassoExplorerExe));
         EhmNotifyUser (message.c_str());
     }
     else if (outcome == LaunchCommand::Outcome::Failed)
     {
-        message = L"Cassque could not be started\nWindows refused to start "
-                + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassqueExe) + L".";
+        message = L"Casso Explorer could not be started\nWindows refused to start "
+                + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassoExplorerExe) + L".";
         EhmNotifyUser (message.c_str());
     }
 }

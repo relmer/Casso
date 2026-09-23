@@ -1,0 +1,51 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/DragPayload.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
+#include "Window/DxuiDragDropSource.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut
+//
+//  What a drag out of the list carries, as the formats the drag source
+//  offers.
+//
+//  Files in an image go as file descriptors plus contents, which Explorer
+//  and most other targets read, and as the private catalog-entry format a
+//  drop on another image reads to copy raw. Each file's contents are read
+//  from the image only when the target asks for that index, with the
+//  conversion its descriptive name promises. Disk images in a host folder go
+//  as an ordinary file drop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerDragOut
+{
+public:
+    //  The formats for the browser's current selection; empty when there is
+    //  nothing to drag.
+    static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style);
+
+    //  The same formats on the clipboard, for a paste into Explorer. A drag
+    //  reads each file when the target asks, while it still holds the
+    //  selection it began with; a paste can come long after the selection
+    //  moved, so every file is read before the clipboard is set.
+    static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style);
+
+    //  A FILEGROUPDESCRIPTORW holding one descriptor per entry.
+    static std::vector<uint8_t>  MakeFileGroupDescriptor (const std::vector<DragPayload::Descriptor> & descriptors);
+
+    //  A DROPFILES block with its double-terminated wide path list.
+    static std::vector<uint8_t>  MakeHDrop (const std::vector<std::wstring> & paths);
+
+    //  The conversion a descriptor's host name asks for.
+    static DiskOperations::Encoding  GetEncoding (const DragPayload::Descriptor & descriptor);
+};
