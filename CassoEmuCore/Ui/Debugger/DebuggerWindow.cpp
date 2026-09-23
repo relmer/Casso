@@ -3650,9 +3650,13 @@ void DebuggerWindow::ConfigureCodeList (int view)
                         { L"",            0, false, DxuiTextHAlign::Left },
                         { L"",            0, false, DxuiTextHAlign::Left } });
 
-    //  A breakpoint is set from the gutter (see ClickGutter), as in an editor;
-    //  a double-click on a line is a click on text and changes nothing.
+    //  A breakpoint is set from the gutter (see ClickGutter), as in an editor.
+    //  The rest of the pane is TEXT (FR-076): a drag selects characters, a
+    //  double-click selects the word under the pointer, and Ctrl+C copies
+    //  what is selected -- a double-click never touches a breakpoint.
     list->SetActivateOnDoubleClick (true);
+    list->SetTextSelection         (true);
+    list->SetOwnerWindow           (GetHwnd());
 
 }
 

@@ -109,6 +109,27 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
     m_virtual     = false;
     m_rowProvider = nullptr;
 
+    //  A text selection is places in the text, and text that changed under it
+    //  no longer holds what was selected.
+    if (m_hasTextSel && rows.size() == m_rows.size())
+    {
+        for (size_t i = 0; i < rows.size() && m_hasTextSel; i++)
+        {
+            for (size_t col = 0; col < rows[i].size() && col < m_rows[i].size(); col++)
+            {
+                if (rows[i][col].text != m_rows[i][col].text)
+                {
+                    ClearTextSelection();
+                    break;
+                }
+            }
+        }
+    }
+    else if (m_hasTextSel)
+    {
+        ClearTextSelection();
+    }
+
     m_rows = std::move (rows);
 
     //  NOT RE-MEASURED HERE, unless asked. Measuring walks every cell of every
@@ -2642,6 +2663,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
     pal.border   = m_theme->ContentEdge();
     pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
+    pal.textSel  = m_theme->SelectionBackground();
 
     return pal;
 }
@@ -2893,6 +2915,8 @@ void DxuiListView::PaintDataRows (
 
 
 
+    m_measureText = &text;
+
     // Clamp the visible span to the real row range up front, so the loop
     // body needs no per-row range guard and can bind the row's cells at
     // its top.
@@ -2901,7 +2925,9 @@ void DxuiListView::PaintDataRows (
         const std::vector<Cell> &  cells = GetRowCells (r);
         float                      ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
         bool                       isHov = (r == m_hovered);
-        bool                       isSel = ((m_listFocused || m_alwaysShowSelection) &&
+        //  Selected text is the selection while there is any; the row it
+        //  began on is not marked as well.
+        bool                       isSel = ((m_listFocused || m_alwaysShowSelection) && !m_hasTextSel &&
                                             (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
 
         if (isSel)
@@ -2948,6 +2974,39 @@ void DxuiListView::PaintDataRows (
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 iconShift = iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
+            }
+
+            //  Selected characters, as a text box draws them: the selection
+            //  color behind the text, placed by measuring the text before it.
+            if (int s = 0, e = 0; m_hasTextSel && m_columns[c].align == DxuiTextHAlign::Left &&
+                GetCellTextSelection (r, c, (int) cells[c].text.size(), s, e))
+            {
+                const std::wstring &  cellText = cells[c].text;
+                float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
+                float                 cellMaxW = (float) colWPx[c] - cellPadL - cellPadR - iconShift;
+                float                 wS       = 0.0f;
+                float                 wE       = 0.0f;
+                float                 hIgnore  = 0.0f;
+                HRESULT               hrS      = S_OK;
+                float                 hx       = 0.0f;
+                float                 hw       = 0.0f;
+
+                if (s > 0)
+                {
+                    hrS = text.MeasureString (cellText.substr (0, (size_t) s).c_str(), fontPx, GetBodyFace(), wS, hIgnore);
+                    IGNORE_RETURN_VALUE (hrS, S_OK);
+                }
+
+                hrS = text.MeasureString (cellText.substr (0, (size_t) e).c_str(), fontPx, GetBodyFace(), wE, hIgnore);
+                IGNORE_RETURN_VALUE (hrS, S_OK);
+
+                hx = cellX + wS;
+                hw = (std::min) (wE - wS, cellX + cellMaxW - hx);
+
+                if (hw > 0.0f)
+                {
+                    painter.FillRect (hx, ry, hw, rowH, pal.textSel);
+                }
             }
 
             // Search-match highlight: an accent band behind each matched
@@ -3240,7 +3299,7 @@ bool DxuiListView::QueryCommand (DxuiStandardCommand command, bool & outEnabled)
     }
     else if (command == DxuiStandardCommand::Copy && m_ownerHwnd != nullptr)
     {
-        outEnabled = !m_selectedRows.empty();
+        outEnabled = m_hasTextSel || !m_selectedRows.empty();
         handled    = true;
     }
 
@@ -3445,6 +3504,18 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     {
         ClickRow (row, ev.ctrl, ev.shift);
         m_dragSelecting = m_multiSelect;
+
+        //  A press on text starts a selection there. Nothing is selected
+        //  until the pointer moves, so a plain click only picks its row and
+        //  drops any text selection there was.
+        if (m_textSelect)
+        {
+            m_hasTextSel  = false;
+            m_textPressed = true;
+            m_textPressPx = POINT { lx, ly };
+            m_textAnchor  = HitTestText (lx, ly);
+            m_textFocus   = m_textAnchor;
+        }
     }
     else if (IsItemsView() && m_multiSelect)
     {
@@ -3548,6 +3619,17 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
     {
         DragSelectTo (ly);
     }
+    else if (m_textPressed)
+    {
+        int  slop = m_scaler.ToPx (s_kTextDragSlopDip);
+
+        //  A few pixels of jitter in a click is not a drag.
+        if (m_hasTextSel || abs (lx - m_textPressPx.x) > slop || abs (ly - m_textPressPx.y) > slop)
+        {
+            m_textFocus  = HitTestText (lx, ly);
+            m_hasTextSel = m_textFocus != m_textAnchor;
+        }
+    }
     else if (inside)
     {
         SetHoveredRow (HitTestRow (lx, ly));
@@ -3629,9 +3711,20 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
 
 
 
+    bool  dragged = m_textPressed && m_hasTextSel;
+
+
+
     //  A drag or a Shift or Ctrl click that left several rows selected keeps
     //  them; only a plain click collapses the selection to its row.
     m_dragSelecting = false;
+    m_textPressed   = false;
+
+    //  A drag that selected text is finished; it is not also a click.
+    if (dragged)
+    {
+        return true;
+    }
 
     if (m_bandActive)
     {
@@ -3684,6 +3777,12 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
             // starts a fresh count instead of chaining activations.
             m_lastClickRow = activate ? -1 : row;
             m_lastClickMs  = nowMs;
+        }
+
+        //  In text, a double-click is a word, as it is in an editor.
+        if (activate && m_textSelect && m_activateOnDoubleClick)
+        {
+            SelectWordAt (lx, ly);
         }
 
         if (activate && m_onActivateRow)
@@ -4483,6 +4582,309 @@ void DxuiListView::MoveHeaderFocus (int dir)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::SetTextSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetTextSelection (bool enabled)
+{
+    m_textSelect = enabled;
+
+    if (!enabled)
+    {
+        ClearTextSelection();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ClearTextSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ClearTextSelection()
+{
+    m_hasTextSel  = false;
+    m_textPressed = false;
+    m_textAnchor  = TextPos {};
+    m_textFocus   = TextPos {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HitTestCharInCell
+//
+//  The character boundary nearest a point across one cell: past the middle
+//  of a character is after it, as a text box places its caret. Measured with
+//  the renderer the last paint used; before any paint, a fixed advance.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::HitTestCharInCell (int row, size_t col, int lx) const
+{
+    const std::wstring &  text   = GetRowCells (row)[col].text;
+    float                 fontPx = m_scaler.ToPxf (m_fontDip);
+    RECT                  cell   = {};
+    float                 into   = 0.0f;
+    float                 prev   = 0.0f;
+
+
+
+    if (!GetCellTextRectPx (row, col, cell) || text.empty())
+    {
+        return 0;
+    }
+
+    into = (float) (lx - cell.left);
+
+    for (int k = 1; k <= (int) text.size(); k++)
+    {
+        float    width = 0.0f;
+        float    h     = 0.0f;
+        HRESULT  hr    = S_OK;
+
+        if (m_measureText != nullptr)
+        {
+            hr = m_measureText->MeasureString (text.substr (0, (size_t) k).c_str(), fontPx, GetBodyFace(), width, h);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else
+        {
+            width = fontPx * 0.6f * (float) k;
+        }
+
+        if (into < (prev + width) * 0.5f)
+        {
+            return k - 1;
+        }
+
+        prev = width;
+    }
+
+    return (int) text.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HitTestText
+//
+//  The place in the text under a point. Above the rows is the start of the
+//  first shown, below them the end of the last, and between two cells the
+//  start of the one to the right -- so a drag past any edge still extends to
+//  where the pointer went.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::TextPos DxuiListView::HitTestText (int lx, int ly) const
+{
+    int      rowH    = GetRowHeightPx();
+    int      headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
+    int      hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
+    int      cap     = GetVisibleRowCapacity();
+    int      last    = (std::min) (m_topRow + cap, GetRowCount()) - 1;
+    int      body    = ly - headerH - hdrGap;
+    TextPos  pos;
+    RECT     cell    = {};
+    bool     found   = false;
+
+
+
+    if (last < m_topRow || rowH <= 0)
+    {
+        return pos;
+    }
+
+    pos.row = std::clamp (m_topRow + (body < 0 ? -1 : body / rowH), m_topRow, last);
+
+    if (body < 0)
+    {
+        return pos;
+    }
+
+    for (size_t c = 0; c < m_columns.size() && c < GetRowCells (pos.row).size(); c++)
+    {
+        if (!GetCellTextRectPx (pos.row, c, cell))
+        {
+            continue;
+        }
+
+        pos.col = (int) c;
+
+        if (lx < cell.right)
+        {
+            pos.ch = (lx <= cell.left) ? 0 : HitTestCharInCell (pos.row, c, lx);
+            found  = true;
+            break;
+        }
+    }
+
+    if (!found)
+    {
+        pos.ch = (int) GetRowCells (pos.row)[(size_t) pos.col].text.size();
+    }
+
+    if (body >= (last - m_topRow + 1) * rowH)
+    {
+        pos.col = (int) GetRowCells (pos.row).size() - 1;
+        pos.ch  = (int) GetRowCells (pos.row)[(size_t) pos.col].text.size();
+    }
+
+    return pos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetCellTextSelection
+//
+//  The selected characters of one cell, [start, end), in reading order: a
+//  cell wholly inside the selection is selected end to end, and the cells
+//  where it begins and ends only from and to its ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetCellTextSelection (int row, size_t col, int length, int & start, int & end) const
+{
+    TextPos  lo   = (std::min) (m_textAnchor, m_textFocus);
+    TextPos  hi   = (std::max) (m_textAnchor, m_textFocus);
+    TextPos  from = { row, (int) col, 0 };
+    TextPos  to   = { row, (int) col, length };
+
+
+
+    if (!m_hasTextSel || to < lo || from > hi)
+    {
+        return false;
+    }
+
+    start = std::clamp ((from < lo) ? lo.ch : 0,      0, length);
+    end   = std::clamp ((to > hi)   ? hi.ch : length, start, length);
+
+    return end > start;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::IsWordChar
+//
+//  What a double-click takes as one word: letters and digits, and the marks a
+//  number or a label carries with it -- `$E073`, `#$08`, `LDA_1`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsWordChar (wchar_t ch)
+{
+    return iswalnum (ch) || ch == L'_' || ch == L'$' || ch == L'#' || ch == L'%';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SelectWordAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SelectWordAt (int lx, int ly)
+{
+    TextPos               at    = HitTestText (lx, ly);
+    int                   start = at.ch;
+    int                   end   = at.ch;
+
+
+
+    if (at.row < 0)
+    {
+        return;
+    }
+
+    const std::wstring &  text = GetRowCells (at.row)[(size_t) at.col].text;
+
+    //  On the boundary after a word, the word is the one just passed.
+    if (end >= (int) text.size() || !IsWordChar (text[(size_t) end]))
+    {
+        start = end = (std::max) (0, at.ch - 1);
+    }
+
+    while (start > 0 && IsWordChar (text[(size_t) start - 1]))              { start--; }
+    while (end < (int) text.size() && IsWordChar (text[(size_t) end]))       { end++;   }
+
+    m_textAnchor = TextPos { at.row, at.col, start };
+    m_textFocus  = TextPos { at.row, at.col, end };
+    m_hasTextSel = end > start;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetTextSelectionText
+//
+//  The selected characters as text: a row to a line, and the cells within a
+//  row separated by a tab, as the whole-row copy writes them. A cell with
+//  nothing selected in it -- an icon column -- adds nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiListView::GetTextSelectionText() const
+{
+    TextPos       lo   = (std::min) (m_textAnchor, m_textFocus);
+    TextPos       hi   = (std::max) (m_textAnchor, m_textFocus);
+    std::wstring  text;
+
+
+
+    for (int row = lo.row; row <= hi.row && row < GetRowCount(); row++)
+    {
+        const std::vector<Cell> &  cells = GetRowCells (row);
+        std::wstring               line;
+
+        for (size_t col = 0; col < cells.size(); col++)
+        {
+            int  start = 0;
+            int  end   = 0;
+
+            if (GetCellTextSelection (row, col, (int) cells[col].text.size(), start, end))
+            {
+                line += (line.empty() ? L"" : L"\t") + cells[col].text.substr ((size_t) start, (size_t) (end - start));
+            }
+        }
+
+        text += (row > lo.row ? L"\r\n" : L"") + line;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::GetSelectionText
 //
 //  The selected rows in list order, whatever order they were selected in.
@@ -4495,6 +4897,12 @@ std::wstring DxuiListView::GetSelectionText() const
     std::wstring      text;
 
 
+
+    //  Selected characters, where there are any, are what was asked for.
+    if (m_hasTextSel)
+    {
+        return GetTextSelectionText();
+    }
 
     std::sort (rows.begin(), rows.end());
 

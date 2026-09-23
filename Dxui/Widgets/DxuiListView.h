@@ -220,6 +220,16 @@ public:
     //  Copy is offered once a window to own the clipboard is set: the selected
     //  rows as text, one to a line, their cells separated by tabs.
     void                      SetOwnerWindow  (HWND hwnd)    { m_ownerHwnd = hwnd; }
+
+    //  Text selection, for a list that reads as text rather than as rows, as
+    //  a disassembly does: a drag selects characters across cells and rows,
+    //  a double-click selects the word under the pointer, and Copy takes the
+    //  characters rather than whole rows. Off by default. A click still
+    //  selects its row either way, and a selection clears when the rows under
+    //  it change.
+    void                      SetTextSelection   (bool enabled);
+    bool                      HasTextSelection   () const   { return m_hasTextSel; }
+    void                      ClearTextSelection ();
     std::wstring              GetSelectionText () const;
 
     // Opt-in keyboard column navigation. When enabled, OnKey walks the
@@ -409,7 +419,7 @@ public:
     // Lets a host that owns a persisted column model (e.g. the debug
     // panels) record the user's width without re-implementing the drag.
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive; }
+    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive || m_textPressed; }
 
     //  The rubber band an item view draws while the pointer drags from empty
     //  space, in the list's pixels; empty when none is being drawn.
@@ -505,6 +515,7 @@ private:
         uint32_t  bgHeader = 0;
         uint32_t  border   = 0;
         uint32_t  matchBg  = 0;
+        uint32_t  textSel  = 0;   // behind selected characters, as a text box draws them
     };
 
     // Resolved scrollbar state for the current rect, columns, and rows.
@@ -730,7 +741,38 @@ private:
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;
     bool     m_textSelectionColors   = false;
-    bool     m_dragSelecting         = false;
+
+    //  A place in the list's text, ordered as it reads: row, then column,
+    //  then character.
+    struct TextPos
+    {
+        int  row = -1;
+        int  col = 0;
+        int  ch  = 0;
+
+        auto  operator<=> (const TextPos &) const = default;
+    };
+
+    TextPos       HitTestText          (int lx, int ly) const;
+    int           HitTestCharInCell    (int row, size_t col, int lx) const;
+    bool          GetCellTextSelection (int row, size_t col, int length, int & start, int & end) const;
+    void          SelectWordAt         (int lx, int ly);
+    std::wstring  GetTextSelectionText () const;
+    static bool   IsWordChar           (wchar_t ch);
+
+    static constexpr int  s_kTextDragSlopDip = 3;
+
+    bool      m_textSelect  = false;
+    bool      m_textPressed = false;
+    bool      m_hasTextSel  = false;
+    TextPos   m_textAnchor;
+    TextPos   m_textFocus;
+    POINT     m_textPressPx = {};
+
+    //  The renderer the last paint used, kept so a press can find the
+    //  character under it: only a renderer can measure where one ends.
+    mutable IDxuiTextRenderer  * m_measureText   = nullptr;
+    bool                         m_dragSelecting = false;
 
     //  A rubber band in an item view: where the press was, in content pixels
     //  so it stays put as the view scrolls, where the pointer is now, and the
