@@ -28,7 +28,12 @@
 #>
 param(
     [string]$Source      = "",
-    [string]$Destination = ""
+    [string]$Destination = "",
+
+    # Put in front of every file name written, so a second application's
+    # tiles sit beside Casso's in the same folder without colliding. The
+    # manifest asks for them by the same names with the same prefix.
+    [string]$Prefix      = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -124,8 +129,15 @@ function Write-Logo
 
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
 
-# Start from empty; MakeAppx packs whatever is in the folder.
-Get-ChildItem $Destination -Filter *.png -ErrorAction SilentlyContinue | Remove-Item -Force
+# Start from empty; MakeAppx packs whatever is in the folder. Only this
+# run's own names go, since the folder also has the other application's
+# tiles: an empty prefix must not reach a prefixed name, so the match is
+# anchored at the start.
+foreach ($logo in $logos)
+{
+    Get-ChildItem $Destination -Filter "$Prefix$($logo.Name).*.png" -ErrorAction SilentlyContinue |
+        Remove-Item -Force
+}
 
 $badge = [System.Drawing.Image]::FromFile((Resolve-Path $Source).Path)
 $count = 0
@@ -141,7 +153,7 @@ try
             # Ceiling, not rounding: 71 at 125% is 88.75, and the asset is 89.
             $width  = [int] [Math]::Ceiling($logo.Width  * $scale / 100.0)
             $height = [int] [Math]::Ceiling($logo.Height * $scale / 100.0)
-            $path   = Join-Path $Destination "$($logo.Name).scale-$scale.png"
+            $path   = Join-Path $Destination "$Prefix$($logo.Name).scale-$scale.png"
 
             Write-Logo $badge $width $height $logo.Fill $path
             Write-Host ("  {0,-46} {1}x{2}" -f (Split-Path $path -Leaf), $width, $height)
@@ -153,7 +165,7 @@ try
     {
         foreach ($suffix in @('', '_altform-unplated'))
         {
-            $path = Join-Path $Destination "Square44x44Logo.targetsize-$size$suffix.png"
+            $path = Join-Path $Destination "${Prefix}Square44x44Logo.targetsize-$size$suffix.png"
 
             Write-Logo $badge $size $size 1.00 $path
             Write-Host ("  {0,-46} {1}x{1}" -f (Split-Path $path -Leaf), $size)

@@ -301,8 +301,8 @@ jobs:
           timestamp-digest: SHA256
 
       # A signing action that fails is loud; one that runs and leaves a file
-      # untouched is not. Four binaries ship, so four have to carry a
-      # signature.
+      # untouched is not. Every executable that ships has to have a
+      # signature, and the check walks the tree rather than a list.
       #
       # The bar is a signature that is PRESENT and matches the bytes, not a
       # Status of Valid. Valid additionally asserts that this runner could

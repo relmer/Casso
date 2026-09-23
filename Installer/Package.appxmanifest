@@ -77,6 +77,35 @@
 
         </Application>
 
+        <Application Id="CassoExplorer" Executable="CassoExplorer.exe" EntryPoint="Windows.FullTrustApplication">
+
+            <!-- Its own tiles, built by GenerateMsixAssets.ps1 from its own
+                 icon with -Prefix Explorer, so Start does not show Casso's
+                 cassowary for both. -->
+            <uap:VisualElements
+                DisplayName="Casso Explorer"
+                Description="An Apple II disk image explorer."
+                BackgroundColor="#121016"
+                Square150x150Logo="Assets\ExplorerSquare150x150Logo.png"
+                Square44x44Logo="Assets\ExplorerSquare44x44Logo.png">
+
+                <uap:DefaultTile
+                    Square71x71Logo="Assets\ExplorerSquare71x71Logo.png"
+                    Square310x310Logo="Assets\ExplorerSquare310x310Logo.png"
+                    Wide310x150Logo="Assets\ExplorerWide310x150Logo.png" />
+
+            </uap:VisualElements>
+
+            <Extensions>
+                <uap3:Extension Category="windows.appExecutionAlias" Executable="CassoExplorer.exe" EntryPoint="Windows.FullTrustApplication">
+                    <uap3:AppExecutionAlias>
+                        <desktop:ExecutionAlias Alias="CassoExplorer.exe" />
+                    </uap3:AppExecutionAlias>
+                </uap3:Extension>
+            </Extensions>
+
+        </Application>
+
         <Application Id="CassoCli" Executable="CassoCli.exe" EntryPoint="Windows.FullTrustApplication">
 
             <!-- AppListEntry: a command-line tool, so no Start item for it. -->

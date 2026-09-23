@@ -124,8 +124,9 @@ foreach ($plat in $Platforms)
 
     New-Item -ItemType Directory -Path $demoDir -Force | Out-Null
 
-    Copy-Item (Join-Path $binaries 'Casso.exe')    $stagingDir
-    Copy-Item (Join-Path $binaries 'CassoCli.exe') $stagingDir
+    Copy-Item (Join-Path $binaries 'Casso.exe')          $stagingDir
+    Copy-Item (Join-Path $binaries 'CassoCli.exe')       $stagingDir
+    Copy-Item (Join-Path $binaries 'CassoExplorer.exe')  $stagingDir
     Copy-Item (Join-Path $repoRoot 'README.md')    $stagingDir
     Copy-Item (Join-Path $repoRoot 'CHANGELOG.md') $stagingDir
     Copy-Item (Join-Path $repoRoot 'LICENSE')      $stagingDir
@@ -134,7 +135,7 @@ foreach ($plat in $Platforms)
         Select-Object -First 1
     if (-not $crtDir) { throw "No Microsoft.VC*.CRT folder for $plat under $($redist.FullName)." }
 
-    $crtDlls = foreach ($exe in @('Casso.exe', 'CassoCli.exe'))
+    $crtDlls = foreach ($exe in @('Casso.exe', 'CassoCli.exe', 'CassoExplorer.exe'))
     {
         & $dumpbin /DEPENDENTS (Join-Path $binaries $exe) |
             Where-Object { $_ -match '^\s+((?:vcruntime|msvcp|concrt|vccorlib)\S*\.dll)\s*$' } |

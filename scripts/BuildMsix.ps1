@@ -168,10 +168,14 @@ foreach ($required in @($manifestTemplate, $assetSource))
 }
 
 # A missing logo packs without complaint and fails at install. The scale-100
-# stands in for its family; they are generated together.
+# stands in for its family; they are generated together. Casso Explorer's
+# tiles have the same names behind an Explorer prefix, and its own three are
+# the ones its Application element asks for.
 $namedLogos = @(
     'StoreLogo', 'Square44x44Logo', 'Square71x71Logo',
-    'Square150x150Logo', 'Square310x310Logo', 'Wide310x150Logo'
+    'Square150x150Logo', 'Square310x310Logo', 'Wide310x150Logo',
+    'ExplorerSquare44x44Logo', 'ExplorerSquare71x71Logo',
+    'ExplorerSquare150x150Logo', 'ExplorerSquare310x310Logo', 'ExplorerWide310x150Logo'
 )
 
 foreach ($logo in $namedLogos)
