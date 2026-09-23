@@ -1252,9 +1252,10 @@ confirm it disables without being removed.
   at the PC, up to four. Exactly one view follows the PC; the rest stay where
   they are put and still show the PC's arrow and row when it is on their
   lines. The tabs are titled Disassembly 1 to 4. Once a second view is open,
-  the tab of the view following the PC MUST carry a dot in the PC marker's
-  color ahead of its title and a tip saying it follows the PC, the first view
-  following at first. Every other disassembly tab's menu MUST offer Follow PC,
+  the tab of the view following the PC MUST carry the PC marker itself -- the
+  same triangle, face and color as on the PC's line -- ahead of its title,
+  and a tip saying it follows the PC, the first view following at first.
+  Every other disassembly tab's menu MUST offer Follow PC,
   which hands the PC to it and leaves the one giving it up where it stands.
   Closing the view that follows hands the PC back to the first.
 - **FR-107**: The code pane MUST annotate the line at the PC with what
