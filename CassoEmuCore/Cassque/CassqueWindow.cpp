@@ -2333,6 +2333,15 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  Copy in an image writes the files a paste would, as the context menu's
+    //  Copy row does; cut and paste are the host's alone.
+    if (m_focus == Pane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
+        && m_browser.IsImageLocation() && !m_browser.GetSelectedRows().empty())
+    {
+        CopyEntriesToClipboard (GetNamingStyle());
+        return true;
+    }
+
     if (m_focus == Pane::List && ev.ctrl && !ev.alt && !m_browser.IsImageLocation()
         && m_browser.GetLocation().kind == Location::Kind::HostFolder
         && (ev.vk == 'X' || ev.vk == 'C' || ev.vk == 'V'))
@@ -3279,10 +3288,19 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kNewFolder:    RunVerb (CassqueActions::Verb::NewFolder); break;
         case CassqueCommands::kNewDisk:      RunVerb (CassqueActions::Verb::NewDisk);   break;
 
-        //  A real file goes on the clipboard; an entry in an image is copied
-        //  out to a folder, which is what Get does.
+        //  Either way the selection goes on the clipboard: a real file through
+        //  the shell, an entry in an image as the file a paste would write,
+        //  in the style the Options dialog sets.
         case CassqueCommands::kCopyItems:
-            RunVerb (IsListVerbOffered (CassqueActions::Verb::Copy) ? CassqueActions::Verb::Copy : CassqueActions::Verb::Get);
+            if (m_browser.IsImageLocation())
+            {
+                CopyEntriesToClipboard (GetNamingStyle());
+            }
+            else
+            {
+                RunVerb (CassqueActions::Verb::Copy);
+            }
+
             break;
 
         case CassqueCommands::kSortAscending:
