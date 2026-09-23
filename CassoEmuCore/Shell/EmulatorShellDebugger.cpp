@@ -187,9 +187,9 @@ bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
 
     WindowTrace::Log ("restore.lookup", "debugger", "key=" + key);
 
-    //  THE KEY NAMES THE MONITOR ARRANGEMENT, and an arrangement that differs
-    //  by a screen not yet attached at startup is a different key with
-    //  nothing under it. Rather than open at a default the user never chose,
+    //  THE KEY STANDS FOR THE MONITOR ARRANGEMENT, and an arrangement
+    //  differing by a screen not yet attached at startup is a different key
+    //  with nothing under it. Rather than open at a default the user never chose,
     //  any placement they made under another arrangement is taken, so long as
     //  it still lands on a screen.
     if (!profile.TryLoad (key, bounds, WindowPlacementProfile::Target::Debugger))

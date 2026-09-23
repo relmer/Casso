@@ -1233,7 +1233,7 @@ confirm it disables without being removed.
   requires.
 - **FR-102**: The console MUST read as a command prompt: the dialect in force
   as a fixed prompt ahead of what is typed ("WinDbg>"), which cannot be edited,
-  and a hint naming that dialect's help command. Every control that sends an
+  and a hint giving that dialect's help command. Every control that sends an
   engine command (the Dialect menu's `MODE` among them) MUST send it through
   the dialect's marker (FR-014), so no dialect can trap the session. The
   console's output MUST be text, not a list of rows.
@@ -1251,7 +1251,7 @@ confirm it disables without being removed.
 - **FR-106**: A + after the disassembly tabs MUST open another disassembly view
   at the PC, up to four. Exactly one view follows the PC; the rest stay where
   they are put and still show the PC's arrow and row when it is on their
-  lines. The tabs are named Disassembly 1 to 4. Once a second view is open,
+  lines. The tabs are titled Disassembly 1 to 4. Once a second view is open,
   the tab of the view following the PC MUST carry a dot in the PC marker's
   color ahead of its title and a tip saying it follows the PC, the first view
   following at first. Every other disassembly tab's menu MUST offer Follow PC,
@@ -1269,7 +1269,7 @@ confirm it disables without being removed.
   operand annotations.
 - **FR-108**: Show Next Statement MUST bring the disassembly view following
   the PC to the front of its tabs and put the PC on its middle line.
-- **FR-109**: Each command bar entry MUST carry a tip naming it, the key that
+- **FR-109**: Each command bar entry MUST carry a tip with its title, the key that
   runs it in the keyboard scheme in force, and what it does, and the tip MUST
   follow a change of scheme.
 - **FR-110**: The operand and result annotations of FR-078 and FR-107 MUST be
@@ -1283,8 +1283,8 @@ confirm it disables without being removed.
   written beside the CPU can disagree with it, and a prediction that disagrees
   with the machine is worse than none. Where a read cannot be answered without
   a side effect, the line MUST be left unannotated.
-- **FR-112**: An operand in `$C000-$C0FF` MUST be named and described as the
-  soft switch the instruction operates, chosen by whether the instruction
+- **FR-112**: An operand in `$C000-$C0FF` MUST be shown as the soft switch the
+  instruction operates, with its title and description, chosen by whether it
   reads or writes it, since one address is two switches (`$C000` read is the
   keyboard, `$C000` written is 80STORE off). Such an operand MUST NOT be
   annotated with a byte value, which does not exist to be read, and a write

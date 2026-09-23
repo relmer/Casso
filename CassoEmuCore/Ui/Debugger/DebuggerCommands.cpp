@@ -207,7 +207,7 @@ std::shared_ptr<DxuiCommand> DebuggerCommands::Find (int id) const
 //
 //  DebuggerCommands::GetTip
 //
-//  The entry's name with the key that runs it in the scheme in force, as
+//  The entry's title with the key that runs it in the scheme in force, as
 //  Visual Studio writes its toolbar tips, then what it does.
 //
 ////////////////////////////////////////////////////////////////////////////////

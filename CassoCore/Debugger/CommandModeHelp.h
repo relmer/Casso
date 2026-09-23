@@ -33,7 +33,7 @@ public:
     //  The entry for one of the mode's words, matched without regard to case.
     static const Entry           * Find           (CommandMode mode, const std::string & word);
 
-    //  The mode's name as its own documentation writes it: WinDbg, GSSquared.
+    //  The mode's title as its own documentation writes it: WinDbg, GSSquared.
     static const char            * GetTitle       (CommandMode mode);
 
     //  How the mode reaches the engine commands, as "after !, as in !BPL".

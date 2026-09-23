@@ -725,7 +725,7 @@ release gate, since both change what the pane claims is true.
 
 **Independent Test**: Single-step the //e ROM with the code pane open; every
 annotated line's claim matches what the machine does when the step runs, and
-every soft-switch operand names the switch that instruction operates.
+every soft-switch operand shows the switch that instruction operates.
 
 - [ ] T183 FR-110: build the operand and result annotations only while the
   machine is paused, in `DebuggerViewState::BuildCode`. A case in
@@ -750,29 +750,29 @@ every soft-switch operand names the switch that instruction operates.
   prediction matches, across every addressing mode, both carry states, decimal
   mode, and a spread of operand values -- a test that can fail, which the
   table's own test could not. Decimal arithmetic then needs no special case.
-- [ ] T186 FR-112: choose a soft switch's name by direction. `$C000` read is
-  KBD and `$C000` written is 80STOREOFF, and `SymbolTable::TryFindName`
-  returns whichever table matched first, so the pane can label `STA $C000` as
-  `STA KBD` today -- a store to the keyboard, which the machine cannot do.
-  The instruction's direction is already known, from the same prediction the
-  annotation uses. Test both directions of every address that carries two
-  names.
+- [ ] T186 FR-112: choose which of a soft switch's two titles to show by
+  direction. `$C000` read is KBD and `$C000` written is 80STOREOFF, and
+  `SymbolTable::TryFindName` returns whichever table matched first, so the
+  pane can show `STA $C000` as `STA KBD` today -- a store to the keyboard,
+  which the machine cannot do. The instruction's direction is already known,
+  from the same prediction the annotation uses. Test both directions of
+  every address that carries two titles.
 - [ ] T187 FR-112: annotate an operand in `$C000-$C0FF` with the switch's
   description rather than a byte value, from `SymbolDescriptions`, and have
-  the result column name a write's action ("speaker toggle") rather than
+  the result column give a write's action ("speaker toggle") rather than
   claim a store. The value is not merely unread there -- it does not exist
   until a read happens, and the read is what makes the sound.
 - [ ] T188 Fill the gaps the review found in `RomSymbols.cpp` and
   `SymbolDescriptions.cpp`: `$C084-$C08F` (3 of the 16 language-card switches
-  are named), all of `$C0E0-$C0EF` (the disk controller -- phases, motor,
+  have titles), all of `$C0E0-$C0EF` (the disk controller -- phases, motor,
   drive select, read and write mode, which is most of a boot ROM single-step),
-  and `$C068-$C07F`. The existing test that every shipped name has a
+  and `$C068-$C07F`. The existing test that every shipped title has a
   description covers the new rows; datasheets and the Apple II reference,
   never another emulator's source.
 
 **Checkpoint**: Every claim the code pane makes about an instruction comes
-from the emulator or from a named switch, and none of it is built while the
-machine runs.
+from the emulator or from a switch the machine documents, and none of it is
+built while the machine runs.
 
 ---
 

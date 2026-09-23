@@ -155,7 +155,7 @@ std::string InstructionEffect::Describe (const Input & input)
                                          : std::format ("A={:02X}{} C={}", result, GetFlags (result), carryOut);
     }
 
-    //  The flag instructions say what they set in their own names.
+    //  The flag instructions say what they set in their own titles.
     if (name == "SEC") { return "C=1"; }
     if (name == "CLC") { return "C=0"; }
     if (name == "SEI") { return "I=1"; }
