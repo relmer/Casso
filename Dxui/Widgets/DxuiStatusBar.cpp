@@ -150,8 +150,11 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                       (float) (m_boundsDip.right - m_boundsDip.left),
                       (float) (m_boundsDip.bottom - m_boundsDip.top), theme.StatusBackground());
 
-    painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                      (float) (m_boundsDip.right - m_boundsDip.left), lineW, theme.Divider());
+    if (m_dividers)
+    {
+        painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
+                          (float) (m_boundsDip.right - m_boundsDip.left), lineW, theme.Divider());
+    }
 
     for (i = 0; i < m_fields.size() && i < m_fieldRects.size(); i++)
     {
@@ -159,7 +162,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         float         boxW   = (float) (r.right - r.left) - 2.0f * padPx;
         std::wstring  shown;
 
-        if (i > 0)
+        if (i > 0 && m_dividers)
         {
             painter.FillRect ((float) r.left, (float) r.top + lineW * 4.0f, lineW,
                               (float) (r.bottom - r.top) - lineW * 8.0f, theme.Divider());

@@ -40,6 +40,9 @@ public:
     void  SetFields (std::vector<Field> fields);
     void  SetText   (size_t index, std::wstring text);
 
+    //  The line along the top and the lines between fields; on by default.
+    void  SetDividers (bool dividers) { m_dividers = dividers; }
+
     size_t               GetFieldCount () const             { return m_fields.size(); }
     const Field &        GetField      (size_t index) const { return m_fields[index]; }
 
@@ -61,4 +64,5 @@ private:
     std::vector<Field>  m_fields;
     std::vector<RECT>   m_fieldRects;
     DxuiDpiScaler       m_scaler;
+    bool                m_dividers = true;
 };

@@ -258,6 +258,9 @@ void CassoExplorerWindow::OnCreate()
     m_address         = CreateChild<DxuiAddressBar>();
     m_menuBar         = CreateChild<DxuiMenuBar>();
 
+    //  Explorer's status bar runs on from the list above it, with no lines.
+    m_status->SetDividers (false);
+
     m_renameBox       = CreateChild<DxuiTextInput>();
 
     m_renameBox->SetVisible      (false);
