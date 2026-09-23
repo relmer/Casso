@@ -301,7 +301,13 @@ public:
     bool                 IsPanelOpen (const std::string & id) const { return m_openPanels.contains (id); }
 
     //  Runs the pane commands against the session. CPU thread only.
-    DebuggerViewSnapshot  Build (DebugSession & session) const;
+    //
+    //  isPaused is the CPU manager's run state, which the session does not
+    //  hold. It decides whether the code pane's annotations are built at all
+    //  (FR-110): while the machine runs they would cost an effective-address
+    //  prediction and several peeks per shown line per snapshot, to show a
+    //  byte read at an arbitrary moment that no one can read at speed.
+    DebuggerViewSnapshot  Build (DebugSession & session, bool isPaused = true) const;
 
     //  The command a control stands for.
     static std::string  GetToggleBreakpointLine (const DebuggerViewSnapshot & snapshot, Word address);

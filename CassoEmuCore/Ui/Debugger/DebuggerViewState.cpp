@@ -47,7 +47,7 @@ bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
+DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPaused) const
 {
     DebuggerViewSnapshot  snapshot;
     Reply                 registers   = session.ExecuteLine ("R",     CommandMode::AppleWin);
@@ -59,9 +59,10 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
 
 
 
-    snapshot.mode    = session.GetMode();
-    snapshot.goTo    = m_goTo;
-    snapshot.machine = session.GetTarget().GetMachineInfo().name;
+    snapshot.isPaused = isPaused;
+    snapshot.mode     = session.GetMode();
+    snapshot.goTo     = m_goTo;
+    snapshot.machine  = session.GetTarget().GetMachineInfo().name;
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
     {
@@ -1052,8 +1053,13 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
             row.label         = line.label;
             row.isCurrent     = row.address == snapshot.pc;
             row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
-            row.annotation    = GetAnnotation (session, line, session.GetTarget().GetRegisters());
-            row.effect        = row.isCurrent ? GetEffect (session, line, session.GetTarget().GetRegisters()) : std::string();
+            //  Only while the machine is paused (FR-110): a running machine
+            //  is somewhere else by the time these are drawn.
+            if (snapshot.isPaused)
+            {
+                row.annotation = GetAnnotation (session, line, session.GetTarget().GetRegisters());
+                row.effect     = row.isCurrent ? GetEffect (session, line, session.GetTarget().GetRegisters()) : std::string();
+            }
 
             if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))
             {

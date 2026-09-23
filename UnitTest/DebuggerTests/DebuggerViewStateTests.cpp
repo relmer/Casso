@@ -310,6 +310,32 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (AnnotationsAreBuiltOnlyWhileTheMachineIsPaused)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  paused;
+            DebuggerViewSnapshot  running;
+            auto                  anyAnnotation = [] (const DebuggerViewSnapshot & snapshot)
+            {
+                return std::any_of (snapshot.code.begin(), snapshot.code.end(),
+                                    [] (const DebuggerViewSnapshot::CodeLine & line) { return !line.annotation.empty() || !line.effect.empty(); });
+            };
+
+
+
+            rig.view.SetCodeLines (20);
+
+            paused  = rig.view.Build (rig.controller.GetSession(), true);
+            running = rig.view.Build (rig.controller.GetSession(), false);
+
+            Assert::IsTrue  (paused.isPaused);
+            Assert::IsFalse (running.isPaused);
+            Assert::IsTrue  (anyAnnotation (paused),   L"a paused machine annotates what the instructions act on");
+            Assert::IsFalse (anyAnnotation (running),  L"a running machine annotates nothing: the values would be from mid-flight");
+            Assert::AreEqual (paused.code.size(), running.code.size(), L"the lines themselves are built either way");
+        }
+
+
         TEST_METHOD (TheEffectSaysWhatTheInstructionWillLeaveBehind)
         {
             InstructionEffect::Input  input;

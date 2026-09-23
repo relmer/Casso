@@ -727,18 +727,25 @@ release gate, since both change what the pane claims is true.
 annotated line's claim matches what the machine does when the step runs, and
 every soft-switch operand shows the switch that instruction operates.
 
-- [ ] T183 FR-110: build the operand and result annotations only while the
+- [X] T183 FR-110: build the operand and result annotations only while the
   machine is paused, in `DebuggerViewState::BuildCode`. A case in
   `DebuggerViewStateTests` asserts a running snapshot carries neither and a
   paused one carries both. This also takes the effective-address prediction
   and its peeks off the CPU thread's path at full speed, where they run per
-  visible line per snapshot today.
-- [ ] T184 Measure what a scratch `Cpu6502` costs to construct (64 KB of
+  visible line per snapshot today. **As built:** the CPU manager's run state
+  is handed to DebuggerViewState::Build rather than stamped on the snapshot
+  after it, since the session does not hold it and BuildCode needs it.
+- [X] T184 Measure what a scratch `Cpu6502` costs to construct (64 KB of
   memory plus the 256-entry microcode table), Release, in a
   `Logger::WriteMessage` case beside the other measured tests. The number
   decides T185: cheap enough means a fresh instance per prediction and no
   reseeding to get wrong. If the microcode table dominates, build it once and
-  share it rather than reuse a dirty CPU.
+  share it rather than reuse a dirty CPU. **Measured 2026-09-22**, Release
+  x64, median of 5 rounds of 2000 constructions in
+  UnitTest/DebuggerTests/ShadowCpuCostTests.cpp: **1.7 us each**, so 0.07 ms
+  for the 40 predictions a full pane asks for at one stop. T185 builds a fresh
+  CPU per prediction; nothing is re-seeded, and the microcode table needs no
+  sharing.
 - [ ] T185 FR-111: replace the hand-written table in
   `CassoEmuCore/Ui/Debugger/InstructionEffect.cpp` with an execution of the
   instruction by the emulator's own core: a `Cpu6502` subclass whose
