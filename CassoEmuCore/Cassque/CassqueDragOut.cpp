@@ -46,6 +46,68 @@ DiskOperations::Encoding CassqueDragOut::GetEncoding (const DragPayload::Descrip
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueDragOut::CopyToClipboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassqueDragOut::CopyToClipboard (CassqueBrowser & browser, HostFileNaming::Style style)
+{
+    HRESULT                                  hr      = S_OK;
+    std::vector<DxuiDragDropSource::Format>  formats = BuildFormats (browser, style);
+    std::vector<DxuiDragDropSource::Format>  held;
+    DxuiDragDropSource                     * source  = nullptr;
+    bool                                     empty   = formats.empty();
+
+
+
+    CBR (!empty);
+
+    //  Everything the formats would render on demand, read now.
+    for (DxuiDragDropSource::Format & format : formats)
+    {
+        std::shared_ptr<std::vector<std::vector<uint8_t>>>  bytes = std::make_shared<std::vector<std::vector<uint8_t>>>();
+
+        for (int index = 0; index < (format.count > 0 ? format.count : 1); index++)
+        {
+            std::vector<uint8_t>  one;
+
+            hr = format.render (index, one);
+            CHR (hr);
+
+            bytes->push_back (std::move (one));
+        }
+
+        held.push_back (DxuiDragDropSource::Format { format.format, format.count,
+                                                     [bytes] (int index, std::vector<uint8_t> & out)
+                                                     {
+                                                         size_t  at = (index >= 0 && (size_t) index < bytes->size()) ? (size_t) index : 0;
+
+                                                         out = (*bytes)[at];
+                                                         return S_OK;
+                                                     } });
+    }
+
+    hr = DxuiDragDropSource::Create (std::move (held), &source);
+    CHR (hr);
+
+    hr = OleSetClipboard (source);
+    CHR (hr);
+
+Error:
+    if (source != nullptr)
+    {
+        source->Release();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueDragOut::MakeFileGroupDescriptor
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -3687,6 +3687,11 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
         m_menuCommands.push_back (std::move (command));
 
+        if (verb == CassqueActions::Verb::Get)
+        {
+            AddCopyAsMenu (items);
+        }
+
         if (verb == CassqueActions::Verb::Format)
         {
             std::vector<DxuiPopupMenuItem>  advanced;
@@ -5096,6 +5101,74 @@ void CassqueWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, cons
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
     m_menuCommands.push_back (std::move (command));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::AddCopyAsMenu
+//
+//  Copy puts the selected files on the clipboard as real files, in the style
+//  the Options dialog sets, and Copy as offers the other two for this copy
+//  alone. A paste into Explorer then writes them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
+{
+    static constexpr struct { const wchar_t * label; HostFileNaming::Style style; }  kStyles[] =
+    {
+        { L"&Descriptive",  HostFileNaming::Style::Descriptive },
+        { L"&CiderPress",   HostFileNaming::Style::CiderPress  },
+        { L"&AppleSingle",  HostFileNaming::Style::AppleSingle },
+    };
+    std::vector<DxuiPopupMenuItem>  choices;
+    std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+
+
+
+    AddMenuCommand (items, L"&Copy", [this]() { CopyEntriesToClipboard (GetNamingStyle()); }, L"Ctrl+C");
+
+    for (const auto & row : kStyles)
+    {
+        std::shared_ptr<DxuiCommand>  child = std::make_shared<DxuiCommand>();
+        HostFileNaming::Style         style = row.style;
+
+        child->label    = row.label;
+        child->dispatch = [this, style]() { CopyEntriesToClipboard (style); };
+
+        choices.push_back (DxuiPopupMenuItem::ForCommand (child));
+        m_menuCommands.push_back (std::move (child));
+    }
+
+    parent->label = L"Cop&y as";
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
+    m_menuCommands.push_back (std::move (parent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::CopyEntriesToClipboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::CopyEntriesToClipboard (HostFileNaming::Style style)
+{
+    HRESULT  hr = CassqueDragOut::CopyToClipboard (m_browser, style);
+
+
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"The files could not be copied.", MB_ICONWARNING);
+    }
 }
 
 

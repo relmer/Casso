@@ -363,6 +363,8 @@ private:
     bool  IsToolbarEntryAvailable (int index) const;
     bool  IsCommandBarEntryAvailable (int index) const;
     HostFileNaming::Style  GetNamingStyle () const;
+    void  AddCopyAsMenu          (std::vector<DxuiPopupMenuItem> & items);
+    void  CopyEntriesToClipboard (HostFileNaming::Style style);
     bool  RouteCommandBarKey      (const DxuiKeyEvent & ev);
 
     DxuiToolbar          * m_commandBar      = nullptr;

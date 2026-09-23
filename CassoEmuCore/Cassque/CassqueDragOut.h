@@ -34,6 +34,12 @@ public:
     //  nothing to drag.
     static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassqueBrowser & browser, HostFileNaming::Style style);
 
+    //  The same formats on the clipboard, for a paste into Explorer. A drag
+    //  reads each file when the target asks, while it still holds the
+    //  selection it began with; a paste can come long after the selection
+    //  moved, so every file is read before the clipboard is set.
+    static HRESULT  CopyToClipboard (CassqueBrowser & browser, HostFileNaming::Style style);
+
     //  A FILEGROUPDESCRIPTORW holding one descriptor per entry.
     static std::vector<uint8_t>  MakeFileGroupDescriptor (const std::vector<DragPayload::Descriptor> & descriptors);
 
