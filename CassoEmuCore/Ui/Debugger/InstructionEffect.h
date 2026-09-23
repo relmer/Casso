@@ -1,6 +1,53 @@
 #pragma once
 
-#include "I6502DebugInfo.h"
+#include "Cpu6502.h"
+#include "Debugger/IDebugExpressionContext.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShadowCpu
+//
+//  A 6502 that reads the machine without touching it and writes nowhere.
+//
+//  Reads are answered from `IDebugExpressionContext::TryPeek`, the same
+//  side-effect-free view the memory pane shows; a read it declines -- every
+//  address in $C000-$C0FF, where reading is how the machine is operated --
+//  stops the whole prediction. Writes are recorded instead of performed.
+//
+//  `m_readPages` is left null, so no read takes the base class's inline fast
+//  path to real memory: every one arrives at ReadByteSlow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ShadowCpu : public Cpu6502
+{
+public:
+    struct Write
+    {
+        Word  address = 0;
+        Byte  value   = 0;
+    };
+
+    explicit ShadowCpu (const IDebugExpressionContext & memory) : m_memory (&memory) {}
+
+    //  False when a read could not be answered, which makes the run worthless.
+    bool                       IsComplete () const { return m_isComplete; }
+    const std::vector<Write> & GetWrites  () const { return m_writes; }
+
+    void  WriteByte    (Word address, Byte value) override;
+    void  WriteWord    (Word address, Word value) override;
+    Byte  ReadByteSlow (Word address)             override;
+    Word  ReadWord     (Word address)             override;
+
+private:
+    const IDebugExpressionContext  * m_memory     = nullptr;
+    std::vector<Write>               m_writes;
+    bool                             m_isComplete = true;
+};
 
 
 
@@ -13,43 +60,29 @@
 //  What executing one instruction would leave behind, written for the code
 //  pane: `A=A0 N=1 Z=0`, `$067B=3B`, `PC=$DB02`.
 //
+//  THE EMULATOR ITSELF ANSWERS. The instruction is executed by the same core
+//  the machine runs, over a ShadowCpu, and the answer is whatever changed
+//  between the registers going in and coming out. A table of what each
+//  opcode does, written beside the CPU, is what this replaces: it could
+//  disagree with the CPU, and a prediction that disagrees with the machine is
+//  worse than none. Decimal mode, the undocumented opcodes and every flag
+//  edge come out right because nothing here knows about them.
+//
 //  ONLY THE INSTRUCTION AT THE PC HAS AN ANSWER. Every other line would need
 //  the registers as they will be when execution reaches it, which nothing
 //  knows, so the pane asks for this on the current line alone.
-//
-//  Nothing here executes: the result is computed from the registers, the
-//  operand's value and, for a store, the address. An instruction this does
-//  not model returns an empty string rather than a guess.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class InstructionEffect
 {
 public:
-    struct Input
-    {
-        std::string          mnemonic;
-        Cpu6502Registers     registers;
-
-        //  The byte the instruction reads: the immediate itself, or the byte
-        //  at the effective address. Absent where the operand is an address
-        //  that cannot be read, such as I/O.
-        std::optional<Byte>  value;
-
-        //  The effective address, for the instructions that write one.
-        std::optional<Word>  address;
-
-        //  Where a branch or jump goes, as disassembled.
-        std::optional<Word>  target;
-
-        //  The address of the instruction after this one, which a branch not
-        //  taken and a JSR's saved address both need.
-        Word                 next = 0;
-    };
-
-    static std::string  Describe (const Input & input);
+    //  Empty when the instruction cannot be predicted: a read the peek
+    //  refuses, or an instruction that changes nothing a person can see.
+    //  `next` is the address of the following instruction, so a PC that
+    //  merely advanced is not reported and a branch or jump is.
+    static std::string  Describe (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Word next);
 
 private:
-    static std::string  GetFlags   (Byte value);
-    static std::string  GetCompare (Byte left, Byte right);
+    static std::string  GetFlagChanges (Byte before, Byte after);
 };

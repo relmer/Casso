@@ -746,7 +746,7 @@ every soft-switch operand shows the switch that instruction operates.
   for the 40 predictions a full pane asks for at one stop. T185 builds a fresh
   CPU per prediction; nothing is re-seeded, and the microcode table needs no
   sharing.
-- [ ] T185 FR-111: replace the hand-written table in
+- [X] T185 FR-111: replace the hand-written table in
   `CassoEmuCore/Ui/Debugger/InstructionEffect.cpp` with an execution of the
   instruction by the emulator's own core: a `Cpu6502` subclass whose
   `ReadByteSlow` answers from `IDebugExpressionContext::TryPeek` and whose
@@ -757,6 +757,14 @@ every soft-switch operand shows the switch that instruction operates.
   prediction matches, across every addressing mode, both carry states, decimal
   mode, and a spread of operand values -- a test that can fail, which the
   table's own test could not. Decimal arithmetic then needs no special case.
+  **As built:** ShadowCpu in InstructionEffect.h/.cpp; the answer is
+  whatever differs between the registers going in and coming out, plus the
+  captured writes, plus the flags that moved, plus the PC when it did not
+  simply advance. ThePredictedEffectMatchesWhatTheCoreActuallyDoes runs 18
+  cases -- including decimal ADC and SBC, the undocumented LAX, JSR, PHA and
+  a branch both taken and not -- predicting each, then stepping the real
+  machine and restating what changed in the same words. The old table was
+  wrong or silent on most of those.
 - [ ] T186 FR-112: choose which of a soft switch's two titles to show by
   direction. `$C000` read is KBD and `$C000` written is 80STOREOFF, and
   `SymbolTable::TryFindName` returns whichever table matched first, so the

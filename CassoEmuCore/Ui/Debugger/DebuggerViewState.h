@@ -394,7 +394,6 @@ private:
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
     static std::string          GetAnnotation          (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers);
     static std::string          GetEffect              (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers);
-    static std::optional<Byte>  GetImmediate           (const std::string & operand);
 
     //  Where the code pane starts this build: the pinned address, the anchor
     //  it already had while the PC is among the lines it produced, or a new

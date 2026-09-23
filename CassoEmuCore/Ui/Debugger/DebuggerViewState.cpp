@@ -1628,86 +1628,19 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerViewState::GetImmediate
-//
-//  The byte of an immediate operand, `#$8D`; nothing for any other form.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<Byte> DebuggerViewState::GetImmediate (const std::string & operand)
-{
-    unsigned  value = 0;
-
-
-
-    if (operand.size() < 4 || operand[0] != '#' || operand[1] != '$' ||
-        std::from_chars (operand.data() + 2, operand.data() + 4, value, 16).ptr != operand.data() + 4)
-    {
-        return std::nullopt;
-    }
-
-    return (Byte) value;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerViewState::GetEffect
 //
-//  What the instruction would leave behind, for the PC's line (FR-107). The
-//  operand's value is the immediate itself, the byte at the effective
-//  address, or -- for the instructions that work on the accumulator -- A.
+//  What the instruction at the PC would leave behind (FR-107), from the
+//  emulator's own execution of it over a CPU that reads the machine without
+//  touching it and writes nowhere (FR-111). The session is that CPU's memory:
+//  its peek is the view the memory pane shows, and it refuses $C000-$C0FF, so
+//  an instruction reading a soft switch predicts nothing at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string DebuggerViewState::GetEffect (DebugSession & session, const DisassemblyLine & line, const Cpu6502Registers & registers)
 {
-    InstructionEffect::Input  input;
-    AccessPrediction          prediction;
-    HRESULT                   hr    = S_OK;
-    Byte                      value = 0;
-
-
-
-    input.mnemonic  = line.instruction.mnemonic;
-    input.registers = registers;
-    input.target    = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
-    input.next      = (Word) (line.instruction.address + line.instruction.bytes.size());
-    input.value     = GetImmediate (line.instruction.operand);
-
-    //  A shift or count with no operand works on the accumulator.
-    if (!input.value.has_value() && line.instruction.operand.empty())
-    {
-        input.value = registers.a;
-    }
-
-    if (!input.value.has_value())
-    {
-        hr = EffectiveAddress::Predict (session.GetTarget().GetInstructionSet(), line.instruction.address, registers, session, prediction);
-    }
-
-    if (SUCCEEDED (hr) && !input.value.has_value() && !prediction.touches.empty())
-    {
-        input.address = prediction.touches.back().address;
-
-        //  Reading an I/O byte would change the machine, so an instruction
-        //  over I/O is predicted only as far as the address it writes.
-        if (session.GetTarget().GetRegion (*input.address) != MemoryRegion::Io && session.TryPeek (*input.address, value))
-        {
-            input.value = value;
-        }
-    }
-
-    //  A pull reads the byte above the stack pointer.
-    if ((input.mnemonic == "PLA" || input.mnemonic == "PLP") && session.TryPeek ((Word) (0x0100 + (Byte) (registers.sp + 1)), value))
-    {
-        input.value = value;
-    }
-
-    return InstructionEffect::Describe (input);
+    return InstructionEffect::Describe (session, registers, (Word) (line.instruction.address + line.instruction.bytes.size()));
 }
 
 

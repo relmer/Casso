@@ -336,51 +336,161 @@ namespace DebuggerViewStateTests
         }
 
 
-        TEST_METHOD (TheEffectSaysWhatTheInstructionWillLeaveBehind)
+        TEST_METHOD (ThePredictedEffectMatchesWhatTheCoreActuallyDoes)
         {
-            InstructionEffect::Input  input;
-            auto                      run = [&input] (const char * mnemonic)
+            //  Every case: the bytes at $0300, and the registers going in.
+            const std::tuple<const wchar_t *, std::vector<Byte>, Byte, Byte, Byte, Byte>  cases[] =
             {
-                input.mnemonic = mnemonic;
-                return InstructionEffect::Describe (input);
+                //  what                       bytes                 A     X     Y     P
+                { L"LDA #$00",                 { 0xA9, 0x00 },       0x55, 0x00, 0x00, 0x00 },
+                { L"CMP #$8D",                 { 0xC9, 0x8D },       0xA0, 0x00, 0x00, 0x00 },
+                { L"ADC #$8D binary",          { 0x69, 0x8D },       0xA0, 0x00, 0x00, 0x00 },
+                { L"ADC #$8D with carry in",   { 0x69, 0x8D },       0xA0, 0x00, 0x00, 0x01 },
+                { L"ADC #$19 DECIMAL",         { 0x69, 0x19 },       0x28, 0x00, 0x00, 0x08 },
+                { L"SBC #$19 DECIMAL",         { 0xE9, 0x19 },       0x28, 0x00, 0x00, 0x09 },
+                { L"STA $0402,X",              { 0x9D, 0x00, 0x04 }, 0x3B, 0x02, 0x00, 0x00 },
+                { L"LDA ($10),Y",              { 0xB1, 0x10 },       0x00, 0x00, 0x04, 0x00 },
+                { L"INC $0400",                { 0xEE, 0x00, 0x04 }, 0x00, 0x00, 0x00, 0x00 },
+                { L"ASL A",                    { 0x0A },             0xC1, 0x00, 0x00, 0x00 },
+                { L"ROR A with carry in",      { 0x6A },             0x01, 0x00, 0x00, 0x01 },
+                { L"BEQ taken",                { 0xF0, 0x10 },       0x00, 0x00, 0x00, 0x02 },
+                { L"BEQ not taken",            { 0xF0, 0x10 },       0x00, 0x00, 0x00, 0x00 },
+                { L"JSR $0400",                { 0x20, 0x00, 0x04 }, 0x00, 0x00, 0x00, 0x00 },
+                { L"PHA",                      { 0x48 },             0x7E, 0x00, 0x00, 0x00 },
+                { L"SEC",                      { 0x38 },             0x00, 0x00, 0x00, 0x00 },
+                { L"NOP",                      { 0xEA },             0x00, 0x00, 0x00, 0x00 },
+                { L"undocumented LAX $0400",   { 0xAF, 0x00, 0x04 }, 0x00, 0x00, 0x00, 0x00 },
             };
 
 
 
-            input.registers    = {};
-            input.registers.a  = 0xA0;
-            input.registers.x  = 0x05;
-            input.registers.y  = 0x00;
-            input.registers.sp = 0xF8;
-            input.registers.p  = 0x00;
-            input.value        = 0x8D;
-            input.next         = 0x0302;
+            for (const auto & [what, bytes, a, x, y, p] : cases)
+            {
+                MachineRig        rig;
+                IDebugTarget    & target = rig.controller.GetSession().GetTarget();
+                Cpu6502Registers  before = target.GetRegisters();
+                std::string       predicted;
+                std::string       actual;
 
-            Assert::AreEqual (std::string ("N=0 Z=0 C=1"),      run ("CMP"), L"A0 is above 8D, so carry is set");
-            Assert::AreEqual (std::string ("A=8D N=1 Z=0"),     run ("LDA"));
-            Assert::AreEqual (std::string ("A=80 N=1 Z=0"),     run ("AND"));
-            Assert::AreEqual (std::string ("A=2D N=0 Z=0 C=1 V=1"), run ("ADC"), L"A0 + 8D carries out, and two negatives making a positive overflow");
-            Assert::AreEqual (std::string ("X=06 N=0 Z=0"),     run ("INX"));
-            Assert::AreEqual (std::string ("C=1"),              run ("SEC"));
 
-            input.value   = std::nullopt;
-            input.address = 0x067B;
-            Assert::AreEqual (std::string ("$067B=A0"), run ("STA"));
 
-            //  A branch says where the PC lands and whether it is taken, from
-            //  the flags as they stand.
-            input.address = std::nullopt;
-            input.target  = 0x0400;
-            Assert::AreEqual (std::string ("PC=$0302 not taken"), run ("BEQ"), L"Z is clear");
-            Assert::AreEqual (std::string ("PC=$0400 taken"),     run ("BNE"));
-            Assert::AreEqual (std::string ("PC=$0400"),           run ("JMP"));
+                for (size_t i = 0; i < bytes.size(); i++)
+                {
+                    (void) target.TryPoke ((Word) (0x0300 + i), bytes[i]);
+                }
 
-            //  Decimal mode is not predicted rather than predicted wrongly.
-            input.registers.p = 0x08;
-            input.value       = 0x01;
-            input.target      = std::nullopt;
-            Assert::AreEqual (std::string(), run ("ADC"));
-            Assert::AreEqual (std::string(), run ("XYZ"), L"an instruction with no model says nothing");
+                //  A pointer at $10 for the indirect case, and something to
+                //  read and increment at $0400.
+                (void) target.TryPoke (0x0010, 0x00);
+                (void) target.TryPoke (0x0011, 0x04);
+                (void) target.TryPoke (0x0400, 0x7F);
+                (void) target.TryPoke (0x0402, 0x00);
+                (void) target.TryPoke (0x0404, 0x99);
+
+                before.pc = 0x0300;
+                before.sp = 0xF8;
+                before.a  = a;
+                before.x  = x;
+                before.y  = y;
+                before.p  = p;
+                target.SetRegisters (before);
+
+                predicted = InstructionEffect::Describe (rig.controller.GetSession(), before,
+                                                         (Word) (0x0300 + bytes.size()));
+
+                //  THE MACHINE ITSELF, one instruction, and what it left.
+                actual = StepAndDescribe (rig, before);
+
+                Assert::AreEqual (actual, predicted, what);
+            }
+        }
+
+
+        //  Steps the real machine one instruction and writes what changed in
+        //  the same words the prediction uses. Restating the format here is
+        //  the point: the two are arrived at independently, so a prediction
+        //  that drifts from the core fails this.
+        static std::string StepAndDescribe (MachineRig & rig, const Cpu6502Registers & before)
+        {
+            static constexpr char    kFlagLetters[] = { 'C', 'Z', 'I', 'D', 'B', '-', 'V', 'N' };
+            IDebugTarget           & target         = rig.controller.GetSession().GetTarget();
+            std::array<Byte, 16>     pageBefore     = {};
+            std::array<Byte, 16>     stackBefore    = {};
+            Cpu6502Registers         after          = {};
+            std::string              text;
+            Byte                     value          = 0;
+
+
+
+            for (Word i = 0; i < 16; i++)
+            {
+                (void) target.TryPeek ((Word) (0x0400 + i), pageBefore[i]);
+                (void) target.TryPeek ((Word) (0x01F0 + i), stackBefore[i]);
+            }
+
+            rig.machine.StepOne();
+            after = target.GetRegisters();
+
+            if (after.a  != before.a)  { text += std::format (" A={:02X}", after.a);  }
+            if (after.x  != before.x)  { text += std::format (" X={:02X}", after.x);  }
+            if (after.y  != before.y)  { text += std::format (" Y={:02X}", after.y);  }
+            if (after.sp != before.sp) { text += std::format (" S={:02X}", after.sp); }
+
+            //  The stack is written downwards, so a push shows at the higher
+            //  address first -- the order the CPU wrote them.
+            for (Word i = 16; i > 0; i--)
+            {
+                Word  address = (Word) (0x01F0 + i - 1);
+
+                if (target.TryPeek (address, value) && value != stackBefore[i - 1])
+                {
+                    text += std::format (" ${:04X}={:02X}", address, value);
+                }
+            }
+
+            for (Word i = 0; i < 16; i++)
+            {
+                Word  address = (Word) (0x0400 + i);
+
+                if (target.TryPeek (address, value) && value != pageBefore[i])
+                {
+                    text += std::format (" ${:04X}={:02X}", address, value);
+                }
+            }
+
+            for (int bit = 0; bit < 8; bit++)
+            {
+                Byte  mask = (Byte) (1u << bit);
+
+                if (kFlagLetters[bit] != '-' && ((before.p ^ after.p) & mask) != 0)
+                {
+                    text += std::format (" {}={}", kFlagLetters[bit], (after.p & mask) ? 1 : 0);
+                }
+            }
+
+            if (after.pc != (Word) (before.pc + GetInstructionLength (rig)))
+            {
+                text += std::format (" PC=${:04X}", after.pc);
+            }
+
+            return text.empty() ? text : text.substr (1);
+        }
+
+
+        //  The length of the instruction at $0300, from the disassembler.
+        static size_t GetInstructionLength (MachineRig & rig)
+        {
+            Reply  code = rig.controller.GetSession().ExecuteLine ("U 0300", CommandMode::AppleWin);
+
+            if (const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data))
+            {
+                if (!data->lines.empty())
+                {
+                    return data->lines[0].instruction.bytes.size();
+                }
+            }
+
+            return 1;
         }
 
 
