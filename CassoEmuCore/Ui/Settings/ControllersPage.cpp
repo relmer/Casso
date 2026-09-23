@@ -1305,10 +1305,10 @@ void ControllersPage::RefreshRows()
 //  RefreshMultiplayer
 //
 //  Each player's two drop-downs. The controller list offers None and every
-//  attached controller LESS the one the other player holds, so the pair the
-//  page offers is always one the machine can play; the targets come from the
-//  policy, which has already left out the paddles this machine lacks and the
-//  ones the other player claimed (FR-035, FR-036).
+//  controller, the other player's included: picking that one swaps the two
+//  players' controllers. The targets come from the policy, which has already
+//  left out the paddles this machine lacks and the ones the other player
+//  claimed (FR-035, FR-036).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1326,10 +1326,9 @@ void ControllersPage::RefreshMultiplayer()
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        const MultiplayerSlot &           slot     = m_state->GetMultiplayer().players[player];
-        std::optional<ControllerUnitKey>  other    = m_state->GetMultiplayer().players[player == 0 ? 1 : 0].unit;
-        std::vector<std::wstring>         items;
-        int                               selected = 0;
+        const MultiplayerSlot &    slot     = m_state->GetMultiplayer().players[player];
+        std::vector<std::wstring>  items;
+        int                        selected = 0;
 
         m_playerUnits[player].clear();
         m_playerUnits[player].push_back (std::nullopt);
@@ -1337,11 +1336,6 @@ void ControllersPage::RefreshMultiplayer()
 
         for (const ControllersPageState::ControllerEntry & entry : m_state->GetControllers())
         {
-            if (other.has_value() && other.value() == entry.unit)
-            {
-                continue;
-            }
-
             if (slot.unit.has_value() && slot.unit.value() == entry.unit)
             {
                 selected = (int) items.size();
@@ -1394,11 +1388,65 @@ void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
         return;
     }
 
+    std::optional<ControllerUnitKey>  playerOne = m_state->GetMultiplayer().players[0].unit;
+
+
+
     m_state->SetMultiplayerUnit (player, m_playerUnits[player][(size_t) item]);
 
     // The slots decide which rows below are in play, so the whole page
     // follows a pick here.
     Relayout();
+
+    // A swap can change player one from player two's drop-down too, so this
+    // compares the result rather than looking at which drop-down moved.
+    if (m_state->GetMultiplayer().players[0].unit != playerOne)
+    {
+        FollowPlayerOne();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FollowPlayerOne
+//
+//  In multiplayer the controller worth editing is player one's, so Editing
+//  moves to it. The move asks about unsaved profile edits first, exactly as a
+//  pick from the Editing drop-down does. An empty slot, or a controller the
+//  page does not list, leaves Editing where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::FollowPlayerOne()
+{
+    std::optional<ControllerUnitKey>  unit  = (m_state != nullptr) ? m_state->GetMultiplayer().players[0].unit : std::nullopt;
+    size_t                            index = 0;
+
+
+
+    if (m_state == nullptr || !m_state->IsMultiplayerEnabled() || !unit.has_value())
+    {
+        return;
+    }
+
+    for (index = 0; index < m_state->GetControllers().size(); index++)
+    {
+        if (m_state->GetControllers()[index].unit == unit.value())
+        {
+            break;
+        }
+    }
+
+    if (index >= m_state->GetControllers().size() || m_state->GetSelectedIndex() == std::optional<size_t> (index))
+    {
+        return;
+    }
+
+    AskToSaveProfileEdits ([this, index] () { SwitchController (index); });
 }
 
 

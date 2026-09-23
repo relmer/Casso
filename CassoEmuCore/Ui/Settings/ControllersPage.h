@@ -86,6 +86,11 @@ public:
     // going with the machine's mode, say.
     void  Relayout         ();
 
+    // In multiplayer, moves Editing to player one's controller, asking about
+    // unsaved profile edits first. Nothing happens outside multiplayer or
+    // with player one's slot empty.
+    void  FollowPlayerOne  ();
+
     // Press-to-assign in progress, for the sheet's prompt over the page: the
     // sentence it shows, and a way to call the wait off.
     bool          IsCapturing        () const;
