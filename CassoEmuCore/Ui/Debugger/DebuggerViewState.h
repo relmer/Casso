@@ -338,6 +338,25 @@ public:
     static std::vector<std::string>  GetWatchEditLines (const DebuggerViewSnapshot & snapshot,
                                                         std::optional<int> watchId, std::optional<int> autoIndex,
                                                         int column, const std::string & typed);
+
+    //  What puts a watch edit back (FR-097), from the snapshot as it stood
+    //  BEFORE the edit. Moving a manual watch cannot be undone by a line
+    //  alone: the watch the edit made gets its id from the engine only once
+    //  the edit runs, so the undo names the watch it replaced and the caller
+    //  finds the new one when the time comes.
+    struct WatchUndo
+    {
+        std::vector<std::string>  lines;
+
+        //  For a moved watch: the id before the edit, and the address to put
+        //  back. `movedFromIds` is every watch id there was, so the one the
+        //  edit made is the one not among them.
+        std::optional<Word>       restoreAddress;
+        std::vector<int>          movedFromIds;
+    };
+
+    static std::optional<WatchUndo>  GetWatchUndo (const DebuggerViewSnapshot & before,
+                                                   std::optional<int> watchId, std::optional<int> autoIndex, int column);
     static std::string  GetStepLine             ()             { return "T"; }
     static std::string  GetStepOverLine         ()             { return "P"; }
     static std::string  GetStepOutLine          ()             { return "RTS"; }

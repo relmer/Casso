@@ -179,6 +179,7 @@ private:
     void     BeginWatchEdit   (int row, int column);
     void     EndWatchEdit     (bool commit);
     void     RemoveSelectedWatch ();
+    void     UndoWatchEdit    ();
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
@@ -320,10 +321,14 @@ private:
     DxuiTextInput                         * m_watchEditor        = nullptr;
     WatchEdit                               m_watchEdit;
     POINT                                   m_lastPressPx        = {};
-    float                                   m_textZoom           = 1.0f;
-    DxuiTooltip                             m_tooltip;
-    std::shared_ptr<const DxuiIconImage>    m_breakpointIcons[2];
-    uint32_t                                m_breakpointIconArgb = 0;
+
+    //  The watch pane's own undo history (FR-097), apart from every memory
+    //  window's: Ctrl+Z in the watch pane puts back its last edit only.
+    std::vector<DebuggerViewState::WatchUndo>  m_watchUndo;
+    float                                      m_textZoom           = 1.0f;
+    DxuiTooltip                                m_tooltip;
+    std::shared_ptr<const DxuiIconImage>       m_breakpointIcons[2];
+    uint32_t                                   m_breakpointIconArgb = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

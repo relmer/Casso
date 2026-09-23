@@ -935,6 +935,94 @@ std::vector<std::string> DebuggerViewState::GetWatchEditLines (const DebuggerVie
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetWatchUndo
+//
+//  The value each kind of edit overwrote, written back the way the edit wrote
+//  it. A value the pane could not read -- a soft switch shows "--" -- has
+//  nothing to put back, and the edit is then not undoable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (const DebuggerViewSnapshot & before,
+                                                                            std::optional<int> watchId,
+                                                                            std::optional<int> autoIndex, int column)
+{
+    WatchUndo  undo;
+
+
+
+    if (watchId.has_value())
+    {
+        for (const DebuggerViewSnapshot::WatchLine & watch : before.watches)
+        {
+            if (watch.id != *watchId)
+            {
+                continue;
+            }
+
+            if (column == 0)
+            {
+                undo.restoreAddress = watch.address;
+
+                for (const DebuggerViewSnapshot::WatchLine & other : before.watches)
+                {
+                    undo.movedFromIds.push_back (other.id);
+                }
+
+                return undo;
+            }
+
+            if (watch.value == "--")
+            {
+                return std::nullopt;
+            }
+
+            undo.lines = { std::format ("MEW {:04X} {}", watch.address, watch.value) };
+            return undo;
+        }
+
+        return std::nullopt;
+    }
+
+    if (!autoIndex.has_value() || *autoIndex < 0 || *autoIndex >= (int) before.autoWatches.size() || column == 0)
+    {
+        return std::nullopt;
+    }
+
+    //  An automatic watch's edit and its undo are the same command with the
+    //  old value in it -- a flag's, the whole status register as it was.
+    const DebuggerViewSnapshot::AutoWatchLine & line = before.autoWatches[(size_t) *autoIndex];
+
+    if (line.value == "--")
+    {
+        return std::nullopt;
+    }
+
+    if (line.key.starts_with ("F:"))
+    {
+        for (const DebuggerViewSnapshot::RegisterRow & reg : before.registers)
+        {
+            if (reg.name == "P")
+            {
+                undo.lines = { "R P " + reg.value };
+                return undo;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    undo.lines = GetWatchEditLines (before, std::nullopt, autoIndex, 1, line.value);
+
+    return undo.lines.empty() ? std::nullopt : std::optional<WatchUndo> (undo);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetRunToCursorLine
 //
 ////////////////////////////////////////////////////////////////////////////////

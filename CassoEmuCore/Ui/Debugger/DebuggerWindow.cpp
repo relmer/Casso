@@ -2851,12 +2851,21 @@ void DebuggerWindow::EndWatchEdit (bool commit)
 
     if (commit && m_snapshot != nullptr)
     {
-        bool  isManual = m_watchEdit.what.kind == WatchRowKind::Manual;
+        bool                                        isManual = m_watchEdit.what.kind == WatchRowKind::Manual;
+        std::optional<int>                          watchId  = isManual ? std::optional<int> (m_watchEdit.what.index) : std::nullopt;
+        std::optional<int>                          autoAt   = isManual ? std::nullopt : std::optional<int> (m_watchEdit.what.index);
+        std::optional<DebuggerViewState::WatchUndo> undo;
 
-        lines = DebuggerViewState::GetWatchEditLines (*m_snapshot,
-                                                      isManual ? std::optional<int> (m_watchEdit.what.index) : std::nullopt,
-                                                      isManual ? std::nullopt : std::optional<int> (m_watchEdit.what.index),
-                                                      m_watchEdit.column, TextEncoding::WideToNarrow (typed));
+        lines = DebuggerViewState::GetWatchEditLines (*m_snapshot, watchId, autoAt, m_watchEdit.column,
+                                                      TextEncoding::WideToNarrow (typed));
+
+        //  Recorded from the snapshot as it stands, BEFORE the edit runs.
+        undo = lines.empty() ? std::nullopt : DebuggerViewState::GetWatchUndo (*m_snapshot, watchId, autoAt, m_watchEdit.column);
+
+        if (undo.has_value())
+        {
+            m_watchUndo.push_back (std::move (*undo));
+        }
     }
 
     m_watchEdit = WatchEdit {};
@@ -2892,6 +2901,55 @@ void DebuggerWindow::RemoveSelectedWatch()
     if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
     {
         RunCommand (std::format ("WC {}", m_watchRows[(size_t) row].index));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UndoWatchEdit
+//
+//  The last watch edit, put back. A moved watch is found by being the one
+//  whose id did not exist before the move, since the engine numbered it only
+//  once the move ran.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UndoWatchEdit()
+{
+    DebuggerViewState::WatchUndo  undo;
+
+
+
+    if (m_watchUndo.empty() || m_snapshot == nullptr)
+    {
+        return;
+    }
+
+    undo = std::move (m_watchUndo.back());
+    m_watchUndo.pop_back();
+
+    if (undo.restoreAddress.has_value())
+    {
+        for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
+        {
+            if (std::find (undo.movedFromIds.begin(), undo.movedFromIds.end(), watch.id) == undo.movedFromIds.end())
+            {
+                RunCommand (std::format ("WC {}", watch.id));
+                RunCommand (std::format ("W {:04X}", *undo.restoreAddress));
+                return;
+            }
+        }
+
+        return;
+    }
+
+    for (const std::string & line : undo.lines)
+    {
+        RunCommand (line);
     }
 }
 
@@ -5182,6 +5240,14 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
             BeginWatchEdit (m_watchList->GetSelectedRow(), 1);
             return true;
         }
+    }
+
+    //  Ctrl+Z in the watch pane undoes its own last edit, and nothing of any
+    //  memory window's (FR-097).
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && ev.ctrl && !ev.alt && ev.vk == 'Z')
+    {
+        UndoWatchEdit();
+        return true;
     }
 
     if (RouteBoxKey (ev, handled))
