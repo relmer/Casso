@@ -511,7 +511,7 @@ float DriveWidget::GetHeadCoreCenterX (int   quarterTrack,
 //
 //  The diffuse edge is built from stacked ellipses of falling alpha rather
 //  than a blur, since the painter has no blur and does not need one for a
-//  shape this small. FillEllipseApprox takes independent radii, so "very
+//  shape this small. FillEllipse takes independent radii, so "very
 //  oblong and very short" is the shape it was already able to draw.
 //
 //  An empty drive draws the rail alone. A drive whose position is unknown --
@@ -605,7 +605,7 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
             float     a    = base * (1.0f - 0.75f * fade);
             uint32_t  argb = DxuiColor::ScaleAlpha (theme.ledActive, a);
 
-            painter.FillEllipseApprox (cx, cy, rx, ry, argb);
+            painter.FillEllipse (cx, cy, rx, ry, argb);
         }
     }
 }

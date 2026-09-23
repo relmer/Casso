@@ -728,16 +728,15 @@ void DxuiPainter::OutlineRoundedRect (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FillCircleApprox
+//  FillCircle
 //
 //  A filled circle as one quad. A rounded box whose half-size equals its
 //  corner radius is exactly a circle, and its distance function is the
-//  exact Euclidean one, so the circle needs no kind of its own. The name
-//  keeps "Approx" for its callers; the edge is no longer an approximation.
+//  exact Euclidean one, so the circle needs no kind of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPainter::FillCircleApprox (
+void DxuiPainter::FillCircle (
     float     cxPx,
     float     cyPx,
     float     radiusPx,
@@ -774,14 +773,14 @@ void DxuiPainter::FillCircleApprox (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FillEllipseApprox
+//  FillEllipse
 //
 //  Axis-aligned ellipse as one quad, cut by the ellipse distance function in
 //  the pixel shader.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPainter::FillEllipseApprox (
+void DxuiPainter::FillEllipse (
     float     cxPx,
     float     cyPx,
     float     radiusXPx,
@@ -941,7 +940,7 @@ void DxuiPainter::FillConvexQuad (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DrawLineApprox
+//  DrawLine
 //
 //  Line segment as a capsule: the segment thickened by half the thickness on
 //  every side, with round caps. One quad covering the capsule's bounding box,
@@ -952,7 +951,7 @@ void DxuiPainter::FillConvexQuad (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPainter::DrawLineApprox (
+void DxuiPainter::DrawLine (
     float x0, float y0, float x1, float y1,
     float thicknessPx, uint32_t argbColor)
 {

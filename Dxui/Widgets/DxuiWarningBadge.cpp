@@ -34,9 +34,9 @@ void DxuiWarningBadge::Draw (IDxuiPainter & painter,
 
     // Outline the two slanted sides and the base so the mark keeps its shape
     // against a light surface as well as a dark one.
-    painter.DrawLineApprox (apexX, top,   left + w, baseY, 1.0f, edge);
-    painter.DrawLineApprox (apexX, top,   left,     baseY, 1.0f, edge);
-    painter.DrawLineApprox (left,  baseY, left + w, baseY, 1.0f, edge);
+    painter.DrawLine (apexX, top,   left + w, baseY, 1.0f, edge);
+    painter.DrawLine (apexX, top,   left,     baseY, 1.0f, edge);
+    painter.DrawLine (left,  baseY, left + w, baseY, 1.0f, edge);
 
     // Exclamation mark: a bar, a gap, then a dot.
     painter.FillRect (barX, barTop, barW, barH, mark);

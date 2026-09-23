@@ -80,7 +80,7 @@ public:
 
     // Filled circle with analytic edge coverage. Used for round
     // indicators (LEDs, radio dots, toggle thumbs).
-    void    FillCircleApprox (float cxPx,
+    void    FillCircle       (float cxPx,
                               float cyPx,
                               float radiusPx,
                               uint32_t argbColor) override;
@@ -88,10 +88,10 @@ public:
     void    FillConvexQuad    (float x0, float y0, float x1, float y1,
                                float x2, float y2, float x3, float y3,
                                uint32_t argbColor) override;
-    void    FillEllipseApprox (float cxPx, float cyPx,
+    void    FillEllipse       (float cxPx, float cyPx,
                                float radiusXPx, float radiusYPx,
                                uint32_t argbColor) override;
-    void    DrawLineApprox    (float x0, float y0, float x1, float y1,
+    void    DrawLine          (float x0, float y0, float x1, float y1,
                                float thicknessPx, uint32_t argbColor) override;
 
     HRESULT End            (ID3D11RenderTargetView * pRtv);

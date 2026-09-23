@@ -171,10 +171,10 @@ void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, 
 
     if (halo != 0)
     {
-        painter.FillCircleApprox (cx, cy, haloR, halo);
+        painter.FillCircle (cx, cy, haloR, halo);
     }
 
-    painter.FillCircleApprox (cx, cy, coreR, GetCoreArgb (theme));
+    painter.FillCircle (cx, cy, coreR, GetCoreArgb (theme));
 }
 
 
@@ -229,9 +229,9 @@ void LedIndicator::Paint (IDxuiPainter & painter, uint32_t coreArgb, uint32_t ha
             float  t = (float) i / (float) (s_kGlowRings - 1);
             float  r = glowOuterR + (glowInnerR - glowOuterR) * t;
 
-            painter.FillCircleApprox (cx, cy, r, ringArgb);
+            painter.FillCircle (cx, cy, r, ringArgb);
         }
     }
 
-    painter.FillCircleApprox (cx, cy, coreR, coreArgb);
+    painter.FillCircle (cx, cy, coreR, coreArgb);
 }
