@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  Template. scripts/BuildMsix.ps1 substitutes {VERSION} and {ARCHITECTURE}.
+  No comment here may contain a double hyphen; makepri rejects the manifest.
+-->
+
+<Package
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+    xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    IgnorableNamespaces="uap uap3 desktop rescap">
+
+    <!--
+      Publisher must match the signing certificate's subject exactly. Windows
+      builds the package family name out of Name and Publisher, so changing
+      either one installs a second copy instead of upgrading the first.
+    -->
+    <Identity
+        Name="relmer.Casso"
+        Publisher="CN=Robert Elmer, O=Robert Elmer, L=Redmond, S=Washington, C=US"
+        Version="{VERSION}"
+        ProcessorArchitecture="{ARCHITECTURE}" />
+
+    <!--
+      Every logo path here points at a file that does not exist. Assets holds
+      the scale-qualified variants, and the resource index BuildMsix.ps1
+      generates with makepri maps the plain name to the right one.
+    -->
+    <Properties>
+        <DisplayName>Casso</DisplayName>
+        <PublisherDisplayName>Robert Elmer</PublisherDisplayName>
+        <Logo>Assets\StoreLogo.png</Logo>
+    </Properties>
+
+    <!-- 1809 is the floor for app execution aliases, not for the emulator. -->
+    <Dependencies>
+        <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+    </Dependencies>
+
+    <Resources>
+        <Resource Language="en-US" />
+    </Resources>
+
+    <Capabilities>
+        <rescap:Capability Name="runFullTrust" />
+    </Capabilities>
+
+    <Applications>
+
+        <Application Id="Casso" Executable="Casso.exe" EntryPoint="Windows.FullTrustApplication">
+
+            <!-- BackgroundColor is the badge's plate color. Windows 10 tiles only. -->
+            <uap:VisualElements
+                DisplayName="Casso"
+                Description="An Apple II family emulator with a built-in, fully AS65-compatible assembler."
+                BackgroundColor="#121016"
+                Square150x150Logo="Assets\Square150x150Logo.png"
+                Square44x44Logo="Assets\Square44x44Logo.png">
+                <uap:DefaultTile
+                    ShortName="Casso"
+                    Square71x71Logo="Assets\Square71x71Logo.png"
+                    Square310x310Logo="Assets\Square310x310Logo.png"
+                    Wide310x150Logo="Assets\Wide310x150Logo.png" />
+            </uap:VisualElements>
+
+            <Extensions>
+                <!-- Makes `casso` work in a terminal. The .exe is required here. -->
+                <uap3:Extension Category="windows.appExecutionAlias" Executable="Casso.exe" EntryPoint="Windows.FullTrustApplication">
+                    <uap3:AppExecutionAlias>
+                        <desktop:ExecutionAlias Alias="Casso.exe" />
+                    </uap3:AppExecutionAlias>
+                </uap3:Extension>
+            </Extensions>
+
+        </Application>
+
+        <Application Id="CassoCli" Executable="CassoCli.exe" EntryPoint="Windows.FullTrustApplication">
+
+            <!-- AppListEntry: a command-line tool, so no Start item for it. -->
+            <uap:VisualElements
+                AppListEntry="none"
+                DisplayName="Casso CLI"
+                Description="Casso's command-line assembler, disk manager and headless 6502 runner."
+                BackgroundColor="#121016"
+                Square150x150Logo="Assets\Square150x150Logo.png"
+                Square44x44Logo="Assets\Square44x44Logo.png" />
+
+            <Extensions>
+                <uap3:Extension Category="windows.appExecutionAlias" Executable="CassoCli.exe" EntryPoint="Windows.FullTrustApplication">
+                    <uap3:AppExecutionAlias>
+                        <desktop:ExecutionAlias Alias="CassoCli.exe" />
+                    </uap3:AppExecutionAlias>
+                </uap3:Extension>
+            </Extensions>
+
+        </Application>
+
+    </Applications>
+
+</Package>
