@@ -69,6 +69,8 @@ public:
         Assert::IsTrue (Mentions (runs, L"Mr. Smiley / BunyipCo"),         L"its author");
         Assert::IsTrue (Mentions (runs, L"ImageWriter II printer sounds"), L"the recordings");
         Assert::IsTrue (Mentions (runs, L"Scott Lawrence"),                L"their author");
+        Assert::IsTrue (Mentions (runs, L"Fluent UI System Icons"),        L"the command bar's icons");
+        Assert::IsTrue (Mentions (runs, L"Copyright (c) 2020 Microsoft Corporation"), L"the notice MIT asks for");
     }
 
 
@@ -80,6 +82,8 @@ public:
         Assert::IsTrue (Links (runs, AttributionsText::kPhotoLicense),  L"the license it is under");
         Assert::IsTrue (Links (runs, AttributionsText::kSoundsUrl),     L"where the recordings came from");
         Assert::IsTrue (Links (runs, AttributionsText::kSoundsLicense), L"the license they are under");
+        Assert::IsTrue (Links (runs, AttributionsText::kIconsUrl),      L"where the icons came from");
+        Assert::IsTrue (Links (runs, AttributionsText::kIconsLicense),  L"their license");
 
         Assert::IsTrue (Mentions (runs, L"CC BY-NC-SA 3.0"), L"the license is readable, not only clickable");
         Assert::IsTrue (Mentions (runs, L"CC BY 4.0"),       L"the same for the other");

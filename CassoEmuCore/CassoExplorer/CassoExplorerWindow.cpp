@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -279,12 +280,12 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar = CreateChild<DxuiToolbar>();
     m_commandBar->SetTextRenderer (GetTextRenderer());
     m_commandBar->SetPopupHost    (GetPopupHost());
-    m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
+    m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more", &CassoExplorerIcons::s_kMore);
     m_commandBar->SetEntries      (m_commands.BuildCommandBarEntries());
     m_commandBar->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                                    ? DxuiToolbar::kFluentIconFace
                                    : DxuiToolbar::kMdl2IconFace);
-    m_commandBar->SetIconDip      (kNavIconDip);
+    m_commandBar->SetIconDip      (kCommandBarIconDip);
     m_commandBar->SetChevronOnIcons (true);
     m_commandBar->SetGroupSeparators (true);
     m_commandBar->SetButtonPadDip    (kCommandBarPadDip);

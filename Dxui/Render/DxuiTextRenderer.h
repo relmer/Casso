@@ -131,6 +131,7 @@ public:
     void     PopMonochromeGlyphs  () override { m_monochromeGlyphs = false; }
 
     HRESULT  FillEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, uint32_t argbColor) override;
+    HRESULT  FillVectorIcon   (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override;
     HRESULT  DrawEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, float thicknessDip, uint32_t argbColor) override;
     HRESULT  DrawLine         (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
 
@@ -275,6 +276,13 @@ private:
 
 
     ComPtr<ID2D1Factory1>       m_d2dFactory;
+
+    //  A vector icon's layers as Direct2D geometry, built the first time each
+    //  is drawn. Keyed by the layer, which is constant data with one address
+    //  for the life of the program.
+    std::unordered_map<const DxuiVectorIconLayer *, ComPtr<ID2D1PathGeometry>>  m_iconGeometry;
+
+    HRESULT  GetIconLayerGeometry (const DxuiVectorIcon & icon, const DxuiVectorIconLayer & layer, ID2D1PathGeometry ** outGeometry);
     ComPtr<ID2D1Device>         m_d2dDevice;
     ComPtr<ID2D1DeviceContext>  m_d2dContext;
     D2D1_MATRIX_3X2_F           m_savedTransform     = D2D1::Matrix3x2F::Identity();

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Render/DxuiSvgPath.h"
 #include "DxuiTextRenderer.h"
 
 #pragma comment(lib, "d2d1.lib")
@@ -1588,6 +1589,171 @@ HRESULT DxuiTextRenderer::FillEllipse (float cxDip, float cyDip, float radiusXDi
     }
 
     m_d2dContext->FillEllipse (D2D1::Ellipse (D2D1::Point2F (cxDip, cyDip), radiusXDip, radiusYDip), brush.Get());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetIconLayerGeometry
+//
+//  The layer's sub-shapes as one geometry, filled by the winding rule SVG
+//  uses, so a ring's inner edge cuts its outer one rather than filling in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::GetIconLayerGeometry (const DxuiVectorIcon & icon, const DxuiVectorIconLayer & layer, ID2D1PathGeometry ** outGeometry)
+{
+    HRESULT                       hr        = S_OK;
+    std::vector<DxuiSvgSubpath>   subpaths;
+    ComPtr<ID2D1PathGeometry>     geometry;
+    ComPtr<ID2D1GeometrySink>     sink;
+    auto                          cached    = m_iconGeometry.find (&layer);
+    bool                          parsed    = false;
+
+
+
+    if (cached != m_iconGeometry.end())
+    {
+        *outGeometry = cached->second.Get();
+        (*outGeometry)->AddRef();
+        return S_OK;
+    }
+
+    parsed = DxuiSvgPath::Parse (icon.pathData, subpaths);
+    CBRA (parsed);
+
+    hr = m_d2dFactory->CreatePathGeometry (&geometry);
+    CHRA (hr);
+
+    hr = geometry->Open (&sink);
+    CHRA (hr);
+
+    sink->SetFillMode (D2D1_FILL_MODE_WINDING);
+
+    for (size_t i = 0; i < subpaths.size() && i < 32; i++)
+    {
+        const DxuiSvgSubpath  & sub = subpaths[i];
+
+        if ((layer.subpaths & (1u << i)) == 0)
+        {
+            continue;
+        }
+
+        sink->BeginFigure (D2D1::Point2F (sub.start.x, sub.start.y), D2D1_FIGURE_BEGIN_FILLED);
+
+        for (const DxuiSvgSegment & seg : sub.segments)
+        {
+            switch (seg.kind)
+            {
+                case DxuiSvgSegment::Kind::Cubic:
+                    sink->AddBezier (D2D1::BezierSegment (D2D1::Point2F (seg.c1.x, seg.c1.y),
+                                                          D2D1::Point2F (seg.c2.x, seg.c2.y),
+                                                          D2D1::Point2F (seg.to.x, seg.to.y)));
+                    break;
+
+                case DxuiSvgSegment::Kind::Arc:
+                    sink->AddArc (D2D1::ArcSegment (D2D1::Point2F (seg.to.x, seg.to.y),
+                                                    D2D1::SizeF (seg.radiusX, seg.radiusY),
+                                                    seg.rotationDeg,
+                                                    seg.clockwise ? D2D1_SWEEP_DIRECTION_CLOCKWISE : D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE,
+                                                    seg.largeArc  ? D2D1_ARC_SIZE_LARGE : D2D1_ARC_SIZE_SMALL));
+                    break;
+
+                default:
+                    sink->AddLine (D2D1::Point2F (seg.to.x, seg.to.y));
+                    break;
+            }
+        }
+
+        sink->EndFigure (sub.closed ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
+    }
+
+    hr = sink->Close();
+    CHRA (hr);
+
+    m_iconGeometry[&layer] = geometry;
+    *outGeometry = geometry.Detach();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillVectorIcon
+//
+//  Each layer in its tone, scaled from the icon's own square to sizeDip at
+//  x, y. A layer kept to a band is clipped to it, in the icon's units.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::FillVectorIcon (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent)
+{
+    HRESULT                       hr        = S_OK;
+    D2D1_MATRIX_3X2_F             saved     = {};
+    float                         scale     = 0.0f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+    CBRA (icon.pathData != nullptr && icon.box > 0.0f);
+
+    scale = sizeDip / icon.box;
+    m_d2dContext->GetTransform (&saved);
+    m_d2dContext->SetTransform (D2D1::Matrix3x2F::Scale (scale, scale) * D2D1::Matrix3x2F::Translation (xDip, yDip) * saved);
+
+    for (size_t i = 0; i < icon.layerCount; i++)
+    {
+        const DxuiVectorIconLayer     & layer    = icon.layers[i];
+        ComPtr<ID2D1PathGeometry>       geometry;
+        ComPtr<ID2D1SolidColorBrush>    brush;
+        D2D1_COLOR_F                    color    = ColorFromArgb (layer.accent ? accent : foreground);
+        bool                            banded   = layer.bandTop != layer.bandBottom;
+
+        hr = GetIconLayerGeometry (icon, layer, &geometry);
+
+        if (FAILED (hr))
+        {
+            continue;
+        }
+
+        color.a *= m_globalAlpha;
+        hr = m_d2dContext->CreateSolidColorBrush (color, &brush);
+
+        if (FAILED (hr))
+        {
+            continue;
+        }
+
+        if (banded)
+        {
+            m_d2dContext->PushAxisAlignedClip (D2D1::RectF (-1.0f, layer.bandTop, icon.box + 1.0f, layer.bandBottom),
+                                               D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+        }
+
+        m_d2dContext->FillGeometry (geometry.Get(), brush.Get());
+
+        if (banded)
+        {
+            m_d2dContext->PopAxisAlignedClip();
+        }
+    }
+
+    m_d2dContext->SetTransform (saved);
+    hr = S_OK;
 
 Error:
     return hr;

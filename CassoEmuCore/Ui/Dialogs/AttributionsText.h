@@ -30,4 +30,6 @@ public:
     static constexpr const wchar_t *  kPhotoLicense = L"https://creativecommons.org/licenses/by-nc-sa/3.0/";
     static constexpr const wchar_t *  kSoundsUrl  = L"https://github.com/BleuLlama/ImageWriterIISimulator";
     static constexpr const wchar_t *  kSoundsLicense = L"https://creativecommons.org/licenses/by/4.0/";
+    static constexpr const wchar_t *  kIconsUrl      = L"https://github.com/microsoft/fluentui-system-icons";
+    static constexpr const wchar_t *  kIconsLicense  = L"https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE";
 };

@@ -34,6 +34,14 @@ std::vector<DialogTextRun> AttributionsText::BuildBody()
     runs.push_back ({ L"ImageWriter II printer sounds, by Scott Lawrence" });
     runs.push_back ({ L"The recordings", true, kSoundsUrl });
     runs.push_back ({ L"CC BY 4.0", true, kSoundsLicense });
+    runs.push_back ({ L"" });
+
+    //  MIT asks for the copyright and the permission notice with every copy;
+    //  the notice is the license, which the link opens.
+    runs.push_back ({ L"Casso Explorer's command bar icons: Fluent UI System Icons, by Microsoft" });
+    runs.push_back ({ L"Copyright (c) 2020 Microsoft Corporation" });
+    runs.push_back ({ L"The icons", true, kIconsUrl });
+    runs.push_back ({ L"MIT License", true, kIconsLicense });
 
     return runs;
 }

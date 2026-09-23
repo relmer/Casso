@@ -135,6 +135,11 @@ public:
         DecorationFn                         decoration;
         IDxuiToolbarCustomEntry            * custom     = nullptr;
 
+        //  Drawn in place of the command's glyph when set: an outline in the
+        //  entry's ink with its accent part in the theme's accent, as File
+        //  Explorer draws its command bar. Constant data; not owned.
+        const DxuiVectorIcon               * vectorIcon = nullptr;
+
         //  Never labeled, regardless of available width, like Explorer's Back,
         //  Forward, Up and Refresh buttons. The tooltip text is unchanged.
         bool  iconOnly = false;
@@ -159,7 +164,7 @@ public:
     //  from the right as the strip narrows and come back as it widens, and
     //  entries marked seeMoreOnly are always there. The button shows only
     //  when its menu has something in it. Call before SetEntries.
-    void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip);
+    void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip, const DxuiVectorIcon * icon = nullptr);
     bool  IsInSeeMore      (int commandId) const;
 
     //  The id on the See more button's command.
@@ -315,7 +320,8 @@ private:
 
     //  An entry without a glyph is its label alone: it spends no room on an
     //  icon, never collapses to one, and as a drop-down shows a chevron.
-    static bool  HasGlyph (const Slot & slot) { return slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0; }
+    static bool  HasGlyph (const Slot & slot) { return slot.entry.vectorIcon != nullptr ||
+                                                       (slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0); }
 
     static constexpr int  kChevronDp = 8;
 
@@ -347,7 +353,7 @@ private:
     void          ForwardToFlyout      (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, bool & handled);
 
     void  PaintSlot      (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink);
+    void  PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent);
     void  PaintFlyout    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
 
@@ -379,6 +385,7 @@ private:
     DxuiMenuMetrics                 m_metrics;
     int                             m_labeledCount    = 0;
     std::shared_ptr<DxuiCommand>    m_seeMore;
+    const DxuiVectorIcon          * m_seeMoreIcon     = nullptr;
 
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;

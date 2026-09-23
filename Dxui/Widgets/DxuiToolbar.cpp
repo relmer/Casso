@@ -82,9 +82,10 @@ void DxuiToolbar::SetEntries (std::vector<Entry> entries)
         {
             Slot  more;
 
-            more.entry.command  = m_seeMore;
-            more.entry.group    = kSeeMoreId;
-            more.entry.iconOnly = true;
+            more.entry.command    = m_seeMore;
+            more.entry.group      = kSeeMoreId;
+            more.entry.iconOnly   = true;
+            more.entry.vectorIcon = m_seeMoreIcon;
             m_slots.push_back (std::move (more));
         }
 
@@ -96,9 +97,10 @@ void DxuiToolbar::SetEntries (std::vector<Entry> entries)
     {
         Slot  more;
 
-        more.entry.command  = m_seeMore;
-        more.entry.group    = kSeeMoreId;
-        more.entry.iconOnly = true;
+        more.entry.command    = m_seeMore;
+        more.entry.group      = kSeeMoreId;
+        more.entry.iconOnly   = true;
+        more.entry.vectorIcon = m_seeMoreIcon;
         m_slots.push_back (std::move (more));
     }
 
@@ -115,7 +117,7 @@ void DxuiToolbar::SetEntries (std::vector<Entry> entries)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbar::EnableSeeMore (const wchar_t * glyph, const wchar_t * tip)
+void DxuiToolbar::EnableSeeMore (const wchar_t * glyph, const wchar_t * tip, const DxuiVectorIcon * icon)
 {
     std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
@@ -127,7 +129,8 @@ void DxuiToolbar::EnableSeeMore (const wchar_t * glyph, const wchar_t * tip)
     command->tip      = tip;
     command->dispatch = [this]() { OpenSeeMore(); };
 
-    m_seeMore = std::move (command);
+    m_seeMore     = std::move (command);
+    m_seeMoreIcon = icon;
 }
 
 
@@ -1581,16 +1584,25 @@ void DxuiToolbar::OpenDropDown (int commandId)
 //  DxuiToolbar::PaintEntryIcon
 //
 //  One glyph in the icon face, left-aligned in its column and vertically
-//  centered on the entry.
+//  centered on the entry -- or, for an entry with a vector icon, that icon
+//  in the same square, its outline in the ink and its accent part in the
+//  accent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink)
+void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent)
 {
     HRESULT          hr    = S_OK;
     const wchar_t *  glyph = (slot.entry.command != nullptr) ? slot.entry.command->glyph : nullptr;
 
 
+
+    if (slot.entry.vectorIcon != nullptr)
+    {
+        hr = text.FillVectorIcon (*slot.entry.vectorIcon, icon.x, icon.top + (icon.rowH - icon.size) * 0.5f, icon.size, ink, accent);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
 
     if (glyph == nullptr || glyph[0] == 0)
     {
@@ -1645,15 +1657,18 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     int                  padX    = GetButtonPadPx();
     int                  iconGap = m_scaler.ToPx (kIconGapDp);
     uint32_t             ink     = m_stripColorsSet ? m_textOverride : theme.ButtonText();
+    uint32_t             accent  = theme.Accent();
     float                textX   = 0.0f;
     DxuiToolbarIconBox   icon;
     std::wstring         label;
 
 
 
+    //  A disabled icon dims both its tones alike, as Explorer's do.
     if (!enabled)
     {
-        ink = (ink & 0x00FFFFFFu) | kDisabledInkAlpha;
+        ink    = (ink    & 0x00FFFFFFu) | kDisabledInkAlpha;
+        accent = (accent & 0x00FFFFFFu) | kDisabledInkAlpha;
     }
 
     if (active)
@@ -1692,7 +1707,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     icon.size = iconDip;
     icon.rowH = bh;
 
-    PaintEntryIcon (slot, text, icon, ink);
+    PaintEntryIcon (slot, text, icon, ink, accent);
 
     if (slot.entry.decoration)
     {

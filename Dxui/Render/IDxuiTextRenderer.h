@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Render/DxuiVectorIcon.h"
+
 #include "Pch.h"
 #include "Theme/IDxuiTheme.h"
 
@@ -164,6 +166,16 @@ public:
                                     float    radiusYDip,
                                     uint32_t argbColor)
     { (void) cxDip; (void) cyDip; (void) radiusXDip; (void) radiusYDip; (void) argbColor; return S_OK; }
+
+    //  A two-tone icon from SVG paths, scaled into the square at x, y. A
+    //  renderer that draws no paths draws nothing.
+    virtual HRESULT  FillVectorIcon (const DxuiVectorIcon & icon,
+                                     float                  xDip,
+                                     float                  yDip,
+                                     float                  sizeDip,
+                                     uint32_t               foreground,
+                                     uint32_t               accent)
+    { (void) icon; (void) xDip; (void) yDip; (void) sizeDip; (void) foreground; (void) accent; return S_OK; }
 
     virtual HRESULT  DrawEllipse   (float    cxDip,
                                     float    cyDip,

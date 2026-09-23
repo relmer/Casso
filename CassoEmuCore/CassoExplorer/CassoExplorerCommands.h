@@ -130,6 +130,9 @@ public:
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
     std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries() const;
 
+    //  The Fluent icon the command bar draws for a command, or none.
+    static const DxuiVectorIcon    * GetCommandBarIcon (int id);
+
     //  The preview pane's toolbar: Go to and the byte grouping over a hex
     //  view, or the line address toggle over a BASIC listing.
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;

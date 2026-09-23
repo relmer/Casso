@@ -509,6 +509,7 @@
     <ClCompile Include="Dxui\DxuiStandardCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiSystemColorsTests.cpp" />
     <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSvgPathTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />

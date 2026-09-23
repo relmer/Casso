@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
 
 
@@ -286,7 +287,50 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildToolbarEntries() con
 
 std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries() const
 {
-    return BuildEntries (kCommandBarRows);
+    std::vector<DxuiToolbar::Entry>  entries = BuildEntries (kCommandBarRows);
+
+
+
+    for (DxuiToolbar::Entry & entry : entries)
+    {
+        if (entry.command != nullptr)
+        {
+            entry.vectorIcon = GetCommandBarIcon (entry.command->id);
+        }
+    }
+
+    return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCommands::GetCommandBarIcon
+//
+//  The two-tone Fluent icon File Explorer shows for the same command, or none
+//  for a command Explorer has no button for, which keeps its glyph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiVectorIcon * CassoExplorerCommands::GetCommandBarIcon (int id)
+{
+    switch (id)
+    {
+        case kNew:           return &CassoExplorerIcons::s_kNew;
+        case kCutItems:      return &CassoExplorerIcons::s_kCut;
+        case kCopyItems:     return &CassoExplorerIcons::s_kCopy;
+        case kPasteItems:    return &CassoExplorerIcons::s_kPaste;
+        case kRenameItem:    return &CassoExplorerIcons::s_kRename;
+        case kDeleteItems:   return &CassoExplorerIcons::s_kDelete;
+        case kSort:          return &CassoExplorerIcons::s_kSort;
+        case kView:          return &CassoExplorerIcons::s_kView;
+        case kTogglePreview: return &CassoExplorerIcons::s_kPreview;
+        case kTheme:         return &CassoExplorerIcons::s_kTheme;
+        default:             return nullptr;
+    }
 }
 
 
