@@ -188,7 +188,7 @@ Error:
 //  Loads the model pair the ACTIVE MACHINE wore and stands the scene renderer
 //  up on the host device. Missing or unparseable model text is a build defect
 //  (the resources are compiled into the exe), so the guards assert; the shell
-//  then simply leaves m_deskSceneReady false and the 2D chrome carries on.
+//  then simply leaves m_deskSceneReady false and the 2D chrome continues.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

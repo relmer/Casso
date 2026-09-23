@@ -23,7 +23,7 @@
 //    otherwise           -- nobody said, so ask
 //
 //  THE CONFLICT TEST SITS ABOVE THE INTENT TEST DELIBERATELY. An intent says
-//  how the guest carries on; it never grants permission to discard work. Moving
+//  how the guest continues; it never grants permission to discard work. Moving
 //  it below would let `--on-change reload` silently throw away a guest's
 //  unsaved writes, which is the one outcome this whole feature exists to
 //  prevent.

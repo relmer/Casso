@@ -210,7 +210,7 @@ public:
 
     //  And it names ONE reason.
     //
-    //  A second line means the operation reported its cause and then carried on
+    //  A second line means the operation reported its cause and then went on
     //  far enough to trip over something else, which leaves the reader choosing
     //  between two candidate explanations for one refusal -- and leaves the
     //  stopping point to whatever happened to fail next rather than to the

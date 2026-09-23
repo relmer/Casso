@@ -14,7 +14,7 @@ IDR_CASSO_EXPLORER_CASSOWARY_PNG    RCDATA "Assets\\Cassowary.png"
 
 // The same built-in themes Casso embeds. AssetBootstrap::EnsureThemes compares
 // the files on disk against the running module's embedded copies, so both
-// programs must carry identical ones or each would rewrite the other's.
+// programs must embed identical ones or each would rewrite the other's.
 // Sources live under Resources/Themes/<Name>/.
 IDR_THEME_SKEUO_THEME_JSON         RCDATA "..\\Resources\\Themes\\Skeuomorphic\\theme.json"
 

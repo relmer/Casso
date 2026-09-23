@@ -557,7 +557,7 @@ namespace MerlinSubsetBoundaryTests
 
 
         //  The save-object directive left the boundary once multi-output
-        //  assembly was decided. It writes an output and carries on now.
+        //  assembly was decided. It writes an output and continues now.
         TEST_METHOD (TheSaveObjectDirectiveIsNoLongerRefused)
         {
             AssemblyResult              result   = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n SAV OUT\n");

@@ -995,7 +995,7 @@ namespace MerlinCorpusTests
         //  independent decode it used to be. It is still worth making: it is what
         //  catches a reader that trims, reflows or re-encodes on the way through,
         //  which would hand the assembler text nobody committed while every byte
-        //  comparison downstream carried on passing.
+        //  comparison downstream kept passing.
         static void AssertTextIsTheStoredBytes (const VendorOracleEntry & entry,
                                                 const std::string       & assembled,
                                                 const std::vector<Byte> & raw)
@@ -1931,7 +1931,7 @@ namespace MerlinCorpusTests
         //  The save-object directive was here and is not any more. What it was
         //  waiting on was a decision about multi-output assembly rather than a
         //  capability, and that decision was made: it writes the span
-        //  accumulated since the previous save and carries on.
+        //  accumulated since the previous save and continues.
         //  The output file-type directive was here and is not any more. It set
         //  a filesystem type with no filesystem to set it on; the assembler can
         //  write onto a volume now, so the type has somewhere to land and the

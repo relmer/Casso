@@ -110,7 +110,7 @@ void ControllerInputService::SetActive (bool isActive)
 //
 //  Which controller drives the game port, or none. The controller it replaces
 //  stops driving unless a player slot holds it, and whatever it held is
-//  released; every other driving controller carries on untouched. While
+//  released; every other driving controller continues untouched. While
 //  multiplayer is on the selection drives nothing, and is only what the
 //  machine returns to when the mode goes off.
 //

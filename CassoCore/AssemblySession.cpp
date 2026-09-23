@@ -5479,7 +5479,7 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
 
 
     // A user-facing diagnostic, not an infrastructure failure: the error goes
-    // into the result and assembly carries on, so hr stays S_OK.
+    // into the result and assembly continues, so hr stays S_OK.
     CBRFEx (m_options.fileReader != nullptr, S_OK,
             RecordError (current.sourceLineNumber, "No file reader configured for include"));
 
@@ -8409,7 +8409,7 @@ HRESULT AssemblySession::EmitObjectFile (const LineInfo & info, Word & emitPC)
 //
 //  AssemblySession::EmitSaveObject
 //
-//  The save directive, which writes what has accumulated and carries on.
+//  The save directive, which writes what has accumulated and continues.
 //
 //  THE ACCUMULATION IS EMPTIED, so the next output holds only what follows.
 //  That is the period assembler's own behavior rather than a choice here: its

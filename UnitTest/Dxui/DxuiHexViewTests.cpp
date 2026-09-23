@@ -1001,7 +1001,7 @@ public:
             L"and it moves to the characters");
 
         Assert::IsFalse (view.OnKey (MakeKey (VK_TAB)),
-            L"A second Tab is declined, so the walk carries on out of the view");
+            L"A second Tab is declined, so the walk continues out of the view");
         Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Text,
             L"leaving the column where the user left it");
     }

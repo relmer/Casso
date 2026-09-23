@@ -2652,7 +2652,7 @@ public:
 
     //  For the refusals that must state exactly one reason: a count of one
     //  newline is what separates a single sentence from a message that
-    //  reported its cause and then carried on into something else.
+    //  reported its cause and then went on into something else.
     static size_t CountNewlines (const std::string & text)
     {
         size_t  newlines = 0;
@@ -3062,7 +3062,7 @@ public:
 
         Assert::AreEqual (size_t (1), CountNewlines (result.diagnostics),
             L"and as ONE reason: a second line means the refusal reported its cause and "
-            L"then carried on far enough to trip over something else");
+            L"then went on far enough to trip over something else");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, committed);

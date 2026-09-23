@@ -434,7 +434,7 @@ public:
 
         Assert::AreEqual (size_t (1), newlines,
             L"and as ONE reason: a second line means the refusal reported its cause and then "
-            L"carried on far enough to trip over something else");
+            L"went on far enough to trip over something else");
 
         Assert::IsTrue (io.files[kImagePath] == master,
             L"the image must be byte-for-byte what it was");

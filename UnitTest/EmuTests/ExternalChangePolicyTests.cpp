@@ -139,7 +139,7 @@ public:
     TEST_METHOD (AConflictOutranksEveryStatedIntent)
     {
         //  The rule the whole feature exists for: an intent says how the guest
-        //  carries on, and never that work may be discarded. If this row ever
+        //  continues, and never that work may be discarded. If this row ever
         //  moves below the intent test, `--on-change reload` silently throws
         //  away the guest's unsaved writes.
         const ExternalChangeIntent  intents[] = { ExternalChangeIntent::Unstated,

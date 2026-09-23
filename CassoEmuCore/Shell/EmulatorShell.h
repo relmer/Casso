@@ -959,7 +959,7 @@ private:
     // Initializes the desk scene renderer against the host device and loads
     // the embedded device models. Failure leaves the scene off (asserting
     // in debug -- a broken embedded asset is a build defect) and the 2D
-    // chrome paths carry on.
+    // chrome paths continue.
     HRESULT InitializeDeskScene  ();
 
     // Loads the monitor + drive pair the active machine wore (//c gets its

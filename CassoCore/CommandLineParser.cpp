@@ -3205,7 +3205,7 @@ void CommandLineParser::ApplyAs65Defaults (CommandLineOptions & options, const F
 //  than printed here.
 //
 //  It used to be a warning written to stderr from inside the parser, after
-//  which parsing -- and the assembly -- carried on. That made a typo silent in
+//  which parsing -- and the assembly -- continued. That made a typo silent in
 //  every way that mattered: the warning scrolled past, the exit code was 0, and
 //  the output file was written as though the flag had been honored. Recording
 //  it lets the edge refuse the invocation and print the help for the mode the

@@ -301,7 +301,7 @@ slot_outer = (cq.Workplane("XY")
 # The cooling slots WRAP OVER THE TOP CORNERS. That is the thing to get right
 # about this shell and the one feature of it nobody would invent: each slot
 # starts on the LID a little in from the edge, bends over the corner radius,
-# and carries on down the SIDE. Read as "side vents" they end up flat strips
+# and runs on down the SIDE. Read as "side vents" they end up flat strips
 # on a flank; read as "lid vents" they end up stripes on the top. They are
 # neither -- they are one comb of slots draped over the edge, near the front,
 # and the drive is instantly recognizable by them.

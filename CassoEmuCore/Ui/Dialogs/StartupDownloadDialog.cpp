@@ -692,7 +692,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
 
     // Nothing missing: never put a dialog on screen just to say so. The
-    // caller reads NothingToDo as "carry on booting".
+    // caller reads NothingToDo as "go on booting".
     if (set.IsEmpty())
     {
         state.result = StartupDownloadResult::NothingToDo;

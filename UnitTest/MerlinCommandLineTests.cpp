@@ -486,7 +486,7 @@ namespace MerlinCommandLineTests
         //  what this subcommand has always written. Pinned as its own test
         //  because the two shape flags are a DEPARTURE from it: a default that
         //  drifted would make both of them mean something else while their own
-        //  tests carried on passing.
+        //  tests kept passing.
         TEST_METHOD (MerlinWritesRawBytesWhenNoShapeIsNamed)
         {
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s" });

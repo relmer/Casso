@@ -8,7 +8,7 @@ which names them and says what each one settles.
 The front is one composition and the pieces only make sense together:
 
   - a NOTCH is sunk into the face, slightly wider than the latch, running from
-    below the slot up and THROUGH THE TOP of the drive, where it carries on a
+    below the slot up and THROUGH THE TOP of the drive, where it runs on a
     short way along the lid.
   - the LATCH sits in it, a third of the slot wide, spanning from the top of
     the drive down to the bottom of the slot when closed. What is left below

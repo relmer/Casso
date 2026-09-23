@@ -421,7 +421,7 @@ private:
 
         //  Which bay this is.
         //
-        //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
+        //  KEPT ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
         //  Every message about a disk names the drive it is in, and threading
         //  a pair of ints through five call sites to reach one function is a
         //  worse answer than the entry knowing where it lives.

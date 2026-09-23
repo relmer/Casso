@@ -810,7 +810,7 @@ namespace ControllerTests
             service.Tick();
 
             // Handing the axes back would move the stick out from under a
-            // player who carried on with the pad, and picking the pad again
+            // player who kept using the pad, and picking the pad again
             // to keep it would mean picking what the picker already checks.
             Assert::IsTrue   (service.GetSnapshot().selection.value() == pad.unit,
                 L"the controller in use keeps the selection");

@@ -2262,7 +2262,7 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
     }
 
     //  The search box takes keys and characters first while it has focus;
-    //  Tab and the keys it has no use for carry on as usual.
+    //  Tab and the keys it has no use for continue as usual.
     if (m_focus == Pane::Search || m_focus == Pane::GoTo)
     {
         handled = (m_focus == Pane::Search) ? m_searchBox.OnKey (ev) : m_goToBox.OnKey (ev);
@@ -2372,7 +2372,7 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 
     //  The hex view's two columns are stops of their own inside the preview
     //  pane: Tab moves between them while it has one left, and only then does
-    //  the walk carry on to the next pane.
+    //  the walk move on to the next pane.
     if (ev.vk == VK_TAB && !ev.ctrl && m_focus == Pane::Preview && IsHexPreviewShowing()
         && m_hexView->OnKey (ev))
     {

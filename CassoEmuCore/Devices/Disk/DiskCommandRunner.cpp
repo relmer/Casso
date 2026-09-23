@@ -547,7 +547,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     // Damage from the catalog walk, and from the track layer beneath it.
     //
     // Each message must say the LISTING IS INCOMPLETE, not merely that the disk
-    // is damaged. A pipeline that treats status 1 as a warning and carries on
+    // is damaged. A pipeline that treats status 1 as a warning and continues
     // will otherwise consume a truncated listing that reads as whole, and its
     // log will describe a disk problem rather than a missing-entries problem.
     // The status carries the distinction for a script; the wording has to carry
