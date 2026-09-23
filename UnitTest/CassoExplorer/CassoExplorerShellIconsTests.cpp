@@ -73,7 +73,7 @@ public:
         Assert::AreEqual ((size_t) 1, icons.paths.size(), L"One question for one row");
         Assert::AreEqual (CassoExplorerBrowser::JoinPath (L"C:\\Disks", L"GAMES.DSK"), icons.paths[0],
             L"and it is the file's own path, so a disk image shows what its extension is registered to");
-        Assert::IsTrue (cells[0].icon == icons.pathIcon, L"The name column carries it");
+        Assert::IsTrue (cells[0].icon == icons.pathIcon, L"The name column shows it");
 
         for (size_t c = 1; c < cells.size(); c++)
         {
@@ -152,7 +152,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, icons.paths.size());
         Assert::AreEqual (std::wstring (L"C:\\"), icons.paths[0], L"and a drive its own, by path");
-        Assert::IsTrue (out.icon == icons.pathIcon, L"The node carries what came back");
+        Assert::IsTrue (out.icon == icons.pathIcon, L"The node holds what came back");
     }
 
 

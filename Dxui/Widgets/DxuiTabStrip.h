@@ -57,7 +57,7 @@ public:
     void  SetOnMove   (MoveFn fn)   { m_move   = std::move (fn); }
     void  SetOnNewTab (NewTabFn fn) { m_newTab = std::move (fn); }
 
-    //  With a close handler set, every tab carries a close button.
+    //  With a close handler set, every tab gets a close button.
     void  SetOnClose  (CloseFn fn)  { m_close  = std::move (fn); }
 
     //  The color of the row the selected tab joins, which it is filled with,

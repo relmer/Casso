@@ -105,7 +105,7 @@ private:
     static constexpr Byte    kStorageSubdir   = 0xD0;
 
     //  The first record of a subdirectory's key block is its own header, which
-    //  carries this storage nibble rather than the 0xD0 of the record that
+    //  has this storage nibble rather than the 0xD0 of the record that
     //  points at it from the parent.
     static constexpr Byte    kStorageSubdirHdr = 0xE0;
 

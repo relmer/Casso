@@ -71,7 +71,7 @@ public:
         Assert::AreEqual ((size_t) 1, model.GetActiveIndex(), L"C, the active tab, moved left one place and stays active");
 
         Assert::IsTrue   (model.MoveTab (1, 0));
-        Assert::AreEqual ((size_t) 0, model.GetActiveIndex(), L"and moving the active tab itself carries the active index with it");
+        Assert::AreEqual ((size_t) 0, model.GetActiveIndex(), L"and moving the active tab itself moves the active index with it");
         Assert::IsTrue   (model.GetActiveTab().location == Folder (L"C:\\C"));
 
         Assert::IsFalse  (model.MoveTab (0, 3));

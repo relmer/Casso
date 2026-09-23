@@ -30,7 +30,7 @@ enum class VolumeKind;
 //  read for a preview, a raw write for a copy between two disks, a rename --
 //  go through the session and the volume the runner itself uses.
 //
-//  Every result carries the runner's own diagnostics, so the dialog a user
+//  Every result holds the runner's own diagnostics, so the dialog a user
 //  sees quotes the sentence a script's log would show.
 //
 ////////////////////////////////////////////////////////////////////////////////

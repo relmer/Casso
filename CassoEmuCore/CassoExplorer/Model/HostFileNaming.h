@@ -19,7 +19,7 @@ enum class VolumeKind;
 //  says anything. A bare name says nothing beyond the name, and the caller
 //  falls back to the content rule.
 //
-//  The type is carried as a ProDOS type byte whatever the file name wrote,
+//  The type is held as a ProDOS type byte whatever the file name wrote,
 //  because ProDOS has a byte for every DOS 3.3 letter and a caller placing the
 //  file on a DOS 3.3 volume maps it back through the same table.
 //
@@ -47,7 +47,7 @@ struct ParsedHostName
 //
 //  The suffixes a catalog entry wears on the host, in both directions.
 //
-//  CATALOG NAMES CARRY NO EXTENSION, so a file copied out has to say what it
+//  CATALOG NAMES HAVE NO EXTENSION, so a file copied out has to say what it
 //  was or the way back loses its type and address. The descriptive form
 //  writes the answer in words a person reads; the CiderPress form writes the
 //  six hex digits that tool established. Reading accepts both, and a bare

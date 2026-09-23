@@ -58,7 +58,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         m_commands.push_back (std::move (command));
     }
 
-    //  The toolbar shows some of the same commands; they carry the glyph,
+    //  The toolbar shows some of the same commands; they use the glyph,
     //  short label and tip the strip draws.
     ApplyToolbarRows (kToolbarRows);
     ApplyToolbarRows (kCommandBarRows);

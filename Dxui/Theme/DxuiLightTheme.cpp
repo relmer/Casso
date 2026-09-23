@@ -44,7 +44,7 @@ DxuiLightTheme::DxuiLightTheme()
     linkHover                = 0xFF003E92;
 
     //  The outline on a selected row while its list or tree holds focus. The
-    //  dark theme has carried one since it shipped; without it here, focus is
+    //  dark theme has had one since it shipped; without it here, focus is
     //  invisible in the light theme for every widget that draws one.
     contentSelectionEdge     = 0xFF5D5D5D;
     panelBg                  = 0xFFFBFBFB;

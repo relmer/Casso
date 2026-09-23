@@ -194,7 +194,7 @@ public:
         AssertSucceeded (model.GetChildren (TreeModel::MakeFolderId (true, kDisks), folder));
         AssertSucceeded (model.GetChildren (FindNode (folder, L"merlin.dsk").id, image));
 
-        Assert::IsFalse (image.empty(), L"this disk must carry subdirectories");
+        Assert::IsFalse (image.empty(), L"this disk must have subdirectories");
 
         for (const TreeNode & directory : image)
         {

@@ -184,7 +184,7 @@ public:
         ts.SetOnMove ([&] (int f, int t) { from = f; to = t; });
 
         Assert::IsTrue   (ts.OnLButtonDown (10, 10));
-        Assert::IsTrue   (ts.OnMouseMove   (100, 10), L"A press carried past the threshold is a drag");
+        Assert::IsTrue   (ts.OnMouseMove   (100, 10), L"A press dragged past the threshold is a drag");
         Assert::AreEqual (0, from);
         Assert::AreEqual (1, to);
         Assert::IsTrue   (ts.OnMouseMove   (200, 10));
@@ -214,7 +214,7 @@ public:
         ts.OnLButtonUp   (200, 10);
 
         Assert::AreEqual (std::wstring (L"Hardware"), ts.GetTabs()[0].label);
-        Assert::AreEqual (2, ts.GetSelected(), L"Releasing a drag selects the tab it carried");
+        Assert::AreEqual (2, ts.GetSelected(), L"Releasing a drag selects the tab it moved");
     }
 
 
@@ -287,7 +287,7 @@ public:
 
         ts.OnLButtonUp (400, 10);
 
-        Assert::AreEqual (std::wstring (L"0"), ts.GetTabs()[9].label, L"A drag held past the right end carries its tab to the last place");
+        Assert::AreEqual (std::wstring (L"0"), ts.GetTabs()[9].label, L"A drag past the right end moves its tab to the last place");
         Assert::AreEqual (9,   ts.GetSelected());
         Assert::AreEqual (616, ts.GetScrollPx());
     }

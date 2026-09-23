@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Byte identity with the command line, verb by verb: the runner is given
 //  the command line's options over one copy of an image, the facade is asked
 //  for the same operation over a second copy, and the two copies -- or the
-//  two payloads -- must be identical afterwards. A refusal must carry the
+//  two payloads -- must be identical afterwards. A refusal must have the
 //  runner's own words.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,14 +257,14 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, cli.exitStatus);
         Assert::IsFalse  (facade.Succeeded());
         Assert::AreEqual (StripImagePath (cli.diagnostics, kCliImage), StripImagePath (facade.message, kFacadeImage),
-                          L"the refusal carries the runner's words");
+                          L"the refusal repeats the runner's words");
     }
 
 
 
     TEST_METHOD (Boot_RefusesIdentically)
     {
-        //  The fixture carries no operating system, so both paths refuse; the
+        //  The fixture has no operating system, so both paths refuse; the
         //  refusal text is what is compared.
         FakeDiskFileIo          io;
         DiskOperations          ops (io);

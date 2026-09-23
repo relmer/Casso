@@ -1066,7 +1066,7 @@ bool ProDosVolume::TryEncodeDirectoryName (const std::string & name, std::string
 
         // The guest's keyboard produces upper case and its directory stores it,
         // so a lower-case name would list as something nobody can type. The
-        // case word carries what was typed for anything that reads it.
+        // case word records what was typed for anything that reads it.
         bit = ProDosSkeleton::kCaseFirstCharBit - (int) i;
 
         if (c >= 'a' && c <= 'z' && bit >= 0)
@@ -1638,7 +1638,7 @@ void ProDosVolume::LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBlock, u
 //  ProDosVolume::WriteSubdirectoryHeader
 //
 //  A subdirectory's key block opens with a header of its own rather than with a
-//  file record: the same name and geometry fields the volume header carries,
+//  file record: the same name and geometry fields the volume header has,
 //  the 0x75 marker ProDOS checks before trusting the block, and the three
 //  fields that lead back to the record above it.
 //

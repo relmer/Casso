@@ -509,7 +509,7 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
                               DxuiFontWeight::Normal, metrics.labelBelow);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  Tiles and Content carry the other columns underneath, one a line.
+        //  Tiles and Content show the other columns underneath, one a line.
         for (int line = 1; !metrics.labelBelow && line < metrics.textLines && line < (int) cells.size(); line++)
         {
             hr = text.DrawString (cells[(size_t) line].text.c_str(), (float) label.left, (float) (label.top + line * lineH),

@@ -2798,7 +2798,7 @@ std::vector<std::wstring> CassoExplorerWindow::SplitLineNumber (const std::wstri
 //  CassoExplorerWindow::FormatPreviewError
 //
 //  "No preview", and three lines below it, why. An image refused for its size
-//  carries a whole sentence about the file for the command line; the preview
+//  holds a whole sentence about the file for the command line; the preview
 //  says only the reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -4093,7 +4093,7 @@ bool CassoExplorerWindow::TryGetDropLocation (int tag, POINT screen, Location & 
 //
 //  CassoExplorerWindow::GetDropEffect
 //
-//  A copy where the drag carries files or another image's entries and the
+//  A copy where the drag holds files or another image's entries and the
 //  image under the pointer can be written; nothing otherwise, so the pointer
 //  says so before the button is let go.
 //
@@ -4211,7 +4211,7 @@ void CassoExplorerWindow::ClearDropTarget()
 //
 //  CassoExplorerWindow::OnDrop
 //
-//  Another image's entries are copied byte for byte when the drag carries
+//  Another image's entries are copied byte for byte when the drag holds
 //  them; otherwise the host files go in by Put's rules.
 //
 ////////////////////////////////////////////////////////////////////////////////

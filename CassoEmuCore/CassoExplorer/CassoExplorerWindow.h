@@ -111,7 +111,7 @@ public:
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
 
-    //  The preview's rows carry one line of fixed-width text each, so they
+    //  The preview's rows hold one line of fixed-width text each, so they
     //  are the line's height rather than a file listing's roomier row.
     static constexpr int  kPreviewRowHeightDip = 18;
     static constexpr int  kTabWidthDip         = 240;
@@ -137,7 +137,7 @@ public:
     static constexpr int    kStatusDetailDip     = 280;
     static constexpr int    kStatusZoomDip       = 64;
 
-    //  The private message that carries a deferred Casso reply to the UI.
+    //  The private message that holds a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
 
     //  A watched folder changed. Posted from the watcher's thread, which does

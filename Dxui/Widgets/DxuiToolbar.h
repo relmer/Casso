@@ -162,7 +162,7 @@ public:
     void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip);
     bool  IsInSeeMore      (int commandId) const;
 
-    //  The id the See more button's command carries.
+    //  The id on the See more button's command.
     static constexpr int  kSeeMoreId = -2;
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
     void  SetIconDip       (float dip)                   { m_iconDip = dip; }

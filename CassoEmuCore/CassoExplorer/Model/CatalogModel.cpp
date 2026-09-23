@@ -122,7 +122,7 @@ std::wstring CatalogModel::GetDisplayName (const std::wstring & name, std::vecto
 //
 //  Size is the recorded length where the filesystem records one, else the
 //  units it occupies times the unit size. The address column shows a load
-//  address when the entry carries one and the auxiliary type otherwise, and
+//  address when the entry holds one and the auxiliary type otherwise, and
 //  stays blank when neither flag is set rather than showing a zero that
 //  would read as a real address.
 //

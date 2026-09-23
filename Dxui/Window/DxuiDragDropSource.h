@@ -11,7 +11,7 @@
 //  DxuiDragDropSource
 //
 //  The drag half beside DxuiDragDropTarget: an IDropSource and the IDataObject
-//  it carries, over a list of formats rendered on demand.
+//  it offers, over a list of formats rendered on demand.
 //
 //  NOTHING IS RENDERED UNTIL A TARGET ASKS. A drag of twenty files out of a
 //  disk image offers twenty file contents, and a drop on a folder pulls each

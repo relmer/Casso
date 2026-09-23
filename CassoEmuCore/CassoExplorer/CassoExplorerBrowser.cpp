@@ -1948,7 +1948,7 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const Tr
         case TreeNode::Kind::ThisPcRoot:    return icons.GetForKind (IShellIcons::Kind::ThisPc);
         case TreeNode::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
         //  Every remaining node is a drive or a host folder, and a disk image
-        //  node is a file with the icon its extension carries.
+        //  node is a file with the icon its extension gives it.
         case TreeNode::Kind::DiskImage:     return icons.GetForPath (node.location.path, false);
         default:                            return icons.GetForPath (node.location.path, true);
     }

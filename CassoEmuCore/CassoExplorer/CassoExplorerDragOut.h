@@ -15,7 +15,7 @@
 //
 //  CassoExplorerDragOut
 //
-//  What a drag out of the list carries, as the formats the drag source
+//  What a drag out of the list holds, as the formats the drag source
 //  offers.
 //
 //  Files in an image go as file descriptors plus contents, which Explorer

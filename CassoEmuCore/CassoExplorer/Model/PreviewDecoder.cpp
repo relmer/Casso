@@ -387,7 +387,7 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
 //
 //  A listing that will not decode becomes the error kind with the decoder's
 //  message, never a partial listing: the spec's refusal rule is the
-//  detokenizers' own, and this only carries it to the pane.
+//  detokenizers' own, and this only passes it to the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

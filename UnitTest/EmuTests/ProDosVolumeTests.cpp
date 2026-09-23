@@ -1092,7 +1092,7 @@ public:
 
 
     //  The directory stores upper case, which is what the guest can type, and
-    //  the GS/OS case word beside it carries what was typed, so the listing
+    //  the GS/OS case word beside it records what was typed, so the listing
     //  reads back the way the name was written.
     TEST_METHOD (Volume_Write_LowerCaseName_IsStoredUpperCaseAndListsAsTyped)
     {
@@ -1594,7 +1594,7 @@ public:
 
 
     //  GS/OS Technical Note #8: the name is stored upper case and the two bytes
-    //  ProDOS 8 called version and min_version carry its case, bit 15 marking
+    //  ProDOS 8 called version and min_version record its case, bit 15 marking
     //  the word as describing the name at all.
     TEST_METHOD (Volume_Write_MixedCaseName_StoresUpperCaseAndTheCaseWord)
     {
@@ -1635,7 +1635,7 @@ public:
     }
 
 
-    //  An entry written by ProDOS 8 carries zero there, which describes no
+    //  An entry written by ProDOS 8 has zero there, which describes no
     //  case at all, and its name reads back as the directory holds it.
     TEST_METHOD (Volume_Enumerate_AnEntryWithNoCaseWord_ReadsAsUpperCase)
     {
@@ -2154,7 +2154,7 @@ public:
             }
         }
 
-        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+        Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
 
         AssertSucceeded  (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
         Assert::IsFalse  (inside.entries.empty(), L"The subdirectory lists what it holds");

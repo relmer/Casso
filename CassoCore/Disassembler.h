@@ -44,7 +44,7 @@ struct DisassembledLine
 //  A linear walk over one instruction table. It has no opinion about which
 //  core the bytes are for: the caller hands over the NMOS table from a Cpu or
 //  the CMOS table the emulator library builds, and the same loop reads either,
-//  because the table itself carries each opcode's mnemonic, addressing mode
+//  because the table itself holds each opcode's mnemonic, addressing mode
 //  and legality.
 //
 //  Linear on purpose. A file of unknown provenance has no entry point to

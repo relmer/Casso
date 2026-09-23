@@ -352,7 +352,7 @@ Error:
 //  EmulatorShell::InstallIntentReplies
 //
 //  A reload a tool asked for is decided on the thread that owns disk writes;
-//  the answer is composed there and carried to the UI thread to be sent.
+//  the answer is composed there and posted to the UI thread to be sent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

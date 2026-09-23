@@ -584,7 +584,7 @@ Error:
 //
 //  DiskCommandRunner::AppendDirectoryRows
 //
-//  A RECURSIVE ROW CARRIES ITS FULL PATH, because a listing that reaches
+//  A RECURSIVE ROW GIVES ITS FULL PATH, because a listing that reaches
 //  several directories has rows whose names repeat: two files called NOTES in
 //  different directories are two rows reading NOTES, and nothing in the output
 //  says which is which. The row is formatted from a copy whose name is the

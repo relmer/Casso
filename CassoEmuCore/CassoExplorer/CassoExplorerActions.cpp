@@ -460,7 +460,7 @@ CassoExplorerActions::DropKind CassoExplorerActions::DescribeDrop (const std::ve
 //
 //  CassoExplorerActions::DescribePlan
 //
-//  What a plan says the file is, for a menu row: the type a payload carries
+//  What a plan says the file is, for a menu row: the type a payload holds
 //  with its address, or the conversion a name promised. Empty when the
 //  content rule did the deciding, which is a guess and not a description.
 //

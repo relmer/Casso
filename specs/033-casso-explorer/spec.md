@@ -771,6 +771,19 @@ bytes, change the grouping, and copy the selection both ways.
   names among them. Commands the preview pane's context menu offers MUST
   NOT also appear at the top level of the window.
 
+**Shipping**
+
+- **FR-050**: Every release channel that ships Casso MUST ship Casso
+  Explorer with it: the zip archive and the installer package alike, each
+  with the runtime libraries it needs. A user who installs Casso MUST have
+  Casso Explorer already.
+- **FR-051**: The installer MUST offer Casso Explorer as an application of
+  its own, startable without Casso, under its own name, its own icon and
+  its own tile pictures rather than Casso's, and reachable by typing its
+  executable's name.
+- **FR-052**: Casso's Browse disks command MUST find the installed
+  executable in an installed copy, not only beside a build's output.
+
 **Testability**
 
 - **FR-030**: Browsing, cataloging, preview decoding, conversion, the
@@ -843,6 +856,13 @@ bytes, change the grouping, and copy the selection both ways.
   latest ten, newest first; typing the oldest of them again puts it at the
   top with ten entries still listed. A path that fails to navigate leaves
   the list unchanged.
+- **SC-014**: A fresh install of the package, on a machine with no build
+  of Casso on it, starts Casso Explorer from the Start menu, from its
+  executable's name typed at a prompt, and from Casso's Browse disks
+  command, with no message about a missing program.
+- **SC-015**: The zip archive holds the Casso Explorer executable beside
+  Casso's, and unpacking it onto a machine with no build tools gives a
+  window that opens a disk image.
 - **SC-008a**: The hex view shows a 64 KB run, addressed from an origin
   of the host's choosing, with no copy of those bytes held by the widget
   and no pause a user can see when scrolling through it.

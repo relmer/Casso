@@ -130,7 +130,7 @@ public:
         Assert::IsTrue (content.kind == Kind::Hex);
         Assert::IsTrue (content.textFile);
         Assert::IsTrue (!content.bytes.empty() && (content.bytes[0] & 0x7F) == 'C',
-            L"The bytes are the file's, with the high bit Apple text carries");
+            L"The bytes are the file's, with the high bit Apple text uses");
 
         RenderDos33 ("PICTURE", false, content);
         Assert::IsTrue (content.kind == Kind::Picture);

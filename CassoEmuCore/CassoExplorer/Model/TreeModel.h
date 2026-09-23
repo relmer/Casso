@@ -44,7 +44,7 @@ struct TreeNode
 //
 //  CHILDREN ARE FETCHED ON FIRST EXPAND AND KEPT until the caller invalidates
 //  them; a folder of two hundred images is read once, not on every repaint.
-//  Ids carry the root and the path in text, so a node can be rebuilt from its
+//  Ids record the root and the path in text, so a node can be rebuilt from its
 //  id alone after a refresh.
 //
 //  Whether a host folder exists is asked through a probe the caller supplies,
@@ -102,7 +102,7 @@ private:
                                   const std::string & inner, std::vector<TreeNode> & outNodes);
 
     //  Reads and parses one image, producing either its directory children
-    //  or the error the node carries.
+    //  or the error on the node.
     HRESULT  DescribeImage (bool underCasso, const std::wstring & path, TreeNode & inOutNode);
 
     static std::wstring  JoinPath (const std::wstring & folder, const std::wstring & name);

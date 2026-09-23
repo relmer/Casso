@@ -71,7 +71,7 @@ public:
     //  guess.
     enum class Conversion { ByContent, Text, Applesoft, Binary };
 
-    //  Whether the files a drop carries already say what they are, and the
+    //  Whether the files a drop holds already say what they are, and the
     //  one row a menu shows when they do: "BIN $2000" for a recorded type,
     //  "Applesoft BASIC" for a listing a name promises.
     struct DropKind
@@ -90,7 +90,7 @@ public:
     };
 
     //  How one host file goes into an image. A descriptive or CiderPress
-    //  suffix carrying a type writes the bytes as a payload of that type;
+    //  suffix holding a type writes the bytes as a payload of that type;
     //  anything else goes through the runner with the conversion the content
     //  calls for.
     struct PutPlan

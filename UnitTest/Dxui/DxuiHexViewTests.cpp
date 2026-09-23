@@ -548,7 +548,7 @@ public:
         Assert::AreEqual (uint64_t (1), view.GetCaret(), L"and up is a row back");
 
         Assert::AreEqual (uint64_t (1), view.GetSelectionCount(),
-            L"Walking without Shift carries a one-byte selection along");
+            L"Walking without Shift moves a one-byte selection along");
     }
 
 

@@ -108,7 +108,7 @@ public:
     void     SetExpanded (bool expanded)      { m_expanded = expanded; m_hoverAmount = expanded ? 1.0f : 0.0f; }
 
     //  SetHover starts the bar widening or narrowing and notes the arrow under
-    //  the pointer. Tick carries the change out over a few frames, and reports
+    //  the pointer. Tick applies the change over a few frames, and reports
     //  whether it is still under way.
     bool     SetHover    (bool over, POINT pt = { -1, -1 });
     bool     Tick        (int64_t nowMs);

@@ -50,7 +50,7 @@ public:
 
         kind = VolumeImage::DetectFilesystem (outSectors);
 
-        Assert::IsTrue (kind == expectedKind, L"the fixture must carry the filesystem its name claims");
+        Assert::IsTrue (kind == expectedKind, L"the fixture must have the filesystem its name claims");
     }
 
 
@@ -102,6 +102,6 @@ public:
             directories += entry.isDirectory ? 1 : 0;
         }
 
-        Assert::AreEqual ((size_t) 1, directories, L"the ProDOS fixture carries one subdirectory");
+        Assert::AreEqual ((size_t) 1, directories, L"the ProDOS fixture holds one subdirectory");
     }
 };

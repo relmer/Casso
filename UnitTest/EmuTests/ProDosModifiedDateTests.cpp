@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ProDosModifiedDateTests
 //
-//  The modification stamp a ProDOS directory record carries, surfaced on
+//  The modification stamp in a ProDOS directory record, surfaced on
 //  every listed entry; and its absence on DOS 3.3, which records none.
 //
 ////////////////////////////////////////////////////////////////////////////////

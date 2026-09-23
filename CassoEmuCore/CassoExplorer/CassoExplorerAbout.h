@@ -16,7 +16,7 @@ class IDxuiTheme;
 //
 //  The About dialog: the version and copyright beside the cassowary, the name
 //  explained as cask + Casso = CassoExplorer in icons, and the same links Casso's
-//  About box carries.
+//  About box shows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,7 +16,7 @@ UnitTest\Fixtures\CassoExplorer\MakeFixtures.ps1
 | File | Contents |
 |---|---|
 | `dos33.dsk` | DOS 3.3 volume 77: `HELLO` (A), `NOTES` (T), `PICTURE` (B, $2000, 8192 bytes), `LORES` (B, $400, 1024 bytes), `DHIRES` (B, $2000, 16384 bytes), `ODD` (B, $803, 777 bytes), `INTPROG` (I) |
-| `prodos.po` | ProDOS volume `/CASSQUE`: the same files as BAS, TXT and BIN, plus an empty subdirectory `SUBDIR`; every entry carries a creation and modification stamp of 1984-08-17 12:34 |
+| `prodos.po` | ProDOS volume `/CASSQUE`: the same files as BAS, TXT and BIN, plus an empty subdirectory `SUBDIR`; every entry has a creation and modification stamp of 1984-08-17 12:34 |
 
 The files were put with these commands (paths shortened):
 

@@ -31,7 +31,7 @@
 //
 //  A MALFORMED LINE REFUSES THE WHOLE PROGRAM rather than rendering what came
 //  before it. A partial listing reads as a short program, and a short program
-//  is a plausible thing to ship, so the refusal carries the offset the walk
+//  is a plausible thing to ship, so the refusal holds the offset the walk
 //  stopped at instead.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -1745,7 +1745,7 @@ void DxuiPopupHost::ApplyReveal (float t)
     {
         m_compVisual->SetOffsetY (offset);
 
-        //  The window carries the shadow's margin above the card, and a slide
+        //  The window includes the shadow's margin above the card, and a slide
         //  shows the menu through that margin, which starts the drop above the
         //  anchor by the margin's height. While the slide runs, nothing is
         //  drawn above the card's top edge; the finished frame clears the clip.

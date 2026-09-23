@@ -194,7 +194,7 @@ public:
     //  The narrowest the next show may be, in pixels, so a menu hung from a
     //  wide control -- an address bar's history -- can match its width. Zero
     //  lets the content decide, and a shared menu should be given it again
-    //  before each show, or one caller's width carries into the next.
+    //  before each show, or one caller's width leaks into the next.
     void  SetMinWidthPx (int px)                { m_minWidthPx = (px > 0) ? px : 0; }
 
     //  The tallest the menu may be, in pixels. A menu taller than this shows

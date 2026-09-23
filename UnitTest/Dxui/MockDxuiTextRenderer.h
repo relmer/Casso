@@ -30,7 +30,7 @@ enum class RecordedTextKind
     FillRect,
     PushClipRect,
     PopClipRect,
-    DrawFramebuffer,      // text carries nothing; width and height are the destination
+    DrawFramebuffer,      // text is unused; width and height are the destination
 };
 
 

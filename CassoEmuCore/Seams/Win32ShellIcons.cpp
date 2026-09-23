@@ -179,7 +179,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstri
 //
 //  Win32ShellIcons::GetCacheKey
 //
-//  A folder or a drive can carry its own icon, and so can a program, a
+//  A folder or a drive can have its own icon, and so can a program, a
 //  shortcut and an icon file; anything else looks like every other file with
 //  its extension.
 //

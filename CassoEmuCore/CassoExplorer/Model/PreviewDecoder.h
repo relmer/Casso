@@ -26,8 +26,8 @@ struct AppleSingleFile;
 //  PreviewContent
 //
 //  What the preview pane shows for one entry, by kind. Text-shaped kinds
-//  carry lines; a picture carries pixels; a catalog carries rows; an error
-//  carries the decoder's own message and where it stopped.
+//  hold lines; a picture holds pixels; a catalog holds rows; an error
+//  holds the decoder's own message and where it stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +120,7 @@ public:
     static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, const Microcode * table, std::vector<std::wstring> & outLines);
 
     //  Whether a file's leading bytes read as text, with or without the high
-    //  bit Apple text carries; a DOS 3.3 file's zero padding does not count.
+    //  bit Apple text uses; a DOS 3.3 file's zero padding does not count.
     static bool  LooksLikeText (std::span<const Byte> bytes);
 
 private:

@@ -33,7 +33,7 @@ public:
     static constexpr int  kDefaultSizePx = 16;
 
 private:
-    //  File types that carry an icon of their own rather than their extension's.
+    //  File types that have an icon of their own rather than their extension's.
     static constexpr const wchar_t *  kOwnIconExtensions[] = { L".exe", L".lnk", L".ico", L".url" };
 
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon);

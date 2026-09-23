@@ -499,7 +499,7 @@ public:
 
     TEST_METHOD (ProDos_RealDisk_ReadsAFileInsideASubdirectory)
     {
-        // /MERLIN carries real subdirectories. A deeper path is walked through
+        // /MERLIN has real subdirectories. A deeper path is walked through
         // them, and a leaf that is not in the named directory is not found
         // elsewhere by its last component.
         vector<Byte>   disk = Load (kProDosMerlin);
@@ -552,7 +552,7 @@ public:
             }
         }
 
-        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+        Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
 
         AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
         AssertSucceeded (volume.BuildIntegrityReport (report));
@@ -655,7 +655,7 @@ public:
             }
         }
 
-        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+        Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
 
         AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
 

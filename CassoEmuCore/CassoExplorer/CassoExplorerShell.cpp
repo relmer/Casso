@@ -356,7 +356,7 @@ std::vector<std::wstring> CassoExplorerShell::GetDriveRoots()
 //
 //  CassoExplorerShell::Initialize
 //
-//  COM first, because the drag source and drop target the browser carries
+//  COM first, because the drag source and drop target the browser holds
 //  need OLE, and OLE initialization has to precede any window that registers
 //  for drops. The known folders are read once here; the tree reads them from
 //  the model after that.

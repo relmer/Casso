@@ -415,7 +415,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue   (result.output.find ('/') != std::string::npos,
-            L"a row below the volume directory carries the path that reaches it");
+            L"a row below the volume directory gives the path that reaches it");
     }
 
 

@@ -157,7 +157,7 @@ bool DxuiTabStrip::OnLButtonUp (int x, int y)
 
 
 
-    //  A drag ends on the tab it carried, wherever the pointer is.
+    //  A drag ends on the tab it moved, wherever the pointer is.
     m_pressed       = -1;
     m_dragging      = false;
     m_pressedArrow  = 0;

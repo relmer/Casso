@@ -27,7 +27,7 @@
 //  Positions count characters in a row's text with its cells joined by tabs, so
 //  a copy has a tab between cells and a line break between rows.
 //
-//  A row can carry a warning, which draws a warning mark before its first cell.
+//  A row can have a warning, which draws a warning mark before its first cell.
 //
 //  The host sets the character cell size, or the view measures it from the
 //  theme's fixed-width face, so layout and selection can be tested without a

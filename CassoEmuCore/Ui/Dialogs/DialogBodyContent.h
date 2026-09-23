@@ -129,7 +129,7 @@ private:
     static int   EstimateLineCount (const std::wstring & text, size_t wrapColumns);
 
     // The height a run takes on its own: its lines, or its picture, with room
-    // around it when it carries one.
+    // around it when it has one.
     static int   RawItemHeightDip  (const Item & item);
 
     // The height a run takes in this body. Every run led by a picture takes

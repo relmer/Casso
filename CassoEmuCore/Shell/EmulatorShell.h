@@ -1306,7 +1306,7 @@ private:
     // Initialize, before the message loop that would service it is running.
     void    HandleMountCompletion (const MountCompletion & completion);
 
-    // An answer to a tool that asked, carried to the UI thread when the
+    // An answer to a tool that asked, posted to the UI thread when the
     // outcome was known on another one.
     struct IntentReplyPost
     {

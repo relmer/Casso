@@ -15,7 +15,7 @@
     marked used in the volume bitmap.
 
     Modification dates are stamped by hand for the same reason: the writer
-    zeroes the date fields, and the tests need entries that carry one.
+    zeroes the date fields, and the tests need entries that have one.
 
 .PARAMETER CassoCli
     Path to CassoCli.exe. Defaults to the x64 Debug build.
@@ -71,7 +71,7 @@ $numberedReadme = @(
 ) -join "`r`n"
 $numberedReadme += "`r`n"
 
-# The Integer BASIC listing carries DSP, which Applesoft never had, so the
+# The Integer BASIC listing uses DSP, which Applesoft never had, so the
 # content rule cannot mistake it for an Applesoft program.
 $integerListing = @(
     '10 PRINT "HELLO"',
@@ -122,7 +122,7 @@ $odd    = New-Pattern -Length 777   -Seed 4
 
 # The Integer BASIC program, tokenized by hand: each line is a length byte
 # (counting itself), a little-endian line number, tokens, and $01. Keywords
-# are single bytes below $80; letters and digits carry the high bit; an
+# are single bytes below $80; letters and digits have the high bit set; an
 # integer constant is its first digit (high bit set) followed by the
 # little-endian value; a string is $28, high-bit characters, $29.
 function Hi { param([string]$s) return [byte[]]($s.ToCharArray() | ForEach-Object { [byte]([int]$_ -bor 0x80) }) }

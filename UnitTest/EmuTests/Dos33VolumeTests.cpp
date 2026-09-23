@@ -1576,7 +1576,7 @@ public:
     //  MATCHING IGNORES CASE, SO TWO SPELLINGS ARE ONE NAME. The catalog is
     //  upper case and DOS compares without regard to case, so PROG and prog are
     //  the same name to every lookup -- which makes them a shared name, not two
-    //  names. The disks this is measured against carry byte-identical
+    //  names. The disks this is measured against have byte-identical
     //  duplicates, so only a planted pair exercises the comparison itself.
     TEST_METHOD (FindEntry_TwoSpellingsOfOneName_CountAsShared)
     {
@@ -1716,7 +1716,7 @@ public:
             }
         }
 
-        Assert::IsTrue (found, L"this disk must carry entries that share a name");
+        Assert::IsTrue (found, L"this disk must have entries that share a name");
 
         shared = before.entries[first].name;
 

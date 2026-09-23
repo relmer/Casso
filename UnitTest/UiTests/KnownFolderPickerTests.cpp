@@ -19,7 +19,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  What the emulator's side of the browser decides: which folders its disk
 //  picker scans, how it starts the browser, and the picture a dialog can
-//  carry.
+//  show.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,7 +260,7 @@ public:
         content.SetImagePlacement (DialogBodyContent::ImagePlacement::TrailingBeside);
         Assert::IsTrue (content.SetImage (picture));
 
-        //  Eight lines carry the runs past the 128-high picture.
+        //  Eight lines push the runs past the 128-high picture.
         content.SetRuns ({ heading, {}, {}, {}, {}, {}, {}, {}, below });
         content.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
 
