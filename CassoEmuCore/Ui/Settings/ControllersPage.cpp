@@ -129,14 +129,25 @@ void ControllersPage::SetState (ControllersPageState * state)
     // analyzer as a single range wide enough to leave the shortest array.
     m_state = state;
 
-    m_controller.SetSelect ([this] (int index)
+    m_controller.SetSelect ([this] (int item)
     {
-        if (m_isSyncing || m_state == nullptr || index < 0 || m_state->GetSelectedIndex() == std::optional<size_t> ((size_t) index))
+        size_t  index = 0;
+
+
+
+        if (m_isSyncing || m_state == nullptr || item < 0 || (size_t) item >= m_editingIndices.size())
         {
             return;
         }
 
-        AskToSaveProfileEdits ([this, index] () { SwitchController ((size_t) index); });
+        index = m_editingIndices[(size_t) item];
+
+        if (m_state->GetSelectedIndex() == std::optional<size_t> (index))
+        {
+            return;
+        }
+
+        AskToSaveProfileEdits ([this, index] () { SwitchController (index); });
     });
 
     m_profile.SetSelect ([this] (int index)
@@ -794,6 +805,9 @@ void ControllersPage::Refresh()
 {
     std::vector<std::wstring>  names;
     std::optional<size_t>      selected;
+    int                        selectedItem  = 0;
+    size_t                     index         = 0;
+    bool                       isPlayersOnly = false;
 
 
 
@@ -802,8 +816,23 @@ void ControllersPage::Refresh()
         return;
     }
 
-    for (const ControllersPageState::ControllerEntry & entry : m_state->GetControllers())
+    // IN MULTIPLAYER, ONLY THE PLAYERS' CONTROLLERS ARE EDITED. The page shows
+    // the mode being played, and in multiplayer a controller in neither slot
+    // drives nothing, so its page had no rows at all. It is edited from single
+    // player, where its page is whole.
+    isPlayersOnly = m_state->IsMultiplayerEnabled();
+    m_editingIndices.clear();
+
+    for (index = 0; index < m_state->GetControllers().size(); index++)
     {
+        const ControllersPageState::ControllerEntry &  entry = m_state->GetControllers()[index];
+
+        if (isPlayersOnly && !ControllerSelectionPolicy::FindPlayer (m_state->GetMultiplayer(), entry.unit).has_value())
+        {
+            continue;
+        }
+
+        m_editingIndices.push_back (index);
         names.push_back (entry.isConnected ? entry.description : entry.description + L" (not connected)");
     }
 
@@ -816,9 +845,17 @@ void ControllersPage::Refresh()
     m_lastControllerCount = m_state->GetControllers().size();
     m_isSyncing           = true;
 
+    for (index = 0; selected.has_value() && index < m_editingIndices.size(); index++)
+    {
+        if (m_editingIndices[index] == selected.value())
+        {
+            selectedItem = (int) index;
+        }
+    }
+
     m_controller.SetItems    (names);
-    m_controller.SetSelected (selected.has_value() ? (int) selected.value() : 0);
-    m_controller.SetEnabled  (selected.has_value());
+    m_controller.SetSelected (selectedItem);
+    m_controller.SetEnabled  (selected.has_value() && !m_editingIndices.empty());
 
     RefreshMultiplayer();
     RefreshProfiles();
@@ -1446,20 +1483,33 @@ void ControllersPage::ApplyPlayerController (size_t player, const std::optional<
 //  FollowPlayerOne
 //
 //  In multiplayer the controller worth editing is player one's, so Editing
-//  moves to it. The move asks about unsaved profile edits first, exactly as a
-//  pick from the Editing drop-down does. An empty slot, or a controller the
-//  page does not list, leaves Editing where it is.
+//  moves to it -- or to player two's when player one's slot is empty, since
+//  Editing lists only the players' controllers and must land on one of them.
+//  The move asks about unsaved profile edits first, exactly as a pick from the
+//  Editing drop-down does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::FollowPlayerOne()
 {
-    std::optional<ControllerUnitKey>  unit  = (m_state != nullptr) ? m_state->GetMultiplayer().players[0].unit : std::nullopt;
+    std::optional<ControllerUnitKey>  unit;
     size_t                            index = 0;
 
 
 
-    if (m_state == nullptr || !m_state->IsMultiplayerEnabled() || !unit.has_value())
+    if (m_state == nullptr || !m_state->IsMultiplayerEnabled())
+    {
+        return;
+    }
+
+    unit = m_state->GetMultiplayer().players[0].unit;
+
+    if (!unit.has_value())
+    {
+        unit = m_state->GetMultiplayer().players[1].unit;
+    }
+
+    if (!unit.has_value())
     {
         return;
     }

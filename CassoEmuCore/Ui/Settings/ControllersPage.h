@@ -163,6 +163,11 @@ private:
     ControllersPageState::CommitFn              m_onCommitProfile;
     std::optional<ControllerUnitKey>            m_inspected;
     size_t                                      m_lastControllerCount = 0;
+
+    // The controller each row of the Editing drop-down stands for. In
+    // multiplayer the list holds only the players' controllers, so a row's
+    // position is not the controller's index.
+    std::vector<size_t>                         m_editingIndices;
     std::optional<std::pair<size_t, size_t>>    m_capturing;
     std::array<bool, kTargetCount>              m_hasExtraRow         = {};
     RECT                                        m_lastRect            = {};
