@@ -1272,6 +1272,23 @@ confirm it disables without being removed.
 - **FR-109**: Each command bar entry MUST carry a tip naming it, the key that
   runs it in the keyboard scheme in force, and what it does, and the tip MUST
   follow a change of scheme.
+- **FR-110**: The operand and result annotations of FR-078 and FR-107 MUST be
+  built only while the machine is paused. While it runs they carry a byte read
+  at an arbitrary moment mid-instruction, which is not what the line will do,
+  and no one can read them at speed.
+- **FR-111**: A predicted result MUST come from the emulator's own execution
+  of the instruction against a copy of the registers, with its reads answered
+  without touching the machine and its writes captured rather than performed.
+  A SECOND DESCRIPTION OF WHAT AN INSTRUCTION DOES MUST NOT EXIST: a table
+  written beside the CPU can disagree with it, and a prediction that disagrees
+  with the machine is worse than none. Where a read cannot be answered without
+  a side effect, the line MUST be left unannotated.
+- **FR-112**: An operand in `$C000-$C0FF` MUST be named and described as the
+  soft switch the instruction operates, chosen by whether the instruction
+  reads or writes it, since one address is two switches (`$C000` read is the
+  keyboard, `$C000` written is 80STORE off). Such an operand MUST NOT be
+  annotated with a byte value, which does not exist to be read, and a write
+  MUST be described as the switch's action rather than as a store.
 
 **Watch pane**
 

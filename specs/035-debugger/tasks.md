@@ -716,7 +716,67 @@ breakpoints, two watches and the stack are visible without scrolling
 
 ---
 
-## Phase 21: Release
+## Phase 21: What the code pane tells you about an instruction
+
+**Purpose**: FR-110, FR-111, FR-112. From the window review: the result
+annotation is a table of the 6502 written beside the CPU, which can disagree
+with it, and the I/O page is annotated as though it were memory. Before the
+release gate, since both change what the pane claims is true.
+
+**Independent Test**: Single-step the //e ROM with the code pane open; every
+annotated line's claim matches what the machine does when the step runs, and
+every soft-switch operand names the switch that instruction operates.
+
+- [ ] T183 FR-110: build the operand and result annotations only while the
+  machine is paused, in `DebuggerViewState::BuildCode`. A case in
+  `DebuggerViewStateTests` asserts a running snapshot carries neither and a
+  paused one carries both. This also takes the effective-address prediction
+  and its peeks off the CPU thread's path at full speed, where they run per
+  visible line per snapshot today.
+- [ ] T184 Measure what a scratch `Cpu6502` costs to construct (64 KB of
+  memory plus the 256-entry microcode table), Release, in a
+  `Logger::WriteMessage` case beside the other measured tests. The number
+  decides T185: cheap enough means a fresh instance per prediction and no
+  reseeding to get wrong. If the microcode table dominates, build it once and
+  share it rather than reuse a dirty CPU.
+- [ ] T185 FR-111: replace the hand-written table in
+  `CassoEmuCore/Ui/Debugger/InstructionEffect.cpp` with an execution of the
+  instruction by the emulator's own core: a `Cpu6502` subclass whose
+  `ReadByteSlow` answers from `IDebugExpressionContext::TryPeek` and whose
+  `WriteByte`/`WriteWord` record rather than perform, with `m_readPages` left
+  null so no read escapes to the bus. Seed it from the target's registers,
+  `StepOne`, and report the registers, flags and captured writes that changed.
+  The test steps the REAL core over the same opcode and operand and asserts the
+  prediction matches, across every addressing mode, both carry states, decimal
+  mode, and a spread of operand values -- a test that can fail, which the
+  table's own test could not. Decimal arithmetic then needs no special case.
+- [ ] T186 FR-112: choose a soft switch's name by direction. `$C000` read is
+  KBD and `$C000` written is 80STOREOFF, and `SymbolTable::TryFindName`
+  returns whichever table matched first, so the pane can label `STA $C000` as
+  `STA KBD` today -- a store to the keyboard, which the machine cannot do.
+  The instruction's direction is already known, from the same prediction the
+  annotation uses. Test both directions of every address that carries two
+  names.
+- [ ] T187 FR-112: annotate an operand in `$C000-$C0FF` with the switch's
+  description rather than a byte value, from `SymbolDescriptions`, and have
+  the result column name a write's action ("speaker toggle") rather than
+  claim a store. The value is not merely unread there -- it does not exist
+  until a read happens, and the read is what makes the sound.
+- [ ] T188 Fill the gaps the review found in `RomSymbols.cpp` and
+  `SymbolDescriptions.cpp`: `$C084-$C08F` (3 of the 16 language-card switches
+  are named), all of `$C0E0-$C0EF` (the disk controller -- phases, motor,
+  drive select, read and write mode, which is most of a boot ROM single-step),
+  and `$C068-$C07F`. The existing test that every shipped name has a
+  description covers the new rows; datasheets and the Apple II reference,
+  never another emulator's source.
+
+**Checkpoint**: Every claim the code pane makes about an instruction comes
+from the emulator or from a named switch, and none of it is built while the
+machine runs.
+
+---
+
+## Phase 22: Release
 
 **Purpose**: The material the release needs and the gates before merging to master (FR-065, SC-008, SC-009).
 
@@ -746,7 +806,8 @@ breakpoints, two watches and the stack are visible without scrolling
 - **US13 (Phase 18)**: depends on US4's snapshot (T098) and shares the hook with US8 (T138), which it follows. T170 needs T169; T171 needs T170; T172 and T173 need T171.
 - **US15 (Phase 19)**: depends on the delivered engine and the source steps (T125). T176 needs T175.
 - **US14 (Phase 20)**: depends on US12 (T157, T158, T168) and US13 (T171). T179 needs T178; T180 needs T158; T181 needs T179 and T180; T182 needs T171 and T179.
-- **Release (Phase 21)**: depends on every story. T164 needs US6, US8 and US9.
+- **Phase 21**: depends on US4; its work is in the window the stories built.
+- **Release (Phase 22)**: depends on every story and on Phase 21. T164 needs US6, US8 and US9.
 
 ### Within each story
 
