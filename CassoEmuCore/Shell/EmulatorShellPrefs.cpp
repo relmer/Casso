@@ -477,8 +477,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // user re-picked the theme in Settings.
     m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
     {
-        m_chromeTheme = CassoTheme::MakeByName (t.name);
-        ApplyThemeToChrome (m_chromeTheme);
+        ApplyChromeThemeByName (t.name);
 
         // The command bar's theme picker is built from this catalog, and the
         // manager outlives every other path that can change the active theme

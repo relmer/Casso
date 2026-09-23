@@ -144,9 +144,8 @@ static constexpr float   s_kButtonW      = 0.030f;
 static constexpr float   s_kButtonH      = 0.011f;
 
 // The Casso cassowary badge (lower-left of the front face, where the real
-// machine wears its apple). Silhouette + rainbow mirror the DriveWidget
-// chrome badge (DrawCassowaryRainbow) -- that painter is the source of
-// truth for the motif; this is its 3D rendition.
+// machine wears its apple). Silhouette + rainbow mirror CassoBranding's baked
+// mark, the source of truth for the motif; this is its 3D rendition.
 static constexpr int       s_kLogoGridW = 36;
 static constexpr int       s_kLogoGridH = 54;
 static constexpr uint64_t  s_kLogoSilhouette[s_kLogoGridH] = {

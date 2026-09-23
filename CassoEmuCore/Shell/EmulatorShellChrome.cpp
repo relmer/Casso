@@ -70,18 +70,10 @@
 //  the joystick-mode button -- plus the window-size reconciliation that runs
 //  once the frame has materialized.
 //
-//  Two ideas recur through this block.
-//
 //  Desk-scene zoom is applied by folding the scene scale into the EFFECTIVE
 //  DPI rather than by scaling rects afterwards. Widget geometry, fonts, and
 //  the inter-widget gaps then zoom together for free, because every one of
 //  them already derives from DPI.
-//
-//  The drives are laid out as objects on a desk, not as flat controls. Each
-//  widget is skewed toward a shared vanishing point at the client center by a
-//  factor matching the case-top depth ratio in DriveWidget, so two drives side
-//  by side read as sitting on the same surface under the same monitor rather
-//  than as two identical sprites.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,8 +108,7 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
     bottomInset = bottomInsetPx;
     commandBarTop = std::max (0, clientH - bottomInset);
-    gap = MulDiv (driveChrome[0].IsCompact() ? s_kCompactDriveWidgetGapDp : s_kDriveWidgetGapDp,
-                  static_cast<int> (dpi), s_kBaseDpi);
+    gap = MulDiv (s_kCompactDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
 
 
 
@@ -140,9 +131,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     // the name and bar half a caption column right of center and the row
     // looked hung off to one side.
     //
-    // The offset is measured off the widget rather than assumed, so the full
-    // skeuomorphic drive, whose body starts at its own left edge, subtracts
-    // nothing and is unaffected. Two drives keep centering on the pair: the
+    // The offset is measured off the widget rather than assumed, so it follows
+    // the caption column's width. Two drives keep centering on the pair: the
     // caption then reads as part of a repeating unit rather than as a tail on
     // a single object.
     {
@@ -160,14 +150,12 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     for (i = 0; i < driveChrome.size(); i++)
     {
         int   widgetX      = DriveRowLayout::ComputeWidgetX (x, static_cast<int> (i), widgetW, gap);
-        int   skewPx       = DriveRowLayout::ComputePerspectiveSkewPx (clientW, widgetX, widgetW);
         RECT  widgetAnchor = { widgetX, y, widgetX, y };
 
         // Visible again: the desk scene turns these off rather than just
         // collapsing them, and this is the one path that brings the flat
         // widgets back, so it is where they earn their visibility.
         driveChrome[i].SetVisible (true);
-        driveChrome[i].SetPerspectiveSkewPx (skewPx);
         driveChrome[i].Layout (widgetAnchor, scaler);
     }
 }
@@ -1237,13 +1225,11 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 {
-    // Bottom drive-bar thickness, full and compact. Layout: drive widget
-    // (body + label strip + 2 dp bottom margin) bottom-anchored under an
-    // 8 dp gap. Drive widget total height is body 160 + label-strip gap 2 +
-    // label strip 18 = 180 dp (full) / 60 dp (compact). With the desk scene
-    // on, SyncChromeBands scales the band by m_chromeSceneScale
-    // (s_kDeskDriveScale at 100%), so it hugs the scaled drives without a
-    // separate constant.
+    // Bottom drive-bar thickness, full and compact. Full is the desk scene's
+    // drive band, which SyncChromeBands scales by m_chromeSceneScale
+    // (s_kDeskDriveScale at 100%) so it hugs the scaled 3D drives without a
+    // separate constant. Compact holds the flat drive widget, bottom-anchored
+    // under an 8 dp gap.
     constexpr int  s_kFullDriveBarDp    = 190;
     constexpr int  s_kCompactDriveBarDp = 70;
 
@@ -1258,9 +1244,6 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     bool  canResize          = false;
 
 
-
-    m_driveChrome[0].SetCompact (theme.compactDrives);
-    m_driveChrome[1].SetCompact (theme.compactDrives);
 
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
