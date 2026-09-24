@@ -152,6 +152,14 @@ protected:
     bool     OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
+    //  Protected so a test can apply one as the keys do.
+    void     ApplyTextZoom   (float zoom);
+
+    //  Set by Create; protected so a test can build the controls without a
+    //  window, as OnCreate does, over a theme and host of its own.
+    const CassoTheme     * m_theme = nullptr;
+    IDebuggerWindowHost  * m_host  = nullptr;
+
 private:
     static constexpr int    kPreferredWidthDip  = 1100;
     static constexpr int    kPreferredHeightDip = 840;
@@ -176,7 +184,6 @@ private:
     static void  MakeDense (DxuiListView * list);
     static std::wstring  GetPromptText  (CommandMode mode);
     static std::wstring  GetHelpCommand (CommandMode mode);
-    void     ApplyTextZoom (float zoom);
 
     void     ConfigureWidgets ();
     void     LayoutWidgets    ();
@@ -286,8 +293,6 @@ private:
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
 
-    const CassoTheme                      * m_theme              = nullptr;
-    IDebuggerWindowHost                   * m_host               = nullptr;
     DxuiDpiScaler                           m_scaler;
     int                                     m_widthDip           = 0;
     int                                     m_heightDip          = 0;
