@@ -139,6 +139,7 @@ public:
     static constexpr int  kMinTreeWidthDip     = 140;
     static constexpr int  kMinListWidthDip     = 220;
     static constexpr int  kMinPreviewWidthDip  = 280;   // wide enough for the hex view's toolbar
+    static constexpr int  kMinWindowWidthDip   = 200;
 
     //  Where DOS 3.3 on a 48K machine leaves HIMEM, against which Integer BASIC
     //  keeps its program.
@@ -190,6 +191,19 @@ public:
 
     //  The strip a pointer event goes to: the command bar over its band, the
     //  navigation toolbar anywhere else.
+    //  The panes' widths in a body this wide, from the widths the user left
+    //  them at. The list gives up width first, down to its minimum; then the
+    //  preview, down to its own; then the tree. Past all three minimums the
+    //  three shrink together. A preview width of zero is a hidden preview.
+    struct PaneWidths
+    {
+        int  tree    = 0;
+        int  list    = 0;
+        int  preview = 0;
+    };
+
+    static PaneWidths  FitPanes (int bodyDip, int treeDip, int previewDip);
+
     //  File Explorer's list row, measured at nine scales from 100% to 350%:
     //  twice 14 dip rounded up, and a pixel more at any scale that is not a
     //  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.

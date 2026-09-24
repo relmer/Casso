@@ -96,7 +96,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.title                    = title;
     params.hInstance                = instance;
     params.initialSizeDip           = { CassoExplorerShell::kDefaultWidthDip, CassoExplorerShell::kDefaultHeightDip };
-    params.minSizeDip               = { 640, 400 };
+    params.minSizeDip               = { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.classNameOverride        = CassoExplorerShell::kWindowClass;
@@ -391,6 +391,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_browser.GetTreeRoots (roots);
 
     m_tree->SetShowCheckboxes (false);
+    m_tree->SetHorizontalScrollEnabled (false);
     m_tree->SetNodes (std::move (roots));
     m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_browser.GetTreeChildren (id); });
 
@@ -722,6 +723,7 @@ void CassoExplorerWindow::RecomputeLayout()
     RECT            sashRect = {};
     int             rightDip = 0;
     bool            preview  = m_prefs.previewVisible;
+    PaneWidths      panes;
 
 
 
@@ -763,9 +765,15 @@ void CassoExplorerWindow::RecomputeLayout()
     m_tooltip.SetViewportSize (m_client.right - m_client.left, m_client.bottom - m_client.top);
     m_status->Layout (m_statusBand.GetBounds(), m_scaler);
 
+    panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()),
+                      m_prefs.treeWidthDip, preview ? m_prefs.previewWidthDip : 0);
+
+    //  A narrow window has already taken each pane below its minimum, so
+    //  the sash can go no further than where the fit put it.
     m_treeSplitter->Layout (body, m_scaler);
-    m_treeSplitter->SetLimitsDip (kMinTreeWidthDip, kMinListWidthDip + (preview ? kMinPreviewWidthDip : 0));
-    m_treeSplitter->SetPositionDip (m_prefs.treeWidthDip);
+    m_treeSplitter->SetLimitsDip ((std::min) (kMinTreeWidthDip, panes.tree),
+                                  (std::min) (kMinListWidthDip, panes.list) + (preview ? (std::min) (kMinPreviewWidthDip, panes.preview) + DxuiSplitter::kSashDip : 0));
+    m_treeSplitter->SetPositionDip (panes.tree);
 
     sashRect = m_treeSplitter->GetSashRect();
     m_tree->Layout (RECT { body.left, body.top, sashRect.left, body.bottom }, m_scaler);
@@ -791,8 +799,8 @@ void CassoExplorerWindow::RecomputeLayout()
     if (preview)
     {
         m_previewSplitter->Layout (right, m_scaler);
-        m_previewSplitter->SetLimitsDip (kMinListWidthDip, kMinPreviewWidthDip);
-        m_previewSplitter->SetPositionDip (rightDip - m_prefs.previewWidthDip - DxuiSplitter::kSashDip);
+        m_previewSplitter->SetLimitsDip ((std::min) (kMinListWidthDip, panes.list), (std::min) (kMinPreviewWidthDip, panes.preview));
+        m_previewSplitter->SetPositionDip (rightDip - panes.preview - DxuiSplitter::kSashDip);
 
         sashRect = m_previewSplitter->GetSashRect();
 
@@ -6566,6 +6574,62 @@ int64_t CassoExplorerWindow::GetNowMs()
 {
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FitPanes
+//
+//  What the panes are short of comes out of the preview, then the tree,
+//  each no further than its minimum; the list keeps its own. A body too
+//  narrow even for the three minimums divides among them in proportion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerWindow::PaneWidths CassoExplorerWindow::FitPanes (int bodyDip, int treeDip, int previewDip)
+{
+    PaneWidths  widths;
+    int         sashes    = (previewDip > 0) ? 2 * DxuiSplitter::kSashDip : DxuiSplitter::kSashDip;
+    int         available = (std::max) (0, bodyDip - sashes);
+    int         listFloor = kMinListWidthDip;
+    int         deficit   = 0;
+    int         cut       = 0;
+    int         total     = 0;
+
+
+
+    widths.tree    = (std::max) (0, treeDip);
+    widths.preview = (std::max) (0, previewDip);
+    deficit        = widths.tree + widths.preview + listFloor - available;
+
+    if (deficit > 0 && widths.preview > kMinPreviewWidthDip)
+    {
+        cut             = (std::min) (deficit, widths.preview - kMinPreviewWidthDip);
+        widths.preview -= cut;
+        deficit        -= cut;
+    }
+
+    if (deficit > 0 && widths.tree > kMinTreeWidthDip)
+    {
+        cut          = (std::min) (deficit, widths.tree - kMinTreeWidthDip);
+        widths.tree -= cut;
+        deficit     -= cut;
+    }
+
+    if (deficit > 0)
+    {
+        total          = widths.tree + widths.preview + listFloor;
+        widths.tree    = MulDiv (widths.tree,    available, total);
+        widths.preview = MulDiv (widths.preview, available, total);
+    }
+
+    widths.list = available - widths.tree - widths.preview;
+
+    return widths;
 }
 
 

@@ -1345,7 +1345,7 @@ bool DxuiTreeView::IsHorzScrollbarVisible() const
 
 
 
-    return m_rowsExtentPx > available;
+    return m_hScrollEnabled && m_rowsExtentPx > available;
 }
 
 

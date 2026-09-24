@@ -83,6 +83,10 @@ public:
     void  SetOnSelect       (SelectFn fn)        { m_onSelect       = std::move (fn); }
     void  SetOnExpand       (ExpandFn fn)        { m_onExpand       = std::move (fn); }
 
+    //  A row wider than the tree scrolls it sideways; without the bar, the
+    //  row is cut off at the tree's edge instead.
+    void  SetHorizontalScrollEnabled (bool enabled) { m_hScrollEnabled = enabled; }
+
     bool  IsShowingCheckboxes () const { return m_showCheckboxes; }
 
     //  Whether a row can open: it has children, or has not been asked yet.
@@ -235,6 +239,7 @@ private:
     static constexpr int  s_kHorzStepDip       = 24;
 
     bool                       m_showCheckboxes = true;
+    bool                       m_hScrollEnabled = true;
     ChildProviderFn            m_childProvider;
     SelectFn                   m_onSelect;
     ExpandFn                   m_onExpand;
