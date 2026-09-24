@@ -142,17 +142,17 @@ void MockDxuiPainter::FillRoundedRect (float xPx, float yPx, float widthPx, floa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FillCircleApprox
+//  FillCircle
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockDxuiPainter::FillCircleApprox (float cxPx, float cyPx, float radiusPx, uint32_t argbColor)
+void MockDxuiPainter::FillCircle (float cxPx, float cyPx, float radiusPx, uint32_t argbColor)
 {
     RecordedPaintCall  call;
 
 
 
-    call.kind   = RecordedPaintKind::FillCircleApprox;
+    call.kind   = RecordedPaintKind::FillCircle;
     call.x      = cxPx;
     call.y      = cyPx;
     call.width  = radiusPx * 2.0f;
@@ -198,17 +198,17 @@ void MockDxuiPainter::FillConvexQuad (float x0, float y0, float x1, float y1,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FillEllipseApprox
+//  FillEllipse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockDxuiPainter::FillEllipseApprox (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor)
+void MockDxuiPainter::FillEllipse (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor)
 {
     RecordedPaintCall  call;
 
 
 
-    call.kind   = RecordedPaintKind::FillEllipseApprox;
+    call.kind   = RecordedPaintKind::FillEllipse;
     call.x      = cxPx - radiusXPx;
     call.y      = cyPx - radiusYPx;
     call.width  = radiusXPx * 2.0f;
@@ -223,17 +223,17 @@ void MockDxuiPainter::FillEllipseApprox (float cxPx, float cyPx, float radiusXPx
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DrawLineApprox
+//  DrawLine
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockDxuiPainter::DrawLineApprox (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor)
+void MockDxuiPainter::DrawLine (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor)
 {
     RecordedPaintCall  call;
 
 
 
-    call.kind      = RecordedPaintKind::DrawLineApprox;
+    call.kind      = RecordedPaintKind::DrawLine;
     call.x         = std::min (x0, x1);
     call.y         = std::min (y0, y1);
     call.width     = std::max (x0, x1) - call.x;

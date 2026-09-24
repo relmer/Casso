@@ -187,8 +187,8 @@ Error:
 //
 //  Loads the model pair the ACTIVE MACHINE wore and stands the scene renderer
 //  up on the host device. Missing or unparseable model text is a build defect
-//  (the resources are compiled into the exe), so the guards assert; the shell
-//  then simply leaves m_deskSceneReady false and the 2D chrome continues.
+//  (the resources are compiled into the exe), so the guards assert; the caller
+//  then leaves m_deskSceneReady false and runs FallBackFromDeskScene.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -274,6 +274,70 @@ HRESULT EmulatorShell::InitializeDeskScene()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FallBackFromDeskScene
+//
+//  A skeuomorphic theme draws its drives only as 3D objects in the desk
+//  scene, so with the scene unavailable it would show no drives at all. The
+//  failure is recorded and the active theme applied again, which swaps in a
+//  compact theme; every later theme change goes through the same check.
+//
+//  The user's chosen theme stays as it was, in the theme manager and in the
+//  saved preferences, so a launch where the scene loads shows it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FallBackFromDeskScene()
+{
+    std::string  themeName = m_globalPrefs.activeTheme;
+
+
+
+    m_deskSceneFailed = true;
+
+    if (m_themeManager != nullptr)
+    {
+        themeName = m_themeManager->GetActiveThemeName();
+    }
+
+    ApplyChromeThemeByName (themeName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyChromeThemeByName
+//
+//  Builds the chrome theme for a theme name and applies it, standing in a
+//  compact theme when the named one needs the desk scene and the scene has
+//  failed. The notice says why the window does not look the way the user set
+//  it; without it the swap would pass for a theme setting that was lost.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyChromeThemeByName (const std::string & themeName)
+{
+    bool  needsDeskScene = !CassoTheme::MakeByName (themeName).compactDrives;
+
+
+
+    m_chromeTheme = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
+    ApplyThemeToChrome (m_chromeTheme);
+
+    if (needsDeskScene && m_deskSceneFailed)
+    {
+        ShowNotice (kpszDeskSceneFallbackNotice);
+    }
 }
 
 

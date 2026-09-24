@@ -2699,8 +2699,8 @@ void DxuiListView::PaintHeader (
             float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
             float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
 
-            painter.DrawLineApprox (cx - halfW, endY, cx, tipY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
-            painter.DrawLineApprox (cx, tipY, cx + halfW, endY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
+            painter.DrawLine (cx - halfW, endY, cx, tipY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
+            painter.DrawLine (cx, tipY, cx + halfW, endY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
         }
     }
 

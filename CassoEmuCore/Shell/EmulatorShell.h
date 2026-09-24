@@ -958,9 +958,20 @@ private:
 
     // Initializes the desk scene renderer against the host device and loads
     // the embedded device models. Failure leaves the scene off (asserting
-    // in debug -- a broken embedded asset is a build defect) and the 2D
-    // chrome paths continue.
+    // in debug -- a broken embedded asset is a build defect) and hands off
+    // to FallBackFromDeskScene.
     HRESULT InitializeDeskScene  ();
+
+    // Records that the desk scene failed and swaps a skeuomorphic chrome
+    // theme for a compact one, which has drives that do not need the scene.
+    void    FallBackFromDeskScene ();
+
+    // Builds and applies the chrome theme for a theme name, with the desk
+    // scene's availability taken into account.
+    void    ApplyChromeThemeByName (const std::string & themeName);
+
+    static constexpr const wchar_t *  kpszDeskSceneFallbackNotice =
+        L"The 3D desk could not be loaded, so Casso is using the Dark Modern theme.";
 
     // Loads the monitor + drive pair the active machine wore (//c gets its
     // own platinum set, everything else the beige Monitor II over Disk IIs).
@@ -1480,6 +1491,10 @@ private:
     // output on the curved glass. Gated by the deskScene opt-out pref.
     DeskScene                  m_deskScene;
     bool                       m_deskSceneReady = false;
+
+    // Set once scene initialization has failed. Distinct from !m_deskSceneReady,
+    // which also holds before initialization has been attempted at all.
+    bool                       m_deskSceneFailed = false;
 
     // Which machine family the loaded models belong to, so a switch that
     // does not cross the //c boundary skips the reload.

@@ -249,7 +249,7 @@ private:
 
     // Preview-only DriveWidget instances rendered with the staged
     // theme inside the mock window. Mutable because Paint is const
-    // but the widgets' Layout / SetCompact / SyncFromState are not.
+    // but the widgets' Layout / SyncFromState are not.
     mutable std::array<DriveWidget, 2>  m_previewDrives;
     mutable bool                        m_previewDrivesInitialized = false;
 

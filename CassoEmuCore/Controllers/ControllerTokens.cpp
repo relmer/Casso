@@ -149,6 +149,10 @@ std::string ControllerTokens::UnitToToken (const ControllerUnitKey & unit)
     {
         token += std::format ("/{}{}", kpszSlotPrefix, unit.unitId);
     }
+    else if (unit.source == ControllerUnitSource::XInputProduct)
+    {
+        token += std::format ("/{}{}", kpszProductPrefix, unit.unitId);
+    }
 
     return token;
 }
@@ -177,13 +181,16 @@ HRESULT ControllerTokens::UnitFromToken (std::string_view token, ControllerUnitK
     std::string_view    serialPrefix (kpszSerialPrefix);
     std::string_view    guidPrefix   (kpszGuidPrefix);
     std::string_view    slotPrefix   (kpszSlotPrefix);
+    std::string_view    productPrefix (kpszProductPrefix);
     size_t              prefixLength = 0;
     bool                isXInput     = false;
     bool                isSerial     = false;
     bool                isGuid       = false;
     bool                isSlot       = false;
+    bool                isProduct    = false;
     bool                hasIdentity  = false;
     bool                hasSlot      = false;
+    bool                hasProduct   = false;
     int                 slot         = 0;
 
 
@@ -195,14 +202,20 @@ HRESULT ControllerTokens::UnitFromToken (std::string_view token, ControllerUnitK
     {
         identity = token.substr (slash + 1);
         isXInput = unit.model.kind == ControllerKind::XInput;
-        isSlot   = isXInput  && identity.starts_with (slotPrefix);
-        isSerial = !isXInput && identity.starts_with (serialPrefix);
-        isGuid   = !isXInput && identity.starts_with (guidPrefix);
+        isSlot    = isXInput  && identity.starts_with (slotPrefix);
+        isProduct = isXInput  && identity.starts_with (productPrefix);
+        isSerial  = !isXInput && identity.starts_with (serialPrefix);
+        isGuid    = !isXInput && identity.starts_with (guidPrefix);
 
         if (isSlot)
         {
             prefixLength = slotPrefix.size();
             unit.source  = ControllerUnitSource::XInputSlot;
+        }
+        else if (isProduct)
+        {
+            prefixLength = productPrefix.size();
+            unit.source  = ControllerUnitSource::XInputProduct;
         }
         else if (isSerial)
         {
@@ -215,7 +228,7 @@ HRESULT ControllerTokens::UnitFromToken (std::string_view token, ControllerUnitK
             unit.source  = ControllerUnitSource::InstanceGuid;
         }
 
-        hasIdentity = (isSlot || isSerial || isGuid) && identity.size() > prefixLength;
+        hasIdentity = (isSlot || isProduct || isSerial || isGuid) && identity.size() > prefixLength;
 
         CBREx (hasIdentity, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
@@ -227,12 +240,66 @@ HRESULT ControllerTokens::UnitFromToken (std::string_view token, ControllerUnitK
 
             CBREx (hasSlot && slot < kXInputSlotLimit, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
         }
+
+        if (isProduct)
+        {
+            hasProduct = IsProductIdentity (unit.unitId);
+
+            CBREx (hasProduct, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+        }
     }
 
     outUnit = unit;
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsProductIdentity
+//
+//  Four hex digits of vendor, four of product, and an ordinal from 2 up for a
+//  second unit of the same product. An ordinal of 1 is refused rather than
+//  read as the first unit, so each unit has exactly one spelling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerTokens::IsProductIdentity (std::string_view text)
+{
+    Word    vendor   = 0;
+    Word    product  = 0;
+    int     ordinal  = 0;
+    size_t  hexWidth = 4;
+
+
+
+    if (text.size() < hexWidth * 2 + 1 || text[hexWidth] != ':')
+    {
+        return false;
+    }
+
+    if (!TryParseHexWord (text.substr (0, hexWidth), vendor) ||
+        !TryParseHexWord (text.substr (hexWidth + 1, hexWidth), product))
+    {
+        return false;
+    }
+
+    if (text.size() == hexWidth * 2 + 1)
+    {
+        return true;
+    }
+
+    if (text[hexWidth * 2 + 1] != ':')
+    {
+        return false;
+    }
+
+    return TryParseIndex (text.substr (hexWidth * 2 + 2), ordinal) && ordinal >= 2;
 }
 
 

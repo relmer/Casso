@@ -2,7 +2,6 @@
 #include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "DriveWidget.h"
-#include "CassoBranding.h"
 #include "../IDriveCommandSink.h"
 #include "Core/UnicodeSymbols.h"
 #include "Widgets/DxuiWarningBadge.h"
@@ -40,83 +39,6 @@ int DriveWidget::Scale (int value, UINT dpi)
 
     return MulDiv (value, (int) effectiveDpi, kBaseDpi);
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Clamp01
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DriveWidget::Clamp01 (float v)
-{
-    return (v < 0.0f) ? 0.0f
-         : (v > 1.0f) ? 1.0f
-                      : v;
-}
-
-
-void DriveWidget::FillTrapezoidApprox (IDxuiPainter & painter,
-                                      float frontLeft,  float frontRight,
-                                      float backLeft,   float backRight,
-                                      float frontY,     float backY,
-                                      uint32_t argb)
-{
-    int    height = (int) (frontY - backY);
-    int    i      = 0;
-    float  denom  = (float) ((height > 1) ? (height - 1) : 1);
-
-
-
-    if (height <= 0)
-    {
-        return;
-    }
-
-    for (i = 0; i < height; i++)
-    {
-        float  t     = (float) i / denom;
-        float  left  = frontLeft  + (backLeft  - frontLeft)  * t;
-        float  right = frontRight + (backRight - frontRight) * t;
-        float  y     = frontY - 1.0f - (float) i;
-
-        painter.FillRect (left, y, right - left, 1.0f, argb);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DriveWidget::DrawCaseRidge
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
-                                float frontLeft, float frontRight,
-                                float backLeft,  float backRight,
-                                float frontY,    float backY,
-                                float depthT,
-                                uint32_t argb)
-{
-    float  y     = frontY + (backY - frontY) * depthT;
-    float  left  = frontLeft  + (backLeft  - frontLeft)  * depthT;
-    float  right = frontRight + (backRight - frontRight) * depthT;
-
-
-
-    painter.FillRect (left + 2.0f, y, right - left - 4.0f, 1.0f, argb);
-}
-
-
-// The rainbow cassowary brand mark lives in the shared CassoBranding
-// helper (DrawCassowaryRainbow) so the Disk ][ faceplate and the CRT
-// monitor chin stamp the identical logo.
 
 
 
@@ -196,17 +118,17 @@ DriveWidget::DriveWidget()
 
 void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int   x         = 0;
-    int   y         = 0;
-    UINT  dpi       = 0;
-    int   bodyW     = 0;
-    int   bodyH     = 0;
-    int   faceH     = 0;
-    int   slotInset = 0;
-    int   slotH     = 0;
-    int   slotCY    = 0;
-    int   doorW     = 0;
-    int   doorH     = 0;
+    int   x       = 0;
+    int   y       = 0;
+    UINT  dpi     = 0;
+    int   cBandW  = 0;
+    int   nameH   = 0;
+    int   barGap  = 0;
+    int   barH    = 0;
+    int   capW    = 0;
+    int   capGapX = 0;
+    int   capH    = 0;
+    int   bandX   = 0;
 
 
 
@@ -217,131 +139,65 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     x = boundsDip.left;
     y = boundsDip.top;
 
-
-
     // The scaler's DPI carries the desk-scene zoom when the CRT monitor
     // framing is active (EmulatorShell folds SceneScale * kDeskDriveScale
     // into the effective DPI it hands LayoutDriveWidgetsInCommandBar), so
     // geometry, fonts, and the probe-based band layout all scale together.
     m_dpi = (scaler.GetDpi() == 0) ? (UINT) kBaseDpi : scaler.GetDpi();
+    dpi   = m_dpi;
 
-    dpi = m_dpi;
-    bodyW = Scale (kBodyWidthPx, dpi);
-    bodyH = Scale (kBodyHeightPx, dpi);
-    faceH = Scale (kFaceplateHeightPx, dpi);
-    slotInset = Scale (kSlotInsetPx, dpi);
-    slotH = Scale (kSlotHeightPx, dpi);
-    slotCY = Scale (kSlotCenterYPx, dpi);
-    doorW = Scale (kDoorWidthPx, dpi);
-    doorH = Scale (kDoorHeightPx, dpi);
+    // No card. The stack is name, head bar, caption, and the whole band is
+    // the click target.
+    cBandW  = Scale (kCompactBodyWidthPx,     dpi);
+    nameH   = Scale (kCompactNameHeightPx,    dpi);
+    barGap  = Scale (kCompactBarGapPx,        dpi);
+    barH    = Scale (kCompactBarHeightPx,     dpi);
+    capW    = Scale (kCompactCaptionWidthPx,  dpi);
+    capGapX = Scale (kCompactCaptionGapXPx,   dpi);
+    capH    = Scale (kCompactCaptionHeightPx, dpi);
+    bandX   = x + capW + capGapX;
 
-    if (m_compact)
-    {
-        // Compact: no card. The stack is name, head bar, caption, and the
-        // whole band is the click target.
-        int  cBandW   = Scale (kCompactBodyWidthPx,      dpi);
-        int  nameH    = Scale (kCompactNameHeightPx,     dpi);
-        int  barGap   = Scale (kCompactBarGapPx,         dpi);
-        int  barH     = Scale (kCompactBarHeightPx,      dpi);
-        int  capW     = Scale (kCompactCaptionWidthPx,   dpi);
-        int  capGapX  = Scale (kCompactCaptionGapXPx,    dpi);
-        int  capH     = Scale (kCompactCaptionHeightPx,  dpi);
-        int  bandX    = x + capW + capGapX;
+    // The name row IS m_labelRect, which is what PaintBasenameLabel marquees
+    // and hangs the padlock off.
+    m_labelRect.left   = bandX;
+    m_labelRect.top    = y;
+    m_labelRect.right  = bandX + cBandW;
+    m_labelRect.bottom = y + nameH;
 
-        // The name row IS m_labelRect, which is what PaintBasenameLabel
-        // marquees and hangs the padlock off. Moving that rect to the top of
-        // the stack brings the marquee, the clip and both badges with it, so
-        // none of that had to be rewritten for the new arrangement.
-        m_labelRect.left   = bandX;
-        m_labelRect.top    = y;
-        m_labelRect.right  = bandX + cBandW;
-        m_labelRect.bottom = y + nameH;
+    m_barRect.left     = bandX;
+    m_barRect.top      = m_labelRect.bottom + barGap;
+    m_barRect.right    = bandX + cBandW;
+    m_barRect.bottom   = m_barRect.top + barH;
 
-        m_barRect.left     = bandX;
-        m_barRect.top      = m_labelRect.bottom + barGap;
-        m_barRect.right    = bandX + cBandW;
-        m_barRect.bottom   = m_barRect.top + barH;
+    // Caption column to the LEFT, its text bottom aligned with the rail so
+    // both drives' captions sit on one line no matter what the stack above
+    // them is doing.
+    m_captionRect.left   = x;
+    m_captionRect.right  = x + capW;
+    m_captionRect.bottom = m_barRect.bottom + Scale (kCompactCaptionDescentPx, dpi);
+    m_captionRect.top    = m_captionRect.bottom - capH;
 
-        // Caption column to the LEFT, its text bottom aligned with the rail
-        // so both drives' captions sit on one line no matter what the stack
-        // above them is doing.
-        m_captionRect.left   = x;
-        m_captionRect.right  = x + capW;
-        m_captionRect.bottom = m_barRect.bottom + Scale (kCompactCaptionDescentPx, dpi);
-        m_captionRect.top    = m_captionRect.bottom - capH;
-
-        // The band spans the whole stack and IS the door. HitTest checks the
-        // eject rect first, so making it the band means a click anywhere on
-        // the name, the bar or the caption ejects and browses, which is what
-        // the skeuo door click does. The compact widget offered no eject at
-        // all before this: it left m_ejectRect empty, so HitTest could only
-        // ever answer Body, and a 2D theme had no way to empty a drive.
-        m_bodyRect.left   = bandX;
-        m_bodyRect.top    = y;
-        m_bodyRect.right  = bandX + cBandW;
-        m_bodyRect.bottom = m_barRect.bottom + Scale (kCompactBottomPadPx, dpi);
-
-        m_faceRect  = m_bodyRect;
-        m_slotRect  = {};
-
-        // Reaching back over the caption column, so the whole stack really is
-        // the door rather than only the part right of "DRIVE N". The band
-        // alone left the caption inside GetOuterRect, and so inside the hover
-        // test that lights the button treatment, but outside every rect
-        // HitTest examines: the caption advertised a click and then swallowed
-        // it.
-        m_ejectRect      = m_bodyRect;
-        m_ejectRect.left = m_captionRect.left;
-
-        // No LED in the compact presentation. Activity is the bar (Dark
-        // Modern) or the name's own glow (Retro Terminal), so the indicator
-        // is parked off-widget rather than drawn as a stray dot.
-        m_led.PositionAt (x, y, dpi);
-
-        SetBounds (GetOuterRect());
-        return;
-    }
-
-    // The head bar and the caption belong to the compact branch above, and
-    // nothing below writes either one. A widget that was compact under the
-    // previous theme would carry both into this layout, and GetOuterRect
-    // folds a non-empty caption rect in, so the skeuomorphic drive's outer
-    // box would grow to cover a caption it no longer draws -- taking the
-    // widget's own bounds, the probe that sizes the drive row, and the hover
-    // test with it.
-    m_barRect     = {};
-    m_captionRect = {};
-
-    m_bodyRect.left   = x;
+    // The band spans the whole stack and IS the door. HitTest checks the
+    // eject rect first, so making it the band means a click anywhere on the
+    // name, the bar or the caption ejects and browses.
+    m_bodyRect.left   = bandX;
     m_bodyRect.top    = y;
-    m_bodyRect.right  = x + bodyW;
-    m_bodyRect.bottom = y + bodyH;
+    m_bodyRect.right  = bandX + cBandW;
+    m_bodyRect.bottom = m_barRect.bottom + Scale (kCompactBottomPadPx, dpi);
 
-    // Faceplate occupies the BOTTOM portion of the widget; the receding
-    // case top is painted above it for fake 3D perspective.
-    m_faceRect.left   = x;
-    m_faceRect.top    = y + bodyH - faceH;
-    m_faceRect.right  = x + bodyW;
-    m_faceRect.bottom = y + bodyH;
+    // Reaching back over the caption column, so the whole stack really is the
+    // door rather than only the part right of "DRIVE N". The band alone left
+    // the caption inside GetOuterRect, and so inside the hover test that
+    // lights the button treatment, but outside every rect HitTest examines:
+    // the caption advertised a click and then swallowed it.
+    m_ejectRect      = m_bodyRect;
+    m_ejectRect.left = m_captionRect.left;
 
-    m_slotRect.left   = m_faceRect.left  + slotInset;
-    m_slotRect.top    = m_faceRect.top   + slotCY - slotH / 2;
-    m_slotRect.right  = m_faceRect.right - slotInset;
-    m_slotRect.bottom = m_slotRect.top + slotH;
+    // No LED is drawn. Activity is the bar (Dark Modern) or the name's own
+    // glow (Retro Terminal); the indicator still tracks state, which the shell
+    // reads, and is parked at the anchor rather than drawn as a stray dot.
+    m_led.PositionAt (x, y, dpi);
 
-    m_ejectRect.left   = m_faceRect.left + (bodyW - doorW) / 2;
-    m_ejectRect.top    = m_faceRect.top + slotCY - doorH / 2;
-    m_ejectRect.right  = m_ejectRect.left + doorW;
-    m_ejectRect.bottom = m_ejectRect.top + doorH;
-
-    m_labelRect.left   = m_bodyRect.left;
-    m_labelRect.top    = m_bodyRect.bottom + Scale (kLabelStripGapPx, dpi);
-    m_labelRect.right  = m_bodyRect.right;
-    m_labelRect.bottom = m_labelRect.top + Scale (kLabelStripHeightPx, dpi);
-
-    m_led.PositionAt (m_faceRect.left + Scale (kLabelPadPx + kInUseWidthPx + kInUseGapPx, dpi),
-                      m_faceRect.top + Scale (kLedCenterYPx, dpi) - Scale (3, dpi),
-                      dpi);
     SetBounds (GetOuterRect());
 }
 
@@ -511,7 +367,7 @@ float DriveWidget::GetHeadCoreCenterX (int   quarterTrack,
 //
 //  The diffuse edge is built from stacked ellipses of falling alpha rather
 //  than a blur, since the painter has no blur and does not need one for a
-//  shape this small. FillEllipseApprox takes independent radii, so "very
+//  shape this small. FillEllipse takes independent radii, so "very
 //  oblong and very short" is the shape it was already able to draw.
 //
 //  An empty drive draws the rail alone. A drive whose position is unknown --
@@ -605,7 +461,7 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
             float     a    = base * (1.0f - 0.75f * fade);
             uint32_t  argb = DxuiColor::ScaleAlpha (theme.ledActive, a);
 
-            painter.FillEllipseApprox (cx, cy, rx, ry, argb);
+            painter.FillEllipse (cx, cy, rx, ry, argb);
         }
     }
 }
@@ -622,8 +478,9 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
 
 void DriveWidget::SyncFromState (const DriveWidgetState & state)
 {
-    bool  motorOn = state.motorOn.load (std::memory_order_relaxed);
-    bool  active  = motorOn || state.diskActive.load (std::memory_order_relaxed);
+    bool          motorOn = state.motorOn.load (std::memory_order_relaxed);
+    bool          active  = motorOn || state.diskActive.load (std::memory_order_relaxed);
+    std::wstring  now;
 
 
 
@@ -641,27 +498,24 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     // Notice a label change and start the roll. Done on SYNC rather than in
     // paint because BeginEject has already cleared the path by the time the
     // animation runs, so this is the last moment the outgoing name exists.
-    if (m_compact)
+    now = CompactDisplayName();
+
+    if (!m_shownValid)
     {
-        std::wstring  now = CompactDisplayName();
+        m_shownText  = now;
+        m_shownValid = true;
+    }
+    else if (now != m_shownText)
+    {
+        m_rollFromText = m_shownText;
+        m_rollToText   = now;
+        m_shownText    = now;
 
-        if (!m_shownValid)
-        {
-            m_shownText  = now;
-            m_shownValid = true;
-        }
-        else if (now != m_shownText)
-        {
-            m_rollFromText = m_shownText;
-            m_rollToText   = now;
-            m_shownText    = now;
-
-            // Up on an eject, down on a mount, so the direction says which
-            // way the disk went. An eject is the case that ends empty.
-            m_rollUp      = m_state.mountedImagePath.empty();
-            m_rollStartMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                std::chrono::steady_clock::now().time_since_epoch()).count();
-        }
+        // Up on an eject, down on a mount, so the direction says which way
+        // the disk went. An eject is the case that ends empty.
+        m_rollUp      = m_state.mountedImagePath.empty();
+        m_rollStartMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
     m_led.SetState (active ? LedState::Active : LedState::Idle);
@@ -675,29 +529,16 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
 //
 //  Paint
 //
-//  Draws the whole Disk ][ drive: case, face, door, LED, and the mounted
-//  disk's label.
+//  Draws the drive: the "DRIVE N" caption, the head-position bar, and the
+//  mounted disk's name, which is the control.
 //
 //  The HIDDEN latch is what actually suppresses the widget. Paint has no
 //  bounds guard of its own, so on a machine with no Disk ][ controller the
 //  zeroed rects alone would not stop it drawing -- the latch is checked first
 //  and nothing is emitted at all.
 //
-//  Everything is drawn in painter primitives rather than from a bitmap, so the
-//  drive is crisp at any DPI and at the desk scene's arbitrary zoom, where a
-//  scaled image would be visibly soft.
-//
-//  The case is drawn with a back inset to give it perspective depth, matching
-//  the skew applied by the layout code -- the two must agree, or the drive
-//  reads as a flat sticker on a three-dimensional desk.
-//
-//  The door animates through a fractional offset rather than a discrete
-//  open/closed state, so the eject motion is smooth and can be interrupted
-//  mid-travel.
-//
-//  The focus ring is drawn OUTSIDE the outer rect so it never crowds the case
-//  art, and the "IN USE" label is positioned against the face rather than the
-//  widget, so it stays put as the door moves.
+//  The focus ring is drawn OUTSIDE the outer rect so it never crowds the name
+//  or the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -706,571 +547,114 @@ void DriveWidget::Paint (
     IDxuiTextRenderer & text,
     const IDxuiTheme  & dxuiTheme)
 {
-    // No Disk ][ controller -> Hide() latched: draw nothing at all (no body,
-    // LED, or "IN USE" label). The rects are already zeroed, but Paint has no
-    // bounds guard of its own, so this latch is what actually suppresses it.
-    if (!m_hidden)
+    HRESULT             hr         = S_OK;
+    UINT                dpi        = 0;
+    float               capFontDip = 0.0f;
+    const CassoTheme  & theme      = static_cast<const CassoTheme &> (dxuiTheme);
+    wchar_t             label[32]  = {};
+
+
+
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+
+    // No Disk ][ controller -> Hide() latched: draw nothing at all.
+    BAIL_OUT_IF (m_hidden, S_OK);
+
+    dpi        = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
+    capFontDip = kCompactCaptionFontDip * (float) dpi / (float) kBaseDpi;
+
+    if (m_focused)
     {
-        HRESULT             hr             = S_OK;
-        int                 bodyW          = 0;
-        int                 faceW          = 0;
-        int                 faceH          = 0;
-        int                 slotW          = 0;
-        int                 slotH          = 0;
-        int                 doorH          = 0;
-        UINT                dpi            = 0;
-        int                 notchW         = 0;
-        int                 notchH         = 0;
-        int                 labelPad       = 0;
-        int                 inUseW         = 0;
-        int                 caseBackInset  = 0;
-        float               labelFontDip   = 0.0f;
-        float               inUseFontDip   = 0.0f;
-        float               doorOffset     = 0.0f;
-        int                 recessInsetX   = 0;
-        const CassoTheme  & theme          = static_cast<const CassoTheme &> (dxuiTheme);
-        int                 recessInsetTop = 0;
-        int                 recessInsetBot = 0;
-        float               recessLeft     = 0.0f;
-        float               recessRight    = 0.0f;
-        float               recessTop      = 0.0f;
-        float               recessBottom   = 0.0f;
-        wchar_t             label[32]      = {};
-
-        _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-
-        bodyW = m_bodyRect.right - m_bodyRect.left;
-        faceW = m_faceRect.right - m_faceRect.left;
-        faceH = m_faceRect.bottom - m_faceRect.top;
-        slotW = m_slotRect.right - m_slotRect.left;
-        slotH = m_slotRect.bottom - m_slotRect.top;
-        doorH = m_ejectRect.bottom - m_ejectRect.top;
-        dpi = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
-        notchW = Scale (kNotchWidthPx, dpi);
-        notchH = Scale (kNotchHeightPx, dpi);
-        labelPad = Scale (kLabelPadPx, dpi);
-        inUseW = Scale (kInUseWidthPx, dpi);
-        caseBackInset = Scale (kCaseBackInsetPx, dpi);
-        labelFontDip = kLabelFontDip * (float) dpi / (float) kBaseDpi;
-        inUseFontDip = kInUseFontDip * (float) dpi / (float) kBaseDpi;
-
-
-
-        if (m_focused)
-        {
-            int   ring = Scale (2, dpi);
-            RECT  o    = GetOuterRect();
-
-            painter.OutlineRect ((float) (o.left  - ring),
-                                 (float) (o.top   - ring),
-                                 (float) (o.right  - o.left + ring * 2),
-                                 (float) (o.bottom - o.top  + ring * 2),
-                                 (float) std::max (1, Scale (1, dpi)),
-                                 theme.link);
-        }
-
-        if (m_compact)
-        {
-            float    capFontDip = kCompactCaptionFontDip * (float) dpi / (float) kBaseDpi;
-
-            // Hover treatment. The band is the control, so it gets the button
-            // cue rather than the name's own ink box: a target that changed
-            // size with the filename would be a different control per disk.
-            if (m_bandHovered)
-            {
-                // Painted to the RAIL, not to the band's full height. The band
-                // carries dead space below the rail so the click target is not
-                // as thin as the ink, but a highlight over that space would
-                // read as a box hanging below the control.
-                painter.FillRect ((float) m_bodyRect.left,
-                                  (float) m_bodyRect.top,
-                                  (float) (m_bodyRect.right - m_bodyRect.left),
-                                  (float) (m_barRect.bottom - m_bodyRect.top),
-                                  theme.buttonHover);
-            }
-
-            PaintCompactHeadBar (painter, theme, dpi);
-
-            swprintf_s (label, L"DRIVE %d", m_drive + 1);
-            // Bottom aligned so the caption sits on the rail's baseline
-            // rather than floating in the middle of a taller box. Centering
-            // it left the word riding above the bar it labels.
-            hr = text.DrawString (label,
-                                  (float) m_captionRect.left,
-                                  (float) m_captionRect.top,
-                                  (float) (m_captionRect.right  - m_captionRect.left),
-                                  (float) (m_captionRect.bottom - m_captionRect.top),
-                                  theme.dropdownAccel,
-                                  capFontDip,
-                                  kFontFamily,
-                                  DxuiTextRenderer::HAlign::Left,
-                                  DxuiTextRenderer::VAlign::Bottom);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            // The name row. While a roll is running it owns the row outright:
-            // the marquee and the badges stand down, because both would move
-            // or pin the same string the roll is sliding.
-            {
-                int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                     std::chrono::steady_clock::now().time_since_epoch()).count();
-                int64_t  since = nowMs - m_rollStartMs;
-
-                if (m_rollStartMs != 0 && since >= 0 && since < DriveWidgetState::kDoorAnimationMs)
-                {
-                    float  t = (float) since / (float) DriveWidgetState::kDoorAnimationMs;
-
-                    // Ease out, so the label arrives rather than stopping.
-                    t = 1.0f - (1.0f - t) * (1.0f - t);
-
-                    PaintCompactNameRoll (text, theme, dpi, t);
-                }
-                else if (m_state.mountedImagePath.empty())
-                {
-                    // An empty drive still needs a name to click.
-                    // PaintBasenameLabel draws nothing without a mount.
-                    float  nameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
-
-                    hr = text.DrawString (kCompactEmptyLabel,
-                                          (float) m_labelRect.left,
-                                          (float) m_labelRect.top,
-                                          (float) (m_labelRect.right  - m_labelRect.left),
-                                          (float) (m_labelRect.bottom - m_labelRect.top),
-                                          theme.dropdownAccel,
-                                          nameDip,
-                                          kFontFamily,
-                                          DxuiTextRenderer::HAlign::Center,
-                                          DxuiTextRenderer::VAlign::Center);
-                    IGNORE_RETURN_VALUE (hr, S_OK);
-                }
-                else
-                {
-                    PaintBasenameLabel (painter, text, theme, dpi);
-                }
-            }
-
-
-            UNREFERENCED_PARAMETER (bodyW);
-            UNREFERENCED_PARAMETER (faceW);
-            UNREFERENCED_PARAMETER (faceH);
-            UNREFERENCED_PARAMETER (slotW);
-            UNREFERENCED_PARAMETER (slotH);
-            UNREFERENCED_PARAMETER (doorH);
-            UNREFERENCED_PARAMETER (notchW);
-            UNREFERENCED_PARAMETER (notchH);
-            UNREFERENCED_PARAMETER (labelPad);
-            UNREFERENCED_PARAMETER (inUseW);
-            UNREFERENCED_PARAMETER (caseBackInset);
-            UNREFERENCED_PARAMETER (labelFontDip);
-            UNREFERENCED_PARAMETER (inUseFontDip);
-            UNREFERENCED_PARAMETER (doorOffset);
-
-            return;
-        }
-
-
-
-        // Receding case top: trapezoid spanning the space above the
-        // faceplate, narrowing toward the back to suggest perspective.
-        // Camera is slightly above and in front of the drive.
-        {
-            float     frontLeft        = (float) m_bodyRect.left;
-            float     frontRight       = (float) m_bodyRect.right;
-            float     backLeft         = (float) (m_bodyRect.left  + caseBackInset + m_perspectiveSkewPx);
-            float     backRight        = (float) (m_bodyRect.right - caseBackInset + m_perspectiveSkewPx);
-            float     frontY           = (float) m_faceRect.top;
-            float     backY            = (float) m_bodyRect.top;
-            uint32_t  caseColor        = 0xFFCCB68B;
-            uint32_t  caseHilite       = 0xFFE6D3AC;
-            uint32_t  caseShade        = 0xFF8E7A55;
-            uint32_t  backEdge         = 0xFF5E4F36;
-            float     panelInsetTop;
-            float     panelInsetBottom;
-
-            FillTrapezoidApprox (painter, frontLeft, frontRight, backLeft, backRight,
-                                 frontY, backY, caseColor);
-
-            // Back-edge dark line (rear of case top).
-            painter.FillRect (backLeft, backY, backRight - backLeft, 1.0f, backEdge);
-
-            // Front-edge highlight (where case top meets faceplate top).
-            painter.FillRect (frontLeft, frontY - 1.0f, frontRight - frontLeft, 1.0f, caseHilite);
-
-            // Diagonal side highlights -- approximate by drawing a thin
-            // line along each slanted edge using small stair-step rects.
-            {
-                int    edgeH = (int) (frontY - backY);
-                int    i     = 0;
-                float  denom = (float) ((edgeH > 1) ? (edgeH - 1) : 1);
-
-                for (i = 0; i < edgeH; i++)
-                {
-                    float  t         = (float) i / denom;
-                    float  leftEdge  = frontLeft  + (backLeft  - frontLeft)  * t;
-                    float  rightEdge = frontRight + (backRight - frontRight) * t;
-                    float  y         = frontY - 1.0f - (float) i;
-
-                    painter.FillRect (leftEdge,           y, 1.0f, 1.0f, caseShade);
-                    painter.FillRect (rightEdge - 1.0f,   y, 1.0f, 1.0f, caseShade);
-                }
-            }
-
-            // Two indented lid panels on the case top, matching the real
-            // Disk II's stamped panel design. Each panel is itself a
-            // trapezoid that follows the case-top's perspective slant
-            // (drawn scanline by scanline so the left/right edges taper
-            // toward the back exactly like the case top).
-            {
-                float    edgeH        = frontY - backY;
-                float    midGapH      = edgeH * 0.08f;
-                float    panelH       = (edgeH - midGapH) * 0.5f;
-                float    topMargin    = edgeH * 0.10f;
-                float    bottomMargin = edgeH * 0.08f;
-                float    rearY1       = backY + topMargin;
-                float    rearY2       = rearY1 + panelH - topMargin;
-                float    frontY1      = rearY2 + midGapH;
-                float    frontY2      = frontY - bottomMargin;
-                uint32_t panelFill    = 0xFFC0AA82;
-                uint32_t panelShadow  = 0xFF8E7A55;
-                uint32_t panelHilite  = 0xFFD8C49B;
-                float    sideMargin   = 12.0f;
-
-                auto LerpEdges = [&] (float yPos)
-                {
-                    // depth fraction at this y (0 = front, 1 = back)
-                    float  t          = (yPos - frontY) / (backY - frontY);
-                    float  leftEdge   = frontLeft  + (backLeft  - frontLeft)  * t;
-                    float  rightEdge  = frontRight + (backRight - frontRight) * t;
-                    return std::pair<float,float> (leftEdge + sideMargin, rightEdge - sideMargin);
-                };
-
-                // Trapezoidal panel: edges follow case-top perspective.
-                // Linearly interpolate between (yTop edges) and (yBot edges)
-                // per scanline so the panel narrows toward the back.
-                auto DrawPanel = [&] (float yTop, float yBot)
-                {
-                    auto   topEdges    = LerpEdges (yTop);
-                    auto   bottomEdges = LerpEdges (yBot);
-                    int    rows        = (int) (yBot - yTop);
-                    int    i           = 0;
-                    float  denom       = (float) ((rows > 1) ? (rows - 1) : 1);
-
-                    for (i = 0; i < rows; i++)
-                    {
-                        float  t          = (float) i / denom;
-                        // Note: i=0 is at yBot (front), i=rows-1 is at yTop (back).
-                        float     l    = bottomEdges.first  + (topEdges.first  - bottomEdges.first)  * t;
-                        float     r    = bottomEdges.second + (topEdges.second - bottomEdges.second) * t;
-                        float     y    = yBot - 1.0f - (float) i;
-                        uint32_t  fill = panelFill;
-
-                        if (i == rows - 1)
-                        {
-                            fill = panelShadow;
-                        }
-                        else if (i == 0)
-                        {
-                            fill = panelHilite;
-                        }
-
-                        painter.FillRect (l, y, r - l, 1.0f, fill);
-                        // Left edge shadow, right edge highlight, follow slant.
-                        painter.FillRect (l,        y, 1.0f, 1.0f, panelShadow);
-                        painter.FillRect (r - 1.0f, y, 1.0f, 1.0f, panelHilite);
-                    }
-                };
-
-                DrawPanel (rearY1, rearY2);
-                DrawPanel (frontY1, frontY2);
-
-                // Cache the rear panel's y-range so the vent slits below
-                // can align with it.
-                panelInsetTop    = rearY1;
-                panelInsetBottom = rearY2;
-            }
-
-            // Nine vent slots on each side of the case top, aligned with
-            // the rear lid-panel y-range. Matches the real Disk II which
-            // has vents on both side faces of the case.
-            {
-                int      ventCount  = kVentCountPx;
-                float    ventTop    = panelInsetTop;
-                float    ventBottom = panelInsetBottom;
-                float    span       = ventBottom - ventTop;
-                float    spacing    = span / (float) (ventCount + 1);
-                float    slitH      = (float) Scale (kVentSlotHeightPx, dpi);
-                float    slitInset  = 6.0f;
-                uint32_t ventArgb   = 0xFF4A3F2A;
-                int      v          = 0;
-
-                for (v = 0; v < ventCount; v++)
-                {
-                    float  y         = ventTop + spacing * (float) (v + 1);
-                    float  depthT    = (y - frontY) / (backY - frontY);
-                    float  leftAtY   = frontLeft  + (backLeft  - frontLeft)  * depthT;
-                    float  rightAtY  = frontRight + (backRight - frontRight) * depthT;
-                    float  slitLen   = (rightAtY - leftAtY) * 0.10f;
-                    painter.FillRect (leftAtY  + slitInset,           y, slitLen, slitH, ventArgb);
-                    painter.FillRect (rightAtY - slitInset - slitLen, y, slitLen, slitH, ventArgb);
-                }
-            }
-        }
-
-        // Black faceplate, inset from the body's left/right edges so the
-        // beige case wraps around the faceplate on all four sides
-        // (matches the real Disk II's recessed front panel).
-        {
-            int    faceInsetX = Scale (4, dpi);
-            int    faceInsetB = Scale (3, dpi);
-            float  ffx        = (float) (m_faceRect.left  + faceInsetX);
-            float  ffy        = (float) m_faceRect.top;
-            float  ffw        = (float) (faceW - 2 * faceInsetX);
-            float  ffh        = (float) (faceH - faceInsetB);
-            // Beige body shows around the faceplate (top edge already
-            // butts against the case-top trapezoid; bottom + sides need
-            // explicit fill).
-            painter.FillRect ((float) m_faceRect.left, (float) m_faceRect.top,
-                              (float) faceW, (float) faceH, 0xFFCCB68B);
-            painter.FillRect (ffx, ffy, ffw, ffh, theme.driveBody);
-            // Corner chamfer on the inset faceplate.
-            painter.FillRect (ffx,             ffy,             1.0f, 1.0f, 0xFFCCB68B);
-            painter.FillRect (ffx + ffw - 1,   ffy,             1.0f, 1.0f, 0xFFCCB68B);
-            painter.FillRect (ffx,             ffy + ffh - 1,   1.0f, 1.0f, 0xFFCCB68B);
-            painter.FillRect (ffx + ffw - 1,   ffy + ffh - 1,   1.0f, 1.0f, 0xFFCCB68B);
-        }
-
-        // Slot.
-        painter.FillRect ((float) m_slotRect.left, (float) m_slotRect.top, (float) slotW, (float) slotH, theme.driveBezel);
-
-        // Finger-pull recess behind the door: a darker rectangle that the
-        // user grabs the disk through. Drawn before the door so it's
-        // visually revealed as the door tilts open. Shared inset values
-        // used here AND by the door geometry below so the door visually
-        // fits inside the recess (same width, slightly shorter so a
-        // strip of recess shows above the hinge when the door is closed).
-        recessInsetX = Scale (4, dpi);
-        recessInsetTop = Scale (3, dpi);
-        recessInsetBot = Scale (2, dpi);
-        recessLeft = (float) (m_ejectRect.left  + recessInsetX);
-        recessRight = (float) (m_ejectRect.right - recessInsetX);
-        recessTop = (float) (m_ejectRect.top + recessInsetTop);
-        recessBottom = (float) (m_ejectRect.bottom - recessInsetBot);
-        {
-            uint32_t recessArgb = 0xFF050505;
-            uint32_t shadowArgb = 0xFF000000;
-
-            painter.FillRect (recessLeft, recessTop, recessRight - recessLeft, recessBottom - recessTop, recessArgb);
-            // Inset shadow on the top + left edges so the recess reads as
-            // sunken below the faceplate surface.
-            painter.FillRect (recessLeft, recessTop, recessRight - recessLeft, 1.0f, shadowArgb);
-            painter.FillRect (recessLeft, recessTop, 1.0f, recessBottom - recessTop, shadowArgb);
-        }
-
-        // Door tab vertical position.
-        {
-            int64_t  elapsed  = 0;
-            float    progress = 0.0f;
-
-            int64_t  nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                    std::chrono::steady_clock::now().time_since_epoch()).count();
-            elapsed = nowMs - m_state.animationStartTimeMs;
-            progress = Clamp01 ((float) elapsed / (float) DriveWidgetState::kDoorAnimationMs);
-
-            if (m_state.doorState == DriveWidgetState::Door::Open)
-            {
-                doorOffset = 1.0f;
-            }
-            else if (m_state.doorState == DriveWidgetState::Door::Opening)
-            {
-                doorOffset = progress;
-            }
-            else if (m_state.doorState == DriveWidgetState::Door::Closing)
-            {
-                doorOffset = 1.0f - progress;
-            }
-        }
-
-        {
-            // Cantilever rotation: door is hinged a few px inside the
-            // slot bezel and tilts up + back as it opens, retracting
-            // mostly inside the case. Real Disk II behavior: the door
-            // pivots from a point inside the drive face (not flush with
-            // the slot top), and tucks 75% of its length inside as it
-            // opens, leaving only a small flap sticking out of the slot.
-            // Door horizontally matches the recess (insetX from the
-            // bezel edges) so the visible dark area stays the same
-            // width whether the door is open or closed.
-            // Max tilt clamped to 75 deg so the far edge doesn't
-            // overshoot the case top.
-            constexpr float  kPi                  = 3.14159265f;
-            constexpr float  kMaxAngleRad         = 75.0f * kPi / 180.0f;
-            constexpr float  kOpenVisibleFraction = 0.25f;     // 75% retracted
-            constexpr int    kHingeOffsetDp       = 4;          // pivot sits this far below the recess top
-            constexpr int    kFingerNotchDp       = 8;          // bottom strip of recess that stays visible when closed
-
-            float     hingeY        = recessTop + (float) Scale (kHingeOffsetDp, dpi);
-            float     hingeL        = recessLeft;
-            float     hingeR        = recessRight;
-            float     doorBottomY   = recessBottom - (float) Scale (kFingerNotchDp, dpi);
-            float     doorHf        = doorBottomY - hingeY;
-            float     angle         = doorOffset * kMaxAngleRad;
-            float     cosA          = cosf (angle);
-            float     sinA          = sinf (angle);
-            float     visLen        = doorHf * (1.0f - (1.0f - kOpenVisibleFraction) * doorOffset);
-            float     depthBack     = visLen * sinA;
-            float     visibleH      = visLen * cosA;
-            float     caseDepthY    = (float) (m_faceRect.top - m_bodyRect.top);
-            float     caseFrontW;
-            float     perDepthTaper;   // case-side taper magnitude per unit depth
-            float     fracL;
-            float     fracR;
-            float     dxBackL;
-            float     dxBackR;
-            float     farL;
-            float     farR;
-            float     farY;
-            uint8_t   shade;
-            uint32_t  doorArgb;
-            uint32_t  edgeArgb      = 0xFF000000;
-            uint32_t  hiliteArgb    = 0xFF5A5A5A;
-            float     yTop;
-            float     yBot;
-            int       rows;
-            int       i             = 0;
-
-            if (caseDepthY < 1.0f)
-            {
-                caseDepthY = 1.0f;
-            }
-
-            caseFrontW      = (float) (m_bodyRect.right - m_bodyRect.left);
-            if (caseFrontW < 1.0f)
-            {
-                caseFrontW = 1.0f;
-            }
-
-            perDepthTaper = (float) caseBackInset / caseDepthY;
-
-            // Per-edge perspective: each side of the door's far edge
-            // applies the case-top trapezoid's own per-unit-depth taper
-            // at that horizontal position. A vertical line at front-x
-            // shifts by caseTaper * (1 - 2*fracX) per unit of depth,
-            // where fracX is the line's horizontal fraction across the
-            // case width (0 = leftmost, 1 = rightmost). Door edges
-            // converge inward at the back, matching the case-side
-            // inward taper at the same horizontal positions.
-            //
-            // The case-top trapezoid also shifts laterally by the
-            // camera-skew amount, but we deliberately don't apply that
-            // to the door: per-drive lateral shift would make the door
-            // tilt left/right depending on which drive it's on, and the
-            // resulting "door leans the wrong way" reads as more wrong
-            // than the lost camera-lateral consistency reads as right.
-            // Real 3D rendering would resolve this properly.
-            fracL   = (hingeL - (float) m_bodyRect.left) / caseFrontW;
-            fracR   = (hingeR - (float) m_bodyRect.left) / caseFrontW;
-            dxBackL = depthBack * perDepthTaper * (1.0f - 2.0f * fracL);
-            dxBackR = depthBack * perDepthTaper * (1.0f - 2.0f * fracR);
-
-            farL    = hingeL + dxBackL;
-            farR    = hingeR + dxBackR;
-            farY    = hingeY + visibleH - depthBack;
-
-            // Front face (closed) is the darkest; underside (visible as
-            // the door tilts) lerps toward a slightly lighter gray so the
-            // tilt reads visually.
-            shade     = (uint8_t) (0x1F + (uint32_t) (sinA * (float) (0x4A - 0x1F)));
-            doorArgb  = 0xFF000000u | ((uint32_t) shade << 16) | ((uint32_t) shade << 8) | (uint32_t) shade;
-
-            yTop      = std::min (hingeY, farY);
-            yBot      = std::max (hingeY, farY);
-            rows      = (int) (yBot - yTop);
-            if (rows < 1)
-            {
-                rows = 1;
-            }
-
-            // Fill the door parallelogram scanline by scanline.
-            for (i = 0; i < rows; i++)
-            {
-                float  y     = yTop + (float) i;
-                float  t;
-                float  lx;
-                float  rx;
-
-                if (farY >= hingeY)
-                {
-                    t = (y - hingeY) / std::max (farY - hingeY, 1.0f);
-                }
-                else
-                {
-                    t = (hingeY - y) / std::max (hingeY - farY, 1.0f);
-                }
-
-                lx = hingeL + t * (farL - hingeL);
-                rx = hingeR + t * (farR - hingeR);
-                painter.FillRect (lx, y, rx - lx, 1.0f, doorArgb);
-            }
-
-            // Hinge edge highlight (thin lighter line at the top edge so
-            // the cantilever pivot reads).
-            painter.FillRect (hingeL, hingeY, hingeR - hingeL, 1.0f, hiliteArgb);
-
-            // Far edge (top of door when closed -> rear of door when open):
-            // dark outline along whichever screen-y it currently occupies.
-            painter.FillRect (farL, farY, farR - farL, 1.0f, edgeArgb);
-        }
-
-        // "DRIVE N" upper-left of faceplate. Mounted-disk basename is
-        // painted in m_labelRect (below the body) after the case + face
-        // rendering completes, so it's the same code path in both
-        // skeuomorphic and compact modes.
-        swprintf_s (label, L"DRIVE %d", m_drive + 1);
-        hr = text.DrawString (label,
-                              (float) (m_faceRect.left + labelPad),
-                              (float) (m_faceRect.top + labelPad - 2),
-                              (float) (faceW - 2 * labelPad),
-                              labelFontDip + 4.0f,
-                              theme.driveLabel,
-                              labelFontDip,
-                              kFontFamily);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        // "IN USE >" label bottom-left of faceplate, LED to its right.
-        swprintf_s (label, L"IN USE %s", s_kpszTriangleRight);
-        hr = text.DrawString (label,
-                              (float) (m_faceRect.left + labelPad),
-                              (float) (m_led.GetLayout().coreRect.top - 3),
-                              (float) inUseW,
-                              inUseFontDip + 4.0f,
-                              theme.driveLabel,
-                              inUseFontDip,
-                              kFontFamily);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        UNREFERENCED_PARAMETER (bodyW);
-        m_led.Paint (painter, text, theme);
-
-        // Cassowary rainbow logo, bottom-right of faceplate (where the
-        // Apple logo lives on the real Disk II). Silhouette is left-facing
-        // so the bird "watches" the drive slot.
-        {
-            int    iconW   = Scale (kCassowaryWidthPx,  dpi);
-            int    iconH   = Scale (kCassowaryHeightPx, dpi);
-            int    marginX = Scale (kCassowaryMarginPx, dpi);
-            int    marginY = Scale (kCassowaryMarginPx, dpi);
-            float  iconX   = (float) (m_faceRect.right  - iconW - marginX);
-            float  iconY   = (float) (m_faceRect.bottom - iconH - marginY);
-
-            CassoBranding::DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
-        }
-
-        // The write-protect padlock used to be stamped here, top-right of the
-        // faceplate, mirroring the cassowary below it. It has moved down to
-        // the basename label, where it says what it is about -- the mounted
-        // IMAGE, not the drive -- and where the 3D scene can show it too.
-
-        PaintBasenameLabel (painter, text, theme, dpi);
+        int   ring = Scale (2, dpi);
+        RECT  o    = GetOuterRect();
+
+        painter.OutlineRect ((float) (o.left  - ring),
+                             (float) (o.top   - ring),
+                             (float) (o.right  - o.left + ring * 2),
+                             (float) (o.bottom - o.top  + ring * 2),
+                             (float) std::max (1, Scale (1, dpi)),
+                             theme.link);
     }
+
+    // Hover treatment. The band is the control, so it gets the button cue
+    // rather than the name's own ink box: a target that changed size with the
+    // filename would be a different control per disk.
+    if (m_bandHovered)
+    {
+        // Painted to the RAIL, not to the band's full height. The band carries
+        // dead space below the rail so the click target is not as thin as the
+        // ink, but a highlight over that space would read as a box hanging
+        // below the control.
+        painter.FillRect ((float) m_bodyRect.left,
+                          (float) m_bodyRect.top,
+                          (float) (m_bodyRect.right - m_bodyRect.left),
+                          (float) (m_barRect.bottom - m_bodyRect.top),
+                          theme.buttonHover);
+    }
+
+    PaintCompactHeadBar (painter, theme, dpi);
+
+    swprintf_s (label, L"DRIVE %d", m_drive + 1);
+    // Bottom aligned so the caption sits on the rail's baseline rather than
+    // floating in the middle of a taller box. Centering it left the word
+    // riding above the bar it labels.
+    hr = text.DrawString (label,
+                          (float) m_captionRect.left,
+                          (float) m_captionRect.top,
+                          (float) (m_captionRect.right  - m_captionRect.left),
+                          (float) (m_captionRect.bottom - m_captionRect.top),
+                          theme.dropdownAccel,
+                          capFontDip,
+                          kFontFamily,
+                          DxuiTextRenderer::HAlign::Left,
+                          DxuiTextRenderer::VAlign::Bottom);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    // The name row. While a roll is running it owns the row outright: the
+    // marquee and the badges stand down, because both would move or pin the
+    // same string the roll is sliding.
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+        int64_t  since = nowMs - m_rollStartMs;
+
+
+
+        if (m_rollStartMs != 0 && since >= 0 && since < DriveWidgetState::kDoorAnimationMs)
+        {
+            float  t = (float) since / (float) DriveWidgetState::kDoorAnimationMs;
+
+            // Ease out, so the label arrives rather than stopping.
+            t = 1.0f - (1.0f - t) * (1.0f - t);
+
+            PaintCompactNameRoll (text, theme, dpi, t);
+        }
+        else if (m_state.mountedImagePath.empty())
+        {
+            // An empty drive still needs a name to click.
+            // PaintBasenameLabel draws nothing without a mount.
+            float  nameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
+
+            hr = text.DrawString (kCompactEmptyLabel,
+                                  (float) m_labelRect.left,
+                                  (float) m_labelRect.top,
+                                  (float) (m_labelRect.right  - m_labelRect.left),
+                                  (float) (m_labelRect.bottom - m_labelRect.top),
+                                  theme.dropdownAccel,
+                                  nameDip,
+                                  kFontFamily,
+                                  DxuiTextRenderer::HAlign::Center,
+                                  DxuiTextRenderer::VAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else
+        {
+            PaintBasenameLabel (painter, text, theme, dpi);
+        }
+    }
+
+Error:
+    return;
 }
 
 
@@ -1281,8 +665,7 @@ void DriveWidget::Paint (
 //
 //  PaintBasenameLabel
 //
-//  Paints the mounted disk's basename inside m_labelRect (below the
-//  drive icon body) in both compact and skeuomorphic paint paths.
+//  Paints the mounted disk's basename inside m_labelRect, the name row.
 //  Hidden when no disk is mounted; ellipsis-truncated to the label
 //  strip width via the pure TruncateToWidth algorithm.
 //
@@ -1537,14 +920,16 @@ void DriveWidget::PaintBasenameLabel (
 
 DriveWidgetRegion DriveWidget::HitTest (int x, int y) const
 {
-    // Eject is tested first because its rect sits INSIDE the body rect --
-    // reversing these would make the button unreachable.
+    // The eject rect is the whole control, caption column included (see
+    // Layout), so it is the only region the flat widget has.
     DriveWidgetRegion  region = DriveWidgetRegion::None;
 
 
 
-    if      (IsPointInRect (m_ejectRect, x, y)) { region = DriveWidgetRegion::Eject; }
-    else if (IsPointInRect (m_bodyRect,  x, y)) { region = DriveWidgetRegion::Body;  }
+    if (IsPointInRect (m_ejectRect, x, y))
+    {
+        region = DriveWidgetRegion::Eject;
+    }
 
     return region;
 }

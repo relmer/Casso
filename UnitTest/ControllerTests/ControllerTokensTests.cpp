@@ -125,6 +125,32 @@ namespace ControllerTests
         }
 
 
+        // An Xbox-class unit keyed by product survives whatever slot XInput
+        // connects it into; a second unit of one product carries an ordinal.
+        TEST_METHOD (Unit_XInputProductRoundTrips)
+        {
+            ControllerUnitKey  first   = { { ControllerKind::XInput, 0, 0 }, "045e:0b13",   ControllerUnitSource::XInputProduct };
+            ControllerUnitKey  second  = { { ControllerKind::XInput, 0, 0 }, "045e:0b13:2", ControllerUnitSource::XInputProduct };
+            ControllerUnitKey  bySlot  = { { ControllerKind::XInput, 0, 0 }, "0",           ControllerUnitSource::XInputSlot };
+            ControllerUnitKey  parsed;
+            HRESULT            hr      = S_OK;
+
+            Assert::AreEqual (std::string ("xinput/product:045e:0b13"),   ControllerTokens::UnitToToken (first));
+            Assert::AreEqual (std::string ("xinput/product:045e:0b13:2"), ControllerTokens::UnitToToken (second));
+
+            hr = ControllerTokens::UnitFromToken (ControllerTokens::UnitToToken (first), parsed);
+            Assert::AreEqual (S_OK, hr);
+            Assert::IsTrue   (parsed == first, L"the product survives the round trip");
+
+            hr = ControllerTokens::UnitFromToken (ControllerTokens::UnitToToken (second), parsed);
+            Assert::AreEqual (S_OK, hr);
+            Assert::IsTrue   (parsed == second, L"and so does the ordinal");
+
+            Assert::IsFalse  (first == second, L"two units of one product are two units");
+            Assert::IsFalse  (first == bySlot, L"a product key is not the slot key it replaces");
+        }
+
+
         // Every preferences file written so far holds a bare "xinput", which
         // means whichever Xbox controller is connected.
         TEST_METHOD (Unit_BareXInputTokenLoadsWithNoSlot)
@@ -198,6 +224,10 @@ namespace ControllerTests
                 "dinput:044f:b10a/other:x", "xinput:045e:0b13/serial:ABC",
                 "xinput/", "xinput/slot:", "xinput/slot:4", "xinput/slot:x",
                 "xinput/guid:{A}", "xinput/serial:ABC", "dinput:044f:b10a/slot:0",
+                "xinput/product:", "xinput/product:045e", "xinput/product:045e:0b1",
+                "xinput/product:045e-0b13", "xinput/product:zzzz:0b13", "xinput/product:045e:0b13:",
+                "xinput/product:045e:0b13:1", "xinput/product:045e:0b13:0", "xinput/product:045e:0b13x",
+                "dinput:044f:b10a/product:045e:0b13",
             };
 
             for (const char * token : tokens)

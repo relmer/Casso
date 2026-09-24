@@ -209,7 +209,7 @@ public:
 
         for (const RecordedPaintCall & call : painter.Calls())
         {
-            if (call.kind == RecordedPaintKind::DrawLineApprox && call.x >= 340.0f && call.x <= 368.0f)
+            if (call.kind == RecordedPaintKind::DrawLine && call.x >= 340.0f && call.x <= 368.0f)
             {
                 strokes++;
             }

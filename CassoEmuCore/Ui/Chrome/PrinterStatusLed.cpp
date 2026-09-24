@@ -61,8 +61,8 @@ void PrinterStatusLed::Paint (IDxuiPainter & painter, float cx, float cy, UINT d
     // shows no light rather than a dark dot.
     if (core != 0)
     {
-        painter.FillCircleApprox (cx, cy, r * 1.8f, halo);
-        painter.FillCircleApprox (cx, cy, r,        core);
+        painter.FillCircle (cx, cy, r * 1.8f, halo);
+        painter.FillCircle (cx, cy, r,        core);
     }
 }
 

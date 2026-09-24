@@ -440,6 +440,7 @@
     <ClCompile Include="UiTests\DriveWidgetStateTests.cpp" />
     <ClCompile Include="UiTests\DragDropHitTestRoutingTests.cpp" />
     <ClCompile Include="UiTests\DragDropTargetFormatTests.cpp" />
+    <ClCompile Include="UiTests\CassoThemeTests.cpp" />
     <ClCompile Include="UiTests\LedIndicatorStateTests.cpp" />
     <ClCompile Include="UiTests\MainMenuDropdownTests.cpp" />
     <ClCompile Include="UiTests\AutoMountTests.cpp" />

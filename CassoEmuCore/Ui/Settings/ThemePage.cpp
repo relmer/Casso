@@ -278,13 +278,6 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                           (float) prevW, (float) driveBarH,
                           scene3d ? theme.Background() : theme.navStrip);
 
-        // Layout each preview drive: probe widget[0] for its
-        // intrinsic size at the effective DPI, then space the
-        // pair horizontally just like
-        // LayoutDriveWidgetsInCommandBar does for the live chrome.
-        previewDrives[0].SetCompact (theme.compactDrives);
-        previewDrives[1].SetCompact (theme.compactDrives);
-
         // Preview the actual mounted disk paths so the basename
         // label strip reflects the live drive state. Falls back to
         // empty (no label) if the host hasn't wired a source or the
@@ -323,6 +316,10 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         previewDrives[0].SyncFromState (mount0);
         previewDrives[1].SyncFromState (mount1);
 
+        // Layout each preview drive: probe widget[0] for its
+        // intrinsic size at the effective DPI, then space the
+        // pair horizontally just like
+        // LayoutDriveWidgetsInCommandBar does for the live chrome.
         previewAnchor = { 0, 0, 0, 0 };
 
         previewScaler.SetDpi (effectiveDpi);
@@ -338,13 +335,9 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
         for (d = 0; d < 2; d++)
         {
-            int   widgetX       = startX + d * (widgetW + gap);
-            int   widgetCenterX = widgetX + widgetW / 2;
-            int   vanishingX    = prevRect.left + prevW / 2;
-            int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
-            RECT  widgetAnchor  = { widgetX, widgetY, widgetX, widgetY };
+            int   widgetX      = startX + d * (widgetW + gap);
+            RECT  widgetAnchor = { widgetX, widgetY, widgetX, widgetY };
 
-            previewDrives[(size_t) d].SetPerspectiveSkewPx (skewPx);
             previewDrives[(size_t) d].Layout (widgetAnchor, previewScaler);
         }
 

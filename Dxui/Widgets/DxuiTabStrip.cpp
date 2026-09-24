@@ -1041,9 +1041,9 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
             //  The flare: a square of fill beside each bottom corner with a
             //  quarter circle of the strip cut out of it.
             painter.FillRect         (left - corner,          bottom - corner, corner, corner, fillArgb);
-            painter.FillCircleApprox (left - corner,          bottom - corner, corner, stripArgb);
+            painter.FillCircle (left - corner,          bottom - corner, corner, stripArgb);
             painter.FillRect         (left + width,           bottom - corner, corner, corner, fillArgb);
-            painter.FillCircleApprox (left + width + corner,  bottom - corner, corner, stripArgb);
+            painter.FillCircle (left + width + corner,  bottom - corner, corner, stripArgb);
         }
         else if (isHover || isArmed)
         {

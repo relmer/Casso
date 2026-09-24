@@ -1160,6 +1160,15 @@ void ControllerInputService::RefreshDevices()
         m_devices = devices;
         UpdateAttachOrderLocked();
 
+        // A setup saved when Xbox-class units were keyed by XInput slot moves
+        // onto the unit in that slot, once. Reporting it as a list change is
+        // what gets it saved, so the next launch finds the product keys.
+        if (ControllerSelectionPolicy::AdoptSlotKeyedPlayers (m_multiplayer, m_devices))
+        {
+            m_multiplayer  = ControllerSelectionPolicy::Normalize (m_multiplayer);
+            hasListChanged = true;
+        }
+
         byAttachOrder = m_devices;
         std::stable_sort (byAttachOrder.begin(), byAttachOrder.end(),
             [this] (const ControllerDeviceInfo & a, const ControllerDeviceInfo & b)
