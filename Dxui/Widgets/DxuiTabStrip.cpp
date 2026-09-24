@@ -1197,10 +1197,9 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 //  DxuiTabStrip::PaintCompactTab
 //
-//  Visual Studio's tabs. A document's selected tab is filled with the pane
-//  below and outlined along its top and sides; a tool window's is filled with
-//  the pane above and outlined along its sides and rounded bottom, so either
-//  way it joins its pane. The rest are plain text, washed while hovered.
+//  Visual Studio's tabs. The selected tab is a chip rounded at all four
+//  corners, filled with its pane's color and outlined; the rest are plain
+//  text, washed in the same chip while hovered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1229,28 +1228,21 @@ void DxuiTabStrip::PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 
 
-    if (isSel)
+    //  A rounded chip inset from the strip's edges, so the hairline the host
+    //  draws along the pane's edge runs unbroken beside it.
+    if (isSel || isHover)
     {
-        painter.FillRect (left, top, width, height, fillArgb);
+        float  inset  = m_scaler.ToPxf ((float) s_kCompactInsetDip);
+        float  corner = m_scaler.ToPxf ((float) s_kCompactCornerDip);
+        float  chipY  = below ? top + line : top + inset;
+        float  chipH  = (std::max) (0.0f, height - inset - line);
 
-        //  Open on the side that joins the pane, and drawn inside the strip
-        //  so nothing of the pane's own is painted over.
-        if (m_outlineArgb != 0 && below)
+        painter.FillRoundedRect (left, chipY, width, chipH, corner, isSel ? fillArgb : hoverArgb);
+
+        if (isSel && m_outlineArgb != 0)
         {
-            painter.FillRect (left,                top,                 line,  height, m_outlineArgb);
-            painter.FillRect (left + width - line, top,                 line,  height, m_outlineArgb);
-            painter.FillRect (left,                top + height - line, width, line,   m_outlineArgb);
+            painter.OutlineRoundedRect (left, chipY, width, chipH, corner, line, m_outlineArgb);
         }
-        else if (m_outlineArgb != 0)
-        {
-            painter.FillRect (left,                top, width, line,   m_outlineArgb);
-            painter.FillRect (left,                top, line,  height, m_outlineArgb);
-            painter.FillRect (left + width - line, top, line,  height, m_outlineArgb);
-        }
-    }
-    else if (isHover)
-    {
-        painter.FillRect (left, top, width, height, hoverArgb);
     }
 
     if (!tab.mark.empty() && tab.markArgb != 0)

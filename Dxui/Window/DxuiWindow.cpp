@@ -75,6 +75,15 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
             PaintModalOverlay (painter, text, theme);
         });
 
+    // Children painted above the page, a slid-out pane for one, get a flush
+    // of their own so they cover the page's text.
+    m_source->SetTopLayerHooks (
+        [this] () { return HasTopLayer(); },
+        [this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+        {
+            PaintTopLayer (painter, text, theme);
+        });
+
     // Populate children BEFORE installing the root so the first layout
     // pass (driven by SetContentRootRef) sees the fully-built tree.
     OnCreate();

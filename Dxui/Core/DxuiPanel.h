@@ -115,6 +115,16 @@ public:
 
     void              OnChildVisibilityChanged (IDxuiControl * child);
 
+    //  Children painted above the rest, as a pane that slides out over the
+    //  others: Paint passes over them, and PaintTopLayer paints them, in
+    //  their order, for a window to flush after the page. Text is drawn after
+    //  every fill of a flush, so a child painted with the rest could not
+    //  cover the text of those beneath it. A subclass can add what it draws
+    //  around them.
+    void              SetTopLayer   (std::vector<IDxuiControl *> children) { m_topLayer = std::move (children); }
+    virtual bool      HasTopLayer   () const                               { return !m_topLayer.empty(); }
+    virtual void      PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+
     size_t            GetChildCount () const                   override { return m_children.size(); }
     IDxuiControl *    GetChild      (size_t index) const       override { return (index < m_children.size()) ? m_children[index].raw : nullptr; }
 
@@ -140,6 +150,7 @@ private:
     };
 
     std::vector<ChildSlot>        m_children;
+    std::vector<IDxuiControl *>   m_topLayer;
     std::unique_ptr<IDxuiLayout>  m_layout;
     bool                          m_dirty         = false;
     RECT                          m_lastBoundsDip = {};

@@ -63,7 +63,7 @@ void DebuggerPaneFrame::Relayout()
 void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     int                width   = (int) (boundsDip.right - boundsDip.left);
-    int                total   = (int) (boundsDip.bottom - boundsDip.top);
+    int                total   = std::max (0, (int) (boundsDip.bottom - boundsDip.top) - scaler.ToPx (m_bottomMarginDip));
     int                fixed   = 0;
     int                shown   = 0;
     int                fill    = 0;

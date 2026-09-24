@@ -152,6 +152,7 @@ protected:
     bool     OnMappedCommand (int commandId) override;
     bool     OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+    void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     //  Protected so a test can apply one as the keys do.
     void     ApplyTextZoom   (float zoom);

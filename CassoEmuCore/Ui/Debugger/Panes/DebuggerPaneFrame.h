@@ -37,6 +37,9 @@ public:
 
     void  AddPart (IDxuiControl * control, HeightFn height = nullptr, ShownFn shown = nullptr);
 
+    //  Room left below the last part, so a control drawn with a border of its
+    //  own, the console's command box, does not sit on the pane's edge.
+    void  SetBottomMarginDip (int dip) { m_bottomMarginDip = dip; }
     //  Lays the parts out again, for a part whose height or shown state
     //  changed while the frame kept its bounds.
     void  Relayout ();
@@ -62,4 +65,5 @@ private:
     std::wstring       m_name;
     std::vector<Part>  m_parts;
     DxuiDpiScaler      m_scaler;
+    int                m_bottomMarginDip = 0;
 };

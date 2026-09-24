@@ -560,6 +560,12 @@ public:
     void  SetOverlayHooks  (std::function<bool()> isActive,
                             std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
 
+    //  A layer above the page that is not modal -- e.g. a docked pane slid
+    //  out over the others. It gets its own fill+text flush after the page's
+    //  and before any modal overlay's; input is the window's to route as ever.
+    void  SetTopLayerHooks (std::function<bool()> isActive,
+                            std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //
@@ -812,6 +818,8 @@ private:
     std::function<void(ID3D11RenderTargetView *, int, int)> m_afterPaintHook;
     std::function<bool()>                                                       m_overlayActiveHook;
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_overlayPaintHook;
+    std::function<bool()>                                                       m_topLayerActiveHook;
+    std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_topLayerPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
     IDxuiControl  * m_lastHoveredNcControl     = nullptr;

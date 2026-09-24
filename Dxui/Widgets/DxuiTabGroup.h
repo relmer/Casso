@@ -16,12 +16,11 @@
 //  them: a tab group of a docking layout, presented as Visual Studio presents
 //  its groups.
 //
-//  - A DOCUMENT group has its tabs along its top, the selected tab joined to
-//    the pane below, a close button on it and on the tab under the pointer.
+//  - A DOCUMENT group has its tabs along its top, a close button on the
+//    selected tab and on the tab under the pointer.
 //  - A TOOL WINDOW group has a title bar along its top -- the active pane's
 //    title, a menu button, a pin and a close button -- and, holding more
-//    than one pane, its tabs along its bottom, the selected tab joined to the
-//    pane above.
+//    than one pane, its tabs along its bottom.
 //
 //  A group with focus shows a 1-pixel accent border and an accent outline on
 //  its selected tab.

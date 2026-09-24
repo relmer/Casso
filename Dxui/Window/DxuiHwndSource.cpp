@@ -1188,6 +1188,25 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetTopLayerHooks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetTopLayerHooks (std::function<bool()> isActive,
+                                       std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_topLayerActiveHook = std::move (isActive);
+    m_topLayerPaintHook  = std::move (paint);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetComposedOpacity
 //
 //  Fades the whole composited visual via IDCompositionVisual3::SetOpacity so
@@ -2170,6 +2189,30 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     hr = m_textRenderer->EndDrawDeferred();
     textBegun = false;
     CHRA (hr);
+
+    // A non-modal top layer (a docked pane slid out over the others) gets a
+    // flush of its own for the same reason the modal overlay below does: its
+    // fills must cover the page's text.
+    if (m_topLayerActiveHook && m_topLayerActiveHook() && m_topLayerPaintHook)
+    {
+        hr = m_painter->Begin (widthPx, heightPx);
+        CHRA (hr);
+        painterBegun = true;
+
+        hr = m_textRenderer->BeginDrawDeferred();
+        CHRA (hr);
+        textBegun = true;
+
+        m_topLayerPaintHook (*m_painter, *m_textRenderer, theme);
+
+        hr = m_painter->End (target);
+        painterBegun = false;
+        CHRA (hr);
+
+        hr = m_textRenderer->EndDrawDeferred();
+        textBegun = false;
+        CHRA (hr);
+    }
 
     // A client modal overlay (e.g. the Settings color picker) paints as a
     // SEPARATE top layer with its OWN fill+text flush, so its dialog fill

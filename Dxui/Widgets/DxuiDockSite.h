@@ -35,7 +35,7 @@
 //
 //  AN AUTO-HIDDEN PANE IS A TAB ON AN EDGE. The site keeps a strip along each
 //  edge that holds one, and a hover or a press on its tab slides the pane out
-//  beside the others, which make room for it; a press anywhere else in the
+//  over the others, which keep their places; a press anywhere else in the
 //  site slides it back.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +52,7 @@ public:
         std::function<bool ()> action;
     };
 
-    DxuiDockSite  () = default;
+    DxuiDockSite  ();
     ~DxuiDockSite () override = default;
 
     void  AddPane      (const std::wstring & pane, const std::wstring & title, IDxuiControl * content);
@@ -117,9 +117,17 @@ public:
     std::vector<MenuItem>  GetDockToMenu   (const std::wstring & pane);
     bool                   MovePaneByArrow (const std::wstring & pane, DxuiDockSide direction);
 
-    //  Auto-hidden panes: the one slid out, if any, and where it lies.
+    //  Auto-hidden panes: the one slid out, if any, and where it lies. A slid
+    //  pane lies over the docked panes rather than taking room from them, so
+    //  the window paints it above the page: its controls between
+    //  PaintSlidUnder, its background, and PaintSlidOver, its title bar --
+    //  menu, pin, close, and a drag to dock it -- and outline. `onSlid` hears
+    //  which pane is slid out, or empty, each time that changes.
     const std::wstring &        GetSlidPane    () const { return m_slidPane; }
     RECT                        GetSlidRect    () const { return m_slidRect; }
+    void                        SetOnSlid      (PaneFn fn) { m_onSlid = std::move (fn); }
+    void                        PaintSlidUnder (IDxuiPainter & painter, const IDxuiTheme & theme);
+    void                        PaintSlidOver  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                        SlideOut       (const std::wstring & pane);
     void                        SlideIn        ();
     RECT                        GetEdgeTabRect (const std::wstring & pane) const;
@@ -145,7 +153,6 @@ public:
     static bool  Contains (const RECT & rect, POINT point);
 
     static constexpr int  kSashDip      = 6;
-    static constexpr int  kSideStripDip = 96;
     static constexpr int  kSlideMinDip  = 240;
 
 private:
@@ -193,6 +200,9 @@ private:
     PaneFn                                        m_onClosePane;
     PaneTestFn                                    m_canClosePane;
     std::wstring                                  m_focusedPane;
+    DxuiTabGroup                                  m_slidGroup;
+    PaneFn                                        m_onSlid;
+    std::wstring                                  m_slidNotified;
     std::vector<DxuiPaneLayout::SplitRect>        m_splits;
     DxuiDpiScaler                                 m_scaler;
     ChangedFn                                     m_onChanged;

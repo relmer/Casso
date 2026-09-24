@@ -1861,6 +1861,57 @@ void DxuiTextRenderer::PopTextSkew()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PushTextRotation
+//
+//  Composes a clockwise rotation about the point onto the context transform,
+//  saving the prior transform for PopTextRotation. D2D's positive angle is
+//  clockwise in its y-down space.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::PushTextRotation (float degrees, float cxDip, float cyDip)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_d2dContext == nullptr)
+    {
+        return;
+    }
+
+    m_d2dContext->GetTransform (&m_savedTransform);
+
+    m_d2dContext->SetTransform (D2D1::Matrix3x2F::Rotation (degrees, D2D1::Point2F (cxDip, cyDip)) *
+                                (*D2D1::Matrix3x2F::ReinterpretBaseType (&m_savedTransform)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PopTextRotation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::PopTextRotation()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_d2dContext == nullptr)
+    {
+        return;
+    }
+
+    m_d2dContext->SetTransform (m_savedTransform);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DrawFramebuffer
 //
 //  Uploads a BGRA8 CPU pixel buffer into a cached ID2D1Bitmap and

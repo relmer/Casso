@@ -468,7 +468,7 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 
     for (auto & slot : m_children)
     {
-        if (slot.raw->IsVisible())
+        if (slot.raw->IsVisible() && std::find (m_topLayer.begin(), m_topLayer.end(), slot.raw) == m_topLayer.end())
         {
             slot.raw->Paint (painter, text, theme);
 
@@ -489,6 +489,34 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
                                      0xFFFF00FF);
             }
 #endif
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintTopLayer
+//
+//  The children Paint passed over, in the order they were given. One removed
+//  since it was given is no longer a child and is skipped, never touched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPanel::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    for (IDxuiControl * child : m_topLayer)
+    {
+        bool  isChild = std::any_of (m_children.begin(), m_children.end(), [child] (const ChildSlot & slot) { return slot.raw == child; });
+
+        if (isChild && child->IsVisible())
+        {
+            child->Paint (painter, text, theme);
         }
     }
 }

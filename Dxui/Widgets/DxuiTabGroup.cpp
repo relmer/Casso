@@ -757,9 +757,8 @@ void DxuiTabGroup::LayoutContent()
 //  DxuiTabGroup::Paint
 //
 //  The title bar of a tool window, the tabs, and, while the user is working
-//  in the group, an accent border round it. The selected tab takes the
-//  pane's color and joins it; the strip carries a hairline along the edge it
-//  shares with the pane, broken where the selected tab joins.
+//  in the group, an accent border round it. The strip carries a hairline
+//  along the edge it shares with the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -785,22 +784,13 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     if (HasStrip() && strip.bottom > strip.top)
     {
         float  edgeY = (m_kind == Kind::Document) ? (float) strip.bottom - line : (float) strip.top;
-        RECT   sel   = GetTabRect (m_active);
 
         m_strip.SetSelectedFill    (theme.ContentBackground());
         m_strip.SetStripFill       (theme.Background());
         m_strip.SetSelectedOutline (m_focusedLook ? theme.Accent() : theme.Border());
         m_strip.Paint (painter, text, theme);
 
-        if (sel.right > sel.left)
-        {
-            painter.FillRect ((float) strip.left, edgeY, (float) std::max (0L, sel.left - strip.left), line, theme.Divider());
-            painter.FillRect ((float) sel.right,  edgeY, (float) std::max (0L, strip.right - sel.right), line, theme.Divider());
-        }
-        else
-        {
-            painter.FillRect ((float) strip.left, edgeY, (float) (strip.right - strip.left), line, theme.Divider());
-        }
+        painter.FillRect ((float) strip.left, edgeY, (float) (strip.right - strip.left), line, theme.Divider());
     }
 
     if (m_focusedLook)

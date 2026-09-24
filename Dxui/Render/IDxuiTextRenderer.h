@@ -115,6 +115,13 @@ public:
     virtual void     PushTextSkew  (float tanX, float yPivotDip) { (void) tanX; (void) yPivotDip; }
     virtual void     PopTextSkew   ()                            {}
 
+    // Rotate subsequently-drawn text clockwise by `degrees` about a point, so
+    // a label laid out as if level reads down the side of a vertical strip.
+    // Defaulted to a no-op for mocks; PopTextRotation undoes the most recent
+    // push. Not nestable, with itself or with a skew.
+    virtual void     PushTextRotation (float degrees, float cxDip, float cyDip) { (void) degrees; (void) cxDip; (void) cyDip; }
+    virtual void     PopTextRotation  ()                                        {}
+
     // Draw color-font glyphs (emoji) as their monochrome outlines in the brush
     // color until the matching pop. A shadow pass wants the glyph's SHAPE in
     // black; with color fonts on, the glyph keeps its own palette and the

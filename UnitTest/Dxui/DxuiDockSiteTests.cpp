@@ -302,6 +302,32 @@ namespace DxuiDockSiteTests
         }
 
 
+        TEST_METHOD (AutoHideSendsTheTopOfTheRightColumnRight)
+        {
+            Rig   rig;
+            RECT  regs = {};
+
+
+
+            //  Registers alone at the top of the right-hand column, in a short
+            //  window: wider than it is tall, and touching the top as well.
+            Assert::IsTrue (rig.site.EditPaneLayout().DockToSide (L"stack", L"regs", DxuiDockSide::Bottom));
+            rig.site.Layout (RECT { 0, 0, 1000, 300 }, rig.scaler);
+            regs = rig.regs.GetBounds();
+            Assert::IsTrue (regs.right - regs.left > regs.bottom - regs.top, L"the case the long-side rule sent to the top");
+
+            for (const DxuiDockSite::MenuItem & item : rig.site.GetDockToMenu (L"regs"))
+            {
+                if (item.label == L"Auto Hide")
+                {
+                    (void) item.action();
+                }
+            }
+
+            Assert::IsTrue (rig.site.GetEdgeTabRect (L"regs").left >= 900, L"the right edge");
+        }
+
+
         TEST_METHOD (AFloatingPaneIsLeftToItsWindow)
         {
             Rig  rig;
@@ -386,6 +412,98 @@ namespace DxuiDockSiteTests
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   Center (pin)));
 
             Assert::IsTrue (rig.site.GetPaneLayout().IsAutoHidden (L"console"));
+        }
+
+
+        TEST_METHOD (ASlidOutPaneLiesOverTheOthersBelowATitleBar)
+        {
+            Rig           rig;
+            RECT          before = {};
+            std::wstring  heard;
+
+
+
+            rig.site.SetOnSlid ([&] (const std::wstring & pane) { heard = pane; });
+            Assert::IsTrue (rig.site.EditPaneLayout().AutoHide (L"console", DxuiDockSide::Bottom));
+            rig.site.Relayout();
+            before = rig.code.GetBounds();
+
+            rig.site.SlideOut (L"console");
+
+            Assert::AreEqual (std::wstring (L"console"), heard);
+            Assert::AreEqual (before.bottom, rig.code.GetBounds().bottom, L"the docked panes keep their places");
+            Assert::AreEqual (rig.site.GetSlidRect().top + (long) DxuiTabGroup::kTitleDip, rig.console.GetBounds().top, L"below its title bar");
+
+            rig.site.SlideIn();
+            Assert::IsTrue (heard.empty());
+        }
+
+
+        TEST_METHOD (APinOnASlidOutPaneDocksItBack)
+        {
+            Rig    rig;
+            RECT   slid = {};
+            POINT  pin  = {};
+
+
+
+            Assert::IsTrue (rig.site.EditPaneLayout().AutoHide (L"console", DxuiDockSide::Bottom));
+            rig.site.Relayout();
+            rig.site.SlideOut (L"console");
+
+            //  With no close handler the pin is the title bar's last button.
+            slid = rig.site.GetSlidRect();
+            pin  = POINT { slid.right - 1 - DxuiTabGroup::kTitleButtonDip / 2, slid.top + DxuiTabGroup::kTitleDip / 2 };
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, pin));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   pin));
+
+            Assert::IsTrue (rig.site.GetPaneLayout().IsDocked (L"console"));
+            Assert::IsTrue (rig.site.GetSlidPane().empty());
+        }
+
+
+        TEST_METHOD (DraggingASlidOutPanesTitleBarDocksItOnAZone)
+        {
+            Rig                        rig;
+            RECT                       slid = {};
+            const DxuiDockDropZone   * zone = nullptr;
+
+
+
+            Assert::IsTrue (rig.site.EditPaneLayout().AutoHide (L"console", DxuiDockSide::Bottom));
+            rig.site.Relayout();
+            rig.site.SlideOut (L"console");
+            slid = rig.site.GetSlidRect();
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, POINT { slid.left + 20, slid.top + 8 }));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { slid.left + 60, slid.top - 40 }));
+            Assert::IsTrue (rig.site.IsDragging());
+            Assert::IsTrue (rig.site.GetSlidPane().empty(), L"slid back so the zones show");
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (rig.regs.GetBounds())));
+            zone = rig.site.GetHoveredZone();
+            Assert::IsNotNull (zone);
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up, Center (rig.regs.GetBounds())));
+            Assert::IsTrue (rig.site.GetPaneLayout().IsDocked (L"console"));
+        }
+
+
+        TEST_METHOD (ASideTabRunsAlongItsEdge)
+        {
+            Rig   rig;
+            RECT  tab = {};
+
+
+
+            Assert::IsTrue (rig.site.EditPaneLayout().AutoHide (L"regs", DxuiDockSide::Right));
+            rig.site.Relayout();
+            tab = rig.site.GetEdgeTabRect (L"regs");
+
+            Assert::AreEqual ((long) DxuiTabGroup::kStripDip, tab.right - tab.left, L"one tab high");
+            Assert::IsTrue   (tab.bottom - tab.top > tab.right - tab.left, L"its title runs down the edge");
+            Assert::AreEqual ((long) 1000, tab.right);
         }
 
 

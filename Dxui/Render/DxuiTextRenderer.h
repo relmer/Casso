@@ -126,6 +126,8 @@ public:
 
     void     PushTextSkew     (float tanX, float yPivotDip) override;
     void     PopTextSkew      () override;
+    void     PushTextRotation (float degrees, float cxDip, float cyDip) override;
+    void     PopTextRotation  () override;
 
     void     PushMonochromeGlyphs () override { m_monochromeGlyphs = true;  }
     void     PopMonochromeGlyphs  () override { m_monochromeGlyphs = false; }

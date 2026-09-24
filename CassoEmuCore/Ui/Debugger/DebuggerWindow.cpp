@@ -2211,6 +2211,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_consoleFrame = std::make_unique<DebuggerPaneFrame> (L"Console");
     m_consoleFrame->AddPart (m_consoleView);
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
+    m_consoleFrame->SetBottomMarginDip (kPanePadDip + 2);
 
     m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call Stack");
     //  The pane always shows hybrid; CALLS MODE picks another (FR-068), so
@@ -2298,6 +2299,13 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->SetOnPaneMenu  ([this] (const std::wstring & pane, POINT clientPx) { ShowDockToMenu (pane, clientPx); });
     m_dockSite->SetOnClosePane ([this] (const std::wstring & pane) { ClosePane (pane); },
                                 [this] (const std::wstring & pane) { return CanClosePane (pane); });
+
+    //  A pane slid out from an edge lies over the others, so its controls are
+    //  painted above the page.
+    m_dockSite->SetOnSlid ([this] (const std::wstring & pane)
+    {
+        SetTopLayer (pane.empty() ? std::vector<IDxuiControl *>() : GetPaneControls (pane));
+    });
     savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
     restored = DebuggerLayout::Restore (savedText);
     restored.PlaceOnMonitors (GetMonitors());
@@ -2362,6 +2370,26 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintTopLayer
+//
+//  The slid-out pane over the page: its background, its controls, then its
+//  title bar and outline.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    m_dockSite->PaintSlidUnder (painter, theme);
+    DxuiWindow::PaintTopLayer  (painter, text, theme);
+    m_dockSite->PaintSlidOver  (painter, text, theme);
 }
 
 

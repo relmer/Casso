@@ -10,6 +10,26 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::DxuiDockSite
+//
+//  A slid-out pane is a tool window of one pane, whatever it was docked as,
+//  and keeps its group for as long as the site lives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDockSite::DxuiDockSite()
+{
+    m_slidGroup.SetKind    (DxuiTabGroup::Kind::ToolWindow);
+    m_slidGroup.SetVisible (false);
+    WireGroup (&m_slidGroup);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::SetNewTab
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,21 +167,8 @@ void DxuiDockSite::Arrange()
         return;
     }
 
+    //  A slid-out pane lies over the docked panes, which keep their places.
     ArrangeEdges (area);
-
-    //  Text is drawn after every fill, so one pane cannot be painted over
-    //  another: while a pane is slid out, the docked panes take the room
-    //  beside it rather than lying under it.
-    if (!m_slidPane.empty())
-    {
-        switch (m_slidEdge)
-        {
-        case DxuiDockSide::Left:   area.left   = m_slidRect.right;  break;
-        case DxuiDockSide::Right:  area.right  = m_slidRect.left;   break;
-        case DxuiDockSide::Top:    area.top    = m_slidRect.bottom; break;
-        case DxuiDockSide::Bottom: area.bottom = m_slidRect.top;    break;
-        }
-    }
 
     groups      = m_layout.Arrange (area, m_shown, m_minSize);
     m_splits    = m_layout.ArrangeSplits (area, m_shown, m_minSize);
@@ -227,13 +234,31 @@ void DxuiDockSite::Arrange()
 
     slid = m_slidPane.empty() ? m_panes.end() : m_panes.find (m_slidPane);
 
-    if (slid != m_panes.end() && slid->second.content != nullptr)
+    while (m_slidGroup.GetTabCount() > 0)
     {
-        slid->second.content->SetVisible (true);
-        slid->second.content->Layout (m_slidRect, m_scaler);
+        m_slidGroup.RemoveTab (m_slidGroup.GetContent (0));
+    }
+
+    m_slidGroup.SetVisible (slid != m_panes.end() && slid->second.content != nullptr);
+
+    if (m_slidGroup.IsVisible())
+    {
+        m_slidGroup.AddTab         (slid->second.title, slid->second.content);
+        m_slidGroup.SetFocusedLook (m_slidPane == m_focusedPane);
+        m_slidGroup.Layout         (m_slidRect, m_scaler);
     }
 
     m_arranging = false;
+
+    if (m_slidNotified != m_slidPane)
+    {
+        m_slidNotified = m_slidPane;
+
+        if (m_onSlid)
+        {
+            m_onSlid (m_slidPane);
+        }
+    }
 }
 
 
@@ -313,6 +338,18 @@ void DxuiDockSite::OnTitleButton (DxuiTabGroup::TitleButton button, const std::w
         break;
 
     case DxuiTabGroup::TitleButton::Pin:
+        //  On a slid-out pane the pin docks it back where it came from.
+        if (m_layout.IsAutoHidden (pane))
+        {
+            if (m_layout.DockBack (pane))
+            {
+                Arrange();
+                NotifyChanged();
+            }
+
+            break;
+        }
+
         for (const MenuItem & item : GetDockToMenu (pane))
         {
             if (item.label == kAutoHideLabel)
@@ -354,6 +391,7 @@ void DxuiDockSite::SetOnClosePane (PaneFn fn, PaneTestFn canClose)
         WireGroup (group.get());
     }
 
+    WireGroup (&m_slidGroup);
     Arrange();
 }
 
@@ -415,10 +453,12 @@ RECT DxuiDockSite::GetDockedArea() const
         }
     }
 
-    area.left   += used[(size_t) DxuiDockSide::Left]   ? m_scaler.ToPx (kSideStripDip)            : 0;
-    area.top    += used[(size_t) DxuiDockSide::Top]    ? m_scaler.ToPx (DxuiTabGroup::kStripDip)  : 0;
-    area.right  -= used[(size_t) DxuiDockSide::Right]  ? m_scaler.ToPx (kSideStripDip)            : 0;
-    area.bottom -= used[(size_t) DxuiDockSide::Bottom] ? m_scaler.ToPx (DxuiTabGroup::kStripDip)  : 0;
+    //  Every edge's strip is one tab high: along a side the tabs run down it,
+    //  their titles turned to read top to bottom.
+    area.left   += used[(size_t) DxuiDockSide::Left]   ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
+    area.top    += used[(size_t) DxuiDockSide::Top]    ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
+    area.right  -= used[(size_t) DxuiDockSide::Right]  ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
+    area.bottom -= used[(size_t) DxuiDockSide::Bottom] ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
 
     area.right  = std::max (area.right,  area.left);
     area.bottom = std::max (area.bottom, area.top);
@@ -443,7 +483,6 @@ RECT DxuiDockSite::GetDockedArea() const
 void DxuiDockSite::ArrangeEdges (const RECT & area)
 {
     long          along[4]  = { area.top, area.left, area.top, area.left };
-    long          stripH    = m_scaler.ToPx (DxuiTabGroup::kStripDip);
     long          minSlide  = m_scaler.ToPx (kSlideMinDip);
     long          width     = area.right - area.left;
     long          height    = area.bottom - area.top;
@@ -470,8 +509,8 @@ void DxuiDockSite::ArrangeEdges (const RECT & area)
 
         switch (hidden.edge)
         {
-        case DxuiDockSide::Left:   tab.rect = RECT { m_boundsDip.left, at, area.left,         at + stripH }; at += stripH;  break;
-        case DxuiDockSide::Right:  tab.rect = RECT { area.right,       at, m_boundsDip.right, at + stripH }; at += stripH;  break;
+        case DxuiDockSide::Left:   tab.rect = RECT { m_boundsDip.left, at, area.left,         at + length }; at += length;  break;
+        case DxuiDockSide::Right:  tab.rect = RECT { area.right,       at, m_boundsDip.right, at + length }; at += length;  break;
         case DxuiDockSide::Top:    tab.rect = RECT { at, m_boundsDip.top, at + length, area.top };           at += length;  break;
         case DxuiDockSide::Bottom: tab.rect = RECT { at, area.bottom, at + length, m_boundsDip.bottom };     at += length;  break;
         }
@@ -616,38 +655,99 @@ void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text,
     DxuiFontHandle  font = theme.BodyFont();
     float           line = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
     float           pad  = m_scaler.ToPxf ((float) DxuiTabGroup::kTabPadDip / 2);
-    auto            slid = m_slidPane.empty() ? m_panes.end() : m_panes.find (m_slidPane);
     HRESULT         hr   = S_OK;
 
 
 
     for (const EdgeTab & tab : m_edgeTabs)
     {
-        const RECT  & r      = tab.rect;
-        bool          active = (tab.pane == m_slidPane);
-        auto          found  = m_panes.find (tab.pane);
+        const RECT  & r        = tab.rect;
+        bool          active   = (tab.pane == m_slidPane);
+        auto          found    = m_panes.find (tab.pane);
+        bool          sideways = tab.edge == DxuiDockSide::Left || tab.edge == DxuiDockSide::Right;
+        float         cx       = (float) (r.left + r.right) / 2;
+        float         cy       = (float) (r.top + r.bottom) / 2;
+        float         along    = (float) (sideways ? r.bottom - r.top : r.right - r.left);
+        float         across   = (float) (sideways ? r.right - r.left : r.bottom - r.top);
 
         painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top),
                           active ? theme.ContentBackground() : theme.Background());
         painter.OutlineRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top),
                              line, active ? theme.Accent() : theme.Divider());
 
-        hr = text.DrawString (GetTitle (tab.pane).c_str(), (float) r.left + pad, (float) r.top,
-                              (float) (r.right - r.left) - 2 * pad, (float) (r.bottom - r.top),
+        //  A side tab is laid out level about its center and turned a
+        //  quarter clockwise, so its title reads down the edge.
+        if (sideways)
+        {
+            text.PushTextRotation (90.0f, cx, cy);
+        }
+
+        hr = text.DrawString (GetTitle (tab.pane).c_str(), cx - along / 2 + pad, cy - across / 2,
+                              along - 2 * pad, across,
                               active ? theme.Foreground() : theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (sideways)
+        {
+            text.PopTextRotation();
+        }
 
         if (found != m_panes.end() && found->second.indicator)
         {
             painter.FillCircle ((float) r.right - pad, (float) r.top + pad, m_scaler.ToPxf (3.0f), theme.Accent());
         }
     }
+}
 
-    if (slid == m_panes.end() || slid->second.content == nullptr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::PaintSlidUnder
+//
+//  The slid-out pane's background, so nothing of the panes it covers shows
+//  where its controls leave gaps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::PaintSlidUnder (IDxuiPainter & painter, const IDxuiTheme & theme)
+{
+    if (!m_slidGroup.IsVisible())
     {
         return;
     }
+
+    painter.FillRect ((float) m_slidRect.left, (float) m_slidRect.top, (float) (m_slidRect.right - m_slidRect.left),
+                      (float) (m_slidRect.bottom - m_slidRect.top), theme.ContentBackground());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::PaintSlidOver
+//
+//  Its title bar and an outline in the accent color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::PaintSlidOver (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    float  line = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
+
+
+
+    if (!m_slidGroup.IsVisible())
+    {
+        return;
+    }
+
+    m_slidGroup.Paint (painter, text, theme);
 
     painter.OutlineRect ((float) m_slidRect.left, (float) m_slidRect.top, (float) (m_slidRect.right - m_slidRect.left),
                          (float) (m_slidRect.bottom - m_slidRect.top), line, theme.Accent());
@@ -956,15 +1056,18 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstr
             continue;
         }
 
-        //  Against the edge the pane's group lies nearest; between two it
-        //  touches, the one along its long side, as a column hides to a side
-        //  and a row to the top or bottom.
+        //  Against the edge the pane's group lies nearest. Between a side and
+        //  the top or bottom it touches, a group no wider than half the
+        //  window is in a side bar and hides to its side; a wider one hides
+        //  to the top or bottom. So the top of the right-hand column hides
+        //  right, and the memory row under the code hides to the bottom.
+        bool   sideBar = 2 * (group.rect.right - group.rect.left) <= (area.right - area.left);
+
         for (size_t i = 1; i < std::size (gaps); i++)
         {
             bool  sideways = (i % 2) == 0;
-            bool  tall     = (group.rect.bottom - group.rect.top) >= (group.rect.right - group.rect.left);
 
-            nearest = (gaps[i] < gaps[nearest] || (gaps[i] == gaps[nearest] && sideways == tall && (nearest % 2 == 0) != tall)) ? i : nearest;
+            nearest = (gaps[i] < gaps[nearest] || (gaps[i] == gaps[nearest] && sideways == sideBar)) ? i : nearest;
         }
 
         items.push_back ({ kAutoHideLabel, [this, pane, nearest, commit] { return commit (m_layout.AutoHide (pane, kSides[nearest])); } });
@@ -1024,6 +1127,14 @@ void DxuiDockSite::BeginDrag (const std::wstring & pane)
     if (pane.empty())
     {
         return;
+    }
+
+    //  A slid-out pane slides back as its drag starts, so the drop zones
+    //  beneath it show; it stays hidden against its edge unless dropped.
+    if (pane == m_slidPane)
+    {
+        m_slidPane.clear();
+        Arrange();
     }
 
     m_dragPane  = pane;
@@ -1202,6 +1313,9 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
                 (void) group->OnMouse (ev);
             }
 
+            //  The slid group, hidden as its title bar's drag began, still
+            //  holds that press.
+            (void) m_slidGroup.OnMouse (ev);
             EndDrag (ev.positionDip);
         }
 
@@ -1253,6 +1367,13 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         SlideIn();
     }
 
+    //  The slid pane's title bar is the site's; its controls are the window's.
+    if (ev.kind == DxuiMouseEventKind::Down && m_slidGroup.IsVisible() && m_slidGroup.IsChromeAt (ev.positionDip))
+    {
+        (void) m_slidGroup.OnMouse (ev);
+        return true;
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && !Contains (m_slidRect, ev.positionDip))
     {
         m_sashDrag = HitTestSash (ev.positionDip);
@@ -1284,6 +1405,8 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         {
             groups.push_back (group.get());
         }
+
+        groups.push_back (&m_slidGroup);
 
         for (DxuiTabGroup * group : groups)
         {

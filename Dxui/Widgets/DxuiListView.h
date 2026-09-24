@@ -464,6 +464,7 @@ private:
     static constexpr int    s_kCellPadLeftDip    = 12;
     static constexpr int    s_kCellPadRightDip   = 16;
     static constexpr int    s_kSortGlyphWidthDip = 10;
+    static constexpr int    s_kHeaderPadMinDip   = 16;   // a title's room either side, however dense the cells
     static constexpr int    s_kScrollbarWidthDip = 10;
     static constexpr int    s_kCellIconDip       = 16;
     static constexpr int    s_kCellIconGapDip    = 6;

@@ -30,13 +30,12 @@
 //    and, with a close handler set, a close button, the selected tab filled
 //    with the color of the row below so that it joins it.
 //  - DOCUMENT, as Visual Studio draws its document tabs: compact, the
-//    selected tab filled and outlined over the pane below, the others plain
-//    text, a close button on the selected tab and on the one under the
-//    pointer only.
+//    selected tab a rounded chip filled with the pane's color and outlined,
+//    the others plain text, a close button on the selected tab and on the
+//    one under the pointer only.
 //  - TOOL WINDOW, as Visual Studio draws the tabs under a tool window: the
-//    strip BELOW its pane, the selected tab filled with the pane's color and
-//    joined to it upward, rounded at the bottom and outlined, the others
-//    plain text.
+//    strip BELOW its pane, the selected tab the same rounded chip, the
+//    others plain text.
 //
 //  In every style a tab can carry a leading mark ahead of its label, a glyph
 //  in a face and color of the host's choosing, and a tip the host shows.
@@ -183,7 +182,8 @@ private:
     static constexpr int  s_kCompactPadDip    = 8;    // label from each end of the tab
     static constexpr int  s_kCompactMarkDip   = 12;   // a leading mark's room
     static constexpr int  s_kCompactCloseDip  = 16;   // the close button's square
-    static constexpr int  s_kCompactCornerDip = 3;
+    static constexpr int  s_kCompactCornerDip = 4;
+    static constexpr int  s_kCompactInsetDip  = 3;    // the selected chip from the strip's far edge
     static constexpr int  s_kCharEstimateDip  = 7;    // a label's width a character, unmeasured
 
     void  Commit         (int newIndex);

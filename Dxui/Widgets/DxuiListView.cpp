@@ -569,11 +569,14 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
         if (m_showHeader && !m_columns[c].title.empty())
         {
             //  The title paints at regular weight, and the sort chevron sits
-            //  above it, so the title's own width is all a header needs.
+            //  above it, so the title's own width is all a header needs --
+            //  with room to either side even in a list whose cells are
+            //  packed tight, or a column as wide as its title puts the title
+            //  against the next column's separator.
             hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            wpx = std::max (wpx, (int) std::ceil (w));
+            wpx = std::max (wpx, (int) std::ceil (w) + std::max (0, m_scaler.ToPx (s_kHeaderPadMinDip) - padPx));
         }
 
         for (const auto & row : m_rows)
