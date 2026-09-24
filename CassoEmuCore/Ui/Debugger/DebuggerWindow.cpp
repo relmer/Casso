@@ -364,8 +364,10 @@ void DebuggerWindow::ConfigureWidgets()
                                     { L"",            0, false, DxuiTextHAlign::Left } });
     m_breakpointList->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left   },
                                     { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
+    //  The value runs to the pane's edge, as Visual Studio's does, so the
+    //  Automatic and Watches headings span the pane rather than the columns.
     m_watchList->SetColumns      ({ { L"Watch",       0, false, DxuiTextHAlign::Left },
-                                    { L"Value",       0, false, DxuiTextHAlign::Left } });
+                                    { L"Value",       0, true,  DxuiTextHAlign::Left } });
     m_stackList->SetColumns      ({ { L"Stack",       0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left } });
     //  THE CONSOLE IS TEXT, NOT A LIST: no columns or rows to pick, a
@@ -739,18 +741,24 @@ std::wstring DebuggerWindow::GetHelpCommand (CommandMode mode)
 //  One setting for every pane, so the panes read as one listing rather than
 //  seven lists that happen to share a window.
 //
+//  A pane narrower than its columns scrolls sideways, as Visual Studio's do:
+//  the columns fit their contents, so without the scroll whatever was right
+//  of the pane's edge -- the code pane's annotations, the call stack's Found
+//  by -- could not be seen at all.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::MakeDense (DxuiListView * list)
 {
-    list->SetShowHeader      (true);
-    list->SetMonospace       (true);
-    list->SetFontSizeDip     (kPaneFontDip);
-    list->SetRowHeightDip    (kPaneRowDip);
-    list->SetHeaderHeightDip (kPaneHeaderDip);
-    list->SetCellPaddingDip  (kPanePadDip, kPanePadDip);
-    list->SetPreciseAutoFit  (true);
-    list->SetRefitOnSetRows  (true);
+    list->SetShowHeader              (true);
+    list->SetMonospace               (true);
+    list->SetFontSizeDip             (kPaneFontDip);
+    list->SetRowHeightDip            (kPaneRowDip);
+    list->SetHeaderHeightDip         (kPaneHeaderDip);
+    list->SetCellPaddingDip          (kPanePadDip, kPanePadDip);
+    list->SetPreciseAutoFit          (true);
+    list->SetRefitOnSetRows          (true);
+    list->SetHorizontalScrollEnabled (true);
 }
 
 
