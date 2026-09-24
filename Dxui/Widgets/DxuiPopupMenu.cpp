@@ -82,6 +82,33 @@ DxuiPopupMenuItem DxuiPopupMenuItem::ForSubmenu (std::shared_ptr<const DxuiComma
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPopupMenuItem::ForHeader
+//
+//  The label rides a command with nothing to dispatch, so a header measures
+//  and draws through the same path as every other row's label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupMenuItem DxuiPopupMenuItem::ForHeader (std::wstring label)
+{
+    DxuiPopupMenuItem             item;
+    std::shared_ptr<DxuiCommand>  cmd  = std::make_shared<DxuiCommand>();
+
+
+
+    cmd->label   = std::move (label);
+    item.kind    = Kind::Header;
+    item.command = std::move (cmd);
+
+    return item;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPopupMenu::DxuiPopupMenu
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,7 +636,8 @@ int DxuiPopupMenu::GetRowAtOffset (int relY) const
 
         if (relY < y + h)
         {
-            return (m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Separator) ? -1 : i;
+            return (m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Separator ||
+                    m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Header) ? -1 : i;
         }
 
         y += h;
@@ -846,8 +874,8 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 //
 //  DxuiPopupMenu::IsSelectable
 //
-//  A row the highlight can rest on and Enter can act on: not a separator,
-//  and its command enabled.
+//  A row the highlight can rest on and Enter can act on: not a separator or a
+//  header, and its command enabled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -865,6 +893,7 @@ bool DxuiPopupMenu::IsSelectable (int index) const
     row = &m_rows[(size_t) index];
 
     return row->kind != DxuiPopupMenuItem::Kind::Separator
+        && row->kind != DxuiPopupMenuItem::Kind::Header
         && row->command != nullptr
         && row->command->IsEnabled();
 }
@@ -934,7 +963,8 @@ int DxuiPopupMenu::FindFirstSelectable() const
     {
         for (int i = 0; i < (int) m_rows.size(); i++)
         {
-            if (m_rows[(size_t) i].kind != DxuiPopupMenuItem::Kind::Separator)
+            if (m_rows[(size_t) i].kind != DxuiPopupMenuItem::Kind::Separator &&
+                m_rows[(size_t) i].kind != DxuiPopupMenuItem::Kind::Header)
             {
                 first = i;
                 break;
@@ -1719,6 +1749,22 @@ void DxuiPopupMenu::PaintRow (
 
     if (row.command == nullptr)
     {
+        return;
+    }
+
+    //  A header is a title, not a choice: secondary ink, no hover, no check,
+    //  and no underline cue, since nothing under it answers a keystroke.
+    if (row.kind == DxuiPopupMenuItem::Kind::Header)
+    {
+        hr = text.DrawString (row.command->GetLabelText().c_str(),
+                              left + (float) labelLeft,
+                              y + (float) padTop,
+                              labelW,
+                              (float) rowH,
+                              pal.accel,
+                              fontDip,
+                              DxuiTheme::kBodyFace);
+        IGNORE_RETURN_VALUE (hr, S_OK);
         return;
     }
 
