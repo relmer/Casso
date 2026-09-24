@@ -32,7 +32,7 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
 }
 ```
 
-`activeProfiles` maps a unit token to the name of the profile that controller plays, from its model's profiles. An empty name is the Default, the same as no entry. An entry is kept even when it names the Default, since its presence is what stops a legacy `controllerProfile` from being moved onto that controller again (below).
+`activeProfiles` maps a unit token to the name of that controller's active profile, one of its model's profiles. An empty name is the Default, the same as no entry. An entry is kept even when it names the Default, since its presence is what stops a legacy `controllerProfile` from being moved onto that controller again (below).
 
 ### Mapping object
 
@@ -63,8 +63,8 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
 | Duplicate profile names (case-insensitive) | Later duplicates dropped and reported |
 | A calibration entry that fails the invariant | Entry dropped; the unit uses automatic calibration; reported |
 | `deadzone` out of [0, 0.9] | Clamped |
-| An `activeProfiles` entry whose key is not a unit token, or whose value is not a string | Entry dropped and reported; that controller plays Default |
-| An `activeProfiles` name its model has no profile of | Kept; the controller plays Default until a profile of that name exists |
+| An `activeProfiles` entry whose key is not a unit token, or whose value is not a string | Entry dropped and reported; that controller uses Default |
+| An `activeProfiles` name its model has no profile of | Kept; the controller uses Default until a profile of that name exists |
 
 ## Per machine: `$cassoUiPrefs` block
 
