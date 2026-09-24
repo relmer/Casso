@@ -353,6 +353,13 @@ private:
     static LRESULT CALLBACK  s_WndProcThunk  (HWND, UINT, WPARAM, LPARAM);
     LRESULT                  WndProc         (UINT msg, WPARAM wp, LPARAM lp);
 
+    //
+    //  The open popup up this one's parent chain whose card holds a point
+    //  given in this window's client pixels, with the point in that popup's
+    //  card pixels. Null when the point is on no ancestor.
+    //
+    DxuiPopupHost *          FindAncestorAt  (POINT clientPx, POINT & outCardPx) const;
+
     HRESULT  EnsureWindowClass               ();
     HRESULT  CreateHwndAndComposition        (const RECT & placedRectScreenPx);
     void     DestroyHwndAndComposition       ();
