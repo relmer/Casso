@@ -86,6 +86,30 @@ The list row is not one size scaled: 28 dip at 100% and 200%, but taller at
 Every one is twice 14 dip rounded up, plus one pixel at a scale that is not a
 whole multiple of 100%. Casso Explorer's list computes its rows that way.
 
+### The overflow
+
+Measured 2026-09-23 at 125%, narrowing Explorer from 1000 to 200 pixels in
+50-pixel steps. Explorer never drops a label. It moves whole buttons into
+See more, rightmost first -- View, Sort, Delete, Share, Rename, Paste, Copy,
+Cut, then New -- and Details keeps its label at every width. The line before
+See more shows only while nothing has moved into it.
+
+Every Dxui toolbar dropped labels first, right to left, and moved nothing.
+Every one now overflows as Explorer does, Casso's own included. A trailing
+entry, such as Preview or Theme, follows the leading ones once they are all
+in See more, so a very narrow window does not cut it off.
+
+The panes shrink in turn as the window narrows: the list first, down to its
+minimum; then the preview; then the tree; then all three together. Explorer's
+navigation pane holds its width until it reaches about half the window, so
+its list gives way first as well. The window narrows to 200 dip, where it
+stopped at the three panes' minimums added together, 640 dip. Where
+Explorer's Details pane falls in that order was not measured.
+
+Explorer's list shows a horizontal scrollbar once a column is cut off, as
+Casso Explorer's does; its navigation pane never shows one, so Casso
+Explorer's tree no longer does either.
+
 ## R1. Executable shape
 
 **Finding**: `Casso.vcxproj` holds one comment-only `Main.cpp`, one `.rc`,
