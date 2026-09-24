@@ -94,6 +94,13 @@ competitors in the parts a user sees first would waste the launch.
 - Q: What does Ctrl+Plus, Ctrl+Minus and Ctrl+0 affect? -> A: The text size of every debugger content pane, floating panes included, and nothing else: not other Casso windows, not the caption, not the command bar. Whether this is a font-size change or a zoom is a planning decision.
 - Q: Where do the command bar's icons come from where the icon font has no matching glyph? -> A: They are drawn, to match Visual Studio's debugging toolbar icons. Run to Cursor is a right arrow ending at a vertical bar.
 
+### Session 2026-09-23 (Visual Studio tab review)
+
+- Q: Is there one source pane, or a document per source file? -> A: A document per file, as Visual Studio opens them. Each file the user steps into or navigates to opens in a tab of its own beside the Disassembly views; a file already open is brought to the front, not opened twice. The document holding the PC carries the PC marker ahead of its title. Open documents and their lines are restored when the debugger reopens.
+- Q: Which panes are documents and which are tool windows? -> A: Source and Disassembly are documents, with tabs along the top. Every other pane is a tool window: a title bar per group with the active pane's title, a menu, a pin and a close button, and tabs along the bottom when the group holds more than one pane. Memory is a tool window, as it is in Visual Studio.
+- Q: How does the focused group show? -> A: A 1-pixel accent border around it and an accent outline on its selected tab; an unfocused group's selected tab is outlined in a neutral color.
+- Q: Are the debugger's tabs their own implementation? -> A: No. They are the tab strip Casso Explorer uses, with the options the debugger needs; the debugger does not draw a second kind of tab.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -292,8 +299,9 @@ the other two are restored.
 ### User Story 6 - Debug at source level (Priority: P1)
 
 A user assembles a program with Casso's assembler, loads the debug file, and
-debugs against the source: a source window follows the program counter as the
-machine stops and steps, breakpoints are set on source lines, and step into,
+debugs against the source: each source file opens in a document of its own,
+the one holding the program counter follows it as the machine stops and
+steps, breakpoints are set on source lines, and step into,
 step over and step out move by source line. A program built with another
 assembler that writes cc65's debug format debugs the same way. A program
 whose only artifact is a listing from real Merlin debugs against the listing.
@@ -305,7 +313,7 @@ an assembler.
 
 **Independent Test**: Assemble the Mockingboard speech demo with `-g`, load its
 debug file, set a breakpoint on the source line of `Sing`, run, and confirm
-the source window shows that line marked; step over a `JSR` with inline
+the source document shows that line marked; step over a `JSR` with inline
 parameters after it and confirm the step lands on the next source line;
 change one byte of the source, drag it onto the debugger, and confirm the
 mismatch warning.
@@ -313,10 +321,10 @@ mismatch warning.
 **Acceptance Scenarios**:
 
 1. **Given** a debug file whose source files are beside it, **When** the user
-   loads it and the machine stops, **Then** the source window shows the file
-   and line for the program counter with the line marked, and the disassembly
-   pane shows the same instruction.
-2. **Given** the source window, **When** the user steps into, over or out,
+   loads it and the machine stops, **Then** the file holding the program
+   counter opens in a source document with the line marked, and the
+   disassembly pane shows the same instruction.
+2. **Given** a source document, **When** the user steps into, over or out,
    **Then** the machine stops at the first instruction of a different source
    line (into), the next source line in the same routine after any calls
    return (over), or the line after the call that entered the routine (out).
@@ -327,8 +335,9 @@ mismatch warning.
    itself, **Then** the machine stops when that call returns, not when a deeper
    call reaches the same address.
 5. **Given** a macro invocation, **When** the machine stops inside its
-   expansion, **Then** the source window shows the invocation line, marks that
-   the position is inside a macro, and can show the body line on request.
+   expansion, **Then** the source document shows the invocation line, marks
+   that the position is inside a macro, and can show the body line on request,
+   in the document of the file that holds the body.
 6. **Given** a source file is not beside the debug file, **When** the debug
    file is loaded, **Then** the folders where sources were found before are
    searched, and a file with the recorded name, size and hash is used without
@@ -337,7 +346,7 @@ mismatch warning.
    onto the debugger, **Then** it is matched by hash to the debug file's entry
    and its folder is remembered for later.
 8. **Given** a file whose text differs from the one the program was built
-   from, **When** it is opened, **Then** the source window opens it with a
+   from, **When** it is opened, **Then** its source document opens with a
    visible warning that lines may not match.
 9. **Given** a debug file written by another assembler in cc65's format,
    **When** it is loaded, **Then** its files, lines and symbols work exactly as
@@ -345,6 +354,15 @@ mismatch warning.
 10. **Given** a listing from real Merlin and no source files, **When** it is
     loaded, **Then** the listing itself is the source view, with its addresses
     mapped to its lines.
+11. **Given** a program built from a main file and an included file, **When**
+    the user steps from one into the other, **Then** each file has a document
+    tab of its own, the one holding the program counter is in front with the
+    PC marker ahead of its title, and returning to the first file brings its
+    existing document forward rather than opening a second.
+12. **Given** several source documents open, **When** the user closes one,
+    **Then** only that file's document closes; **When** the debugger is closed
+    and reopened, **Then** the documents still open come back, each at the line
+    it showed.
 
 ---
 
@@ -357,11 +375,11 @@ works from the keyboard for a user who does not drag.
 
 **Why this priority**: Every pane in this feature is useful on its own, but
 real work needs several visible at once in an order the user chooses. A fixed
-layout makes the source window, four memory windows, the trace and the device
+layout makes the source documents, four memory windows, the trace and the device
 panels compete for one grid.
 
 **Independent Test**: Drag the memory pane to the right edge, tab the trace
-under it, float the source pane onto a second monitor, close and reopen the
+under it, float a source document onto a second monitor, close and reopen the
 debugger, and confirm the layout is restored; unplug the second monitor and
 confirm the floated pane comes back onto the primary one.
 
@@ -386,6 +404,20 @@ confirm the floated pane comes back onto the primary one.
 7. **Given** a saved layout, **When** the debugger is reopened, **Then** the
    layout is restored; a pane whose monitor is absent opens on the primary
    monitor.
+8. **Given** a group of tool windows such as Watch and Locals, **When** the
+   user looks at it, **Then** it has a title bar with the active pane's title,
+   a menu, a pin and a close button, and its panes' tabs run along the bottom
+   with the selected tab joined to the pane, as in Visual Studio.
+9. **Given** the Source and Disassembly documents, **When** the user looks at
+   their group, **Then** their tabs run along the top with the selected tab
+   filled and outlined and a close button on it, and the `+` after the last
+   Disassembly tab opens another view.
+10. **Given** two groups, **When** the user clicks into one, **Then** that group
+    shows an accent border and an accent outline on its selected tab, and the
+    other shows neither.
+11. **Given** more tabs than fit a group's width, **When** the user looks at the
+    strip, **Then** arrows at its ends scroll the tabs into reach, and no tab's
+    title is cut short.
 
 ---
 
@@ -775,6 +807,12 @@ confirm it disables without being removed.
 
 ### Edge Cases
 
+- **Closing the document that holds the PC**: The document closes; the next
+  stop in that file opens it again, as Visual Studio reopens a closed file
+  when a step enters it.
+- **A source document whose file is gone at restore**: It reopens with its
+  not-found notice rather than being dropped, so the user can drop the file
+  on the window (FR-058).
 - **Syntax collision in Monitor mode**: AppleWin commands written entirely in
   hex characters (`DB`, `CD`, `F`) are hex addresses in Monitor mode. Monitor
   mode reads them as Monitor input; AppleWin commands are not reachable there
@@ -1105,7 +1143,7 @@ confirm it disables without being removed.
   command line in the selected mode and a console for its replies,
   disassembly with the current line marked and breakpoints marked, registers
   and flags, memory windows, a stack pane, a watch pane, a breakpoint pane, a
-  trace pane, a source pane, device panels, a breakpoint gutter (FR-075),
+  trace pane, source documents, device panels, a breakpoint gutter (FR-075),
   and controls for step, step over, step out, run, run to cursor and pause.
 - **FR-026a**: Every pane MUST use a monospace font; rows MUST be no taller
   than the font's line height plus minor padding; columns MUST be sized to
@@ -1176,7 +1214,8 @@ confirm it disables without being removed.
 - **FR-084**: Every pane MUST have a context menu of actions on its content,
   drawn by the debugger's own menu widget like every other menu in Casso.
   Actions on the tab or window (dock, float, auto-hide, close) MUST be in the
-  tab's own context menu.
+  tab's own context menu, and for a tool window also behind the menu button on
+  its group's title bar (FR-115).
 - **FR-085**: The command bar's Dialect, Panels and Keys entries MUST open
   drop-down menus in the style of the main window's Theme and Color entries.
 - **FR-086**: The command bar's icons MUST match Visual Studio's debugging
@@ -1341,6 +1380,31 @@ confirm it disables without being removed.
   layout for every machine: a device panel the current machine lacks MUST be
   closed on restore and MUST keep its saved place, so it reopens there when a
   machine that has the device is loaded.
+- **FR-113**: The source document holding the program counter MUST carry the
+  PC marker -- the same triangle, face and color as on the PC's line -- ahead
+  of its title, as the following Disassembly view's tab does (FR-106).
+  Closing a source document MUST close only that file's document. The source
+  documents open when the debugger closes, and the line each shows, MUST be
+  restored when it reopens, as the Disassembly views are.
+- **FR-114**: Source and Disassembly views MUST be presented as documents: their
+  tabs run along the top of their group, the selected tab filled and outlined
+  with a close button on it, the others plain text showing a close button on
+  hover, and a `+` after the last Disassembly tab (FR-106).
+- **FR-115**: Every other pane -- registers, watches, breakpoints, stack, call
+  stack, memory windows, console, trace and device panels -- MUST be presented
+  as a tool window: each group has a title bar showing its active pane's
+  title, a menu button offering dock, float, auto-hide and close, a pin that
+  auto-hides the group, and a close button; a group holding more than one pane
+  shows its tabs along the bottom, the selected tab filled with the pane's
+  color and joined to it and the others plain text. The memory group keeps a
+  `+` after its last tab (FR-089).
+- **FR-116**: The group with focus MUST show a 1-pixel accent border and an
+  accent outline on its selected tab; an unfocused group's selected tab MUST
+  be outlined in a neutral color. Tabs that do not fit their group's width
+  MUST scroll into reach with arrows at the strip's ends rather than having
+  their titles cut short. The debugger's tabs MUST be drawn by the same tab
+  strip Casso Explorer uses, with the options these requirements need, and
+  not by a second implementation.
 
 **Instruction trace**
 
@@ -1429,10 +1493,13 @@ confirm it disables without being removed.
 
 **Source-level debugging**
 
-- **FR-054**: The window MUST provide a source pane that shows the file and
-  line for the program counter whenever the machine stops, marks that line,
-  and stays synchronized with the disassembly pane: selecting a line in
-  either selects the corresponding position in the other.
+- **FR-054**: The window MUST show source as documents, one per file: the file
+  and line for the program counter open whenever the machine stops, with that
+  line marked, and each document stays synchronized with the disassembly
+  pane: selecting a line in either selects the corresponding position in the
+  other. A file the user steps into or navigates to opens in a document tab of
+  its own, titled with the file's name, beside the Disassembly views; a file
+  already open is brought to the front rather than opened a second time.
 - **FR-055**: Users MUST be able to set and clear breakpoints on source lines;
   a line with no code MUST move the breakpoint to the next line with code and
   say so.
@@ -1441,9 +1508,11 @@ confirm it disables without being removed.
   at the next source line in the same routine, running calls to completion by
   the stack-pointer rule of FR-002; out stops at the line after the call that
   entered the current routine.
-- **FR-057**: When the machine stops inside a macro expansion, the source pane
-  MUST show the invocation line, indicate that the position is inside a
-  macro, and MUST be able to show the body line on request.
+- **FR-057**: When the machine stops inside a macro expansion, the source
+  document MUST show the invocation line, indicate that the position is inside
+  a macro, and MUST be able to show the body line on request, opening or
+  bringing forward the document of the file that holds the body. Where that
+  file could not be found, the body MUST NOT be offered.
 - **FR-058**: The debugger MUST find a source file by, in order: the path
   recorded relative to the debug file; the folders where sources for this
   program were found before; the folders where any sources were found before;
@@ -1452,7 +1521,8 @@ confirm it disables without being removed.
   recorded hash to be used without a warning.
 - **FR-059**: A source file whose hash differs from the recorded one MUST
   open with a visible warning that lines may not match. A file that matches
-  no entry MUST open as plain text with no line mapping.
+  no entry MUST open as plain text with no line mapping. Each warning, and the
+  notice that a file was not found, belongs to that file's document.
 - **FR-060**: The folders where sources were found MUST be remembered across
   sessions, per program and globally.
 
@@ -1508,6 +1578,9 @@ confirm it disables without being removed.
 
 - **Debug session**: The debugger's attachment to one running machine; holds
   breakpoints, watchpoints, the selected mode and the paused/running state.
+- **Source document**: One source file shown in a tab of its own: the file, the
+  line it shows, whether it holds the program counter, and its warning or
+  not-found notice; the set of open documents is restored with the layout.
 - **Breakpoint**: A stop condition by address, by opcode, by a register
   comparison, by a memory value, or by an expression evaluated when the
   location hits; can be enabled or disabled.
@@ -1615,6 +1688,11 @@ confirm it disables without being removed.
   none missing, none extra.
 - **SC-026**: A text-size change reaches every debugger content pane, floating
   ones included, and changes the size of nothing outside them.
+- **SC-027**: Stepping through a program built from several source files
+  leaves exactly one document per file visited, in 100% of cases; the
+  documents open at close all reopen, each at its line.
+- **SC-028**: Every pane's tab title is shown in full or reachable by the
+  strip's arrows, at any group width down to the pane's minimum.
 
 ## Assumptions
 
@@ -1673,7 +1751,7 @@ confirm it disables without being removed.
     follow-ups): `SHR` (needs a IIgs), `SYNC` (needs an assembler-listing
     link beyond what the source pane provides), `NTSC` (AppleWin's palette
     file has no Casso equivalent). `BPV` and `VIDEOINFO` are phase 1, served
-    from the machine's video timing. `SOURCE` becomes the source pane.
+    from the machine's video timing. `SOURCE` becomes the source documents.
   - The table is consulted for names and behavior only; `RUN` runs a script of
     commands through the same engine batch mode uses.
 - **GSSquared command coverage** is taken from its published debugger
@@ -1730,7 +1808,7 @@ confirm it disables without being removed.
   do it; `OUT` exists for the deliberate case.
 - **Docking targets**: a pane's minimum size is what shows one row of its
   content; the default layout is the first version's arrangement with the
-  source pane tabbed with the disassembly and the trace tabbed with the
+  source documents tabbed with the disassembly and the trace tabbed with the
   console.
 - **Out of scope**: WinDbg beyond FR-022c (the process, thread, module,
   exception, kernel, dump, type, `dx` and scripting families, and `wt`, which
