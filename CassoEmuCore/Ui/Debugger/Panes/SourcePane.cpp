@@ -154,6 +154,7 @@ void SourcePane::Rebuild()
     const DebugSourceFile               * body         = nullptr;
     bool                                  isRowsStale  = false;
     int                                   top          = m_view->GetTopLine();
+    int                                   depth        = 0;
 
 
 
@@ -189,14 +190,16 @@ void SourcePane::Rebuild()
         body = (record.id == m_state->bodyFileId) ? &record : body;
     }
 
-    m_banner->SetText (GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), m_state->depth, m_showBody,
+    depth = CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId) ? m_state->depth : 0;
+
+    m_banner->SetText (GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, m_showBody,
                                       body != nullptr ? body->name : std::string(), m_state->bodyLine));
 
-    if (m_state->depth > 0 && m_banner->GetAction (0) == nullptr)
+    if (depth > 0 && m_banner->GetAction (0) == nullptr)
     {
         m_banner->SetActions ({ L"Show body" });
     }
-    else if (m_state->depth == 0 && m_banner->GetAction (0) != nullptr)
+    else if (depth == 0 && m_banner->GetAction (0) != nullptr)
     {
         m_banner->SetActions ({});
     }
@@ -600,7 +603,8 @@ std::string SourcePane::GetToggleLine (const DebuggerViewSnapshot::SourceState &
 //
 //  SourcePane::GetBannerText
 //
-//  What the file needs said, then where a macro is, in one strip.
+//  What the file needs said, then where a macro is, each on a line of its own
+//  so the two do not read as one sentence.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -632,10 +636,29 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
 
     if (depth > 0)
     {
-        text += text.empty() ? "" : " ";
+        text += text.empty() ? "" : "\n";
         text += showingBody ? std::format ("Showing the macro body: {} line {}.", bodyName, bodyLine)
                             : std::format ("Stopped inside a macro; its body line is {} line {}.", bodyName, bodyLine);
     }
 
     return SourcePathList::Utf8ToWide (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::CanShowBody
+//
+//  A macro's body can be shown unless it is in the very file that could not
+//  be found: then there is nothing to show, and neither the button nor the
+//  line it would go to means anything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::CanShowBody (bool hasText, int depth, int bodyFileId, int fileId)
+{
+    return depth > 0 && (hasText || bodyFileId != fileId);
 }

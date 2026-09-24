@@ -82,6 +82,10 @@ public:
     static std::wstring  GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
                                         int depth, bool showingBody, const std::string & bodyName, int bodyLine);
 
+    //  Whether a macro's body can be offered: not when it is in the file that
+    //  could not be found.
+    static bool          CanShowBody   (bool hasText, int depth, int bodyFileId, int fileId);
+
 private:
     static constexpr int  kTabWidth = 8;
 
