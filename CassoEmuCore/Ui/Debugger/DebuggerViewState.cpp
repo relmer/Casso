@@ -1470,16 +1470,18 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
     std::vector<DebuggerViewSnapshot::CodeLine>    lines;
     Reply                                          code;
     Word                                           codeStart = 0;
+    Word                                           codeEnd   = 0;
 
 
 
     codeStart = ChooseCodeStart (session, snapshot.pc, view);
+    codeEnd   = (Word) (std::min) (0xFFFF, codeStart + v.lines * 3);
     //  A range, so the count is ours rather than the command's default: the
     //  pane holds as many lines as it has room for, and three bytes an
-    //  instruction covers the longest the 6502 has.
-    code = session.ExecuteLine (std::format ("U {:04X}:{:04X}", codeStart,
-                                             (Word) (codeStart + (Word) (v.lines * 3))),
-                                CommandMode::AppleWin);
+    //  instruction covers the longest the 6502 has. The range stops at $FFFF:
+    //  one that ran past it wrapped to below its own start and listed nothing,
+    //  which emptied any view within a screenful of the vectors.
+    code = session.ExecuteLine (std::format ("U {:04X}:{:04X}", codeStart, codeEnd), CommandMode::AppleWin);
 
     v.shown.clear();
 
@@ -1747,6 +1749,32 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
             Word  next = (Word) (top + GetInstructionLength (session, top));
 
             top = (next > top) ? next : top;
+        }
+
+        //  Down: no further than the page whose last line holds $FFFF, as up
+        //  stops at $0000.
+        if (v.scrollLines > 0)
+        {
+            Word  last  = top;
+            int   count = 1;
+
+            while (count < v.lines)
+            {
+                Word  next = (Word) (last + GetInstructionLength (session, last));
+
+                if (next <= last)
+                {
+                    break;
+                }
+
+                last = next;
+                count++;
+            }
+
+            if (count < v.lines)
+            {
+                top = FindStartAbove (session, last, v.lines - 1);
+            }
         }
 
         //  Up: the alignment that lands on the top line, from as many lines

@@ -287,6 +287,7 @@ namespace DebuggerViewStateTests
             DebuggerViewSnapshot  first;
             DebuggerViewSnapshot  down;
             DebuggerViewSnapshot  up;
+            size_t                lastHeld = 0;
 
 
 
@@ -308,6 +309,28 @@ namespace DebuggerViewStateTests
             }
 
             Assert::AreEqual ((Word) 0x0000, up.code[0].address, L"up past everything stops at $0000");
+
+            //  And down: from near the top of memory, the wheel alone reaches
+            //  the line holding $FFFF, and goes no further.
+            rig.view.SetCodeAddress (0xFF00);
+
+            for (int i = 0; i < 40; i++)
+            {
+                rig.view.ScrollCode (20);
+                down = rig.view.Build (rig.controller.GetSession());
+            }
+
+            lastHeld = down.code.back().address + (down.code.back().bytes.size() + 1) / 3 - 1;
+
+            Assert::IsTrue (lastHeld >= 0xFFFF, std::format (L"the last line, at ${:04X}, holds $FFFF", down.code.back().address).c_str());
+            Assert::IsTrue (down.code[0].address >= 0xFF00, L"down past everything stops at the top of memory, without wrapping to $0000");
+            Assert::AreEqual ((size_t) rig.view.GetCodeLines(), down.code.size(), L"with every line of the pane filled");
+
+            //  A view taken straight to the vectors lists them too.
+            rig.view.CenterCodeOn (0xFFFC);
+            down = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (down.code.empty(), L"the lines around the reset vector");
         }
 
 
