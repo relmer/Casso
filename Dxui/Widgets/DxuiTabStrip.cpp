@@ -130,6 +130,7 @@ bool DxuiTabStrip::OnLButtonDown (int x, int y)
     {
         m_pressed  = hit;
         m_pressX   = x;
+        m_pressY   = y;
         m_dragging = false;
     }
 
@@ -265,7 +266,8 @@ bool DxuiTabStrip::OnKey (WPARAM vk)
 //  With no button held a move is hover. A held press that travels past the
 //  threshold becomes a drag: the pressed tab follows the pointer, taking the
 //  place of each neighbor it crosses, and held past either end of the strip
-//  it scrolls the tabs toward the pointer.
+//  it scrolls the tabs toward the pointer. Dragged past the strip's top or
+//  bottom, with a host that asked, the tab is the host's to carry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -274,8 +276,18 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
     int   threshold = m_scaler.ToPx (s_kDragThresholdDip);
     int   step      = m_scaler.ToPx (s_kDragScrollDip);
     bool  handled   = false;
+    bool  leftStrip = HasBounds() && (y < m_boundsDip.top - threshold || y >= m_boundsDip.bottom + threshold);
+    int   carried   = m_pressed;
 
 
+
+    if (m_pressed >= 0 && m_dragOut && leftStrip && std::abs (y - m_pressY) > threshold)
+    {
+        m_pressed  = -1;
+        m_dragging = false;
+        m_dragOut (carried, POINT { x, y });
+        return true;
+    }
 
     if (m_pressed < 0)
     {
@@ -861,20 +873,60 @@ RECT DxuiTabStrip::GetTabScreenRect (int index) const
 //
 //  GetCloseRect
 //
-//  The close button's square, centered where Explorer centers its glyph.
+//  The close button's square, centered where Explorer centers its glyph, or
+//  in the compact styles a small square just inside the tab's right end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiTabStrip::GetCloseRect (int index) const
 {
-    RECT  tab    = GetTabScreenRect (index);
-    int   box    = m_scaler.ToPx (s_kCloseBoxDip);
-    int   center = tab.right - m_scaler.ToPx (s_kCloseCenterDip);
-    int   top    = tab.top + ((tab.bottom - tab.top) - box) / 2;
+    RECT  tab     = GetTabScreenRect (index);
+    bool  compact = m_style != Style::Explorer;
+    int   box     = m_scaler.ToPx (compact ? s_kCompactCloseDip : s_kCloseBoxDip);
+    int   center  = compact ? tab.right - m_scaler.ToPx (s_kCompactPadDip / 2) - box / 2 : tab.right - m_scaler.ToPx (s_kCloseCenterDip);
+    int   top     = tab.top + ((tab.bottom - tab.top) - box) / 2;
 
 
 
     return RECT { center - box / 2, top, center - box / 2 + box, top + box };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsCloseShown
+//
+//  Explorer shows every tab's close button. Visual Studio's document tabs
+//  show it on the selected tab and the one under the pointer; its tool
+//  windows close from their title bar, not their tabs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTabStrip::IsCloseShown (int index) const
+{
+    bool  shown = false;
+
+
+
+    switch (m_style)
+    {
+    case Style::Explorer:
+        shown = true;
+        break;
+
+    case Style::Document:
+        shown = index == m_selected || index == m_hover;
+        break;
+
+    case Style::ToolWindow:
+        shown = false;
+        break;
+    }
+
+    return m_close && shown;
 }
 
 
@@ -904,7 +956,7 @@ int DxuiTabStrip::GetCloseAt (int x, int y) const
         {
             RECT  rc = GetCloseRect (i);
 
-            if (x >= rc.left && x < rc.right && y >= rc.top && y < rc.bottom)
+            if (IsCloseShown (i) && x >= rc.left && x < rc.right && y >= rc.top && y < rc.bottom)
             {
                 hit = i;
             }
@@ -1033,6 +1085,12 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
         float        labelR  = (float) r.right - padX;
         std::wstring shown;
 
+        if (m_style != Style::Explorer)
+        {
+            PaintCompactTab (painter, text, i, hoverArgb, fillArgb, textArgb);
+            continue;
+        }
+
         if (isSel)
         {
             painter.FillRoundedRect (left, top, width, height, corner, fillArgb);
@@ -1134,6 +1192,182 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabStrip::PaintCompactTab
+//
+//  Visual Studio's tabs. A document's selected tab is filled with the pane
+//  below and outlined along its top and sides; a tool window's is filled with
+//  the pane above and outlined along its sides and rounded bottom, so either
+//  way it joins its pane. The rest are plain text, washed while hovered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabStrip::PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & text, int index,
+                                    uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const
+{
+    static constexpr float    kMutedTextScale = 0.75f;
+    static constexpr float    kPressedScale   = 0.82f;
+    static constexpr float    kCloseScale     = 0.8f;
+    const Tab               & tab             = m_tabs[(size_t) index];
+    RECT                      r               = GetTabScreenRect (index);
+    float                     left            = (float) r.left;
+    float                     top             = (float) r.top;
+    float                     width           = (float) (r.right - r.left);
+    float                     height          = (float) (r.bottom - r.top);
+    float                     line            = (std::max) (1.0f, std::round (m_scaler.ToPxf (1.0f)));
+    float                     fontPx          = m_scaler.ToPxf ((float) s_kCompactFontDip);
+    float                     labelX          = left + m_scaler.ToPxf ((float) s_kCompactPadDip);
+    float                     labelR          = (float) r.right - m_scaler.ToPxf ((float) s_kCompactPadDip);
+    bool                      isSel           = index == m_selected;
+    bool                      isHover         = index == m_hover || (index == m_pressed && index == m_hover);
+    bool                      below           = m_style == Style::ToolWindow;
+    uint32_t                  color           = isSel ? textArgb : DxuiColor::Scale (textArgb, kMutedTextScale);
+    std::wstring              shown;
+    HRESULT                   hr              = S_OK;
+
+
+
+    if (isSel)
+    {
+        painter.FillRect (left, top, width, height, fillArgb);
+
+        //  Open on the side that joins the pane, and drawn inside the strip
+        //  so nothing of the pane's own is painted over.
+        if (m_outlineArgb != 0 && below)
+        {
+            painter.FillRect (left,                top,                 line,  height, m_outlineArgb);
+            painter.FillRect (left + width - line, top,                 line,  height, m_outlineArgb);
+            painter.FillRect (left,                top + height - line, width, line,   m_outlineArgb);
+        }
+        else if (m_outlineArgb != 0)
+        {
+            painter.FillRect (left,                top, width, line,   m_outlineArgb);
+            painter.FillRect (left,                top, line,  height, m_outlineArgb);
+            painter.FillRect (left + width - line, top, line,  height, m_outlineArgb);
+        }
+    }
+    else if (isHover)
+    {
+        painter.FillRect (left, top, width, height, hoverArgb);
+    }
+
+    if (!tab.mark.empty() && tab.markArgb != 0)
+    {
+        hr = text.DrawString (tab.mark.c_str(), labelX, top, m_scaler.ToPxf ((float) s_kCompactMarkDip), height,
+                              tab.markArgb, fontPx, tab.markFace.empty() ? DxuiTheme::kBodyFace : tab.markFace.c_str(),
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        labelX += m_scaler.ToPxf ((float) s_kCompactMarkDip);
+    }
+
+    if (IsCloseShown (index))
+    {
+        RECT  close = GetCloseRect (index);
+
+        labelR = (float) close.left;
+
+        if (m_hoverClose == index)
+        {
+            painter.FillRect ((float) close.left, (float) close.top,
+                              (float) (close.right - close.left), (float) (close.bottom - close.top),
+                              (m_pressedClose == index) ? DxuiColor::Darken (hoverArgb, kPressedScale) : hoverArgb);
+        }
+
+        hr = text.DrawString (s_kpszMdl2Cancel,
+                              (float) close.left, (float) close.top,
+                              (float) (close.right - close.left), (float) (close.bottom - close.top),
+                              color, m_scaler.ToPxf ((float) s_kCloseGlyphDip) * kCloseScale, m_iconFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    shown = DxuiTextElide::ToWidth (text, tab.label, fontPx, DxuiTheme::kBodyFace, (std::max) (labelR - labelX, 0.0f), DxuiElide::Tail);
+
+    hr = text.DrawString (shown.c_str(), labelX, top, (std::max) (labelR - labelX, 0.0f), height,
+                          color, fontPx, DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabStrip::GetTipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiTabStrip::GetTipAt (int x, int y, RECT & tabRect) const
+{
+    int  hit = HitTest (x, y);
+
+
+
+    if (hit < 0)
+    {
+        return std::wstring();
+    }
+
+    tabRect = GetTabScreenRect (hit);
+    return m_tabs[(size_t) hit].tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabStrip::MeasureTabPx
+//
+//  The label's width, measured when a renderer can, plus the style's padding,
+//  the icon, the mark and the close button, so the label is never cut short
+//  in a tab the host sized with this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTabStrip::MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style style, bool hasClose, const DxuiDpiScaler & scaler)
+{
+    static constexpr float  kExplorerFontDip = 13.0f;
+    static constexpr float  kExplorerPadDip  = 8.0f;
+    bool                    compact          = style != Style::Explorer;
+    float                   fontPx           = scaler.ToPxf (compact ? (float) s_kCompactFontDip : kExplorerFontDip);
+    float                   labelW           = scaler.ToPxf ((float) s_kCharEstimateDip) * (float) tab.label.size();
+    float                   height           = 0.0f;
+    float                   width            = 0.0f;
+    HRESULT                 hr               = E_FAIL;
+
+
+
+    if (text != nullptr)
+    {
+        hr = text->MeasureString (tab.label.c_str(), fontPx, DxuiTheme::kBodyFace, labelW, height);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (compact)
+    {
+        width = scaler.ToPxf ((float) s_kCompactPadDip) * 2.0f + labelW;
+        width += tab.mark.empty() ? 0.0f : scaler.ToPxf ((float) s_kCompactMarkDip);
+        width += (hasClose && style == Style::Document) ? scaler.ToPxf ((float) s_kCompactCloseDip) : 0.0f;
+    }
+    else
+    {
+        width = scaler.ToPxf ((float) s_kLabelInsetDip) + labelW + scaler.ToPxf (kExplorerPadDip);
+        width += hasClose ? scaler.ToPxf ((float) s_kCloseCenterDip + s_kCloseBoxDip / 2) : 0.0f;
+    }
+
+    return (int) std::ceil (width);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabStrip::Layout  (IDxuiControl override)
 //
 //  Per-tab rects are populated by the caller via SetTabs; the override
@@ -1160,7 +1394,8 @@ void DxuiTabStrip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t  fill  = (m_selectedFill != 0) ? m_selectedFill : theme.BackgroundElevated();
+    uint32_t  plain = (m_style == Style::Explorer) ? theme.BackgroundElevated() : theme.ContentBackground();
+    uint32_t  fill  = (m_selectedFill != 0) ? m_selectedFill : plain;
     uint32_t  strip = (m_stripFill    != 0) ? m_stripFill    : theme.Background();
     uint32_t  hover = (theme.Foreground() & 0x00FFFFFFu) | 0x14000000u;
 

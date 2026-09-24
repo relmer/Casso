@@ -406,4 +406,128 @@ public:
         ts.OnLButtonUp   (20, 12);
         Assert::AreEqual (0, ts.GetSelected());
     }
+
+    //  Visual Studio's document tabs: the close button is on the selected tab
+    //  and the one under the pointer, and a press where it would be on any
+    //  other tab selects that tab. The third tab's button is centered 12 px
+    //  inside its right end, at 228.
+    TEST_METHOD (DocumentStyle_ClosesOnlyTheSelectedOrHoveredTab)
+    {
+        DxuiTabStrip  ts;
+        int           closed = -1;
+
+        ts.SetTabs     (MakeThreeTabs());
+        ts.SetStyle    (DxuiTabStrip::Style::Document);
+        ts.SetOnClose  ([&] (int index) { closed = index; });
+        ts.SetSelected (0);
+        LayOut (ts, 300);
+
+        ts.OnLButtonDown (228, 12);
+        ts.OnLButtonUp   (228, 12);
+        Assert::AreEqual (-1, closed,         L"no button on a tab neither selected nor hovered");
+        Assert::AreEqual (2,  ts.GetSelected(), L"the press selects it");
+
+        ts.SetMouseHover (228, 12);
+        ts.OnLButtonDown (228, 12);
+        ts.OnLButtonUp   (228, 12);
+        Assert::AreEqual (2, closed, L"selected, and under the pointer, it has one");
+    }
+
+    //  A tool window closes from its title bar, so its tabs have no button.
+    TEST_METHOD (ToolWindowStyle_ShowsNoCloseButton)
+    {
+        DxuiTabStrip  ts;
+        int           closed = -1;
+
+        ts.SetTabs     (MakeThreeTabs());
+        ts.SetStyle    (DxuiTabStrip::Style::ToolWindow);
+        ts.SetOnClose  ([&] (int index) { closed = index; });
+        ts.SetSelected (2);
+        LayOut (ts, 300);
+
+        ts.SetMouseHover (228, 12);
+        ts.OnLButtonDown (228, 12);
+        ts.OnLButtonUp   (228, 12);
+        Assert::AreEqual (-1, closed);
+    }
+
+    //  A tab dragged past the strip's top or bottom goes to the host, which
+    //  the strip lets have it: no move along the strip, no selection.
+    TEST_METHOD (DragOffTheStrip_HandsTheTabToTheHost)
+    {
+        DxuiTabStrip  ts;
+        int           handed = -1;
+        POINT         at     = {};
+        int           moves  = 0;
+
+        ts.SetTabs      (MakeThreeTabs());
+        ts.SetOnMove    ([&] (int, int) { moves++; });
+        ts.SetOnDragOut ([&] (int index, POINT point) { handed = index; at = point; });
+        LayOut (ts, 300);
+
+        ts.OnLButtonDown (100, 12);
+        ts.OnMouseMove   (100, 20);
+        Assert::AreEqual (-1, handed, L"still on the strip");
+
+        ts.OnMouseMove   (100, 60);
+        Assert::AreEqual (1,  handed, L"below it, the host takes the tab");
+        Assert::AreEqual (60L, at.y);
+        Assert::IsFalse  (ts.IsInteracting(), L"and the strip lets go");
+        Assert::AreEqual (0, moves);
+    }
+
+    //  A leading mark is drawn ahead of the label in its own face and color,
+    //  and a tab's tip is the host's to show.
+    TEST_METHOD (CompactTab_DrawsItsMarkAndGivesItsTip)
+    {
+        DxuiTabStrip                    ts;
+        std::vector<DxuiTabStrip::Tab>  tabs   = MakeThreeTabs();
+        MockDxuiPainter                 painter;
+        MockDxuiTextRenderer            text;
+        MockDxuiTheme                   theme;
+        RECT                            tab    = {};
+        bool                            marked = false;
+
+        tabs[1].mark     = L"M";
+        tabs[1].markFace = L"Mark Face";
+        tabs[1].markArgb = 0xFFFFD700;
+        tabs[1].tip      = L"This one follows the PC";
+
+        ts.SetTabs  (tabs);
+        ts.SetStyle (DxuiTabStrip::Style::Document);
+        LayOut (ts, 300);
+        ts.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            marked = marked || (call.text == L"M" && call.argb == 0xFFFFD700 && call.x < 100.0f);
+        }
+
+        Assert::IsTrue   (marked, L"the mark, ahead of the second tab's label");
+        Assert::AreEqual (std::wstring (L"This one follows the PC"), ts.GetTipAt (100, 12, tab));
+        Assert::AreEqual (80L, tab.left);
+        Assert::IsTrue   (ts.GetTipAt (20, 12, tab).empty());
+    }
+
+    //  A tab measured for its mark and close button is wider than one
+    //  without, so a host sizing its tabs this way never cuts a label short.
+    TEST_METHOD (MeasureTab_MakesRoomForTheMarkAndTheCloseButton)
+    {
+        DxuiDpiScaler      scaler;
+        DxuiTabStrip::Tab  plain;
+        DxuiTabStrip::Tab  marked;
+
+        scaler.SetDpi (96);
+        plain.label  = L"include-macro.a65";
+        marked       = plain;
+        marked.mark  = L"M";
+
+        Assert::IsTrue (DxuiTabStrip::MeasureTabPx (nullptr, marked, DxuiTabStrip::Style::Document, false, scaler) >
+                        DxuiTabStrip::MeasureTabPx (nullptr, plain,  DxuiTabStrip::Style::Document, false, scaler));
+        Assert::IsTrue (DxuiTabStrip::MeasureTabPx (nullptr, plain,  DxuiTabStrip::Style::Document, true,  scaler) >
+                        DxuiTabStrip::MeasureTabPx (nullptr, plain,  DxuiTabStrip::Style::Document, false, scaler));
+        Assert::AreEqual (DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::ToolWindow, true,  scaler),
+                          DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::ToolWindow, false, scaler),
+                          L"a tool window's tabs have no close button to make room for");
+    }
 };
