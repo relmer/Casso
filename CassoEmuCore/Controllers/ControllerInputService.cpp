@@ -557,23 +557,28 @@ std::map<std::string, ControllerModelSettings> ControllerInputService::GetModelS
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetActiveProfile (const std::string & name)
+void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, const std::string & name)
 {
-    std::unique_lock<std::mutex>  lock      (m_mutex);
-    bool                          isSame    = false;
+    std::unique_lock<std::mutex>  lock   (m_mutex);
+    std::string                   token  = ControllerTokens::UnitToToken (unit);
+    auto                          found  = m_activeProfiles.find (token);
+    bool                          isSame = false;
 
 
 
-    isSame = m_activeProfile.size() == name.size()
-             && _stricmp (m_activeProfile.c_str(), name.c_str()) == 0;
+    // An entry is kept even for the Default, so choosing it is remembered as
+    // a choice; only a matching entry is a no-op.
+    isSame = found != m_activeProfiles.end()
+             && found->second.size() == name.size()
+             && _stricmp (found->second.c_str(), name.c_str()) == 0;
 
     if (isSame)
     {
         return;
     }
 
-    m_activeProfile    = name;
-    m_rateResetPending = true;
+    m_activeProfiles[token] = name;
+    m_rateResetPending      = true;
     UnresolveDriversLocked();
     SyncDriversLocked();
 
@@ -590,15 +595,84 @@ void ControllerInputService::SetActiveProfile (const std::string & name)
 //
 //  GetActiveProfile
 //
+//  Empty for the Default, and for a controller that has never had one chosen.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string ControllerInputService::GetActiveProfile() const
+std::string ControllerInputService::GetActiveProfile (const ControllerUnitKey & unit) const
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
 
 
 
-    return m_activeProfile;
+    return GetActiveProfileLocked (unit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveProfileLocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnitKey & unit) const
+{
+    auto  found = m_activeProfiles.find (ControllerTokens::UnitToToken (unit));
+
+
+
+    return (found != m_activeProfiles.end()) ? found->second : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetActiveProfiles
+//
+//  The whole map, by unit token: set once from the saved prefs, and read back
+//  to save them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetActiveProfiles (std::map<std::string, std::string> activeProfiles)
+{
+    std::unique_lock<std::mutex>  lock (m_mutex);
+
+
+
+    m_activeProfiles   = std::move (activeProfiles);
+    m_rateResetPending = true;
+    UnresolveDriversLocked();
+    SyncDriversLocked();
+
+    lock.unlock();
+
+    ReleaseContribution();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveProfiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, std::string> ControllerInputService::GetActiveProfiles() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_activeProfiles;
 }
 
 
@@ -1064,7 +1138,7 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.devices             = m_devices;
     snapshot.selection           = m_selection;
     snapshot.saved               = m_saved;
-    snapshot.activeProfile       = m_activeProfile;
+    snapshot.activeProfiles      = m_activeProfiles;
     snapshot.lastSample          = m_lastSample;
     snapshot.isSelectedConnected = m_isSelectedConnected;
     snapshot.multiplayer         = m_multiplayer;
@@ -1616,6 +1690,7 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
 {
     const ControllerDeviceInfo  * device  = FindDeviceLocked (driver.unit);
     const ControllerProfile     * profile = nullptr;
+    std::string                   active;
 
 
 
@@ -1628,14 +1703,18 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
     m_profiles.GetDefaultSettings (device->unit.model, device->controls, driver.mapping, driver.deadzone);
     driver.isResolved = true;
 
-    if (m_activeProfile.empty())
+    // THIS CONTROLLER'S profile, not the machine's: two players on two pads
+    // of one model can each play their own.
+    active = GetActiveProfileLocked (driver.unit);
+
+    if (active.empty())
     {
         return;
     }
 
     // A remembered profile the model no longer has plays the Default, which
     // is already in hand; nothing is recreated for it (FR-029).
-    profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device->unit.model), m_activeProfile);
+    profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device->unit.model), active);
 
     if (profile != nullptr)
     {

@@ -185,9 +185,10 @@ void EmulatorShell::SaveControllerCalibrations()
         return;
     }
 
-    store.models       = m_controllerService->GetModelSettings();
-    store.calibrations = m_controllerService->GetCalibrations();
-    controllers        = store.ToJson (m_globalPrefs.controllers);
+    store.models         = m_controllerService->GetModelSettings();
+    store.calibrations   = m_controllerService->GetCalibrations();
+    store.activeProfiles = m_controllerService->GetActiveProfiles();
+    controllers          = store.ToJson (m_globalPrefs.controllers);
 
     if (JsonWriter::Write (controllers) == JsonWriter::Write (m_globalPrefs.controllers))
     {
@@ -254,6 +255,7 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
 {
     HRESULT                           hr         = S_OK;
     std::string                       token;
+    std::string                       legacyProfile;
     std::optional<ControllerUnitKey>  selection;
     ControllerUnitKey                 unit;
     const MachineDefinition         * definition = MachineDefinitions::Find (machineId);
@@ -292,8 +294,17 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
         }
     }
 
-    // The profile first, so the selection resolves its mapping only once.
-    m_controllerService->SetActiveProfile (MachineInputPrefs::ReadProfileName (uiPrefs));
+    // A machine's own active profile is from before each controller carried
+    // its own. It passes to the machine's saved controller once, when that
+    // controller has none recorded, and is written back to no machine after.
+    legacyProfile = MachineInputPrefs::ReadProfileName (uiPrefs);
+
+    if (!legacyProfile.empty() && selection.has_value() &&
+        m_controllerService->GetActiveProfiles().count (ControllerTokens::UnitToToken (selection.value())) == 0)
+    {
+        m_controllerService->SetActiveProfile (selection.value(), legacyProfile);
+    }
+
     m_controllerService->SetSelection (selection);
 
     // A rate binding's paddle position belongs to the machine it was moved on.
@@ -357,8 +368,9 @@ void EmulatorShell::PersistInputModeForMachine()
             token = ControllerTokens::UnitToToken (snapshot.saved.value());
         }
 
-        // Empty for Default, which leaves the profile key absent.
-        controllerEntries = MachineInputPrefs::BuildControllerEntries (token, snapshot.activeProfile);
+        // No profile: each controller carries its own now, in the global
+        // prefs, and the machine's old key is left out of what is written.
+        controllerEntries = MachineInputPrefs::BuildControllerEntries (token, std::string());
         entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
         entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (snapshot.multiplayer));
     }

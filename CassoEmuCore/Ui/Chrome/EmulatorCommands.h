@@ -78,8 +78,19 @@ public:
     // Raised when the user picks a row of the paddle-source list.
     using PaddleSourcePickedFn = std::function<void (const InputModeRules::PaddleSource &)>;
 
-    // Raised when the user picks a row of the profile list. Empty for Default.
-    using ProfilePickedFn = std::function<void (const std::string & profileName)>;
+    // Raised when the user picks a profile for one controller. Empty for Default.
+    using ProfilePickedFn = std::function<void (const ControllerUnitKey & unit, const std::string & profileName)>;
+
+    // One controller's part of the Profiles submenu: its model's profiles,
+    // its own active one, and the header over them -- empty when it is the
+    // only controller listed, where a title would say nothing.
+    struct ProfileSection
+    {
+        ControllerUnitKey         unit;
+        std::wstring              header;
+        std::vector<std::string>  names;
+        std::string               active;
+    };
 
     // Ids for the toolbar entries that are not menu commands. Menu command
     // ids start at 40001, so nothing collides.
@@ -88,7 +99,6 @@ public:
     static constexpr int  kIdVolume  = 3;
     static constexpr int  kIdPaddle  = 5;
     static constexpr int  kIdMouse   = 6;
-    static constexpr int  kIdProfile = 7;
 
     static constexpr int  kMenuCount = 7;
 
@@ -163,20 +173,17 @@ public:
     // and the disabled ink already says it is not there (FR-008b).
     InputMonoGlyphKind              GetCheckedPaddleSourceGlyph () const;
 
-    // The selected controller model's profiles, Default first, the active one
-    // checked (empty means Default; names match ignoring case). Not offered
-    // while no controller is selected: the entry is disabled rather than
-    // removed, so the strip does not reflow, and its face reads Default. Like
-    // the paddle rows, each row carries the name it shows, so a row from a
-    // list rebuilt since still picks what it says.
-    void  SetProfiles        (const std::vector<std::string> & names,
-                              const std::string              & activeProfile,
-                              bool                             isOffered);
-    void  SetProfilePickedFn (ProfilePickedFn fn) { m_onProfilePicked = std::move (fn); }
+    // The Profiles submenu under the paddle picker: a section for each
+    // controller in play, each listing its model's profiles with Default
+    // first and its own active one checked (empty means Default; names match
+    // ignoring case), then New... With no sections the submenu is left out.
+    // Each row carries its controller and name by value, so a row from a list
+    // rebuilt since still picks what it says.
+    void  SetProfileSections (std::vector<ProfileSection> sections);
+    void  SetProfilePickedFn (ProfilePickedFn fn)          { m_onProfilePicked = std::move (fn); }
+    void  SetNewProfileFn    (std::function<void ()> fn)   { m_onNewProfile    = std::move (fn); }
 
-    std::vector<DxuiPopupMenuItem>  GetProfileItems        () const;
-    std::wstring                    GetActiveProfileLabel  () const;
-    bool                            IsProfilePickerOffered () const { return m_isProfileOffered; }
+    std::vector<DxuiPopupMenuItem>  GetProfileItems () const;
 
     // Fills the toolbar: eleven entries in strip order, the LED as the printer
     // entry's decoration and
@@ -189,7 +196,6 @@ public:
 private:
     std::shared_ptr<DxuiCommand>  FindMutable          (int commandId);
     void                          RebuildActionTips    ();
-    std::string                   GetActiveProfileName () const;
 
 
     DispatchFn  m_dispatch;
@@ -207,11 +213,14 @@ private:
     std::vector<InputModeRules::PaddleSource>  m_paddleSources;
     PaddleSourcePickedFn                       m_onPaddleSourcePicked;
 
-    std::vector<std::shared_ptr<DxuiCommand>>  m_profileRows;
-    std::vector<std::string>                   m_profileNames;
-    std::string                                m_activeProfile;
-    bool                                       m_isProfileOffered = false;
+    // The Profiles submenu: its rows as built from the sections, the row that
+    // opens it, and its New... row.
+    std::vector<ProfileSection>                m_profileSections;
+    std::vector<DxuiPopupMenuItem>             m_profileItems;
+    std::shared_ptr<DxuiCommand>               m_profilesRow;
+    std::shared_ptr<DxuiCommand>               m_newProfileRow;
     ProfilePickedFn                            m_onProfilePicked;
+    std::function<void ()>                     m_onNewProfile;
 
     std::wstring  m_machineName;
     int           m_themeIndex = -1;

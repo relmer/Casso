@@ -1088,14 +1088,54 @@ namespace ControllerTests
             backend.SetSample (device.unit, MakePushedSample());
             service.SetModelSettings (MakeModelSettings (device, "Swapped", MakeButtonOneToPb1Mapping()));
 
-            service.SetActiveProfile ("swapped");
+            service.SetActiveProfile (device.unit, "swapped");
             service.SetSelection (device.unit);
             service.Tick();
 
-            Assert::AreEqual (std::string ("swapped"), service.GetSnapshot().activeProfile, L"the snapshot carries the active profile");
+            Assert::AreEqual (std::string ("swapped"), service.GetSnapshot().activeProfiles.at (ControllerTokens::UnitToToken (device.unit)), L"the snapshot carries the controller's active profile");
             Assert::IsTrue   (sink.writes.back().state.buttons.test (1),                   L"the profile's binding drives PB1");
             Assert::IsFalse  (sink.writes.back().state.buttons.test (0),                   L"and PB0, which it does not bind, stays up");
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],                 L"and the stick it does not bind rests");
+        }
+
+
+        // Two players on two pads of ONE model, each on its own profile. The
+        // active profile belongs to the controller, so the model's shared
+        // profile list does not make the players share a choice.
+        TEST_METHOD (ActiveProfile_TwoPadsOfOneModelPlayTheirOwn)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    first  = MakeXboxDevice();
+            ControllerDeviceInfo    second = MakeXboxDevice();
+
+            first.unit.unitId  = "045e:02e0";
+            first.unit.source  = ControllerUnitSource::XInputProduct;
+            second.unit.unitId = "045e:02e0:2";
+            second.unit.source = ControllerUnitSource::XInputProduct;
+            second.xinputSlot  = 1;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (first,  true);
+            backend.AddDevice (second, true);
+            backend.SetSample (first.unit,  MakePushedSample());
+            backend.SetSample (second.unit, MakePushedSample());
+            service.SetModelSettings (MakeModelSettings (first, "Swapped", MakeButtonOneToPb1Mapping()));
+
+            service.SetMultiplayer    (MakeTwoPlayers (first.unit, second.unit));
+            service.SetActiveProfile  (second.unit, "Swapped");
+            service.SetSelection      (first.unit);
+            service.Tick();
+
+            Assert::IsTrue   (service.GetActiveProfile (first.unit).empty(),                L"player one's pad keeps the Default");
+            Assert::AreEqual (std::string ("Swapped"), service.GetActiveProfile (second.unit));
+            Assert::IsTrue   (sink.writes.back().state.paddle[0] > kCenter,                 L"player one's Default drives their paddle");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),                    L"and their button line");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[1],                  L"player two's profile binds no stick, so their paddle rests");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (1),                    L"and binds no first button, so their line stays up");
         }
 
 
@@ -1118,7 +1158,7 @@ namespace ControllerTests
 
             Assert::IsTrue (sink.writes.back().state.buttons.test (0), L"Default holds PB0 down");
 
-            service.SetActiveProfile ("Swapped");
+            service.SetActiveProfile (device.unit, "Swapped");
 
             Assert::IsFalse  (sink.writes.back().state.buttons.test (0),   L"the switch releases a button the new profile does not bind");
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and centers an axis it does not drive, before the next reading");
@@ -1167,7 +1207,7 @@ namespace ControllerTests
             service.SetClock ([&now]() { return now; });
             service.SetModelSettings (models);
 
-            service.SetActiveProfile ("Rate A");
+            service.SetActiveProfile (device.unit, "Rate A");
             service.SetSelection (device.unit);
 
             for (i = 0; i < kTicks; i++)
@@ -1180,7 +1220,7 @@ namespace ControllerTests
 
             rest.connected = true;
             backend.SetSample (device.unit, rest);
-            service.SetActiveProfile ("Rate B");
+            service.SetActiveProfile (device.unit, "Rate B");
             service.Tick();
 
             Assert::IsTrue (sink.writes.back().state.paddle[0] <= kCenter + 1, L"the new profile starts its rate paddle at center");
@@ -1202,14 +1242,14 @@ namespace ControllerTests
             backend.SetSample (device.unit, MakePushedSample());
             service.SetModelSettings (models);
 
-            service.SetActiveProfile ("Deleted Elsewhere");
+            service.SetActiveProfile (device.unit, "Deleted Elsewhere");
             service.SetSelection (device.unit);
             service.Tick();
 
             Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"a missing profile plays the Default mapping");
             Assert::IsTrue   (sink.writes.back().state.buttons.test (0),                   L"buttons included");
             Assert::IsTrue   (service.GetModelSettings() == models,                        L"and nothing is created for the missing name");
-            Assert::AreEqual (std::string ("Deleted Elsewhere"), service.GetActiveProfile(), L"the remembered name is kept as it was");
+            Assert::AreEqual (std::string ("Deleted Elsewhere"), service.GetActiveProfile (device.unit), L"the remembered name is kept as it was");
         }
 
 
@@ -1229,7 +1269,7 @@ namespace ControllerTests
             // Saved against the model through another unit; this unit has no
             // calibration or anything else of its own.
             service.SetModelSettings (MakeModelSettings (known, "Swapped", MakeButtonOneToPb1Mapping()));
-            service.SetActiveProfile ("Swapped");
+            service.SetActiveProfile (newUnit.unit, "Swapped");
 
             sample.connected = true;
             sample.buttons.set (0);

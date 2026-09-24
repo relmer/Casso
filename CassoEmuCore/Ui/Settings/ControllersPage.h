@@ -91,6 +91,10 @@ public:
     // with player one's slot empty.
     void  FollowPlayerOne  ();
 
+    // New... from the paddle picker's Profiles submenu: the New Profile dialog
+    // for the controller being edited, after asking about unsaved edits.
+    void  StartNewProfile  () { OnNewProfile(); }
+
     // Press-to-assign in progress, for the sheet's prompt over the page: the
     // sentence it shows, and a way to call the wait off.
     bool          IsCapturing        () const;

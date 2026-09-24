@@ -60,8 +60,9 @@ public:
         // (FR-011).
         std::optional<ControllerUnitKey>       saved;
 
-        // The machine's active profile by name; empty means Default.
-        std::string                            activeProfile;
+        // Each controller's active profile, by unit token; a missing or empty
+        // entry means Default.
+        std::map<std::string, std::string>     activeProfiles;
         ControllerSample                       lastSample;
         bool                                   isSelectedConnected  = false;
 
@@ -162,13 +163,16 @@ public:
     void                                            SetModelSettings (std::map<std::string, ControllerModelSettings> models);
     std::map<std::string, ControllerModelSettings>  GetModelSettings () const;
 
-    // The profile the machine plays with, by name; empty means Default. Every
-    // controller that drives the game port plays its own model's profile of
-    // that name. A name a model does not have plays its Default, and nothing
-    // is created or saved for it. A change takes effect on the next reading,
-    // releasing whatever the old profile held.
-    void         SetActiveProfile (const std::string & name);
-    std::string  GetActiveProfile () const;
+    // Each controller's active profile, by name; empty means Default. The
+    // choice belongs to the controller, not the machine or the player, so a
+    // controller plays its profile on any machine and keeps it through a
+    // swap between players. A name its model does not have plays the
+    // Default. A change takes effect on the next reading, releasing whatever
+    // the old profile held.
+    void                                SetActiveProfile  (const ControllerUnitKey & unit, const std::string & name);
+    std::string                         GetActiveProfile  (const ControllerUnitKey & unit) const;
+    void                                SetActiveProfiles (std::map<std::string, std::string> activeProfiles);
+    std::map<std::string, std::string>  GetActiveProfiles () const;
 
     // Every DirectInput unit's calibration, by unit token. Set once from the
     // saved prefs; read back to save them, including what automatic
@@ -233,6 +237,7 @@ private:
 
     // All of these assume m_mutex is already held.
     const ControllerDeviceInfo *    FindDeviceLocked         (const ControllerUnitKey & unit) const;
+    std::string                     GetActiveProfileLocked   (const ControllerUnitKey & unit) const;
     MultiplayerSetup                GetLiveMultiplayerLocked () const;
     std::vector<ControllerUnitKey>  GetDriverUnitsLocked     () const;
     MultiplayerSetup::AxisSet       GetDriverAxesLocked      (const ControllerUnitKey & unit) const;
@@ -269,7 +274,7 @@ private:
 
     std::map<std::string, ControllerCalibration>         m_calibrations;
     ControllerProfileStore                               m_profiles;
-    std::string                                          m_activeProfile;
+    std::map<std::string, std::string>                   m_activeProfiles;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;

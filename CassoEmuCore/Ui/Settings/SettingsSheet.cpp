@@ -441,13 +441,13 @@ HRESULT SettingsSheet::OpenModeless (
         {
             ControllerInputService::Snapshot  snapshot = service->GetSnapshot();
 
-            // The page opens on the machine's selected controller and active
-            // profile.
+            // The page opens on the machine's selected controller, with every
+            // controller's own active profile.
             m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
                                      !m_emuShell->MachineHasCaseSwitches(),
-                                     snapshot.activeProfile,
+                                     snapshot.activeProfiles,
                                      snapshot.selection);
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
@@ -607,6 +607,24 @@ void SettingsSheet::ShowControllersPage()
     if (index >= 0)
     {
         SetActivePage (index);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartNewControllerProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::StartNewControllerProfile()
+{
+    if (m_controllersPage != nullptr)
+    {
+        m_controllersPage->StartNewProfile();
     }
 }
 

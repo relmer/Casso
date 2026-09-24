@@ -749,10 +749,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         });
 
     m_mainMenu.GetCommands().SetProfilePickedFn (
-        [this] (const std::string & profileName)
+        [this] (const ControllerUnitKey & unit, const std::string & profileName)
         {
-            PickControllerProfile (profileName);
+            PickControllerProfile (unit, profileName);
         });
+
+    m_mainMenu.GetCommands().SetNewProfileFn ([this] ()
+    {
+        StartNewControllerProfile();
+    });
 
     m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
     {

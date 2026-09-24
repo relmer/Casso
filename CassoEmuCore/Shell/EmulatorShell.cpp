@@ -467,8 +467,9 @@ HRESULT EmulatorShell::Initialize (
         std::vector<std::string>  rejected;
 
         store.FromJson (m_globalPrefs.controllers, rejected);
-        m_controllerService->SetModelSettings (store.models);
-        m_controllerService->SetCalibrations  (store.calibrations);
+        m_controllerService->SetModelSettings  (store.models);
+        m_controllerService->SetCalibrations   (store.calibrations);
+        m_controllerService->SetActiveProfiles (store.activeProfiles);
 
         if (!rejected.empty())
         {
