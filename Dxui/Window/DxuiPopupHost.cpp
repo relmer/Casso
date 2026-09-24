@@ -471,6 +471,7 @@ Error:
 void DxuiPopupHost::Close (int resultCode)
 {
     std::function<void()>  onClosed;
+    DxuiPopupHost *        parent   = m_parent;
 
 
 
@@ -517,6 +518,13 @@ void DxuiPopupHost::Close (int resultCode)
         }
 
         ShowWindow (m_hwnd, SW_HIDE);
+
+        //  A submenu took the mouse from the menu it opened from; closing hands
+        //  it back, so a click outside still dismisses the menu left open.
+        if (parent != nullptr && parent->m_open && parent->m_hwnd != nullptr && parent->m_params.grabsCapture)
+        {
+            SetCapture (parent->m_hwnd);
+        }
     }
 
     // Capture onClosed before dropping content so the owning widget
@@ -536,6 +544,41 @@ void DxuiPopupHost::Close (int resultCode)
     {
         onClosed();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSiblingPopup
+//
+//  Whether a window is another popup of this one's owner, as a submenu is.
+//  Asked when the mouse moves to a window before that window's popup has been
+//  linked to this one, so it goes by the window's class and owner rather than
+//  by the link.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::IsSiblingPopup (HWND hwnd) const
+{
+    constexpr size_t  s_kPrefixLength = 14;   // "DxuiPopupHost_"
+
+
+
+    wchar_t  className[64] = {};
+    bool     sibling       = false;
+
+
+
+    if (hwnd != nullptr && hwnd != m_hwnd && GetWindow (hwnd, GW_OWNER) == GetWindow (m_hwnd, GW_OWNER)
+        && GetClassNameW (hwnd, className, (int) ARRAYSIZE (className)) > 0)
+    {
+        sibling = wcsncmp (className, L"DxuiPopupHost_", s_kPrefixLength) == 0;
+    }
+
+    return sibling;
 }
 
 
@@ -862,6 +905,56 @@ RECT DxuiPopupHost::GetContentClientRect() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindAncestorAt
+//
+//  Nearest ancestor first, so where two levels overlap the point goes to the
+//  one drawn on top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupHost * DxuiPopupHost::FindAncestorAt (POINT clientPx, POINT & outCardPx) const
+{
+    DxuiPopupHost *  ancestor = m_parent;
+    POINT            screen   = clientPx;
+    POINT            local    = {};
+    RECT             card     = {};
+
+
+
+    if (m_testMode || m_hwnd == nullptr)
+    {
+        return nullptr;
+    }
+
+    ClientToScreen (m_hwnd, &screen);
+
+    for (; ancestor != nullptr; ancestor = ancestor->m_parent)
+    {
+        if (!ancestor->m_open || ancestor->m_hwnd == nullptr)
+        {
+            continue;
+        }
+
+        local = screen;
+        ScreenToClient (ancestor->m_hwnd, &local);
+        card  = ancestor->GetContentClientRect();
+
+        if (PtInRect (&card, local))
+        {
+            outCardPx = POINT { local.x - ancestor->m_shadowMarginPx, local.y - ancestor->m_shadowMarginPx };
+            return ancestor;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WndProc
 //
 //  The popup window's message handler: dismissal policy, hover routing, and
@@ -891,22 +984,42 @@ RECT DxuiPopupHost::GetContentClientRect() const
 //  against its own highlight and marks dirty only on a change, so the cost
 //  stays low where the knowledge is.
 //
+//  A submenu holds the capture, so moves and presses over the menus it opened
+//  from arrive here, not at them. Those go on to the ancestor under the
+//  pointer, the way a Windows menu keeps tracking its parent levels: hovering
+//  a peer of the submenu's row highlights it and closes the submenu, and
+//  clicking one picks it. The ancestor's callback can close this popup, which
+//  only hides the window, so nothing here reads a member after it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 {
-    POINT    pt          = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-    RECT     rc          = {};
-    bool     haveCapture = false;
-    bool     inside      = false;
-    bool     claimed     = false;
-    LRESULT  result      = 0;
+    POINT            pt          = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+    RECT             rc          = {};
+    bool             haveCapture = false;
+    bool             inside      = false;
+    bool             claimed     = false;
+    LRESULT          result      = 0;
+    DxuiPopupHost *  ancestor    = nullptr;
+    POINT            ancestorPx  = {};
 
 
 
     switch (msg)
     {
         case WM_CAPTURECHANGED:
+            //  A submenu opening from this menu takes the mouse to show itself.
+            //  That is not the menu losing the mouse to the rest of the screen,
+            //  so the menu stays; the submenu hands the mouse back as it closes.
+            if (m_open && m_params.dismiss != DxuiPopupDismiss::Manual && !IsSiblingPopup ((HWND) lp))
+            {
+                Close (0);
+            }
+
+            claimed = true;
+            break;
+
         case WM_ACTIVATEAPP:
             if (m_open && m_params.dismiss != DxuiPopupDismiss::Manual)
             {
@@ -927,7 +1040,15 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                 if (PtInRect (&rc, pt))
                 {
                     m_params.onMoveInside (POINT { pt.x - m_shadowMarginPx, pt.y - m_shadowMarginPx });
+                    break;
                 }
+            }
+
+            ancestor = m_open ? FindAncestorAt (pt, ancestorPx) : nullptr;
+
+            if (ancestor != nullptr && ancestor->m_params.onMoveInside)
+            {
+                ancestor->m_params.onMoveInside (ancestorPx);
             }
 
             break;
@@ -954,10 +1075,20 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             {
                 haveCapture = (GetCapture() == m_hwnd);
 
-                rc     = GetContentClientRect();
-                inside = (PtInRect (&rc, pt) != FALSE);
+                rc       = GetContentClientRect();
+                inside   = (PtInRect (&rc, pt) != FALSE);
+                ancestor = inside ? nullptr : FindAncestorAt (pt, ancestorPx);
 
-                if (inside && msg == WM_LBUTTONDOWN && m_params.onClickInside)
+                if (ancestor != nullptr)
+                {
+                    if (msg == WM_LBUTTONDOWN && ancestor->m_params.onClickInside)
+                    {
+                        ancestor->m_params.onClickInside (ancestorPx);
+                    }
+
+                    claimed = true;
+                }
+                else if (inside && msg == WM_LBUTTONDOWN && m_params.onClickInside)
                 {
                     m_params.onClickInside (POINT { pt.x - m_shadowMarginPx, pt.y - m_shadowMarginPx });
                     claimed = true;

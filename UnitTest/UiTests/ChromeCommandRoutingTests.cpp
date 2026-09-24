@@ -341,6 +341,5 @@ public:
         // axes is the picker, and mouse mode is a toggle beside it.
         Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdPaddle).get());
         Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdMouse).get());
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdProfile).get());
     }
 };

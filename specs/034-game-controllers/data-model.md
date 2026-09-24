@@ -166,7 +166,7 @@ Paddles template (`DefaultMapping::MakePaddles`): one player's paddle. PDL0 = ax
 
 ### ControllerProfileStore
 
-Owns `std::map<ModelToken, ModelSettings>` and `std::map<UnitToken, ControllerCalibration>`.
+Owns `std::map<ModelToken, ModelSettings>`, `std::map<UnitToken, ControllerCalibration>`, and `activeProfiles`, a `std::map<UnitToken, std::string>` giving the profile each controller plays; an empty name or no entry is the Default (FR-029).
 
 | Operation | Rule |
 |---|---|
@@ -184,7 +184,7 @@ Owns `std::map<ModelToken, ModelSettings>` and `std::map<UnitToken, ControllerCa
 | Key | Type | Notes |
 |---|---|---|
 | `controller` | unit token or absent | Absent = no controller selected |
-| `controllerProfile` | profile name or absent | Absent or missing profile = Default (FR-029) |
+| `controllerProfile` | profile name or absent | Legacy, read only: moved once to the saved `controller`'s entry in `activeProfiles` when it has none (FR-029) |
 | `multiplayer` | `{ "enabled": <bool>, "players": [ <slot>, <slot> ] }`, or absent | Absent or not enabled = single-source mode: the selected controller drives PDL0/PDL1 and PB0-PB2 (FR-037, FR-038). A slot is `{ "controller": <unit token>, "maps": <target token> }`; slots are kept for paddles the machine lacks (FR-035) |
 
 ### MultiplayerSetup (per machine, two player slots)

@@ -300,6 +300,10 @@ public:
     //  whole tree when a click lands inside an ancestor popup.
     //
     void              SetParentPopup      (DxuiPopupHost * parent);
+
+    //  Whether a window is another popup with this one's owner, such as a
+    //  submenu that has just taken the mouse.
+    bool              IsSiblingPopup      (HWND hwnd) const;
     DxuiPopupHost  *  GetParentPopup      () const { return m_parent;       }
     DxuiPopupHost  *  GetActiveChildPopup () const { return m_activeChild;  }
 
@@ -348,6 +352,13 @@ private:
 
     static LRESULT CALLBACK  s_WndProcThunk  (HWND, UINT, WPARAM, LPARAM);
     LRESULT                  WndProc         (UINT msg, WPARAM wp, LPARAM lp);
+
+    //
+    //  The open popup up this one's parent chain whose card holds a point
+    //  given in this window's client pixels, with the point in that popup's
+    //  card pixels. Null when the point is on no ancestor.
+    //
+    DxuiPopupHost *          FindAncestorAt  (POINT clientPx, POINT & outCardPx) const;
 
     HRESULT  EnsureWindowClass               ();
     HRESULT  CreateHwndAndComposition        (const RECT & placedRectScreenPx);

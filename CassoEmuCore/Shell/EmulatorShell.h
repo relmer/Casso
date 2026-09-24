@@ -593,7 +593,11 @@ private:
     void    SyncProfileList        (const ControllerInputService::Snapshot & snapshot);
 
     // BY VALUE for the same reason as PickPaddleSource. Empty for Default.
-    void    PickControllerProfile  (std::string profileName);
+    void    PickControllerProfile  (ControllerUnitKey unit, std::string profileName);
+
+    // Opens Settings on the Controllers page with the New Profile dialog up,
+    // for the controller Editing opens on.
+    void    StartNewControllerProfile ();
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from

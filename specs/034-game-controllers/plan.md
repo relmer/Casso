@@ -156,7 +156,7 @@ Each slice matches a phase in [tasks.md](tasks.md), leaves the build green, and 
 | 5 | **US3 hot-plug**: disconnect release, stand-in by another attached controller then the arrow keys, reconnect, status LED and tooltip | 4 | US3, FR-008a, FR-010, FR-013 |
 | 6 | **US4 calibration**: automatic and user calibration per unit, calibration persistence | 3 | US4, FR-007, FR-007a, FR-018, FR-018a |
 | 7 | **US5 remapping**: Controllers page, capture, rate response, PB2, Default-profile mapping and deadzone persistence, Controller Settings command | 4, 6 | US5, FR-012, FR-019-025, FR-021a |
-| 8 | **US6 profiles**: named profiles, Paddles template, active profile per machine, Controller Profile submenus | 7 | US6, FR-026-030, SC-010 |
+| 8 | **US6 profiles**: named profiles, Paddles template, active profile per controller unit (per machine until Phase 11), Profiles submenu on the paddle-source picker | 7 | US6, FR-026-030, SC-010 |
 | 9 | **US7 two players**: per-machine axis budget, per-axis ownership and displacement, multi-controller assignment and its persistence, assignment UI on the Controllers page, //c reduced to two axes | 7, 8 | US7, FR-034-038, SC-011, SC-012 |
 | 10 | **Polish**: measurements, CHANGELOG, README, gates | 9 | SC-002, SC-005, SC-007 |
 

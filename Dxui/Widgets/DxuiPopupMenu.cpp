@@ -8,6 +8,7 @@
 
 #include "Core/UnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
+#include "Render/DxuiStroke.h"
 
 
 
@@ -71,6 +72,33 @@ DxuiPopupMenuItem DxuiPopupMenuItem::ForSubmenu (std::shared_ptr<const DxuiComma
     item.kind     = Kind::Submenu;
     item.command  = std::move (cmd);
     item.children = std::move (children);
+
+    return item;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenuItem::ForHeader
+//
+//  The label rides a command with nothing to dispatch, so a header measures
+//  and draws through the same path as every other row's label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupMenuItem DxuiPopupMenuItem::ForHeader (std::wstring label)
+{
+    DxuiPopupMenuItem             item;
+    std::shared_ptr<DxuiCommand>  cmd  = std::make_shared<DxuiCommand>();
+
+
+
+    cmd->label   = std::move (label);
+    item.kind    = Kind::Header;
+    item.command = std::move (cmd);
 
     return item;
 }
@@ -608,7 +636,8 @@ int DxuiPopupMenu::GetRowAtOffset (int relY) const
 
         if (relY < y + h)
         {
-            return (m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Separator) ? -1 : i;
+            return (m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Separator ||
+                    m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Header) ? -1 : i;
         }
 
         y += h;
@@ -800,9 +829,11 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
             widestLabel = px;
         }
 
+        //  A submenu row ends in a drawn chevron, which needs a fixed width
+        //  rather than a measured glyph.
         if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
         {
-            px = MeasureRunPx (s_kpszTriangleRight, fontPx, text);
+            px = m_scaler.ToPx (s_kSubmenuChevronBoxDip);
         }
         else if (!row.command->accelerator.empty())
         {
@@ -843,8 +874,8 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 //
 //  DxuiPopupMenu::IsSelectable
 //
-//  A row the highlight can rest on and Enter can act on: not a separator,
-//  and its command enabled.
+//  A row the highlight can rest on and Enter can act on: not a separator or a
+//  header, and its command enabled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -862,6 +893,7 @@ bool DxuiPopupMenu::IsSelectable (int index) const
     row = &m_rows[(size_t) index];
 
     return row->kind != DxuiPopupMenuItem::Kind::Separator
+        && row->kind != DxuiPopupMenuItem::Kind::Header
         && row->command != nullptr
         && row->command->IsEnabled();
 }
@@ -931,7 +963,8 @@ int DxuiPopupMenu::FindFirstSelectable() const
     {
         for (int i = 0; i < (int) m_rows.size(); i++)
         {
-            if (m_rows[(size_t) i].kind != DxuiPopupMenuItem::Kind::Separator)
+            if (m_rows[(size_t) i].kind != DxuiPopupMenuItem::Kind::Separator &&
+                m_rows[(size_t) i].kind != DxuiPopupMenuItem::Kind::Header)
             {
                 first = i;
                 break;
@@ -1719,6 +1752,22 @@ void DxuiPopupMenu::PaintRow (
         return;
     }
 
+    //  A header is a title, not a choice: secondary ink, no hover, no check,
+    //  and no underline cue, since nothing under it answers a keystroke.
+    if (row.kind == DxuiPopupMenuItem::Kind::Header)
+    {
+        hr = text.DrawString (row.command->GetLabelText().c_str(),
+                              left + (float) labelLeft,
+                              y + (float) padTop,
+                              labelW,
+                              (float) rowH,
+                              pal.accel,
+                              fontDip,
+                              DxuiTheme::kBodyFace);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
     enabled   = row.command->IsEnabled();
     labelArgb = enabled ? pal.text  : pal.disabled;
     accelArgb = enabled ? pal.accel : pal.disabled;
@@ -1769,19 +1818,22 @@ void DxuiPopupMenu::PaintRow (
                         left + (float) labelLeft, y + (float) padTop, fontDip, labelArgb);
     }
 
+    //  Explorer ends a submenu row in a thin chevron, not a filled triangle:
+    //  two strokes meeting at a point, at the right of the accelerator column.
     if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
     {
-        hr = text.DrawString (s_kpszTriangleRight,
-                              left + (float) m_accelLeftPx,
-                              y + (float) padTop,
-                              accelW + (float) m_metrics.rightPadPx - (float) pad,
-                              (float) rowH,
-                              accelArgb,
-                              fontDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextHAlign::Right,
-                              DxuiTextVAlign::Top);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        float  right = left + (float) m_accelLeftPx + accelW + (float) m_metrics.rightPadPx - (float) pad;
+        float  half  = m_scaler.ToPxf (s_kSubmenuChevronHalfDip);
+        float  depth = m_scaler.ToPxf (s_kSubmenuChevronDepthDip);
+        float  thick = (std::max) (1.0f, m_scaler.ToPxf (s_kSubmenuChevronStrokeDip));
+        float  tipX  = right - m_scaler.ToPxf (s_kSubmenuChevronInsetDip);
+        float  midY  = y + (float) rowH * 0.5f;
+
+        //  Centered on the row itself, not on the text line's offset within it,
+        //  and drawn as filled quads, whose edges are smoothed where a stroked
+        //  line's are not.
+        DxuiStroke::Segment (painter, tipX - depth, midY - half, tipX, midY, thick, accelArgb);
+        DxuiStroke::Segment (painter, tipX - depth, midY + half, tipX, midY, thick, accelArgb);
     }
     else if (!row.command->accelerator.empty())
     {

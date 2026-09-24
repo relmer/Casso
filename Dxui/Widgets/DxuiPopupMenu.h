@@ -38,6 +38,10 @@ struct DxuiPopupMenuItem
         Command,
         Separator,
         Submenu,
+
+        //  A label over the rows that follow it, as Windows 11 menus title a
+        //  group. Never hovered, clicked or reached by the keyboard.
+        Header,
     };
 
     Kind                                kind     = Kind::Command;
@@ -47,6 +51,7 @@ struct DxuiPopupMenuItem
     static DxuiPopupMenuItem  ForCommand   (std::shared_ptr<const DxuiCommand> cmd);
     static DxuiPopupMenuItem  ForSeparator ();
     static DxuiPopupMenuItem  ForSubmenu   (std::shared_ptr<const DxuiCommand> cmd, std::vector<DxuiPopupMenuItem> children);
+    static DxuiPopupMenuItem  ForHeader    (std::wstring label);
 };
 
 
@@ -262,6 +267,14 @@ private:
     static constexpr int       kHoverInsetXDip         = 4;
     static constexpr int       kHoverInsetYDip         = 2;
     static constexpr float     kHoverRadiusDip         = 4.0f;
+
+    //  A submenu row's chevron, drawn as Explorer draws it: two thin strokes
+    //  meeting at a point, in a box of fixed width at the row's right.
+    static constexpr int       s_kSubmenuChevronBoxDip    = 12;
+    static constexpr float     s_kSubmenuChevronHalfDip   = 4.0f;
+    static constexpr float     s_kSubmenuChevronDepthDip  = 4.0f;
+    static constexpr float     s_kSubmenuChevronStrokeDip = 1.0f;
+    static constexpr float     s_kSubmenuChevronInsetDip  = 4.0f;
 
     struct Palette
     {
