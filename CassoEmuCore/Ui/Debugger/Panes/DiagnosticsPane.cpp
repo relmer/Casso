@@ -33,10 +33,10 @@ DiagnosticsPane::DiagnosticsPane (
     m_frame  (std::make_unique<DebuggerPaneFrame> (m_title))
 {
     m_frame->AddPart (m_map,
-                      [this] (int, const DxuiDpiScaler & scaler) { return m_map->GetPreferredHeightPx (scaler); },
+                      [this] (int width, const DxuiDpiScaler & scaler) { return m_map->GetPreferredHeightPx (width, scaler); },
                       [this] { return m_visual == Visual::MemoryMap; });
     m_frame->AddPart (m_head,
-                      [this] (int, const DxuiDpiScaler & scaler) { return m_head->GetPreferredHeightPx (scaler); },
+                      [this] (int width, const DxuiDpiScaler & scaler) { return m_head->GetPreferredHeightPx (width, scaler); },
                       [this] { return m_visual == Visual::DiskHead; });
     m_frame->AddPart (m_meters,
                       [this] (int, const DxuiDpiScaler & scaler) { return m_meters->GetPreferredHeightPx (scaler); },

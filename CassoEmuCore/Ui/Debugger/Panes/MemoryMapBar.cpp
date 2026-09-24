@@ -83,17 +83,73 @@ const wchar_t * MemoryMapBar::GetSourceName (MemorySource source)
 //
 //  MemoryMapBar::GetPreferredHeightPx
 //
-//  The read strip, the write strip, and the key.
+//  The read strip, the write strip, and the key, in as many rows as it wraps
+//  to at this width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int MemoryMapBar::GetPreferredHeightPx (const DxuiDpiScaler & scaler) const
+int MemoryMapBar::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 {
-    constexpr int  kStrips = 2;
+    constexpr int                                       kStrips = 2;
+    std::vector<std::pair<MemorySource, POINT>>         key     = LayOutKey ((float) widthPx, scaler);
+    int                                                 rows    = key.empty() ? 1 : (int) key.back().second.y + 1;
 
 
 
-    return scaler.ToPx ((kStripDip + kGapDip) * kStrips + kKeyDip);
+    return scaler.ToPx ((kStripDip + kGapDip) * kStrips + kKeyDip * rows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::LayOutKey
+//
+//  Each entry as wide as its swatch and name, the names measured by the
+//  monospace advance, and a new row where the next would pass the right edge.
+//  An entry wider than the whole bar still gets a row of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<MemorySource, POINT>> MemoryMapBar::LayOutKey (float widthPx, const DxuiDpiScaler & scaler) const
+{
+    static constexpr float                        kAdvancePerDip = 0.6f;
+    float                                         indent         = scaler.ToPxf ((float) kKeyIndentDip);
+    float                                         gap            = scaler.ToPxf ((float) kKeyGapDip);
+    float                                         advance        = scaler.ToPxf (m_fontDip) * kAdvancePerDip;
+    float                                         x              = 0.0f;
+    LONG                                          row            = 0;
+    std::vector<std::pair<MemorySource, POINT>>   key;
+
+
+
+    for (int index = (int) MemorySource::Main; index < (int) MemorySource::Count; index++)
+    {
+        MemorySource  source = (MemorySource) index;
+        float         width  = indent + (float) wcslen (GetSourceName (source)) * advance;
+        bool          used   = std::any_of (m_map.pages.begin(), m_map.pages.end(), [source] (const DiagnosticsMemoryMap::Page & page)
+        {
+            return page.read == source || page.write == source;
+        });
+
+        if (!used)
+        {
+            continue;
+        }
+
+        if (x > 0.0f && x + width > widthPx)
+        {
+            x = 0.0f;
+            row++;
+        }
+
+        key.push_back ({ source, POINT { (LONG) x, row } });
+        x += width + gap;
+    }
+
+    return key;
 }
 
 
@@ -159,6 +215,9 @@ void MemoryMapBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         return;
     }
 
+    //  The key's rows are counted at this size before the next layout.
+    m_fontDip = font.sizeDip;
+
     PaintStrip (painter, theme, top,               false);
     PaintStrip (painter, theme, top + strip + gap, true);
     PaintKey   (painter, text, theme, top + (strip + gap) + (strip + gap));
@@ -217,7 +276,8 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, const IDxuiTheme & theme,
 //
 //  MemoryMapBar::PaintKey
 //
-//  Only the sources the map uses, so the key names what is on screen.
+//  Only the sources the map uses, so the key names what is on screen, each
+//  entry as wide as its name and the key wrapped to the bar's width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,33 +286,23 @@ void MemoryMapBar::PaintKey (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     DxuiFontHandle  font   = theme.MonospaceFont();
     float           key    = m_scaler.ToPxf ((float) kKeyDip);
     float           swatch = m_scaler.ToPxf ((float) kSwatchDip);
-    float           item   = m_scaler.ToPxf ((float) kKeyItemDip);
     float           indent = m_scaler.ToPxf ((float) kKeyIndentDip);
-    float           x      = (float) m_boundsDip.left;
+    float           left   = (float) m_boundsDip.left;
+    float           width  = (float) (m_boundsDip.right - m_boundsDip.left);
     HRESULT         hr     = S_OK;
 
 
 
-    for (int index = (int) MemorySource::Main; index < (int) MemorySource::Count; index++)
+    for (const auto & [source, at] : LayOutKey (width, m_scaler))
     {
-        MemorySource  source = (MemorySource) index;
-        bool          used   = std::any_of (m_map.pages.begin(), m_map.pages.end(), [source] (const DiagnosticsMemoryMap::Page & page)
-        {
-            return page.read == source || page.write == source;
-        });
+        float  x   = left + (float) at.x;
+        float  top = y + key * (float) at.y;
 
-        if (!used || x + item > (float) m_boundsDip.right)
-        {
-            continue;
-        }
+        painter.FillRect (x, top + (key - swatch) / 2, swatch, swatch, GetSourceColor (source));
 
-        painter.FillRect (x, y + (key - swatch) / 2, swatch, swatch, GetSourceColor (source));
-
-        hr = text.DrawString (GetSourceName (source), x + indent, y, item - indent, key,
+        hr = text.DrawString (GetSourceName (source), x + indent, top, width - (float) at.x - indent, key,
                               theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
-
-        x += item;
     }
 }

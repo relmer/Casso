@@ -16,9 +16,61 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DiskHeadView::GetPreferredHeightPx (const DxuiDpiScaler & scaler) const
+int DiskHeadView::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 {
-    return scaler.ToPx (kRulerDip + kGapDip + kRowDip);
+    int  rows = IsLabelBelow ((float) widthPx, scaler) ? 2 : 1;
+
+
+
+    return scaler.ToPx (kRulerDip + kGapDip + kRowDip * rows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::GetLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskHeadView::GetLabel() const
+{
+    constexpr int  kHundredths = 100;
+
+
+
+    return std::format (L"Drive {}  track {}.{:02}", m_head.drive + 1, m_head.quarterTrack / kQuarters,
+                        (m_head.quarterTrack % kQuarters) * (kHundredths / kQuarters));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::IsLabelBelow
+//
+//  The lamps and the label side by side where they fit, measured by the
+//  monospace advance; otherwise the label takes a row of its own rather than
+//  being cut off at the pane's edge. The widest track is assumed, so the
+//  label does not jump between rows as the head moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskHeadView::IsLabelBelow (float widthPx, const DxuiDpiScaler & scaler) const
+{
+    static constexpr float  kAdvancePerDip = 0.6f;
+    static constexpr int    kLamps         = 5;
+    static constexpr size_t kWidestLabel   = std::size (L"Drive 2  track 39.75") - 1;
+    float                   lamps          = scaler.ToPxf ((float) kLampStepDip) * kLamps;
+    float                   label          = scaler.ToPxf (m_fontDip) * kAdvancePerDip * (float) kWidestLabel;
+
+
+
+    return lamps + label > widthPx;
 }
 
 
@@ -91,6 +143,10 @@ void DiskHeadView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         return;
     }
 
+    //  Whether the label fits beside the lamps is judged at this size before
+    //  the next layout.
+    m_fontDip = theme.MonospaceFont().sizeDip;
+
     PaintRuler (painter, theme);
     PaintLamps (painter, text, theme);
 }
@@ -138,23 +194,23 @@ void DiskHeadView::PaintRuler (IDxuiPainter & painter, const IDxuiTheme & theme)
 //
 //  DiskHeadView::PaintLamps
 //
-//  PH0 to PH3, then the motor, then the drive and track as text.
+//  PH0 to PH3, then the motor, then the drive and track as text: beside the
+//  lamps, or on the row below them where it would not fit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr int   kPhases     = 4;
-    constexpr int   kHundredths = 100;
-    DxuiFontHandle  font        = theme.MonospaceFont();
-    float           row         = m_scaler.ToPxf ((float) kRowDip);
-    float           lamp        = m_scaler.ToPxf ((float) kLampDip);
-    float           step        = m_scaler.ToPxf ((float) kLampStepDip);
-    float           top         = (float) m_boundsDip.top + m_scaler.ToPxf ((float) (kRulerDip + kGapDip));
-    float           x           = (float) m_boundsDip.left;
-    float           size        = m_scaler.ToPxf (font.sizeDip);
+    constexpr int   kPhases = 4;
+    DxuiFontHandle  font    = theme.MonospaceFont();
+    float           row     = m_scaler.ToPxf ((float) kRowDip);
+    float           lamp    = m_scaler.ToPxf ((float) kLampDip);
+    float           step    = m_scaler.ToPxf ((float) kLampStepDip);
+    float           top     = (float) m_boundsDip.top + m_scaler.ToPxf ((float) (kRulerDip + kGapDip));
+    float           x       = (float) m_boundsDip.left;
+    float           size    = m_scaler.ToPxf (font.sizeDip);
     std::wstring    label;
-    HRESULT         hr          = S_OK;
+    HRESULT         hr      = S_OK;
 
 
 
@@ -173,8 +229,13 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
         x += step;
     }
 
-    label = std::format (L"Drive {}  track {}.{:02}", m_head.drive + 1, m_head.quarterTrack / kQuarters,
-                         (m_head.quarterTrack % kQuarters) * (kHundredths / kQuarters));
+    if (IsLabelBelow ((float) (m_boundsDip.right - m_boundsDip.left), m_scaler))
+    {
+        x    = (float) m_boundsDip.left;
+        top += row;
+    }
+
+    label = GetLabel();
     hr    = text.DrawString (label.c_str(), x, top, std::max (0.0f, (float) m_boundsDip.right - x), row, theme.Foreground(), size, font.face,
                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);

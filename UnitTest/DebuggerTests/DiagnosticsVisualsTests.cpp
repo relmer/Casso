@@ -140,6 +140,45 @@ namespace DebuggerTests
             view.SetHead ({ 0, 139, 0x00, false, 1 });
             view.Paint   (painter, text, theme);
             Assert::IsTrue (HasFill (painter, 0.0f, 0.0f, 1.0f, theme.ForegroundMuted()), L"a resting head is muted");
+
+            //  140 pixels is too narrow for the drive and track beside the
+            //  lamps, so they take a row of their own rather than being cut.
+            Assert::AreEqual (view.GetPreferredHeightPx (1000, Scaler96()) + DiskHeadView::kRowDip,
+                              view.GetPreferredHeightPx (140, Scaler96()));
+        }
+
+
+        //  In a narrow pane the key wraps rather than running its names into
+        //  one another or leaving sources out, and the bar asks for the rows.
+        TEST_METHOD (TheMemoryMapKeyWrapsAndNamesEverySource)
+        {
+            constexpr int         kNarrow = 120;
+            MemoryMapBar          bar;
+            DiagnosticsMemoryMap  map;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            const MemorySource    sources[] = { MemorySource::Main, MemorySource::Aux, MemorySource::LcBank1,
+                                                MemorySource::Rom,  MemorySource::SlotRom, MemorySource::Io };
+
+
+
+            for (size_t page = 0; page < DiagnosticsMemoryMap::kPageCount; page++)
+            {
+                map.pages[page] = { sources[page % std::size (sources)], MemorySource::Main };
+            }
+
+            bar.SetMap (map);
+            bar.Layout (RECT { 0, 0, kNarrow, 200 }, Scaler96());
+            bar.Paint  (painter, text, theme);
+
+            for (MemorySource source : sources)
+            {
+                Assert::IsTrue (HasText (text, MemoryMapBar::GetSourceName (source)), MemoryMapBar::GetSourceName (source));
+            }
+
+            Assert::IsTrue (bar.GetPreferredHeightPx (kNarrow, Scaler96()) > bar.GetPreferredHeightPx (2000, Scaler96()),
+                            L"the narrow bar's key takes more rows");
         }
 
 
