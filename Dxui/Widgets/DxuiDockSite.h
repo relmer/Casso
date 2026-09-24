@@ -72,6 +72,24 @@ public:
     void  SetNewTab    (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::NewTabFn add);
     void  SetOnFloatRequested (FloatFn fn)            { m_onFloat   = std::move (fn); }
 
+    //  Which panes are documents: a group holding one has its tabs along its
+    //  top; any other group is a tool window, with a title bar. With no
+    //  predicate every group is a document group.
+    using PaneTestFn  = std::function<bool (const std::wstring & pane)>;
+    using PaneFn      = std::function<void (const std::wstring & pane)>;
+    using PanePointFn = std::function<void (const std::wstring & pane, POINT pointDip)>;
+
+    void  SetDocumentFn   (PaneTestFn fn)  { m_isDocument = std::move (fn); }
+
+    //  The pane the user is working in: its group shows the accent border.
+    void  SetFocusedPane  (const std::wstring & pane);
+
+    //  A tool window's menu button, and a close from a document tab or a
+    //  tool window's title bar. A pane closes only while `canClose` says so;
+    //  without it, every pane can.
+    void  SetOnPaneMenu   (PanePointFn fn) { m_onPaneMenu = std::move (fn); }
+    void  SetOnClosePane  (PaneFn fn, PaneTestFn canClose);
+
     //  Lays the panes out again in the current bounds.
     void  Relayout     ();
 
@@ -156,12 +174,25 @@ private:
     int           HitTestSash   (POINT pointDip) const;
     RECT          GetSashRect   (const DxuiPaneLayout::SplitRect & split) const;
     std::wstring  GetTitle      (const std::wstring & pane) const;
+    static constexpr wchar_t  kAutoHideLabel[] = L"Auto Hide";
+
+    void          WireGroup     (DxuiTabGroup * group);
+    void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;
     DxuiPaneLayout::MinSizeFn                     m_minSize;
     std::map<std::wstring, Pane>                  m_panes;
     std::vector<std::unique_ptr<DxuiTabGroup>>    m_groups;
+
+    //  Groups a layout no longer needs, kept until the next event: the one
+    //  whose button or tab changed the layout is still running its handler.
+    std::vector<std::unique_ptr<DxuiTabGroup>>    m_retired;
+    PaneTestFn                                    m_isDocument;
+    PanePointFn                                   m_onPaneMenu;
+    PaneFn                                        m_onClosePane;
+    PaneTestFn                                    m_canClosePane;
+    std::wstring                                  m_focusedPane;
     std::vector<DxuiPaneLayout::SplitRect>        m_splits;
     DxuiDpiScaler                                 m_scaler;
     ChangedFn                                     m_onChanged;

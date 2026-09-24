@@ -202,7 +202,132 @@ namespace DxuiTabGroupTests
 
 
             rig.group.Paint (painter, text, theme);
-            Assert::AreEqual ((size_t) 3, text.Calls().size());
+
+            for (const wchar_t * title : { L"Registers", L"Stack", L"Watch" })
+            {
+                Assert::IsTrue (std::any_of (text.Calls().begin(), text.Calls().end(),
+                                             [title] (const RecordedTextCall & call) { return call.text == title; }), title);
+            }
+        }
+
+
+        TEST_METHOD (AToolWindowOfOnePaneHasATitleBarAndNoTabs)
+        {
+            DxuiTabGroup     group;
+            MockDxuiControl  a;
+            DxuiDpiScaler    scaler;
+
+
+
+            group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+            group.AddTab  (L"Registers", &a);
+            group.Layout  (RECT { 0, 0, 400, 300 }, scaler);
+
+            Assert::AreEqual ((long) DxuiTabGroup::kTitleDip, a.GetBounds().top,    L"below the title bar");
+            Assert::AreEqual ((long) 300,                     a.GetBounds().bottom, L"no strip below");
+            Assert::AreEqual (-1, group.HitTestTab (POINT { 5, 5 }));
+            Assert::IsTrue   (group.IsChromeAt (POINT { 5, 5 }));
+            Assert::IsFalse  (group.IsChromeAt (POINT { 5, 290 }));
+        }
+
+
+        TEST_METHOD (AToolWindowOfSeveralPanesHasItsTabsAlongTheBottom)
+        {
+            Rig   rig;
+            RECT  tab = {};
+
+
+
+            rig.group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+            tab = rig.group.GetTabRect (0);
+
+            Assert::AreEqual ((long) DxuiTabGroup::kTitleDip,        rig.a.GetBounds().top);
+            Assert::AreEqual ((long) (300 - DxuiTabGroup::kStripDip), rig.a.GetBounds().bottom, L"above the strip");
+            Assert::AreEqual ((long) (300 - DxuiTabGroup::kStripDip), tab.top);
+            Assert::AreEqual (1, rig.group.HitTestTab (POINT { rig.group.GetTabRect (1).left + 3, tab.top + 3 }));
+        }
+
+
+        TEST_METHOD (ATitleBarButtonActsOnReleaseOverIt)
+        {
+            Rig                        rig;
+            RECT                       pin    = {};
+            int                        clicks = 0;
+            DxuiTabGroup::TitleButton  which  = DxuiTabGroup::TitleButton::Menu;
+            int                        index  = -1;
+
+
+
+            rig.group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+            rig.group.SetActive (1);
+            rig.group.SetOnTitleButton ([&] (DxuiTabGroup::TitleButton button, int at, POINT) { clicks++; which = button; index = at; });
+            pin = rig.group.GetTitleButtonRect (DxuiTabGroup::TitleButton::Pin);
+
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Down, pin.left + 2, pin.top + 2));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   pin.left - 40, pin.top + 2));
+            Assert::AreEqual (0, clicks, L"released off the button");
+
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Down, pin.left + 2, pin.top + 2));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   pin.left + 2, pin.top + 2));
+            Assert::AreEqual (1, clicks);
+            Assert::IsTrue   (which == DxuiTabGroup::TitleButton::Pin);
+            Assert::AreEqual (1, index, L"for the active pane");
+        }
+
+
+        TEST_METHOD (TheCloseButtonShowsOnlyWhileTheActivePaneCanClose)
+        {
+            Rig  rig;
+
+
+
+            rig.group.SetKind     (DxuiTabGroup::Kind::ToolWindow);
+            rig.group.SetCanClose ([] (int index) { return index != 0; });
+
+            Assert::IsTrue  (rig.group.GetTitleButtonRect (DxuiTabGroup::TitleButton::Close).right == 0);
+
+            rig.group.SetActive (2);
+            Assert::IsTrue  (rig.group.GetTitleButtonRect (DxuiTabGroup::TitleButton::Close).right > 0);
+            Assert::IsTrue  (rig.group.GetTitleButtonRect (DxuiTabGroup::TitleButton::Pin).right <=
+                             rig.group.GetTitleButtonRect (DxuiTabGroup::TitleButton::Close).left, L"the pin moves over for it");
+        }
+
+
+        TEST_METHOD (DraggingATitleBarReportsADragOfTheActivePane)
+        {
+            Rig  rig;
+            int  which = -1;
+
+
+
+            rig.group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+            rig.group.SetActive (2);
+            rig.group.SetOnDragStart ([&] (int index, POINT) { which = index; });
+
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Down, 20, 10));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Move, 60, 60));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   60, 60));
+            Assert::AreEqual (2, which);
+        }
+
+
+        TEST_METHOD (ADocumentTabsCloseButtonClosesItsPane)
+        {
+            Rig   rig;
+            RECT  tab    = {};
+            int   closed = -1;
+
+
+
+            rig.group.SetOnCloseTab ([&] (int index) { closed = index; });
+            rig.group.SetCanClose   ([] (int index) { return index != 1; });
+            rig.group.Layout (RECT { 0, 0, 400, 300 }, rig.scaler);
+            tab = rig.group.GetTabRect (0);
+
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Down, tab.right - 12, (tab.top + tab.bottom) / 2));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   tab.right - 12, (tab.top + tab.bottom) / 2));
+            Assert::AreEqual (0, closed);
+            Assert::AreEqual (0, rig.group.GetActive(), L"a close is not a press on the tab");
         }
     };
 }

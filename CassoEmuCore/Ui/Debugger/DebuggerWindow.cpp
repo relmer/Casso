@@ -2291,6 +2291,13 @@ void DebuggerWindow::ConfigureDockSite()
             }
         }
     });
+
+    //  Source and Disassembly are documents, the rest tool windows, each with
+    //  a title bar whose menu is the pane's Dock To menu (FR-084).
+    m_dockSite->SetDocumentFn  ([this] (const std::wstring & pane) { return IsDocumentPane (pane); });
+    m_dockSite->SetOnPaneMenu  ([this] (const std::wstring & pane, POINT clientPx) { ShowDockToMenu (pane, clientPx); });
+    m_dockSite->SetOnClosePane ([this] (const std::wstring & pane) { ClosePane (pane); },
+                                [this] (const std::wstring & pane) { return CanClosePane (pane); });
     savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
     restored = DebuggerLayout::Restore (savedText);
     restored.PlaceOnMonitors (GetMonitors());
@@ -2355,6 +2362,127 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsDocumentPane
+//
+//  The Disassembly views and the source documents are documents; every
+//  other pane is a tool window (FR-084).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsDocumentPane (const std::wstring & pane) const
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (pane == DebuggerLayout::GetCodePaneId (view))
+        {
+            return true;
+        }
+    }
+
+    return GetSourceSlotOf (pane) >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CanClosePane
+//
+//  What can be opened again can close: any Disassembly view but the first,
+//  any memory window but the first, a source document, and a device panel.
+//  The fixed panes have nothing to reopen them from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::CanClosePane (const std::wstring & pane) const
+{
+    std::string  diagnosticsId;
+
+
+
+    for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (pane == DebuggerLayout::GetCodePaneId (view))
+        {
+            return true;
+        }
+    }
+
+    for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    {
+        if (pane == DebuggerLayout::GetMemoryPaneId (window))
+        {
+            return true;
+        }
+    }
+
+    return GetSourceSlotOf (pane) >= 0 || DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClosePane
+//
+//  A close button on a document tab or a tool window's title bar, carried
+//  out as the pane's own Close menu item would.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ClosePane (const std::wstring & pane)
+{
+    std::string  diagnosticsId;
+    int          slot = GetSourceSlotOf (pane);
+
+
+
+    if (slot >= 0)
+    {
+        CloseSourceDocument (slot);
+        return;
+    }
+
+    if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
+    {
+        RunCommand (DebuggerViewState::GetPanelLine (diagnosticsId, false));
+        return;
+    }
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (pane == DebuggerLayout::GetCodePaneId (view))
+        {
+            m_host->CloseDebuggerCodeView (view);
+            return;
+        }
+    }
+
+    for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    {
+        if (pane == DebuggerLayout::GetMemoryPaneId (window))
+        {
+            m_host->SetDebuggerMemoryWindow (window, std::nullopt);
+            return;
+        }
+    }
 }
 
 
@@ -2838,6 +2966,10 @@ void DebuggerWindow::RenderFrame()
     {
         list->Tick (now);
     }
+
+    //  Focus moves by click, key and command alike, so the group the user is
+    //  working in is found once a frame rather than at each of them.
+    m_dockSite->SetFocusedPane (GetPaneOfFocus());
 
     //  A drop-down slides open on ticks its host supplies. Without them the
     //  menu stayed at the first frame of its reveal, a sliver under the

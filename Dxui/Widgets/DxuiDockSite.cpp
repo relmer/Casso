@@ -169,33 +169,22 @@ void DxuiDockSite::Arrange()
 
     while (m_groups.size() < groups.size())
     {
-        std::unique_ptr<DxuiTabGroup>  group = std::make_unique<DxuiTabGroup>();
-        DxuiTabGroup                 * raw   = group.get();
-
-        raw->SetOnActivated ([this, raw] (int index)
-        {
-            if (!m_arranging && m_layout.Activate (GetPaneOf (raw->GetContent (index))))
-            {
-                NotifyChanged();
-            }
-        });
-
-        raw->SetOnDragStart ([this, raw] (int index, POINT)
-        {
-            BeginDrag (GetPaneOf (raw->GetContent (index)));
-        });
-
-        raw->SetNewTab (m_newTabShown, m_newTab);
-
-        m_groups.push_back (std::move (group));
+        m_groups.push_back (std::make_unique<DxuiTabGroup>());
+        WireGroup (m_groups.back().get());
     }
 
-    m_groups.resize (groups.size());
+    while (m_groups.size() > groups.size())
+    {
+        m_retired.push_back (std::move (m_groups.back()));
+        m_groups.pop_back();
+    }
 
     for (size_t i = 0; i < groups.size(); i++)
     {
-        DxuiTabGroup  * group  = m_groups[i].get();
-        int             active = 0;
+        DxuiTabGroup  * group    = m_groups[i].get();
+        int             active   = 0;
+        bool            document = !m_isDocument;
+        bool            focused  = false;
 
         while (group->GetTabCount() > 0)
         {
@@ -211,14 +200,20 @@ void DxuiDockSite::Arrange()
                 continue;
             }
 
-            active = (pane == groups[i].active) ? (int) group->GetTabCount() : active;
-            group->AddTab (found->second.title, found->second.content);
+            active    = (pane == groups[i].active) ? (int) group->GetTabCount() : active;
+            document  = document || m_isDocument (pane);
+            focused   = focused || pane == m_focusedPane;
+
+            group->AddTab         (found->second.title, found->second.content);
             group->SetLeadingMark (found->second.content, found->second.leadMark);
+            group->SetTabTip      (found->second.content, found->second.tip);
             placed.insert (found->second.content);
         }
 
-        group->SetActive (active);
-        group->Layout    (groups[i].rect, m_scaler);
+        group->SetKind        (document ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow);
+        group->SetFocusedLook (focused);
+        group->SetActive      (active);
+        group->Layout         (groups[i].rect, m_scaler);
     }
 
     //  A floating pane's controls are in another window, which shows them.
@@ -239,6 +234,158 @@ void DxuiDockSite::Arrange()
     }
 
     m_arranging = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::WireGroup
+//
+//  A group's handlers find their pane when they run, since the site refills
+//  its groups on every arrangement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::WireGroup (DxuiTabGroup * group)
+{
+    group->SetOnActivated ([this, group] (int index)
+    {
+        if (!m_arranging && m_layout.Activate (GetPaneOf (group->GetContent (index))))
+        {
+            NotifyChanged();
+        }
+    });
+
+    group->SetOnDragStart ([this, group] (int index, POINT)
+    {
+        BeginDrag (GetPaneOf (group->GetContent (index)));
+    });
+
+    group->SetOnTitleButton ([this, group] (DxuiTabGroup::TitleButton button, int index, POINT pointDip)
+    {
+        OnTitleButton (button, GetPaneOf (group->GetContent (index)), pointDip);
+    });
+
+    group->SetOnCloseTab (m_onClosePane ? DxuiTabGroup::CloseTabFn ([this, group] (int index)
+    {
+        OnTitleButton (DxuiTabGroup::TitleButton::Close, GetPaneOf (group->GetContent (index)), POINT {});
+    }) : nullptr);
+
+    group->SetCanClose ([this, group] (int index)
+    {
+        return m_onClosePane && (!m_canClosePane || m_canClosePane (GetPaneOf (group->GetContent (index))));
+    });
+
+    group->SetNewTab (m_newTabShown, m_newTab);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::OnTitleButton
+//
+//  The menu is the application's to show; the pin hides the pane against the
+//  edge its Dock To menu would; a close is the application's to carry out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip)
+{
+    if (pane.empty())
+    {
+        return;
+    }
+
+    switch (button)
+    {
+    case DxuiTabGroup::TitleButton::Menu:
+        if (m_onPaneMenu)
+        {
+            m_onPaneMenu (pane, pointDip);
+        }
+
+        break;
+
+    case DxuiTabGroup::TitleButton::Pin:
+        for (const MenuItem & item : GetDockToMenu (pane))
+        {
+            if (item.label == kAutoHideLabel)
+            {
+                (void) item.action();
+                break;
+            }
+        }
+
+        break;
+
+    case DxuiTabGroup::TitleButton::Close:
+        if (m_onClosePane && (!m_canClosePane || m_canClosePane (pane)))
+        {
+            m_onClosePane (pane);
+        }
+
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetOnClosePane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetOnClosePane (PaneFn fn, PaneTestFn canClose)
+{
+    m_onClosePane  = std::move (fn);
+    m_canClosePane = std::move (canClose);
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        WireGroup (group.get());
+    }
+
+    Arrange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetFocusedPane
+//
+//  Only the looks change, so nothing is laid out again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
+{
+    auto  found = m_panes.find (pane);
+
+
+
+    if (pane == m_focusedPane)
+    {
+        return;
+    }
+
+    m_focusedPane = pane;
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->SetFocusedLook (found != m_panes.end() && group->IndexOf (found->second.content) >= 0);
+    }
 }
 
 
@@ -820,7 +967,7 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstr
             nearest = (gaps[i] < gaps[nearest] || (gaps[i] == gaps[nearest] && sideways == tall && (nearest % 2 == 0) != tall)) ? i : nearest;
         }
 
-        items.push_back ({ L"Auto Hide", [this, pane, nearest, commit] { return commit (m_layout.AutoHide (pane, kSides[nearest])); } });
+        items.push_back ({ kAutoHideLabel, [this, pane, nearest, commit] { return commit (m_layout.AutoHide (pane, kSides[nearest])); } });
     }
 
     if (m_onFloat)
@@ -1038,6 +1185,9 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    //  Whatever handler retired these has returned by now.
+    m_retired.clear();
+
     if (IsDragging())
     {
         if (ev.kind == DxuiMouseEventKind::Move)
@@ -1114,11 +1264,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
 
         for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
         {
-            RECT  strip = group->GetBounds();
-
-            strip.bottom = std::min (strip.bottom, strip.top + (long) m_scaler.ToPx (DxuiTabGroup::kStripDip));
-
-            if (Contains (strip, ev.positionDip))
+            if (group->IsChromeAt (ev.positionDip))
             {
                 (void) group->OnMouse (ev);
                 return true;
@@ -1128,9 +1274,18 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
+    //  A button or tab released here can change the layout, which refills
+    //  and retires groups, so the groups are taken before any of them acts.
     if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Up)
     {
+        std::vector<DxuiTabGroup *>  groups;
+
         for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+        {
+            groups.push_back (group.get());
+        }
+
+        for (DxuiTabGroup * group : groups)
         {
             handled = group->OnMouse (ev) || handled;
         }

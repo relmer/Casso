@@ -277,11 +277,14 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
     int   step      = m_scaler.ToPx (s_kDragScrollDip);
     bool  handled   = false;
     bool  leftStrip = HasBounds() && (y < m_boundsDip.top - threshold || y >= m_boundsDip.bottom + threshold);
+    bool  moved     = std::abs (x - m_pressX) > threshold || std::abs (y - m_pressY) > threshold;
     int   carried   = m_pressed;
 
 
 
-    if (m_pressed >= 0 && m_dragOut && leftStrip && std::abs (y - m_pressY) > threshold)
+    //  With no move handler the tabs keep their order, so any drag is the
+    //  host's; with one, only a drag off the strip is.
+    if (m_pressed >= 0 && m_dragOut && moved && (leftStrip || !m_move))
     {
         m_pressed  = -1;
         m_dragging = false;
@@ -926,7 +929,7 @@ bool DxuiTabStrip::IsCloseShown (int index) const
         break;
     }
 
-    return m_close && shown;
+    return m_close && shown && m_tabs[(size_t) index].closable;
 }
 
 
@@ -1351,12 +1354,12 @@ int DxuiTabStrip::MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style
     {
         width = scaler.ToPxf ((float) s_kCompactPadDip) * 2.0f + labelW;
         width += tab.mark.empty() ? 0.0f : scaler.ToPxf ((float) s_kCompactMarkDip);
-        width += (hasClose && style == Style::Document) ? scaler.ToPxf ((float) s_kCompactCloseDip) : 0.0f;
+        width += (hasClose && tab.closable && style == Style::Document) ? scaler.ToPxf ((float) s_kCompactCloseDip) : 0.0f;
     }
     else
     {
         width = scaler.ToPxf ((float) s_kLabelInsetDip) + labelW + scaler.ToPxf (kExplorerPadDip);
-        width += hasClose ? scaler.ToPxf ((float) s_kCloseCenterDip + s_kCloseBoxDip / 2) : 0.0f;
+        width += (hasClose && tab.closable) ? scaler.ToPxf ((float) s_kCloseCenterDip + s_kCloseBoxDip / 2) : 0.0f;
     }
 
     return (int) std::ceil (width);

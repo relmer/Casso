@@ -329,5 +329,80 @@ namespace DxuiDockSiteTests
             Assert::AreEqual ((long) 600, rig.code.GetBounds().bottom, L"code takes the console's area");
             Assert::IsTrue   (rig.site.GetPaneLayout().IsDocked (L"console"));
         }
+
+
+        TEST_METHOD (DocumentGroupsHaveTopTabsAndTheRestTitleBars)
+        {
+            Rig             rig;
+            DxuiTabGroup  * console = nullptr;
+
+
+
+            rig.site.SetDocumentFn ([] (const std::wstring & pane) { return pane == L"code"; });
+            rig.site.Relayout();
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                DxuiTabGroup  * group = rig.site.GetGroup (i);
+
+                Assert::IsTrue (group->GetKind() == ((group->IndexOf (&rig.code) >= 0) ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow));
+                console = (group->IndexOf (&rig.console) >= 0) ? group : console;
+            }
+
+            if (console == nullptr)
+            {
+                Assert::Fail (L"the rig has a console group");
+                return;
+            }
+
+            Assert::AreEqual (console->GetBounds().top + (long) DxuiTabGroup::kTitleDip, rig.console.GetBounds().top, L"below its title bar");
+        }
+
+
+        TEST_METHOD (APinOnATitleBarAutoHidesThePane)
+        {
+            Rig             rig;
+            DxuiTabGroup  * console = nullptr;
+            RECT            pin     = {};
+
+
+
+            rig.site.SetDocumentFn ([] (const std::wstring & pane) { return pane == L"code"; });
+            rig.site.Relayout();
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                console = (rig.site.GetGroup (i)->IndexOf (&rig.console) >= 0) ? rig.site.GetGroup (i) : console;
+            }
+
+            if (console == nullptr)
+            {
+                Assert::Fail (L"the rig has a console group");
+                return;
+            }
+
+            pin = console->GetTitleButtonRect (DxuiTabGroup::TitleButton::Pin);
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (pin)));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   Center (pin)));
+
+            Assert::IsTrue (rig.site.GetPaneLayout().IsAutoHidden (L"console"));
+        }
+
+
+        TEST_METHOD (TheFocusedPanesGroupAloneHasTheFocusedLook)
+        {
+            Rig  rig;
+
+
+
+            rig.site.SetFocusedPane (L"stack");
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                DxuiTabGroup  * group = rig.site.GetGroup (i);
+
+                Assert::AreEqual (group->IndexOf (&rig.stack) >= 0, group->HasFocusedLook());
+            }
+        }
     };
 }

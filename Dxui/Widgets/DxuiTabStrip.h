@@ -73,6 +73,7 @@ public:
         std::wstring                          mark;   // a glyph ahead of the label; empty draws none
         std::wstring                          markFace;   // the face it is drawn in; empty is the label's
         uint32_t                              markArgb = 0;
+        bool                                  closable = true;   // with a close handler set, carries a close button
     };
 
     ~DxuiTabStrip() override = default;
@@ -85,7 +86,7 @@ public:
     void  SetOnMove   (MoveFn fn)   { m_move   = std::move (fn); }
     void  SetOnNewTab (NewTabFn fn) { m_newTab = std::move (fn); }
 
-    //  With a close handler set, every tab carries a close button.
+    //  With a close handler set, every closable tab carries a close button.
     void  SetOnClose  (CloseFn fn)  { m_close  = std::move (fn); }
 
     //  The color of the row the selected tab joins, which it is filled with,
@@ -106,7 +107,8 @@ public:
     void  SetSelectedOutline (uint32_t argb)     { m_outlineArgb  = argb; }
 
     //  With a handler set, a tab dragged past the strip's top or bottom is
-    //  handed to the host, and the strip lets go of it.
+    //  handed to the host, and the strip lets go of it. With no move handler
+    //  as well, the tabs keep their order and any drag is handed over.
     void  SetOnDragOut    (DragOutFn fn)         { m_dragOut      = std::move (fn); }
 
     //  The tip of the tab under a point, with the tab's rect, or empty.
@@ -133,6 +135,11 @@ public:
 
     //  The + button's width, which a host sizing its tabs leaves free.
     static constexpr int     kNewTabWidthDip = 32;
+
+    //  Where tab `index` is drawn, its strip rect moved by the scroll, and
+    //  where the + button is; an empty rect when there is none.
+    RECT  GetTabScreenRect (int index) const;
+    RECT  GetNewTabRect    () const;
 
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);
@@ -195,10 +202,8 @@ private:
     void  ScrollByTab    (int direction);
     void  PaintArrow     (IDxuiPainter & painter, IDxuiTextRenderer & text, int direction, uint32_t hoverArgb, uint32_t textArgb) const;
     int   GetNewTabWidthPx () const;
-    RECT  GetNewTabRect  () const;
     bool  IsOverNewTab   (int x, int y) const;
     void  PaintNewTab    (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
-    RECT  GetTabScreenRect (int index) const;
     RECT  GetCloseRect   (int index) const;
     int   GetCloseAt     (int x, int y) const;
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,

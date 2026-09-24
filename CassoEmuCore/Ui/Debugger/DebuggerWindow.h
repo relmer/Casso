@@ -229,6 +229,9 @@ private:
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
     static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
     bool     IsPaneShown        (const std::wstring & pane) const;
+    bool     IsDocumentPane     (const std::wstring & pane) const;
+    bool     CanClosePane       (const std::wstring & pane) const;
+    void     ClosePane          (const std::wstring & pane);
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
