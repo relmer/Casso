@@ -73,6 +73,14 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+### Separate controller profiles for each player (1.27)
+
+Each controller can now have its own profile, chosen from the Profiles menu on
+the Controllers drop-down, so in multiplayer each player can use the mapping
+that suits them.
+
+<p align="center"><img src="Assets/controllers-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: the Profiles submenu lists each player's Xbox controller under its own header, with Default checked for Player 1, Inverted checked for Player 2, and New... at the bottom" width="700" /></p>
+
 ### A real installer (1.26)
 
 Casso installs from an MSIX package, which adds it to Start and puts `casso`
@@ -346,13 +354,6 @@ input.a65` and `CassoCli merlin PROG.S`. The bare `CassoCli input.a65` form is
 gone. Under `as65` the CPU is chosen with AS65's own `-x`; under `merlin` the
 source chooses it with `XC`. Where support ends is stated by name rather than
 failing as a syntax error; see [docs/Assembler.md](docs/Assembler.md#where-merlin-support-ends).
-
-### Salvage a damaged .woz (1.17)
-
-Casso now checks disk integrity when a `.woz` is inserted. If the checksums are
-wrong it treats the disk as read-only to prevent further corruption, and a Salvage
-wizard offers to recover what it can into a structurally correct copy of the
-original.
 
 ## Features
 

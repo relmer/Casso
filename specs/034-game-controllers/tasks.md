@@ -102,7 +102,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T037 [US1] Build; run `scripts/RunTests.ps1 -Filter Controller`; run quickstart sections 3-4 scenarios 2, 3, 6 and 10 on hardware (launch with `--title`), recording results in `specs/034-game-controllers/validation.md`
 - [X] T038 [US1] Commit: `feat(input): physical controller drives the game port`
 
-**Checkpoint**: MVP. A plugged-in controller plays joystick games.
+**Checkpoint**: MVP. Joystick games can be played with a plugged-in controller.
 
 ---
 
@@ -288,7 +288,7 @@ description: "Task list for 034 physical game controllers"
 
 ## Phase 11: Active Profile per Controller (after 1.26.1)
 
-**Goal**: Each controller unit carries its own active profile, stored globally, picked from a Profiles submenu on the paddle-source picker (FR-028, FR-029, clarifications 2026-09-24).
+**Goal**: Each controller unit has its own active profile, stored globally, picked from a Profiles submenu on the paddle-source picker (FR-028, FR-029, clarifications 2026-09-24).
 
 - [X] T111 [US6] Port 035's two submenu fixes to `Dxui/Widgets/DxuiPopupMenu.cpp`, and add a `Header` row kind that titles a group of rows and is never hovered or picked, with `Header_IsTitleNotChoice` in `UnitTest/Dxui/DxuiPopupMenuTests.cpp`
 - [X] T112 [US6] Add `activeProfiles` (unit token to profile name) to `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp` per `contracts/prefs-schema.md`, and key `ControllerInputService`'s active profile by unit, so each driver resolves its own
@@ -356,7 +356,7 @@ Task: "PaddleSourceRowsTests.cpp (T041)"
 
 1. Phase 1 hardware check.
 2. Phase 2: mixer migration, then backend and thread.
-3. Phase 3: a plugged-in controller plays.
+3. Phase 3: games can be played with a plugged-in controller.
 4. Stop and validate on hardware (quickstart scenarios 2, 3, 6, 10).
 
 ### Incremental Delivery

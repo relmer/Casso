@@ -166,7 +166,7 @@ Paddles template (`DefaultMapping::MakePaddles`): one player's paddle. PDL0 = ax
 
 ### ControllerProfileStore
 
-Owns `std::map<ModelToken, ModelSettings>`, `std::map<UnitToken, ControllerCalibration>`, and `activeProfiles`, a `std::map<UnitToken, std::string>` giving the profile each controller plays; an empty name or no entry is the Default (FR-029).
+Owns `std::map<ModelToken, ModelSettings>`, `std::map<UnitToken, ControllerCalibration>`, and `activeProfiles`, a `std::map<UnitToken, std::string>` giving each controller's active profile; an empty name or no entry is the Default (FR-029).
 
 | Operation | Rule |
 |---|---|
@@ -208,7 +208,7 @@ Rules (`ControllerSelectionPolicy`, pure):
 - **Xbox-class units.** Xbox controllers share one model key but have a unit key each, the XInput slot (FR-018a), so two of them can fill the two player slots.
 - **Adoption covers XInput too.** A saved unit that is absent while exactly one unit of its model is attached is adopted. For an Xbox-class selection that means a controller whose slot changed across a replug, and a selection saved before slots existed, are both picked up again.
 
-**How a slot combines with the profile: the slot remaps, the profile binds.** A player's controller plays its own mapping; the paddles its slot maps to, in ascending order, are where the mapping's `pdl0`.. targets land. A slot mapped to `Paddle1` plays only the controller's `pdl0` bindings, there; one mapped to `Joystick1` plays `pdl0`/`pdl1` on PDL2/PDL3. So two players share one Default or Paddles profile with no per-player copy (quickstart 12).
+**How a slot combines with the profile: the slot remaps, the profile binds.** A player's controller uses its own mapping; the paddles its slot maps to, in ascending order, are where the mapping's `pdl0`.. targets land. With a slot mapped to `Paddle1`, only the controller's `pdl0` bindings are used, on PDL1; with one mapped to `Joystick1`, its `pdl0`/`pdl1` bindings land on PDL2/PDL3. So two players share one Default or Paddles profile with no per-player copy (quickstart 12).
 
 **Buttons follow the player** (FR-039). Player one's `pb0` bindings drive PB0 and player two's drive PB1; a player's `pb1` and `pb2` bindings are kept in the profile and ignored while the mode is on, and PB2 is unused. OR-ing every controller's buttons together, which is what single-source mode still does across the keyboard and mouse sources, made the two lines indistinguishable to a two-player game.
 
