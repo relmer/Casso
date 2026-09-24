@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.27.0]: The one with separate multiplayer controller profiles
+
+### Changed
+
+- Each controller now has its own active profile, so two players can use
+  different profiles, and a profile can be used on any machine.
+- Profiles are now picked from a Profiles submenu on the toolbar's controller
+  picker, which replaces the separate profile drop-down. New... in the submenu
+  creates a profile.
+
+### Fixed
+
+- Menus now keep highlighting and picking their items while one of their
+  submenus is open.
+
 ## [1.26.1]: The one with consistent Xbox controller assignment
 
 ### Changed
