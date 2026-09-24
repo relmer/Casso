@@ -13,16 +13,18 @@
 //
 //  SourcePane
 //
-//  The source file and line for the PC (FR-054 to FR-059): the line marked,
-//  breakpoints marked on their lines, a banner for what the pane needs said.
+//  One source document (FR-054 to FR-059, FR-113): the file the window gives
+//  it, the PC's line marked when the PC is in that file, breakpoints marked on
+//  their lines, and a banner for what this document needs said.
 //
-//  IT SHOWS THE OUTERMOST LINE. Inside a macro expansion that is the
-//  invocation, and the banner says the machine is inside a macro and offers
-//  the body line. Showing the body is the user's choice and lasts until the
-//  PC leaves the expansion.
+//  THE PC IS AT THE OUTERMOST LINE. Inside a macro expansion that is the
+//  invocation, and the invocation's document says the machine is inside a
+//  macro and offers the body line. Showing the body is the user's choice,
+//  kept by the window for every document, and lasts until the PC leaves the
+//  expansion; the body's document then marks the body line.
 //
-//  A file is found once, through the host, when the pane first needs it; the
-//  text is kept until another file is needed. A dropped file replaces it.
+//  A file is found once, through the host, when the document is given it. A
+//  dropped file replaces the text until the document is given another file.
 //
 //  Rows are rebuilt only when the file, the marked line or the breakpoints
 //  change, so the user's scroll and selection survive the snapshots between.
@@ -48,12 +50,30 @@ public:
     DxuiTextView      * GetView   () const { return m_view; }
     DxuiActionBanner  * GetBanner () const { return m_banner; }
 
-    //  Whether a debug file is loaded, which is when the pane is shown.
-    bool  IsActive      () const { return m_state.has_value(); }
+    //  Whether a debug file is loaded and the document has a file, which is
+    //  when it is shown.
+    bool  IsActive      () const { return m_state.has_value() && m_docFileId >= 0; }
     bool  HasBanner     () const { return !m_banner->GetText().empty(); }
 
     void  Configure     (HWND hwnd);
     void  Apply         (const DebuggerViewSnapshot & snapshot);
+
+    //  The file this document shows, or -1 for none; a new file is found
+    //  through the host the next time the document is applied.
+    void  SetFile       (int fileId);
+    int   GetFile       () const { return m_docFileId; }
+
+    //  Whether the PC's place is the macro body rather than the invocation.
+    void  SetShowBody   (bool showBody) { m_showBody = showBody; }
+
+    //  The banner's Show body button asks the window, which keeps the choice
+    //  for every document.
+    void  SetOnToggleBody (std::function<void ()> fn) { m_onToggleBody = std::move (fn); }
+
+    //  The 1-based line at the top of the view, and a line to put there, for
+    //  a document saved and reopened.
+    int   GetTopSourceLine () const;
+    void  SetTopSourceLine (int line);
 
     //  A code row was selected: scroll to its line when it is in this file.
     void  ShowLine      (int fileId, int line);
@@ -67,8 +87,13 @@ public:
     //  A file the user dropped, as the host matched it.
     void  ShowDropped   (const SourceLookup & lookup, int recordIndex);
 
-    //  Between the invocation and the body line, inside a macro.
+    //  Between the invocation and the body line, inside a macro: the window's
+    //  to switch, through SetOnToggleBody.
     void  ToggleBody    ();
+
+    //  The file and line the PC is at, the body's when it is shown.
+    int   GetShownFileId () const;
+    int   GetShownLine   () const;
 
     //  The pieces, apart from any view.
     static std::vector<std::wstring>       SplitLines (const std::string & text);
@@ -92,8 +117,6 @@ private:
     void  LoadFile   (int fileId);
     void  Rebuild    ();
     void  ScrollTo   (int line);
-    int   GetShownFileId () const;
-    int   GetShownLine   () const;
     std::optional<int>  GetLineAt (POINT atDip) const;
     std::string  GetFileName (int fileId) const;
 
@@ -103,8 +126,12 @@ private:
     RunFn                                              m_run;
     GoToFn                                             m_goTo;
 
+    std::function<void ()>                            m_onToggleBody;
+
     std::optional<DebuggerViewSnapshot::SourceState>  m_state;
     std::wstring                                      m_loadedFor;
+    int                                               m_docFileId       = -1;
+    int                                               m_pendingTopLine  = 0;
     int                                               m_fileId          = -1;
     SourceMatch                                       m_match           = SourceMatch::NotFound;
     bool                                              m_isDropped       = false;

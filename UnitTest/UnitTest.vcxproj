@@ -222,6 +222,7 @@
     <ClCompile Include="DebuggerTests\DebuggerLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTextSizeTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceDocumentsTests.cpp" />
     <ClCompile Include="DebuggerTests\CallRecorderCostTests.cpp" />
     <ClCompile Include="DebuggerTests\ShadowCpuCostTests.cpp" />
     <ClCompile Include="DebuggerTests\InstructionSemanticsTests.cpp" />

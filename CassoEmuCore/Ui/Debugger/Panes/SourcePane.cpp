@@ -47,16 +47,14 @@ void SourcePane::Configure (HWND hwnd)
 //
 //  SourcePane::Apply
 //
-//  A debug file loaded again starts the pane over. The file the PC is in is
-//  found when it is first needed; a dropped file stays until the PC moves to
-//  another file.
+//  A debug file loaded again starts the document over. Its file is found when
+//  the window first gives it one; a dropped file stays until it gives another.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourcePane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     std::wstring  loadedFor;
-    int           shown     = -1;
     bool          keepDrop  = false;
 
 
@@ -87,22 +85,114 @@ void SourcePane::Apply (const DebuggerViewSnapshot & snapshot)
         m_rowsFileId = -2;
     }
 
-    m_state = snapshot.source;
+    m_state  = snapshot.source;
+    keepDrop = m_isDropped && m_docFileId == m_droppedAt;
 
-    if (m_state->depth == 0)
+    if (m_docFileId >= 0 && m_docFileId != m_fileId && !keepDrop)
     {
-        m_showBody = false;
-    }
-
-    shown    = GetShownFileId();
-    keepDrop = m_isDropped && shown == m_droppedAt;
-
-    if (shown >= 0 && shown != m_fileId && !keepDrop)
-    {
-        LoadFile (shown);
+        LoadFile (m_docFileId);
     }
 
     Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::SetFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::SetFile (int fileId)
+{
+    if (fileId == m_docFileId)
+    {
+        return;
+    }
+
+    m_docFileId      = fileId;
+    m_isDropped      = false;
+    m_pendingTopLine = 0;
+
+    if (fileId < 0)
+    {
+        m_lines.clear();
+        m_fileId     = -1;
+        m_rowsFileId = -2;
+        m_view->SetRows ({});
+        m_banner->SetText (L"");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetTopSourceLine
+//
+//  The source line whose row holds the view's top line: a long line wraps to
+//  several view lines, so the two are not the same count. A view not laid
+//  out -- a document behind another tab -- cannot say, and gives 0; so does a
+//  line still waiting to be placed, which is given back as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SourcePane::GetTopSourceLine() const
+{
+    int  top  = m_view->GetTopLine();
+    int  line = 0;
+
+
+
+    if (m_pendingTopLine > 0)
+    {
+        return m_pendingTopLine;
+    }
+
+    for (int row = 0; row < (int) m_lines.size(); row++)
+    {
+        int  first = m_view->GetFirstLineOfRow (row);
+
+        if (first < 0 || first > top)
+        {
+            break;
+        }
+
+        line = row + 1;
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::SetTopSourceLine
+//
+//  Placed once the rows are laid out; until then it waits, as ScrollTo does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::SetTopSourceLine (int line)
+{
+    int  first = (line > 0) ? m_view->GetFirstLineOfRow (line - 1) : -1;
+
+
+
+    m_pendingTopLine = (first < 0) ? line : 0;
+
+    if (first >= 0)
+    {
+        m_view->SetTopLine (first);
+    }
 }
 
 
@@ -155,6 +245,7 @@ void SourcePane::Rebuild()
     bool                                  isRowsStale  = false;
     int                                   top          = m_view->GetTopLine();
     int                                   depth        = 0;
+    bool                                  holdsPc      = false;
 
 
 
@@ -190,7 +281,10 @@ void SourcePane::Rebuild()
         body = (record.id == m_state->bodyFileId) ? &record : body;
     }
 
-    depth = CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId) ? m_state->depth : 0;
+    //  Only the document the PC is in speaks of the macro: the invocation's,
+    //  or the body's while the body is shown.
+    holdsPc = m_fileId >= 0 && (m_fileId == m_state->fileId || (m_showBody && m_fileId == m_state->bodyFileId));
+    depth   = (holdsPc && CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId)) ? m_state->depth : 0;
 
     m_banner->SetText (GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, m_showBody,
                                       body != nullptr ? body->name : std::string(), m_state->bodyLine));
@@ -202,6 +296,13 @@ void SourcePane::Rebuild()
     else if (depth == 0 && m_banner->GetAction (0) != nullptr)
     {
         m_banner->SetActions ({});
+    }
+
+    //  Relabeled rather than replaced: this can run inside the button's own
+    //  click.
+    if (m_banner->GetAction (0) != nullptr)
+    {
+        m_banner->GetAction (0)->SetLabel (m_showBody ? L"Show invocation" : L"Show body");
     }
 }
 
@@ -252,7 +353,11 @@ void SourcePane::ScrollTo (int line)
 
 void SourcePane::FollowMarkedLine()
 {
-    if (m_followPending && m_rowsLine > 0)
+    if (m_pendingTopLine > 0)
+    {
+        SetTopSourceLine (m_pendingTopLine);
+    }
+    else if (m_followPending && m_rowsLine > 0)
     {
         ScrollTo (m_rowsLine);
     }
@@ -372,7 +477,7 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
     m_lines     = SplitLines (lookup.text);
     m_match     = lookup.match;
     m_isDropped = true;
-    m_droppedAt = GetShownFileId();
+    m_droppedAt = m_docFileId;
     m_fileId    = (recordIndex >= 0 && recordIndex < (int) m_state->files.size()) ? m_state->files[(size_t) recordIndex].id : -1;
     m_rowsFileId = -2;
 
@@ -391,25 +496,12 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
 
 void SourcePane::ToggleBody()
 {
-    if (!m_state.has_value() || m_state->depth == 0)
+    if (!m_state.has_value() || m_state->depth == 0 || !m_onToggleBody)
     {
         return;
     }
 
-    m_showBody = !m_showBody;
-
-    //  Relabeled rather than replaced: this runs inside the button's own click.
-    if (m_banner->GetAction (0) != nullptr)
-    {
-        m_banner->GetAction (0)->SetLabel (m_showBody ? L"Show invocation" : L"Show body");
-    }
-
-    if (GetShownFileId() != m_fileId)
-    {
-        LoadFile (GetShownFileId());
-    }
-
-    Rebuild();
+    m_onToggleBody();
 }
 
 

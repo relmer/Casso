@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/SourceDocuments.h"
 
 
 
@@ -48,6 +49,21 @@ std::wstring DebuggerLayout::GetMemoryPaneId (int window)
 std::wstring DebuggerLayout::GetCodePaneId (int view)
 {
     return (view <= 0) ? std::wstring (kCode) : std::format (L"code{}", view + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetSourcePaneId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::GetSourcePaneId (int slot)
+{
+    return (slot <= 0) ? std::wstring (kSource) : std::format (L"source{}", slot + 1);
 }
 
 
@@ -134,6 +150,11 @@ std::vector<std::wstring> DebuggerLayout::GetPaneIds()
         ids.push_back (GetCodePaneId (view));
     }
 
+    for (int slot = 1; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        ids.push_back (GetSourcePaneId (slot));
+    }
+
     for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
     {
         ids.push_back (GetMemoryPaneId (window));
@@ -215,6 +236,13 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kCode;
     }
 
+    //  A source document the text lacks joins the first, as it opens by
+    //  default.
+    if (pane.starts_with (kSource) && pane != kSource && layout.Contains (kSource))
+    {
+        return kSource;
+    }
+
     if ((pane == kCallStack || pane.starts_with (s_kpszDiagnosticsPrefix)) && layout.Contains (kStack))
     {
         return kStack;
@@ -270,6 +298,12 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
         layout.Add (GetCodePaneId (view), kCode);
     }
 
+    for (int slot = 1; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        layout.Add (GetSourcePaneId (slot), kSource);
+    }
+
+    layout.Activate   (kSource);
     layout.Activate   (kCode);
     layout.Add        (kStack,       L"");
     layout.DockToSide (kStack,       memory1,      DxuiDockSide::Right);

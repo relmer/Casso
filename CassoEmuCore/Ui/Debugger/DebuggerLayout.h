@@ -44,6 +44,10 @@ public:
     //  for the others.
     static std::wstring    GetCodePaneId   (int view);
 
+    //  "source" for the first source document (slot 0), "source2" onward for
+    //  the others.
+    static std::wstring    GetSourcePaneId (int slot);
+
     //  A device panel is "diag-" and its provider's id. The panels the window
     //  can place are these, each with the title its tab shows, and each hidden
     //  until its device is present and its panel open.

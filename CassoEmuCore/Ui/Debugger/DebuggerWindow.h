@@ -18,6 +18,7 @@
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/Panes/TracePane.h"
 
@@ -161,6 +162,20 @@ protected:
     IDebuggerWindowHost  * m_host  = nullptr;
 
 private:
+    //  A source document (FR-054): its text and banner, the pane over them,
+    //  the frame the dock shows, and whether each is shown now.
+    struct SourceDocument
+    {
+        DxuiTextView                        * view        = nullptr;
+        DxuiActionBanner                    * banner      = nullptr;
+        std::unique_ptr<SourcePane>           pane;
+        std::unique_ptr<DebuggerPaneFrame>    frame;
+        bool                                  shown       = false;
+        bool                                  bannerShown = false;
+        std::wstring                          bannerKey;
+        std::wstring                          title       = L"Source";
+    };
+
     static constexpr int    kPreferredWidthDip  = 1100;
     static constexpr int    kPreferredHeightDip = 840;
     static constexpr int    kMinWidthDip        = 760;
@@ -244,7 +259,9 @@ private:
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
 
     static std::wstring                          GetMonitorKey (const RECT & rectPx);
-    static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();    void     ApplyMemoryWindows ();
+    static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();
+
+    void     ApplyMemoryWindows ();
     void     AddMemoryWindow    ();
     void     RemoveMemoryWindow ();
     void     PlaceMemoryBar     ();
@@ -253,6 +270,14 @@ private:
     bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource);
     void     ApplySource        ();
+    void     FollowPcSource     ();
+    void     OpenSourceDocument (int fileId, int line, bool activate);
+    void     CloseSourceDocument (int slot);
+    void     RestoreSourceDocuments ();
+    void     ToggleMacroBody    ();
+    void     ShowSourceLine     (int fileId, int line);
+    int      GetSourceSlotOf    (const std::wstring & pane) const;
+    int      GetSourceSlotAt    (POINT atDip) const;
     void     ApplyDiagnostics   ();
     DiagnosticsPane *  GetDiagnosticsPane (const std::wstring & pane) const;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
@@ -364,7 +389,6 @@ private:
     std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_sourceFrame;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
     DxuiListView                                                                   * m_codeList           = nullptr;
@@ -396,12 +420,13 @@ private:
     DxuiTextInput                                                                  * m_memoryBox          = nullptr;
     DxuiTextInput                                                                  * m_pokeBox            = nullptr;
     DxuiButton                                                                     * m_pokeButton         = nullptr;
-    DxuiTextView                                                                   * m_sourceView         = nullptr;
-    DxuiActionBanner                                                               * m_sourceBanner       = nullptr;
-    std::unique_ptr<SourcePane>                                                      m_sourcePane;
-    bool                                                                             m_sourceShown        = false;
-    bool                                                                             m_sourceBannerShown  = false;
-    std::wstring                                                                     m_sourceBannerKey;
+    std::array<SourceDocument, SourceDocuments::kMaxDocuments>                       m_sourceDocs;
+    SourceDocuments                                                                  m_documents;
+    bool                                                                             m_showBody           = false;
+    std::wstring                                                                     m_sourceLoadedFor;
+    std::pair<int, int>                                                              m_pcPlace            = { -1, 0 };
+    std::vector<SourceDocuments::Saved>                                              m_pendingSourceDocs;
+    int                                                                              m_activeSource       = 0;
     uint64_t                                                                         m_sourceClickMs      = 0;
     POINT                                                                            m_sourceClickAt      = {};
     std::vector<std::unique_ptr<DiagnosticsPane>>                                    m_diagPanes;

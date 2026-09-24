@@ -2147,6 +2147,7 @@ namespace DebuggerViewStateTests
             DxuiTextView          view;
             DxuiActionBanner      banner;
             int                   finds    = 0;
+            bool                  toggled  = false;
             std::string           ran;
             SourcePane            pane (&view, &banner,
                                         [&] (const DebugSourceFile & record, const std::wstring &, const std::string &)
@@ -2167,6 +2168,8 @@ namespace DebuggerViewStateTests
             LoadDebugFile (rig);
             SetPc (rig, 0x0302);
             snapshot = rig.view.Build (rig.controller.GetSession());
+            pane.SetOnToggleBody ([&toggled] { toggled = true; });
+            pane.SetFile (snapshot.source->fileId);
             pane.Apply (snapshot);
             pane.Apply (snapshot);
 
@@ -2177,6 +2180,12 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (pane.HasBanner(),                           L"inside a macro");
 
             pane.ToggleBody();
+            Assert::IsTrue (toggled, L"the choice is the window's, for every document");
+
+            //  The body's file, as its own document shows it with the body chosen.
+            pane.SetFile     (snapshot.source->bodyFileId);
+            pane.SetShowBody (true);
+            pane.Apply       (snapshot);
             Assert::AreEqual ((size_t) 5, view.GetRows().size(),         L"the body's file");
             Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[4].cells[0]);
         }

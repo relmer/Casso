@@ -157,6 +157,7 @@
     <ClCompile Include="Ui\Debugger\DebuggerKeySchemes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\MemoryEditModel.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\MemoryPane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\SourceDocuments.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SourcePane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DebuggerPaneFrame.cpp" />
@@ -537,6 +538,7 @@
     <ClInclude Include="Ui\Debugger\DebuggerKeySchemes.h" />
     <ClInclude Include="Ui\Debugger\Panes\MemoryEditModel.h" />
     <ClInclude Include="Ui\Debugger\Panes\MemoryPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\SourceDocuments.h" />
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneFrame.h" />
