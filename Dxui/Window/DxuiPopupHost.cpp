@@ -1746,16 +1746,47 @@ void DxuiPopupHost::ApplyReveal (float t)
         shownH = 1;
     }
 
+    // THE LAST FRAME RESTS AT THE REAL GEOMETRY. Every frame before it holds
+    // the window short and slides the content through it, which only works
+    // because the two cancel out on screen. Leaving that pair standing at the
+    // end left the window a margin lower and a margin shorter than
+    // m_windowRectScreenPx says, and the pointer arrives in the window that
+    // is actually there while it is corrected by the margin the bookkeeping
+    // describes -- so every hit landed one margin high, which on a menu is the
+    // row above the one under the cursor.
+    if (t >= 1.0f && !m_revealOut)
+    {
+        SetWindowPos (m_hwnd, nullptr,
+                      m_windowRectScreenPx.left,
+                      m_windowRectScreenPx.top,
+                      m_windowRectScreenPx.right  - m_windowRectScreenPx.left,
+                      m_windowRectScreenPx.bottom - m_windowRectScreenPx.top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+
+        if (m_compVisual)
+        {
+            m_compVisual->SetOffsetY (0.0f);
+            m_compVisual->SetClip ((IDCompositionClip *) nullptr);
+
+            if (m_compDevice)
+            {
+                m_compDevice->Commit();
+            }
+        }
+
+        return;
+    }
+
     // A SLIDE, NOT A REVEAL. The content keeps its far edge against the
     // growing edge of the window and travels, so the last row appears first
     // and slides down ahead of the rows above it. Pinning the content to the
     // window instead draws the menu on one row at a time from the top, which
     // is a different animation and not the one Windows menus use.
+    //
     // THE WINDOW IS THE CLIP, so its growing edge has to be the card's edge,
     // not the shadow margin outside it. Leaving the margin on that edge let
     // the sliding content paint a margin's worth ABOVE the menu title -- the
     // animation appeared to start partway up the title rather than under it.
-    //
     // The margin stays on the trailing edge, where the shadow is, and the
     // content is lifted by it as well as by the height not yet shown.
     //  THE LAST FRAME RESTS AT THE REAL GEOMETRY. Every frame before it
@@ -1808,12 +1839,15 @@ void DxuiPopupHost::ApplyReveal (float t)
     {
         m_compVisual->SetOffsetY (offset);
 
-        //  A downward slide's window starts at the card's own top -- the
-        //  shadow's margin is off the growing edge -- so the buffer row at the
-        //  window's top is -offset, and nothing above it is drawn while the
-        //  slide runs. Adding the margin there hid a margin's worth of the
-        //  card, about a row, that blinked in when the finished frame cleared
-        //  the clip.
+        //  While the slide runs, nothing is drawn above the card's top edge;
+        //  the finished frame clears the clip.
+        //
+        //  The window's top IS the card's top while sliding down, so the clip
+        //  starts at the window's top: content y -offset. Adding the shadow
+        //  margin on top of that, as a window that kept its margin above the
+        //  card would need, hid a margin's worth of the strip -- about one row
+        //  -- for the whole slide, and the first row blinked in only when the
+        //  finished frame took the clip off.
         if (!m_revealUpward && t < 1.0f)
         {
             clip.left   = 0.0f;

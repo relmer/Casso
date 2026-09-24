@@ -268,101 +268,11 @@ jobs:
           name: release-arm64
           path: ARM64/Release
 
-      # Staged before signing, because what gets signed has to be what gets
-      # zipped -- signing the build output and then copying it is the same
-      # mistake as testing a binary you then rebuild.
+      # Before signing, so what gets signed is what gets shipped.
       - name: Stage release payloads
         if: steps.check.outputs.exists != 'true'
         shell: pwsh
-        run: |
-          $version = '${{ steps.ver.outputs.version }}'
-          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
-
-          # THE DEMO DISKS ARE NAMED, NEVER GLOBBED. Apple2\Demos also holds
-          # commercial titles that are there to be tested against and may not be
-          # redistributed, so this list is an allowlist and a wildcard would ship
-          # them. Anything added here has to be a disk Casso's own sources build.
-          #
-          # Apple2\Demos beside the exe is not an arbitrary layout:
-          # AssetBootstrap::AppendBundledDemoDisks looks for exactly that
-          # directory starting at the executable's own, so a shipped build offers
-          # these in the disk picker with no code change.
-          $demos = @(
-            'casso-rocks.dsk',
-            'mockingboard-speech-demo-hgr.dsk',
-            'mockingboard-speech-demo-dhgr.dsk',
-            'mockingboard-test.dsk'
-          )
-
-          # THE DIRECTORY INSIDE THE ZIP CARRIES NO VERSION, deliberately. The
-          # winget manifest addresses the binaries through it
-          # (NestedInstallerFiles: RelativeFilePath), and a version in that path
-          # would mean every release changed the path, which `wingetcreate
-          # update` does not rewrite -- it swaps URLs and hashes. Per-platform
-          # so extracting both still gives two directories. The zip's own name
-          # keeps the version, which is what identifies a download.
-          # THE C RUNTIME SHIPS BESIDE THE EXE. The build links the dynamic CRT,
-          # so Casso.exe imports vcruntime140.dll, msvcp140.dll and their
-          # companions, and a Windows without the Visual C++ Redistributable
-          # fails to start it with STATUS_DLL_NOT_FOUND -- which is exactly how
-          # winget's validation VM saw 1.23.2 (winget-pkgs #431697), and what
-          # any user without that redist installed gets from the zip. Microsoft
-          # supports copying those DLLs next to the executable (app-local
-          # deployment), so the zip carries them.
-          #
-          # THE LIST COMES FROM THE BINARY, NOT FROM A HAND-WRITTEN TABLE: every
-          # CRT import dumpbin reports is copied from this runner's redist
-          # folder, and one it cannot find fails the release rather than
-          # shipping a zip that cannot start. The redist is the newest one in
-          # the VS install that built the binaries, so the DLLs are never older
-          # than the toolset.
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsRoot  = & $vswhere -latest -products * -property installationPath
-          $dumpbin = & $vswhere -latest -products * -find '**\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
-          if (-not $vsRoot -or -not $dumpbin) { throw 'Cannot locate Visual Studio or dumpbin.exe on this runner.' }
-
-          $redist = Get-ChildItem (Join-Path $vsRoot 'VC\Redist\MSVC') -Directory |
-            Where-Object { $_.Name -match '^\d+(\.\d+)+$' } |
-            Sort-Object { [version] $_.Name } -Descending |
-            Select-Object -First 1
-          if (-not $redist) { throw "No versioned redist folder under $vsRoot\VC\Redist\MSVC." }
-
-          foreach ($plat in @('x64', 'ARM64')) {
-            $stagingDir = "staging/Casso-$plat"
-            $demoDir    = Join-Path $stagingDir 'Apple2/Demos'
-            New-Item -ItemType Directory -Path $demoDir -Force | Out-Null
-            Copy-Item "$plat/Release/Casso.exe"    $stagingDir
-            Copy-Item "$plat/Release/CassoCli.exe" $stagingDir
-            Copy-Item README.md                    $stagingDir
-            Copy-Item CHANGELOG.md                 $stagingDir
-            Copy-Item LICENSE                      $stagingDir
-
-            $crtDir = Get-ChildItem (Join-Path $redist.FullName $plat) -Directory -Filter 'Microsoft.VC*.CRT' |
-              Select-Object -First 1
-            if (-not $crtDir) { throw "No Microsoft.VC*.CRT folder for $plat under $($redist.FullName)." }
-
-            $crtDlls = foreach ($exe in @('Casso.exe', 'CassoCli.exe')) {
-              & $dumpbin /DEPENDENTS "$plat/Release/$exe" |
-                Where-Object { $_ -match '^\s+((?:vcruntime|msvcp|concrt|vccorlib)\S*\.dll)\s*$' } |
-                ForEach-Object { $Matches[1].ToLowerInvariant() }
-            }
-
-            foreach ($dll in ($crtDlls | Sort-Object -Unique)) {
-              $src = Join-Path $crtDir.FullName $dll
-              if (-not (Test-Path $src)) { throw "$plat/$dll is imported but $($crtDir.FullName) has no copy of it." }
-              Copy-Item $src $stagingDir
-              Write-Host "  runtime: $plat/$dll from $($crtDir.Name)"
-            }
-
-            foreach ($disk in $demos) {
-              $src = Join-Path 'Apple2/Demos' $disk
-              if (-not (Test-Path $src)) { throw "Demo disk missing from the tree: $src" }
-              Copy-Item $src $demoDir
-            }
-          }
-
-          Get-ChildItem staging -Recurse -File |
-            ForEach-Object { Write-Host "  staged: $($_.FullName)" }
+        run: scripts/StageRelease.ps1 -Platforms x64, ARM64
 
       - name: Azure login (OIDC)
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
@@ -421,11 +331,85 @@ jobs:
                       'federated credential for ' +
                       'repo:${{ github.repository }}:environment:release.')
 
+      # After signing: signing the bundle does not reach the executables
+      # inside it. Skipped without a credential, since an unsigned
+      # msixbundle cannot be installed at all.
+      - name: Build the MSIX bundle
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          scripts/BuildMsix.ps1 `
+            -PayloadRoot staging `
+            -OutputDirectory artifacts `
+            -Version '${{ steps.ver.outputs.version }}' `
+            -Platforms x64, ARM64
+
+      # The zips land in this folder later, hence the filter.
+      - name: Sign the MSIX bundle
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/artifacts
+          files-folder-filter: msixbundle
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # A hard gate, unlike the same check on the executables: an unsigned
+      # bundle will not install. Publisher is compared too, read back out of
+      # the signed bundle, because signtool needs it to match the subject.
+      - name: Verify the bundle is signed
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem artifacts -Filter *.msixbundle | Select-Object -First 1
+          if (-not $bundle) { throw 'No .msixbundle was produced.' }
+
+          $sig = Get-AuthenticodeSignature $bundle.FullName
+          Write-Host "  $($bundle.Name): $($sig.Status) -- $($sig.SignerCertificate.Subject)"
+
+          if ($sig.Status -in @('NotSigned', 'HashMismatch')) {
+              throw "$($bundle.Name) is $($sig.Status); the bundle cannot be installed."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead($bundle.FullName)
+          try {
+              $entry = $zip.Entries | Where-Object { $_.FullName -eq 'AppxMetadata/AppxBundleManifest.xml' }
+              if (-not $entry) { throw 'The bundle has no AppxBundleManifest.xml.' }
+
+              $reader = New-Object IO.StreamReader($entry.Open())
+              try { $xml = [xml] $reader.ReadToEnd() } finally { $reader.Dispose() }
+          }
+          finally {
+              $zip.Dispose()
+          }
+
+          $publisher = $xml.Bundle.Identity.Publisher
+          $subject   = $sig.SignerCertificate.Subject
+          Write-Host "  manifest publisher: $publisher"
+
+          if ($publisher -ne $subject) {
+              throw ("The bundle's Publisher and the signing certificate's subject differ, so " +
+                     "Windows will reject the package.`n  manifest: $publisher`n  cert:     $subject`n" +
+                     'Update Identity/@Publisher in Installer/Package.appxmanifest to the subject above.')
+          }
+
       - name: Package release zips
         if: steps.check.outputs.exists != 'true'
         shell: pwsh
         run: |
           $version = '${{ steps.ver.outputs.version }}'
+
+          # Compress-Archive will not create the parent, and on the unsigned
+          # path BuildMsix.ps1 has not run to make it.
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+
           foreach ($plat in @('x64', 'ARM64')) {
             $zipName = "Casso-$version-$plat.zip"
             Compress-Archive -Path "staging/Casso-$plat" -DestinationPath "artifacts/$zipName" -Force
@@ -450,11 +434,13 @@ jobs:
         if: steps.check.outputs.exists != 'true'
         shell: pwsh
         run: |
-          $lines = Get-ChildItem artifacts -Filter *.zip | Sort-Object Name | ForEach-Object {
+          # Everything in the folder: a list of extensions is how a new asset
+          # gets left out. SHA256SUMS.txt is written after this.
+          $lines = Get-ChildItem artifacts -File | Sort-Object Name | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           }
 
-          if (-not $lines) { throw 'No zips to checksum.' }
+          if (-not $lines) { throw 'No release assets to checksum.' }
 
           # No BOM and LF endings: a BOM breaks the first line for `sha256sum -c`,
           # and the tool is likelier to be run on a machine that would rather not
@@ -509,6 +495,9 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.WINGET_PAT }}
+          # wingetcreate reads the token from this variable; passing it with
+          # --token puts it on the command line, where it can end up in logs.
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_PAT }}
         run: |
           $version = '${{ steps.ver.outputs.version }}'
           $tag     = '${{ steps.ver.outputs.tag }}'
@@ -563,8 +552,8 @@ jobs:
                   Write-Host "::warning::WINGET_PAT will not work as it stands: $tokenProblem."
               }
               Write-Host ("::notice::$pkgId is not in winget-pkgs yet, so there is nothing to " +
-                          'update. Submit the first manifest once with `wingetcreate new`; ' +
-                          'this step picks up from there by itself.')
+                          'update. Submit the first manifest with ' +
+                          'scripts/NewWingetManifest.ps1; this step takes over after that.')
               exit 0
           }
 
@@ -581,10 +570,12 @@ jobs:
 
           $baseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag"
 
+          # One bundle, one URL. wingetcreate reads the family name, the
+          # signature hash and both architectures out of it.
           & $dest update $pkgId `
             --version $version `
-            --urls "$baseUrl/Casso-$version-x64.zip" "$baseUrl/Casso-$version-ARM64.zip" `
-            --submit --token $env:GH_TOKEN
+            --urls "$baseUrl/Casso-$version.msixbundle" `
+            --submit
 
           if ($LASTEXITCODE -ne 0) {
               throw "wingetcreate failed ($LASTEXITCODE). The release itself is published and unaffected."

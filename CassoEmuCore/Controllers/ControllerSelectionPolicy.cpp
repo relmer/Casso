@@ -165,6 +165,59 @@ bool ControllerSelectionPolicy::IsMultiplayerPlayable (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AdoptSlotKeyedPlayers
+//
+//  A slot is the best guess such a setup can offer about which controller it
+//  meant, and it is used exactly once: the unit found there is what the
+//  caller saves, so from then on the player follows that controller whatever
+//  slot it connects into. A slot with nothing in it now is left as it is, to
+//  be adopted when a controller arrives there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerSelectionPolicy::AdoptSlotKeyedPlayers (
+    MultiplayerSetup &                         setup,
+    const std::vector<ControllerDeviceInfo> &  devices)
+{
+    bool  hasMoved = false;
+    int   slot     = 0;
+
+
+
+    for (MultiplayerSlot & player : setup.players)
+    {
+        if (!player.unit.has_value() || player.unit->source != ControllerUnitSource::XInputSlot)
+        {
+            continue;
+        }
+
+        if (std::from_chars (player.unit->unitId.data(), player.unit->unitId.data() + player.unit->unitId.size(), slot).ec != std::errc())
+        {
+            continue;
+        }
+
+        for (const ControllerDeviceInfo & device : devices)
+        {
+            if (device.unit.model.kind == ControllerKind::XInput &&
+                device.xinputSlot == slot &&
+                !(device.unit == player.unit.value()))
+            {
+                player.unit = device.unit;
+                hasMoved    = true;
+                break;
+            }
+        }
+    }
+
+    return hasMoved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTargetAxes
 //
 //  A joystick is two paddles wired to one stick; a paddle is one. Paddles the

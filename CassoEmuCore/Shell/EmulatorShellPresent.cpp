@@ -107,12 +107,16 @@ HRESULT EmulatorShell::InitializeRenderer()
     CHR (hr);
 
     // Desk scene (spec 018): shares the host device with the framebuffer
-    // renderer. Failure (broken embedded asset) asserts in debug and leaves
-    // the 2D chrome paths active.
+    // renderer. Failure (broken embedded asset) asserts in debug and falls
+    // back to a compact theme, since skeuomorphic drives exist only in the
+    // scene.
     {
         HRESULT  hrScene = InitializeDeskScene();
 
-        IGNORE_RETURN_VALUE (hrScene, S_OK);
+        if (FAILED (hrScene))
+        {
+            FallBackFromDeskScene();
+        }
     }
 
     // Composite the Apple ][ framebuffer before the host paints chrome on

@@ -24,7 +24,7 @@ struct ChromeVisualState
 //
 //  Casso's theme: the generic Dxui-rendered tokens come from DxuiTheme;
 //  CassoTheme adds the app-specific bits Dxui has no concept of -- the
-//  skeuomorphic Disk II drive widgets and their LEDs -- plus the preset
+//  drive widgets and their LEDs -- plus the preset
 //  palettes (Skeuomorphic / DarkModern / RetroTerminal). WCAG color math
 //  lives in Dxui/Theme/DxuiColor.h; widgets derive accessible tints there.
 //
@@ -32,15 +32,13 @@ struct ChromeVisualState
 
 struct CassoTheme : public DxuiTheme
 {
-    // Whether the drive widgets use the compact paint path (small flat
-    // card with label + LED). False = full skeuomorphic Apple Disk II
-    // widgets. The drive-bar thickness contracts with this flag via
-    // EmulatorShell's theme listener so the emulator pixel grid is
-    // preserved across theme swaps.
+    // Whether the drives are the flat 2D widgets. False means the theme shows
+    // them only as 3D objects in the desk scene, so it cannot be shown without
+    // the scene (see MakeByName's fallback). The drive-bar thickness contracts
+    // with this flag via EmulatorShell's theme listener so the emulator pixel
+    // grid is preserved across theme swaps.
     bool      compactDrives  = false;
 
-    uint32_t  driveBody  = 0;
-    uint32_t  driveBezel = 0;
     uint32_t  driveLabel = 0;
     uint32_t  ledIdle    = 0;
     uint32_t  ledPresent = 0;
@@ -84,8 +82,6 @@ struct CassoTheme : public DxuiTheme
         theme.dropdownItemText    = 0xFFF3EAD7;
         theme.dropdownAccel       = 0xFFB8C0CA;
         theme.dropdownHover       = 0xFF34475F;
-        theme.driveBody           = 0xFF141414;
-        theme.driveBezel          = 0xFF050505;
         theme.driveLabel          = 0xFFE6E2D8;
         theme.ledIdle             = 0xFF1A0606;
         theme.ledPresent          = 0xFF1A0606;
@@ -133,8 +129,6 @@ struct CassoTheme : public DxuiTheme
         theme.dropdownItemText          = 0xFFF0F0F0;
         theme.dropdownAccel             = 0xFFB8C0CA;
         theme.dropdownHover             = 0xFF3D6FB5;
-        theme.driveBody                 = 0xFF1A1C1F;
-        theme.driveBezel                = 0xFF050505;
         theme.driveLabel                = 0xFFE6E2D8;
         theme.ledIdle                   = 0xFF06121A;
         theme.ledPresent                = 0xFF06121A;
@@ -182,8 +176,6 @@ struct CassoTheme : public DxuiTheme
         theme.dropdownItemText          = 0xFFB7FCB9;
         theme.dropdownAccel             = 0xFF6DA875;
         theme.dropdownHover             = 0xFF1F4A28;
-        theme.driveBody                 = 0xFF0F1A12;
-        theme.driveBezel                = 0xFF040A05;
         theme.driveLabel                = 0xFFB7FCB9;
         theme.ledIdle                   = 0xFF071907;
         theme.ledPresent                = 0xFF071907;
@@ -218,5 +210,24 @@ struct CassoTheme : public DxuiTheme
         }
 
         return MakeSkeuomorphic();
+    }
+
+
+    // The theme to show when the 3D desk scene may be unavailable. A theme
+    // whose drives exist only in the scene would show no drives at all without
+    // it, so Dark Modern stands in. The user's chosen theme is not changed,
+    // so a launch where the scene loads shows it again.
+    static CassoTheme MakeByName (const std::string & name, bool isDeskSceneAvailable)
+    {
+        CassoTheme  theme = MakeByName (name);
+
+
+
+        if (!theme.compactDrives && !isDeskSceneAvailable)
+        {
+            theme = MakeDarkModern();
+        }
+
+        return theme;
     }
 };

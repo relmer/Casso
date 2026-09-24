@@ -493,7 +493,7 @@ void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         if (found != m_panes.end() && found->second.indicator)
         {
-            painter.FillCircleApprox ((float) r.right - pad, (float) r.top + pad, m_scaler.ToPxf (3.0f), theme.Accent());
+            painter.FillCircle ((float) r.right - pad, (float) r.top + pad, m_scaler.ToPxf (3.0f), theme.Accent());
         }
     }
 

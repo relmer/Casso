@@ -129,14 +129,25 @@ void ControllersPage::SetState (ControllersPageState * state)
     // analyzer as a single range wide enough to leave the shortest array.
     m_state = state;
 
-    m_controller.SetSelect ([this] (int index)
+    m_controller.SetSelect ([this] (int item)
     {
-        if (m_isSyncing || m_state == nullptr || index < 0 || m_state->GetSelectedIndex() == std::optional<size_t> ((size_t) index))
+        size_t  index = 0;
+
+
+
+        if (m_isSyncing || m_state == nullptr || item < 0 || (size_t) item >= m_editingIndices.size())
         {
             return;
         }
 
-        AskToSaveProfileEdits ([this, index] () { SwitchController ((size_t) index); });
+        index = m_editingIndices[(size_t) item];
+
+        if (m_state->GetSelectedIndex() == std::optional<size_t> (index))
+        {
+            return;
+        }
+
+        AskToSaveProfileEdits ([this, index] () { SwitchController (index); });
     });
 
     m_profile.SetSelect ([this] (int index)
@@ -794,6 +805,9 @@ void ControllersPage::Refresh()
 {
     std::vector<std::wstring>  names;
     std::optional<size_t>      selected;
+    int                        selectedItem  = 0;
+    size_t                     index         = 0;
+    bool                       isPlayersOnly = false;
 
 
 
@@ -802,8 +816,23 @@ void ControllersPage::Refresh()
         return;
     }
 
-    for (const ControllersPageState::ControllerEntry & entry : m_state->GetControllers())
+    // IN MULTIPLAYER, ONLY THE PLAYERS' CONTROLLERS ARE EDITED. The page shows
+    // the mode being played, and in multiplayer a controller in neither slot
+    // drives nothing, so its page had no rows at all. It is edited from single
+    // player, where its page is whole.
+    isPlayersOnly = m_state->IsMultiplayerEnabled();
+    m_editingIndices.clear();
+
+    for (index = 0; index < m_state->GetControllers().size(); index++)
     {
+        const ControllersPageState::ControllerEntry &  entry = m_state->GetControllers()[index];
+
+        if (isPlayersOnly && !ControllerSelectionPolicy::FindPlayer (m_state->GetMultiplayer(), entry.unit).has_value())
+        {
+            continue;
+        }
+
+        m_editingIndices.push_back (index);
         names.push_back (entry.isConnected ? entry.description : entry.description + L" (not connected)");
     }
 
@@ -816,9 +845,17 @@ void ControllersPage::Refresh()
     m_lastControllerCount = m_state->GetControllers().size();
     m_isSyncing           = true;
 
+    for (index = 0; selected.has_value() && index < m_editingIndices.size(); index++)
+    {
+        if (m_editingIndices[index] == selected.value())
+        {
+            selectedItem = (int) index;
+        }
+    }
+
     m_controller.SetItems    (names);
-    m_controller.SetSelected (selected.has_value() ? (int) selected.value() : 0);
-    m_controller.SetEnabled  (selected.has_value());
+    m_controller.SetSelected (selectedItem);
+    m_controller.SetEnabled  (selected.has_value() && !m_editingIndices.empty());
 
     RefreshMultiplayer();
     RefreshProfiles();
@@ -1305,10 +1342,10 @@ void ControllersPage::RefreshRows()
 //  RefreshMultiplayer
 //
 //  Each player's two drop-downs. The controller list offers None and every
-//  attached controller LESS the one the other player holds, so the pair the
-//  page offers is always one the machine can play; the targets come from the
-//  policy, which has already left out the paddles this machine lacks and the
-//  ones the other player claimed (FR-035, FR-036).
+//  controller, the other player's included: picking that one swaps the two
+//  players' controllers. The targets come from the policy, which has already
+//  left out the paddles this machine lacks and the ones the other player
+//  claimed (FR-035, FR-036).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1326,10 +1363,9 @@ void ControllersPage::RefreshMultiplayer()
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        const MultiplayerSlot &           slot     = m_state->GetMultiplayer().players[player];
-        std::optional<ControllerUnitKey>  other    = m_state->GetMultiplayer().players[player == 0 ? 1 : 0].unit;
-        std::vector<std::wstring>         items;
-        int                               selected = 0;
+        const MultiplayerSlot &    slot     = m_state->GetMultiplayer().players[player];
+        std::vector<std::wstring>  items;
+        int                        selected = 0;
 
         m_playerUnits[player].clear();
         m_playerUnits[player].push_back (std::nullopt);
@@ -1337,11 +1373,6 @@ void ControllersPage::RefreshMultiplayer()
 
         for (const ControllersPageState::ControllerEntry & entry : m_state->GetControllers())
         {
-            if (other.has_value() && other.value() == entry.unit)
-            {
-                continue;
-            }
-
             if (slot.unit.has_value() && slot.unit.value() == entry.unit)
             {
                 selected = (int) items.size();
@@ -1394,11 +1425,109 @@ void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
         return;
     }
 
-    m_state->SetMultiplayerUnit (player, m_playerUnits[player][(size_t) item]);
+    std::optional<ControllerUnitKey>  pick      = m_playerUnits[player][(size_t) item];
+    std::optional<ControllerUnitKey>  playerOne = m_state->GetMultiplayer().players[0].unit;
+    bool                              movesOne  = false;
 
-    // The slots decide which rows below are in play, so the whole page
-    // follows a pick here.
+
+
+    // Player one changes when its own drop-down picks something else, or
+    // when player two takes player one's controller and swaps.
+    movesOne = (player == 0) ? pick != playerOne
+                             : pick.has_value() && pick == playerOne;
+
+    if (!movesOne)
+    {
+        ApplyPlayerController (player, pick);
+        return;
+    }
+
+    // ASKED BEFORE THE PICK IS APPLIED, not after. Editing follows player one,
+    // so a pick that moves player one leaves the edited profile; asking first
+    // means Cancel takes back the whole gesture -- the assignment as well as
+    // the move -- rather than leaving the players swapped and Editing on a
+    // controller that is no longer player one's. The prompt re-syncs the
+    // drop-downs as it opens, so a canceled pick shows as never made.
+    AskToSaveProfileEdits ([this, player, pick] ()
+    {
+        ApplyPlayerController (player, pick);
+        FollowPlayerOne();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyPlayerController
+//
+//  The slots decide which rows below are in play, so the whole page follows a
+//  pick here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit)
+{
+    m_state->SetMultiplayerUnit (player, unit);
     Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FollowPlayerOne
+//
+//  In multiplayer the controller worth editing is player one's, so Editing
+//  moves to it -- or to player two's when player one's slot is empty, since
+//  Editing lists only the players' controllers and must land on one of them.
+//  The move asks about unsaved profile edits first, exactly as a pick from the
+//  Editing drop-down does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::FollowPlayerOne()
+{
+    std::optional<ControllerUnitKey>  unit;
+    size_t                            index = 0;
+
+
+
+    if (m_state == nullptr || !m_state->IsMultiplayerEnabled())
+    {
+        return;
+    }
+
+    unit = m_state->GetMultiplayer().players[0].unit;
+
+    if (!unit.has_value())
+    {
+        unit = m_state->GetMultiplayer().players[1].unit;
+    }
+
+    if (!unit.has_value())
+    {
+        return;
+    }
+
+    for (index = 0; index < m_state->GetControllers().size(); index++)
+    {
+        if (m_state->GetControllers()[index].unit == unit.value())
+        {
+            break;
+        }
+    }
+
+    if (index >= m_state->GetControllers().size() || m_state->GetSelectedIndex() == std::optional<size_t> (index))
+    {
+        return;
+    }
+
+    AskToSaveProfileEdits ([this, index] () { SwitchController (index); });
 }
 
 

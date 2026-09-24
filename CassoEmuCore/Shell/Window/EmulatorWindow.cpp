@@ -1882,6 +1882,17 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
 
+        // THE SCALER TAKES THE WINDOW'S DPI BEFORE ANYTHING IS LAID OUT. A
+        // move to a monitor of another DPI resizes the window from inside the
+        // host's WM_DPICHANGED, so this WM_SIZE arrives before OnDpiChanged
+        // has updated the scaler. Laying out at the old DPI against a caption
+        // already at the new one overlapped the menu strip and the command
+        // bar, and nothing laid them out again until the next resize.
+        if (dpi != 0)
+        {
+            m_scaler.SetDpi (dpi);
+        }
+
         // Fullscreen presentation (FR-014): the picture owns the whole client
         // and every chrome element collapses, whichever theme is on. The
         // windowed path below is the one that restores everything --

@@ -86,6 +86,11 @@ public:
     // going with the machine's mode, say.
     void  Relayout         ();
 
+    // In multiplayer, moves Editing to player one's controller, asking about
+    // unsaved profile edits first. Nothing happens outside multiplayer or
+    // with player one's slot empty.
+    void  FollowPlayerOne  ();
+
     // Press-to-assign in progress, for the sheet's prompt over the page: the
     // sentence it shows, and a way to call the wait off.
     bool          IsCapturing        () const;
@@ -144,6 +149,7 @@ private:
     void                 OnNewProfile       ();
     void                 OpenNewProfileDialog ();
     void                 SwitchController   (size_t index);
+    void                 ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit);
     void                 AskToSaveProfileEdits (std::function<void ()> proceed);
     void                 OnRenameProfile    ();
     void                 OnDeleteProfile    ();
@@ -157,6 +163,11 @@ private:
     ControllersPageState::CommitFn              m_onCommitProfile;
     std::optional<ControllerUnitKey>            m_inspected;
     size_t                                      m_lastControllerCount = 0;
+
+    // The controller each row of the Editing drop-down stands for. In
+    // multiplayer the list holds only the players' controllers, so a row's
+    // position is not the controller's index.
+    std::vector<size_t>                         m_editingIndices;
     std::optional<std::pair<size_t, size_t>>    m_capturing;
     std::array<bool, kTargetCount>              m_hasExtraRow         = {};
     RECT                                        m_lastRect            = {};

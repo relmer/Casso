@@ -49,9 +49,4 @@ public:
 
     //  Left edge of one widget in the row.
     static int  ComputeWidgetX (int originX, int index, int widgetWidthPx, int gapPx);
-
-    //  How far a widget is nudged toward the shared vanishing point at the
-    //  client's horizontal center, so drives side by side read as sitting on
-    //  one surface under one monitor rather than as repeated sprites.
-    static int  ComputePerspectiveSkewPx (int clientWidthPx, int widgetX, int widgetWidthPx);
 };

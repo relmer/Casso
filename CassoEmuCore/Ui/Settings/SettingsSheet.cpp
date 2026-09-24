@@ -503,6 +503,10 @@ HRESULT SettingsSheet::OpenModeless (
         // player slots, and the per-tick sync below never corrects it,
         // because by then the page's mode and the service's agree.
         m_controllersPage->Relayout();
+
+        // The page opened on the single-player selection; in multiplayer the
+        // controller worth editing is player one's.
+        m_controllersPage->FollowPlayerOne();
     }
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
@@ -597,6 +601,7 @@ void SettingsSheet::ShowControllersPage()
         // it moves with them.
         m_controllersState.SetMultiplayer (m_emuShell->GetControllerService()->GetLiveMultiplayer(), snapshot.axisCount);
         m_controllersPage->Relayout();
+        m_controllersPage->FollowPlayerOne();
     }
 
     if (index >= 0)

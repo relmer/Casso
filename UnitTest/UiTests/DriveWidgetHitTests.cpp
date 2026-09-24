@@ -49,13 +49,10 @@ public:
         body  = drive.GetBodyRect();
         eject = drive.GetEjectRect();
 
-        Assert::IsTrue (drive.HitTest ((body.left + body.right) / 2,
-                                       body.top + 5) == DriveWidgetRegion::Body);
-        Assert::IsTrue (drive.HitTest (eject.right + 1,
-                                       (body.top + body.bottom) / 2) == DriveWidgetRegion::Body);
         Assert::IsTrue (drive.HitTest ((eject.left + eject.right) / 2,
                                        (eject.top + eject.bottom) / 2) == DriveWidgetRegion::Eject);
-        Assert::IsTrue (drive.HitTest (body.left - 1, body.top - 1) == DriveWidgetRegion::None);
+        Assert::IsTrue (drive.HitTest (eject.right, (body.top + body.bottom) / 2) == DriveWidgetRegion::None);
+        Assert::IsTrue (drive.HitTest (eject.left - 1, body.top - 1) == DriveWidgetRegion::None);
     }
 
 
@@ -139,8 +136,6 @@ public:
     {
         DriveWidget  w;
 
-        w.SetCompact (true);
-
         // A drive that already has a disk when the chrome is built has not
         // just been handed one, so nothing should slide.
         Sync (w, L"C:\\disks\\game.dsk");
@@ -153,8 +148,6 @@ public:
     TEST_METHOD (Eject_rollsTheNameAway)
     {
         DriveWidget  w;
-
-        w.SetCompact (true);
 
         Sync (w, L"C:\\disks\\game.dsk");
         Sync (w, nullptr);
@@ -173,8 +166,6 @@ public:
     {
         DriveWidget  w;
 
-        w.SetCompact (true);
-
         Sync (w, nullptr);
         Sync (w, L"C:\\disks\\game.dsk");
 
@@ -189,8 +180,6 @@ public:
     TEST_METHOD (SameDiskResynced_doesNotRoll)
     {
         DriveWidget  w;
-
-        w.SetCompact (true);
 
         Sync (w, L"C:\\disks\\game.dsk");
         Sync (w, L"C:\\disks\\game.dsk");
@@ -209,8 +198,6 @@ public:
     {
         DriveWidget  w;
 
-        w.SetCompact (true);
-
         Sync (w, L"C:\\a\\game.dsk");
         Sync (w, L"C:\\b\\game.dsk");
 
@@ -228,9 +215,7 @@ public:
     {
         DriveWidget  w;
 
-        w.SetCompact (true);
-
-        // The shell calls this on EVERY mouse move. The compact band draws a
+        // The shell calls this on EVERY mouse move. The band draws a
         // button treatment for hover, and the only thing that asks for a
         // repaint is this returning true, so a stationary pointer must report
         // false or the drive band would repaint on every mouse move forever.
@@ -239,21 +224,6 @@ public:
         Assert::IsFalse (w.UpdateMarqueeHover (true,  120), L"still not");
         Assert::IsTrue  (w.UpdateMarqueeHover (false, 130), L"leaving is a change");
         Assert::IsFalse (w.UpdateMarqueeHover (false, 140), L"staying away is not");
-    }
-
-
-    TEST_METHOD (SkeuoWidget_neverRolls)
-    {
-        DriveWidget  w;   // not compact: the skeuo drive swings a real door
-
-        Sync (w, L"C:\\disks\\game.dsk");
-        Sync (w, nullptr);
-
-        int64_t  now = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                           std::chrono::steady_clock::now().time_since_epoch()).count();
-
-        Assert::IsFalse (w.IsNameRolling (now),
-                         L"the full widget animates its door instead");
     }
 };
 
@@ -274,9 +244,7 @@ public:
 //  Two rects decide behavior between them and are read by different callers.
 //  The shell takes hover from the OUTER rect and the click from HitTest, which
 //  reads the eject and body rects, so a column inside one and outside the other
-//  is a control that lights up and then does nothing. And the compact branch
-//  owns two rects the modeled branch never writes, so a widget that changes
-//  theme carries them across unless the other branch clears them.
+//  is a control that lights up and then does nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,13 +252,12 @@ TEST_CLASS (DriveWidgetCompactGeometryTests)
 {
 public:
 
-    static void LayOut (DriveWidget & drive, bool compact, const RECT & anchor)
+    static void LayOut (DriveWidget & drive, const RECT & anchor)
     {
         DxuiDpiScaler  scaler;
 
         scaler.SetDpi (96);
         drive.Initialize (6, 0, nullptr);
-        drive.SetCompact (compact);
         drive.Layout (anchor, scaler);
     }
 
@@ -302,7 +269,7 @@ public:
         RECT         outer  = {};
         RECT         body   = {};
 
-        LayOut (drive, true, anchor);
+        LayOut (drive, anchor);
         outer = drive.GetOuterRect();
         body  = drive.GetBodyRect();
 
@@ -326,7 +293,7 @@ public:
         int          midY   = 0;
         int          x      = 0;
 
-        LayOut (drive, true, anchor);
+        LayOut (drive, anchor);
         outer = drive.GetOuterRect();
         midY  = (drive.GetBodyRect().top + drive.GetBodyRect().bottom) / 2;
 
@@ -341,47 +308,18 @@ public:
     }
 
 
-    TEST_METHOD (ModeledAfterCompact_LaysOutLikeItNeverWasCompact)
-    {
-        DriveWidget  switched;
-        DriveWidget  reference;
-        RECT         compactAnchor = { 400, 700, 400, 700 };
-        RECT         anchor        = { 100, 200, 100, 200 };
-        RECT         a             = {};
-        RECT         b             = {};
-
-        // Compact FIRST, and at a position far from the origin, which is what
-        // gives the caption rect coordinates that stand out if they survive.
-        LayOut (switched,  true,  compactAnchor);
-        LayOut (switched,  false, anchor);
-        LayOut (reference, false, anchor);
-
-        a = switched.GetOuterRect();
-        b = reference.GetOuterRect();
-
-        // The head bar and the caption belong to the compact branch, and
-        // nothing in the modeled branch writes them. Carried across, the
-        // caption inflated GetOuterRect -- which is the widget's own bounds,
-        // the probe that sizes the drive row, and the shell's hover test.
-        Assert::AreEqual (b.left,   a.left,   L"no caption column on a drive that draws no caption");
-        Assert::AreEqual (b.top,    a.top,    L"top unchanged by the theme it came from");
-        Assert::AreEqual (b.right,  a.right,  L"right unchanged by the theme it came from");
-        Assert::AreEqual (b.bottom, a.bottom, L"no stale caption stretching the box downward");
-    }
-
-
     TEST_METHOD (HideAfterCompact_CollapsesEveryRect)
     {
         DriveWidget  drive;
         RECT         anchor = { 400, 700, 400, 700 };
         RECT         outer  = {};
 
-        LayOut (drive, true, anchor);
+        LayOut (drive, anchor);
         drive.Hide();
         outer = drive.GetOuterRect();
 
         // Hide zeroes the rects so a machine with no controller shows no disk
-        // UI. It has to reach the compact-only rects too: GetOuterRect folds a
+        // UI. It has to reach the caption rect too: GetOuterRect folds a
         // non-empty caption in, so one left behind would keep a hidden widget
         // occupying space and answering the hover test.
         Assert::AreEqual (0L, outer.left,   L"a hidden widget occupies nothing");

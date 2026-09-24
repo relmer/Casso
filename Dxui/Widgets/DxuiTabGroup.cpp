@@ -453,7 +453,7 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
             if (mark.glyph.empty())
             {
-                painter.FillCircleApprox ((float) tab.left + pad + lead * 0.35f, (float) tab.top + strip / 2, m_scaler.ToPxf (3.5f), mark.argb);
+                painter.FillCircle ((float) tab.left + pad + lead * 0.35f, (float) tab.top + strip / 2, m_scaler.ToPxf (3.5f), mark.argb);
             }
             else
             {
@@ -473,9 +473,9 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         if (m_tabs[(size_t) i].indicator)
         {
-            painter.FillCircleApprox ((float) tab.right - pad - m_scaler.ToPxf ((float) kIndicatorDip / 2 - 2),
-                                      (float) tab.top + strip / 2,
-                                      m_scaler.ToPxf (3.0f), theme.Accent());
+            painter.FillCircle ((float) tab.right - pad - m_scaler.ToPxf ((float) kIndicatorDip / 2 - 2),
+                                (float) tab.top + strip / 2,
+                                m_scaler.ToPxf (3.0f), theme.Accent());
         }
     }
 

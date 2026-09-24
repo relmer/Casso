@@ -289,11 +289,11 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                             ? (m_hover == i ? theme.ButtonHover() : theme.ButtonIdle())
                                             : theme.PressedBackground();
 
-        painter.FillCircleApprox (cx, cy, outerR, boxColor);
+        painter.FillCircle (cx, cy, outerR, boxColor);
 
         if (m_selected == i)
         {
-            painter.FillCircleApprox (cx, cy, innerR, dotColor);
+            painter.FillCircle (cx, cy, innerR, dotColor);
         }
 
         float   textLeft  = boxLeft + boxSize + labelGap;

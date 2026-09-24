@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.26.1]: The one with consistent Xbox controller assignment
+
+### Changed
+
+- Circles, rounded corners, diagonal lines and glyph shapes in the UI are now
+  smoothly anti-aliased; straight edges are unchanged.
+- In multiplayer, choosing the other player's controller in Settings swaps the
+  two players' controllers.
+- In multiplayer, the Controllers page in Settings edits only the players'
+  controllers, opening on player one's and following it when it changes.
+
+### Fixed
+
+- Fixed a hit-test bug on menu items.
+- Two Xbox controllers are now consistently mapped to the same player
+  regardless of the order the controllers are turned on in.
+- Fixed a bug with the menu bar margin when Casso is dragged to a monitor with
+  a different display scale.
+
+## [1.26.0]: The one with a real installer
+
+### Added
+
+- An MSIX installer for Casso.
+
 ## [1.25.0]: The one that finally has Xbox controllers
 
 ### Added

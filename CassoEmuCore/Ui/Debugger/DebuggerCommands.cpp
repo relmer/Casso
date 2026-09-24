@@ -170,10 +170,10 @@ void DebuggerCommands::PaintRunToCursor (IDxuiPainter & painter, const DxuiToolb
 
 
 
-    painter.DrawLineApprox (icon.x + s * 0.02f, cy, tipX, cy, stroke, ink);
-    painter.DrawLineApprox (tipX, cy, tipX - s * 0.30f, cy - s * 0.30f, stroke, ink);
-    painter.DrawLineApprox (tipX, cy, tipX - s * 0.30f, cy + s * 0.30f, stroke, ink);
-    painter.DrawLineApprox (barX, cy - s * 0.42f, barX, cy + s * 0.42f, stroke, ink);
+    painter.DrawLine (icon.x + s * 0.02f, cy, tipX, cy, stroke, ink);
+    painter.DrawLine (tipX, cy, tipX - s * 0.30f, cy - s * 0.30f, stroke, ink);
+    painter.DrawLine (tipX, cy, tipX - s * 0.30f, cy + s * 0.30f, stroke, ink);
+    painter.DrawLine (barX, cy - s * 0.42f, barX, cy + s * 0.42f, stroke, ink);
 }
 
 

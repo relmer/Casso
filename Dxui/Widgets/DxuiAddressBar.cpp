@@ -493,8 +493,8 @@ void DxuiAddressBar::PaintChevron (IDxuiPainter & painter, const RECT & rc, floa
 
 
 
-    painter.DrawLineApprox (cx - depth * 0.5f * c + halfH * s, cy - depth * 0.5f * s - halfH * c, tipX, tipY, thick, argb);
-    painter.DrawLineApprox (cx - depth * 0.5f * c - halfH * s, cy - depth * 0.5f * s + halfH * c, tipX, tipY, thick, argb);
+    painter.DrawLine (cx - depth * 0.5f * c + halfH * s, cy - depth * 0.5f * s - halfH * c, tipX, tipY, thick, argb);
+    painter.DrawLine (cx - depth * 0.5f * c - halfH * s, cy - depth * 0.5f * s + halfH * c, tipX, tipY, thick, argb);
 }
 
 

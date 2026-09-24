@@ -47,6 +47,13 @@ public:
     static std::wstring  GetKnownModelName (WORD vendorId, WORD productId);
     static std::wstring  TrimSpace         (const std::wstring & text);
 
+    // Each connected slot's unit identity, in slot order: "vvvv:pppp" for the
+    // first unit of a product and ":2" on for later ones, or empty for a slot
+    // whose vendor and product could not be read. Pure, so it is tested.
+    using XInputIds = std::optional<std::pair<WORD, WORD>>;
+
+    static std::vector<std::string>  AssignXInputProductIds (const std::vector<XInputIds> & idsBySlot);
+
 private:
 
     // One opened DirectInput device and what enumeration found on it.
@@ -109,4 +116,8 @@ private:
     std::vector<DirectInputDevice>              m_diDevices;
     std::array<XInputSlot, kXInputSlotCount>    m_xinputSlots;
     std::bitset<kXInputSlotCount>               m_xinputConnected;
+
+    // The unit each slot held at the last enumeration, which is how a read
+    // for a unit keyed by product finds the slot that unit is in now.
+    std::array<ControllerUnitKey, kXInputSlotCount>  m_xinputUnits;
 };

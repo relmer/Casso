@@ -584,10 +584,10 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
     // Fluent 2 puck: white outer circle with thin gray ring,
     // accent-colored inner dot. Outer diameter grows on hover/focus.
-    painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckBody);
-    painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckRing); // ring underlay
-    painter.FillCircleApprox (puckCx, centerY, puckR - 1.0f,    s_kPuckBody); // white fill, leaving 1px ring
-    painter.FillCircleApprox (puckCx, centerY, puckR * s_kPuckCoreShare, coreColor);
+    painter.FillCircle (puckCx, centerY, puckR,           s_kPuckBody);
+    painter.FillCircle (puckCx, centerY, puckR,           s_kPuckRing); // ring underlay
+    painter.FillCircle (puckCx, centerY, puckR - 1.0f,    s_kPuckBody); // white fill, leaving 1px ring
+    painter.FillCircle (puckCx, centerY, puckR * s_kPuckCoreShare, coreColor);
 
     // Value readout to the right of the track.
     if (showValue)
@@ -753,10 +753,10 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
         }
     }
 
-    painter.FillCircleApprox (centerX, puckCy, puckR,                    s_kPuckBody);
-    painter.FillCircleApprox (centerX, puckCy, puckR,                    s_kPuckRing);
-    painter.FillCircleApprox (centerX, puckCy, puckR - 1.0f,             s_kPuckBody);
-    painter.FillCircleApprox (centerX, puckCy, puckR * s_kPuckCoreShare, coreColor);
+    painter.FillCircle (centerX, puckCy, puckR,                    s_kPuckBody);
+    painter.FillCircle (centerX, puckCy, puckR,                    s_kPuckRing);
+    painter.FillCircle (centerX, puckCy, puckR - 1.0f,             s_kPuckBody);
+    painter.FillCircle (centerX, puckCy, puckR * s_kPuckCoreShare, coreColor);
 
     if (showValue)
     {

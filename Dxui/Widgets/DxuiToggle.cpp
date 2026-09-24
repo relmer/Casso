@@ -227,10 +227,10 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
             pillColor = m_hover ? s_kPillOffHover : s_kPillOff;
         }
 
-        painter.FillRect         (leftCx,  pillTop, pillW - pillH, pillH, pillColor);
-        painter.FillCircleApprox (leftCx,  cy,      capR,          pillColor);
-        painter.FillCircleApprox (rightCx, cy,      capR,          pillColor);
-        painter.FillCircleApprox (thumbCx, cy,      thumbR,        thumbColor);
+        painter.FillRect   (leftCx,  pillTop, pillW - pillH, pillH, pillColor);
+        painter.FillCircle (leftCx,  cy,      capR,          pillColor);
+        painter.FillCircle (rightCx, cy,      capR,          pillColor);
+        painter.FillCircle (thumbCx, cy,      thumbR,        thumbColor);
 
         // An unlabeled toggle narrates its own state instead, so the pill is
         // never left with nothing beside it.

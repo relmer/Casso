@@ -78,10 +78,9 @@ public:
                               float radiusPx,
                               uint32_t argbColor) override;
 
-    // Approximate filled circle using horizontal slices. Cheap and
-    // looks good enough at typical UI sizes (radii 4-12px). Used for
-    // round indicators (LEDs, radio dots, toggle thumbs).
-    void    FillCircleApprox (float cxPx,
+    // Filled circle with analytic edge coverage. Used for round
+    // indicators (LEDs, radio dots, toggle thumbs).
+    void    FillCircle       (float cxPx,
                               float cyPx,
                               float radiusPx,
                               uint32_t argbColor) override;
@@ -89,10 +88,10 @@ public:
     void    FillConvexQuad    (float x0, float y0, float x1, float y1,
                                float x2, float y2, float x3, float y3,
                                uint32_t argbColor) override;
-    void    FillEllipseApprox (float cxPx, float cyPx,
+    void    FillEllipse       (float cxPx, float cyPx,
                                float radiusXPx, float radiusYPx,
                                uint32_t argbColor) override;
-    void    DrawLineApprox    (float x0, float y0, float x1, float y1,
+    void    DrawLine          (float x0, float y0, float x1, float y1,
                                float thicknessPx, uint32_t argbColor) override;
 
     HRESULT End            (ID3D11RenderTargetView * pRtv);
@@ -111,14 +110,49 @@ private:
     static constexpr size_t  kInitialVertexCapacity = 1024;
 
 
+    static constexpr float   kShapeFringePx         = 1.0f;
+
+
+    // Which signed-distance function the pixel shader evaluates for a quad.
+    // Solid means no shape: the quad's own edges are the edges, at full
+    // coverage, which is how every axis-aligned rect stays crisp. The values
+    // must match the kKind constants in Painter.ps.hlsl.
+    enum class ShapeKind
+    {
+        Solid       = 0,
+        RoundedBox  = 1,
+        RoundedRing = 2,
+        Ellipse     = 3,
+        Capsule     = 4,
+        ConvexQuad  = 5,
+    };
+
+
+    // Position (NDC), premultiplied color, then the shape: the vertex's
+    // position in pixels relative to the shape's own origin, the shape's
+    // parameters, and its kind. A convex quad instead carries the vertex's
+    // signed distance to each of its four edges, which interpolates exactly
+    // because distance to a line is affine in position. The shape fields are
+    // zero for a solid quad.
     struct Vertex
     {
-        float  x;
-        float  y;
-        float  r;
-        float  g;
-        float  b;
-        float  a;
+        float  x      = 0.0f;
+        float  y      = 0.0f;
+        float  r      = 0.0f;
+        float  g      = 0.0f;
+        float  b      = 0.0f;
+        float  a      = 0.0f;
+        float  localX = 0.0f;
+        float  localY = 0.0f;
+        float  shape0 = 0.0f;
+        float  shape1 = 0.0f;
+        float  shape2 = 0.0f;
+        float  shape3 = 0.0f;
+        float  kind   = 0.0f;
+        float  edge0  = 0.0f;
+        float  edge1  = 0.0f;
+        float  edge2  = 0.0f;
+        float  edge3  = 0.0f;
     };
 
 
@@ -133,14 +167,29 @@ private:
                               const Vertex & topRight,
                               const Vertex & bottomLeft,
                               const Vertex & bottomRight);
-    void    NdcFromPixel     (float xPx, float yPx, float & outX, float & outY) const;
-    // Fill a horizontal span [x0,x1] x [y,y+h] with 1px coverage AA on the
-    // fractional left/right edges (partial-alpha edge columns). The approx
-    // fills route their scanline spans through this so oblique glyph
-    // silhouettes read smooth instead of stair-stepped.
-    void    FillSpanAA       (float x0, float x1, float y, float h, uint32_t argbColor);
+    // A quad whose edges come from a signed-distance shape rather than from
+    // the quad itself. The quad is the shape's bounds grown by the AA fringe;
+    // (localX, localY) is the quad's top-left relative to the shape's origin.
+    void    PushShapeQuad    (float xPx,
+                              float yPx,
+                              float widthPx,
+                              float heightPx,
+                              float localXPx,
+                              float localYPx,
+                              ShapeKind kind,
+                              float shape0,
+                              float shape1,
+                              float shape2,
+                              float shape3,
+                              uint32_t argbColor);
+    void    NdcFromPixel    (float xPx, float yPx, float & outX, float & outY) const;
 
-    static Vertex MakeVertex (uint32_t argbColor, float alphaMultiplier = 1.0f);
+    static Vertex MakeVertex     (uint32_t argbColor, float alphaMultiplier = 1.0f);
+    static void   MakeEdgePlanes (const float px[4],
+                                  const float py[4],
+                                  float       nx[4],
+                                  float       ny[4],
+                                  float       offset[4]);
 
 
     ID3D11Device                    * m_device  = nullptr;   // non-owning

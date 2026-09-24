@@ -798,8 +798,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
     }
 
 Error:
-    m_chromeTheme = CassoTheme::MakeByName (m_globalPrefs.activeTheme);
-    ApplyThemeToChrome (m_chromeTheme);
+    ApplyChromeThemeByName (m_globalPrefs.activeTheme);
     return;
 }
 

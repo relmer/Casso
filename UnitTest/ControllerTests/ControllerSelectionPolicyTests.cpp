@@ -168,6 +168,77 @@ namespace ControllerTests
         }
 
 
+        //
+        //  A setup saved when Xbox-class units were keyed by XInput slot moves
+        //  onto the product-keyed unit in that slot, once, so from then on the
+        //  player follows the controller rather than the slot.
+        //
+
+        static ControllerDeviceInfo MakeXboxInSlot (int slot, const char * productId)
+        {
+            ControllerDeviceInfo  info;
+
+            info.unit.model.kind = ControllerKind::XInput;
+            info.unit.unitId     = productId;
+            info.unit.source     = ControllerUnitSource::XInputProduct;
+            info.xinputSlot      = slot;
+
+            return info;
+        }
+
+
+        static ControllerUnitKey MakeSlotKey (const char * slot)
+        {
+            ControllerUnitKey  key;
+
+            key.model.kind = ControllerKind::XInput;
+            key.unitId     = slot;
+            key.source     = ControllerUnitSource::XInputSlot;
+
+            return key;
+        }
+
+
+        TEST_METHOD (AdoptSlotKeyed_MovesEachPlayerOntoTheUnitInItsSlot)
+        {
+            ControllerDeviceInfo               oneS    = MakeXboxInSlot (0, "045e:02e0");
+            ControllerDeviceInfo               series  = MakeXboxInSlot (1, "045e:0b13");
+            std::vector<ControllerDeviceInfo>  devices = { oneS, series };
+            MultiplayerSetup                   setup   = MakeTwoPlayers (MakeSlotKey ("0"), MakeSlotKey ("1"));
+
+            Assert::IsTrue (ControllerSelectionPolicy::AdoptSlotKeyedPlayers (setup, devices), L"a move is reported, so it is saved");
+            Assert::IsTrue (setup.players[0].unit.value() == oneS.unit);
+            Assert::IsTrue (setup.players[1].unit.value() == series.unit);
+
+            Assert::IsFalse (ControllerSelectionPolicy::AdoptSlotKeyedPlayers (setup, devices),
+                L"a setup already keyed by product is left alone, so the move happens once");
+        }
+
+
+        // A slot with nothing in it is kept as it is, to be adopted when a
+        // controller connects there, rather than being thrown away.
+        TEST_METHOD (AdoptSlotKeyed_AnEmptySlotWaits)
+        {
+            std::vector<ControllerDeviceInfo>  devices = { MakeXboxInSlot (0, "045e:02e0") };
+            MultiplayerSetup                   setup   = MakeTwoPlayers (MakeSlotKey ("0"), MakeSlotKey ("1"));
+
+            Assert::IsTrue  (ControllerSelectionPolicy::AdoptSlotKeyedPlayers (setup, devices));
+            Assert::IsTrue  (setup.players[0].unit->source == ControllerUnitSource::XInputProduct);
+            Assert::IsTrue  (setup.players[1].unit.value() == MakeSlotKey ("1"), L"player two still names slot 1");
+        }
+
+
+        TEST_METHOD (AdoptSlotKeyed_OtherPlayersAreUntouched)
+        {
+            ControllerDeviceInfo               stick   = MakeStick ("{A}");
+            std::vector<ControllerDeviceInfo>  devices = { MakeXboxInSlot (0, "045e:02e0"), stick };
+            MultiplayerSetup                   setup   = MakeTwoPlayers (stick.unit, MakeXboxInSlot (0, "045e:02e0").unit);
+
+            Assert::IsFalse (ControllerSelectionPolicy::AdoptSlotKeyedPlayers (setup, devices),
+                L"a DirectInput player and a product-keyed player have nothing to adopt");
+        }
+
+
         TEST_METHOD (Normalize_RefusesARepeatedControllerAndAnOverlap)
         {
             ControllerUnitKey  xbox   = MakeXbox().unit;

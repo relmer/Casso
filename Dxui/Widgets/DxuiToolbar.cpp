@@ -1777,8 +1777,8 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         float  cx   = (float) slot.rc.right - (float) padX - size * 0.5f;
         float  cy   = bt + bh * 0.5f;
 
-        painter.DrawLineApprox (cx - size * 0.5f, cy - size * 0.25f, cx, cy + size * 0.25f, pen, ink);
-        painter.DrawLineApprox (cx, cy + size * 0.25f, cx + size * 0.5f, cy - size * 0.25f, pen, ink);
+        painter.DrawLine (cx - size * 0.5f, cy - size * 0.25f, cx, cy + size * 0.25f, pen, ink);
+        painter.DrawLine (cx, cy + size * 0.25f, cx + size * 0.5f, cy - size * 0.25f, pen, ink);
     }
 }
 
