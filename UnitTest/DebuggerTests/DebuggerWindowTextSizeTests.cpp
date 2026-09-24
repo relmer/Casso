@@ -49,10 +49,10 @@ namespace DebuggerTests
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
 
-        IHostDialogs &  GetHostDialogs ()         noexcept override { return m_dialogs; }
-        std::string     GetDebuggerKeyScheme ()            override { return {}; }
-        std::string     GetDebuggerLayout    ()            override { return {}; }
-        std::string     GetDebuggerOpenViews ()            override { return {}; }
+        IHostDialogs &  GetHostDialogs()         noexcept override { return m_dialogs; }
+        std::string     GetDebuggerKeyScheme()            override { return {}; }
+        std::string     GetDebuggerLayout()               override { return {}; }
+        std::string     GetDebuggerOpenViews()            override { return {}; }
 
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
