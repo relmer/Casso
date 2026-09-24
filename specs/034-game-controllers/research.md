@@ -70,8 +70,8 @@ Each entry gives the decision, why, and what was rejected. Items marked **UNVERI
 ## R10. Persistence
 
 - **Decision**:
-  - Global (`GlobalUserPrefs`, new top-level `controllers` section, following the `monitorTilt` pattern: field, `s_kKnownTopLevel`, `ToJson`, `FromJson`): per model the deadzone and the profile list; per DirectInput unit the calibration. Schema in [contracts/prefs-schema.md](contracts/prefs-schema.md).
-  - Per machine (`MachineInputPrefs`, `$cassoUiPrefs`): `controller` (the selection key) and `controllerProfile` (the active profile name). The existing `arrowsToJoystick` and `pointerMapping` keys are unchanged, so older builds keep reading their own keys.
+  - Global (`GlobalUserPrefs`, new top-level `controllers` section, following the `monitorTilt` pattern: field, `s_kKnownTopLevel`, `ToJson`, `FromJson`): per model the deadzone and the profile list; per DirectInput unit the calibration; per unit the active profile (`activeProfiles`, revised 2026-09-24 from per machine, so two pads of one model can play different profiles). Schema in [contracts/prefs-schema.md](contracts/prefs-schema.md).
+  - Per machine (`MachineInputPrefs`, `$cassoUiPrefs`): `controller` (the selection key). `controllerProfile`, the machine's active profile name before 2026-09-24, is now only read, to move it onto the saved controller once. The existing `arrowsToJoystick` and `pointerMapping` keys are unchanged, so older builds keep reading their own keys.
 - **Rationale**: matches the spec's persistence assumption and reuses the round-trip and in-memory file-system test infrastructure (`UnitTest/UiTests/InMemoryFileSystem.h`).
 
 ## R11. Menu and toolbar entries on 032's command widgets (as shipped)
