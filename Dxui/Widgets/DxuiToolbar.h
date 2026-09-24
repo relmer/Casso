@@ -86,8 +86,9 @@ public:
 //  DxuiToolbar
 //
 //  A strip of commands: icon-plus-label buttons that are frameless until
-//  hovered or pressed, collapsing their labels ONE AT A TIME FROM THE RIGHT
-//  when the strip runs out of room, so the leftmost keep their names longest
+//  hovered or pressed. When the strip runs out of room, WHOLE ENTRIES move
+//  into a See more button, ONE AT A TIME FROM THE RIGHT, as File Explorer's
+//  command bar does: labels never drop, the leftmost entries stay longest,
 //  and no entry ever falls off the end.
 //
 //  Every entry shares ownership of its command and reads its label, glyph, tip,
@@ -159,11 +160,12 @@ public:
 
     void  SetEntries       (std::vector<Entry> entries);
 
-    //  Ends the leading entries in a See more button, as Explorer's command
-    //  bar ends: entries that no longer fit even as icons move into its menu
-    //  from the right as the strip narrows and come back as it widens, and
-    //  entries marked seeMoreOnly are always there. The button shows only
-    //  when its menu has something in it. Call before SetEntries.
+    //  Every toolbar ends its leading entries in a See more button: entries
+    //  that no longer fit move into its menu from the right as the strip
+    //  narrows and come back as it widens, and entries marked seeMoreOnly
+    //  are always there. The button shows only when its menu has something
+    //  in it. This replaces the button's glyph, tip and icon; call it before
+    //  SetEntries.
     void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip, const DxuiVectorIcon * icon = nullptr);
     bool  IsInSeeMore      (int commandId) const;
 
@@ -215,9 +217,9 @@ public:
     //  The labels' font size; zero, the default, is the chrome font.
     void  SetLabelFontDip  (float fontDip)               { m_labelFontDip = fontDip; }
 
-    //  Decides how many entries can still afford their label at this width
-    //  and returns the band thickness (dp) the strip needs. Call BEFORE
-    //  docking the chrome bands.
+    //  Decides which entries still fit on the strip at this width and
+    //  returns the band thickness (dp) the strip needs. Call BEFORE docking
+    //  the chrome bands.
     int   PlanForWidth     (int clientWidthPx, const DxuiDpiScaler & scaler);
     int   GetBandDp        () const;
     bool  IsLabeled        (int commandId) const;
@@ -405,11 +407,12 @@ private:
     std::shared_ptr<DxuiCommand>    m_seeMore;
     const DxuiVectorIcon          * m_seeMoreIcon     = nullptr;
 
-    bool                     m_stripColorsSet = false;
-    uint32_t                 m_stripOverride  = 0;
-    uint32_t                 m_textOverride   = 0;
-    uint32_t                 m_edgeOverride   = 0;
-    int                      m_groupGapDp     = kGroupGapDp;
-    int                      m_barPadDp       = kBarPadXDp;
-    float                    m_labelFontDip   = 0.0f;
+    bool      m_stripColorsSet      = false;
+    uint32_t  m_stripOverride       = 0;
+    uint32_t  m_textOverride        = 0;
+    uint32_t  m_edgeOverride        = 0;
+    int       m_groupGapDp          = kGroupGapDp;
+    int       m_barPadDp            = kBarPadXDp;
+    bool      m_overflowed          = false;
+    float     m_labelFontDip        = 0.0f;
 };

@@ -19,9 +19,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  arithmetic on the mock's fixed glyph width.
 //
 //  Five commands in two groups. At 96 dpi every entry costs 10 + 15 + 10 =
-//  35 px collapsed and 35 + 7 + 7 * label px labeled; the strip pads 10 px a
-//  side, 4 px between neighbors and 18 px across the one group change. The
-//  widths the collapse tests use are computed from those numbers rather than
+//  35 px as an icon alone and 35 + 7 + 7 * label px labeled; the strip pads
+//  10 px a side, 4 px between neighbors and 18 px across a group change. The
+//  widths the overflow tests use are computed from those numbers rather than
 //  typed in, so a change to a metric moves the test with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,7 +152,7 @@ public:
         }
 
         //  alpha (Command), beta (DropDown), gamma (Command) | delta (Toggle), eps (Flyout)
-        void  Build (IDxuiToolbarCustomEntry * custom = nullptr, DxuiToolbar::Kind customKind = DxuiToolbar::Kind::Command)
+        void  Build (IDxuiToolbarCustomEntry * custom = nullptr, DxuiToolbar::Kind customKind = DxuiToolbar::Kind::Command, bool customIconOnly = false)
         {
             std::vector<DxuiToolbar::Entry>  entries (5);
             std::vector<DxuiPopupMenuItem>   rows;
@@ -165,8 +165,9 @@ public:
 
             if (custom != nullptr)
             {
-                entries[2].custom = custom;
-                entries[2].kind   = customKind;
+                entries[2].custom   = custom;
+                entries[2].kind     = customKind;
+                entries[2].iconOnly = customIconOnly;
             }
 
             rows.push_back (DxuiPopupMenuItem::ForCommand (rowA));
@@ -294,13 +295,22 @@ public:
         entries[1].command  = f.gamma;
         entries[1].group    = 1;
         entries[1].trailing = true;
+        entries[1].iconOnly = true;   //  so it has a tooltip to find it by
 
         f.bar.SetEntries (std::move (entries));
-        f.LayoutAt (40);
 
+        //  Too narrow even for the trailing entry: it moves into See more too.
+        f.LayoutAt (40);
+        Assert::IsTrue (f.bar.IsInSeeMore (1));
+        Assert::IsTrue (f.bar.IsInSeeMore (3), L"A trailing entry with no room follows the leading ones");
+
+        //  Room for the See more button and the trailing entry, and no more.
+        f.LayoutAt (s_kBarPadPx * 2 + CollapsedPx() + s_kGroupGap + CollapsedPx());
+
+        Assert::IsTrue    (f.bar.IsInSeeMore (1), L"The leading entry moves into See more");
         Assert::IsNotNull (f.bar.GetTooltipAt (s_kBarPadPx + CollapsedPx() + s_kGroupGap + 2, s_kBandPx / 2, anchor));
         Assert::AreEqual  ((LONG) (s_kBarPadPx + CollapsedPx() + s_kGroupGap), anchor.left,
-            L"A strip too narrow for a gap leaves the trailing entry right after the one before it");
+            L"and a strip too narrow for a gap leaves the trailing entry right after the See more button");
     }
 
 
@@ -348,38 +358,27 @@ public:
     }
 
 
-    TEST_METHOD (PlanForWidth_OnlyRightmostCollapsesOneStepNarrower)
+    TEST_METHOD (PlanForWidth_FarNarrower_OnlyWhatFitsStaysLabeled)
     {
         Fixture  f;
 
 
         f.Build();
-        f.LayoutAt (f.FullWidth() - 1);
 
-        Assert::IsTrue  (f.bar.IsLabeled (1));
-        Assert::IsTrue  (f.bar.IsLabeled (2));
-        Assert::IsTrue  (f.bar.IsLabeled (3));
-        Assert::IsTrue  (f.bar.IsLabeled (4));
-        Assert::IsFalse (f.bar.IsLabeled (5));
-    }
+        //  Room for Alpha, labeled, and the See more button after it.
+        f.LayoutAt (s_kBarPadPx * 2 + LabeledPx (L"Alpha") + s_kGroupGap + CollapsedPx());
 
+        Assert::IsFalse (f.bar.IsInSeeMore (1), L"The leftmost entry stays on the strip");
+        Assert::IsTrue  (f.bar.IsLabeled (1),   L"with its label");
 
-    TEST_METHOD (PlanForWidth_NoneLabeledFarNarrower)
-    {
-        Fixture  f;
-
-
-        f.Build();
-        f.LayoutAt (s_kBarPadPx * 2 + CollapsedPx() * 5 + s_kBtnGapPx * 3 + s_kGroupGap);
-
-        for (int id = 1; id <= 5; id++)
+        for (int id = 2; id <= 5; id++)
         {
-            Assert::IsFalse (f.bar.IsLabeled (id));
+            Assert::IsTrue (f.bar.IsInSeeMore (id), L"and the rest are in See more");
         }
     }
 
 
-    TEST_METHOD (GetTooltipAt_TipInEveryForm_NameOnlyWhenCollapsed_NullInGap)
+    TEST_METHOD (GetTooltipAt_TipInEveryForm_NullInGap)
     {
         Fixture  f;
         RECT     anchor = {};
@@ -400,9 +399,6 @@ public:
 
         gapX = s_kBarPadPx + LabeledPx (L"Alpha") + s_kBtnGapPx / 2;
         Assert::IsNull (f.bar.GetTooltipAt (gapX, s_kBandPx / 2, anchor));
-
-        f.LayoutAt (f.FullWidth() - 1);                                        // eps collapses
-        Assert::AreEqual (L"E", f.bar.GetTooltipAt (f.Center (4, 4).x, s_kBandPx / 2, anchor));
     }
 
 
@@ -567,7 +563,7 @@ public:
     }
 
 
-    TEST_METHOD (Flyout_CollapseClosesIt_NextDwellReopens)
+    TEST_METHOD (Flyout_MovingIntoSeeMoreClosesIt)
     {
         Fixture     f;
         DxuiSlider  slider;
@@ -583,12 +579,8 @@ public:
         Assert::IsTrue (f.bar.IsFlyoutOpen (5));
 
         f.LayoutAt (f.FullWidth() - 1);
-        Assert::IsFalse (f.bar.IsLabeled (5));
+        Assert::IsTrue  (f.bar.IsInSeeMore (5));
         Assert::IsFalse (f.bar.IsFlyoutOpen (5));
-
-        e = f.Center (4, 4);
-        f.bar.OnToolbarMouseMove (e.x, e.y);
-        Assert::IsTrue (f.bar.IsFlyoutOpen (5));
     }
 
 
@@ -615,11 +607,21 @@ public:
         f.bar.GetTooltipAt (g.x, g.y, anchor);
         Assert::IsTrue (stub.tipCalls > 0);
 
-        // Expanded, the entry itself takes no press; collapsed, it is a button.
+        // Expanded, the entry itself takes no press.
         f.Click (g);
         Assert::AreEqual (0, stub.clickCalls);
+    }
 
-        f.LayoutAt (s_kBarPadPx * 2 + CollapsedPx() * 5 + s_kBtnGapPx * 3 + s_kGroupGap);
+
+    TEST_METHOD (CustomEntry_IconOnly_IsAButton)
+    {
+        Fixture    f;
+        StubEntry  stub;
+        POINT      g = {};
+
+
+        f.Build (&stub, DxuiToolbar::Kind::Command, true);
+        f.LayoutAt (f.FullWidth() + 100);
         Assert::IsFalse (stub.lastLabeled);
 
         g = POINT { stub.lastRc.left + 17, s_kBandPx / 2 };
@@ -656,7 +658,7 @@ public:
         f.LayoutAt (f.FullWidth());
 
         f.bar.SetFocusIndex (0);
-        Assert::AreEqual (5, f.bar.GetEntryCount());
+        Assert::AreEqual (6, f.bar.GetEntryCount(), L"five entries and the See more button");
         Assert::AreEqual (0, f.bar.GetFocusIndex());
         Assert::IsFalse  (f.bar.OwnsKeyboard());
 
@@ -793,9 +795,9 @@ public:
 
         stub.consumeClick = false;
 
-        f.Build (&stub, DxuiToolbar::Kind::DropDown);
+        f.Build (&stub, DxuiToolbar::Kind::DropDown, true);
         f.bar.SetDropDownItems (3, { DxuiPopupMenuItem::ForCommand (f.rowA), DxuiPopupMenuItem::ForCommand (f.rowB) });
-        f.LayoutAt (s_kBarPadPx * 2 + CollapsedPx() * 5 + s_kBtnGapPx * 3 + s_kGroupGap);
+        f.LayoutAt (f.FullWidth() + 100);
 
         g = POINT { stub.lastRc.left + 17, s_kBandPx / 2 };
         f.Click (g);
@@ -839,6 +841,30 @@ public:
         //  Room again: everything comes back.
         f.LayoutAt (f.FullWidth() + 200);
         Assert::IsFalse (f.bar.IsInSeeMore (5));
+    }
+
+
+    TEST_METHOD (SeeMore_OneStepNarrower_MovesAnEntryNotALabel)
+    {
+        Fixture  f;
+
+        f.bar.EnableSeeMore (L"m", L"See more");
+        f.Build();
+
+        //  One pixel short of every label: an entry leaves rather than a
+        //  label.
+        f.LayoutAt (f.FullWidth() - 1);
+
+        Assert::IsTrue  (f.bar.IsInSeeMore (5), L"the rightmost entry moves into See more");
+        Assert::IsFalse (f.bar.IsInSeeMore (1), L"the leftmost stays on the strip");
+
+        for (int id = 1; id <= 4; id++)
+        {
+            if (!f.bar.IsInSeeMore (id))
+            {
+                Assert::IsTrue (f.bar.IsLabeled (id), L"every entry left on the strip keeps its label");
+            }
+        }
     }
 
 

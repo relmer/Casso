@@ -33,6 +33,7 @@ DxuiToolbar::DxuiToolbar()
 
     RefreshMetrics();
     WireDropDown();
+    EnableSeeMore (s_kpszMdl2More, L"See more");
 }
 
 
@@ -161,8 +162,10 @@ bool DxuiToolbar::IsInSeeMore (int commandId) const
 //  DxuiToolbar::PlanSeeMore
 //
 //  Everything the menu always holds goes there first. Then, while the strip
-//  is too wide with every label down to its icon, the rightmost leading
-//  entry still on the strip joins them, and the button appears.
+//  is too wide with every label showing, the rightmost leading entry still
+//  on the strip joins them, and the button appears. Once no leading entry
+//  is left, the trailing ones follow, rightmost first, so a window too
+//  narrow for them does not cut them off at its edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,8 +196,9 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
     }
 
     moreSlot->hidden = !any;
+    m_overflowed     = false;
 
-    while (GetTotalWidthPx (0) > clientWidthPx)
+    while (GetTotalWidthPx ((int) m_slots.size()) > clientWidthPx)
     {
         Slot *  victim = nullptr;
 
@@ -206,6 +210,17 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
             }
         }
 
+        for (Slot & slot : m_slots)
+        {
+            if (victim == nullptr || victim->entry.trailing)
+            {
+                if (!slot.hidden && slot.entry.trailing && slot.entry.custom == nullptr)
+                {
+                    victim = &slot;
+                }
+            }
+        }
+
         if (victim == nullptr)
         {
             break;
@@ -213,6 +228,7 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
 
         victim->hidden   = true;
         moreSlot->hidden = false;
+        m_overflowed     = true;
     }
 }
 
@@ -847,31 +863,20 @@ void DxuiToolbar::RefreshMetrics()
 //
 //  DxuiToolbar::PlanForWidth
 //
-//  Drops one label at a time FROM THE RIGHT until the strip fits, so the
-//  leftmost entries keep their names longest and nothing is ever pushed off
-//  the end. The band thickness is fixed: everything stays on one row, which
-//  is what makes a per-entry collapse legible in the first place.
-//
-//  Once every entry is down to its icon there are no moves left.
+//  Moves whole entries into See more FROM THE RIGHT until the strip fits,
+//  so the leftmost entries stay longest and nothing is ever pushed off the
+//  end. Every entry keeps its label. The band thickness is fixed:
+//  everything stays on one row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 {
-    int  labeled = (int) m_slots.size();
-
-
-
     m_scaler.SetDpi (scaler.GetDpi());
     RefreshMetrics();
     PlanSeeMore (clientWidthPx);
 
-    while (labeled > 0 && GetTotalWidthPx (labeled) > clientWidthPx)
-    {
-        labeled--;
-    }
-
-    m_labeledCount = labeled;
+    m_labeledCount = (int) m_slots.size();
 
     return kBandDp;
 }
@@ -921,11 +926,16 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
     for (Slot & slot : m_slots)
     {
-        int   width      = 0;
-        bool  wasLabeled = slot.labeled;
+        int  width = 0;
 
+        //  An entry off the strip has nowhere to hang a flyout from.
         if (slot.hidden)
         {
+            if (slot.entry.command != nullptr && slot.entry.command->id == m_flyoutId)
+            {
+                CloseFlyout();
+            }
+
             slot.rc      = RECT {};
             slot.hovered = false;
             slot.pressed = false;
@@ -943,11 +953,6 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         slot.rc         = RECT { x, top, x + width, bottom };
         x              += width;
         previousVisible = &slot;
-
-        if (wasLabeled && !slot.labeled && slot.entry.command != nullptr && slot.entry.command->id == m_flyoutId)
-        {
-            CloseFlyout();
-        }
 
         index++;
     }
@@ -1833,14 +1838,15 @@ void DxuiToolbar::PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme
 
     for (const Slot & slot : m_slots)
     {
-        int  gap = 0;
+        int   gap     = 0;
+        bool  seeMore = slot.entry.command != nullptr && slot.entry.command->id == kSeeMoreId;
 
         if (slot.hidden)
         {
             continue;
         }
 
-        if (previous != nullptr && previous->entry.group != slot.entry.group)
+        if (previous != nullptr && previous->entry.group != slot.entry.group && !(seeMore && m_overflowed))
         {
             gap = (int) slot.rc.left - (int) previous->rc.right;
 
