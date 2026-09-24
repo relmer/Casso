@@ -2,6 +2,12 @@
 
 #include "resource.h"
 #include "Ui/Chrome/EmulatorCommands.h"
+#include "Ui/Chrome/PrinterStatusLed.h"
+#include "Ui/Chrome/VolumeFlyout.h"
+#include "Widgets/DxuiToolbar.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -427,6 +433,49 @@ namespace ControllerTests
 
             Assert::IsTrue    (profile->IsEnabled());
             Assert::AreEqual  (std::wstring (L"Paddles"), profile->GetLabelText());
+        }
+
+
+        //  The picker draws its device's icon, and its word starts after it:
+        //  the icon's room is reserved as a font glyph's is, rather than the
+        //  icon being painted over the start of the word.
+        TEST_METHOD (PickerWord_StartsAfterItsDrawnIcon)
+        {
+            static constexpr float  kPadPx     = 10.0f;
+            static constexpr float  kIconPx    = 15.0f;
+            static constexpr float  kIconGapPx = 7.0f;
+            EmulatorCommands        commands;
+            PrinterStatusLed        led;
+            VolumeFlyout            volume;
+            DxuiToolbar             bar;
+            MockDxuiTextRenderer    text;
+            MockDxuiPainter         painter;
+            MockDxuiTheme           theme;
+            DxuiDpiScaler           scaler;
+            RECT                    entry      = {};
+            float                   wordX      = -1.0f;
+            bool                    found      = false;
+
+
+
+            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true) });
+            scaler.SetDpi (96);
+            bar.SetTextRenderer (&text);
+            commands.BuildToolbar (bar, led, volume);
+            bar.Layout (RECT { 0, 0, 4000, DxuiToolbar::GetBandDip() }, scaler);
+            bar.Paint  (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                wordX = (call.text == L"Gladiator") ? call.x : wordX;
+            }
+
+            found = bar.TryGetEntryRect (EmulatorCommands::kIdPaddle, entry);
+
+            Assert::IsTrue (found,         L"the picker is on the strip");
+            Assert::IsTrue (wordX >= 0.0f, L"and labeled at this width");
+            Assert::IsTrue (wordX >= (float) entry.left + kPadPx + kIconPx + kIconGapPx - 0.5f,
+                            std::format (L"the word at {} starts after the icon of the entry at {}", wordX, entry.left).c_str());
         }
     };
 }

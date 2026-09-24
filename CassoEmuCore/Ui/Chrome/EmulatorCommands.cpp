@@ -1075,22 +1075,20 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
 
         // The picker draws its own icon, because the icon tracks the DEVICE:
         // a gamepad, a stick, the paddle or the arrow keys (FR-008b). A font
-        // glyph cannot follow that, and MDL2 has no Apple paddle anyway.
+        // glyph cannot follow that, and MDL2 has no Apple paddle anyway. It
+        // goes through the strip's icon path rather than a decoration, so
+        // layout reserves the icon's room and the label starts after it, and
+        // it takes the entry's disabled and hover ink.
         if (row.id == kIdPaddle)
         {
-            e.decoration = [this] (IDxuiPainter             & painter,
-                                   const IDxuiTheme         & theme,
-                                   const DxuiToolbarIconBox & icon,
-                                   bool                       collapsed)
+            e.icon = [this] (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
             {
                 RECT  box = { (LONG) icon.x,
                               (LONG) (icon.top + (icon.rowH - icon.size) * 0.5f),
                               (LONG) (icon.x + icon.size),
                               (LONG) (icon.top + (icon.rowH + icon.size) * 0.5f) };
 
-                UNREFERENCED_PARAMETER (collapsed);
-
-                InputMonoGlyphs::Paint (painter, GetCheckedPaddleSourceGlyph(), box, theme.ButtonText());
+                InputMonoGlyphs::Paint (painter, GetCheckedPaddleSourceGlyph(), box, icon.ink);
             };
         }
 
