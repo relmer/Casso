@@ -101,6 +101,12 @@ competitors in the parts a user sees first would waste the launch.
 - Q: How does the focused group show? -> A: A 1-pixel accent border around it and an accent outline on its selected tab; an unfocused group's selected tab is outlined in a neutral color.
 - Q: Are the debugger's tabs their own implementation? -> A: No. They are the tab strip Casso Explorer uses, with the options the debugger needs; the debugger does not draw a second kind of tab.
 
+### Session 2026-09-25 (Visual Studio Breakpoints window review)
+
+- Q: How does an auto-hidden pane open? -> A: Its edge tab is a button: a click slides the pane out over the others, which do not move, and a second click slides it back; a hover does nothing.
+- Q: What does the selected tab look like? -> A: As Visual Studio's: it opens into its pane with no line between them, flared into the pane's border and rounded at the far corners; the pane's border runs on round it, in the accent color while the group has focus.
+- Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete All, Enable All, Disable All, Undo, Redo, Go to Source Code, Go to Disassembly, Show Columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -394,7 +400,8 @@ confirm the floated pane comes back onto the primary one.
    chooses Float, **Then** it becomes its own top-level window, and it can be
    dragged back into a drop zone.
 4. **Given** a pane, **When** the user pins it to auto-hide, **Then** it
-   collapses to a tab on the window edge and slides out on hover or click.
+   collapses to a tab on the window edge, and a click on the tab slides it out
+   over the other panes and a second click slides it back.
 5. **Given** a pane, **When** the user opens its Dock To menu, **Then** it can
    be docked to any side, tabbed with any listed pane, or floated without the
    mouse; arrow keys move it within its group.
@@ -802,11 +809,37 @@ confirm it disables without being removed.
 8. **Given** a breakpoint row, **When** the user opens its context menu,
    **Then** it can be removed, or edited including its type and the fields that
    type needs.
+9. **Given** the Breakpoints window, **When** the user clears a row's
+   checkbox, **Then** the breakpoint is disabled and its mark becomes a ring;
+   checking it enables it again.
+10. **Given** the Breakpoints window's New drop-down, **When** the user chooses
+    Data Breakpoint and gives a range and an access, **Then** a watchpoint is
+    added and shown as a row; Undo removes it and Redo adds it back.
+11. **Given** several breakpoints, **When** the user chooses Disable All,
+    **Then** every row's checkbox clears in one step, and one Undo checks them
+    all again.
+12. **Given** the Show Columns drop-down, **When** the user checks Address and
+    unchecks Condition, **Then** the list shows an Address column and no
+    Condition column, and does so again after the debugger reopens.
+13. **Given** a breakpoint set from a source line, **When** the user chooses
+    Go to Source Code, **Then** that file's document opens at the line; Go to
+    Disassembly moves the code pane to its address.
+14. **Given** breakpoints, **When** the user exports them to a file, clears
+    them and imports the file, **Then** the same breakpoints return, with the
+    same enabled states, conditions and When Hit settings.
 
 ---
 
 ### Edge Cases
 
+- **Breakpoints changed from the console**: The pane's Undo reverses only what
+  the pane did. A change typed at the console is not on its undo list, and an
+  undo whose breakpoint the console has since removed does nothing to the
+  others.
+- **Importing a file that is not a breakpoint export**: Only its breakpoint
+  lines are read. Any other line -- a memory write, a register change -- is
+  skipped, not run, and the console reports how many lines were skipped; a
+  breakpoint line that fails is reported as a typed one would be.
 - **Closing the document that holds the PC**: The document closes; the next
   stop in that file opens it again, as Visual Studio reopens a closed file
   when a step enters it.
@@ -1270,6 +1303,36 @@ confirm it disables without being removed.
 - **FR-094**: A breakpoint row's context menu MUST offer removing the
   breakpoint and editing it, in a dialog of its type and the fields that type
   requires.
+- **FR-117**: The breakpoints pane MUST list every breakpoint and watchpoint, one
+  row each, with a checkbox that enables or disables it and, beside it, the
+  mark of FR-092. Its columns MUST be: Name (what the breakpoint is: an address
+  or range with the symbol there where one is known, a source file and line, an
+  opcode, a register condition, an I/O range, BRK or an interrupt), Condition,
+  Hit Count (the hits so far, "count only" for one that does not stop), Kind,
+  Address, Label (the symbol at the address), File (file and line, for one set
+  from source) and When Hit (break, break once, count). Clicking a column's
+  heading MUST sort by it.
+- **FR-118**: A Show Columns drop-down MUST choose which columns show, apart from
+  Name, which always does; the choice MUST be kept across sessions. Condition
+  and Hit Count show by default.
+- **FR-119**: The breakpoints pane MUST carry a toolbar of icon buttons, each
+  with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
+  offering a breakpoint at an address, a function breakpoint by symbol name, a
+  data breakpoint on a read, a write or either over an address range, a
+  register condition, an opcode and an I/O range, each asking only for what
+  that kind needs; Delete, for the selected rows; Delete All; Enable All;
+  Disable All; Undo; Redo; Go to Source Code and Go to Disassembly, for the
+  selected row; Show Columns; Export; and Import. A button that cannot act --
+  nothing selected, nothing to undo, no source line for the selection -- MUST
+  be disabled.
+- **FR-120**: Undo and Redo MUST reverse and repeat the breakpoint changes made
+  from the pane -- adding, deleting, enabling, disabling and editing -- each
+  toolbar action, Delete All and Disable All among them, as one step. A
+  breakpoint deleted and restored MUST come back with its kind, range,
+  condition, enabled state and When Hit setting.
+- **FR-121**: Export MUST write the breakpoints to a file the user chooses, in
+  the script form `BPSAVE` writes, and Import MUST read such a file, adding its
+  breakpoints to those already set.
 - **FR-102**: The console MUST read as a command prompt: the dialect in force
   as a fixed prompt ahead of what is typed ("WinDbg>"), which cannot be edited,
   and a hint giving that dialect's help command. Every control that sends an
@@ -1365,8 +1428,13 @@ confirm it disables without being removed.
   dragging it out or by command, and dockable again by dragging it into a drop
   zone or by command.
 - **FR-041**: A pane MUST be pinnable to auto-hide: collapsed to a tab on the
-  nearest window edge, shown on hover or click, and hidden again when focus
-  leaves it.
+  nearest window edge -- a side bar's to its side, a wider group's to the top
+  or bottom -- the title of a tab on a side edge reading down the edge. The
+  tab MUST act as a button: a click shows the pane and a second click hides
+  it; a hover MUST NOT show it. A shown pane MUST lie over the docked panes
+  without moving them, under a title bar whose pin docks it back and by which
+  it can be dragged to any drop zone, and MUST hide again when the user
+  clicks elsewhere.
 - **FR-042**: Every docking operation MUST be reachable from the keyboard: a
   Dock To menu on each pane offering each side, each pane to tab with, float
   and auto-hide, and arrow keys to move a pane within its group.
@@ -1693,6 +1761,12 @@ confirm it disables without being removed.
   documents open at close all reopen, each at its line.
 - **SC-028**: Every pane's tab title is shown in full or reachable by the
   strip's arrows, at any group width down to the pane's minimum.
+- **SC-029**: Every breakpoint the console can set can also be set, enabled,
+  disabled, deleted and found from the breakpoints pane alone, with no command
+  typed.
+- **SC-030**: Any sequence of breakpoint changes made from the pane can be undone
+  step by step back to the state before the first, and exported breakpoints
+  imported into a cleared session match the originals in every column.
 
 ## Assumptions
 
