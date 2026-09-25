@@ -29,6 +29,12 @@ Joyport-aware games include Boulder Dash I and II, Miner 2049er I and II, Wavy N
 
 The Joyport also has an Apple mode that passes two sets of Apple paddles through to the four paddle inputs. Casso's four paddle inputs already provide that, so this spec covers Atari mode only.
 
+## Clarifications
+
+### Session 2026-09-24
+
+- Q: Where is the Joyport attached and detached? -> A: In two places, which show and change the same per-machine setting. The Machine tab's device tree in Settings lists it as the device on the game port, with None and Sirius Joyport, beside the slot cards. The command bar's controller picker lists a checkable Sirius Joyport row, which attaches or detaches it at once without opening Settings; the check mark is also what shows the Joyport is attached. The Joyport sits outside the machine on the game port rather than in a slot, so attaching it takes effect on the next button read with no reset (FR-001, FR-002, FR-012).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Play a Joyport game with one controller (Priority: P1)
@@ -84,18 +90,18 @@ Two people, each holding a controller assigned to a player slot in multiplayer m
 
 ### User Story 4 - Turning it on and off (Priority: P2)
 
-A user attaches the Joyport to a machine in Settings, and the choice is saved with that machine. The command bar shows that the Joyport is attached, so a user who switches to a game that expects an analog joystick knows why it does not respond. The //c does not offer the Joyport.
+A user attaches the Joyport to a machine with one click on the command bar's controller picker before starting a Joyport game, and detaches it the same way afterward. The same setting appears in the Machine tab of Settings as the device on the game port. Either way, the choice is saved with that machine, and the picker's check mark shows it is attached, so a user who switches to a game that expects an analog joystick knows why it does not respond. The //c does not offer the Joyport.
 
-**Why this priority**: Needed for the feature to be usable day to day, but simple.
+**Why this priority**: Joyport games need it attached and every other game needs it detached, so switching has to be quick. Still simple.
 
-**Independent Test**: Attach the Joyport on the //e, relaunch, and confirm it is still attached on the //e and not on the ][+; switch to the //c and confirm the option is absent.
+**Independent Test**: Attach the Joyport on the //e from the controller picker, confirm the Machine tab shows it, relaunch, and confirm it is still attached on the //e and not on the ][+; switch to the //c and confirm neither place offers it.
 
 **Acceptance Scenarios**:
 
-1. **Given** the //e, **When** the user attaches the Joyport in Settings and presses OK, **Then** it takes effect without resetting the machine and is still attached after a relaunch.
-2. **Given** the Joyport attached on the //e, **When** the user switches to the ][+, **Then** the ][+ has the Joyport only if it was attached there.
-3. **Given** the //c, **When** the user opens Settings, **Then** the Joyport option is not offered.
-4. **Given** the Joyport attached, **When** the user looks at the command bar's controller picker, **Then** it shows that the Joyport is attached.
+1. **Given** the //e, **When** the user checks the Sirius Joyport row in the controller picker, **Then** the Joyport is attached at once, without resetting the machine, and the row shows a check mark.
+2. **Given** the Joyport attached from the picker, **When** the user opens the Machine tab in Settings, **Then** the game port shows the Sirius Joyport; **When** the user sets it to None there and presses OK, **Then** the picker's row is unchecked.
+3. **Given** the Joyport attached on the //e, **When** the user relaunches, **Then** it is still attached on the //e; **When** the user switches to the ][+, **Then** the ][+ has the Joyport only if it was attached there.
+4. **Given** the //c, **When** the user opens the controller picker or the Machine tab, **Then** neither offers the Joyport.
 
 ---
 
@@ -112,14 +118,15 @@ A user attaches the Joyport to a machine in Settings, and the choice is saved wi
 - **The //c IOU**: on the //c, `$C058`-`$C05F` program the mouse and the VBL interrupt when IOU access is on. That behavior is unchanged; the //c never has a Joyport.
 - **Double hi-res on the //e**: AN3 (`$C05E`/`$C05F`) keeps selecting double hi-res. The Joyport uses only AN0 and AN1.
 - **Machine switch with a controller held**: switching to a machine without the Joyport returns the pushbuttons and paddles to the normal game-port behavior at once, with nothing stuck pressed.
+- **The picker used while Settings is open**: the Machine tab shows the change at once, and pressing OK without having touched the game-port entry does not undo it.
 - **Reset while a switch is held**: during the post-reset window the Joyport releases every line, so a held fire button cannot trigger self-test or a reboot either.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: Each machine with a 16-pin game I/O socket (the ][, ][+, //e and enhanced //e) MUST offer a game-port adapter setting with the choices None and Sirius Joyport. The default MUST be None. The //c MUST NOT offer it.
-- **FR-002**: The adapter setting MUST be saved per machine and restored when that machine is next used. Changing it MUST take effect without resetting the emulated machine.
+- **FR-001**: Each machine with a 16-pin game I/O socket (the ][, ][+, //e and enhanced //e) MUST have a game-port adapter setting with the choices None and Sirius Joyport, defaulting to None. It MUST be offered in two places that show and change the same setting: the Machine tab's device tree in Settings, as the device on the game port, and a checkable Sirius Joyport row in the command bar's controller picker. The //c MUST NOT offer it in either place.
+- **FR-002**: The adapter setting MUST be saved per machine and restored when that machine is next used. Changing it from either place MUST take effect without resetting the emulated machine: from the picker at once, and from Settings when the user presses OK, like the sheet's other settings.
 - **FR-003**: The machine MUST record the state of Annunciators 0, 1 and 2 as programs set them through `$C058`-`$C05D`, on every machine that has them, with or without a Joyport. The //c's use of `$C058`-`$C05F` for its mouse and VBL interrupt, and the //e's use of AN3 for double hi-res, MUST be unchanged.
 - **FR-004**: While the Joyport is attached, a read of PB0, PB1 or PB2 MUST return the switch that the current AN0 and AN1 settings select, per the table in Context, with a closed switch reading bit 7 clear and an open one bit 7 set. The value MUST reflect the annunciator settings at the moment of the read, not at the time of an earlier sample.
 - **FR-005**: Each player's switches MUST come from that controller's active profile. A PDL0 binding past the switch threshold toward its low end closes left, and toward its high end closes right. PDL1 does the same for up and down. The PB0 bindings drive fire. A digital binding (a D-pad, a hat or a button pair) closes its switch whenever it is pressed. Each axis is judged on its own, so a diagonal closes one horizontal and one vertical switch.
@@ -129,7 +136,7 @@ A user attaches the Joyport to a machine in Settings, and the choice is saved wi
 - **FR-009**: While the Joyport is attached, the paddle inputs MUST read as no paddle connected, and the mouse MUST NOT drive the Joyport.
 - **FR-010**: On the //e, while the Joyport is attached and active, the Open Apple, Closed Apple and Shift keys MUST NOT change what PB0, PB1 and PB2 read. This follows the real machine, where the Joyport's idle lines already read as those keys held down.
 - **FR-011**: After every reset, whether from power-on, Ctrl-Reset or a machine switch, the Joyport MUST release every line for a window long enough for the machine's reset handling to read the pushbuttons, and MUST become active when that window ends. While released, the pushbuttons MUST read as they would with no Joyport attached, including the //e's Open Apple and Closed Apple keys, so holding a key through a reset still has its usual effect.
-- **FR-012**: The command bar's controller picker MUST show when the Joyport is attached.
+- **FR-012**: The controller picker's Sirius Joyport row MUST be checked exactly while the Joyport is attached, whichever place attached it.
 - **FR-013**: With the Joyport not attached, every pushbutton, paddle and key behavior MUST be exactly as before this feature.
 - **FR-014**: The switch logic, the annunciator selection, the reset window, and the choice of which controller drives which jack MUST be testable without a real controller or a real Joyport, as spec 034's controller logic is.
 
