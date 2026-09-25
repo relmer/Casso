@@ -265,6 +265,8 @@ private:
 
         if (Contains (screen, "PRESS SPACE WHEN READY"))
         {
+            Assert::IsTrue (Contains (screen, "SET THE FRONT SWITCH TO THE FRONT") || Contains (screen, "GAME PADDLE TEST"),
+                            (L"every joystick setup screen gives the front switch: " + Widen (screen)).c_str());
             SetJacks (machine, jacks);
             KeystrokeInjector::InjectKey (machine, ' ');
             machine.RunCycles (kStepCycles);
@@ -309,6 +311,8 @@ private:
 
         if (Contains (screen, "PRESS SPACE WHEN READY"))
         {
+            Assert::IsTrue (Contains (screen, "SET THE FRONT SWITCH TO THE REAR"),
+                            (L"every paddle setup screen gives the front switch: " + Widen (screen)).c_str());
             KeystrokeInjector::InjectKey (machine, ' ');
         }
 
