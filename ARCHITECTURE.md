@@ -70,7 +70,7 @@ EmulatorShell ── owns ── MachineManager ── builds ── the machine
 
 ## 2. Threading model
 
-Two threads matter:
+Two threads own the emulator's state:
 
 - **The emulation (CPU) thread**: `CpuManager::ThreadProc`. It drains a command
   queue (`DrainCommandQueue`), runs CPU slices (`ExecuteCpuSlices`), ticks the
@@ -81,6 +81,27 @@ Two threads matter:
   tree is **single-threaded and UI-thread-affine** (enforced by
   `DxuiAssertUiThread`, ~154 call sites), so anything that mutates a panel or
   measures text must run here.
+
+Four more long-lived threads each do one narrow job:
+
+- **Audio render**: `WasapiAudio::RenderPump` drains the pending sample queue
+  into WASAPI (see §7).
+- **Controller input**: `ControllerInputThread` reads game controllers, waiting
+  on DirectInput's change events, or on a timeout while an XInput controller is
+  selected.
+- **Printer**: `PrinterWorker` paces `PrinterEngine::Tick` against the wall
+  clock.
+- **Disk image watcher**: `Win32ImageWatcher` runs one thread per directory
+  holding a mounted image, so Casso detects an external rewrite of the image.
+
+Short-lived threads come and go for the first-run downloads
+(`StartupDownloadDialog`) and for Print to PDF, which needs an MTA
+(`WindowCommandManager`).
+
+**A running Casso shows well over 100 threads, and almost none are Casso's.**
+On a 32-thread Ryzen with an NVIDIA GPU, 103 of 116 started in `nvwgf2umx.dll`,
+all at one entry point: the D3D11 user-mode driver's worker pool. The rest are Casso's own six, a few Windows thread-pool
+workers, and one each for COM, DirectInput and the input host.
 
 **Command routing** (get this wrong and you trip `DxuiAssertUiThread`):
 

@@ -125,9 +125,9 @@ front of them. It's the little things....
 
 ![The Apple //c stack](../Assets/feat-desk-2c.png)
 
-**The monitor decides the phosphor.** Green, amber, and white used to be a
-display setting applied across every machine. Monitors are now the owners of
-that setting, and machines are assigned period-accurate monitors by default.
+**Each monitor sets its own phosphor color.** Green, amber, and white used to
+be a display setting applied across every machine. Monitors are now the owners
+of that setting, and machines are assigned period-accurate monitors by default.
 Phosphor color and full color are still yours to change, and that change is
 preserved per machine.
 
@@ -178,7 +178,7 @@ the emulator already downloaded.
 For disks that carry no filesystem at all, such as a demo that boots its own
 loader off track 0, `sectorwrite` lays bytes at a track and sector and
 `sectorread` takes them back. Both take `--logical` or `--physical` every time,
-because the same sixteen sectors answer to two orders. `blockread` and
+because the same sixteen sectors have two numberings. `blockread` and
 `blockwrite`, added in 1.20.1, do the same by 512-byte ProDOS block.
 
 **The assembler's command line is now AS65's, exactly.** Values attach to their
@@ -187,9 +187,9 @@ through 3 carry the meanings the AS65 manual gives them, so a build script
 written for AS65 branches correctly here without being read again. **This
 changes behavior scripts may depend on; see [CHANGELOG.md](../CHANGELOG.md)
 before upgrading.** The help is tiered to match: `CassoCli --help` is one screen
-listing the three modes, and each mode's flags, examples and exit codes wait
-behind that mode's own help. PowerShell cuts `-oprog.bin` in half on the way in,
-and Casso puts it back together rather than complaining about your shell.
+listing the three modes, and each mode's flags, examples and exit codes are in
+that mode's own help. PowerShell cuts `-oprog.bin` in half on the way in,
+and Casso rejoins the two halves.
 
 **Command-line writes are all-or-nothing.** The complete new image is built and
 checked in memory, written beside the target, and put in place atomically, so a
@@ -202,8 +202,7 @@ running guest is written back when the drive flushes, and a flush interrupted
 partway carries no such guarantee. Nor does either side detect the other:
 `disk put` stops when some *other* program holds the image open, but a mounted
 image is not held open, so a disk mounted in Casso is neither noticed nor
-protected. The tool says so rather than implying a clean check means a mounted
-disk is safe.
+protected.
 
 <a id="v1-19"></a>
 ## [2026-08-27 · 1.19] The Mockingboard speaks
@@ -219,10 +218,9 @@ Power Down state, so the **Mockingboard A** behavior every existing title sees
 is byte-for-byte unchanged. The A is still selectable as the `mockingboard`
 device type. Boot `Apple2/Demos/mockingboard-speech-test.dsk` to hear it speak.
 
-And a first, stated here because fidelity is the point of this project: the
-chip's own per-phoneme parameter ROM, never published and substituted for by
-every emulator, has been **read off the visual6502 die photographs** and fully
-decoded: 64 phonemes × 29 bits, six significance-interleaved 4-bit fields
+The chip's own per-phoneme parameter ROM, never published and substituted for
+by every emulator, has been **read off the visual6502 die photographs** and
+fully decoded: 64 phonemes × 29 bits, six significance-interleaved 4-bit fields
 (F1/F2/F3 filter codes, vocal and fricative amplitudes, nasal coupling) plus
 closure, class, fricative and voiced flags, with the on-die column address
 decoder read to prove the phoneme mapping.
@@ -251,7 +249,7 @@ where hardware lights it fully, and the half-dot shift was lost. Both graphics
 modes now decode for the monitor you picked.
 
 Surfaced by [(Apple IIe) Sixies](https://dskilton.itch.io/apple-sixies), which
-asks for 560×192 monochrome double hi-res and was unreadable on every monitor
+requires 560×192 monochrome double hi-res and was unreadable on every monitor
 Casso offered. The same frame, white monitor and color:
 
 <table align="center" width="100%"><tr>
@@ -277,12 +275,12 @@ than a second assembler.
 
 The command line states the dialect rather than guessing it: **`CassoCli as65
 input.a65`** and **`CassoCli merlin PROG.S`**. The old bare `CassoCli
-input.a65` form is gone, and `run` takes **`--as65`** or **`--merlin`** to say
-which assembler reads a source. Under `as65`, the CPU is chosen with AS65's own
+input.a65` form is gone, and `run` takes **`--as65`** or **`--merlin`** to select
+the assembler for a source. Under `as65`, the CPU is chosen with AS65's own
 **`-x`**; under `merlin`, the source chooses it with `XC`, as Merlin does.
 Merlin output can be wrapped for an Apple II disk with **`--dos-bin`**, and
-`-d NAME=value` answers the questions a `KBD` directive would have asked at the
-keyboard.
+`-d NAME=value` supplies the values a `KBD` directive would have read from
+the keyboard.
 
 The rest of the CLI got a pass while the hood was up: `--help` wraps to the
 width of your terminal and is organized by mode; an unknown argument stops the
@@ -433,7 +431,7 @@ indicator LEDs. Both switch positions persist per machine.
 ## [2026-07-16 · 1.9] Write-protect indicator
 
 A write-protected drive now shows a small brass padlock on its face, and
-hovering over the drive explains why it is protected: the write-protect
+hovering over the drive shows why it is protected: the write-protect
 setting, the image's own WOZ flag, a read-only file, or missing write
 permission. The **Write protect** checkboxes in Settings also started actually
 protecting the mounted disk. The guest sees the write-protect sense bit, writes
@@ -586,7 +584,7 @@ keyboard navigation.
 switchable with its own parameter sliders, plus persistence trails, contrast
 and gamma. Per-monitor presets (Color, Green, Amber and White) seed sensible
 defaults, themes can override them, and your own tweaks persist on top of
-either. The Settings panel gets out of your way as you scrub a control: the
+either. The Settings panel fades as you scrub a control: the
 panel fades, the emulator behind it stays sharp, and only the focused control
 remains opaque, so you can judge every change live.
 
