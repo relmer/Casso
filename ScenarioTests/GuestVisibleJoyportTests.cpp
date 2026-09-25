@@ -139,6 +139,32 @@ public:
     }
 
 
+    //  Beeps start off each time the program is run, and B on the menu turns
+    //  them on and off again. The setting lives at $300 so that Esc, which
+    //  clears the program's variables, does not turn them back off.
+    TEST_METHOD (TheBeepOptionStartsOffAndTheMenuTogglesIt)
+    {
+        TestMachine     machine ("Apple2e", TestMachine::Slots::DiskOnly);
+
+
+
+        BootTheTestProgram (machine, true);
+
+        Assert::IsTrue   (Contains (ReadScreen (machine), "B  BEEPS: OFF"), L"beeps start off");
+        Assert::AreEqual (static_cast<Byte> (0), machine.GetMemoryBus().ReadByte (kBeepSetting));
+
+        KeystrokeInjector::InjectKey (machine, 'B');
+        machine.RunCycles (kStepCycles);
+
+        Assert::IsTrue   (Contains (ReadScreen (machine), "B  BEEPS: ON"),  L"B turns them on");
+        Assert::AreEqual (static_cast<Byte> (1), machine.GetMemoryBus().ReadByte (kBeepSetting));
+
+        KeystrokeInjector::InjectKey (machine, 'B');
+        machine.RunCycles (kStepCycles);
+
+        Assert::IsTrue   (Contains (ReadScreen (machine), "B  BEEPS: OFF"), L"and off again");
+    }
+
     //  A step that times out offers to try that step again, and Space does:
     //  the same prompt comes back rather than the whole test restarting.
     TEST_METHOD (AFailedStepIsTriedAgainNotRestarted)
@@ -193,6 +219,7 @@ private:
     static constexpr int           kOneControllersPaddles = 2;
     static constexpr Byte          kPaddleCenter          = 127;
     static constexpr size_t        kPaddleDigit           = 12;       // past "TURN PADDLE "
+    static constexpr Word          kBeepSetting           = 0x0300;
 
 
     struct ProgramRun
