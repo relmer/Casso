@@ -475,6 +475,11 @@ HRESULT SettingsSheet::OpenModeless (
             {
                 service->SetInspectedUnit (unit);
             });
+
+            m_controllersPage->SetJoyportAttachedFn ([this] ()
+            {
+                return m_emuShell->GetGamePortAdapter() == GamePortAdapter::SiriusJoyport;
+            });
         }
 
         m_controllersPage->SetState (&m_controllersState);

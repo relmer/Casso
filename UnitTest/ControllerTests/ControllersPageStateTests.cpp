@@ -1172,5 +1172,76 @@ namespace ControllerTests
             Assert::IsFalse (page.GetMultiplayer().players[1].target == page.GetMultiplayer().players[0].target,
                 L"on a free target rather than the one player one already holds");
         }
+
+
+        TEST_METHOD (Joyport_OneControllerDrivesBothJacks)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Both);
+            Assert::AreEqual (std::wstring (L"Joyport: both jacks"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+        }
+
+
+        TEST_METHOD (Joyport_InMultiplayerEditingFollowsTheSlotsJack)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            MultiplayerSetup      setup;
+
+            //  Slot targets that are not the joysticks, which must not matter.
+            setup.isEnabled         = true;
+            setup.players[0].unit   = first.unit;
+            setup.players[0].target = PlayerAxisTarget::Paddle2;
+            setup.players[1].unit   = second.unit;
+            setup.players[1].target = PlayerAxisTarget::Paddle0;
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (setup, 4);
+
+            page.SelectController (0);
+            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Left,  L"player 1 is the left jack");
+
+            page.SelectController (1);
+            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Right, L"and player 2, once Editing moves to them, the right");
+            Assert::AreEqual (std::wstring (L"Joyport: right jack"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+        }
+
+
+        TEST_METHOD (Joyport_NoControllerHasNoJack)
+        {
+            ControllersPageState  page;
+
+            page.Load ({}, {}, {}, true);
+
+            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::None);
+            Assert::AreEqual (std::wstring (L"Joyport"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+        }
+
+
+        TEST_METHOD (Joyport_TheLiveReadingCarriesThePendingMappingsSwitches)
+        {
+            ControllersPageState  page;
+            ControllerSample      sample;
+            AxisBinding           dpad;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            //  An edit that is not yet applied: the D-pad on PDL1. The lights
+            //  follow it at once, which is what makes a profile checkable
+            //  against the Joyport before OK.
+            dpad.kind     = AxisBindingKind::DigitalPair;
+            dpad.negative = { ControlKind::DpadUp, 0 };
+            dpad.positive = { ControlKind::DpadDown, 0 };
+            page.AddAxisBinding (PaddleTarget::Pdl1, dpad);
+
+            sample.connected = true;
+            sample.hats[0]   = ControllerSample::kHatUp;
+
+            Assert::IsTrue (page.ComputeLiveReading (sample).switches.test (static_cast<size_t> (JoystickSwitch::Up)));
+        }
     };
 }

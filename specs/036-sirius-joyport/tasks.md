@@ -164,7 +164,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 ### Implementation for User Story 3
 
 - [X] T051 [US3] (Landed with T026 in `AddJoyportSwitches`.) Extend the jack placement in `CassoEmuCore/Controllers/ControllerInputService.cpp` for live multiplayer: slot 1's driver on the left jack and slot 2's on the right, from each driver's pre-merge `logical->switches`, all open for an absent or disconnected slot
-- [ ] T052 [US3] Build x64 Debug and x64 Release, run the suite, run quickstart V4 with two controllers, record in `validation.md`, then commit: `feat(joyport): Give each multiplayer slot its own Joyport jack`
+- [ ] T052 [US3] (Automated part done with Phase 3; V4 with two controllers still to run.) Build x64 Debug and x64 Release, run the suite, run quickstart V4 with two controllers, record in `validation.md`, then commit: `feat(joyport): Give each multiplayer slot its own Joyport jack`
 
 **Checkpoint**: two-player Joyport games work.
 
@@ -178,13 +178,13 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ### Tests for User Story 5
 
-- [ ] T053 [P] [US5] Extend `UnitTest/ControllerTests/ControllersPageStateTests.cpp`: `GetJoyportJack()` is `Both` in single-source mode, `Left` for player 1's controller and `Right` for player 2's in multiplayer, and follows Editing when it moves; `ComputeLiveReading` carries `switches` for the page's pending mapping. Confirm a test fails with `Both` returned always
+- [X] T053 [P] [US5] Extend `UnitTest/ControllerTests/ControllersPageStateTests.cpp`: `GetJoyportJack()` is `Both` in single-source mode, `Left` for player 1's controller and `Right` for player 2's in multiplayer, and follows Editing when it moves; `ComputeLiveReading` carries `switches` for the page's pending mapping. Confirm a test fails with `Both` returned always
 
 ### Implementation for User Story 5
 
-- [ ] T054 [US5] Add `GetJoyportJack()` (an enum `JoyportJack { Left, Right, Both }` nested in `ControllersPageState`) to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`
-- [ ] T055 [US5] In `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, add `SetJoyportAttachedFn`, five `ButtonLightView`s (Up, Down, Left, Right, Fire), a **Joyport** heading and a jack caption ("Left jack", "Right jack", "Both jacks"); in `Layout`, show them and hide the stick, the button lights and their headings while attached; in `Poll`, light them from `reading.switches` and `Relayout` when the attach state changes. Wire the function in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp` to `EmulatorShell::GetGamePortAdapter`
-- [ ] T056 [US5] Build x64 Debug and x64 Release, run the suite, run quickstart V8, capture a screenshot of the page with the Joyport attached (DPI-aware `PrintWindow` of the sheet), record in `validation.md`, then commit: `feat(joyport): Show the Joyport's switches on the Controllers page`
+- [X] T054 [US5] Add `GetJoyportJack()` (a free `enum class JoyportJack { None, Left, Right, Both }` in the same header, and a pure `GetJoyportHeading`) to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`
+- [X] T055 [US5] In `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, add `SetJoyportAttachedFn` and five `ButtonLightView`s in a cross over the stick's square (Up, Down, Left, Right around Fire), with the Joystick heading reading "Joyport: left jack", "right jack" or "both jacks"; in `Layout`, show them and hide the stick, the button lights and their headings while attached; in `Poll`, light them from `reading.switches` and `Relayout` when the attach state changes. Wire the function in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp` to `EmulatorShell::GetGamePortAdapter`
+- [ ] T056 [US5] (Automated part done; V8 and the screenshot still to run, since opening Settings comes up over the user's work.) Build x64 Debug and x64 Release, run the suite, run quickstart V8, capture a screenshot of the page with the Joyport attached (DPI-aware `PrintWindow` of the sheet), record in `validation.md`, then commit: `feat(joyport): Show the Joyport's switches on the Controllers page`
 
 **Checkpoint**: all five stories done.
 

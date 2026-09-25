@@ -68,3 +68,12 @@ place a player on a jack.
 |---|---|---|
 | Each player on their own jack; player 2's fire only on the right jack; slot is the jack whatever its paddles; player 2 leaving opens only the right jack; multiplayer with nobody connected falls back to one controller (`ControllerInputServiceTests`) | automated | pass |
 | V4: two real controllers | manual | not yet run |
+
+## Phase 7: the Controllers page (US5)
+
+| Check | Kind | Result |
+|---|---|---|
+| Jack for the controller in Editing: both alone; left and right by slot in multiplayer, whatever the slots' paddles, following Editing; none with nothing to edit; heading text; the live reading carries the pending mapping's switches (`ControllersPageStateTests`) | automated | pass |
+| Mutation check: the jack always Both | automated | two tests went red |
+| Full unit suite | x64 Debug | 5,662 of 5,662 |
+| V8: the five lights and the heading on the running page, a diagonal, short of and past halfway, detaching | manual | not yet run: opening Settings comes up over the user's work |

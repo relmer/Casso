@@ -72,6 +72,11 @@ public:
     // Where Save on the profile-switch prompt commits the edited model.
     void  SetOnCommitProfile (ControllersPageState::CommitFn onCommit) { m_onCommitProfile = std::move (onCommit); }
 
+    // Whether the running machine has the Sirius Joyport attached. While it
+    // does, the stick and the button lights give way to the five switch
+    // lights the Joyport reads.
+    void  SetJoyportAttachedFn (std::function<bool()> isAttached) { m_isJoyportAttached = std::move (isAttached); }
+
     void  Layout           (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
     // Each dialog tick: feed the controller's latest reading to the capture,
@@ -159,6 +164,9 @@ private:
     void                 OnDeleteProfile    ();
     void                 ShowDialog         ();
     void                 AfterEdit          ();
+    bool                 IsJoyportAttached  () const;
+    void                 LayoutSwitchLights (int x, int top, int stickSize, int lightSize, const DxuiDpiScaler & scaler, bool isShown);
+    void                 PollSwitchLights   (const GamePortContribution * reading);
     ControllerKind       GetSelectedKind    () const;
 
     ControllersPageState                      * m_state               = nullptr;
@@ -206,6 +214,14 @@ private:
     DxuiLabel          m_joystickHeading;
     StickPositionView  m_stick;
     DxuiLabel          m_buttonsHeading;
+
+    // The Joyport's switches, in a cross where the stick is drawn: up, down,
+    // left and right around fire.
+    static constexpr size_t  kSwitchCount = static_cast<size_t> (JoystickSwitch::Count);
+
+    std::array<ButtonLightView, kSwitchCount>  m_switchLights;
+    std::function<bool()>                      m_isJoyportAttached;
+    bool                                       m_isJoyportShown = false;
 
     std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;
     std::array<ButtonLightView, kButtonCount>                           m_lights;

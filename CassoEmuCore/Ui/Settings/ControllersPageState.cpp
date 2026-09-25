@@ -389,6 +389,88 @@ bool ControllersPageState::IsMultiplayerEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetJoyportJack
+//
+//  Which Joyport jack the controller in Editing drives: both, when one
+//  controller plays alone, or its slot's, slot 1 left and slot 2 right, in
+//  multiplayer. None when nothing is being edited, or the controller has no
+//  slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoyportJack ControllersPageState::GetJoyportJack() const
+{
+    const ControllerEntry  * selected = GetSelected();
+    JoyportJack              jack     = JoyportJack::None;
+    size_t                   player   = 0;
+
+
+
+    if (selected != nullptr && !m_multiplayer.isEnabled)
+    {
+        jack = JoyportJack::Both;
+    }
+    else if (selected != nullptr)
+    {
+        for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
+        {
+            const std::optional<ControllerUnitKey>  & unit = m_multiplayer.players[player].unit;
+
+            if (unit.has_value() && unit.value() == selected->unit)
+            {
+                jack = (player == JoyportJacks::kLeftJack) ? JoyportJack::Left : JoyportJack::Right;
+                break;
+            }
+        }
+    }
+
+    return jack;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetJoyportHeading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetJoyportHeading (JoyportJack jack)
+{
+    std::wstring  heading = L"Joyport";
+
+
+
+    switch (jack)
+    {
+        case JoyportJack::Left:
+            heading = L"Joyport: left jack";
+            break;
+
+        case JoyportJack::Right:
+            heading = L"Joyport: right jack";
+            break;
+
+        case JoyportJack::Both:
+            heading = L"Joyport: both jacks";
+            break;
+
+        case JoyportJack::None:
+        default:
+            break;
+    }
+
+    return heading;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMultiplayerUnit
 //
 //  The controller one player holds.

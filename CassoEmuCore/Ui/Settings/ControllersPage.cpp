@@ -90,6 +90,11 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_lights[target]);
     }
 
+    for (target = 0; target < kSwitchCount; target++)
+    {
+        Adopt (m_switchLights[target]);
+    }
+
     for (target = 0; target < kAxisCount; target++)
     {
         Adopt (m_invert[target]);
@@ -389,6 +394,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     axesBottom  = 0;
     int     playerX     = 0;
     bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
+    bool    isJoyport   = IsJoyportAttached();
     size_t  target      = 0;
     size_t  player      = 0;
     size_t  row         = 0;
@@ -462,14 +468,22 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_deleteProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2, y, profileBtnW, rowH));
     y += rowH + sectionGap;
 
+    // With the Joyport attached the heading gives the jack this controller
+    // drives, and the stick's square shows the switches it closes instead.
+    m_isJoyportShown = isJoyport;
+
     m_joystickHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
-    m_joystickHeading.SetText (L"Joystick");
+    m_joystickHeading.SetText (isJoyport && m_state != nullptr
+                                   ? ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack())
+                                   : std::wstring (L"Joystick"));
     y += rowH;
 
     stickTop   = y;
     axesBottom = y;
 
+    m_stick.SetVisible (!isJoyport);
     m_stick.Layout (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    LayoutSwitchLights (x, stickTop, stickSize, lightSize, scaler, isJoyport);
 
     // The two axes, stacked to the right of the stick. An axis this
     // controller's player does not drive is GONE rather than grayed: a row
@@ -550,7 +564,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         bool          isInPlay  = m_state == nullptr || m_state->IsTargetInPlay (TargetAt (target));
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_lights[light].SetVisible (isInPlay);
+        m_lights[light].SetVisible (isInPlay && !isJoyport);
         m_lights[light].Layout     (MakeRect (x, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
 
         m_targetLabel[target].SetVisible (isInPlay);
@@ -691,6 +705,13 @@ void ControllersPage::Poll()
         Refresh();
     }
 
+    // The Joyport can be attached or detached from the command bar while the
+    // page is open; the readout above the rows changes form with it.
+    if (IsJoyportAttached() != m_isJoyportShown)
+    {
+        Relayout();
+    }
+
     selected = m_state->GetSelectedIndex();
 
     if (selected.has_value())
@@ -728,6 +749,7 @@ void ControllersPage::Poll()
             m_lights[light].SetLit (false);
         }
 
+        PollSwitchLights (nullptr);
         return;
     }
 
@@ -789,6 +811,99 @@ void ControllersPage::Poll()
         // A button the machine lacks stays dark whatever is pressed.
         m_lights[light].SetLit (reading.buttons.test (light) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light)));
     }
+
+    PollSwitchLights (&reading);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsJoyportAttached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsJoyportAttached() const
+{
+    return m_isJoyportAttached && m_isJoyportAttached();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutSwitchLights
+//
+//  The five switches in a cross over the stick's square, in thirds: up above
+//  fire, down below it, left and right beside it. Hidden unless the Joyport
+//  is attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::LayoutSwitchLights (
+    int                     x,
+    int                     top,
+    int                     stickSize,
+    int                     lightSize,
+    const DxuiDpiScaler   & scaler,
+    bool                    isShown)
+{
+    // Column and row in thirds, indexed by JoystickSwitch: Up, Down, Left, Right, Fire.
+    constexpr int  kColumn[kSwitchCount] = { 1, 1, 0, 2, 1 };
+    constexpr int  kRow[kSwitchCount]    = { 0, 2, 1, 1, 1 };
+    constexpr int  kCells                = 3;
+    int            cell                  = stickSize / kCells;
+    int            inset                 = (cell - lightSize) / 2;
+    size_t         sw                    = 0;
+
+
+
+    for (sw = 0; sw < kSwitchCount; sw++)
+    {
+        m_switchLights[sw].SetVisible (isShown);
+        m_switchLights[sw].Layout     (MakeRect (x + kColumn[sw] * cell + inset, top + kRow[sw] * cell + inset,
+                                                 lightSize, lightSize), scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollSwitchLights
+//
+//  Lit exactly when the switch would read closed, from the page's own reading
+//  of the edited mapping, so a profile can be checked against the Joyport
+//  without booting a game. The heading follows Editing, which can move to
+//  another player's controller while the page is open. No reading: all dark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::PollSwitchLights (const GamePortContribution * reading)
+{
+    HRESULT  hr         = S_OK;
+    bool     isShowing  = m_isJoyportShown && m_state != nullptr;
+    size_t   sw         = 0;
+
+
+
+    BAIL_OUT_IF (!isShowing, S_OK);
+
+    m_joystickHeading.SetText (ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack()));
+
+    for (sw = 0; sw < kSwitchCount; sw++)
+    {
+        m_switchLights[sw].SetLit (reading != nullptr && reading->switches.test (sw));
+    }
+
+Error:
+    return;
 }
 
 
