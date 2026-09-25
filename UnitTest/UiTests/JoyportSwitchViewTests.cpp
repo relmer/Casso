@@ -143,7 +143,7 @@ public:
 
         Assert::IsTrue (art.fireCenter.x < 10.0f + kSide / 4.0f && art.fireCenter.y < 20.0f + kSide / 4.0f, L"top-left");
         Assert::IsTrue (DistanceFrom (art.ringCenter, art.fireCenter) - art.fireRadius > art.ringOuter, L"clear of the ring");
-        Assert::AreEqual (art.shaftRadius, art.fireRadius, 0.01f, L"and the stick's size");
+        Assert::AreEqual (art.shaftRadius * 0.9f, art.fireRadius, 0.01f, L"and a tenth smaller than the stick");
     }
 
 

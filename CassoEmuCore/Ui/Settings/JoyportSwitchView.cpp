@@ -29,8 +29,8 @@ static constexpr const wchar_t *  s_kpszMarkingFont = L"Segoe UI";
 
 // Proportions, as fractions of the square's side, read off the real stick.
 // The ring is centered on the base, so its margin to each edge is the same;
-// the fire button is the stick's size and sits in the top-left corner between
-// the ring and the base's rounded corner.
+// the fire button is a little smaller than the stick and sits in the top-left
+// corner between the ring and the base's rounded corner.
 static constexpr float  s_kCornerRadius   = 0.09f;
 static constexpr float  s_kBevel          = 0.025f;
 static constexpr float  s_kRingCenter     = 0.5f;
@@ -40,10 +40,16 @@ static constexpr float  s_kRingPlate      = 0.42f;
 static constexpr float  s_kTopHeight      = 0.058f;
 static constexpr float  s_kFireCenter     = 0.155f;
 static constexpr float  s_kFireCap        = 0.82f;
+static constexpr float  s_kFireScale      = 0.9f;
 static constexpr float  s_kBootRadius     = 0.25f;
 static constexpr float  s_kShaftRadius    = 0.09f;
 static constexpr float  s_kShaftTravel    = 0.06f;
 static constexpr float  s_kRidgeThickness = 0.008f;
+
+// The stick's top is a hexagon with rounded corners, each corner's radius a
+// fraction of the hexagon's.
+static constexpr float  s_kStickRounding  = 0.25f;
+static constexpr int    s_kHexagonSides   = 6;
 
 // Each quadrant of the ring, from one cardinal to the next, in degrees: half a
 // gap, a marker piece, a gap, seven dashes with a gap between each, a gap,
@@ -115,7 +121,7 @@ JoyportStickArt JoyportSwitchView::BuildArt (float left, float top, float side)
     art.topCenter   = PointAt (art.ringCenter, (art.ringInner + art.ringOuter) * 0.5f, s_kDegUp);
     art.topHeight   = side * s_kTopHeight;
     art.fireCenter  = { left + side * s_kFireCenter, top + side * s_kFireCenter };
-    art.fireRadius  = side * s_kShaftRadius;
+    art.fireRadius  = side * s_kShaftRadius * s_kFireScale;
     art.bootRadius  = side * s_kBootRadius;
     art.shaftRadius = side * s_kShaftRadius;
     art.shaftTravel = side * s_kShaftTravel;
@@ -179,6 +185,45 @@ std::vector<DxuiPointF> JoyportSwitchView::BuildRoundedSquare (float left, float
         for (step = 0; step <= s_kCornerSteps; step++)
         {
             points.push_back (PointAt (center, radius, startDeg + s_kDegDown * (float) step / (float) s_kCornerSteps));
+        }
+    }
+
+    return points;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildRoundedHexagon
+//
+//  A regular hexagon of the given radius, center to corner, with a corner at
+//  the right, and each corner rounded by an arc of the given radius. An arc's
+//  center lies on its corner's spoke, cornerRadius / sin 60 in from the
+//  corner, and the arc spans the 60 degrees between the two edges' normals.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPointF> JoyportSwitchView::BuildRoundedHexagon (DxuiPointF center, float radius, float cornerRadius)
+{
+    constexpr float          kSideDeg = 360.0f / (float) s_kHexagonSides;
+    std::vector<DxuiPointF>  points;
+    float                    inset    = cornerRadius / std::sin (kSideDeg * std::numbers::pi_v<float> / 180.0f);
+    int                      corner   = 0;
+    int                      step     = 0;
+
+
+
+    for (corner = 0; corner < s_kHexagonSides; corner++)
+    {
+        float       cornerDeg = kSideDeg * (float) corner;
+        DxuiPointF  arcCenter = PointAt (center, radius - inset, cornerDeg);
+
+        for (step = 0; step <= s_kCornerSteps; step++)
+        {
+            points.push_back (PointAt (arcCenter, cornerRadius, cornerDeg - kSideDeg * 0.5f + kSideDeg * (float) step / (float) s_kCornerSteps));
         }
     }
 
@@ -370,22 +415,26 @@ void JoyportSwitchView::PaintMarkers (IDxuiTextRenderer & text, const JoyportSti
 //  PaintStick
 //
 //  The rubber boot's ridges around the base of the stick, and the stick's
-//  top, leaning toward whichever switches are closed so a diagonal leans
-//  diagonally.
+//  rounded-hexagon top with its rim, leaning toward whichever switches are
+//  closed so a diagonal leans diagonally.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void JoyportSwitchView::PaintStick (IDxuiTextRenderer & text, const JoyportStickArt & art) const
 {
-    constexpr float  kRidges[]  = { 0.9f, 0.75f, 0.6f };
-    constexpr float  kDiagonal  = 0.7071f;
-    float            ridge      = art.topHeight / s_kTopHeight * s_kRidgeThickness;
-    float            dx         = (IsLit (JoystickSwitch::Right) ? 1.0f : 0.0f) - (IsLit (JoystickSwitch::Left) ? 1.0f : 0.0f);
-    float            dy         = (IsLit (JoystickSwitch::Down)  ? 1.0f : 0.0f) - (IsLit (JoystickSwitch::Up)   ? 1.0f : 0.0f);
-    float            scale      = (dx != 0.0f && dy != 0.0f) ? kDiagonal : 1.0f;
-    float            shaftX     = art.ringCenter.x + dx * scale * art.shaftTravel;
-    float            shaftY     = art.ringCenter.y + dy * scale * art.shaftTravel;
-    HRESULT          hr         = S_OK;
+    constexpr float          kRidges[]  = { 0.9f, 0.75f, 0.6f };
+    constexpr float          kDiagonal  = 0.7071f;
+    float                    ridge      = art.topHeight / s_kTopHeight * s_kRidgeThickness;
+    float                    dx         = (IsLit (JoystickSwitch::Right) ? 1.0f : 0.0f) - (IsLit (JoystickSwitch::Left) ? 1.0f : 0.0f);
+    float                    dy         = (IsLit (JoystickSwitch::Down)  ? 1.0f : 0.0f) - (IsLit (JoystickSwitch::Up)   ? 1.0f : 0.0f);
+    float                    scale      = (dx != 0.0f && dy != 0.0f) ? kDiagonal : 1.0f;
+    float                    shaftX     = art.ringCenter.x + dx * scale * art.shaftTravel;
+    float                    shaftY     = art.ringCenter.y + dy * scale * art.shaftTravel;
+    float                    rimRadius  = art.shaftRadius + ridge;
+    float                    capRadius  = art.shaftRadius - ridge;
+    std::vector<DxuiPointF>  rim        = BuildRoundedHexagon ({ shaftX, shaftY }, rimRadius, rimRadius * s_kStickRounding);
+    std::vector<DxuiPointF>  cap        = BuildRoundedHexagon ({ shaftX, shaftY }, capRadius, capRadius * s_kStickRounding);
+    HRESULT                  hr         = S_OK;
 
 
 
@@ -399,10 +448,10 @@ void JoyportSwitchView::PaintStick (IDxuiTextRenderer & text, const JoyportStick
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    hr = text.FillEllipse (shaftX, shaftY, art.shaftRadius, art.shaftRadius, s_kShaftColor);
+    hr = text.FillPolygon (rim.data(), rim.size(), s_kShaftRimColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawEllipse (shaftX, shaftY, art.shaftRadius, art.shaftRadius, ridge * 2.0f, s_kShaftRimColor);
+    hr = text.FillPolygon (cap.data(), cap.size(), s_kShaftColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

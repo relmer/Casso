@@ -55,8 +55,8 @@ struct JoyportStickArt
 //  JoyportSwitchView
 //
 //  The Joyport's switches as an Atari joystick seen from above: the dark
-//  base, the red fire button in its top-left corner, and the orange ring of
-//  dashes with a chevron at left, right and down and TOP at up. A marker, or
+//  base, the red fire button in its top-left corner, the stick's
+//  rounded-hexagon top, and the orange ring of dashes with a chevron at left, right and down and TOP at up. A marker, or
 //  TOP, lights while its direction's switch reads closed, the fire button
 //  while fire does, and the stick leans the way it is pushed.
 //
@@ -79,10 +79,11 @@ public:
 
 private:
 
-    static std::vector<DxuiPointF>  BuildRoundedSquare (float left, float top, float side, float radius);
-    static std::vector<DxuiPointF>  BuildDash          (DxuiPointF center, float inner, float outer, float fromDeg, float toDeg);
-    static std::vector<DxuiPointF>  BuildMarkerPiece   (DxuiPointF center, float inner, float outer, float cardinalDeg, float sign);
-    static DxuiPointF               PointAt            (DxuiPointF center, float radius, float degrees);
+    static std::vector<DxuiPointF>  BuildRoundedSquare  (float left, float top, float side, float radius);
+    static std::vector<DxuiPointF>  BuildRoundedHexagon (DxuiPointF center, float radius, float cornerRadius);
+    static std::vector<DxuiPointF>  BuildDash           (DxuiPointF center, float inner, float outer, float fromDeg, float toDeg);
+    static std::vector<DxuiPointF>  BuildMarkerPiece    (DxuiPointF center, float inner, float outer, float cardinalDeg, float sign);
+    static DxuiPointF               PointAt             (DxuiPointF center, float radius, float degrees);
 
     bool  IsLit          (JoystickSwitch sw) const { return m_isActive && m_switches.test (static_cast<size_t> (sw)); }
     void  PaintMarkers   (IDxuiTextRenderer & text, const JoyportStickArt & art) const;
