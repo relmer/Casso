@@ -3,6 +3,8 @@
 #include "KeystrokeInjector.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -50,63 +52,158 @@ public:
     }
 
 
-    //  The test program from the Joyport's own manual, driven the way its
-    //  prompts ask a person to drive it: press Space, then move the stick or
-    //  press fire within its wait loop. Its first two sections expect the rear
-    //  Controller Select switch at Right and then Left, which pins the jack;
-    //  Casso has only Center, where AN0 picks the jack, and those sections
-    //  leave AN0 off, so the switches go on both jacks, as one controller
-    //  drives them. The third section is the two-stick one, with the rear
-    //  switch centered, and there each switch goes on ONLY the jack the
-    //  program is testing: a swapped AN0 fails it. Its last section tests
-    //  Apple-mode paddles, which is not the mode Casso emulates, so reaching
-    //  that section is the pass.
-    TEST_METHOD (TheManualsTestProgramPassesEveryAtariStickStep)
+    //  The Joyport test program on Joyport.do, driven the way its prompts ask
+    //  a person to drive it: every test from the menu, pressing Space at each
+    //  setup screen and moving the stick or pressing fire within each step's
+    //  wait. Its first two tests expect the rear Controller Select switch at
+    //  Right and then Left, which pins the jack; Casso has only Center, where
+    //  AN0 picks the jack, and those tests leave AN0 off, so the switches go
+    //  on both jacks, as one controller drives them. The third is the
+    //  two-stick test, with the rear switch in the middle, and there each
+    //  switch goes on ONLY the jack the program is testing: a swapped AN0
+    //  fails it. The paddle test comes last and needs Apple mode, so reaching
+    //  it is the pass.
+    TEST_METHOD (TheTestProgramPassesEveryAtariJoystickStep)
     {
-        std::vector<Byte>  bytes     = GuestSession::RequireRepoImage (kManualDiskPath);
-        TestMachine        machine ("Apple2e", TestMachine::Slots::DiskOnly);
-        ManualProgress     progress;
-        int                step      = 0;
+        TestMachine     machine ("Apple2e", TestMachine::Slots::DiskOnly);
+        ProgramRun      run;
+        int             step    = 0;
 
 
 
-        machine.GetJoyport()->SetAttached (true);
-        GuestSession::MountAndBoot (machine, bytes);
+        BootTheTestProgram (machine, true);
+        KeystrokeInjector::InjectKey (machine, kEveryTestKey);
 
-        for (step = 0; step < kMaxManualSteps && !progress.isDone; step++)
+        for (step = 0; step < kMaxSteps && !run.isFailed && !Contains (run.screen, "GAME PADDLE TEST"); step++)
         {
-            AdvanceTheManualProgram (machine, progress);
+            AdvanceTheJoystickTests (machine, run);
         }
 
-        Assert::IsFalse (progress.isFailed,   (L"the program reported NOTHING HAPPENED after: " + progress.lastPrompt).c_str());
-        Assert::IsTrue  (progress.isDone,     L"the program reached its paddle section, past every Atari-stick test");
-        Assert::AreEqual (kCenteredSteps, progress.centeredSteps,
-            L"five switches on each jack, each closed on that jack alone, in the centered section");
+        Assert::IsFalse  (run.isFailed, (L"the program reported NOTHING HAPPENED at: " + Widen (run.screen)).c_str());
+        Assert::IsTrue   (Contains (run.screen, "GAME PADDLE TEST"), L"the program reached its paddle test, past every Atari joystick step");
+        Assert::AreEqual (kCenteredSteps, run.centeredSteps,
+            L"five switches on each jack, each closed on that jack alone, with the rear switch in the middle");
+    }
+
+
+    //  The paddle test, chosen straight from the menu. It is the Joyport's
+    //  Apple mode, which passes the paddles through; Casso does not emulate
+    //  Apple mode, but with the Joyport detached the paddles reach the game
+    //  port directly, which is what Apple mode amounts to. Every paddle is
+    //  turned end to end at each step and both buttons are held when it asks.
+    TEST_METHOD (ThePaddleTestPassesFromTheMenu)
+    {
+        TestMachine     machine ("Apple2e", TestMachine::Slots::DiskOnly);
+        ProgramRun      run;
+        int             step    = 0;
+
+
+
+        BootTheTestProgram (machine, false);
+        KeystrokeInjector::InjectKey (machine, kPaddleTestKey);
+
+        for (step = 0; step < kMaxSteps && !run.isFailed && !Contains (run.screen, "ALL DONE"); step++)
+        {
+            AdvanceThePaddleTest (machine, run, step);
+        }
+
+        Assert::IsFalse (run.isFailed, (L"the program reported NOTHING HAPPENED at: " + Widen (run.screen)).c_str());
+        Assert::IsTrue  (Contains (run.screen, "ALL DONE"), L"every paddle and button step passed");
+        Assert::AreEqual (kPaddleSteps, run.paddleSteps, L"four paddles in the middle position, two in each of the others");
+    }
+
+
+    //  A step that times out offers to try that step again, and Space does:
+    //  the same prompt comes back rather than the whole test restarting.
+    TEST_METHOD (AFailedStepIsTriedAgainNotRestarted)
+    {
+        TestMachine     machine ("Apple2e", TestMachine::Slots::DiskOnly);
+        ProgramRun      run;
+        JoyportJacks    jacks;
+        int             step    = 0;
+
+
+
+        BootTheTestProgram (machine, true);
+        KeystrokeInjector::InjectKey (machine, '1');
+        machine.RunCycles (kStepCycles);
+        KeystrokeInjector::InjectKey (machine, ' ');
+
+        for (step = 0; step < kMaxSteps && !Contains (ReadScreen (machine), "NOTHING HAPPENED"); step++)
+        {
+            machine.RunCycles (kStepCycles);
+        }
+
+        Assert::IsTrue (Contains (ReadScreen (machine), "RIGHT JOYSTICK: PUSH IT RIGHT"), L"the step that timed out");
+        Assert::IsTrue (Contains (ReadScreen (machine), "NOTHING HAPPENED"),              L"timed out with nothing pressed");
+
+        KeystrokeInjector::InjectKey (machine, ' ');
+        machine.RunCycles (kStepCycles);
+        run.screen = ReadScreen (machine);
+
+        Assert::IsTrue  (Contains (run.screen, "RIGHT JOYSTICK: PUSH IT RIGHT"), L"Space tries the same step again");
+        Assert::IsFalse (Contains (run.screen, "NOTHING HAPPENED"),              L"with the message cleared");
+
+        jacks.jack[JoyportJacks::kLeftJack].set (static_cast<size_t> (JoystickSwitch::Right));
+        SetJacks (machine, jacks);
+        machine.RunCycles (kStepCycles);
+
+        Assert::IsTrue (Contains (ReadScreen (machine), "RIGHT JOYSTICK: PUSH IT LEFT"), L"and passing it moves on to the next step");
     }
 
 
 private:
 
-    static constexpr const char *  kManualDiskPath = "Apple2/Demos/Joyport.do";
-    static constexpr int           kMaxManualSteps = 80;
-    static constexpr int           kCenteredSteps  = 10;
-    static constexpr uint32_t      kStepCycles     = 400'000;
-    static constexpr size_t        kJackNameOffset = 9;        // past "TILT THE "
+    static constexpr const char *  kProgramDiskPath = "Apple2/Demos/Joyport.do";
+    static constexpr int           kMaxSteps        = 200;
+    static constexpr int           kCenteredSteps   = 10;
+    static constexpr int           kPaddleSteps     = 8;
+    static constexpr uint32_t      kStepCycles      = 400'000;
+    static constexpr uint32_t      kBootCycles      = 3'000'000;
+    static constexpr char          kEveryTestKey    = '5';
+    static constexpr char          kPaddleTestKey   = '4';
+    static constexpr Byte          kPaddleLeft      = 0;
+    static constexpr Byte          kPaddleRight     = 255;
+    static constexpr int           kPaddleCount     = 4;
 
 
-    struct ManualProgress
+    struct ProgramRun
     {
         bool          isCentered    = false;
-        bool          isDone        = false;
         bool          isFailed      = false;
-        size_t        jack          = JoyportJacks::kLeftJack;
         int           centeredSteps = 0;
-        std::string   lastScreen;
-        std::wstring  lastPrompt;
+        int           paddleSteps   = 0;
+        std::string   screen;
     };
 
 
-    //  The whole screen as one line, rows run together, so a prompt that
+    static std::wstring Widen (const std::string & text)
+    {
+        return std::wstring (text.begin(), text.end());
+    }
+
+
+    //  Boots the disk and waits for the menu, with the Joyport attached or not.
+    static void BootTheTestProgram (TestMachine & machine, bool isJoyportAttached)
+    {
+        std::vector<Byte>  bytes = GuestSession::RequireRepoImage (kProgramDiskPath);
+        int                step  = 0;
+
+
+
+        machine.GetJoyport()->SetAttached (isJoyportAttached);
+        GuestSession::MountAndBoot (machine, bytes);
+
+        for (step = 0; step < kMaxSteps && !Contains (ReadScreen (machine), "CHOOSE A TEST"); step++)
+        {
+            machine.RunCycles (kStepCycles);
+        }
+
+        Assert::IsTrue (Contains (ReadScreen (machine), "CHOOSE A TEST"), L"the program's menu");
+    }
+
+
+    //  The whole screen as one line, rows run together, so a phrase that
     //  wraps at column 40 still reads as one phrase.
     static std::string ReadScreen (MachineHost & machine)
     {
@@ -129,22 +226,22 @@ private:
     }
 
 
-    //  The switch the prompt on screen asks for, or Count for none.
-    static JoystickSwitch GetAskedSwitch (const std::string & screen, ManualProgress & progress)
+    //  The switch the prompt on screen asks for, or Count for none. A prompt
+    //  starts the screen with the jack: "LEFT JOYSTICK: PUSH IT UP".
+    static JoystickSwitch GetAskedSwitch (const std::string & screen, size_t & jack)
     {
-        size_t  tilt = screen.find ("TILT THE ");
-
-        if (tilt != std::string::npos && Contains (screen, "ATARI JOYSTICK RIGHT"))
+        if (!Contains (screen, "JOYSTICK: "))
         {
-            progress.jack = (screen.compare (tilt + kJackNameOffset, 4, "LEFT") == 0) ? JoyportJacks::kLeftJack
-                                                                                       : JoyportJacks::kRightJack;
-            return JoystickSwitch::Right;
+            return JoystickSwitch::Count;
         }
 
-        if (Contains (screen, "TILT THE JOYSTICK LEFT")) { return JoystickSwitch::Left; }
-        if (Contains (screen, "PUSH THE FIRE BUTTON"))   { return JoystickSwitch::Fire; }
-        if (Contains (screen, "PRESS THE JOYSTICK UP"))  { return JoystickSwitch::Up; }
-        if (Contains (screen, "TILT THE JOYSTICK DOWN")) { return JoystickSwitch::Down; }
+        jack = screen.starts_with ("LEFT ") ? JoyportJacks::kLeftJack : JoyportJacks::kRightJack;
+
+        if (Contains (screen, "PUSH IT RIGHT")) { return JoystickSwitch::Right; }
+        if (Contains (screen, "PUSH IT LEFT"))  { return JoystickSwitch::Left;  }
+        if (Contains (screen, "PRESS FIRE"))    { return JoystickSwitch::Fire;  }
+        if (Contains (screen, "PUSH IT UP"))    { return JoystickSwitch::Up;    }
+        if (Contains (screen, "PUSH IT DOWN"))  { return JoystickSwitch::Down;  }
 
         return JoystickSwitch::Count;
     }
@@ -152,25 +249,21 @@ private:
 
     //  One look at the screen and one response to it, then time for the
     //  program's wait loop to see the switch.
-    static void AdvanceTheManualProgram (MachineHost & machine, ManualProgress & progress)
+    static void AdvanceTheJoystickTests (MachineHost & machine, ProgramRun & run)
     {
         std::string     screen      = ReadScreen (machine);
         JoyportJacks    jacks;
         JoystickSwitch  asked       = JoystickSwitch::Count;
-        bool            isNewPrompt = screen != progress.lastScreen;
+        size_t          jack        = JoyportJacks::kLeftJack;
+        bool            isNewPrompt = screen != run.screen;
 
-        progress.lastScreen = screen;
-        progress.lastPrompt = std::wstring (screen.begin(), screen.end());
-        progress.isFailed   = Contains (screen, "NOTHING HAPPENED");
-        progress.isDone     = progress.isFailed || Contains (screen, "TEST THE PADDLE READINGS");
-        progress.isCentered = progress.isCentered || Contains (screen, "MIDDLE POSITION");
 
-        if (progress.isDone)
-        {
-            return;
-        }
 
-        if (Contains (screen, "PRESS SPACE WHEN READY TO START"))
+        run.screen     = screen;
+        run.isFailed   = Contains (screen, "NOTHING HAPPENED");
+        run.isCentered = run.isCentered || Contains (screen, "REAR SWITCH TO THE MIDDLE");
+
+        if (Contains (screen, "PRESS SPACE WHEN READY"))
         {
             SetJacks (machine, jacks);
             KeystrokeInjector::InjectKey (machine, ' ');
@@ -178,12 +271,12 @@ private:
             return;
         }
 
-        asked = GetAskedSwitch (screen, progress);
+        asked = GetAskedSwitch (screen, jack);
 
-        if (asked != JoystickSwitch::Count && progress.isCentered)
+        if (asked != JoystickSwitch::Count && run.isCentered)
         {
-            jacks.jack[progress.jack].set (static_cast<size_t> (asked));
-            progress.centeredSteps += isNewPrompt ? 1 : 0;
+            jacks.jack[jack].set (static_cast<size_t> (asked));
+            run.centeredSteps += isNewPrompt ? 1 : 0;
         }
         else if (asked != JoystickSwitch::Count)
         {
@@ -194,6 +287,42 @@ private:
         SetJacks (machine, jacks);
         machine.RunCycles (kStepCycles);
     }
+
+
+    //  One look at the screen and one response: Space at a setup screen, a
+    //  paddle at the other end from the last look while one is to be turned,
+    //  and both buttons held while one is to be pressed.
+    static void AdvanceThePaddleTest (MachineHost & machine, ProgramRun & run, int step)
+    {
+        std::string              screen    = ReadScreen (machine);
+        Apple2eSoftSwitchBank  * bank      = machine.GetRefs().iieSoftSwitches;
+        Apple2eKeyboard        * keyboard  = machine.GetRefs().iieKeyboard;
+        bool                     isButton  = Contains (screen, "PRESS ITS BUTTON");
+        Byte                     position  = (step % 2 == 0) ? kPaddleLeft : kPaddleRight;
+        int                      axis      = 0;
+
+
+
+        run.paddleSteps += (Contains (screen, "ALL THE WAY LEFT") && !Contains (run.screen, "ALL THE WAY LEFT")) ? 1 : 0;
+        run.screen       = screen;
+        run.isFailed     = Contains (screen, "NOTHING HAPPENED");
+
+        if (Contains (screen, "PRESS SPACE WHEN READY"))
+        {
+            KeystrokeInjector::InjectKey (machine, ' ');
+        }
+
+        for (axis = 0; axis < kPaddleCount; axis++)
+        {
+            bank->SetPaddle (axis, position);
+        }
+
+        keyboard->SetOpenApple   (isButton);
+        keyboard->SetClosedApple (isButton);
+
+        machine.RunCycles (kStepCycles);
+    }
+
 
     //  The order the program prints them in, top to bottom.
     static constexpr JoystickSwitch  kRowOrder[] =
