@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "GuestSession.h"
+#include "KeystrokeInjector.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
@@ -49,7 +50,150 @@ public:
     }
 
 
+    //  The test program from the Joyport's own manual, driven the way its
+    //  prompts ask a person to drive it: press Space, then move the stick or
+    //  press fire within its wait loop. Its first two sections expect the rear
+    //  Controller Select switch at Right and then Left, which pins the jack;
+    //  Casso has only Center, where AN0 picks the jack, and those sections
+    //  leave AN0 off, so the switches go on both jacks, as one controller
+    //  drives them. The third section is the two-stick one, with the rear
+    //  switch centered, and there each switch goes on ONLY the jack the
+    //  program is testing: a swapped AN0 fails it. Its last section tests
+    //  Apple-mode paddles, which is not the mode Casso emulates, so reaching
+    //  that section is the pass.
+    TEST_METHOD (TheManualsTestProgramPassesEveryAtariStickStep)
+    {
+        std::vector<Byte>  bytes     = GuestSession::RequireRepoImage (kManualDiskPath);
+        TestMachine        machine ("Apple2e", TestMachine::Slots::DiskOnly);
+        ManualProgress     progress;
+        int                step      = 0;
+
+
+
+        machine.GetJoyport()->SetAttached (true);
+        GuestSession::MountAndBoot (machine, bytes);
+
+        for (step = 0; step < kMaxManualSteps && !progress.isDone; step++)
+        {
+            AdvanceTheManualProgram (machine, progress);
+        }
+
+        Assert::IsFalse (progress.isFailed,   (L"the program reported NOTHING HAPPENED after: " + progress.lastPrompt).c_str());
+        Assert::IsTrue  (progress.isDone,     L"the program reached its paddle section, past every Atari-stick test");
+        Assert::AreEqual (kCenteredSteps, progress.centeredSteps,
+            L"five switches on each jack, each closed on that jack alone, in the centered section");
+    }
+
+
 private:
+
+    static constexpr const char *  kManualDiskPath = "Apple2/Demos/Joyport.do";
+    static constexpr int           kMaxManualSteps = 80;
+    static constexpr int           kCenteredSteps  = 10;
+    static constexpr uint32_t      kStepCycles     = 400'000;
+    static constexpr size_t        kJackNameOffset = 9;        // past "TILT THE "
+
+
+    struct ManualProgress
+    {
+        bool          isCentered    = false;
+        bool          isDone        = false;
+        bool          isFailed      = false;
+        size_t        jack          = JoyportJacks::kLeftJack;
+        int           centeredSteps = 0;
+        std::string   lastScreen;
+        std::wstring  lastPrompt;
+    };
+
+
+    //  The whole screen as one line, rows run together, so a prompt that
+    //  wraps at column 40 still reads as one phrase.
+    static std::string ReadScreen (MachineHost & machine)
+    {
+        std::vector<std::string>  rows   = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
+        std::string               screen;
+
+        for (std::string row : rows)
+        {
+            row.resize (TextScreenScraper::kCols40, ' ');
+            screen += row;
+        }
+
+        return screen;
+    }
+
+
+    static bool Contains (const std::string & screen, const char * phrase)
+    {
+        return screen.find (phrase) != std::string::npos;
+    }
+
+
+    //  The switch the prompt on screen asks for, or Count for none.
+    static JoystickSwitch GetAskedSwitch (const std::string & screen, ManualProgress & progress)
+    {
+        size_t  tilt = screen.find ("TILT THE ");
+
+        if (tilt != std::string::npos && Contains (screen, "ATARI JOYSTICK RIGHT"))
+        {
+            progress.jack = (screen.compare (tilt + kJackNameOffset, 4, "LEFT") == 0) ? JoyportJacks::kLeftJack
+                                                                                       : JoyportJacks::kRightJack;
+            return JoystickSwitch::Right;
+        }
+
+        if (Contains (screen, "TILT THE JOYSTICK LEFT")) { return JoystickSwitch::Left; }
+        if (Contains (screen, "PUSH THE FIRE BUTTON"))   { return JoystickSwitch::Fire; }
+        if (Contains (screen, "PRESS THE JOYSTICK UP"))  { return JoystickSwitch::Up; }
+        if (Contains (screen, "TILT THE JOYSTICK DOWN")) { return JoystickSwitch::Down; }
+
+        return JoystickSwitch::Count;
+    }
+
+
+    //  One look at the screen and one response to it, then time for the
+    //  program's wait loop to see the switch.
+    static void AdvanceTheManualProgram (MachineHost & machine, ManualProgress & progress)
+    {
+        std::string     screen      = ReadScreen (machine);
+        JoyportJacks    jacks;
+        JoystickSwitch  asked       = JoystickSwitch::Count;
+        bool            isNewPrompt = screen != progress.lastScreen;
+
+        progress.lastScreen = screen;
+        progress.lastPrompt = std::wstring (screen.begin(), screen.end());
+        progress.isFailed   = Contains (screen, "NOTHING HAPPENED");
+        progress.isDone     = progress.isFailed || Contains (screen, "TEST THE PADDLE READINGS");
+        progress.isCentered = progress.isCentered || Contains (screen, "MIDDLE POSITION");
+
+        if (progress.isDone)
+        {
+            return;
+        }
+
+        if (Contains (screen, "PRESS SPACE WHEN READY TO START"))
+        {
+            SetJacks (machine, jacks);
+            KeystrokeInjector::InjectKey (machine, ' ');
+            machine.RunCycles (kStepCycles);
+            return;
+        }
+
+        asked = GetAskedSwitch (screen, progress);
+
+        if (asked != JoystickSwitch::Count && progress.isCentered)
+        {
+            jacks.jack[progress.jack].set (static_cast<size_t> (asked));
+            progress.centeredSteps += isNewPrompt ? 1 : 0;
+        }
+        else if (asked != JoystickSwitch::Count)
+        {
+            jacks.jack[JoyportJacks::kLeftJack].set  (static_cast<size_t> (asked));
+            jacks.jack[JoyportJacks::kRightJack].set (static_cast<size_t> (asked));
+        }
+
+        SetJacks (machine, jacks);
+        machine.RunCycles (kStepCycles);
+    }
 
     //  The order the program prints them in, top to bottom.
     static constexpr JoystickSwitch  kRowOrder[] =
