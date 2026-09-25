@@ -207,3 +207,25 @@ void SettingsApplyAdapter::ApplyMouseConnected (bool connected)
 
     PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyGamePortAdapter
+//
+//  Attaches or detaches the Sirius Joyport, live and with no reset. UI-thread
+//  routed like the mouse, since it also resyncs the command bar's picker.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyGamePortAdapter (GamePortAdapter adapter)
+{
+    WORD  id = (adapter == GamePortAdapter::SiriusJoyport) ? IDM_GAMEPORT_ADAPTER_JOYPORT : IDM_GAMEPORT_ADAPTER_NONE;
+
+
+
+    PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
+}

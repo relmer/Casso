@@ -46,6 +46,19 @@ rows need a person, a real controller, or a commercial disk.
 | Full unit suite | x64 Debug | 5,644 of 5,644 |
 | V3 in the running app | manual | not yet run; the automated cases boot the same ROM through the same reset paths |
 
+## Phase 5: the setting (US4)
+
+| Check | Kind | Result |
+|---|---|---|
+| Game port group with exactly one of None / Sirius Joyport checked; absent on the //c; the rows act as a radio pair and re-check in place (`HardwarePageTests`) | automated | pass |
+| Round trip, dirty, pushed live with no reset; a picker change while the sheet is open is kept on OK and is not dirty; a Machine-tab edit survives the picker; offered on the machines with annunciators only (`SettingsPanelStateTests`) | automated | pass |
+| Commands unique and routed to the UI thread (`ChromeCommandRoutingTests`) | automated | pass |
+| `"none"` not stored; the Joyport kept for its own machine only (`UserConfigStoreTests`) | automated | pass |
+| SC-007: token reading, the builder's round trip, and each machine adopting only its own saved value, the //c none even when its file claims one (`MachineInputPrefsTests`) | automated | pass |
+| Mutation checks: the dirty check ignoring the field; the reader ignoring annunciators; the group always offered; the live observation not re-seeding the baseline | automated | every targeted test went red |
+| Full unit suite | x64 Debug | 5,658 of 5,658 |
+| V5, V9 in the running app (picker, Machine tab, relaunch, machine switch, picker used while Settings is open) | manual | not yet run: opening the Settings sheet or the picker comes up over the user's work |
+
 ## Phase 6: two players (US3)
 
 The multiplayer rule landed with Phase 3, since it is the same few lines that

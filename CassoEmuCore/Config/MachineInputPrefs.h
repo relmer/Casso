@@ -29,11 +29,12 @@
 class MachineInputPrefs
 {
 public:
-    static constexpr const char *  kpszArrowsKey     = "arrowsToJoystick";
-    static constexpr const char *  kpszPointerKey    = "pointerMapping";
-    static constexpr const char *  kpszControllerKey = "controller";
-    static constexpr const char *  kpszProfileKey    = "controllerProfile";
-    static constexpr const char *  kpszMultiplayerKey = "multiplayer";
+    static constexpr const char *  kpszArrowsKey          = "arrowsToJoystick";
+    static constexpr const char *  kpszPointerKey         = "pointerMapping";
+    static constexpr const char *  kpszControllerKey      = "controller";
+    static constexpr const char *  kpszProfileKey         = "controllerProfile";
+    static constexpr const char *  kpszMultiplayerKey     = "multiplayer";
+    static constexpr const char *  kpszGamePortAdapterKey = "gamePortAdapter";
 
     // outArrows always comes back false: arrows-to-joystick is not resumed,
     // only turned on by hand in the session that plays. It takes X and Z for
@@ -77,6 +78,12 @@ public:
     // stand, so a //e's setup survives a trip through a //c (FR-035).
     static std::pair<std::string, JsonValue>  BuildMultiplayerEntry (
         const MultiplayerSetup &  setup);
+
+    // The device on the machine's game socket: None, or the Sirius Joyport.
+    // Always None on a machine with no annunciators to drive one.
+    static GamePortAdapter                    ReadGamePortAdapter       (const JsonValue * uiPrefs,
+                                                                         bool              hasAnnunciators);
+    static std::pair<std::string, JsonValue>  BuildGamePortAdapterEntry (GamePortAdapter adapter);
 
     static const char *      ModeToToken   (InputMappingMode    mode);
     static InputMappingMode  ModeFromToken (const std::string & token,

@@ -2189,4 +2189,46 @@ public:
         Assert::IsTrue (UserConfigStore::AreJsonEqual (u, m),
                         L"a user-added slot card must survive the merge");
     }
+
+
+    //  Saves one game-port adapter token into a machine's block the way the
+    //  shell's persist path does: splice into $cassoUiPrefs, then SaveDelta.
+    static void SaveGamePortAdapter (InMemoryFileSystem & fs, UserConfigStore & store,
+                                     const std::string & machine, const char * token)
+    {
+        JsonValue  defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1}");
+        JsonValue  merged;
+        JsonValue  updated;
+
+        AssertSucceeded (store.Load (machine, defaultJson, fs, merged));
+        updated = UserConfigStore::SpliceUiPrefs (merged, { { "gamePortAdapter", JsonValue (std::string (token)) } });
+        AssertSucceeded (store.SaveDelta (machine, updated, defaultJson, fs));
+    }
+
+
+    TEST_METHOD (GamePortAdapter_NoneIsTheDefaultAndIsNotStored)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+
+        SaveGamePortAdapter (fs, store, "Apple2e", "none");
+
+        Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2e").find ("gamePortAdapter") == std::string::npos,
+                        L"a machine with no adapter carries no key for it");
+    }
+
+
+    TEST_METHOD (GamePortAdapter_TheJoyportIsKeptForItsOwnMachineOnly)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+
+        SaveGamePortAdapter (fs, store, "Apple2e", "siriusJoyport");
+        SaveGamePortAdapter (fs, store, "Apple2Plus", "none");
+
+        Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2e").find ("siriusJoyport") != std::string::npos,
+                        L"the //e keeps its Joyport");
+        Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2Plus").find ("gamePortAdapter") == std::string::npos,
+                        L"and the ][+ does not pick it up");
+    }
 };

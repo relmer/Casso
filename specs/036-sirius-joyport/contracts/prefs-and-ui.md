@@ -38,15 +38,24 @@ Covers FR-001, FR-002, FR-012, FR-015 and User Stories 4 and 5.
 ## EmulatorShell
 
 ```cpp
-void            SetGamePortAdapter (GamePortAdapter adapter);   // UI thread
-GamePortAdapter GetGamePortAdapter () const;
+void            SetGamePortAdapter       (GamePortAdapter adapter);   // UI thread: live + save
+void            ApplyGamePortAdapterLive (GamePortAdapter adapter);   // UI thread: live only
+GamePortAdapter GetGamePortAdapter       () const;                    // read from the Joyport itself
+void            AdoptGamePortAdapterForMachine (const JsonValue * uiPrefs);
 ```
 
-`SetGamePortAdapter` stores the value, calls `SetAttached` on the live
-machine's Joyport under the shared lifetime lock, persists it through
-`DiskSettings::WriteSavedUiPrefs`, and calls `SyncSelectorState` so the picker
-redraws. No reset (FR-002). It is the one path both the picker and the
-`IDM_GAMEPORT_ADAPTER_*` commands take.
+`ApplyGamePortAdapterLive` calls `SetAttached` on the live machine's Joyport
+under the shared lifetime lock, resubmits the fire keys, and calls
+`SyncSelectorState` so the picker redraws. No reset (FR-002).
+`SetGamePortAdapter` (the picker) does that and saves through
+`DiskSettings::WriteSavedUiPrefs`. The `IDM_GAMEPORT_ADAPTER_*` commands (the
+Settings OK) take the live-only path, because the sheet saves the machine's
+block itself and a second save could land on another machine when the same OK
+switches machines. `GetGamePortAdapter` reads the Joyport's attached state, so
+it cannot drift from what the guest reads. `AdoptGamePortAdapterForMachine`
+attaches a newly built machine's Joyport from its saved setting: at cold boot
+from `ApplyPersistedChromePrefs`, and on a machine switch right after
+`BuildMachineDevices`.
 
 ## Picker row
 
@@ -71,9 +80,13 @@ table.
 - `HardwarePage::BuildNodes` gains `bool supportsGamePortAdapter` and
   `GamePortAdapter adapter`. When supported, it appends a **Game port** group
   with two rows, **None** and **Sirius Joyport**, exactly one checked.
-- `SetOnToggle` routes either label to
-  `SettingsPanelState::SetGamePortAdapter`; a toggle that would leave neither
-  checked is ignored.
+- `SetOnToggle` routes either label through the pure
+  `ResolveGamePortToggle` to `SettingsPanelState::SetGamePortAdapter`, and
+  re-checks both rows in place with `SetGamePortChecks` (not a `Rebuild`, which
+  would replace the running handler). A toggle that would leave neither
+  checked is ignored. Whether the group appears comes from
+  `SettingsMachineInfo::supportsGamePortAdapter`, set from the machine
+  definition's `hasAnnunciators`.
 - `SettingsPanelState`: `gamePortAdapter` in `ExtractUiPrefs`, `BuildJson`,
   `ArePrefsEqual`; `Apply` calls `sink.ApplyGamePortAdapter` and never
   `QueueMachineReset` for it.

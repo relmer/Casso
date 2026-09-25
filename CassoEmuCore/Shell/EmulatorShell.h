@@ -629,8 +629,11 @@ private:
     // detaching the Sirius Joyport takes effect on the next button read,
     // with no reset. The machine's Joyport is the only record of it, so
     // the answer cannot drift from what the guest reads. UI thread.
-    void             SetGamePortAdapter (GamePortAdapter adapter);
-    GamePortAdapter  GetGamePortAdapter () const;
+    // SetGamePortAdapter also saves it with the machine; the live-only form
+    // is the Settings sheet's, which saves on its own.
+    void             SetGamePortAdapter       (GamePortAdapter adapter);
+    void             ApplyGamePortAdapterLive (GamePortAdapter adapter);
+    GamePortAdapter  GetGamePortAdapter       () const;
 
 private:
     // Window-placement and chrome-layout helpers. Every reader is an
@@ -1455,10 +1458,12 @@ private:
     // to the id ThemeManager wants. Rebuilt whenever the catalog is.
     std::vector<std::string>  m_toolbarThemeIds;
 
-    void  WireToolbarPickers          ();
-    void  RefreshToolbarThemeList     ();
-    void  SyncToolbarState            ();
-    void  PersistColorModeForMachine  (int settingsColorModeIndex);
+    void  WireToolbarPickers               ();
+    void  RefreshToolbarThemeList          ();
+    void  SyncToolbarState                 ();
+    void  PersistColorModeForMachine       (int settingsColorModeIndex);
+    void  PersistGamePortAdapterForMachine (GamePortAdapter adapter);
+    void  AdoptGamePortAdapterForMachine   (const JsonValue * uiPrefs);
 
     // The pure model deriving the printer LED state from the worker's live
     // signals, plus the last state pushed to the toolbar so a transition

@@ -36,6 +36,7 @@
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Core/Prng.h"
 #include "Config/DiskSettings.h"
 #include "Core/UnicodeSymbols.h"
@@ -452,6 +453,69 @@ void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AdoptGamePortAdapterForMachine
+//
+//  Attaches the running machine's Joyport if its saved setting says so. Runs
+//  once the machine is built: at a cold start from the chrome prefs, and on a
+//  machine switch right after the new devices are built, before the power
+//  cycle that opens the Joyport's reset window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AdoptGamePortAdapterForMachine (const JsonValue * uiPrefs)
+{
+    SiriusJoyport  * joyport  = m_machine.GetJoyport();
+    GamePortAdapter  adapter  = MachineInputPrefs::ReadGamePortAdapter (uiPrefs, joyport != nullptr);
+
+
+
+    if (joyport != nullptr)
+    {
+        joyport->SetAttached (adapter == GamePortAdapter::SiriusJoyport);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PersistGamePortAdapterForMachine
+//
+//  Saves the game-port adapter with the running machine, so it comes back on
+//  that machine's next launch and on a switch back to it. Nothing is written
+//  for a machine that cannot take a Joyport.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistGamePortAdapterForMachine (GamePortAdapter adapter)
+{
+    HRESULT                                         hr         = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+    bool                                            hasStore   = m_userConfigStore != nullptr && !m_machine.GetCurrentMachineName().empty();
+    bool                                            hasJoyport = m_machine.GetJoyport() != nullptr;
+
+
+
+    BAIL_OUT_IF (!hasStore || !hasJoyport, S_OK);
+
+    entries.push_back (MachineInputPrefs::BuildGamePortAdapterEntry (adapter));
+
+    hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs,
+                                          m_machine.GetCurrentMachineName(), entries);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SubscribeAndActivateTheme
 //
 //  Two orderings here, both load-bearing.
@@ -619,6 +683,8 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     {
         m_mouseConnected = mouseConn;
     }
+
+    AdoptGamePortAdapterForMachine (uiPrefs);
 
     // Seed the per-drive user write-protect preference BEFORE the
     // command-line mount so the very first mount already re-asserts it

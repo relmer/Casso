@@ -2640,15 +2640,38 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 //
 //  SetGamePortAdapter
 //
+//  The picker row: attach or detach the Sirius Joyport now, and save the
+//  choice with the running machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
+{
+    ApplyGamePortAdapterLive         (adapter);
+    PersistGamePortAdapterForMachine (adapter);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyGamePortAdapterLive
+//
 //  Attaches or detaches the Sirius Joyport on the running machine, with no
 //  reset: the next button read answers from it, or from the machine's own
 //  lines again. A machine with no Joyport to attach (the //c) stays at None.
 //  The fire keys are resubmitted because the Alt keys drop out of them while
 //  the Joyport is attached.
 //
+//  Saves nothing. The Settings sheet reaches this through its OK, and the
+//  sheet saves the machine's block itself; a second save from here could
+//  land on a different machine when the same OK switches machines.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
+void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
     SiriusJoyport                      * joyport  = m_machine.GetJoyport();
