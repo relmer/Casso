@@ -3,22 +3,64 @@
 #include "Ui/Settings/JoyportSwitchView.h"
 
 #include "Render/IDxuiPainter.h"
-#include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 
 
 
 
 
-static constexpr const wchar_t *  s_kpszReadoutFont  = L"Segoe UI";
-static constexpr float            s_kReadoutFontDip  = 12.0f;
-static constexpr float            s_kLabelBandDip    = 18.0f;
-static constexpr float            s_kOutlineDip      = 1.5f;
-static constexpr float            s_kGapDip          = 16.0f;
+// The stick is drawn in its own colors rather than the theme's: it is a
+// picture of a black plastic joystick with orange markings and a red button,
+// and those are what make it recognizable on any theme.
+static constexpr uint32_t  s_kBodyEdgeColor   = 0xFF3A3A3A;
+static constexpr uint32_t  s_kBodyColor       = 0xFF1B1B1B;
+static constexpr uint32_t  s_kRingPlateColor  = 0xFF161616;
+static constexpr uint32_t  s_kMarkingColor    = 0xFFE8892A;
+static constexpr uint32_t  s_kLitColor        = 0xFFFFF4C8;
+static constexpr uint32_t  s_kBootColor       = 0xFF141414;
+static constexpr uint32_t  s_kBootRidgeColor  = 0xFF2E2E2E;
+static constexpr uint32_t  s_kShaftColor      = 0xFF222222;
+static constexpr uint32_t  s_kShaftRimColor   = 0xFF404040;
+static constexpr uint32_t  s_kFireRimColor    = 0xFF6E170C;
+static constexpr uint32_t  s_kFireColor       = 0xFFC9301C;
+static constexpr uint32_t  s_kFireLitColor    = 0xFFFF6A48;
 
-// The cross is three cells on a side; the fire button's diameter, in cells.
-static constexpr float            s_kCrossCells      = 3.0f;
-static constexpr float            s_kFireCells       = 1.2f;
+static constexpr const wchar_t *  s_kpszMarkingFont = L"Segoe UI";
+
+// Proportions, as fractions of the square's side, read off the real stick.
+static constexpr float  s_kCornerRadius   = 0.13f;
+static constexpr float  s_kBevel          = 0.025f;
+static constexpr float  s_kRingCenter     = 0.54f;
+static constexpr float  s_kRingOuter      = 0.38f;
+static constexpr float  s_kRingInner      = 0.362f;
+static constexpr float  s_kRingPlate      = 0.41f;
+static constexpr float  s_kTopHeight      = 0.058f;
+static constexpr float  s_kFireCenter     = 0.16f;
+static constexpr float  s_kFireRadius     = 0.07f;
+static constexpr float  s_kFireCap        = 0.82f;
+static constexpr float  s_kBootRadius     = 0.25f;
+static constexpr float  s_kShaftRadius    = 0.09f;
+static constexpr float  s_kShaftTravel    = 0.06f;
+static constexpr float  s_kRidgeThickness = 0.008f;
+
+// Each quadrant of the ring, from one cardinal to the next, in degrees: half a
+// gap, a marker piece, a gap, seven dashes with a gap between each, a gap,
+// the next marker's piece, and half a gap -- 1.5 + 10.5 + 3 + 60 + 3 + 10.5 +
+// 1.5 = 90.
+static constexpr float  s_kGapDeg         = 3.0f;
+static constexpr float  s_kDashDeg        = 6.0f;
+static constexpr float  s_kMarkerDeg      = 10.5f;
+
+// How far a marker piece's triangle reaches inside the ring, in ring
+// thicknesses.
+static constexpr float  s_kMarkerDepth    = 1.75f;
+
+static constexpr float  s_kDegRight       = 0.0f;
+static constexpr float  s_kDegDown        = 90.0f;
+static constexpr float  s_kDegLeft        = 180.0f;
+static constexpr float  s_kDegUp          = 270.0f;
+static constexpr int    s_kCornerSteps    = 6;
+static constexpr int    s_kQuadrantCount  = 4;
 
 
 
@@ -42,60 +84,283 @@ void JoyportSwitchView::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildArt
+//
+//  Every shape of the stick for a square at (left, top) of the given side.
+//  Angles run clockwise from the right, as screen coordinates do: 0 right,
+//  90 down, 180 left, 270 up. Each quadrant of the ring holds seven dashes,
+//  with a marker piece at either end; at up, TOP takes the place of the two
+//  pieces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoyportStickArt JoyportSwitchView::BuildArt (float left, float top, float side)
+{
+    JoyportStickArt  art;
+    float            firstDash = s_kGapDeg * 0.5f + s_kMarkerDeg + s_kGapDeg;
+    float            fromDeg   = 0.0f;
+    int              quadrant  = 0;
+    int              dash      = 0;
+
+
+
+    art.body        = BuildRoundedSquare (left, top, side, side * s_kCornerRadius);
+    art.bodyTop     = BuildRoundedSquare (left + side * s_kBevel, top + side * s_kBevel,
+                                          side * (1.0f - 2.0f * s_kBevel), side * (s_kCornerRadius - s_kBevel));
+    art.ringCenter  = { left + side * s_kRingCenter, top + side * s_kRingCenter };
+    art.ringOuter   = side * s_kRingOuter;
+    art.ringInner   = side * s_kRingInner;
+    art.topCenter   = PointAt (art.ringCenter, (art.ringInner + art.ringOuter) * 0.5f, s_kDegUp);
+    art.topHeight   = side * s_kTopHeight;
+    art.fireCenter  = { left + side * s_kFireCenter, top + side * s_kFireCenter };
+    art.fireRadius  = side * s_kFireRadius;
+    art.bootRadius  = side * s_kBootRadius;
+    art.shaftRadius = side * s_kShaftRadius;
+    art.shaftTravel = side * s_kShaftTravel;
+
+    for (quadrant = 0; quadrant < s_kQuadrantCount; quadrant++)
+    {
+        for (dash = 0; dash < kDashesPerQuadrant; dash++)
+        {
+            fromDeg = s_kDegDown * (float) quadrant + firstDash + (s_kDashDeg + s_kGapDeg) * (float) dash;
+
+            art.dashes.push_back (BuildDash (art.ringCenter, art.ringInner, art.ringOuter, fromDeg, fromDeg + s_kDashDeg));
+        }
+    }
+
+    for (auto [direction, degrees] : { std::pair { JoystickSwitch::Right, s_kDegRight },
+                                       std::pair { JoystickSwitch::Down,  s_kDegDown  },
+                                       std::pair { JoystickSwitch::Left,  s_kDegLeft  } })
+    {
+        JoyportStickMarker  marker;
+
+        marker.direction = direction;
+        marker.pieces[0] = BuildMarkerPiece (art.ringCenter, art.ringInner, art.ringOuter, degrees, -1.0f);
+        marker.pieces[1] = BuildMarkerPiece (art.ringCenter, art.ringInner, art.ringOuter, degrees,  1.0f);
+        marker.center    = PointAt (art.ringCenter, art.ringInner, degrees);
+        art.markers.push_back (std::move (marker));
+    }
+
+    return art;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildRoundedSquare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPointF> JoyportSwitchView::BuildRoundedSquare (float left, float top, float side, float radius)
+{
+    std::vector<DxuiPointF>  points;
+    float                    right  = left + side;
+    float                    bottom = top + side;
+    int                      step   = 0;
+
+
+
+    // Each corner's arc, clockwise from the top-right.
+    const std::array<std::pair<DxuiPointF, float>, 4>  corners =
+    {{
+        { { right - radius, top    + radius }, s_kDegUp    },
+        { { right - radius, bottom - radius }, s_kDegRight },
+        { { left  + radius, bottom - radius }, s_kDegDown  },
+        { { left  + radius, top    + radius }, s_kDegLeft  },
+    }};
+
+    for (const auto & [center, startDeg] : corners)
+    {
+        for (step = 0; step <= s_kCornerSteps; step++)
+        {
+            points.push_back (PointAt (center, radius, startDeg + s_kDegDown * (float) step / (float) s_kCornerSteps));
+        }
+    }
+
+    return points;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildDash
+//
+//  One segment of the ring between two angles: the outer edge out, then the
+//  inner edge back, each through its middle so the curve reads as a curve.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPointF> JoyportSwitchView::BuildDash (DxuiPointF center, float inner, float outer, float fromDeg, float toDeg)
+{
+    float  midDeg = (fromDeg + toDeg) * 0.5f;
+
+
+
+    return
+    {
+        PointAt (center, outer, fromDeg),
+        PointAt (center, outer, midDeg),
+        PointAt (center, outer, toDeg),
+        PointAt (center, inner, toDeg),
+        PointAt (center, inner, midDeg),
+        PointAt (center, inner, fromDeg),
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildMarkerPiece
+//
+//  Half of a cardinal marker, on the side of the cardinal `sign` gives: a
+//  dash, longer than the ring's others, extended by a right triangle. One
+//  leg lies along the dash's inner edge and the other runs straight inward
+//  from the dash's end nearest the cardinal; the hypotenuse is aimed at the
+//  midpoint of the dash's outer edge. So the piece is deepest beside the
+//  cardinal and tapers to a plain dash away from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPointF> JoyportSwitchView::BuildMarkerPiece (DxuiPointF center, float inner, float outer, float cardinalDeg, float sign)
+{
+    // crossDeg is where the hypotenuse, from the inward corner to the outer
+    // midpoint, crosses the inner edge: depth / (depth + thickness) of the way
+    // to the midpoint.
+    float  thickness = outer - inner;
+    float  depth     = thickness * s_kMarkerDepth;
+    float  nearDeg   = cardinalDeg + sign * s_kGapDeg * 0.5f;
+    float  farDeg    = nearDeg + sign * s_kMarkerDeg;
+    float  midDeg    = nearDeg + sign * s_kMarkerDeg * 0.5f;
+    float  crossDeg  = nearDeg + sign * s_kMarkerDeg * 0.5f * depth / (depth + thickness);
+
+
+
+    return
+    {
+        PointAt (center, outer,         nearDeg),
+        PointAt (center, outer,         midDeg),
+        PointAt (center, outer,         farDeg),
+        PointAt (center, inner,         farDeg),
+        PointAt (center, inner,         crossDeg),
+        PointAt (center, inner - depth, nearDeg),
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PointAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPointF JoyportSwitchView::PointAt (DxuiPointF center, float radius, float degrees)
+{
+    float  radians = degrees * std::numbers::pi_v<float> / 180.0f;
+
+
+
+    return { center.x + radius * std::cos (radians), center.y + radius * std::sin (radians) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
-//  The cross is as large as the bounds allow with the fire button and its gap
-//  beside it: up, down, left and right cells around an unlit hub, then fire,
-//  centered on the cross's middle row and captioned underneath. A cell fills
-//  with the accent while its switch reads closed. With no reading everything
-//  stays unlit, the way an unplugged stick reads.
+//  Back to front: the base with its bevel, the dark plate under the ring, the
+//  dashes, the markers and TOP, the rubber boot and the stick, and the fire
+//  button. With no reading nothing lights, the way an unplugged stick reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void JoyportSwitchView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT     bounds  = GetBounds();
-    float    width   = (float) (bounds.right - bounds.left);
-    float    height  = (float) (bounds.bottom - bounds.top);
-    float    gap     = m_scaler.ToPxf (s_kGapDip);
-    float    band    = m_scaler.ToPxf (s_kLabelBandDip);
-    float    fontPx  = m_scaler.ToPxf (s_kReadoutFontDip);
-    float    outline = m_scaler.ToPxf (s_kOutlineDip);
-    float    cross   = std::min (height, (width - gap) * s_kCrossCells / (s_kCrossCells + s_kFireCells));
-    float    cell    = cross / s_kCrossCells;
-    float    left    = (float) bounds.left;
-    float    top     = (float) bounds.top;
-    float    radius  = cell * s_kFireCells * 0.5f;
-    float    fireX   = left + cross + gap + radius;
-    float    fireY   = top + cross * 0.5f;
-    bool     isFire  = m_isActive && IsClosed (JoystickSwitch::Fire);
-    HRESULT  hr      = S_OK;
+    RECT             bounds = GetBounds();
+    float            side   = (float) std::min (bounds.right - bounds.left, bounds.bottom - bounds.top);
+    JoyportStickArt  art;
+    HRESULT          hr     = S_OK;
 
 
 
     UNREFERENCED_PARAMETER (painter);
+    UNREFERENCED_PARAMETER (theme);
 
-    if (!IsVisible() || cell <= outline)
+    if (!IsVisible() || side <= 0.0f)
     {
         return;
     }
 
-    PaintCell (text, theme, left + cell,     top,            cell, m_isActive && IsClosed (JoystickSwitch::Up));
-    PaintCell (text, theme, left,            top + cell,     cell, m_isActive && IsClosed (JoystickSwitch::Left));
-    PaintCell (text, theme, left + cell,     top + cell,     cell, false);
-    PaintCell (text, theme, left + cell * 2, top + cell,     cell, m_isActive && IsClosed (JoystickSwitch::Right));
-    PaintCell (text, theme, left + cell,     top + cell * 2, cell, m_isActive && IsClosed (JoystickSwitch::Down));
+    art = BuildArt ((float) bounds.left, (float) bounds.top, side);
 
-    hr = text.FillEllipse (fireX, fireY, radius, radius, isFire ? theme.Accent() : theme.BackgroundElevated());
+    hr = text.FillPolygon (art.body.data(), art.body.size(), s_kBodyEdgeColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawEllipse (fireX, fireY, radius - outline * 0.5f, radius - outline * 0.5f, outline,
-                           isFire ? theme.Accent() : theme.Border());
+    hr = text.FillPolygon (art.bodyTop.data(), art.bodyTop.size(), s_kBodyColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (L"Fire", fireX - radius * 2.0f, fireY + radius, radius * 4.0f, band,
-                          theme.ForegroundMuted(), fontPx, s_kpszReadoutFont,
-                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    hr = text.FillEllipse (art.ringCenter.x, art.ringCenter.y, side * s_kRingPlate, side * s_kRingPlate, s_kRingPlateColor);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const std::vector<DxuiPointF> & dash : art.dashes)
+    {
+        hr = text.FillPolygon (dash.data(), dash.size(), s_kMarkingColor);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    PaintMarkers (text, art);
+    PaintStick   (text, art);
+    PaintFire    (text, art);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintMarkers
+//
+//  A lit marker, or TOP, is drawn in the lit color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void JoyportSwitchView::PaintMarkers (IDxuiTextRenderer & text, const JoyportStickArt & art) const
+{
+    bool     isUp  = IsLit (JoystickSwitch::Up);
+    HRESULT  hr    = S_OK;
+
+
+
+    for (const JoyportStickMarker & marker : art.markers)
+    {
+        bool  isLit = IsLit (marker.direction);
+
+        for (const std::vector<DxuiPointF> & piece : marker.pieces)
+        {
+            hr = text.FillPolygon (piece.data(), piece.size(), isLit ? s_kLitColor : s_kMarkingColor);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
+    hr = text.DrawString (L"TOP", art.topCenter.x - art.topHeight * 2.0f, art.topCenter.y - art.topHeight,
+                          art.topHeight * 4.0f, art.topHeight * 2.0f,
+                          isUp ? s_kLitColor : s_kMarkingColor, art.topHeight, s_kpszMarkingFont,
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Bold, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -105,38 +370,66 @@ void JoyportSwitchView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaintCell
+//  PaintStick
 //
-//  One square of the cross, outlined, and filled while lit.
+//  The rubber boot's ridges around the base of the stick, and the stick's
+//  top, leaning toward whichever switches are closed so a diagonal leans
+//  diagonally.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void JoyportSwitchView::PaintCell (
-    IDxuiTextRenderer  & text,
-    const IDxuiTheme   & theme,
-    float                x,
-    float                y,
-    float                size,
-    bool                 isLit) const
+void JoyportSwitchView::PaintStick (IDxuiTextRenderer & text, const JoyportStickArt & art) const
 {
-    float     outline = m_scaler.ToPxf (s_kOutlineDip);
-    uint32_t  edge    = isLit ? theme.Accent() : theme.Border();
-    HRESULT   hr      = S_OK;
+    constexpr float  kRidges[]  = { 0.9f, 0.75f, 0.6f };
+    constexpr float  kDiagonal  = 0.7071f;
+    float            ridge      = art.topHeight / s_kTopHeight * s_kRidgeThickness;
+    float            dx         = (IsLit (JoystickSwitch::Right) ? 1.0f : 0.0f) - (IsLit (JoystickSwitch::Left) ? 1.0f : 0.0f);
+    float            dy         = (IsLit (JoystickSwitch::Down)  ? 1.0f : 0.0f) - (IsLit (JoystickSwitch::Up)   ? 1.0f : 0.0f);
+    float            scale      = (dx != 0.0f && dy != 0.0f) ? kDiagonal : 1.0f;
+    float            shaftX     = art.ringCenter.x + dx * scale * art.shaftTravel;
+    float            shaftY     = art.ringCenter.y + dy * scale * art.shaftTravel;
+    HRESULT          hr         = S_OK;
 
 
 
-    hr = text.FillRect (x, y, size, size, isLit ? theme.Accent() : theme.BackgroundElevated());
+    hr = text.FillEllipse (art.ringCenter.x, art.ringCenter.y, art.bootRadius, art.bootRadius, s_kBootColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawLine (x,        y,        x + size, y,        outline, edge);
+    for (float fraction : kRidges)
+    {
+        hr = text.DrawEllipse (art.ringCenter.x, art.ringCenter.y, art.bootRadius * fraction, art.bootRadius * fraction,
+                               ridge, s_kBootRidgeColor);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    hr = text.FillEllipse (shaftX, shaftY, art.shaftRadius, art.shaftRadius, s_kShaftColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawLine (x + size, y,        x + size, y + size, outline, edge);
+    hr = text.DrawEllipse (shaftX, shaftY, art.shaftRadius, art.shaftRadius, ridge * 2.0f, s_kShaftRimColor);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintFire
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void JoyportSwitchView::PaintFire (IDxuiTextRenderer & text, const JoyportStickArt & art) const
+{
+    bool     isLit = IsLit (JoystickSwitch::Fire);
+    float    cap   = art.fireRadius * s_kFireCap;
+    HRESULT  hr    = S_OK;
+
+
+
+    hr = text.FillEllipse (art.fireCenter.x, art.fireCenter.y, art.fireRadius, art.fireRadius, s_kFireRimColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawLine (x + size, y + size, x,        y + size, outline, edge);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = text.DrawLine (x,        y + size, x,        y,        outline, edge);
+    hr = text.FillEllipse (art.fireCenter.x, art.fireCenter.y, cap, cap, isLit ? s_kFireLitColor : s_kFireColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
