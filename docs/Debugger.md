@@ -353,7 +353,7 @@ it at start. It shows the code around the PC, the registers and flags,
 breakpoints, watches, the stack and memory, with a command box and console
 below the code.
 
-- **Step**, **Step Over**, **Run**, **Run to Cursor** and **Pause** run the
+- **Step**, **Step over**, **Run**, **Run to cursor** and **Pause** run the
   machine. **Follow PC** returns the code pane to the PC.
 - Double-clicking a code line sets or clears its breakpoint. Double-clicking a
   breakpoint clears it.
@@ -378,12 +378,15 @@ Every pane can be moved. Drag a tab onto the drop zones that appear to dock it
 beside another pane, against an edge of the window, or as a tab of another
 group; drag a divider to resize. A tab dragged out of the window floats in a
 window of its own; closing that window docks it back. Right-click a pane, or
-press Shift+F10, for **Dock To**, which offers each edge, each group, Float and
-Auto Hide; Alt+Shift with an arrow key moves the focused pane. An auto-hidden
-pane is a tab on the window's edge that slides the pane out on a hover or a
-click, and back when you click elsewhere; a tab marks new output it has not
-shown. The arrangement, including floating windows and the monitor each is
-on, is kept between sessions.
+press Shift+F10, for **Dock to**, which offers each edge, each group, Float and
+Auto hide; Alt+Shift with an arrow key moves the focused pane. The pin on a
+pane's title bar hides it too. An auto-hidden pane is a tab on the window's
+edge: click it and the pane slides out over the others, click it again or
+anywhere else and it slides back; a tab marks new output it has not shown. A
+slid-out pane has a title bar of its own: its pin docks the pane back where it
+was, and dragging it docks the pane wherever it is dropped. The arrangement,
+including floating windows and the monitor each is on, is kept between
+sessions.
 
 The panes are the disassembly, the source, the console, registers,
 breakpoints, watches, the stack, the call stack, the trace, up to four memory

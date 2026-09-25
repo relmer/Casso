@@ -92,7 +92,7 @@ competitors in the parts a user sees first would waste the launch.
 - Q: What does the memory pane's address box accept? -> A: It is a Go to box. It takes a hex address, a register, or a 6502 addressing expression resolved against the current registers and memory, and goes to the effective address, which is placed at the pane's top-left rather than at the start of its 16-byte row.
 - Q: What are automatic watches drawn from? -> A: Every register, memory address and individual flag read or written by the instruction at the current PC or at the previous PC. They are listed above manual watches with a separator; an automatic watch's expression is fixed, its value editable.
 - Q: What does Ctrl+Plus, Ctrl+Minus and Ctrl+0 affect? -> A: The text size of every debugger content pane, floating panes included, and nothing else: not other Casso windows, not the caption, not the command bar. Whether this is a font-size change or a zoom is a planning decision.
-- Q: Where do the command bar's icons come from where the icon font has no matching glyph? -> A: They are drawn, to match Visual Studio's debugging toolbar icons. Run to Cursor is a right arrow ending at a vertical bar.
+- Q: Where do the command bar's icons come from where the icon font has no matching glyph? -> A: They are drawn, to match Visual Studio's debugging toolbar icons. Run to cursor is a right arrow ending at a vertical bar.
 
 ### Session 2026-09-23 (Visual Studio tab review)
 
@@ -105,7 +105,7 @@ competitors in the parts a user sees first would waste the launch.
 
 - Q: How does an auto-hidden pane open? -> A: Its edge tab is a button: a click slides the pane out over the others, which do not move, and a second click slides it back; a hover does nothing.
 - Q: What does the selected tab look like? -> A: As Visual Studio's: it opens into its pane with no line between them, flared into the pane's border and rounded at the far corners; the pane's border runs on round it, in the accent color while the group has focus.
-- Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete All, Enable All, Disable All, Undo, Redo, Go to Source Code, Go to Disassembly, Show Columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out.
+- Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete all, Enable all, Disable all, Undo, Redo, Go to source code, Go to disassembly, Show columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -813,20 +813,20 @@ confirm it disables without being removed.
    checkbox, **Then** the breakpoint is disabled and its mark becomes a ring;
    checking it enables it again.
 10. **Given** the Breakpoints window's New drop-down, **When** the user chooses
-    Data Breakpoint and gives a range and an access, **Then** a watchpoint is
+    Data breakpoint and gives a range and an access, **Then** a watchpoint is
     added and shown as a row; Undo removes it and Redo adds it back.
-11. **Given** several breakpoints, **When** the user chooses Disable All,
+11. **Given** several breakpoints, **When** the user chooses Disable all,
     **Then** every row's checkbox clears in one step, and one Undo checks them
     all again.
-12. **Given** the Show Columns drop-down, **When** the user checks Address and
+12. **Given** the Show columns drop-down, **When** the user checks Address and
     unchecks Condition, **Then** the list shows an Address column and no
     Condition column, and does so again after the debugger reopens.
 13. **Given** a breakpoint set from a source line, **When** the user chooses
-    Go to Source Code, **Then** that file's document opens at the line; Go to
+    Go to source code, **Then** that file's document opens at the line; Go to
     Disassembly moves the code pane to its address.
 14. **Given** breakpoints, **When** the user exports them to a file, clears
     them and imports the file, **Then** the same breakpoints return, with the
-    same enabled states, conditions and When Hit settings.
+    same enabled states, conditions and When hit settings.
 
 ---
 
@@ -1308,28 +1308,28 @@ confirm it disables without being removed.
   mark of FR-092. Its columns MUST be: Name (what the breakpoint is: an address
   or range with the symbol there where one is known, a source file and line, an
   opcode, a register condition, an I/O range, BRK or an interrupt), Condition,
-  Hit Count (the hits so far, "count only" for one that does not stop), Kind,
+  Hit count (the hits so far, "count only" for one that does not stop), Kind,
   Address, Label (the symbol at the address), File (file and line, for one set
-  from source) and When Hit (break, break once, count). Clicking a column's
+  from source) and When hit (break, break once, count). Clicking a column's
   heading MUST sort by it.
-- **FR-118**: A Show Columns drop-down MUST choose which columns show, apart from
+- **FR-118**: A Show columns drop-down MUST choose which columns show, apart from
   Name, which always does; the choice MUST be kept across sessions. Condition
-  and Hit Count show by default.
+  and Hit count show by default.
 - **FR-119**: The breakpoints pane MUST carry a toolbar of icon buttons, each
   with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
   offering a breakpoint at an address, a function breakpoint by symbol name, a
   data breakpoint on a read, a write or either over an address range, a
   register condition, an opcode and an I/O range, each asking only for what
-  that kind needs; Delete, for the selected rows; Delete All; Enable All;
-  Disable All; Undo; Redo; Go to Source Code and Go to Disassembly, for the
-  selected row; Show Columns; Export; and Import. A button that cannot act --
+  that kind needs; Delete, for the selected rows; Delete all; Enable all;
+  Disable all; Undo; Redo; Go to source code and Go to disassembly, for the
+  selected row; Show columns; Export; and Import. A button that cannot act --
   nothing selected, nothing to undo, no source line for the selection -- MUST
   be disabled.
 - **FR-120**: Undo and Redo MUST reverse and repeat the breakpoint changes made
   from the pane -- adding, deleting, enabling, disabling and editing -- each
-  toolbar action, Delete All and Disable All among them, as one step. A
+  toolbar action, Delete all and Disable all among them, as one step. A
   breakpoint deleted and restored MUST come back with its kind, range,
-  condition, enabled state and When Hit setting.
+  condition, enabled state and When hit setting.
 - **FR-121**: Export MUST write the breakpoints to a file the user chooses, in
   the script form `BPSAVE` writes, and Import MUST read such a file, adding its
   breakpoints to those already set.
@@ -1370,7 +1370,7 @@ confirm it disables without being removed.
   instruction that reads a register without touching memory (a compare
   against an immediate, for one) MUST show that register's value among its
   operand annotations.
-- **FR-108**: Show Next Statement MUST bring the disassembly view following
+- **FR-108**: Show next statement MUST bring the disassembly view following
   the PC to the front of its tabs and put the PC on its middle line.
 - **FR-109**: Each command bar entry MUST carry a tip with its title, the key that
   runs it in the keyboard scheme in force, and what it does, and the tip MUST
