@@ -130,10 +130,9 @@ CassoEmuCore/
 ├── Shell/
 │   ├── MachineHost.h/.cpp                  # own the Joyport; OnMachineReset after the CPU
 │   ├── MachineBuilder.cpp                  # build and wire it
-│   ├── MachineRefs.h                       # + joyport
-│   ├── MachineGamePortSink.h/.cpp          # WriteJacks
+│   ├── MachineGamePortSink.h/.cpp          # WriteJacks (the Joyport comes from MachineHost::GetJoyport)
 │   ├── MachineManager.cpp                  # adopt the pref on machine switch
-│   ├── EmulatorShell.h, EmulatorShellPrefs.cpp          # Set/GetGamePortAdapter, cold boot
+│   ├── EmulatorShell.h, EmulatorShellPrefs.cpp          # Set/Get/ApplyLive/Adopt/Persist GamePortAdapter, cold boot
 │   ├── Window/EmulatorWindow.cpp           # picker fns
 │   └── WindowCommandManager.cpp            # IDM routes
 ├── resource.h                              # IDM_GAMEPORT_ADAPTER_NONE/_JOYPORT

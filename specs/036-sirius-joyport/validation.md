@@ -77,3 +77,17 @@ place a player on a jack.
 | Mutation check: the jack always Both | automated | two tests went red |
 | Full unit suite | x64 Debug | 5,662 of 5,662 |
 | V8: the five lights and the heading on the running page, a diagonal, short of and past halfway, detaching | manual | not yet run: opening Settings comes up over the user's work |
+
+## Merge gate (`0fc1a7ca`)
+
+| Check | Result |
+|---|---|
+| x64 Debug `-Target Rebuild -RunCodeAnalysis` | 0 warnings, 0 errors |
+| x64 Release `-Target Rebuild -RunCodeAnalysis` | 0 warnings, 0 errors |
+| ARM64 Debug build (build only; no ARM64 device) | 0 warnings, 0 errors |
+| Full unit suite, x64 Debug | 5,662 of 5,662 |
+| Full unit suite, x64 Release | 5,660 of 5,660 (Release skips the assertion-behavior tests) |
+| Scenario suite, x64 Debug | 23 of 23 |
+| `scripts/CheckStyle.ps1 -Mode Tree` | 1,562 files, OK |
+| SC-002 (one frame) | not measured separately: the switches ride the same `Submit` and UI-thread flush as the controller buttons whose latency spec 034 measured |
+| V6 Wavy Navy on the ][+, V7 Boulder Dash on the //e, V10 detached with `JoystickTest.dsk` | manual, not yet run: need the game disks and a person at a controller |
