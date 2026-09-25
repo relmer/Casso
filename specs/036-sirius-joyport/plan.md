@@ -169,13 +169,14 @@ commit per phase).
 
 | Phase | Slice | Depends on | Covers |
 |---|---|---|---|
-| 1 | **Annunciators**: AN0-AN2 on every machine that has them, //c IOU and DHIRES unchanged | none | FR-003 |
-| 2 | **Device (MVP core)**: `SiriusJoyport`, the two reading devices, paddles, reset window, `MachineHost` ownership and reset ordering; attach by test hook only | 1 | FR-004, FR-009 (paddles), FR-010, FR-011, FR-013, US2 |
-| 3 | **US1 switches**: evaluator switches, service jacks (single source), mixer, sink; the readout disk; a temporary attach path for manual testing | 2 | US1, FR-005-008 (single source), SC-001, SC-002 |
-| 4 | **US4 setting**: enum and tokens, pref, `EmulatorShell` set/get, picker row, IDM pair, Machine tab group, live observation while Settings is open | 3 | US4, FR-001, FR-002, FR-012, SC-007 |
-| 5 | **US3 two players**: multiplayer jacks, disconnect | 3 | US3, FR-008 (multiplayer), SC-005 |
-| 6 | **US5 page**: switch lights, jack caption | 4, 5 | US5, FR-015 |
-| 7 | **Polish**: quickstart V1-V10, CHANGELOG, README, the full gate | all | SC-003, SC-004, SC-006 |
+| 1 | **Setup**: baseline build and suite | none | none |
+| 2 | **Foundation**: annunciators; types and tokens; `SiriusJoyport` with its reset window; the two reading devices and the paddles; `MachineHost` ownership and reset ordering; the sink's jack writes. Attached by tests only | 1 | FR-003, FR-004, FR-009 (paddles), FR-010, FR-011, FR-013 |
+| 3 | **US1 play (MVP)**: evaluator switches, single-source jacks, mixer, the picker row (not saved yet), the readout disk | 2 | US1, FR-005-008 (single source), SC-001, SC-002 |
+| 4 | **US2 resets**: reset tests on the //e, entry-point check, V3 on the running app | 3 | US2, SC-003 |
+| 5 | **US4 setting**: pref, IDM pair, Machine tab group, live observation while Settings is open | 3 | US4, FR-001, FR-002, FR-012, SC-007 |
+| 6 | **US3 two players**: multiplayer jacks, disconnect | 3 | US3, FR-008 (multiplayer), SC-005 |
+| 7 | **US5 page**: switch lights, jack caption | 5, 6 | US5, FR-015 |
+| 8 | **Polish**: quickstart V6, V7, V10, CHANGELOG, README, the full gate | all | SC-004, SC-006 |
 
 ## Complexity Tracking
 
