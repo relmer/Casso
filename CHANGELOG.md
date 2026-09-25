@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.28.0] - 2026-09-25: The one with Joyport/Atari joystick emulation, Siriously
+
+### Added
+
+- Sirius Joyport emulation for the Apple ][, ][+ and //e. The Joyport let
+  Apple games read Atari 2600 joysticks. Turn it on from the controller picker
+  or the Machine tab in Settings, with no reset, and a controller's stick and
+  fire button become the Atari joystick's switches. In multiplayer, each
+  player's controller is on its own jack.
+- While the Joyport is on, the Controllers page in Settings shows only the
+  settings the Joyport uses, beside a drawing of an Atari joystick that lights
+  each direction and the fire button as they are pressed.
+- A Joyport test disk, Apple2/Demos/Joyport.do, based on the test program in
+  the Joyport's manual, with a menu of tests, retries and a skip key.
+
 ## [1.27.0] - 2026-09-24: The one with separate multiplayer controller profiles
 
 ### Changed

@@ -34,6 +34,13 @@ static constexpr wchar_t s_kSecondDriveLabel[]   = L"Drive 2";
 // Synthetic node for the //c mouse peripheral -- same pattern.
 static constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
 
+// The game socket's device: a group with one row per choice, exactly one
+// checked. The tree offers only checkboxes, so the two rows act as a radio
+// pair through the toggle handler.
+static constexpr wchar_t s_kGamePortLabel[]      = L"Game port";
+static constexpr wchar_t s_kNoAdapterLabel[]     = L"None";
+static constexpr wchar_t s_kJoyportLabel[]       = L"Sirius Joyport";
+
 
 
 
@@ -472,18 +479,38 @@ void HardwarePage::Rebuild()
                                   state->HasDiskIIController();
         bool  secondAttached    = (state != nullptr) && state->SecondDriveAttached();
 
+        // The device on the game socket, where the machine can take one.
+        bool             supportsGamePort = (info != nullptr) && info->supportsGamePortAdapter;
+        GamePortAdapter  adapter          = (state != nullptr) ? state->GetPrefs().gamePortAdapter : GamePortAdapter::None;
+
         nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected,
-                            supportsSecond, secondAttached);
+                            supportsSecond, secondAttached, supportsGamePort, adapter);
     }
 
     m_tree.SetNodes (std::move (nodes));
 
-    m_tree.SetOnToggle ([state] (const std::wstring & label, bool checked)
+    m_tree.SetOnToggle ([this, state] (const std::wstring & label, bool checked)
     {
-        size_t  i = 0;
+        size_t                     i       = 0;
+        std::vector<DxuiTreeNode>  current;
+        GamePortAdapter            adapter = GamePortAdapter::None;
 
         if (state == nullptr)
         {
+            return;
+        }
+
+        // The game-port rows are a radio pair: the choice goes to the state,
+        // and both rows are re-checked in place. Not a Rebuild, which would
+        // replace this very handler while it runs.
+        if (label == s_kNoAdapterLabel || label == s_kJoyportLabel)
+        {
+            adapter = ResolveGamePortToggle (label, checked, state->GetPrefs().gamePortAdapter);
+            state->SetGamePortAdapter (adapter);
+
+            current = m_tree.GetNodes();
+            SetGamePortChecks (current, adapter);
+            m_tree.SetNodes (std::move (current));
             return;
         }
 
@@ -558,7 +585,9 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
                                                     bool externalDriveConnected,
                                                     bool mouseConnected,
                                                     bool supportsSecondDrive,
-                                                    bool secondDriveAttached)
+                                                    bool secondDriveAttached,
+                                                    bool supportsGamePortAdapter,
+                                                    GamePortAdapter gamePortAdapter)
 {
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
@@ -650,6 +679,139 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         out.push_back (std::move (second));
     }
 
+    // The device on the game socket, on a machine whose socket carries the
+    // annunciators one needs. Plugged in outside the machine rather than in a
+    // slot, so it has a group of its own; changing it never needs a reset.
+    if (supportsGamePortAdapter)
+    {
+        out.push_back (BuildGamePortGroup (gamePortAdapter));
+    }
+
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::BuildGamePortGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTreeNode HardwarePage::BuildGamePortGroup (GamePortAdapter adapter)
+{
+    DxuiTreeNode  group;
+    DxuiTreeNode  none;
+    DxuiTreeNode  joyport;
+
+
+
+    group.label          = s_kGamePortLabel;
+    group.capabilityFlag = DxuiTreeCapabilityFlag::Required;
+    group.checked        = true;
+    group.expanded       = true;
+
+    none.label           = s_kNoAdapterLabel;
+    none.capabilityFlag  = DxuiTreeCapabilityFlag::Optional;
+    none.expanded        = false;
+
+    joyport.label          = s_kJoyportLabel;
+    joyport.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+    joyport.expanded       = false;
+
+    group.children.push_back (std::move (none));
+    group.children.push_back (std::move (joyport));
+
+    SetGamePortChecks (group, adapter);
+
+    return group;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::SetGamePortChecks
+//
+//  Exactly one of the game port's rows checked: the adapter's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::SetGamePortChecks (DxuiTreeNode & group, GamePortAdapter adapter)
+{
+    for (DxuiTreeNode & row : group.children)
+    {
+        if (row.label == s_kNoAdapterLabel)
+        {
+            row.checked = (adapter == GamePortAdapter::None);
+        }
+        else if (row.label == s_kJoyportLabel)
+        {
+            row.checked = (adapter == GamePortAdapter::SiriusJoyport);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::SetGamePortChecks
+//
+//  The same, over a whole tree: finds the game port group among the
+//  top-level nodes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::SetGamePortChecks (std::vector<DxuiTreeNode> & nodes, GamePortAdapter adapter)
+{
+    for (DxuiTreeNode & node : nodes)
+    {
+        if (node.label == s_kGamePortLabel)
+        {
+            SetGamePortChecks (node, adapter);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::ResolveGamePortToggle
+//
+//  What a click on one of the game port's rows chooses. Checking a row
+//  chooses it; unchecking the Joyport chooses None; unchecking None would
+//  leave nothing chosen, so it changes nothing and the row is re-checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GamePortAdapter HardwarePage::ResolveGamePortToggle (
+    const std::wstring  & label,
+    bool                  checked,
+    GamePortAdapter       current)
+{
+    GamePortAdapter  adapter = current;
+
+
+
+    if (label == s_kJoyportLabel)
+    {
+        adapter = checked ? GamePortAdapter::SiriusJoyport : GamePortAdapter::None;
+    }
+    else if (label == s_kNoAdapterLabel && checked)
+    {
+        adapter = GamePortAdapter::None;
+    }
+
+    return adapter;
 }
 

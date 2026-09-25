@@ -282,6 +282,56 @@ std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildControlle
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineInputPrefs::ReadGamePortAdapter
+//
+//  The device on the machine's game socket. A machine with no annunciators
+//  (the //c) reads None whatever the file says, so a key copied into its
+//  block by hand cannot attach a Joyport it has no lines for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GamePortAdapter MachineInputPrefs::ReadGamePortAdapter (
+    const JsonValue  * uiPrefs,
+    bool               hasAnnunciators)
+{
+    std::string      token;
+    GamePortAdapter  adapter = GamePortAdapter::None;
+
+
+
+    if (hasAnnunciators && uiPrefs != nullptr && uiPrefs->HasString (kpszGamePortAdapterKey, token))
+    {
+        adapter = ControllerTokens::GamePortAdapterFromToken (token);
+    }
+
+    return adapter;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::BuildGamePortAdapterEntry
+//
+//  Always written, None included, so detaching replaces a saved Joyport
+//  rather than leaving it behind; the store drops the entry again when it
+//  matches the default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<std::string, JsonValue> MachineInputPrefs::BuildGamePortAdapterEntry (GamePortAdapter adapter)
+{
+    return { kpszGamePortAdapterKey, JsonValue (ControllerTokens::GamePortAdapterToToken (adapter)) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineInputPrefs::TargetToToken
 //
 //  What a player slot maps to, in its persisted spelling. Names rather than

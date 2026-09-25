@@ -44,6 +44,8 @@ GamePortContribution MappingEvaluator::Evaluate (
     contribution.buttons.set (1, IsButtonListHeld (sample, mapping.pb1));
     contribution.buttons.set (2, IsButtonListHeld (sample, mapping.pb2));
 
+    contribution.switches.set (static_cast<size_t> (JoystickSwitch::Fire), contribution.buttons.test (0));
+
     return contribution;
 }
 
@@ -103,6 +105,36 @@ void MappingEvaluator::EvaluatePair (
     {
         contribution.paddle[firstAxis + 1] = ToAxisPaddle (firstAxis + 1, shapedY, winnerY, step);
     }
+
+    if (firstAxis == 0)
+    {
+        SetDirectionSwitches (shapedX, shapedY, contribution.switches);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDirectionSwitches
+//
+//  The Atari joystick PDL0 and PDL1 make: each axis on its own, so a diagonal
+//  closes one switch of each pair. Judged on the shaped deflection rather than
+//  the paddle byte, because a rate binding's byte is a position it holds after
+//  the stick is let go, and a switch must open when the stick comes back. A
+//  digital pair shapes to exactly -1, 0 or +1, so it closes the moment it is
+//  pressed, and both of its controls held shape to 0 and close neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MappingEvaluator::SetDirectionSwitches (float shapedX, float shapedY, JoystickSwitches & switches)
+{
+    switches.set (static_cast<size_t> (JoystickSwitch::Left),  shapedX <= -kSwitchThreshold);
+    switches.set (static_cast<size_t> (JoystickSwitch::Right), shapedX >=  kSwitchThreshold);
+    switches.set (static_cast<size_t> (JoystickSwitch::Up),    shapedY <= -kSwitchThreshold);
+    switches.set (static_cast<size_t> (JoystickSwitch::Down),  shapedY >=  kSwitchThreshold);
 }
 
 

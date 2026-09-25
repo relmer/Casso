@@ -4,6 +4,7 @@
 
 
 #include "Config/MonitorCatalog.h"
+#include "Controllers/ControllerTokens.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -964,6 +965,60 @@ void SettingsPanelState::SetMouseConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetGamePortAdapter
+//
+//  The game-port adapter from the Machine tab. Live UI pref: never sets
+//  RequiresReset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetGamePortAdapter (GamePortAdapter adapter)
+{
+    m_current.prefs.gamePortAdapter = adapter;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveLiveGamePortAdapter
+//
+//  Every key the sheet owns is written back on OK from the snapshot taken
+//  when it opened, so a change the picker made while the sheet was open would
+//  be undone by OK. Re-seeding the baseline from the live value keeps the
+//  entry clean and makes OK write what is live. A value the user set on the
+//  Machine tab is theirs and is kept: it was the last explicit choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::ObserveLiveGamePortAdapter (GamePortAdapter live)
+{
+    bool  isChanged   = live != m_original.prefs.gamePortAdapter;
+    bool  isUntouched = m_current.prefs.gamePortAdapter == m_original.prefs.gamePortAdapter;
+
+
+
+    if (isChanged)
+    {
+        m_original.prefs.gamePortAdapter = live;
+
+        if (isUntouched)
+        {
+            m_current.prefs.gamePortAdapter = live;
+        }
+    }
+
+    return isChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetHardwareEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1057,6 +1112,7 @@ HRESULT SettingsPanelState::Apply (
 
     sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
     sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
+    sink.ApplyGamePortAdapter (m_current.prefs.gamePortAdapter);
 
     // FR-010: any hardware enable diff requires the caller to confirm
     // and the machine to be reset. Queue the reset request; the
@@ -1154,6 +1210,8 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);
     outPrefs.mouseConnected         = TryGetBoolOpt (*uiObj, "mouseConnected", true);
+    outPrefs.gamePortAdapter        = ControllerTokens::GamePortAdapterFromToken (
+        GetStringOpt (*uiObj, "gamePortAdapter", ControllerTokens::kpszAdapterNone));
 
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
@@ -1441,6 +1499,11 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             FormatRegion ("System ROM", addr, size);
         }
     }
+
+    // A game-port adapter needs the annunciator outputs on the game socket,
+    // which is a fact about the machine rather than anything in its document.
+    outInfo.supportsGamePortAdapter = MachineDefinitions::Find (machineId) != nullptr &&
+                                      MachineDefinitions::Find (machineId)->hasAnnunciators;
 
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
@@ -1997,6 +2060,7 @@ JsonValue SettingsPanelState::BuildJson (
     }
 
     uiObj.emplace_back ("mouseConnected",         JsonValue (prefs.mouseConnected));
+    uiObj.emplace_back ("gamePortAdapter",        JsonValue (ControllerTokens::GamePortAdapterToToken (prefs.gamePortAdapter)));
     uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
     uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));
     uiObj.emplace_back ("driveDoorVolume",    JsonValue ((double) prefs.driveDoorVolume));
@@ -2096,6 +2160,7 @@ bool SettingsPanelState::ArePrefsEqual (
         && a.floppyMechanism        == b.floppyMechanism
         && a.externalDriveConnected == b.externalDriveConnected
         && a.mouseConnected         == b.mouseConnected
+        && a.gamePortAdapter        == b.gamePortAdapter
         && a.driveMotorVolume       == b.driveMotorVolume
         && a.driveHeadVolume        == b.driveHeadVolume
         && a.driveDoorVolume        == b.driveDoorVolume

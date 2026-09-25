@@ -100,14 +100,23 @@ public:
     // exclusive: a machine's second drive is either an external unit on the
     // //c's disk port or a drive on the card's second connector, never both.
     static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries,
-                                                  bool supportsExternalDrive  = false,
-                                                  bool externalDriveConnected = false,
-                                                  bool mouseConnected         = true,
-                                                  bool supportsSecondDrive    = false,
-                                                  bool secondDriveAttached    = false);
+                                                  bool supportsExternalDrive   = false,
+                                                  bool externalDriveConnected  = false,
+                                                  bool mouseConnected          = true,
+                                                  bool supportsSecondDrive     = false,
+                                                  bool secondDriveAttached     = false,
+                                                  bool supportsGamePortAdapter = false,
+                                                  GamePortAdapter gamePortAdapter = GamePortAdapter::None);
+
+    // The game port's rows as a radio pair: exactly one checked, and what a
+    // click on either chooses. Pure, so the page's handler is testable.
+    static void             SetGamePortChecks     (std::vector<DxuiTreeNode> & nodes, GamePortAdapter adapter);
+    static GamePortAdapter  ResolveGamePortToggle (const std::wstring & label, bool checked, GamePortAdapter current);
 
 private:
-    static RECT                    MakeRect (int l, int t, int w, int h);
+    static RECT                    MakeRect           (int l, int t, int w, int h);
+    static DxuiTreeNode            BuildGamePortGroup (GamePortAdapter adapter);
+    static void                    SetGamePortChecks  (DxuiTreeNode & group, GamePortAdapter adapter);
     static DxuiTreeCapabilityFlag  MapFlag  (CapabilityFlag flag);
     static std::wstring            Widen    (const std::string & narrow);
 

@@ -207,6 +207,20 @@ public:
     }
 
 
+    TEST_METHOD (EveryMachineButTheIIcHasAnnunciators)
+    {
+        //  The annunciator outputs on the game socket are what a game-port
+        //  adapter needs. The //c's joystick port has none.
+        for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
+        {
+            Assert::IsTrue (MachineDefinitions::Find (id)->hasAnnunciators,
+                std::wstring (id, id + strlen (id)).c_str());
+        }
+
+        Assert::IsFalse (MachineDefinitions::Find ("Apple2c")->hasAnnunciators, L"Apple2c");
+    }
+
+
 private:
 
     static void AssertHasMode (const IMachine & machine, const char * mode)

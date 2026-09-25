@@ -866,6 +866,32 @@ void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorCommands::SetJoyportFns
+//
+//  The row's check is asked each time the menu draws, so it shows whether
+//  the Joyport is attached however it came to be -- from this row or from
+//  the Machine tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetJoyportFns (std::function<bool()> isOn,
+                                      std::function<bool()> isOffered,
+                                      std::function<void()> toggle)
+{
+    m_joyportRow = std::make_shared<DxuiCommand>();
+
+    m_joyportRow->label     = L"Sirius Joyport";
+    m_joyportRow->isChecked = std::move (isOn);
+    m_joyportRow->dispatch  = std::move (toggle);
+    m_isJoyportOffered      = std::move (isOffered);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorCommands::GetCheckedPaddleSourceLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -954,14 +980,20 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 //  are the one thing that drives the game port; it is the mode where two
 //  things do, so grouping it with them would read as a third source.
 //
+//  The Sirius Joyport row has a group of its own below them, on a machine that
+//  can take one. It is not something that drives the game port but a device
+//  on it, attached whichever source drives, so beside the sources it would
+//  read as one more of them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
 {
     std::vector<DxuiPopupMenuItem>      items;
-    std::vector<DxuiPopupMenuItem>      rows     = GetPaddleSourceItems();
-    std::shared_ptr<const DxuiCommand>  settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
-    size_t                              i        = 0;
+    std::vector<DxuiPopupMenuItem>      rows      = GetPaddleSourceItems();
+    std::shared_ptr<const DxuiCommand>  settings  = Find (IDM_VIEW_CONTROLLER_SETTINGS);
+    size_t                              i         = 0;
+    bool                                isJoyport = m_joyportRow != nullptr && m_isJoyportOffered && m_isJoyportOffered();
 
 
 
@@ -973,6 +1005,12 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
         }
 
         items.push_back (rows[i]);
+    }
+
+    if (isJoyport)
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_joyportRow));
     }
 
     // The profiles of the controllers in play, one submenu away from the

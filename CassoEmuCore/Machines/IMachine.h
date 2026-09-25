@@ -61,6 +61,12 @@ public:
     //  the mouse's direction lines instead.
     virtual int  GetGamePortAxisCount () const = 0;
 
+    //  Whether the game I/O socket carries the annunciator outputs AN0-AN3,
+    //  which is what lets a game-port adapter such as the Sirius Joyport be
+    //  plugged in. True on the ][, ][+ and //e; the //c's joystick port has
+    //  no annunciator lines.
+    virtual bool  HasAnnunciators () const = 0;
+
     //  Whether the machine's case carries switches the user can reach -- the
     //  //c's 40/80 column and keyboard-layout switches. A presentation
     //  question rather than an emulation one, and the machine is who knows the

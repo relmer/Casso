@@ -42,6 +42,10 @@ public:
     //  //c's mouse.
     int   GetGamePortAxisCount () const override { return (2); }
 
+    //  The joystick port has no annunciator outputs, so no game-port adapter
+    //  can be connected to it.
+    bool  HasAnnunciators () const override { return (false); }
+
     //  The 40/80 column and keyboard switches on the case, and the 5.25"
     //  drive soldered behind the disk port.
     bool  HasCaseSwitches () const override { return (true); }

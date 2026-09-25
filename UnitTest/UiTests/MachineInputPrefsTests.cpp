@@ -1,6 +1,11 @@
 #include "Pch.h"
 
+#include "InMemoryFileSystem.h"
+
 #include "Config/MachineInputPrefs.h"
+#include "Config/UserConfigStore.h"
+#include "Controllers/ControllerTokens.h"
+#include "Machines/MachineDefinitions.h"
 
 #include "Core/JsonParser.h"
 
@@ -425,5 +430,89 @@ public:
 
         Assert::IsTrue (MachineInputPrefs::ReadProfileName (GetUiPrefsOrFail (doc)).empty(),
             L"no stored profile means Default, which is spelled as nothing stored");
+    }
+
+
+    TEST_METHOD (GamePortAdapter_ReadsTheJoyportWhereTheMachineCanTakeIt)
+    {
+        JsonValue  joyport = ParseOrFail (R"({"$cassoUiPrefs":{"gamePortAdapter":"siriusJoyport"}})");
+        JsonValue  unknown = ParseOrFail (R"({"$cassoUiPrefs":{"gamePortAdapter":"atariAdapter"}})");
+        JsonValue  absent  = ParseOrFail (R"({"$cassoUiPrefs":{}})");
+
+        Assert::IsTrue (MachineInputPrefs::ReadGamePortAdapter (GetUiPrefsOrFail (joyport), true)  == GamePortAdapter::SiriusJoyport);
+        Assert::IsTrue (MachineInputPrefs::ReadGamePortAdapter (GetUiPrefsOrFail (unknown), true)  == GamePortAdapter::None, L"an unknown token is None");
+        Assert::IsTrue (MachineInputPrefs::ReadGamePortAdapter (GetUiPrefsOrFail (absent),  true)  == GamePortAdapter::None, L"no key is None");
+        Assert::IsTrue (MachineInputPrefs::ReadGamePortAdapter (nullptr,                    true)  == GamePortAdapter::None, L"no block is None");
+        Assert::IsTrue (MachineInputPrefs::ReadGamePortAdapter (GetUiPrefsOrFail (joyport), false) == GamePortAdapter::None,
+            L"a machine with no annunciators reads None whatever its file says");
+    }
+
+
+    TEST_METHOD (GamePortAdapter_TheEntryReadsBackAsWritten)
+    {
+        for (GamePortAdapter adapter : { GamePortAdapter::None, GamePortAdapter::SiriusJoyport })
+        {
+            std::pair<std::string, JsonValue>  entry = MachineInputPrefs::BuildGamePortAdapterEntry (adapter);
+            JsonValue                          block = JsonValue (std::vector<std::pair<std::string, JsonValue>> { entry });
+
+            Assert::AreEqual (std::string ("gamePortAdapter"), entry.first);
+            Assert::IsTrue (MachineInputPrefs::ReadGamePortAdapter (&block, true) == adapter);
+        }
+    }
+
+
+    TEST_METHOD (GamePortAdapter_EachMachineAdoptsOnlyItsOwnSavedValue)
+    {
+        //  SC-007: what the cold-boot and machine-switch paths adopt. The //e
+        //  saved a Joyport; the ][+ saved nothing; the //c's block claims one
+        //  it cannot have, as a hand edit might.
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+        JsonValue           defaultJson = ParseOrFail (R"({"$cassoMachineVersion":1})");
+
+        SaveBlock (fs, store, defaultJson, "Apple2e", "siriusJoyport");
+        SaveBlock (fs, store, defaultJson, "Apple2c", "siriusJoyport");
+
+        Assert::IsTrue (AdoptedBy (fs, store, defaultJson, "Apple2e")    == GamePortAdapter::SiriusJoyport, L"the //e comes back with it");
+        Assert::IsTrue (AdoptedBy (fs, store, defaultJson, "Apple2Plus") == GamePortAdapter::None,          L"the ][+ does not");
+        Assert::IsTrue (AdoptedBy (fs, store, defaultJson, "Apple2c")    == GamePortAdapter::None,          L"nor can the //c");
+    }
+
+
+private:
+
+    static void SaveBlock (InMemoryFileSystem & fs, UserConfigStore & store, const JsonValue & defaultJson,
+                           const std::string & machine, const char * token)
+    {
+        JsonValue  merged;
+        JsonValue  updated;
+        HRESULT    hr      = S_OK;
+
+        //  For the //c this stands in for a hand edit: the shell never writes
+        //  the key for a machine without a Joyport.
+        hr = store.Load (machine, defaultJson, fs, merged);
+        Assert::IsTrue (SUCCEEDED (hr), L"Load");
+
+        updated = UserConfigStore::SpliceUiPrefs (merged,
+            { MachineInputPrefs::BuildGamePortAdapterEntry (ControllerTokens::GamePortAdapterFromToken (token)) });
+
+        hr = store.SaveDelta (machine, updated, defaultJson, fs);
+        Assert::IsTrue (SUCCEEDED (hr), L"SaveDelta");
+    }
+
+
+    static GamePortAdapter AdoptedBy (InMemoryFileSystem & fs, UserConfigStore & store, const JsonValue & defaultJson,
+                                      const std::string & machine)
+    {
+        JsonValue                  merged;
+        const JsonValue          * uiPrefs    = nullptr;
+        const MachineDefinition  * definition = MachineDefinitions::Find (machine);
+        HRESULT                    hr         = S_OK;
+
+        hr = store.Load (machine, defaultJson, fs, merged);
+        Assert::IsTrue (SUCCEEDED (hr), L"Load");
+        merged.HasObject ("$cassoUiPrefs", uiPrefs);
+
+        return MachineInputPrefs::ReadGamePortAdapter (uiPrefs, definition != nullptr && definition->hasAnnunciators);
     }
 };

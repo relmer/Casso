@@ -56,6 +56,8 @@ public:
         float              lastDriveTwoPan            = 0.0f;
         bool               lastExternalDriveConnected = false;
         bool               lastMouseConnected         = true;
+        GamePortAdapter    lastGamePortAdapter        = GamePortAdapter::None;
+        int                gamePortApplyCount         = 0;
         int                queuedResetCount           = 0;
         int                applyCount                 = 0;
 
@@ -93,6 +95,13 @@ public:
         void ApplyMouseConnected (bool connected) override
         {
             lastMouseConnected = connected;
+            ++applyCount;
+        }
+
+        void ApplyGamePortAdapter (GamePortAdapter adapter) override
+        {
+            lastGamePortAdapter = adapter;
+            ++gamePortApplyCount;
             ++applyCount;
         }
 
@@ -1388,6 +1397,98 @@ public:
         Assert::AreEqual (0, sink.applyCount,
             L"Cancel must never reach the apply sink.");
         Assert::AreEqual (0, sink.queuedResetCount);
+    }
+
+
+    TEST_METHOD (GamePortAdapter_DefaultsToNoneRoundTripsNoReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v        = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     reloaded;
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue  (st.GetPrefs().gamePortAdapter == GamePortAdapter::None, L"defaults to None");
+        st.SetGamePortAdapter (GamePortAdapter::SiriusJoyport);
+        Assert::IsTrue  (st.IsDirty());
+        Assert::IsFalse (st.RequiresReset(), L"attaching a Joyport never needs a reset");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue   (sink.lastGamePortAdapter == GamePortAdapter::SiriusJoyport, L"pushed live");
+        Assert::AreEqual (0, sink.queuedResetCount);
+
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        Assert::IsTrue (reloaded.gamePortAdapter == GamePortAdapter::SiriusJoyport, L"gamePortAdapter round-trips");
+    }
+
+
+    TEST_METHOD (GamePortAdapter_APickerChangeWhileOpenIsKeptOnOk)
+    {
+        SettingsPanelState  st;
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     saved;
+        bool                rebuild = false;
+
+        st.LoadFromMachine ("X", v, v);
+
+        //  The picker attaches the Joyport while the sheet is open.
+        rebuild = st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport);
+
+        Assert::IsTrue  (rebuild, L"the Machine tab shows it at once");
+        Assert::IsTrue  (st.GetPrefs().gamePortAdapter == GamePortAdapter::SiriusJoyport);
+        Assert::IsFalse (st.IsDirty(), L"a change the picker already made is not a change the sheet makes");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, saved));
+        Assert::IsTrue (saved.gamePortAdapter == GamePortAdapter::SiriusJoyport, L"OK writes what is live, not what the sheet opened with");
+        Assert::IsTrue (sink.lastGamePortAdapter == GamePortAdapter::SiriusJoyport, L"and does not detach it again");
+
+        Assert::IsFalse (st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport), L"an unchanged live value rebuilds nothing");
+    }
+
+
+    TEST_METHOD (GamePortAdapter_AnEditOnTheMachineTabSurvivesThePicker)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+        st.LoadFromMachine ("X", v, v);
+
+        //  The user attaches it on the Machine tab, then the picker is used to
+        //  attach it too: nothing pending is lost, and nothing is left dirty.
+        st.SetGamePortAdapter (GamePortAdapter::SiriusJoyport);
+        st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport);
+        Assert::IsTrue  (st.GetPrefs().gamePortAdapter == GamePortAdapter::SiriusJoyport);
+        Assert::IsFalse (st.IsDirty());
+
+        //  Now the user sets None on the tab while the picker's value stands:
+        //  the edit is the last explicit choice and is kept.
+        st.SetGamePortAdapter (GamePortAdapter::None);
+        st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport);
+        Assert::IsTrue (st.GetPrefs().gamePortAdapter == GamePortAdapter::None, L"the pending edit survives");
+        Assert::IsTrue (st.IsDirty());
+    }
+
+
+    TEST_METHOD (GamePortAdapter_OfferedOnMachinesWithAnnunciatorsOnly)
+    {
+        JsonValue            v = ParseOrFail (kFixtureJson);
+        SettingsMachineInfo  info;
+
+        for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
+        {
+            info = {};
+            AssertSucceeded (SettingsPanelState::ExtractMachineInfo (id, v, info));
+            Assert::IsTrue (info.supportsGamePortAdapter, std::wstring (id, id + strlen (id)).c_str());
+        }
+
+        info = {};
+        AssertSucceeded (SettingsPanelState::ExtractMachineInfo ("Apple2c", v, info));
+        Assert::IsFalse (info.supportsGamePortAdapter, L"the //c has no annunciators");
     }
 };
 
