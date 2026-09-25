@@ -291,12 +291,16 @@ cost, the perf facet of the off-thread-compositing initiative (#100; see §9).
 
 ## 7. Audio
 
-WASAPI output on the UI/audio side; the generators (speaker delta-sigma, Disk II
-mechanical, Mockingboard PSG) produce PCM from cycle-timestamped events on the
-CPU thread. `WasapiAudio::SubmitFrame` is **non-blocking** (it drops rather than
-blocks, capped at a 3-frame backlog) so audio buffer pressure never throttles
-the emulation thread. (Emulation speed is governed by the frame pacing in the
-CPU-thread loop, not by audio.)
+The generators (speaker delta-sigma, Disk II and printer mechanical sound,
+Mockingboard PSGs and speech) produce PCM from cycle-timestamped events on the
+CPU thread, and `WasapiAudio::SubmitFrame` mixes them into a pending sample
+queue. A dedicated render thread, `WasapiAudio::RenderPump`, drains that queue
+into WASAPI whenever the endpoint signals it has room. `SubmitFrame` is
+**non-blocking** (it drops rather than blocks, capped at a 3-frame backlog) so
+audio buffer pressure never throttles the emulation thread. (Emulation speed is
+governed by the frame pacing in the CPU-thread loop, not by audio.)
+
+<p align="center"><img src="docs/audio-stack.svg" alt="The audio path: the speaker, Disk II drives, printer and Mockingboard feed the AudioGenerator and two DriveAudioMixers; WasapiAudio::SubmitFrame mixes them on the CPU thread into a pending sample queue, with an optional CASSO_AUDIO_DUMP file tap; WasapiAudio::RenderPump drains the queue on the render thread into IAudioClient, which an endpoint notifier reopens on device change, and on to the Windows audio mixer" width="680" /></p>
 
 ---
 
