@@ -1669,7 +1669,7 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "mockingboard-c",          "Mockingboard C (sound + speech)" },
         { "passport",                "Passport MIDI" },
         { "serial",                  "Super Serial Card" },
-        { "parallel",                "Parallel Printer" },
+        { "parallel",                "Parallel printer" },
         { "videx",                   "Videx 80-Column" },
         { "ramworks",                "RamWorks" },
         { "ramfactor",               "RAMFactor" },
@@ -1684,13 +1684,13 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "monitor",                 "Monitor" },
         { "apple2-family-keyboard",         "Keyboard" },
         { "apple2-family-speaker",          "Speaker" },
-        { "apple2-family-softswitches",     "Soft Switches" },
+        { "apple2-family-softswitches",     "Soft switches" },
         // The //e-generation keyboard/soft-switch controllers are shared by the
         // //e and the //c, so the label stays machine-neutral (the machine name
         // is already shown at the top of the panel) rather than hardcoding //e.
         { "apple2e-family-keyboard",        "Keyboard" },
-        { "apple2e-family-softswitches",    "Soft Switches" },
-        { "apple2e-family-mmu",             "Memory Management Unit" },
+        { "apple2e-family-softswitches",    "Soft switches" },
+        { "apple2e-family-mmu",             "Memory management unit" },
     };
 
     mergedRootType = JsonType::Null;

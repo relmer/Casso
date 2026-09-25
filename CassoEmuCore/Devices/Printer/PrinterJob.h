@@ -52,7 +52,7 @@ public:
     // tell "printing" from "idle" so an idle gap never accrues a paced burst.
     uint32_t  GetPendingBytes () const;
 
-    // Host-initiated form feed (the preview's Form Feed button): identical to
+    // Host-initiated form feed (the preview's Form feed button): identical to
     // the guest sending $0C. The caller must only invoke this while the
     // printer is idle so it can't interleave with an in-flight command.
     void    FormFeed (vector<PrinterEvent> & outEvents);

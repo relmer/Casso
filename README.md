@@ -366,7 +366,7 @@ blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, 
 PO and NIB, optionally bootable from the stock masters — and a created disk is
 usable immediately, with no `INIT` step.
 
-<p align="center"><img src="Assets/feat-create-disk.png" alt="Create New Disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
+<p align="center"><img src="Assets/feat-create-disk.png" alt="Create new disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
 
 Mounted disks carry a **write-protect toggle**: WOZ images hold the flag inside
 the file so it travels with the image, sector formats use the host file's
@@ -423,7 +423,7 @@ printout survives across sessions.
 
 ### Input
 
-Analog game I/O via the PREAD timer, and a **Map Arrows to Joystick** mode that
+Analog game I/O via the PREAD timer, and a **Map arrows to joystick** mode that
 puts the arrow keys on paddle 0/1 with **X** / **Z** on buttons 0/1, so
 *Karateka*, *Choplifter* and *Lode Runner* play from the host keyboard with no
 physical stick. The //e keyboard generates hardware-faithful auto-repeat — initial

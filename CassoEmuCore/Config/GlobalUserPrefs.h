@@ -193,7 +193,7 @@ struct GlobalUserPrefs
 
     // ImageWriter II mechanical-sound preferences (Settings > Printing audio,
     // FR-034). `enabled` is the printer-sound master toggle (on by default);
-    // when off the printer bus is silent (the shared "Drive Audio" master
+    // when off the printer bus is silent (the shared "Drive audio" master
     // enable still gates it above this). Volume 0..1 (default matches
     // PrinterAudioSource::kDefaultVolume). By default the sound auto-pans to
     // follow the preview window; panOverride pins a fixed pan (-1 left .. +1).

@@ -16,7 +16,7 @@
 
 
 
-static constexpr wchar_t   s_kpszTitle     [] = L"Casso Printer";
+static constexpr wchar_t   s_kpszTitle     [] = L"Casso printer";
 static constexpr wchar_t   s_kpszClassName [] = L"CassoPrinterPanel";
 
 // The chrome band geometry and the sizes derived from it are private members
@@ -35,7 +35,7 @@ static constexpr int64_t   s_kMinRenderIntervalMs = 16;
 static constexpr int       s_kWheelRowsPerNotch = 144;   // 1" per wheel notch
 static constexpr int       s_kArrowScrollRows   = 48;    // 1/3" per key press
 
-// Guest-activity gap after which the print counts as finished: Form Feed
+// Guest-activity gap after which the print counts as finished: Form feed
 // arms, matching the shell-side gate on the same signal.
 static constexpr int64_t   s_kPrintIdleMs = 1200;
 
@@ -521,7 +521,7 @@ void PrinterPanel::OnCreate()
     m_zoomIn    = CreateChild<DxuiButton> (L"+");
 
     // Bottom row.
-    m_formFeed  = CreateChild<DxuiButton> (L"Form Feed");
+    m_formFeed  = CreateChild<DxuiButton> (L"Form feed");
     m_discard   = CreateChild<DxuiButton> (L"Discard");
 
     m_print->SetOnClick     ([this] () { if (m_onPrint)    { m_onPrint    (); } });
@@ -865,7 +865,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         }
 
         // Toolbar validity: the delivery actions need a printout on the paper;
-        // Form Feed arms only once the guest print idles (feeding mid-print
+        // Form feed arms only once the guest print idles (feeding mid-print
         // would interleave a page break into its stream).
         if (activity != m_renderedActivity)
         {
@@ -939,7 +939,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         m_revealInk = worker.GetSpanInkExtent (platenRow, platenRow + s_kPinBandRows - 1) > 0;
 
         // Keep requesting animation frames while the carriage sweeps or the paper
-        // feeds (IsHeadMoving covers a host Form Feed, which does not bump activity);
+        // feeds (IsHeadMoving covers a host Form feed, which does not bump activity);
         // m_printingActive holds the cadence hot across the guest's brief byte gaps.
         m_sweeping = m_printingActive || worker.IsHeadMoving();
 
@@ -1739,7 +1739,7 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 //  Two toolbars sandwich the paper. The TOP band carries the document actions
 //  (Print / Save / Copy, left) and the zoom cluster ([-] [nnn%] [+], right).
 //  The paper view fills the middle, above a hint strip. The BOTTOM band
-//  carries paper handling (Form Feed, then Discard).
+//  carries paper handling (Form feed, then Discard).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1760,7 +1760,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // centers in the taller box.
     int  hintH      = scaler.ToPx (kHintHDip);
     int  btnH       = scaler.ToPx (30);
-    int  btnW       = scaler.ToPx (84);   // Print... / Save... / Copy / Form Feed / Discard
+    int  btnW       = scaler.ToPx (84);   // Print... / Save... / Copy / Form feed / Discard
     int  zoomW      = scaler.ToPx (42);   // [-] and [+]
     int  zoomResetW = scaler.ToPx (54);   // [nnn%]
 

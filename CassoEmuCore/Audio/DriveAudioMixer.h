@@ -68,7 +68,7 @@ public:
     void  UnregisterSource     (IDriveAudioSource * source);
     void  UnregisterAllSources();
 
-    // Toggle gating used by the View -> Options... -> Drive Audio
+    // Toggle gating used by the View -> Options... -> Drive audio
     // checkbox (FR-006). Default is enabled on construction.
     void  SetEnabled       (bool enabled);
     bool  IsEnabled        () const;

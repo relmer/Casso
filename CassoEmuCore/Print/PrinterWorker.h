@@ -61,7 +61,7 @@ public:
     // the preview's audio ink gate. Safe from the UI thread.
     int           GetSpanInkExtent (int firstRow, int lastRow) { return m_engine.GetSpanInkExtent (firstRow, lastRow); }
 
-    // Host form feed (the preview's Form Feed button): the next drain tick slews
+    // Host form feed (the preview's Form feed button): the next drain tick slews
     // the page in with feed sound. Safe to call from the UI thread.
     void          FormFeed () { m_engine.FormFeed(); }
 

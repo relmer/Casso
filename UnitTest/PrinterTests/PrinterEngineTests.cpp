@@ -186,7 +186,7 @@ namespace PrinterEngineTests
             int             col      = 0;
 
             engine.Start (*ring);
-            engine.FormFeed();                 // host Form Feed button
+            engine.FormFeed();                 // host Form feed button
 
             TickFor (engine, nowMs, 60, 100);  // slew the whole page in
 

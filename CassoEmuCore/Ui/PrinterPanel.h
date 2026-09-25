@@ -198,7 +198,7 @@ private:
     DxuiButton  * m_zoomReset = nullptr;
     DxuiButton  * m_zoomIn    = nullptr;
 
-    // Bottom row: paper handling (Form Feed advances a page; Discard is the
+    // Bottom row: paper handling (Form feed advances a page; Discard is the
     // one destructive tear-off).
     DxuiButton        * m_formFeed = nullptr;
     DxuiButton        * m_discard  = nullptr;
@@ -221,7 +221,7 @@ private:
     float               m_zoomChromeSynced = -1.0f;
 
     // Hover tooltips for the toolbar (disabled buttons explain WHY they are
-    // disabled), plus the guest-activity clock that drives the Form Feed
+    // disabled), plus the guest-activity clock that drives the Form feed
     // button's enabled state: feeding mid-print would interleave a page
     // break into the guest's stream, so it only arms once the print idles.
     DxuiTooltip         m_tooltip;

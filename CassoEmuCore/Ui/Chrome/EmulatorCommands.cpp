@@ -19,9 +19,9 @@
 // documented 3+ line exception rather than moving onto the class.
 static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
 {
-    { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &Printer Preview",  nullptr          },
-    { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy Printout to Clipboard",    nullptr   },
-    { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard Printout (Tear Off)",   nullptr   },
+    { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &printer preview",  nullptr          },
+    { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy printout to clipboard",    nullptr   },
+    { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard printout (tear off)",   nullptr   },
     { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
     { IDM_FILE_EXIT,                MainMenuId::File,    L"E&xit",                  nullptr          },
     { IDM_EDIT_COPY_TEXT,           MainMenuId::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
@@ -29,8 +29,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
     { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
     { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
-    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
-    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
+    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map arrows to &joystick", L"Ctrl+Shift+J",  true   },
+    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map mouse to &paddle",   nullptr,          true   },
     { 0,                            MainMenuId::Machine, nullptr,                   nullptr          },
     { IDM_VIEW_CONTROLLER_SETTINGS, MainMenuId::Machine, L"&Controller settings...", nullptr         },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
@@ -54,7 +54,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
     { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
     { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
-    { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input Debug...",         L"Ctrl+Shift+I"  },
+    { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input debug...",         L"Ctrl+Shift+I"  },
 };
 
 // The toolbar's entries, in strip order. The order is also the COLLAPSE

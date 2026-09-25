@@ -1190,7 +1190,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     hr = model.SetFolder (folder);
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                               L"Could not open the disk folder.",
-                              L"Create New Disk", MB_OK | MB_ICONERROR));
+                              L"Create new disk", MB_OK | MB_ICONERROR));
 
     // Boot-payload plumbing: availability answers from the download cache;
     // the download callback runs on the dialog's explicit button click.
@@ -1214,7 +1214,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
                 path, error);
         });
 
-    params.title                    = std::format (L"Create New Disk (Drive {})", drive);
+    params.title                    = std::format (L"Create new disk (Drive {})", drive);
     params.hInstance                = GetModuleHandle (nullptr);
     params.ownerHwnd                = m_shell.m_hwnd;
     params.initialSizeDip           = { 560, 480 };
@@ -1240,7 +1240,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     {
         message = std::format (L"Drive {} already has a disk. Replace it with the new disk?", drive);
         choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, message.c_str(),
-                                  L"Create New Disk", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
+                                  L"Create new disk", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
         BAIL_OUT_IF (choice != IDYES, S_OK);
     }
@@ -1262,7 +1262,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
         CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                                       L"The OS master disk is missing from the download cache.",
-                                      L"Create New Disk", MB_OK | MB_ICONERROR));
+                                      L"Create new disk", MB_OK | MB_ICONERROR));
 
         vector<Byte> &  dest = isProDos ? payload.proDosUsersDisk
                                         : payload.dosMasterSectors;
@@ -1274,7 +1274,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     hr = BlankDiskBuilder::Build (dialog.GetOutcome().spec, payload, imageBytes);
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                               L"Could not build the new disk image.",
-                              L"Create New Disk", MB_OK | MB_ICONERROR));
+                              L"Create new disk", MB_OK | MB_ICONERROR));
 
     // Atomic: the filesystem stages a sibling temp file and swaps it in, so
     // a failure here leaves no partial image behind.
@@ -1284,7 +1284,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                               (L"Could not write \"" + dialog.GetOutcome().targetPath + L"\".\n\n"
                                + FormatSystemError (hr)).c_str(),
-                              L"Create New Disk", MB_OK | MB_ICONERROR));
+                              L"Create new disk", MB_OK | MB_ICONERROR));
 
     // Remember where this disk landed (the user may have navigated away
     // from the starting folder); the next create opens there.
@@ -1299,7 +1299,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     hr = m_shell.Mount (6, drive - 1, dialog.GetOutcome().targetPath);
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                               L"The disk was created but could not be mounted.",
-                              L"Create New Disk", MB_OK | MB_ICONERROR));
+                              L"Create new disk", MB_OK | MB_ICONERROR));
 
     outMountStarted = true;
 
@@ -1685,7 +1685,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
             failedStage = L"PrintDlg (the chosen printer returned no device context)");
 
     di.cbSize      = sizeof (di);
-    di.lpszDocName = L"Casso Printout";
+    di.lpszDocName = L"Casso printout";
 
     // "Microsoft Print to PDF" (and some drivers) pop a Save-As prompt inside
     // StartDoc; canceling it is a user cancel, not a delivery failure -- so it
@@ -2013,7 +2013,7 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
 
 
 
-    DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+    DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
     if (job != nullptr)
     {
@@ -2050,7 +2050,7 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
     if (FAILED (hr))
     {
         DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
-                     L"Casso Printer", MB_OK | MB_ICONWARNING);
+                     L"Casso printer", MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -2076,7 +2076,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
         L"Tear off and discard the current printout?\n\n"
         L"The page in the printer will be thrown away without saving. "
         L"This cannot be undone.",
-        L"Discard Printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+        L"Discard printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
 
 
 
@@ -2161,7 +2161,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
                                  : (L"Saved printout to:\n" + file.wstring());
 
         m_shell.NotePrinterDeliveryResult (false);
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
         m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
@@ -2186,7 +2186,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
 
         DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(),
-                     L"Casso Printer", MB_OK | MB_ICONWARNING);
+                     L"Casso printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
@@ -2218,14 +2218,14 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
     {
         DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Sent the printout to the printer.",
-                        L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+                        L"Casso printer", MB_OK | MB_ICONINFORMATION);
     }
     else
     {
         DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Something went wrong while sending your printout, so it is still "
                         L"waiting in the printer. Please try printing again.",
-                        L"Casso Printer", MB_OK | MB_ICONWARNING);
+                        L"Casso printer", MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -2285,7 +2285,7 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.title = L"About Casso";
             def.icon  = DialogIcon::AppPhotoreal;
             def.iconSizeOverrideDp = 128.0f;
-            def.body.push_back ({ L"Casso Emulator\nCopyright (C) by Robert Elmer"
+            def.body.push_back ({ L"Casso emulator\nCopyright (C) by Robert Elmer"
                                   L"\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
                                   L"\n\nAn Apple 2 family emulator.",

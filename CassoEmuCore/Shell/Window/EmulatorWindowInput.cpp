@@ -2216,7 +2216,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     }
 
     // Arrow keys double as the emulated joystick axes / the X / Z keys as
-    // fire buttons when "Map Arrows to Joystick" is on AND a game-port
+    // fire buttons when "Map arrows to joystick" is on AND a game-port
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
     bool  driveJoystick = m_arrowsJoystick &&
@@ -2265,7 +2265,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // has it at all. Gated on the auto-repeat bit so the host OS repeat
         // never reaches the latch; a fresh press arms the $C000 strobe once
         // and registers the key for the emulator's own authentic //e
-        // auto-repeat cadence (Tick). With "Map Arrows to Joystick" on (and a
+        // auto-repeat cadence (Tick). With "Map arrows to joystick" on (and a
         // game-port paddle bank present), arrow keys are withheld from the
         // keyboard latch so a held direction cannot flood $C000 and starve a
         // joystick game's reads.

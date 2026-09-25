@@ -282,7 +282,7 @@ void PrinterEngine::FormFeed()
 //
 //  Tick
 //
-//  One print step at wall-clock `nowMs`. It (1) plays any host Form Feed request;
+//  One print step at wall-clock `nowMs`. It (1) plays any host Form feed request;
 //  (2) runs the interpreter far enough ahead to keep the line buffer full -- but
 //  no further, so the ring backs up and the guest throttles itself; (3) replays
 //  the emitted carriage timeline for the elapsed guest cycles at the real carriage
@@ -317,7 +317,7 @@ void PrinterEngine::Tick (int64_t nowMs)
 
         std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-        // Play any host Form Feed requests on this (the single writer) thread,
+        // Play any host Form feed requests on this (the single writer) thread,
         // enqueuing their feed motion for the head to slew through.
         hostFeeds = m_hostFormFeeds.exchange (0, std::memory_order_relaxed);
 

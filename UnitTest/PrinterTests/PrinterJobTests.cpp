@@ -74,7 +74,7 @@ namespace PrinterJobTests
 
 
 
-            // The preview's Form Feed button: identical to the guest sending
+            // The preview's Form feed button: identical to the guest sending
             // $0C, through the same interpreter path.
             auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
             PrinterJob             job (*ring);

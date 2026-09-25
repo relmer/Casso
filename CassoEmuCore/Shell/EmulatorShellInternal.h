@@ -187,7 +187,7 @@ static constexpr Byte    s_kPaddleAxisMin            = 0;
 static constexpr Byte    s_kPaddleAxisMax            = 255;
 
 // Host letter keys that double as the emulated joystick fire buttons in
-// "Map Arrows to Joystick" mode: X -> button 0 ($C061 / Open-Apple),
+// "Map arrows to joystick" mode: X -> button 0 ($C061 / Open-Apple),
 // Z -> button 1 ($C062 / Closed-Apple).
 static constexpr WPARAM  s_kJoystickButton0Vk        = 'X';
 static constexpr WPARAM  s_kJoystickButton1Vk        = 'Z';

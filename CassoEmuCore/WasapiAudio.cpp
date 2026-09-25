@@ -592,7 +592,7 @@ HRESULT WasapiAudio::SubmitFrame (
 
         // Mockingboard PSG audio shares the same additive stereo mix but
         // runs through its own mixer so its Options toggle is independent
-        // of Drive Audio. Its sources ignore the cycle-based Tick.
+        // of Drive audio. Its sources ignore the cycle-based Tick.
         if (mockingboardMixer != nullptr)
         {
             mockingboardMixer->GeneratePCM (m_driveScratch.data(), numSamplesToGenerate);

@@ -1974,7 +1974,7 @@ private:
     PrinterAudioSource                   m_printerAudio;
 
     // Mockingboard audio. Its own mixer so the "Mockingboard" Options
-    // toggle is independent of the Drive Audio toggle. The PSG audio
+    // toggle is independent of the Drive audio toggle. The PSG audio
     // sources are owned by the MockingboardCard device; the mixer holds
     // borrowed pointers, re-registered by MachineManager on every build.
     DriveAudioMixer                      m_mockingboardAudioMixer;
