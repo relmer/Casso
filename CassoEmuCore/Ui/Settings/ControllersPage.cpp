@@ -427,11 +427,15 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_playerController[player].SetVisible (isTwoPlayer);
         m_playerController[player].SetRect    (MakeRect (playerX + labelWidth, y, rowWidth, rowH));
 
+        // With the Joyport attached a player's slot is their jack, and the
+        // paddles the slot maps to play no part, so the jack takes the place
+        // of that choice. The choice is kept for when the Joyport comes off.
         m_playerMapsLabel[player].SetVisible (isTwoPlayer);
-        m_playerMapsLabel[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap, y, mapsWidth, rowH));
-        m_playerMapsLabel[player].SetText    (L"maps to");
+        m_playerMapsLabel[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap, y,
+                                                        isJoyport ? targetWidth : mapsWidth, rowH));
+        m_playerMapsLabel[player].SetText    (isJoyport ? (player == 0 ? L"left jack" : L"right jack") : L"maps to");
 
-        m_playerTarget[player].SetVisible (isTwoPlayer);
+        m_playerTarget[player].SetVisible (isTwoPlayer && !isJoyport);
         m_playerTarget[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
 
         if (isTwoPlayer)
