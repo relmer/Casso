@@ -147,6 +147,21 @@ public:
     }
 
 
+    TEST_METHOD (ThePlateHoldsTheDashesAndWrapsTheFireButton)
+    {
+        JoyportStickArt  art      = JoyportSwitchView::BuildArt (0.0f, 0.0f, kSide);
+        float            farthest = 0.0f;
+
+        for (const DxuiPointF & point : art.plate)
+        {
+            farthest = std::max (farthest, DistanceFrom (art.ringCenter, point));
+        }
+
+        Assert::IsTrue (farthest > DistanceFrom (art.ringCenter, art.fireCenter) + art.fireRadius, L"it reaches past the fire button");
+        Assert::IsTrue (art.plateInner < art.ringInner && art.plateInner > art.bootRadius, L"and stops just inside the dashes");
+    }
+
+
     TEST_METHOD (TheRingIsCenteredOnTheBase)
     {
         JoyportStickArt  art = JoyportSwitchView::BuildArt (10.0f, 20.0f, kSide);

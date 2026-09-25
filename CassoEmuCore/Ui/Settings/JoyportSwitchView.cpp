@@ -14,7 +14,7 @@
 // and those are what make it recognizable on any theme.
 static constexpr uint32_t  s_kBodyEdgeColor   = 0xFF3A3A3A;
 static constexpr uint32_t  s_kBodyColor       = 0xFF1B1B1B;
-static constexpr uint32_t  s_kRingPlateColor  = 0xFF161616;
+static constexpr uint32_t  s_kRingPlateColor  = 0xFF0C0C0C;
 static constexpr uint32_t  s_kMarkingColor    = 0xFFE8892A;
 static constexpr uint32_t  s_kLitColor        = 0xFFFFF4C8;
 static constexpr uint32_t  s_kBootColor       = 0xFF141414;
@@ -37,6 +37,8 @@ static constexpr float  s_kRingCenter     = 0.5f;
 static constexpr float  s_kRingOuter      = 0.37f;
 static constexpr float  s_kRingInner      = 0.352f;
 static constexpr float  s_kRingPlate      = 0.42f;
+static constexpr float  s_kFireSurround   = 0.025f;
+static constexpr float  s_kPlateFillet    = 0.03f;
 static constexpr float  s_kTopHeight      = 0.058f;
 static constexpr float  s_kFireCenter     = 0.155f;
 static constexpr float  s_kFireCap        = 0.82f;
@@ -69,6 +71,9 @@ static constexpr float  s_kDegLeft        = 180.0f;
 static constexpr float  s_kDegUp          = 270.0f;
 static constexpr int    s_kCornerSteps    = 6;
 static constexpr int    s_kQuadrantCount  = 4;
+static constexpr float  s_kArcStepDeg     = 5.0f;
+static constexpr float  s_kFullTurnDeg    = 360.0f;
+static constexpr float  s_kHalfTurnDeg    = 180.0f;
 
 
 
@@ -125,6 +130,11 @@ JoyportStickArt JoyportSwitchView::BuildArt (float left, float top, float side)
     art.bootRadius  = side * s_kBootRadius;
     art.shaftRadius = side * s_kShaftRadius;
     art.shaftTravel = side * s_kShaftTravel;
+
+    // The plate's margin inside the dashes is half its margin outside them.
+    art.plate       = BuildPlate (art.ringCenter, side * s_kRingPlate, art.fireCenter, art.fireRadius + side * s_kFireSurround,
+                                  side * s_kPlateFillet);
+    art.plateInner  = art.ringInner - (side * s_kRingPlate - art.ringOuter) * 0.5f;
 
     for (quadrant = 0; quadrant < s_kQuadrantCount; quadrant++)
     {
@@ -189,6 +199,104 @@ std::vector<DxuiPointF> JoyportSwitchView::BuildRoundedSquare (float left, float
     }
 
     return points;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildPlate
+//
+//  The dark plate the ring is painted on, with the lobe that wraps the fire
+//  button: the ring's circle and the button's joined by two fillet arcs, each
+//  tangent to both circles, so the plate flows out to the button the way the
+//  molding does. A fillet's center lies filletRadius outside both circles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPointF> JoyportSwitchView::BuildPlate (DxuiPointF ringCenter, float ringRadius,
+                                                       DxuiPointF fireCenter, float fireRadius, float filletRadius)
+{
+    std::vector<DxuiPointF>  points;
+    float                    dx       = fireCenter.x - ringCenter.x;
+    float                    dy       = fireCenter.y - ringCenter.y;
+    float                    distance = std::sqrt (dx * dx + dy * dy);
+    float                    toRing   = ringRadius + filletRadius;
+    float                    toFire   = fireRadius + filletRadius;
+    float                    along    = (toRing * toRing - toFire * toFire + distance * distance) / (2.0f * distance);
+    float                    across   = std::sqrt (std::max (0.0f, toRing * toRing - along * along));
+    DxuiPointF               unit     = { dx / distance, dy / distance };
+    DxuiPointF               fillet0  = { ringCenter.x + unit.x * along - unit.y * across, ringCenter.y + unit.y * along + unit.x * across };
+    DxuiPointF               fillet1  = { ringCenter.x + unit.x * along + unit.y * across, ringCenter.y + unit.y * along - unit.x * across };
+
+
+
+    AppendArc (points, ringCenter, ringRadius,   AngleOf (ringCenter, fillet0), AngleOf (ringCenter, fillet1), true);
+    AppendArc (points, fillet1,    filletRadius, AngleOf (fillet1, ringCenter), AngleOf (fillet1, fireCenter), false);
+    AppendArc (points, fireCenter, fireRadius,   AngleOf (fireCenter, fillet1), AngleOf (fireCenter, fillet0), true);
+    AppendArc (points, fillet0,    filletRadius, AngleOf (fillet0, fireCenter), AngleOf (fillet0, ringCenter), false);
+
+    return points;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendArc
+//
+//  The arc of a circle from one angle to another, the long way round or the
+//  short, with a point every few degrees.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void JoyportSwitchView::AppendArc (std::vector<DxuiPointF> & points, DxuiPointF center, float radius, float fromDeg, float toDeg, bool isLongWay)
+{
+    float  sweep = std::fmod (toDeg - fromDeg, s_kFullTurnDeg);
+    int    steps = 0;
+    int    step  = 0;
+
+
+
+    if (sweep > s_kHalfTurnDeg)
+    {
+        sweep -= s_kFullTurnDeg;
+    }
+    else if (sweep <= -s_kHalfTurnDeg)
+    {
+        sweep += s_kFullTurnDeg;
+    }
+
+    if (isLongWay)
+    {
+        sweep += (sweep > 0.0f) ? -s_kFullTurnDeg : s_kFullTurnDeg;
+    }
+
+    steps = std::max (2, (int) std::ceil (std::abs (sweep) / s_kArcStepDeg));
+
+    for (step = 0; step <= steps; step++)
+    {
+        points.push_back (PointAt (center, radius, fromDeg + sweep * (float) step / (float) steps));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AngleOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float JoyportSwitchView::AngleOf (DxuiPointF center, DxuiPointF point)
+{
+    return std::atan2 (point.y - center.y, point.x - center.x) * s_kHalfTurnDeg / std::numbers::pi_v<float>;
 }
 
 
@@ -324,7 +432,8 @@ DxuiPointF JoyportSwitchView::PointAt (DxuiPointF center, float radius, float de
 //
 //  Paint
 //
-//  Back to front: the base with its bevel, the dark plate under the ring, the
+//  Back to front: the base with its bevel, the dark plate under the ring and
+//  around the fire button, with the base showing again inside the ring, the
 //  dashes, the markers and TOP, the rubber boot and the stick, and the fire
 //  button. With no reading nothing lights, the way an unplugged stick reads.
 //
@@ -355,7 +464,10 @@ void JoyportSwitchView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     hr = text.FillPolygon (art.bodyTop.data(), art.bodyTop.size(), s_kBodyColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.FillEllipse (art.ringCenter.x, art.ringCenter.y, side * s_kRingPlate, side * s_kRingPlate, s_kRingPlateColor);
+    hr = text.FillPolygon (art.plate.data(), art.plate.size(), s_kRingPlateColor);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillEllipse (art.ringCenter.x, art.ringCenter.y, art.plateInner, art.plateInner, s_kBodyColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     for (const std::vector<DxuiPointF> & dash : art.dashes)

@@ -32,6 +32,8 @@ struct JoyportStickArt
 {
     std::vector<DxuiPointF>                body;
     std::vector<DxuiPointF>                bodyTop;
+    std::vector<DxuiPointF>                plate;
+    float                                  plateInner  = 0.0f;
     DxuiPointF                             ringCenter;
     float                                  ringInner   = 0.0f;
     float                                  ringOuter   = 0.0f;
@@ -81,6 +83,9 @@ private:
 
     static std::vector<DxuiPointF>  BuildRoundedSquare  (float left, float top, float side, float radius);
     static std::vector<DxuiPointF>  BuildRoundedHexagon (DxuiPointF center, float radius, float cornerRadius);
+    static std::vector<DxuiPointF>  BuildPlate          (DxuiPointF ringCenter, float ringRadius, DxuiPointF fireCenter, float fireRadius, float filletRadius);
+    static void                     AppendArc           (std::vector<DxuiPointF> & points, DxuiPointF center, float radius, float fromDeg, float toDeg, bool isLongWay);
+    static float                    AngleOf             (DxuiPointF center, DxuiPointF point);
     static std::vector<DxuiPointF>  BuildDash           (DxuiPointF center, float inner, float outer, float fromDeg, float toDeg);
     static std::vector<DxuiPointF>  BuildMarkerPiece    (DxuiPointF center, float inner, float outer, float cardinalDeg, float sign);
     static DxuiPointF               PointAt             (DxuiPointF center, float radius, float degrees);
