@@ -28,15 +28,17 @@ static constexpr uint32_t  s_kFireLitColor    = 0xFFFF6A48;
 static constexpr const wchar_t *  s_kpszMarkingFont = L"Segoe UI";
 
 // Proportions, as fractions of the square's side, read off the real stick.
-static constexpr float  s_kCornerRadius   = 0.13f;
+// The ring is centered on the base, so its margin to each edge is the same;
+// the fire button is the stick's size and sits in the top-left corner between
+// the ring and the base's rounded corner.
+static constexpr float  s_kCornerRadius   = 0.09f;
 static constexpr float  s_kBevel          = 0.025f;
-static constexpr float  s_kRingCenter     = 0.54f;
-static constexpr float  s_kRingOuter      = 0.38f;
-static constexpr float  s_kRingInner      = 0.362f;
-static constexpr float  s_kRingPlate      = 0.41f;
+static constexpr float  s_kRingCenter     = 0.5f;
+static constexpr float  s_kRingOuter      = 0.37f;
+static constexpr float  s_kRingInner      = 0.352f;
+static constexpr float  s_kRingPlate      = 0.42f;
 static constexpr float  s_kTopHeight      = 0.058f;
-static constexpr float  s_kFireCenter     = 0.16f;
-static constexpr float  s_kFireRadius     = 0.07f;
+static constexpr float  s_kFireCenter     = 0.155f;
 static constexpr float  s_kFireCap        = 0.82f;
 static constexpr float  s_kBootRadius     = 0.25f;
 static constexpr float  s_kShaftRadius    = 0.09f;
@@ -51,7 +53,7 @@ static constexpr float  s_kGapDeg         = 3.0f;
 static constexpr float  s_kDashDeg        = 6.0f;
 static constexpr float  s_kMarkerDeg      = 10.5f;
 
-// How far a marker piece's triangle reaches inside the ring, in ring
+// How far a marker piece's triangle reaches outside the ring, in ring
 // thicknesses.
 static constexpr float  s_kMarkerDepth    = 1.75f;
 
@@ -113,7 +115,7 @@ JoyportStickArt JoyportSwitchView::BuildArt (float left, float top, float side)
     art.topCenter   = PointAt (art.ringCenter, (art.ringInner + art.ringOuter) * 0.5f, s_kDegUp);
     art.topHeight   = side * s_kTopHeight;
     art.fireCenter  = { left + side * s_kFireCenter, top + side * s_kFireCenter };
-    art.fireRadius  = side * s_kFireRadius;
+    art.fireRadius  = side * s_kShaftRadius;
     art.bootRadius  = side * s_kBootRadius;
     art.shaftRadius = side * s_kShaftRadius;
     art.shaftTravel = side * s_kShaftTravel;
@@ -223,35 +225,30 @@ std::vector<DxuiPointF> JoyportSwitchView::BuildDash (DxuiPointF center, float i
 //
 //  Half of a cardinal marker, on the side of the cardinal `sign` gives: a
 //  dash, longer than the ring's others, extended by a right triangle. One
-//  leg lies along the dash's inner edge and the other runs straight inward
-//  from the dash's end nearest the cardinal; the hypotenuse is aimed at the
-//  midpoint of the dash's outer edge. So the piece is deepest beside the
-//  cardinal and tapers to a plain dash away from it.
+//  leg lies along the dash's outer edge and the other runs straight outward
+//  from the dash's end nearest the cardinal; the hypotenuse meets the outer
+//  edge at its midpoint. So the piece points out of the ring, reaching
+//  farthest beside the cardinal and tapering to a plain dash away from it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPointF> JoyportSwitchView::BuildMarkerPiece (DxuiPointF center, float inner, float outer, float cardinalDeg, float sign)
 {
-    // crossDeg is where the hypotenuse, from the inward corner to the outer
-    // midpoint, crosses the inner edge: depth / (depth + thickness) of the way
-    // to the midpoint.
-    float  thickness = outer - inner;
-    float  depth     = thickness * s_kMarkerDepth;
-    float  nearDeg   = cardinalDeg + sign * s_kGapDeg * 0.5f;
-    float  farDeg    = nearDeg + sign * s_kMarkerDeg;
-    float  midDeg    = nearDeg + sign * s_kMarkerDeg * 0.5f;
-    float  crossDeg  = nearDeg + sign * s_kMarkerDeg * 0.5f * depth / (depth + thickness);
+    float  depth   = (outer - inner) * s_kMarkerDepth;
+    float  nearDeg = cardinalDeg + sign * s_kGapDeg * 0.5f;
+    float  farDeg  = nearDeg + sign * s_kMarkerDeg;
+    float  midDeg  = nearDeg + sign * s_kMarkerDeg * 0.5f;
 
 
 
     return
     {
-        PointAt (center, outer,         nearDeg),
-        PointAt (center, outer,         midDeg),
-        PointAt (center, outer,         farDeg),
+        PointAt (center, inner,         nearDeg),
+        PointAt (center, inner,         midDeg),
         PointAt (center, inner,         farDeg),
-        PointAt (center, inner,         crossDeg),
-        PointAt (center, inner - depth, nearDeg),
+        PointAt (center, outer,         farDeg),
+        PointAt (center, outer,         midDeg),
+        PointAt (center, outer + depth, nearDeg),
     };
 }
 

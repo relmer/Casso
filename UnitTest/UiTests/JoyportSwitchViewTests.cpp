@@ -34,6 +34,12 @@ public:
     }
 
 
+    static float AngleFromRight (DxuiPointF center, DxuiPointF point)
+    {
+        return std::abs (std::atan2 (point.y - center.y, point.x - center.x));
+    }
+
+
     TEST_METHOD (TheRingHasSevenDashesBetweenEachPairOfCardinals)
     {
         JoyportStickArt  art = JoyportSwitchView::BuildArt (0.0f, 0.0f, kSide);
@@ -96,10 +102,10 @@ public:
     }
 
 
-    TEST_METHOD (AMarkerPieceIsDeepestBesideItsCardinal)
+    TEST_METHOD (AMarkerPiecePointsOutOfTheRingBesideItsCardinal)
     {
-        //  A dash extended inward by a right triangle whose deep end is at the
-        //  cardinal: its innermost point is inside the ring, and it is the
+        //  A dash extended outward by a right triangle whose tip is at the
+        //  cardinal: its outermost point is outside the ring, and it is the
         //  piece's nearest point to the cardinal's axis.
         JoyportStickArt             art   = JoyportSwitchView::BuildArt (0.0f, 0.0f, kSide);
         const JoyportStickMarker  & right = art.markers[0];
@@ -108,23 +114,24 @@ public:
 
         for (const std::vector<DxuiPointF> & piece : right.pieces)
         {
-            size_t  deepest = 0;
-            size_t  i       = 0;
+            size_t  tip = 0;
+            size_t  i   = 0;
 
             for (i = 1; i < piece.size(); i++)
             {
-                if (DistanceFrom (art.ringCenter, piece[i]) < DistanceFrom (art.ringCenter, piece[deepest]))
+                if (DistanceFrom (art.ringCenter, piece[i]) > DistanceFrom (art.ringCenter, piece[tip]))
                 {
-                    deepest = i;
+                    tip = i;
                 }
             }
 
-            Assert::IsTrue (DistanceFrom (art.ringCenter, piece[deepest]) < art.ringInner - 1.0f, L"it reaches inside the ring");
+            Assert::IsTrue (DistanceFrom (art.ringCenter, piece[tip]) > art.ringOuter + 1.0f, L"it reaches outside the ring");
 
             for (i = 0; i < piece.size(); i++)
             {
-                Assert::IsTrue (std::abs (piece[deepest].y - art.ringCenter.y) <= std::abs (piece[i].y - art.ringCenter.y) + 0.01f,
-                                L"and its deep end is the end beside the cardinal");
+                Assert::IsTrue (DistanceFrom (art.ringCenter, piece[i]) > art.ringInner - 0.01f, L"and never inside it");
+                Assert::IsTrue (AngleFromRight (art.ringCenter, piece[tip]) <= AngleFromRight (art.ringCenter, piece[i]) + 0.001f,
+                                L"and its tip is the end beside the cardinal");
             }
         }
     }
@@ -136,6 +143,16 @@ public:
 
         Assert::IsTrue (art.fireCenter.x < 10.0f + kSide / 4.0f && art.fireCenter.y < 20.0f + kSide / 4.0f, L"top-left");
         Assert::IsTrue (DistanceFrom (art.ringCenter, art.fireCenter) - art.fireRadius > art.ringOuter, L"clear of the ring");
+        Assert::AreEqual (art.shaftRadius, art.fireRadius, 0.01f, L"and the stick's size");
+    }
+
+
+    TEST_METHOD (TheRingIsCenteredOnTheBase)
+    {
+        JoyportStickArt  art = JoyportSwitchView::BuildArt (10.0f, 20.0f, kSide);
+
+        Assert::AreEqual (10.0f + kSide / 2.0f, art.ringCenter.x, 0.01f);
+        Assert::AreEqual (20.0f + kSide / 2.0f, art.ringCenter.y, 0.01f);
     }
 
 
@@ -149,8 +166,18 @@ public:
             Assert::IsTrue (point.y >= 20.0f - 0.01f && point.y <= 20.0f + kSide + 0.01f);
         }
 
-        Assert::IsTrue (art.ringCenter.x + art.ringOuter < 10.0f + kSide);
-        Assert::IsTrue (art.ringCenter.y + art.ringOuter < 20.0f + kSide);
+        for (const JoyportStickMarker & marker : art.markers)
+        {
+            for (const std::vector<DxuiPointF> & piece : marker.pieces)
+            {
+                for (const DxuiPointF & point : piece)
+                {
+                    Assert::IsTrue (point.x > 10.0f && point.x < 10.0f + kSide && point.y > 20.0f && point.y < 20.0f + kSide);
+                }
+            }
+        }
+
+        Assert::IsTrue (art.fireCenter.x - art.fireRadius > 10.0f && art.fireCenter.y - art.fireRadius > 20.0f);
         Assert::IsTrue (art.shaftTravel + art.shaftRadius < art.bootRadius, L"a leaning stick stays on its boot");
     }
 };
