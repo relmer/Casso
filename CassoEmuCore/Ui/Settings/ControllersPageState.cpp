@@ -471,6 +471,60 @@ std::wstring ControllersPageState::GetJoyportHeading (JoyportJack jack)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsJoyportTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsJoyportTarget (PaddleTarget target)
+{
+    return target == PaddleTarget::Pdl0 || target == PaddleTarget::Pdl1 || target == PaddleTarget::Pb0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetJoyportRowLabel
+//
+//  Empty for a target the Joyport does not use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetJoyportRowLabel (PaddleTarget target)
+{
+    std::wstring  label;
+
+
+
+    switch (target)
+    {
+        case PaddleTarget::Pdl0:
+            label = L"Left/right:";
+            break;
+
+        case PaddleTarget::Pdl1:
+            label = L"Up/down:";
+            break;
+
+        case PaddleTarget::Pb0:
+            label = L"Fire:";
+            break;
+
+        default:
+            break;
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMultiplayerUnit
 //
 //  The controller one player holds.

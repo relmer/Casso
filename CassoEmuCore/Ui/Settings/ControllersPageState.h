@@ -144,6 +144,12 @@ public:
     JoyportJack               GetJoyportJack          () const;
     static std::wstring       GetJoyportHeading       (JoyportJack jack);
 
+    // What a row drives while the Joyport is attached: PDL0 the left and
+    // right switches, PDL1 up and down, PB0 fire. PB1 and PB2 drive nothing,
+    // so the page leaves them out; their bindings stay in the profile.
+    static bool               IsJoyportTarget         (PaddleTarget target);
+    static std::wstring       GetJoyportRowLabel      (PaddleTarget target);
+
     // One player's controller, or their target. Both normalize, so a slot that
     // cannot be played beside the other one is emptied rather than kept.
     void  SetMultiplayerUnit   (size_t player, const std::optional<ControllerUnitKey> & unit);

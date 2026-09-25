@@ -4,6 +4,7 @@
 
 #include "Ui/Settings/ControllerReadoutViews.h"
 #include "Ui/Settings/ControllersPageState.h"
+#include "Ui/Settings/JoyportSwitchView.h"
 #include "Ui/Settings/ProfileDialogOverlay.h"
 
 #include "Window/DxuiPropertyPage.h"
@@ -165,7 +166,8 @@ private:
     void                 ShowDialog         ();
     void                 AfterEdit          ();
     bool                 IsJoyportAttached  () const;
-    void                 LayoutSwitchLights (int x, int top, int stickSize, int lightSize, const DxuiDpiScaler & scaler, bool isShown);
+    bool                 IsTargetShown      (size_t target) const;
+    static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
     void                 PollSwitchLights   (const GamePortContribution * reading);
     ControllerKind       GetSelectedKind    () const;
 
@@ -215,13 +217,10 @@ private:
     StickPositionView  m_stick;
     DxuiLabel          m_buttonsHeading;
 
-    // The Joyport's switches, in a cross where the stick is drawn: up, down,
-    // left and right around fire.
-    static constexpr size_t  kSwitchCount = static_cast<size_t> (JoystickSwitch::Count);
-
-    std::array<ButtonLightView, kSwitchCount>  m_switchLights;
-    std::function<bool()>                      m_isJoyportAttached;
-    bool                                       m_isJoyportShown = false;
+    // The Joyport's switches, drawn where the stick is while it is attached.
+    JoyportSwitchView      m_switchView;
+    std::function<bool()>  m_isJoyportAttached;
+    bool                   m_isJoyportShown = false;
 
     std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;
     std::array<ButtonLightView, kButtonCount>                           m_lights;

@@ -1243,5 +1243,22 @@ namespace ControllerTests
 
             Assert::IsTrue (page.ComputeLiveReading (sample).switches.test (static_cast<size_t> (JoystickSwitch::Up)));
         }
+
+
+        TEST_METHOD (Joyport_OnlyTheRowsTheJoyportReadsAreShownAndTheyAreLabeledForIt)
+        {
+            //  PB1 and PB2 drive nothing through the Joyport, so the page
+            //  leaves them out rather than offering rows that do nothing.
+            Assert::IsTrue  (ControllersPageState::IsJoyportTarget (PaddleTarget::Pdl0));
+            Assert::IsTrue  (ControllersPageState::IsJoyportTarget (PaddleTarget::Pdl1));
+            Assert::IsTrue  (ControllersPageState::IsJoyportTarget (PaddleTarget::Pb0));
+            Assert::IsFalse (ControllersPageState::IsJoyportTarget (PaddleTarget::Pb1));
+            Assert::IsFalse (ControllersPageState::IsJoyportTarget (PaddleTarget::Pb2));
+
+            Assert::AreEqual (std::wstring (L"Left/right:"), ControllersPageState::GetJoyportRowLabel (PaddleTarget::Pdl0));
+            Assert::AreEqual (std::wstring (L"Up/down:"),    ControllersPageState::GetJoyportRowLabel (PaddleTarget::Pdl1));
+            Assert::AreEqual (std::wstring (L"Fire:"),       ControllersPageState::GetJoyportRowLabel (PaddleTarget::Pb0));
+            Assert::IsTrue   (ControllersPageState::GetJoyportRowLabel (PaddleTarget::Pb1).empty());
+        }
     };
 }
