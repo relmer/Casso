@@ -28,8 +28,8 @@ public:
 ### TryReadButton (index 0-2)
 
 1. Detached: return false.
-2. In the reset window (fewer than `kReleaseCycles` since the stamp): return
-   false. The first read at or past the end clears the window flag.
+2. In the reset window (fewer than `kReleaseCycles` since the stamp, computed
+   on each read): return false.
 3. Otherwise: `jack = AN0 ? 1 : 0`. The switch is:
 
    | index | AN1 off | AN1 on |

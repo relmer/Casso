@@ -223,12 +223,88 @@ struct ControllerDeviceInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GamePortAdapter
+//
+//  The device plugged into a machine's 16-pin game I/O socket. None is the
+//  game port as it has always been emulated; the Sirius Joyport reads two
+//  Atari-style joysticks through the pushbutton inputs (Atari mode, with its
+//  Controller Select switch at Center).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class GamePortAdapter
+{
+    None,
+    SiriusJoyport,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JoystickSwitch / JoystickSwitches
+//
+//  One Atari joystick: four direction switches and a fire button. A set bit
+//  is a closed switch. Up and Down are never both closed, nor Left and Right,
+//  because a physical stick cannot close both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class JoystickSwitch
+{
+    Up,
+    Down,
+    Left,
+    Right,
+    Fire,
+    Count,
+};
+
+using JoystickSwitches = std::bitset<static_cast<size_t> (JoystickSwitch::Count)>;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JoyportJacks
+//
+//  The Joyport's two joystick jacks: [0] the left jack (player 1, selected
+//  with AN0 off), [1] the right jack (player 2, AN0 on).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct JoyportJacks
+{
+    static constexpr size_t  kJackCount = 2;
+    static constexpr size_t  kLeftJack  = 0;
+    static constexpr size_t  kRightJack = 1;
+
+    std::array<JoystickSwitches, kJackCount>  jack;
+
+    bool operator== (const JoyportJacks &) const = default;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GamePortContribution
 //
 //  What one input source asks of the game port. Each paddle axis is held on
 //  its own: an absent axis means the source does not drive that axis, so two
 //  sources, or two controllers merged into one source, can hold PDL0 and PDL1
 //  separately. Buttons are PB0, PB1 and PB2.
+//
+//  `switches` is the Atari joystick one controller's mapping produces, set by
+//  the evaluator whatever the machine. `jacks` is set only on the merged
+//  controller contribution, and says which controller drives which Joyport
+//  jack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,6 +317,8 @@ struct GamePortContribution
 
     std::array<std::optional<Byte>, kAxisCount>  paddle;
     std::bitset<kButtonCount>                    buttons;
+    JoystickSwitches                             switches;
+    std::optional<JoyportJacks>                  jacks;
 
     bool operator== (const GamePortContribution &) const = default;
 };

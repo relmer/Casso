@@ -436,6 +436,7 @@ HRESULT EmulatorShell::Initialize (
         targets.gamePort    = m_machine.GetRefs().gamePort;
         targets.iieSwitches = m_machine.GetRefs().iieSoftSwitches;
         targets.iieKeyboard = m_machine.GetRefs().iieKeyboard;
+        targets.joyport     = m_machine.GetJoyport();
 
         if (definition != nullptr)
         {

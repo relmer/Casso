@@ -47,6 +47,10 @@ struct MachineDefinition
     //  Analog game-port axes: four, or two on the //c.
     int                          gamePortAxisCount = 0;
 
+    //  Annunciator outputs on the game I/O socket, so a game-port adapter
+    //  can be attached. False on the //c.
+    bool                         hasAnnunciators = false;
+
     //  Presentation facts the shell used to answer by asking whether the
     //  machine was a //c.
     bool                         hasCaseSwitches = false;

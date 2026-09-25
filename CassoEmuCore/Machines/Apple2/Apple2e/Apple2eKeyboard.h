@@ -99,6 +99,10 @@ public:
     // input that means PB2 has no line to drive.
     bool HasMouseOnShiftLine () const { return m_mouse != nullptr; }
 
+    // The game-port adapter, asked first for every $C061-$C063 read. Null on
+    // the //c, which has no annunciators to drive one.
+    void SetJoyport (const class SiriusJoyport * joyport) { m_joyport = joyport; }
+
     // Apple //c case switches (two latching pushbuttons on the top of the
     // case). SetApple2cMode enables the //c-only behaviors below; on the //e
     // and earlier they stay dormant (the //e leaves $C060 floating and never
@@ -171,8 +175,10 @@ private:
     // button: fires only when that button's returned byte changed.
     void EmitButtonRead (Word address, Byte value);
     void EmitHostButton (int index, bool pressed);
+    Byte ReadButton     (Word address) const;
 
     MemoryBus *                    m_bus               = nullptr;
+    const class SiriusJoyport *    m_joyport           = nullptr;
     class Apple2eSoftSwitchBank *  m_softSwitchSibling = nullptr;
     AppleSpeaker *                 m_speakerSibling    = nullptr;
     class Apple2eMmu *             m_mmu               = nullptr;

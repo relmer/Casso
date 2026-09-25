@@ -19,11 +19,9 @@
 ## JoystickSwitches (value, API type)
 
 `ControllerTypes.h`. One Atari joystick's five switches: the spec's "Atari
-joystick state" entity, one per jack.
-
-| Field | Type | Notes |
-|---|---|---|
-| `bits` | `std::bitset<5>` | Indexed by `JoystickSwitch`: `Up`, `Down`, `Left`, `Right`, `Fire`. Set = closed. |
+joystick state" entity, one per jack. An alias,
+`using JoystickSwitches = std::bitset<5>`, indexed by `JoystickSwitch`: `Up`,
+`Down`, `Left`, `Right`, `Fire`. Set = closed.
 
 - Invariant: `Up` and `Down` are never both set; neither are `Left` and
   `Right` (FR-007). The evaluator guarantees it for controllers; the keyboard
@@ -46,7 +44,8 @@ joystick state" entity, one per jack.
 | `GamePortState` | `GamePortInputMixer.h` | + `JoyportJacks jacks` (what the sink writes). |
 | `MachineDefinition` | `Machines/MachineDefinition.h` | + `bool hasAnnunciators` (true for the ][, ][+, //e, enhanced //e). |
 | `GamePortTargets` | `Shell/MachineGamePortSink.h` | + `SiriusJoyport * joyport` (null on the //c). |
-| `MachineRefs` | `Shell/MachineRefs.h` | + `SiriusJoyport * joyport`. |
+| `MachineHost` | `Shell/MachineHost.h` | + owns `std::unique_ptr<SiriusJoyport>`, `GetJoyport` / `SetJoyport`, beside the mouse. (`MachineRefs` holds only pointers into the owned device list, so it gains nothing.) |
+| `IMachine` | `Machines/IMachine.h` | + `HasAnnunciators()`, the source of `MachineDefinition::hasAnnunciators`. |
 | `SettingsUiPrefs` | `Ui/Settings/SettingsPanelState.h` | + `GamePortAdapter gamePortAdapter = None`. |
 | `ISettingsApplySink` | `SettingsPanelState.h` | + `ApplyGamePortAdapter (GamePortAdapter)`. |
 
@@ -72,9 +71,9 @@ by `SoftReset`.
 | `m_annunciatorSource` | `const AppleSoftSwitchBank *` | Wired by `MachineBuilder`. |
 | `m_cycleSource` | `const uint64_t *` | The CPU's total-cycle counter. |
 | `m_isAttached` | `std::atomic<bool>` | Set from the UI thread. |
-| `m_jacks` | `std::array<std::atomic<Byte>, 2>` | Each jack's `JoystickSwitches` bits, written by the sink. |
+| `m_jacks` | `std::array<std::atomic<unsigned long>, 2>` | Each jack's `JoystickSwitches` bits, written by the sink. |
 | `m_resetCycle` | `uint64_t` | Stamp from the last `OnMachineReset`. |
-| `m_isInResetWindow` | `bool` | Set by `OnMachineReset`, cleared once `kReleaseCycles` have run. |
+| `m_hasResetStamp` | `bool` | Set by the first `OnMachineReset`. The window is `now - m_resetCycle < kReleaseCycles`, computed on each read, so nothing has to clear it. |
 
 State machine:
 
@@ -82,8 +81,8 @@ State machine:
             SetAttached(true)                      OnMachineReset()
 Detached  ------------------->  Active  ------------------------------->  Released
     ^                             |  ^                                        |
-    |       SetAttached(false)    |  |   kReleaseCycles elapsed (checked      |
-    +-----------------------------+  +---- lazily on the next read) ----------+
+    |       SetAttached(false)    |  |   kReleaseCycles elapsed (computed     |
+    +-----------------------------+  +---- on each read) ---------------------+
     ^                                                                         |
     +------------------------------ SetAttached(false) -----------------------+
 ```

@@ -38,6 +38,7 @@
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/ParallelFirmware.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Print/PrintJobStore.h"
 #include "Print/PrinterWorker.h"
 #include "WasapiAudio.h"
@@ -105,6 +106,8 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
 
     hr = CreateCpu (config);
     CHR (hr);
+
+    WireJoyport();
 
     WirePageTable();
 
@@ -1494,6 +1497,63 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireJoyport
+//
+//  Every machine whose game socket carries the annunciator outputs gets a
+//  Sirius Joyport, detached; the shell attaches it from the machine's saved
+//  setting. It is not a bus device: the soft-switch bank gives it the
+//  annunciators, and the devices that answer the pushbutton and paddle reads
+//  ask it first. The //c gets none. Runs after CreateCpu, because the reset
+//  window is measured on the CPU's cycle counter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireJoyport()
+{
+    HRESULT                    hr          = S_OK;
+    const MachineDefinition  * definition  = MachineDefinitions::Find (m_host.GetConfig().machineId);
+    MachineRefs              & refs        = m_host.GetRefs();
+    SiriusJoyport            * joyport     = nullptr;
+    bool                       isSupported = false;
+
+
+
+    m_host.SetJoyport (nullptr);
+
+    isSupported = definition != nullptr && definition->hasAnnunciators && refs.softSwitches != nullptr;
+    BAIL_OUT_IF (!isSupported, S_OK);
+
+    m_host.SetJoyport (std::make_unique<SiriusJoyport> ());
+
+    joyport = m_host.GetJoyport();
+    joyport->SetAnnunciatorSource (refs.softSwitches);
+    joyport->SetCycleSource       (m_host.GetCpu()->GetCycleCounterPtr());
+
+    if (refs.gamePort != nullptr)
+    {
+        refs.gamePort->SetJoyport (joyport);
+    }
+
+    if (refs.iieKeyboard != nullptr)
+    {
+        refs.iieKeyboard->SetJoyport (joyport);
+    }
+
+    if (refs.iieSoftSwitches != nullptr)
+    {
+        refs.iieSoftSwitches->SetJoyport (joyport);
+    }
+
+Error:
+    return;
 }
 
 

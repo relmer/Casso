@@ -209,6 +209,7 @@
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleGamePort.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SiriusJoyport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleKeyboard.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleSoftSwitchBank.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleSpeaker.cpp" />
@@ -575,6 +576,7 @@
     <ClInclude Include="Devices\RamDevice.h" />
     <ClInclude Include="Devices\RomDevice.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleGamePort.h" />
+    <ClInclude Include="Machines\Apple2\Common\SiriusJoyport.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleKeyboard.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleSoftSwitchBank.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleSpeaker.h" />

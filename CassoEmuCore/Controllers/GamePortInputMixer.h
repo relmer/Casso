@@ -37,7 +37,9 @@ enum class AxisOwner
 //
 //  GamePortState
 //
-//  The final values the machine should read: all four paddle axes and PB0-PB2.
+//  The final values the machine should read: all four paddle axes, PB0-PB2,
+//  and the switches of both Joyport jacks, which only a machine with the
+//  Joyport attached reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +49,7 @@ struct GamePortState
 
     std::array<Byte, GamePortContribution::kAxisCount>  paddle  = { kPaddleCenter, kPaddleCenter, kPaddleCenter, kPaddleCenter };
     std::bitset<GamePortContribution::kButtonCount>     buttons;
+    JoyportJacks                                        jacks;
 
     bool operator== (const GamePortState &) const = default;
 };
