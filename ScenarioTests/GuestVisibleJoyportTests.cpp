@@ -104,12 +104,38 @@ public:
 
         for (step = 0; step < kMaxSteps && !run.isFailed && !Contains (run.screen, "ALL DONE"); step++)
         {
-            AdvanceThePaddleTest (machine, run, step);
+            AdvanceThePaddleTest (machine, run, step, kPaddleCount);
         }
 
         Assert::IsFalse (run.isFailed, (L"the program reported NOTHING HAPPENED at: " + Widen (run.screen)).c_str());
         Assert::IsTrue  (Contains (run.screen, "ALL DONE"), L"every paddle and button step passed");
         Assert::AreEqual (kPaddleSteps, run.paddleSteps, L"four paddles in the middle position, two in each of the others");
+    }
+
+
+    //  One controller drives only paddles 0 and 1, so paddles 2 and 3 are
+    //  skipped with S. The test still finishes, and its last screen says how
+    //  many steps were skipped rather than that every step passed.
+    TEST_METHOD (TheSkipKeyPassesOverPaddlesThatAreNotThere)
+    {
+        TestMachine     machine ("Apple2e", TestMachine::Slots::DiskOnly);
+        ProgramRun      run;
+        int             step    = 0;
+
+
+
+        BootTheTestProgram (machine, false);
+        KeystrokeInjector::InjectKey (machine, kPaddleTestKey);
+
+        for (step = 0; step < kMaxSteps && !run.isFailed && !Contains (run.screen, "PRESS SPACE FOR THE MENU"); step++)
+        {
+            AdvanceThePaddleTest (machine, run, step, kOneControllersPaddles);
+        }
+
+        Assert::IsFalse  (run.isFailed, (L"the program reported NOTHING HAPPENED at: " + Widen (run.screen)).c_str());
+        Assert::IsTrue   (Contains (run.screen, "DONE, WITH 2 STEPS SKIPPED."), (L"paddles 2 and 3 skipped: " + Widen (run.screen)).c_str());
+        Assert::IsFalse  (Contains (run.screen, "ALL DONE"),                    L"and not reported as every step passing");
+        Assert::AreEqual (kPaddleSteps, run.paddleSteps,                        L"every paddle was still asked for");
     }
 
 
@@ -154,17 +180,19 @@ public:
 
 private:
 
-    static constexpr const char *  kProgramDiskPath = "Apple2/Demos/Joyport.do";
-    static constexpr int           kMaxSteps        = 200;
-    static constexpr int           kCenteredSteps   = 10;
-    static constexpr int           kPaddleSteps     = 8;
-    static constexpr uint32_t      kStepCycles      = 400'000;
-    static constexpr uint32_t      kBootCycles      = 3'000'000;
-    static constexpr char          kEveryTestKey    = '5';
-    static constexpr char          kPaddleTestKey   = '4';
-    static constexpr Byte          kPaddleLeft      = 0;
-    static constexpr Byte          kPaddleRight     = 255;
-    static constexpr int           kPaddleCount     = 4;
+    static constexpr const char *  kProgramDiskPath       = "Apple2/Demos/Joyport.do";
+    static constexpr int           kMaxSteps              = 200;
+    static constexpr int           kCenteredSteps         = 10;
+    static constexpr int           kPaddleSteps           = 8;
+    static constexpr uint32_t      kStepCycles            = 400'000;
+    static constexpr char          kEveryTestKey          = '5';
+    static constexpr char          kPaddleTestKey         = '4';
+    static constexpr Byte          kPaddleLeft            = 0;
+    static constexpr Byte          kPaddleRight           = 255;
+    static constexpr int           kPaddleCount           = 4;
+    static constexpr int           kOneControllersPaddles = 2;
+    static constexpr Byte          kPaddleCenter          = 127;
+    static constexpr size_t        kPaddleDigit           = 12;       // past "TURN PADDLE "
 
 
     struct ProgramRun
@@ -293,19 +321,28 @@ private:
 
     //  One look at the screen and one response: Space at a setup screen, a
     //  paddle at the other end from the last look while one is to be turned,
-    //  and both buttons held while one is to be pressed.
-    static void AdvanceThePaddleTest (MachineHost & machine, ProgramRun & run, int step)
+    //  and both buttons held while one is to be pressed. Paddles from
+    //  `connected` up stay centered, as nothing drives them, and are skipped
+    //  with S when the program asks for one.
+    static void AdvanceThePaddleTest (MachineHost & machine, ProgramRun & run, int step, int connected)
     {
         std::string              screen    = ReadScreen (machine);
         Apple2eSoftSwitchBank  * bank      = machine.GetRefs().iieSoftSwitches;
         Apple2eKeyboard        * keyboard  = machine.GetRefs().iieKeyboard;
         bool                     isButton  = Contains (screen, "PRESS ITS BUTTON");
         Byte                     position  = (step % 2 == 0) ? kPaddleLeft : kPaddleRight;
+        size_t                   turn      = screen.find ("TURN PADDLE ");
+        int                      asked     = -1;
         int                      axis      = 0;
 
 
 
-        run.paddleSteps += (Contains (screen, "ALL THE WAY LEFT") && !Contains (run.screen, "ALL THE WAY LEFT")) ? 1 : 0;
+        if (turn != std::string::npos)
+        {
+            asked = screen[turn + kPaddleDigit] - '0';
+        }
+
+        run.paddleSteps += (asked >= 0 && screen.compare (0, TextScreenScraper::kCols40, run.screen, 0, TextScreenScraper::kCols40) != 0) ? 1 : 0;
         run.screen       = screen;
         run.isFailed     = Contains (screen, "NOTHING HAPPENED");
 
@@ -316,9 +353,14 @@ private:
             KeystrokeInjector::InjectKey (machine, ' ');
         }
 
+        if (asked >= connected)
+        {
+            KeystrokeInjector::InjectKey (machine, 'S');
+        }
+
         for (axis = 0; axis < kPaddleCount; axis++)
         {
-            bank->SetPaddle (axis, position);
+            bank->SetPaddle (axis, axis < connected ? position : kPaddleCenter);
         }
 
         keyboard->SetOpenApple   (isButton);
