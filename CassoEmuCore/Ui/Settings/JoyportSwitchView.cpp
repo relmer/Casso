@@ -209,29 +209,30 @@ std::vector<DxuiPointF> JoyportSwitchView::BuildRoundedSquare (float left, float
 //
 //  BuildPlate
 //
-//  The dark plate the ring is painted on, with the lobe that wraps the fire
-//  button: the ring's circle and the button's joined by their two outer
-//  tangent lines, as the molding is. Each tangent touches both circles at the
-//  same angle, beta either side of the line between their centers, where
-//  cos beta = (ringRadius - fireRadius) / distance.
+//  The dark plate the ring is painted on, with the peninsula that wraps the
+//  fire button: the button's circle joined to the ring's by two straight
+//  lines, parallel to the line between their centers and tangent to the
+//  button's sides, as the molding is. Each line meets the ring where its
+//  offset from the center line, fireRadius, is ringRadius sin gamma.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPointF> JoyportSwitchView::BuildPlate (DxuiPointF ringCenter, float ringRadius, DxuiPointF fireCenter, float fireRadius)
 {
+    constexpr float          kQuarterTurnDeg = 90.0f;
     std::vector<DxuiPointF>  points;
-    float                    towardDeg = AngleOf (ringCenter, fireCenter);
-    float                    distance  = std::hypot (fireCenter.x - ringCenter.x, fireCenter.y - ringCenter.y);
-    float                    cosBeta   = std::clamp ((ringRadius - fireRadius) / distance, -1.0f, 1.0f);
-    float                    betaDeg   = std::acos (cosBeta) * s_kHalfTurnDeg / std::numbers::pi_v<float>;
+    float                    towardDeg       = AngleOf (ringCenter, fireCenter);
+    float                    sinGamma        = std::clamp (fireRadius / ringRadius, -1.0f, 1.0f);
+    float                    gammaDeg        = std::asin (sinGamma) * s_kHalfTurnDeg / std::numbers::pi_v<float>;
 
 
 
-    // The ring's arc the long way round, away from the button, and the
-    // button's arc the short way, away from the ring; the straight tangents
-    // are the edges that close the polygon between them.
-    AppendArc (points, ringCenter, ringRadius, towardDeg + betaDeg, towardDeg - betaDeg, true);
-    AppendArc (points, fireCenter, fireRadius, towardDeg - betaDeg, towardDeg + betaDeg, false);
+    // The ring's arc the long way round, away from the button, then the
+    // button's far half in two quarter turns; the straight lines are the
+    // edges that close the polygon between them.
+    AppendArc (points, ringCenter, ringRadius, towardDeg + gammaDeg,        towardDeg - gammaDeg,        true);
+    AppendArc (points, fireCenter, fireRadius, towardDeg - kQuarterTurnDeg, towardDeg,                   false);
+    AppendArc (points, fireCenter, fireRadius, towardDeg,                   towardDeg + kQuarterTurnDeg, false);
 
     return points;
 }
