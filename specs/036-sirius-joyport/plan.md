@@ -122,8 +122,11 @@ CassoEmuCore/
 │   ├── ControllerTokens.h/.cpp             # adapter tokens
 │   ├── MappingEvaluator.h/.cpp             # switches from shaped deflection
 │   ├── ControllerInputService.cpp          # jacks per player
-│   └── GamePortInputMixer.h/.cpp           # jacks by axis owner
-├── Config/UserConfigStore.cpp              # gamePortAdapter default
+│   ├── GamePortInputMixer.h/.cpp           # jacks by axis owner
+│   └── InputModeRules.h/.cpp               # fire keys without Alt while attached
+├── Config/
+│   ├── MachineInputPrefs.h/.cpp            # read and build the gamePortAdapter entry
+│   └── UserConfigStore.cpp                 # gamePortAdapter default
 ├── Shell/
 │   ├── MachineHost.h/.cpp                  # own the Joyport; OnMachineReset after the CPU
 │   ├── MachineBuilder.cpp                  # build and wire it
@@ -153,8 +156,8 @@ UnitTest/
 │   ├── AnnunciatorTests.cpp                # new
 │   ├── SiriusJoyportTests.cpp              # new
 │   └── JoyportMachineTests.cpp             # new
-├── ControllerTests/                        # extend: evaluator, service, mixer, sink, picker rows, page state
-└── UiTests/                                # extend: HardwarePage, SettingsPanelState, command routing
+├── ControllerTests/                        # extend: evaluator, service, mixer, sink, picker rows, input-mode rules, page state
+└── UiTests/                                # extend: HardwarePage, SettingsPanelState, command routing, MachineInputPrefs
 ```
 
 **Structure Decision**: the device model sits beside the other Apple II common
@@ -171,7 +174,7 @@ commit per phase).
 |---|---|---|---|
 | 1 | **Setup**: baseline build and suite | none | none |
 | 2 | **Foundation**: annunciators; types and tokens; `SiriusJoyport` with its reset window; the two reading devices and the paddles; `MachineHost` ownership and reset ordering; the sink's jack writes. Attached by tests only | 1 | FR-003, FR-004, FR-009 (paddles), FR-010, FR-011, FR-013 |
-| 3 | **US1 play (MVP)**: evaluator switches, single-source jacks, mixer, the picker row (not saved yet), the readout disk | 2 | US1, FR-005-008 (single source), SC-001, SC-002 |
+| 3 | **US1 play (MVP)**: evaluator switches, single-source jacks, mixer, fire keys without Alt while attached, the picker row (not saved yet), the readout disk | 2 | US1, FR-005-008 (single source), FR-010 (keys), SC-001, SC-002 |
 | 4 | **US2 resets**: reset tests on the //e, entry-point check, V3 on the running app | 3 | US2, SC-003 |
 | 5 | **US4 setting**: pref, IDM pair, Machine tab group, live observation while Settings is open | 3 | US4, FR-001, FR-002, FR-012, SC-007 |
 | 6 | **US3 two players**: multiplayer jacks, disconnect | 3 | US3, FR-008 (multiplayer), SC-005 |

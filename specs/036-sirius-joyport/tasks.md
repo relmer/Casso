@@ -67,7 +67,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 - [ ] T017 Add `JoyportJacks jacks` to `GamePortState` in `CassoEmuCore/Controllers/GamePortInputMixer.h` (equality and change detection include it), and `SiriusJoyport * joyport` to `GamePortTargets` in `CassoEmuCore/Shell/MachineGamePortSink.h`; add `WriteJacks` to `MachineGamePortSink.cpp`, called from `TryApply`, writing each jack whose switches differ from `lastApplied` (all when `lastApplied` is null) and skipping a null `joyport`; fill `joyport` in the targets lambda in `CassoEmuCore/Shell/EmulatorShell.cpp`
 - [ ] T018 [P] Extend `UnitTest/ControllerTests/MachineGamePortSinkTests.cpp`: jacks reach a real `SiriusJoyport`, only the changed jack is written, a null Joyport (the //c) is skipped without failing the write. Confirm a test fails with `WriteJacks` stubbed
-- [ ] T019 Build x64 Debug, run `scripts/RunTests.ps1`, then commit: `feat(joyport): Annunciators and the Joyport device model`
+- [ ] T019 Build x64 Debug and x64 Release (constitution Quality Gate 1), run `scripts/RunTests.ps1`, then commit: `feat(joyport): Annunciators and the Joyport device model`
 
 **Checkpoint**: the machines record AN0-AN2, and a test-attached Joyport answers button and paddle reads on the ][+ and //e. Nothing in the UI attaches it.
 
@@ -83,18 +83,20 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 - [ ] T020 [P] [US1] Extend `UnitTest/ControllerTests/MappingEvaluatorTests.cpp`: an Absolute stick at 0.49 and 0.51 of the shaped deflection on each of the four directions (open, then closed); a diagonal closes one horizontal and one vertical; a digital pair closes at once and both held closes neither; a Rate binding closes while deflected and opens when released although its paddle byte stays put; an inverted axis swaps the switches; PB0 bindings drive Fire and PB1/PB2 bindings do not. Confirm tests fail with switches computed from the paddle byte
 - [ ] T021 [P] [US1] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: in single-source mode the merged contribution's `jacks` carry the selection's switches on both jacks; with no driver they are all open. Confirm a test fails with the right jack left open
-- [ ] T022 [P] [US1] Extend `UnitTest/ControllerTests/GamePortInputMixerTests.cpp` per the contract's owner table: Controller owner uses the Controller source's jacks; ArrowKeys owner derives Left/Up from 0 and Right/Down from 255, Fire from FireKeys PB0, on both jacks; MousePaddle owner leaves them open; None owner carries only FireKeys fire; AppleModifierKeys never closes a switch. Confirm a test fails with AppleModifierKeys included
+- [ ] T022 [P] [US1] Extend `UnitTest/ControllerTests/GamePortInputMixerTests.cpp` per the contract's owner table: Controller owner uses the Controller source's jacks; ArrowKeys owner derives Left/Up from 0 and Right/Down from 255, Fire from FireKeys PB0, on both jacks; MousePaddle owner and None owner leave them all open, even with a FireKeys contribution present; AppleModifierKeys never closes a switch. Confirm a test fails with AppleModifierKeys included
 - [ ] T023 [P] [US1] Extend `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp`: with `SetJoyportFns` offered, a checkable **Sirius Joyport** row sits after the source rows and before the separator above Multiplayer, checked exactly when `isOn` returns true, and its dispatch calls the toggle once; not offered, no row
+- [ ] T024 [P] [US1] Extend `UnitTest/ControllerTests/InputModeRulesTests.cpp` for `InputModeRules::GetFireKeyButtons`: detached, PB0 from X or left Alt and PB1 from Z or right Alt, as today; attached, PB0 from X only and PB1 from Z only, so neither Alt key (the //e's Open Apple and Closed Apple) closes Fire (FR-010). Confirm a test fails with the Alt keys kept while attached
 
 ### Implementation for User Story 1
 
-- [ ] T024 [US1] In `CassoEmuCore/Controllers/MappingEvaluator.h/.cpp`, add `static constexpr float kSwitchThreshold = 0.5f` and fill `GamePortContribution::switches` in `Evaluate` from the shaped PDL0 and PDL1 values inside `EvaluatePair` (after deadzone, calibration and inversion, before `ToAxisPaddle`, for Rate bindings too), using the winning binding per axis: `<= -kSwitchThreshold` closes Left/Up, `>= +kSwitchThreshold` closes Right/Down; Fire from `IsButtonListHeld` over the PB0 bindings
-- [ ] T025 [US1] In `CassoEmuCore/Controllers/ControllerInputService.cpp`, after `BuildMergedLocked`, set `merged.jacks` in single-source mode to the selection driver's `logical->switches` on both jacks, all open with no driver (a helper `BuildJacksLocked`, declared in the `.h`)
-- [ ] T026 [US1] In `CassoEmuCore/Controllers/GamePortInputMixer.cpp`, fill `GamePortState::jacks` in `ComputeTargetLocked` per the owner table in `contracts/switch-evaluation.md` (a static helper per source kind keeps the function short)
-- [ ] T027 [US1] In `CassoEmuCore/Shell/EmulatorShell.h` and a shell `.cpp` beside the mouse toggle, add `SetGamePortAdapter (GamePortAdapter)` and `GetGamePortAdapter()`: store the value, call `SetAttached` on the live machine's Joyport under the shared lifetime lock, and call `SyncSelectorState`. Not persisted yet (US4)
-- [ ] T028 [US1] In `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp`, add `SetJoyportFns (isOn, isOffered, toggle)` and the checkable **Sirius Joyport** `DxuiCommand` in `GetPaddlePickerItems` at the position T023 tests; wire it in `CassoEmuCore/Shell/Window/EmulatorWindow.cpp` beside `SetMouseModeFns`, with `isOffered` from the running machine's `hasAnnunciators` and the toggle flipping `SetGamePortAdapter`
-- [ ] T029 [US1] Create `Disks/Casso/JoyportTest.bas` in the style of `Disks/Casso/JoystickTest.bas` (uppercase only, for the ][+): for each jack (AN0 off, on) and each AN1 state, `POKE` the annunciators and `PEEK(49249)`-`PEEK(49251)`, and print a two-column table of UP, DOWN, LEFT, RIGHT and FIRE reading CLOSED or OPEN, redrawn in a loop with a Ctrl-C note; build `Disks/Casso/JoyportTest.dsk` with the three `CassoCli disk` commands in `quickstart.md`, and boot it once on the //e to confirm it runs
-- [ ] T030 [US1] Build, run `scripts/RunTests.ps1`, run quickstart V1 and V2 on the //e and the ][+ with a real controller (ask the user to hold the directions if no controller input can be scripted), record the results in a new `specs/036-sirius-joyport/validation.md`, then commit: `feat(joyport): Drive the Joyport's switches from one controller`
+- [ ] T025 [US1] In `CassoEmuCore/Controllers/MappingEvaluator.h/.cpp`, add `static constexpr float kSwitchThreshold = 0.5f` and fill `GamePortContribution::switches` in `Evaluate` from the shaped PDL0 and PDL1 values inside `EvaluatePair` (after deadzone, calibration and inversion, before `ToAxisPaddle`, for Rate bindings too), using the winning binding per axis: `<= -kSwitchThreshold` closes Left/Up, `>= +kSwitchThreshold` closes Right/Down; Fire from `IsButtonListHeld` over the PB0 bindings
+- [ ] T026 [US1] In `CassoEmuCore/Controllers/ControllerInputService.cpp`, after `BuildMergedLocked`, set `merged.jacks` in single-source mode to the selection driver's `logical->switches` on both jacks, all open with no driver (a helper `BuildJacksLocked`, declared in the `.h`)
+- [ ] T027 [US1] In `CassoEmuCore/Controllers/GamePortInputMixer.cpp`, fill `GamePortState::jacks` in `ComputeTargetLocked` per the owner table in `contracts/switch-evaluation.md` (a static helper per source kind keeps the function short)
+- [ ] T028 [US1] In `CassoEmuCore/Shell/EmulatorShell.h` and a shell `.cpp` beside the mouse toggle, add `SetGamePortAdapter (GamePortAdapter)` and `GetGamePortAdapter()`: store the value, call `SetAttached` on the live machine's Joyport under the shared lifetime lock, and call `SyncSelectorState`. Not persisted yet (US4)
+- [ ] T029 [US1] Add `static std::bitset<2> GetFireKeyButtons (bool xDown, bool zDown, bool leftAltDown, bool rightAltDown, bool isJoyportAttached)` to `CassoEmuCore/Controllers/InputModeRules.h/.cpp`; make `EmulatorShell::UpdateJoystickButtonsFromKeys` in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp` read the four keys and submit its result, and call `UpdateJoystickButtonsFromKeys` from `SetGamePortAdapter` while arrows-to-joystick is on, so a held Alt is dropped or restored at the moment of attaching or detaching
+- [ ] T030 [US1] In `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp`, add `SetJoyportFns (isOn, isOffered, toggle)` and the checkable **Sirius Joyport** `DxuiCommand` in `GetPaddlePickerItems` at the position T023 tests; wire it in `CassoEmuCore/Shell/Window/EmulatorWindow.cpp` beside `SetMouseModeFns`, with `isOffered` from the running machine's `hasAnnunciators` and the toggle flipping `SetGamePortAdapter`
+- [ ] T031 [US1] Create `Disks/Casso/JoyportTest.bas` in the style of `Disks/Casso/JoystickTest.bas` (uppercase only, for the ][+): for each jack (AN0 off, on) and each AN1 state, `POKE` the annunciators and `PEEK(49249)`-`PEEK(49251)`, and print a two-column table of UP, DOWN, LEFT, RIGHT and FIRE reading CLOSED or OPEN, redrawn in a loop with a Ctrl-C note; build `Disks/Casso/JoyportTest.dsk` with the three `CassoCli disk` commands in `quickstart.md`, and boot it once on the //e to confirm it runs
+- [ ] T032 [US1] Build x64 Debug and x64 Release, run `scripts/RunTests.ps1`, run quickstart V1 and V2 on the //e and the ][+ with a real controller (ask the user to hold the directions if no controller input can be scripted), record the results in a new `specs/036-sirius-joyport/validation.md`, then commit: `feat(joyport): Drive the Joyport's switches from one controller`
 
 **Checkpoint**: a Joyport game is playable with one controller from a picker click. Do not ship without US2: on the //e a Ctrl-Reset still needs the reset window's validation.
 
@@ -108,13 +110,13 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ### Tests for User Story 2
 
-- [ ] T031 [P] [US2] Extend `UnitTest/EmuTests/JoyportMachineTests.cpp` on a //e `TestMachine` with the Joyport attached and every switch open: 20 `SoftReset`s and 20 `PowerCycle`s each end on the normal reset path, with no self-test and no reboot (detect as `OpenAppleResetTests.cpp` does, by where the firmware ends up after its `$C061`/`$C062` reads); with `HoldAppleKeysThroughReset (true, false)`, a `SoftReset` reboots as without a Joyport; after the window, `SetOpenApple (true)` does not change `$C061`. Confirm the first test fails with `OnMachineReset` removed from `MachineHost`
-- [ ] T032 [P] [US2] In the same file, a held Fire through a //e reset does not change the reset result (switches written before `SoftReset`, window still declines), and a machine switch (a fresh `TestMachine` built and power-cycled with the Joyport attached) opens the window
+- [ ] T033 [P] [US2] Extend `UnitTest/EmuTests/JoyportMachineTests.cpp` on a //e `TestMachine` with the Joyport attached and every switch open: 20 `SoftReset`s and 20 `PowerCycle`s each end on the normal reset path, with no self-test and no reboot (detect as `OpenAppleResetTests.cpp` does, by where the firmware ends up after its `$C061`/`$C062` reads); with `HoldAppleKeysThroughReset (true, false)`, a `SoftReset` reboots as without a Joyport; after the window, `SetOpenApple (true)` does not change `$C061` and `SetShift (true)` does not change `$C063`. Confirm the first test fails with `OnMachineReset` removed from `MachineHost`
+- [ ] T034 [P] [US2] In the same file, a held Fire through a //e reset does not change the reset result (switches written before `SoftReset`, window still declines), and a machine switch (a fresh `TestMachine` built and power-cycled with the Joyport attached) opens the window. Then the spec's "machine switch with a controller held" edge case: with Fire and Up held on an attached //e, feed the same `MachineGamePortSink` state to a freshly built ][+ without the Joyport attached, and to a //c; `$C061`-`$C063` read the staged buttons only (nothing stuck closed), and `$C064`-`$C067` time out normally
 
 ### Implementation for User Story 2
 
-- [ ] T033 [US2] Confirm `MachineHost::SoftReset`/`PowerCycle` (T013) cover the Ctrl-Reset, power-cycle and machine-switch entry points in `CassoEmuCore/Shell/MachineManager.cpp`, and that `SetGamePortAdapter` on a machine switch is applied to the new Joyport before `PowerCycle` runs (read the value from the shell in the build step, not after); fix any path the tests show missing
-- [ ] T034 [US2] Build, run the suite, run quickstart V3 on the //e (20 Ctrl-Resets, 20 power cycles, one Open Apple reset), record in `validation.md`, then commit: `feat(joyport): Release the Joyport's lines after every reset`
+- [ ] T035 [US2] Confirm `MachineHost::SoftReset`/`PowerCycle` (T013) are the only paths the Ctrl-Reset, power-cycle and machine-switch entry points in `CassoEmuCore/Shell/MachineManager.cpp` take, so every reset reaches `OnMachineReset`; fix any path the tests show missing. (Applying the saved adapter to a new machine belongs to T044.)
+- [ ] T036 [US2] Build x64 Debug and x64 Release, run the suite, run quickstart V3 on the //e (20 Ctrl-Resets, 20 power cycles, one Open Apple reset), record in `validation.md`, then commit: `feat(joyport): Release the Joyport's lines after every reset`
 
 **Checkpoint**: US1 and US2 together are the shippable MVP.
 
@@ -128,21 +130,22 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ### Tests for User Story 4
 
-- [ ] T035 [P] [US4] Extend `UnitTest/UiTests/HardwarePageTests.cpp`: `BuildNodes` with `supportsGamePortAdapter` appends a **Game port** group with **None** and **Sirius Joyport**, exactly one checked per `adapter`; unsupported (the //c) has no group
-- [ ] T036 [P] [US4] Extend `UnitTest/UiTests/SettingsPanelStateTests.cpp`: `gamePortAdapter` round-trips through `ExtractUiPrefs`/`BuildJson`, marks the state dirty, is pushed to `RecordingSink::ApplyGamePortAdapter` on `Apply` and never queues a reset (template: `MouseConnected_DefaultsOnRoundTripsNoReset`); `ObserveLiveGamePortAdapter` with a changed live value while the entry is untouched leaves the state not dirty and makes `BuildJson` write the live value; with a pending user edit, the edit survives the observation. Confirm a test fails with `ArePrefsEqual` ignoring the field
-- [ ] T037 [P] [US4] Extend `UnitTest/UiTests/ChromeCommandRoutingTests.cpp` with `IDM_GAMEPORT_ADAPTER_NONE` and `IDM_GAMEPORT_ADAPTER_JOYPORT`: unique, routed to the UI thread
-- [ ] T038 [P] [US4] Extend `UnitTest/UiTests/UserConfigStoreTests.cpp`: `"none"` is omitted by `SaveDelta`; `"siriusJoyport"` is kept per machine and does not leak to another machine
+- [ ] T037 [P] [US4] Extend `UnitTest/UiTests/HardwarePageTests.cpp`: `BuildNodes` with `supportsGamePortAdapter` appends a **Game port** group with **None** and **Sirius Joyport**, exactly one checked per `adapter`; unsupported (the //c) has no group
+- [ ] T038 [P] [US4] Extend `UnitTest/UiTests/SettingsPanelStateTests.cpp`: `gamePortAdapter` round-trips through `ExtractUiPrefs`/`BuildJson`, marks the state dirty, is pushed to `RecordingSink::ApplyGamePortAdapter` on `Apply` and never queues a reset (template: `MouseConnected_DefaultsOnRoundTripsNoReset`); `ObserveLiveGamePortAdapter` with a changed live value while the entry is untouched leaves the state not dirty and makes `BuildJson` write the live value; with a pending user edit, the edit survives the observation. Confirm a test fails with `ArePrefsEqual` ignoring the field
+- [ ] T039 [P] [US4] Extend `UnitTest/UiTests/ChromeCommandRoutingTests.cpp` with `IDM_GAMEPORT_ADAPTER_NONE` and `IDM_GAMEPORT_ADAPTER_JOYPORT`: unique, routed to the UI thread
+- [ ] T040 [P] [US4] Extend `UnitTest/UiTests/UserConfigStoreTests.cpp`: `"none"` is omitted by `SaveDelta`; `"siriusJoyport"` is kept per machine and does not leak to another machine
+- [ ] T041 [P] [US4] Extend `UnitTest/UiTests/MachineInputPrefsTests.cpp` for the helpers T043 adds: `ReadGamePortAdapter` gives `SiriusJoyport` for the token on a machine with annunciators, `None` for a missing or unknown token, and `None` on a machine without annunciators whatever the token; `BuildGamePortAdapterEntry` round-trips through `ReadGamePortAdapter`; written with `DiskSettings::WriteSavedUiPrefs` over an `InMemoryFileSystem` for the //e and read back through `UserConfigStore::Load` for the //e, the ][+ and the //c, only the //e reads `SiriusJoyport` (SC-007: this is the value the cold-boot and machine-switch paths adopt). Confirm a test fails with the `hasAnnunciators` check removed
 
 ### Implementation for User Story 4
 
-- [ ] T039 [US4] Add `IDM_GAMEPORT_ADAPTER_NONE` and `IDM_GAMEPORT_ADAPTER_JOYPORT` to `CassoEmuCore/resource.h`, route them in `WindowCommandManager::GetCommandRoute` to a handler in `CassoEmuCore/Shell/WindowCommandManager.cpp` that calls `EmulatorShell::SetGamePortAdapter`
-- [ ] T040 [US4] Persist from `SetGamePortAdapter` through `DiskSettings::WriteSavedUiPrefs` (`gamePortAdapter` token; never written for a machine without `hasAnnunciators`); add the `"none"` default to `UserConfigStore::BuildUiPrefsDefaults` in `CassoEmuCore/Config/UserConfigStore.cpp`
-- [ ] T041 [US4] Read the pref at cold boot in `EmulatorShell::ApplyPersistedChromePrefs` (`CassoEmuCore/Shell/EmulatorShellPrefs.cpp`) and on machine switch in `MachineManager::SwitchMachine` beside `mouseConnected`, applying it to the new machine's Joyport before `PowerCycle`
-- [ ] T042 [US4] In `CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp`: `SettingsUiPrefs::gamePortAdapter` (default `None`) in `ExtractUiPrefs`, `BuildJson`, `ArePrefsEqual`; `SetGamePortAdapter`; `ISettingsApplySink::ApplyGamePortAdapter` called from `Apply` with no `QueueMachineReset`; `ObserveLiveGamePortAdapter (GamePortAdapter live)` returning whether a rebuild is needed, per `contracts/prefs-and-ui.md`
-- [ ] T043 [US4] Implement `ApplyGamePortAdapter` in `CassoEmuCore/Ui/Settings/SettingsApplyAdapter.h/.cpp` by posting the matching IDM as `WM_COMMAND`, and add it to the test `RecordingSink`
-- [ ] T044 [US4] In `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, add the `supportsGamePortAdapter` and `adapter` parameters to `BuildNodes`, pass them from `Rebuild`, and route the two labels in `SetOnToggle` to `SetGamePortAdapter`, ignoring a toggle that would leave neither checked
-- [ ] T045 [US4] In `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`'s `OnDialogTick`, call `ObserveLiveGamePortAdapter` with the shell's live value and rebuild the Machine tab when it returns true
-- [ ] T046 [US4] Build, run the suite, run quickstart V5 and V9, record in `validation.md`, then commit: `feat(joyport): Save the Joyport per machine and show it on the Machine tab`
+- [ ] T042 [US4] Add `IDM_GAMEPORT_ADAPTER_NONE` and `IDM_GAMEPORT_ADAPTER_JOYPORT` to `CassoEmuCore/resource.h`, route them in `WindowCommandManager::GetCommandRoute` to a handler in `CassoEmuCore/Shell/WindowCommandManager.cpp` that calls `EmulatorShell::SetGamePortAdapter`
+- [ ] T043 [US4] In `CassoEmuCore/Config/MachineInputPrefs.h/.cpp`, add `kpszGamePortAdapterKey = "gamePortAdapter"`, `static GamePortAdapter ReadGamePortAdapter (const JsonValue * uiPrefs, bool hasAnnunciators)` and `static std::pair<std::string, JsonValue> BuildGamePortAdapterEntry (GamePortAdapter)`; persist from `SetGamePortAdapter` through `DiskSettings::WriteSavedUiPrefs` with that entry (never written for a machine without `hasAnnunciators`); add the `"none"` default to `UserConfigStore::BuildUiPrefsDefaults` in `CassoEmuCore/Config/UserConfigStore.cpp`
+- [ ] T044 [US4] Adopt the pref with `MachineInputPrefs::ReadGamePortAdapter` at cold boot in `EmulatorShell::ApplyPersistedChromePrefs` (`CassoEmuCore/Shell/EmulatorShellPrefs.cpp`) and on machine switch in `MachineManager::SwitchMachine` beside `mouseConnected`, applying it to the new machine's Joyport after `BuildMachineDevices` and before `PowerCycle`; both call sites stay one-line forwarders to the helper, since neither is reachable from a unit test
+- [ ] T045 [US4] In `CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp`: `SettingsUiPrefs::gamePortAdapter` (default `None`) in `ExtractUiPrefs`, `BuildJson`, `ArePrefsEqual`; `SetGamePortAdapter`; `ISettingsApplySink::ApplyGamePortAdapter` called from `Apply` with no `QueueMachineReset`; `ObserveLiveGamePortAdapter (GamePortAdapter live)` returning whether a rebuild is needed, per `contracts/prefs-and-ui.md`
+- [ ] T046 [US4] Implement `ApplyGamePortAdapter` in `CassoEmuCore/Ui/Settings/SettingsApplyAdapter.h/.cpp` by posting the matching IDM as `WM_COMMAND`, and add it to the test `RecordingSink`
+- [ ] T047 [US4] In `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, add the `supportsGamePortAdapter` and `adapter` parameters to `BuildNodes`, pass them from `Rebuild`, and route the two labels in `SetOnToggle` to `SetGamePortAdapter`, ignoring a toggle that would leave neither checked
+- [ ] T048 [US4] In `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`'s `OnDialogTick`, call `ObserveLiveGamePortAdapter` with the shell's live value and rebuild the Machine tab when it returns true
+- [ ] T049 [US4] Build x64 Debug and x64 Release, run the suite, run quickstart V5 and V9, record in `validation.md`, then commit: `feat(joyport): Save the Joyport per machine and show it on the Machine tab`
 
 **Checkpoint**: attach and detach from either place, saved per machine, never offered on the //c.
 
@@ -156,12 +159,12 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ### Tests for User Story 3
 
-- [ ] T047 [P] [US3] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp` using `SetUpTwoPlayers`: player 2's fire closes the right jack's Fire and not the left's (US3 scenario 1); both players moving at once each close only their own jack; slot targets swapped (slot 1 on Joystick1, slot 2 on Paddle0) leave slot 1 on the left jack; player 2 disconnected opens the right jack and leaves the left unaffected; multiplayer configured with no slot connected falls back to the single-source jacks. Confirm a test fails with the jacks taken from the merged buttons
+- [ ] T050 [P] [US3] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp` using `SetUpTwoPlayers`: player 2's fire closes the right jack's Fire and not the left's (US3 scenario 1); both players moving at once each close only their own jack; slot targets swapped (slot 1 on Joystick1, slot 2 on Paddle0) leave slot 1 on the left jack; player 2 disconnected opens the right jack and leaves the left unaffected; multiplayer configured with no slot connected falls back to the single-source jacks. Confirm a test fails with the jacks taken from the merged buttons
 
 ### Implementation for User Story 3
 
-- [ ] T048 [US3] Extend `BuildJacksLocked` in `CassoEmuCore/Controllers/ControllerInputService.cpp` for live multiplayer: slot 1's driver on the left jack and slot 2's on the right, from each driver's pre-merge `logical->switches`, all open for an absent or disconnected slot
-- [ ] T049 [US3] Build, run the suite, run quickstart V4 with two controllers, record in `validation.md`, then commit: `feat(joyport): Give each multiplayer slot its own Joyport jack`
+- [ ] T051 [US3] Extend `BuildJacksLocked` in `CassoEmuCore/Controllers/ControllerInputService.cpp` for live multiplayer: slot 1's driver on the left jack and slot 2's on the right, from each driver's pre-merge `logical->switches`, all open for an absent or disconnected slot
+- [ ] T052 [US3] Build x64 Debug and x64 Release, run the suite, run quickstart V4 with two controllers, record in `validation.md`, then commit: `feat(joyport): Give each multiplayer slot its own Joyport jack`
 
 **Checkpoint**: two-player Joyport games work.
 
@@ -175,13 +178,13 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ### Tests for User Story 5
 
-- [ ] T050 [P] [US5] Extend `UnitTest/ControllerTests/ControllersPageStateTests.cpp`: `GetJoyportJack()` is `Both` in single-source mode, `Left` for player 1's controller and `Right` for player 2's in multiplayer, and follows Editing when it moves; `ComputeLiveReading` carries `switches` for the page's pending mapping. Confirm a test fails with `Both` returned always
+- [ ] T053 [P] [US5] Extend `UnitTest/ControllerTests/ControllersPageStateTests.cpp`: `GetJoyportJack()` is `Both` in single-source mode, `Left` for player 1's controller and `Right` for player 2's in multiplayer, and follows Editing when it moves; `ComputeLiveReading` carries `switches` for the page's pending mapping. Confirm a test fails with `Both` returned always
 
 ### Implementation for User Story 5
 
-- [ ] T051 [US5] Add `GetJoyportJack()` (an enum `JoyportJack { Left, Right, Both }` nested in `ControllersPageState`) to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`
-- [ ] T052 [US5] In `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, add `SetJoyportAttachedFn`, five `ButtonLightView`s (Up, Down, Left, Right, Fire), a **Joyport** heading and a jack caption ("Left jack", "Right jack", "Both jacks"); in `Layout`, show them and hide the stick, the button lights and their headings while attached; in `Poll`, light them from `reading.switches` and `Relayout` when the attach state changes. Wire the function in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp` to `EmulatorShell::GetGamePortAdapter`
-- [ ] T053 [US5] Build, run the suite, run quickstart V8, capture a screenshot of the page with the Joyport attached (DPI-aware `PrintWindow` of the sheet), record in `validation.md`, then commit: `feat(joyport): Show the Joyport's switches on the Controllers page`
+- [ ] T054 [US5] Add `GetJoyportJack()` (an enum `JoyportJack { Left, Right, Both }` nested in `ControllersPageState`) to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`
+- [ ] T055 [US5] In `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, add `SetJoyportAttachedFn`, five `ButtonLightView`s (Up, Down, Left, Right, Fire), a **Joyport** heading and a jack caption ("Left jack", "Right jack", "Both jacks"); in `Layout`, show them and hide the stick, the button lights and their headings while attached; in `Poll`, light them from `reading.switches` and `Relayout` when the attach state changes. Wire the function in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp` to `EmulatorShell::GetGamePortAdapter`
+- [ ] T056 [US5] Build x64 Debug and x64 Release, run the suite, run quickstart V8, capture a screenshot of the page with the Joyport attached (DPI-aware `PrintWindow` of the sheet), record in `validation.md`, then commit: `feat(joyport): Show the Joyport's switches on the Controllers page`
 
 **Checkpoint**: all five stories done.
 
@@ -189,10 +192,10 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ## Phase 8: Polish and Cross-Cutting Concerns
 
-- [ ] T054 Run quickstart V6 (Wavy Navy on the ][+), V7 (Boulder Dash on the //e) and V10 (detached, `JoystickTest.dsk`), with the user supplying the game disks; restore the machine's `disk1Path` afterward; record in `validation.md`
-- [ ] T055 [P] Add the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only) and a README headline for the Joyport, and show both to the user for approval before any push
-- [ ] T056 Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release, `scripts/RunTests.ps1` Debug and Release (full suite, not filtered), `scripts/CheckStyle.ps1 -Mode Tree`, and `rg -n '\w \(\)'` over the new code; ARM64 build only
-- [ ] T057 Reconcile `spec.md`, `plan.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results (036-sirius-joyport)`
+- [ ] T057 Run quickstart V6 (Wavy Navy on the ][+), V7 (Boulder Dash on the //e) and V10 (detached, `JoystickTest.dsk`), with the user supplying the game disks; restore the machine's `disk1Path` afterward; record in `validation.md`, including a note for SC-002 that the switches ride the same `Submit` and flush as the controller buttons whose latency spec 034 measured, so no separate measurement was made
+- [ ] T058 [P] Add the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only) and a README headline for the Joyport, and show both to the user for approval before any push
+- [ ] T059 Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release, `scripts/RunTests.ps1` Debug and Release (full suite, not filtered), `scripts/CheckStyle.ps1 -Mode Tree`, and `rg -n '\w \(\)'` over the new code; ARM64 build only
+- [ ] T060 Reconcile `spec.md`, `plan.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results (036-sirius-joyport)`
 
 ---
 
@@ -218,7 +221,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 ### Parallel Opportunities
 
 - T004, T007, T010, T015, T018 in Phase 2 (separate test files).
-- T020-T023 (US1 tests), T031-T032 (US2), T035-T038 (US4).
+- T020-T024 (US1 tests), T033-T034 (US2), T037-T041 (US4).
 - US3 beside US2 and US4 once US1 is done.
 
 ---
@@ -230,15 +233,17 @@ Task: "Extend MappingEvaluatorTests.cpp (T020)"
 Task: "Extend ControllerInputServiceTests.cpp (T021)"
 Task: "Extend GamePortInputMixerTests.cpp (T022)"
 Task: "Extend PaddleSourceRowsTests.cpp (T023)"
+Task: "Extend InputModeRulesTests.cpp (T024)"
 ```
 
 ## Parallel Example: User Story 4
 
 ```text
-Task: "Extend HardwarePageTests.cpp (T035)"
-Task: "Extend SettingsPanelStateTests.cpp (T036)"
-Task: "Extend ChromeCommandRoutingTests.cpp (T037)"
-Task: "Extend UserConfigStoreTests.cpp (T038)"
+Task: "Extend HardwarePageTests.cpp (T037)"
+Task: "Extend SettingsPanelStateTests.cpp (T038)"
+Task: "Extend ChromeCommandRoutingTests.cpp (T039)"
+Task: "Extend UserConfigStoreTests.cpp (T040)"
+Task: "Extend MachineInputPrefsTests.cpp (T041)"
 ```
 
 ---

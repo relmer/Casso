@@ -14,9 +14,23 @@ Covers FR-001, FR-002, FR-012, FR-015 and User Stories 4 and 5.
 }
 ```
 
+- The read and write rules are pure helpers on `MachineInputPrefs`, where the
+  other per-machine input keys live, so they are tested in
+  `MachineInputPrefsTests.cpp`:
+
+  ```cpp
+  static constexpr const char *  kpszGamePortAdapterKey = "gamePortAdapter";
+
+  static GamePortAdapter                    ReadGamePortAdapter       (const JsonValue * uiPrefs,
+                                                                       bool              hasAnnunciators);
+  static std::pair<std::string, JsonValue>  BuildGamePortAdapterEntry (GamePortAdapter adapter);
+  ```
+
 - Read at cold boot (`EmulatorShell::ApplyPersistedChromePrefs`) and on machine
   switch (`MachineManager::SwitchMachine`, beside `mouseConnected`), then
-  applied to the new machine's Joyport before its `PowerCycle`.
+  applied to the new machine's Joyport before its `PowerCycle`. Neither call
+  site is reachable from a unit test, so each is a one-line forwarder to
+  `ReadGamePortAdapter`.
 - Ignored on a machine without `hasAnnunciators`, and never written for one.
 - `UserConfigStore::BuildUiPrefsDefaults` gains `"none"`, so `SaveDelta` drops
   the default.

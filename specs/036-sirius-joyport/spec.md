@@ -126,7 +126,7 @@ With the Joyport attached, a user opens the Controllers page in Settings and mov
 ### Edge Cases
 
 - **No controller at all**: with the Joyport attached and no controller selected, every switch reads open, which is what an Apple with a Joyport and no joysticks plugged in reads.
-- **Keys as joystick**: with arrows-to-joystick on, the arrow keys drive player 1's direction switches and the fire key drives fire, through the same rules as any other source that drives PDL0, PDL1 and PB0.
+- **Keys as joystick**: with arrows-to-joystick on, the arrow keys drive player 1's direction switches and the fire key drives fire, through the same rules as any other source that drives PDL0, PDL1 and PB0. The fire key is X. The Alt keys, which also fire in arrows-to-joystick mode today, do not drive the Joyport, because on the //e they are Open Apple and Closed Apple (FR-010).
 - **Mouse as paddle**: the mouse does not drive the Joyport; an Atari joystick has no paddle for it to stand in for.
 - **The paddle inputs**: an Atari joystick has no potentiometers, so while the Joyport is attached, controllers drive the switches and not the paddle inputs. The paddle inputs read as no paddle connected.
 - **PB1 and PB2 bindings**: a profile's PB1 and PB2 bindings have no Joyport switch to drive and are ignored while the Joyport is attached. They are kept in the profile.

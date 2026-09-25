@@ -31,7 +31,10 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
   only through `Apple2eKeyboard`'s sibling forwarding (the keyboard's range,
   `$C000`-`$C063`, starts lower and wins the overlap), which is unchanged.
   Writes already route to `Read`, so reads and writes both toggle, as on the
-  hardware.
+  hardware. On the //c with IOU access off, `$C058`-`$C05D` also record AN0-AN2,
+  although the //c has no annunciator lines. That is deliberate and harmless:
+  the //c never has a Joyport to read them, and excluding it would add a
+  machine check to the bank for no observable effect.
 - **Power-on state**: all off (spec Assumptions): the member starts at zero,
   and a new `AppleSoftSwitchBank::PowerCycle` override clears it and then calls
   the virtual `SoftReset()`, so the //e bank inherits it. `Reset()` and
@@ -139,10 +142,18 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
   question arises) and fire from the `FireKeys` source's PB0, and copies them
   to the right jack (single-source rule). `MousePaddle` and
   `AppleModifierKeys` never drive switches (FR-009, FR-010).
+- **The Alt keys**: the `FireKeys` source is submitted only in
+  arrows-to-joystick mode, and today it takes PB0 from X **or left Alt** and
+  PB1 from Z or right Alt. Left and right Alt are also the //e's Open Apple and
+  Closed Apple, so left Alt would close Fire, which FR-010 rules out. While the
+  Joyport is attached the source takes X and Z only; the rule is a pure
+  `InputModeRules::GetFireKeyButtons` so it is testable, and the shell only
+  reads the keys. Detached, nothing changes (FR-013).
 - **Which source drives**: the existing axis owner decides. Controller owner:
   the Controller source's jacks. ArrowKeys owner: the keyboard-derived jacks.
-  MousePaddle or None: all open, except that `FireKeys` fire still reaches both
-  jacks under None, as it reaches PB0 today.
+  MousePaddle or None: all open. Under None the `FireKeys` source is either
+  absent or left over from arrows mode, and the spec's "no controller at all"
+  edge case requires every switch open.
 
 ## R7. How the switches reach the Joyport
 

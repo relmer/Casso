@@ -46,10 +46,27 @@ existing paddle and PB placement is unchanged.
 | `Controller` | the Controller source's `jacks`, or all open if it has none |
 | `ArrowKeys` | left = directions from the ArrowKeys source's PDL0/PDL1 (0 closes Left/Up, 255 closes Right/Down), fire = FireKeys PB0; right = left |
 | `MousePaddle` | all open |
-| `None` | fire only, from FireKeys PB0, on both jacks |
+| `None` | all open |
 
 `AppleModifierKeys` never reaches the jacks (FR-010). Buttons and paddles are
 computed exactly as before (FR-013).
+
+## Fire keys
+
+```cpp
+// InputModeRules
+static std::bitset<2> GetFireKeyButtons (bool xDown,
+                                         bool zDown,
+                                         bool leftAltDown,
+                                         bool rightAltDown,
+                                         bool isJoyportAttached);
+```
+
+Detached: PB0 = X or left Alt, PB1 = Z or right Alt (today's rule). Attached:
+PB0 = X, PB1 = Z. `EmulatorShell::UpdateJoystickButtonsFromKeys` reads the four
+keys and submits the result as the `FireKeys` source, and `SetGamePortAdapter`
+resubmits it while arrows-to-joystick is on. Tested in
+`InputModeRulesTests.cpp`.
 
 ## MachineGamePortSink
 
@@ -68,7 +85,9 @@ current switches at once.
 - `ControllerInputServiceTests.cpp`: single-source on both jacks; two players
   each on their own jack with slot targets swapped; player 2 disconnected opens
   the right jack only.
-- `GamePortInputMixerTests.cpp`: each owner row of the table above; Apple
-  modifier keys leave the jacks open.
+- `GamePortInputMixerTests.cpp`: each owner row of the table above, with a
+  FireKeys contribution present under None; Apple modifier keys leave the jacks
+  open.
+- `InputModeRulesTests.cpp`: `GetFireKeyButtons` attached and detached.
 - `MachineGamePortSinkTests.cpp`: jacks reach the Joyport, only on change; no
   write on the //c.

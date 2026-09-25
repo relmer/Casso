@@ -18,7 +18,8 @@
 
 ## JoystickSwitches (value, API type)
 
-`ControllerTypes.h`. One Atari joystick's five switches.
+`ControllerTypes.h`. One Atari joystick's five switches: the spec's "Atari
+joystick state" entity, one per jack.
 
 | Field | Type | Notes |
 |---|---|---|
