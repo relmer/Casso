@@ -73,6 +73,17 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+### Sirius Joyport (1.28)
+
+Casso now emulates the Sirius Joyport, which let Apple ][, ][+ and //e games
+read Atari 2600 joysticks. Turn it on from the controller picker or the
+Machine tab in Settings, and your controller's stick and fire button drive the
+Joyport, with each player on their own jack in multiplayer. While it's on, the
+Controllers page draws an Atari joystick and lights each direction and the
+fire button as you press them.
+
+<p align="center"><img src="Assets/joyport-settings.png" alt="The Controllers page in Settings with the Sirius Joyport on: a VKB Gladiator's X and Y axes on the Joyport's left/right and up/down and a button on fire, beside a top-down drawing of an Atari joystick with its right marker lit and the stick leaning right" width="540" /></p>
+
 ### Separate controller profiles for each player (1.27)
 
 Each controller can now have its own profile, chosen from the Profiles menu on
@@ -557,7 +568,8 @@ strobe, Open/Closed-Apple state, and synthesized paddle reads.
 Physical game controllers — Xbox controllers, gamepads, and joysticks — map onto
 the same paddle and button inputs, configured on the **Controllers** page in
 Settings with per-game profiles, and a multiplayer mode puts two controllers on
-the game port at once.
+the game port at once. A Sirius Joyport can be attached to the ][, ][+ or //e,
+putting a controller on the Atari joystick switches that Joyport games read.
 
 ### Assembler and CLI
 
