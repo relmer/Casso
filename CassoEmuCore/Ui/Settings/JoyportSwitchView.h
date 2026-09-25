@@ -83,7 +83,7 @@ private:
 
     static std::vector<DxuiPointF>  BuildRoundedSquare  (float left, float top, float side, float radius);
     static std::vector<DxuiPointF>  BuildRoundedHexagon (DxuiPointF center, float radius, float cornerRadius);
-    static std::vector<DxuiPointF>  BuildPlate          (DxuiPointF ringCenter, float ringRadius, DxuiPointF fireCenter, float fireRadius, float filletRadius);
+    static std::vector<DxuiPointF>  BuildPlate          (DxuiPointF ringCenter, float ringRadius, DxuiPointF fireCenter, float fireRadius);
     static void                     AppendArc           (std::vector<DxuiPointF> & points, DxuiPointF center, float radius, float fromDeg, float toDeg, bool isLongWay);
     static float                    AngleOf             (DxuiPointF center, DxuiPointF point);
     static std::vector<DxuiPointF>  BuildDash           (DxuiPointF center, float inner, float outer, float fromDeg, float toDeg);

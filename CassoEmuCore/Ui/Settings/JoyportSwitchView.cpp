@@ -37,8 +37,8 @@ static constexpr float  s_kRingCenter     = 0.5f;
 static constexpr float  s_kRingOuter      = 0.37f;
 static constexpr float  s_kRingInner      = 0.352f;
 static constexpr float  s_kRingPlate      = 0.42f;
-static constexpr float  s_kFireSurround   = 0.025f;
-static constexpr float  s_kPlateFillet    = 0.03f;
+static constexpr float  s_kFireSurround   = 0.035f;
+static constexpr float  s_kPlateInset     = 0.8f;
 static constexpr float  s_kTopHeight      = 0.058f;
 static constexpr float  s_kFireCenter     = 0.155f;
 static constexpr float  s_kFireCap        = 0.82f;
@@ -131,10 +131,10 @@ JoyportStickArt JoyportSwitchView::BuildArt (float left, float top, float side)
     art.shaftRadius = side * s_kShaftRadius;
     art.shaftTravel = side * s_kShaftTravel;
 
-    // The plate's margin inside the dashes is half its margin outside them.
-    art.plate       = BuildPlate (art.ringCenter, side * s_kRingPlate, art.fireCenter, art.fireRadius + side * s_kFireSurround,
-                                  side * s_kPlateFillet);
-    art.plateInner  = art.ringInner - (side * s_kRingPlate - art.ringOuter) * 0.5f;
+    // The plate's margin inside the dashes is a little less than its margin
+    // outside them.
+    art.plate       = BuildPlate (art.ringCenter, side * s_kRingPlate, art.fireCenter, art.fireRadius + side * s_kFireSurround);
+    art.plateInner  = art.ringInner - (side * s_kRingPlate - art.ringOuter) * s_kPlateInset;
 
     for (quadrant = 0; quadrant < s_kQuadrantCount; quadrant++)
     {
@@ -210,33 +210,28 @@ std::vector<DxuiPointF> JoyportSwitchView::BuildRoundedSquare (float left, float
 //  BuildPlate
 //
 //  The dark plate the ring is painted on, with the lobe that wraps the fire
-//  button: the ring's circle and the button's joined by two fillet arcs, each
-//  tangent to both circles, so the plate flows out to the button the way the
-//  molding does. A fillet's center lies filletRadius outside both circles.
+//  button: the ring's circle and the button's joined by their two outer
+//  tangent lines, as the molding is. Each tangent touches both circles at the
+//  same angle, beta either side of the line between their centers, where
+//  cos beta = (ringRadius - fireRadius) / distance.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiPointF> JoyportSwitchView::BuildPlate (DxuiPointF ringCenter, float ringRadius,
-                                                       DxuiPointF fireCenter, float fireRadius, float filletRadius)
+std::vector<DxuiPointF> JoyportSwitchView::BuildPlate (DxuiPointF ringCenter, float ringRadius, DxuiPointF fireCenter, float fireRadius)
 {
     std::vector<DxuiPointF>  points;
-    float                    dx       = fireCenter.x - ringCenter.x;
-    float                    dy       = fireCenter.y - ringCenter.y;
-    float                    distance = std::sqrt (dx * dx + dy * dy);
-    float                    toRing   = ringRadius + filletRadius;
-    float                    toFire   = fireRadius + filletRadius;
-    float                    along    = (toRing * toRing - toFire * toFire + distance * distance) / (2.0f * distance);
-    float                    across   = std::sqrt (std::max (0.0f, toRing * toRing - along * along));
-    DxuiPointF               unit     = { dx / distance, dy / distance };
-    DxuiPointF               fillet0  = { ringCenter.x + unit.x * along - unit.y * across, ringCenter.y + unit.y * along + unit.x * across };
-    DxuiPointF               fillet1  = { ringCenter.x + unit.x * along + unit.y * across, ringCenter.y + unit.y * along - unit.x * across };
+    float                    towardDeg = AngleOf (ringCenter, fireCenter);
+    float                    distance  = std::hypot (fireCenter.x - ringCenter.x, fireCenter.y - ringCenter.y);
+    float                    cosBeta   = std::clamp ((ringRadius - fireRadius) / distance, -1.0f, 1.0f);
+    float                    betaDeg   = std::acos (cosBeta) * s_kHalfTurnDeg / std::numbers::pi_v<float>;
 
 
 
-    AppendArc (points, ringCenter, ringRadius,   AngleOf (ringCenter, fillet0), AngleOf (ringCenter, fillet1), true);
-    AppendArc (points, fillet1,    filletRadius, AngleOf (fillet1, ringCenter), AngleOf (fillet1, fireCenter), false);
-    AppendArc (points, fireCenter, fireRadius,   AngleOf (fireCenter, fillet1), AngleOf (fireCenter, fillet0), true);
-    AppendArc (points, fillet0,    filletRadius, AngleOf (fillet0, fireCenter), AngleOf (fillet0, ringCenter), false);
+    // The ring's arc the long way round, away from the button, and the
+    // button's arc the short way, away from the ring; the straight tangents
+    // are the edges that close the polygon between them.
+    AppendArc (points, ringCenter, ringRadius, towardDeg + betaDeg, towardDeg - betaDeg, true);
+    AppendArc (points, fireCenter, fireRadius, towardDeg - betaDeg, towardDeg + betaDeg, false);
 
     return points;
 }
