@@ -509,8 +509,10 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Joyport_ClosesTheSourcesAboveTheMultiplayerSeparator)
+        TEST_METHOD (Joyport_HasAGroupOfItsOwnBelowMultiplayer)
         {
+            //  It is a device on the game port, not one more thing that
+            //  drives it, so it is kept apart from the sources.
             EmulatorCommands                commands;
             InputModeRules::PaddleSource    twoPlayer = MakeSource (L"Multiplayer...", L"Multiplayer", false);
             std::vector<DxuiPopupMenuItem>  items;
@@ -526,13 +528,13 @@ namespace ControllerTests
             items = commands.GetPaddlePickerItems();
             row   = FindRow (items, L"Sirius Joyport");
 
-            Assert::AreEqual (static_cast<size_t> (2), row, L"right after the sources");
-            Assert::IsTrue   (items[3].command == nullptr, L"then the separator above Multiplayer");
-            Assert::AreEqual (std::wstring (L"Multiplayer..."), items[4].command->label);
+            Assert::AreEqual (std::wstring (L"Multiplayer..."), items[row - 2].command->label, L"below Multiplayer");
+            Assert::IsTrue   (items[row - 1].command == nullptr, L"with a separator between them");
+            Assert::IsTrue   (items[row + 1].command == nullptr, L"and one below it, above Profiles and Controller settings");
         }
 
 
-        TEST_METHOD (Joyport_IsAtTheEndOfTheSourcesWithNoMultiplayerRow)
+        TEST_METHOD (Joyport_IsItsOwnGroupWithNoMultiplayerRow)
         {
             EmulatorCommands                commands;
             std::vector<DxuiPopupMenuItem>  items;
@@ -542,7 +544,8 @@ namespace ControllerTests
 
             items = commands.GetPaddlePickerItems();
 
-            Assert::AreEqual (static_cast<size_t> (1), FindRow (items, L"Sirius Joyport"));
+            Assert::AreEqual (static_cast<size_t> (2), FindRow (items, L"Sirius Joyport"), L"after the sources and a separator");
+            Assert::IsTrue   (items[1].command == nullptr);
         }
 
 

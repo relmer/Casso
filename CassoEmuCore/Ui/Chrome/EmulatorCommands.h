@@ -164,10 +164,11 @@ public:
                            std::function<bool()> isOffered,
                            std::function<void()> toggle);
 
-    // The Sirius Joyport: a checkable row in the paddle picker, below the
-    // sources and above Multiplayer. It is not a source -- it sits on the
-    // game port whichever source drives -- so it is not one of the rows only
-    // one of which is checked. Left out on a machine that cannot take one.
+    // The Sirius Joyport: a checkable row in the paddle picker, in a group of
+    // its own below Multiplayer and above Profiles. It is not a source -- it
+    // sits on the game port whichever source drives -- so it is not one of
+    // the rows only one of which is checked. Left out on a machine that
+    // cannot take one.
     void  SetJoyportFns (std::function<bool()> isOn,
                          std::function<bool()> isOffered,
                          std::function<void()> toggle);

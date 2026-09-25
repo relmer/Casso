@@ -980,34 +980,26 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 //  are the one thing that drives the game port; it is the mode where two
 //  things do, so grouping it with them would read as a third source.
 //
-//  The Sirius Joyport row closes the source group, on a machine that can take
-//  one: it changes what the sources drive, so it belongs beside them, and it
-//  is not a two-player mode.
+//  The Sirius Joyport row has a group of its own below them, on a machine that
+//  can take one. It is not something that drives the game port but a device
+//  on it, attached whichever source drives, so beside the sources it would
+//  read as one more of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
 {
     std::vector<DxuiPopupMenuItem>      items;
-    std::vector<DxuiPopupMenuItem>      rows          = GetPaddleSourceItems();
-    std::shared_ptr<const DxuiCommand>  settings      = Find (IDM_VIEW_CONTROLLER_SETTINGS);
-    size_t                              i             = 0;
-    bool                                isMultiplayer = false;
-    bool                                isJoyportDue  = m_joyportRow != nullptr && m_isJoyportOffered && m_isJoyportOffered();
+    std::vector<DxuiPopupMenuItem>      rows      = GetPaddleSourceItems();
+    std::shared_ptr<const DxuiCommand>  settings  = Find (IDM_VIEW_CONTROLLER_SETTINGS);
+    size_t                              i         = 0;
+    bool                                isJoyport = m_joyportRow != nullptr && m_isJoyportOffered && m_isJoyportOffered();
 
 
 
     for (i = 0; i < rows.size(); i++)
     {
-        isMultiplayer = i < m_paddleSources.size() && m_paddleSources[i].isMultiplayer;
-
-        if (isMultiplayer && isJoyportDue)
-        {
-            items.push_back (DxuiPopupMenuItem::ForCommand (m_joyportRow));
-            isJoyportDue = false;
-        }
-
-        if (isMultiplayer)
+        if (i < m_paddleSources.size() && m_paddleSources[i].isMultiplayer)
         {
             items.push_back (DxuiPopupMenuItem::ForSeparator());
         }
@@ -1015,8 +1007,9 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
         items.push_back (rows[i]);
     }
 
-    if (isJoyportDue)
+    if (isJoyport)
     {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
         items.push_back (DxuiPopupMenuItem::ForCommand (m_joyportRow));
     }
 

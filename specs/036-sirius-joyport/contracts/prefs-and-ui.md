@@ -61,9 +61,10 @@ from `ApplyPersistedChromePrefs`, and on a machine switch right after
 
 - `EmulatorCommands::SetJoyportFns (isOn, isOffered, toggle)`, one checkable
   `DxuiCommand` labeled **Sirius Joyport**.
-- `GetPaddlePickerItems` places it after the source rows and before the
-  separator above Multiplayer, and only when `isOffered()` (the machine has
-  annunciators: not the //c).
+- `GetPaddlePickerItems` places it in a group of its own, below Multiplayer
+  and above Profiles and Controller settings, and only when `isOffered()` (the
+  machine has annunciators: not the //c). It is a device on the game port, not
+  a source, so it is kept out of the source group.
 - `isOn` = `GetGamePortAdapter() == SiriusJoyport` (FR-012).
 - Tests: `PaddleSourceRowsTests.cpp`: present and checked/unchecked on the
   //e, absent on the //c, the toggle calls back once, position in the list.
