@@ -34,6 +34,7 @@ The Joyport also has an Apple mode that passes two sets of Apple paddles through
 ### Session 2026-09-24
 
 - Q: Where is the Joyport attached and detached? -> A: In two places, which show and change the same per-machine setting. The Machine tab's device tree in Settings lists it as the device on the game port, with None and Sirius Joyport, beside the slot cards. The command bar's controller picker lists a checkable Sirius Joyport row, which attaches or detaches it at once without opening Settings; the check mark is also what shows the Joyport is attached. The Joyport sits outside the machine on the game port rather than in a slot, so attaching it takes effect on the next button read with no reset (FR-001, FR-002, FR-012).
+- Q: Does the Controllers page in Settings show what the Joyport reads? -> A: Yes. While the Joyport is attached, the page shows a live light for each of the five switches of the controller in Editing, in place of the stick position and button lights, so a user can see the threshold and check a profile without booting a game (User Story 5, FR-015).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -105,6 +106,23 @@ A user attaches the Joyport to a machine with one click on the command bar's con
 
 ---
 
+### User Story 5 - See the switches on the Controllers page (Priority: P2)
+
+With the Joyport attached, a user opens the Controllers page in Settings and moves the stick or presses the D-pad and fire. Five lights (up, down, left, right, fire) show which switches the controller in Editing is closing, live, so the user can see how far the stick has to travel before a direction closes, and whether a profile puts fire on the button they expect, without booting a game.
+
+**Why this priority**: Joyport games have to be set up in-game before they read the stick at all, so a mapping problem is hard to tell apart from a game-setup problem without it. It reuses the page's existing live readings.
+
+**Independent Test**: With the Joyport attached and the Controllers page open, each direction and fire lights its own light exactly while it is held, a diagonal lights two, and a stick moved short of the threshold lights none.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Joyport attached and the Controllers page open, **When** the user pushes the stick up past the threshold, **Then** the up light turns on, and turns off when the stick returns.
+2. **Given** the same setup, **When** the user pushes the stick diagonally up and left, **Then** the up and left lights are both on.
+3. **Given** multiplayer mode, **When** the user moves Editing to player 2's controller, **Then** the lights follow player 2's controller, and the page shows that it is the right jack.
+4. **Given** the Joyport detached, **When** the user opens the Controllers page, **Then** it shows the stick position and button lights as before.
+
+---
+
 ### Edge Cases
 
 - **No controller at all**: with the Joyport attached and no controller selected, every switch reads open, which is what an Apple with a Joyport and no joysticks plugged in reads.
@@ -139,6 +157,7 @@ A user attaches the Joyport to a machine with one click on the command bar's con
 - **FR-012**: The controller picker's Sirius Joyport row MUST be checked exactly while the Joyport is attached, whichever place attached it.
 - **FR-013**: With the Joyport not attached, every pushbutton, paddle and key behavior MUST be exactly as before this feature.
 - **FR-014**: The switch logic, the annunciator selection, the reset window, and the choice of which controller drives which jack MUST be testable without a real controller or a real Joyport, as spec 034's controller logic is.
+- **FR-015**: While the Joyport is attached, the Controllers page MUST show a live light for each of the five switches (up, down, left, right, fire) of the controller in Editing, lit exactly when that switch would read closed, in place of the stick position and button lights. It MUST show which jack that controller drives. With the Joyport detached the page MUST be unchanged.
 
 ### Key Entities
 
