@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.28.0] - YYYY-MM-DD: The one with Joyport/Atari joystick emulation, Siriously
+## [1.28.0] - 2026-09-25: The one with Joyport/Atari joystick emulation, Siriously
 
 ### Added
 
