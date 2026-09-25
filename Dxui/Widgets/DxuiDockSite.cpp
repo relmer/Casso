@@ -652,28 +652,38 @@ void DxuiDockSite::SlideIn()
 
 void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    DxuiFontHandle  font = theme.BodyFont();
-    float           line = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    float           pad  = m_scaler.ToPxf ((float) DxuiTabGroup::kTabPadDip / 2);
-    HRESULT         hr   = S_OK;
+    DxuiFontHandle  font  = theme.BodyFont();
+    float           pad   = m_scaler.ToPxf ((float) DxuiTabGroup::kTabPadDip / 2);
+    float           bar   = m_scaler.ToPxf ((float) kEdgeBarDip);
+    float           inset = m_scaler.ToPxf ((float) kEdgeBarInsetDip);
+    HRESULT         hr    = S_OK;
 
 
 
+    //  As Visual Studio draws them: no box, only the title and a bar along
+    //  the tab's edge nearest the panes, gray at rest and in the accent color
+    //  while the pointer is over the tab or its pane is out.
     for (const EdgeTab & tab : m_edgeTabs)
     {
         const RECT  & r        = tab.rect;
-        bool          active   = (tab.pane == m_slidPane);
+        bool          lit      = (tab.pane == m_slidPane) || (tab.pane == m_hoverEdge);
         auto          found    = m_panes.find (tab.pane);
         bool          sideways = tab.edge == DxuiDockSide::Left || tab.edge == DxuiDockSide::Right;
         float         cx       = (float) (r.left + r.right) / 2;
         float         cy       = (float) (r.top + r.bottom) / 2;
         float         along    = (float) (sideways ? r.bottom - r.top : r.right - r.left);
         float         across   = (float) (sideways ? r.right - r.left : r.bottom - r.top);
+        uint32_t      barArgb  = lit ? theme.Accent() : theme.Border();
 
-        painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top),
-                          active ? theme.ContentBackground() : theme.Background());
-        painter.OutlineRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top),
-                             line, active ? theme.Accent() : theme.Divider());
+        painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top), theme.Background());
+
+        switch (tab.edge)
+        {
+        case DxuiDockSide::Left:   painter.FillRect ((float) r.right - bar, (float) r.top + inset, bar, along - 2 * inset, barArgb); break;
+        case DxuiDockSide::Right:  painter.FillRect ((float) r.left,        (float) r.top + inset, bar, along - 2 * inset, barArgb); break;
+        case DxuiDockSide::Top:    painter.FillRect ((float) r.left + inset, (float) r.bottom - bar, along - 2 * inset, bar, barArgb); break;
+        case DxuiDockSide::Bottom: painter.FillRect ((float) r.left + inset, (float) r.top,          along - 2 * inset, bar, barArgb); break;
+        }
 
         //  A side tab is laid out level about its center and turned a
         //  quarter clockwise, so its title reads down the edge.
@@ -684,7 +694,7 @@ void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         hr = text.DrawString (GetTitle (tab.pane).c_str(), cx - along / 2 + pad, cy - across / 2,
                               along - 2 * pad, across,
-                              active ? theme.Foreground() : theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
+                              lit ? theme.Foreground() : theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -997,7 +1007,7 @@ std::wstring DxuiDockSite::GetTitle (const std::wstring & pane) const
 std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstring & pane)
 {
     static constexpr DxuiDockSide  kSides[]    = { DxuiDockSide::Left, DxuiDockSide::Top, DxuiDockSide::Right, DxuiDockSide::Bottom };
-    static const wchar_t * const   kNames[]    = { L"Dock Left", L"Dock Top", L"Dock Right", L"Dock Bottom" };
+    static const wchar_t * const   kNames[]    = { L"Dock left", L"Dock top", L"Dock right", L"Dock bottom" };
     std::vector<MenuItem>          items;
     std::vector<std::wstring>      mine        = m_layout.GetGroup (pane);
     auto                           commit      = [this] (bool changed)
@@ -1350,6 +1360,12 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     //  anywhere else slides a slid-out pane back too.
     tab      = HitTestEdgeTab (ev.positionDip);
     edgePane = (tab >= 0) ? m_edgeTabs[(size_t) tab].pane : std::wstring();
+
+    //  The tab under the pointer lights its bar.
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        m_hoverEdge = (ev.kind == DxuiMouseEventKind::Move) ? edgePane : std::wstring();
+    }
 
     if (tab >= 0 && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {

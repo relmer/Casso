@@ -2213,7 +2213,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
     m_consoleFrame->SetBottomMarginDip (kPanePadDip + 2);
 
-    m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call Stack");
+    m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call stack");
     //  The pane always shows hybrid; CALLS MODE picks another (FR-068), so
     //  the button that cycled them is not shown.
     m_callStackButton->SetVisible (false);
@@ -2239,7 +2239,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointList);
     m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_watchList);
     m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_stackList);
-    m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call Stack",  m_callStackFrame.get());
+    m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceList);
 
     //  A memory pane is its command bar over its bytes (FR-089). The bar is a
@@ -5118,7 +5118,7 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kBreakpoints) { return L"Breakpoints"; }
     if (pane == DebuggerLayout::kWatches)     { return L"Watches";     }
     if (pane == DebuggerLayout::kStack)       { return L"Stack";       }
-    if (pane == DebuggerLayout::kCallStack)   { return L"Call Stack";  }
+    if (pane == DebuggerLayout::kCallStack)   { return L"Call stack";  }
     if (pane == DebuggerLayout::kTrace)       { return L"Trace";       }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))

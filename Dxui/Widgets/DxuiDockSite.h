@@ -155,6 +155,14 @@ public:
     static constexpr int  kSashDip      = 6;
     static constexpr int  kSlideMinDip  = 240;
 
+    //  An edge tab's bar, along its edge nearest the panes, and how far it
+    //  stops short of each end so the bars of neighboring tabs stay apart.
+    static constexpr int  kEdgeBarDip      = 3;
+    static constexpr int  kEdgeBarInsetDip = 2;
+
+    //  The edge tab under the pointer, whose bar is lit, or empty.
+    const std::wstring &  GetHoveredEdgeTab () const { return m_hoverEdge; }
+
 private:
     struct Pane
     {
@@ -181,7 +189,7 @@ private:
     int           HitTestSash   (POINT pointDip) const;
     RECT          GetSashRect   (const DxuiPaneLayout::SplitRect & split) const;
     std::wstring  GetTitle      (const std::wstring & pane) const;
-    static constexpr wchar_t  kAutoHideLabel[] = L"Auto Hide";
+    static constexpr wchar_t  kAutoHideLabel[] = L"Auto hide";
 
     void          WireGroup     (DxuiTabGroup * group);
     void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
@@ -203,6 +211,7 @@ private:
     DxuiTabGroup                                  m_slidGroup;
     PaneFn                                        m_onSlid;
     std::wstring                                  m_slidNotified;
+    std::wstring                                  m_hoverEdge;
     std::vector<DxuiPaneLayout::SplitRect>        m_splits;
     DxuiDpiScaler                                 m_scaler;
     ChangedFn                                     m_onChanged;

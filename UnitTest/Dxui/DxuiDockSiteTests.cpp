@@ -229,7 +229,7 @@ namespace DxuiDockSiteTests
             }
 
             Assert::IsTrue   (tabbedWithCode);
-            Assert::AreEqual (std::wstring (L"Dock Left"), items.at (0).label);
+            Assert::AreEqual (std::wstring (L"Dock left"), items.at (0).label);
             Assert::IsTrue   (items.at (0).action());
             Assert::AreEqual ((long) 0, rig.console.GetBounds().left);
             Assert::AreEqual (1, rig.changes);
@@ -292,7 +292,11 @@ namespace DxuiDockSiteTests
             tab = rig.site.GetEdgeTabRect (L"console");
 
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (tab)));
-            Assert::IsTrue (rig.site.GetSlidPane().empty(), L"a hover does not slide it out");
+            Assert::IsTrue   (rig.site.GetSlidPane().empty(), L"a hover does not slide it out");
+            Assert::AreEqual (std::wstring (L"console"), rig.site.GetHoveredEdgeTab(), L"but lights its bar");
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { 500, 100 }));
+            Assert::IsTrue   (rig.site.GetHoveredEdgeTab().empty());
 
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (tab)));
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   Center (tab)));
@@ -313,7 +317,7 @@ namespace DxuiDockSiteTests
 
             for (const DxuiDockSite::MenuItem & item : items)
             {
-                if (item.label == L"Auto Hide")
+                if (item.label == L"Auto hide")
                 {
                     done = item.action();
                 }
@@ -341,7 +345,7 @@ namespace DxuiDockSiteTests
 
             for (const DxuiDockSite::MenuItem & item : rig.site.GetDockToMenu (L"regs"))
             {
-                if (item.label == L"Auto Hide")
+                if (item.label == L"Auto hide")
                 {
                     (void) item.action();
                 }
