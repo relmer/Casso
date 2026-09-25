@@ -35,6 +35,17 @@ rows need a person, a real controller, or a commercial disk.
 | Full unit suite; scenario suite | x64 Debug | 5,637 of 5,637; 23 of 23 |
 | V1, V2: a real controller on the readout disk, //e and ][+ | manual | not yet run: needs a person holding a controller |
 
+## Phase 4: resets (US2)
+
+| Check | Kind | Result |
+|---|---|---|
+| SC-003: 20 Ctrl-Resets on a //e with the Joyport attached and every line open, each a plain warm reset; 20 power-ons, each reaching the BASIC prompt with Applesoft initialized, on the real //e ROM (`JoyportMachineTests`) | automated | 20 of 20 and 20 of 20 |
+| Open Apple held through Ctrl-Reset still reboots; a held fire does not turn a reset into a reboot; after the window Open Apple, Closed Apple and Shift change nothing; a power cycle opens the window again; a machine switch to the ][+ or //c leaves nothing held | automated | pass |
+| Mutation check: the reset window removed from `MachineHost` | automated | five tests went red, including the Open Apple one, which ran self-test instead of rebooting |
+| Every reset entry point (Ctrl-Reset, power cycle, machine switch) reaches `MachineHost::SoftReset` or `PowerCycle` | code read | yes |
+| Full unit suite | x64 Debug | 5,644 of 5,644 |
+| V3 in the running app | manual | not yet run; the automated cases boot the same ROM through the same reset paths |
+
 ## Phase 6: two players (US3)
 
 The multiplayer rule landed with Phase 3, since it is the same few lines that
