@@ -1345,21 +1345,24 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  An edge tab slides its pane out on a hover or a press, since a click
-    //  arrives after the hover that already opened it; a press anywhere else
-    //  slides a slid-out pane back.
+    //  An edge tab is a button: a press slides its pane out, and a press on
+    //  the same tab again slides it back. A hover does nothing. A press
+    //  anywhere else slides a slid-out pane back too.
     tab      = HitTestEdgeTab (ev.positionDip);
     edgePane = (tab >= 0) ? m_edgeTabs[(size_t) tab].pane : std::wstring();
 
     if (tab >= 0 && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
-        SlideOut (edgePane);
-        return true;
-    }
+        if (edgePane == m_slidPane)
+        {
+            SlideIn();
+        }
+        else
+        {
+            SlideOut (edgePane);
+        }
 
-    if (tab >= 0 && ev.kind == DxuiMouseEventKind::Move && edgePane != m_slidPane)
-    {
-        SlideOut (edgePane);
+        return true;
     }
 
     if (ev.kind == DxuiMouseEventKind::Down && !m_slidPane.empty() && !Contains (m_slidRect, ev.positionDip))

@@ -144,7 +144,7 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Tabs"; }
 
-    static constexpr int  kStripDip       = 24;
+    static constexpr int  kStripDip       = 28;
     static constexpr int  kTitleDip       = 24;
     static constexpr int  kTitleButtonDip = 22;
     static constexpr int  kTabPadDip      = 10;
@@ -171,6 +171,7 @@ private:
     int   GetTitleButtonAt (POINT pointDip) const;
     void  PaintTitle    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void  RunPending    ();
+    void  PaintFrame    (IDxuiPainter & painter, uint32_t argb) const;
 
     std::vector<Tab>     m_tabs;
     int                  m_active        = -1;

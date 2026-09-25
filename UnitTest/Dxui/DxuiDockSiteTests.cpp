@@ -280,6 +280,29 @@ namespace DxuiDockSiteTests
         }
 
 
+        TEST_METHOD (AnEdgeTabIsAButtonNotAHoverTarget)
+        {
+            Rig   rig;
+            RECT  tab = {};
+
+
+
+            Assert::IsTrue (rig.site.EditPaneLayout().AutoHide (L"console", DxuiDockSide::Bottom));
+            rig.site.Relayout();
+            tab = rig.site.GetEdgeTabRect (L"console");
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (tab)));
+            Assert::IsTrue (rig.site.GetSlidPane().empty(), L"a hover does not slide it out");
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (tab)));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   Center (tab)));
+            Assert::AreEqual (std::wstring (L"console"), rig.site.GetSlidPane());
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (tab)));
+            Assert::IsTrue (rig.site.GetSlidPane().empty(), L"a second press slides it back");
+        }
+
+
         TEST_METHOD (TheDockToMenuOffersAutoHideAgainstTheNearestEdge)
         {
             Rig                                   rig;

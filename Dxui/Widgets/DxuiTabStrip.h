@@ -140,6 +140,11 @@ public:
     RECT  GetTabScreenRect (int index) const;
     RECT  GetNewTabRect    () const;
 
+    //  In the document and tool-window styles, where along the strip the
+    //  selected tab joins its pane, flares and all, so the host can break
+    //  the pane's border there. False while no selected tab shows.
+    bool  GetJoinSpan      (long & left, long & right) const;
+
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);
     bool  OnLButtonDown  (int x, int y);
@@ -183,7 +188,8 @@ private:
     static constexpr int  s_kCompactMarkDip   = 12;   // a leading mark's room
     static constexpr int  s_kCompactCloseDip  = 16;   // the close button's square
     static constexpr int  s_kCompactCornerDip = 4;
-    static constexpr int  s_kCompactInsetDip  = 3;    // the selected chip from the strip's far edge
+    static constexpr int  s_kCompactInsetDip  = 3;    // a hovered tab's wash from the strip's edges
+    static constexpr int  s_kToolTabMinDip    = 96;   // a tool window's tab, however short its title
     static constexpr int  s_kCharEstimateDip  = 7;    // a label's width a character, unmeasured
 
     void  Commit         (int newIndex);
@@ -210,7 +216,9 @@ private:
                          uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,
                          uint32_t textArgb, uint32_t focusArgb) const;
     void  PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & text, int index,
-                           uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const;
+                           uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const;
+    void  PaintJoinedTab  (IDxuiPainter & painter, float left, float top, float width, float height,
+                           uint32_t fillArgb, uint32_t stripArgb, bool joinBelow) const;
     bool  IsCloseShown  (int index) const;
 
 

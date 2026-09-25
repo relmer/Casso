@@ -833,10 +833,12 @@ void DxuiTabStrip::PaintNewTab (IDxuiPainter & painter, IDxuiTextRenderer & text
                           m_pressedNewTab ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
     }
 
+    //  In the compact styles the + is set in the tabs' own font and size, so
+    //  it sits on their centerline rather than a larger glyph's.
     hr = text.DrawString (L"+",
                           (float) rc.left, (float) rc.top, (float) (rc.right - rc.left), (float) (rc.bottom - rc.top),
                           textArgb,
-                          m_scaler.ToPxf (s_kGlyphDip),
+                          m_scaler.ToPxf ((m_style == Style::Explorer) ? s_kGlyphDip : (float) s_kCompactFontDip),
                           DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center,
@@ -866,6 +868,40 @@ RECT DxuiTabStrip::GetTabScreenRect (int index) const
 
 
     return RECT { r.left + shift, r.top, r.right + shift, r.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetJoinSpan
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTabStrip::GetJoinSpan (long & left, long & right) const
+{
+    RECT  r      = {};
+    long  corner = m_scaler.ToPx (s_kCompactCornerDip);
+
+
+
+    if (m_style == Style::Explorer || m_selected < 0 || m_selected >= (int) m_tabs.size())
+    {
+        return false;
+    }
+
+    r = GetTabScreenRect (m_selected);
+
+    if (HasBounds() && (r.right <= GetViewLeft() || r.left >= GetViewRight()))
+    {
+        return false;
+    }
+
+    left  = r.left  - corner;
+    right = r.right + corner;
+    return true;
 }
 
 
@@ -1090,7 +1126,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         if (m_style != Style::Explorer)
         {
-            PaintCompactTab (painter, text, i, hoverArgb, fillArgb, textArgb);
+            PaintCompactTab (painter, text, i, stripArgb, hoverArgb, fillArgb, textArgb);
             continue;
         }
 
@@ -1204,7 +1240,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabStrip::PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & text, int index,
-                                    uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const
+                                    uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const
 {
     static constexpr float    kMutedTextScale = 0.75f;
     static constexpr float    kPressedScale   = 0.82f;
@@ -1223,26 +1259,28 @@ void DxuiTabStrip::PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & 
     bool                      isHover         = index == m_hover || (index == m_pressed && index == m_hover);
     bool                      below           = m_style == Style::ToolWindow;
     uint32_t                  color           = isSel ? textArgb : DxuiColor::Scale (textArgb, kMutedTextScale);
+    DxuiTextHAlign            align           = DxuiTextHAlign::Left;
     std::wstring              shown;
     HRESULT                   hr              = S_OK;
 
 
 
-    //  A rounded chip inset from the strip's edges, so the hairline the host
-    //  draws along the pane's edge runs unbroken beside it.
-    if (isSel || isHover)
+    if (isSel)
+    {
+        PaintJoinedTab (painter, left, top, width, height, fillArgb, stripArgb, !below);
+    }
+    else if (isHover)
     {
         float  inset  = m_scaler.ToPxf ((float) s_kCompactInsetDip);
         float  corner = m_scaler.ToPxf ((float) s_kCompactCornerDip);
-        float  chipY  = below ? top + line : top + inset;
-        float  chipH  = (std::max) (0.0f, height - inset - line);
 
-        painter.FillRoundedRect (left, chipY, width, chipH, corner, isSel ? fillArgb : hoverArgb);
+        painter.FillRoundedRect (left, top + inset, width, (std::max) (0.0f, height - 2 * inset), corner, hoverArgb);
+    }
 
-        if (isSel && m_outlineArgb != 0)
-        {
-            painter.OutlineRoundedRect (left, chipY, width, chipH, corner, line, m_outlineArgb);
-        }
+    //  A tool window's tabs center their titles, as Visual Studio's do.
+    if (m_style == Style::ToolWindow && tab.mark.empty())
+    {
+        align = DxuiTextHAlign::Center;
     }
 
     if (!tab.mark.empty() && tab.markArgb != 0)
@@ -1280,8 +1318,97 @@ void DxuiTabStrip::PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & 
 
     hr = text.DrawString (shown.c_str(), labelX, top, (std::max) (labelR - labelX, 0.0f), height,
                           color, fontPx, DxuiTheme::kBodyFace,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                          align, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabStrip::PaintJoinedTab
+//
+//  The selected tab as Visual Studio draws it: open along the edge it shares
+//  with its pane, flared into that edge at both corners, and rounded at the
+//  two corners away from it. Its outline, in the host's color, runs from the
+//  pane's border down one side, round the far end and back up the other, so
+//  the tab and the pane read as one shape.
+//
+//  Drawn in distances from the joining edge -- the strip's top for a tool
+//  window, its bottom for a document -- so one body serves both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabStrip::PaintJoinedTab (IDxuiPainter & painter, float left, float top, float width, float height,
+                                   uint32_t fillArgb, uint32_t stripArgb, bool joinBelow) const
+{
+    float     c       = m_scaler.ToPxf ((float) s_kCompactCornerDip);
+    float     line    = (std::max) (1.0f, std::round (m_scaler.ToPxf (1.0f)));
+    float     right   = left + width;
+    uint32_t  outline = (m_outlineArgb != 0) ? m_outlineArgb : fillArgb;
+    auto      y       = [&] (float d, float h) { return joinBelow ? top + height - d - h : top + d; };
+    auto      cy      = [&] (float d)          { return joinBelow ? top + height - d     : top + d; };
+    auto      fill    = [&] (float x, float d, float w, float h, uint32_t argb)
+    {
+        painter.FillRect (x, y (d, h), w, h, argb);
+    };
+
+
+
+    if (width < 4 * c || height < 2 * c)
+    {
+        fill (left, 0, width, height, fillArgb);
+        return;
+    }
+
+    //  The body, square along the joining edge and rounded at the far one.
+    fill (left,     0,          width,         height - c, fillArgb);
+    fill (left + c, height - c, width - 2 * c, c,          fillArgb);
+    painter.FillCircle (left + c,  cy (height - c), c, outline);
+    painter.FillCircle (right - c, cy (height - c), c, outline);
+    painter.FillCircle (left + c,  cy (height - c), c - line, fillArgb);
+    painter.FillCircle (right - c, cy (height - c), c - line, fillArgb);
+
+    //  Covers the halves of those rings that fall inside the tab, leaving the
+    //  quarter at each far corner.
+    fill (left + line, 0,          width - 2 * line, height - c,    fillArgb);
+    fill (left + c,    height - c, width - 2 * c,    c - line,      fillArgb);
+
+    //  The sides and the far end.
+    fill (left,         c, line,          height - 2 * c, outline);
+    fill (right - line, c, line,          height - 2 * c, outline);
+    fill (left + c,     height - line,    width - 2 * c,  line, outline);
+
+    //  The flares: a square of fill beside each joining corner with a quarter
+    //  circle of the strip cut out of it, its rim drawn in the outline, and
+    //  the rest of that circle, which lies outside the tab, painted back to
+    //  the strip.
+    //  A tab at either end of the strip has no room to flare on that side:
+    //  its side runs straight on from the pane's border there.
+    for (float side : { -1.0f, 1.0f })
+    {
+        float  cx     = (side < 0) ? left - c : right + c;
+        float  sq     = (side < 0) ? left - c : right;
+        bool   flares = !HasBounds() || ((side < 0) ? sq >= (float) m_boundsDip.left : sq + c <= (float) m_boundsDip.right);
+
+        if (!flares)
+        {
+            fill ((side < 0) ? left : right - line, 0, line, c, outline);
+            continue;
+        }
+
+        fill (sq, 0, c, c, fillArgb);
+        painter.FillCircle (cx, cy (c), c,        outline);
+        painter.FillCircle (cx, cy (c), c - line, stripArgb);
+
+        fill ((side < 0) ? left - 2 * c : right + c, 0, c, 2 * c, stripArgb);
+        fill (sq,                                    c, c, c,     stripArgb);
+
+        //  The side's top, which meets the flare.
+        fill ((side < 0) ? left : right - line, 0, line, c, fillArgb);
+    }
 }
 
 
@@ -1347,6 +1474,7 @@ int DxuiTabStrip::MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style
         width = scaler.ToPxf ((float) s_kCompactPadDip) * 2.0f + labelW;
         width += tab.mark.empty() ? 0.0f : scaler.ToPxf ((float) s_kCompactMarkDip);
         width += (hasClose && tab.closable && style == Style::Document) ? scaler.ToPxf ((float) s_kCompactCloseDip) : 0.0f;
+        width  = (style == Style::ToolWindow) ? (std::max) (width, scaler.ToPxf ((float) s_kToolTabMinDip)) : width;
     }
     else
     {

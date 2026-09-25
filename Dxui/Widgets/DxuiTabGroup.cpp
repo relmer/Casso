@@ -764,8 +764,8 @@ void DxuiTabGroup::LayoutContent()
 
 void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float  line  = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    RECT   strip = GetStripRect();
+    uint32_t  frame = m_focusedLook ? theme.Accent() : theme.Border();
+    RECT      strip = GetStripRect();
 
 
 
@@ -783,21 +783,58 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     if (HasStrip() && strip.bottom > strip.top)
     {
-        float  edgeY = (m_kind == Kind::Document) ? (float) strip.bottom - line : (float) strip.top;
-
         m_strip.SetSelectedFill    (theme.ContentBackground());
         m_strip.SetStripFill       (theme.Background());
-        m_strip.SetSelectedOutline (m_focusedLook ? theme.Accent() : theme.Border());
+        m_strip.SetSelectedOutline (frame);
         m_strip.Paint (painter, text, theme);
-
-        painter.FillRect ((float) strip.left, edgeY, (float) (strip.right - strip.left), line, theme.Divider());
     }
 
-    if (m_focusedLook)
+    PaintFrame (painter, frame);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabGroup::PaintFrame
+//
+//  A border round the pane and its title bar, in the accent color while the
+//  user is working in the group. Along the tabs it runs in the strip's first
+//  row -- its last, for a document -- and is broken where the selected tab
+//  joins, whose own outline carries it on round the tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabGroup::PaintFrame (IDxuiPainter & painter, uint32_t argb) const
+{
+    float  line     = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
+    RECT   strip    = GetStripRect();
+    bool   hasStrip = HasStrip() && strip.bottom > strip.top;
+    float  left     = (float) m_boundsDip.left;
+    float  right    = (float) m_boundsDip.right;
+    float  top      = (float) ((hasStrip && m_kind == Kind::Document) ? strip.bottom - (long) line : m_boundsDip.top);
+    float  bottom   = (float) ((hasStrip && m_kind == Kind::ToolWindow) ? strip.top + (long) line : m_boundsDip.bottom);
+    float  edgeY    = (m_kind == Kind::Document) ? top : bottom - line;
+    long   joinL    = 0;
+    long   joinR    = 0;
+
+
+
+    painter.FillRect (left,         top, line, bottom - top, argb);
+    painter.FillRect (right - line, top, line, bottom - top, argb);
+    painter.FillRect (left, (m_kind == Kind::Document) ? bottom - line : top, right - left, line, argb);
+
+    //  The edge along the tabs, less the selected tab's join.
+    if (hasStrip && m_strip.GetJoinSpan (joinL, joinR))
     {
-        painter.OutlineRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                             (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top),
-                             line, theme.Accent());
+        painter.FillRect (left,          edgeY, std::max (0.0f, (float) joinL - left),  line, argb);
+        painter.FillRect ((float) joinR, edgeY, std::max (0.0f, right - (float) joinR), line, argb);
+    }
+    else
+    {
+        painter.FillRect (left, edgeY, right - left, line, argb);
     }
 }
 
