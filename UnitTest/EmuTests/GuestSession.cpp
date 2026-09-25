@@ -63,14 +63,48 @@ std::vector<Byte> GuestSession::FindStockImage (
     const char     * repoPath,
     const wchar_t  * cacheName)
 {
-    std::error_code        ec;
-    std::filesystem::path  cursor    = std::filesystem::current_path (ec);
-    std::vector<Byte>      bytes;
+    std::vector<Byte>      bytes     = FindInRepo (repoPath);
     wchar_t              * cacheRoot = nullptr;
     size_t                 len       = 0;
-    bool                   walking   = !ec;
     bool                   hasCache  = false;
-    int                    level     = 0;
+
+
+
+    if (bytes.empty())
+    {
+        hasCache = _wdupenv_s (&cacheRoot, &len, L"LOCALAPPDATA") == 0 && cacheRoot != nullptr;
+    }
+
+    if (hasCache)
+    {
+        bytes = ReadFileOrEmpty (std::filesystem::path (cacheRoot) /
+                                 L"Casso" / L"Disks" / cacheName);
+        free (cacheRoot);
+    }
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::FindInRepo
+//
+//  `repoPath` under the working directory and each of its parents, since the
+//  test host's directory is not fixed. READ-ONLY.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::FindInRepo (const char * repoPath)
+{
+    std::error_code        ec;
+    std::filesystem::path  cursor  = std::filesystem::current_path (ec);
+    std::vector<Byte>      bytes;
+    bool                   walking = !ec;
+    int                    level   = 0;
 
 
 
@@ -93,17 +127,28 @@ std::vector<Byte> GuestSession::FindStockImage (
         }
     }
 
-    if (bytes.empty())
-    {
-        hasCache = _wdupenv_s (&cacheRoot, &len, L"LOCALAPPDATA") == 0 && cacheRoot != nullptr;
-    }
+    return bytes;
+}
 
-    if (hasCache)
-    {
-        bytes = ReadFileOrEmpty (std::filesystem::path (cacheRoot) /
-                                 L"Casso" / L"Disks" / cacheName);
-        free (cacheRoot);
-    }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RequireRepoImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireRepoImage (const char * repoPath)
+{
+    std::vector<Byte>  bytes = FindInRepo (repoPath);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        std::format (L"{} is committed to the repo and must be found from the test's working directory",
+                     std::wstring (repoPath, repoPath + strlen (repoPath))).c_str());
 
     return bytes;
 }

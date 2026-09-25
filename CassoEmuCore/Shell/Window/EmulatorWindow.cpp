@@ -707,6 +707,17 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         [this] () { return m_pointerMode == InputMappingMode::Mouse; },
         [this] () { return m_machine.GetMouse() != nullptr && m_mouseConnected; },
         [this] () { ToggleInputMappingMode (InputMappingMode::Mouse); });
+
+    // The Sirius Joyport row in the paddle picker, on the machines whose game
+    // socket has the annunciators it needs.
+    m_mainMenu.GetCommands().SetJoyportFns (
+        [this] () { return GetGamePortAdapter() == GamePortAdapter::SiriusJoyport; },
+        [this] () { return m_machine.GetJoyport() != nullptr; },
+        [this] ()
+        {
+            SetGamePortAdapter (GetGamePortAdapter() == GamePortAdapter::SiriusJoyport ? GamePortAdapter::None
+                                                                                       : GamePortAdapter::SiriusJoyport);
+        });
     m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;

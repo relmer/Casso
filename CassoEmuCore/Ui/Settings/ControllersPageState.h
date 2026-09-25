@@ -24,6 +24,20 @@ enum class PaddleTarget
 
 
 
+// Which Joyport jack a controller drives: its multiplayer slot's, or both
+// when it plays alone.
+enum class JoyportJack
+{
+    None,
+    Left,
+    Right,
+    Both,
+};
+
+
+
+
+
 enum class CalibrationStep
 {
     None,
@@ -124,6 +138,17 @@ public:
     const MultiplayerSetup &  GetMultiplayer          () const;
     size_t                    GetAxisCount            () const;
     bool                      IsMultiplayerEnabled    () const;
+
+    // The Joyport jack the controller in Editing drives, for the page's
+    // switch lights, and the heading the page shows above them.
+    JoyportJack               GetJoyportJack          () const;
+    static std::wstring       GetJoyportHeading       (JoyportJack jack);
+
+    // What a row drives while the Joyport is attached: PDL0 the left and
+    // right switches, PDL1 up and down, PB0 fire. PB1 and PB2 drive nothing,
+    // so the page leaves them out; their bindings stay in the profile.
+    static bool               IsJoyportTarget         (PaddleTarget target);
+    static std::wstring       GetJoyportRowLabel      (PaddleTarget target);
 
     // One player's controller, or their target. Both normalize, so a slot that
     // cannot be played beside the other one is emptied rather than kept.

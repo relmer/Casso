@@ -475,6 +475,11 @@ HRESULT SettingsSheet::OpenModeless (
             {
                 service->SetInspectedUnit (unit);
             });
+
+            m_controllersPage->SetJoyportAttachedFn ([this] ()
+            {
+                return m_emuShell->GetGamePortAdapter() == GamePortAdapter::SiriusJoyport;
+            });
         }
 
         m_controllersPage->SetState (&m_controllersState);
@@ -676,6 +681,19 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+
+    // The command bar's Sirius Joyport row works while the sheet is open. The
+    // Machine tab follows it, and OK then writes what is live rather than
+    // what the sheet opened with.
+    if (m_emuShell != nullptr && m_hardwarePage != nullptr)
+    {
+        bool  isGamePortChanged = m_state.ObserveLiveGamePortAdapter (m_emuShell->GetGamePortAdapter());
+
+        if (isGamePortChanged)
+        {
+            m_hardwarePage->Rebuild();
+        }
+    }
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.

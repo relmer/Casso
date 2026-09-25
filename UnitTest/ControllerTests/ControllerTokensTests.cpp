@@ -256,5 +256,41 @@ namespace ControllerTests
                 Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, std::wstring (token, token + strlen (token)).c_str());
             }
         }
+
+
+        TEST_METHOD (GamePortAdapter_EveryValueRoundTrips)
+        {
+            //  Every enumerator, so one added without a token fails here
+            //  rather than reading back as None.
+            const GamePortAdapter  adapters[] = { GamePortAdapter::None, GamePortAdapter::SiriusJoyport };
+
+            for (GamePortAdapter adapter : adapters)
+            {
+                std::string  token = ControllerTokens::GamePortAdapterToToken (adapter);
+
+                Assert::IsFalse (token.empty(), L"every adapter has a token");
+                Assert::IsTrue  (ControllerTokens::GamePortAdapterFromToken (token) == adapter,
+                                 std::wstring (token.begin(), token.end()).c_str());
+            }
+        }
+
+
+        TEST_METHOD (GamePortAdapter_TokenText)
+        {
+            Assert::AreEqual (std::string ("none"),          ControllerTokens::GamePortAdapterToToken (GamePortAdapter::None));
+            Assert::AreEqual (std::string ("siriusJoyport"), ControllerTokens::GamePortAdapterToToken (GamePortAdapter::SiriusJoyport));
+        }
+
+
+        TEST_METHOD (GamePortAdapter_AnythingUnknownIsNone)
+        {
+            const char *  tokens[] = { "", "joyport", "SiriusJoyport", "sirius", "none " };
+
+            for (const char * token : tokens)
+            {
+                Assert::IsTrue (ControllerTokens::GamePortAdapterFromToken (token) == GamePortAdapter::None,
+                                std::wstring (token, token + strlen (token)).c_str());
+            }
+        }
     };
 }

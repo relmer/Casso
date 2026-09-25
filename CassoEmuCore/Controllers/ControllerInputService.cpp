@@ -1795,6 +1795,8 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
             }
         }
 
+        AddJoyportSwitches (player, driver.logical->switches, merged);
+
         if (!player.has_value())
         {
             merged.buttons |= driver.logical->buttons;
@@ -1808,6 +1810,44 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
     }
 
     return merged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddJoyportSwitches
+//
+//  One driver's Atari switches onto the Joyport's jacks. In multiplayer the
+//  player's slot is the jack, slot 1 left and slot 2 right, whatever paddles
+//  the slot drives; in single-source mode the one controller appears on both
+//  jacks, so a two-player game played by passing the controller reads it on
+//  either. A jack no driver reaches stays open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::AddJoyportSwitches (
+    const std::optional<size_t>  & player,
+    const JoystickSwitches       & switches,
+    GamePortContribution         & merged)
+{
+    JoyportJacks  jacks = merged.jacks.value_or (JoyportJacks());
+
+
+
+    if (!player.has_value())
+    {
+        jacks.jack[JoyportJacks::kLeftJack]  |= switches;
+        jacks.jack[JoyportJacks::kRightJack] |= switches;
+    }
+    else if (player.value() < JoyportJacks::kJackCount)
+    {
+        jacks.jack[player.value()] |= switches;
+    }
+
+    merged.jacks = jacks;
 }
 
 

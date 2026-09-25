@@ -7,6 +7,7 @@
 class AppleGamePort;
 class Apple2eSoftSwitchBank;
 class Apple2eKeyboard;
+class SiriusJoyport;
 
 
 
@@ -23,6 +24,8 @@ class Apple2eKeyboard;
 //  axisCount is how many paddle axes the machine exposes: four on the ][,
 //  ][+ and //e, two on the //c, whose PDL2 and PDL3 lines carry the mouse.
 //
+//  joyport is the machine's Sirius Joyport, attached or not; null on the //c.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct GamePortTargets
@@ -30,6 +33,7 @@ struct GamePortTargets
     AppleGamePort          * gamePort    = nullptr;
     Apple2eSoftSwitchBank  * iieSwitches = nullptr;
     Apple2eKeyboard        * iieKeyboard = nullptr;
+    SiriusJoyport          * joyport     = nullptr;
     size_t                   axisCount   = GamePortContribution::kAxisCount;
 };
 
@@ -59,6 +63,7 @@ private:
 
     static void WritePaddles (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
     static void WriteButtons (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
+    static void WriteJacks   (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
 
     std::shared_mutex  & m_lifetimeLock;
     TargetsFn            m_getTargets;

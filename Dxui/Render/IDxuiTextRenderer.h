@@ -34,6 +34,14 @@ enum class DxuiTextHAlign
 };
 
 
+// One vertex of a filled polygon, in DIPs.
+struct DxuiPointF
+{
+    float  x = 0.0f;
+    float  y = 0.0f;
+};
+
+
 enum class DxuiTextVAlign
 {
     Top                = 0,
@@ -180,6 +188,13 @@ public:
                                     float    thicknessDip,
                                     uint32_t argbColor)
     { (void) x0Dip; (void) y0Dip; (void) x1Dip; (void) y1Dip; (void) thicknessDip; (void) argbColor; return S_OK; }
+
+    // A filled, anti-aliased polygon through the points in order, closed back
+    // to the first. Fewer than three points draws nothing.
+    virtual HRESULT  FillPolygon   (const DxuiPointF * points,
+                                    size_t             count,
+                                    uint32_t           argbColor)
+    { (void) points; (void) count; (void) argbColor; return S_OK; }
 
     virtual HRESULT  MeasureString (const wchar_t  * text,
                                     float            fontSizeDip,

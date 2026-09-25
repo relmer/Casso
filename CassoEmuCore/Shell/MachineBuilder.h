@@ -121,6 +121,7 @@ public:
     void     RebuildBankingPages  ();
     void     CreateVideoModes     ();
     HRESULT  CreateCpu            (const MachineConfig & config);
+    void     WireJoyport          ();
 
     Byte *   GetAuxRamBuffer      ();
 

@@ -6,6 +6,7 @@
 #include "Core/MemoryBus.h"
 
 class IInputEventSink;
+class SiriusJoyport;
 
 
 
@@ -53,6 +54,9 @@ public:
     // Stage a pushbutton state (button 0 = PB0/fire, 1 = PB1, 2 = PB2).
     void SetButton (int index, bool pressed);
 
+    // The game-port adapter, asked first for every button and paddle read.
+    void SetJoyport (const SiriusJoyport * joyport) { m_joyport = joyport; }
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
@@ -78,13 +82,18 @@ private:
     void EmitPaddleTrigger ();
     void EmitPaddleRead    (Word address, Byte value);
 
-    IInputEventSink  * m_inputSink                                  = nullptr;
-    const uint64_t   * m_cpuCycleSource                             = nullptr;
-    uint64_t           m_paddleTriggerCycle                         = 0;
-    atomic<bool>       m_buttonState[s_knButtonCount]               = {};
-    atomic<Byte>       m_paddlePosition[s_knPaddleAxisCount];
-    int                m_lastEmittedButton[s_knButtonCount]         = { -1, -1, -1 };
-    int                m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
-    int                m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
-    int                m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    // Bit 7 of a paddle read whose one-shot is still timing: what an input
+    // with no potentiometer connected reads forever.
+    static constexpr Byte     s_knPaddleTiming = 0x80;
+
+    IInputEventSink      * m_inputSink                                  = nullptr;
+    const SiriusJoyport  * m_joyport                                    = nullptr;
+    const uint64_t       * m_cpuCycleSource                             = nullptr;
+    uint64_t               m_paddleTriggerCycle                         = 0;
+    atomic<bool>           m_buttonState[s_knButtonCount]               = {};
+    atomic<Byte>           m_paddlePosition[s_knPaddleAxisCount];
+    int                    m_lastEmittedButton[s_knButtonCount]         = { -1, -1, -1 };
+    int                    m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
+    int                    m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
+    int                    m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

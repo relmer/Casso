@@ -391,6 +391,58 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GamePortAdapterToToken
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ControllerTokens::GamePortAdapterToToken (GamePortAdapter adapter)
+{
+    std::string  token = kpszAdapterNone;
+
+
+
+    if (adapter == GamePortAdapter::SiriusJoyport)
+    {
+        token = kpszAdapterSiriusJoyport;
+    }
+
+    return token;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GamePortAdapterFromToken
+//
+//  Anything but a known adapter, including a missing value, is None: a stale
+//  or hand-edited preference leaves the game port as it has always been
+//  rather than attaching something the user did not choose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GamePortAdapter ControllerTokens::GamePortAdapterFromToken (std::string_view token)
+{
+    GamePortAdapter  adapter = GamePortAdapter::None;
+
+
+
+    if (token == kpszAdapterSiriusJoyport)
+    {
+        adapter = GamePortAdapter::SiriusJoyport;
+    }
+
+    return adapter;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryParseHexWord
 //
 //  Exactly four hex digits, either case.

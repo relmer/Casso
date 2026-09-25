@@ -11,6 +11,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 
 
 
@@ -120,6 +121,21 @@ void MachineHost::SetApple2cRomBank (std::unique_ptr<Apple2cRomBank> romBank)
 void MachineHost::SetMouse (std::unique_ptr<AppleMouse> mouse)
 {
     m_mouse = std::move (mouse);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetJoyport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetJoyport (std::unique_ptr<SiriusJoyport> joyport)
+{
+    m_joyport = std::move (joyport);
 }
 
 
@@ -280,6 +296,12 @@ void MachineHost::SoftReset()
     {
         m_cpu->SoftReset();
     }
+
+    // Last, so the window is stamped from the CPU's post-reset counter.
+    if (m_joyport != nullptr)
+    {
+        m_joyport->OnMachineReset();
+    }
 }
 
 
@@ -338,6 +360,13 @@ void MachineHost::PowerCycle()
     if (m_cpu != nullptr)
     {
         m_cpu->PowerCycle (*m_prng);
+    }
+
+    // Last: the CPU's power cycle zeroes the cycle counter, and the window
+    // is measured from that zero.
+    if (m_joyport != nullptr)
+    {
+        m_joyport->OnMachineReset();
     }
 }
 
