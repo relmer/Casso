@@ -79,11 +79,7 @@ The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
 <a id="v1-28"></a>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/whatsnew/banners/1.28-dark.svg">
-  <img src="Assets/whatsnew/banners/1.28-light.svg" alt="2026-09-25 · 1.28 · Sirius Joyport" width="100%">
-</picture>
+### [2026-09-25 · 1.28] Sirius Joyport
 
 Casso now emulates the Sirius Joyport, which let Apple ][, ][+ and //e games
 read Atari 2600 joysticks. Turn it on from the controller picker or the
@@ -95,11 +91,7 @@ fire button as you press them.
 <p align="center"><img src="Assets/joyport-settings.png" alt="The Controllers page in Settings with the Sirius Joyport on: a VKB Gladiator's X and Y axes on the Joyport's left/right and up/down and a button on fire, beside a top-down drawing of an Atari joystick with its right marker lit and the stick leaning right" width="540" /></p>
 
 <a id="v1-27"></a>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/whatsnew/banners/1.27-dark.svg">
-  <img src="Assets/whatsnew/banners/1.27-light.svg" alt="2026-09-24 · 1.27 · Separate controller profiles for each player" width="100%">
-</picture>
+### [2026-09-24 · 1.27] Separate controller profiles for each player
 
 Each controller can now have its own profile, chosen from the Profiles menu on
 the Controllers drop-down, so in multiplayer each player can use the mapping
@@ -108,21 +100,13 @@ that suits them.
 <p align="center"><img src="Assets/controllers-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: the Profiles submenu lists each player's Xbox controller under its own header, with Default checked for Player 1, Inverted checked for Player 2, and New... at the bottom" width="700" /></p>
 
 <a id="v1-26"></a>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/whatsnew/banners/1.26-dark.svg">
-  <img src="Assets/whatsnew/banners/1.26-light.svg" alt="2026-09-19 · 1.26 · A real installer" width="100%">
-</picture>
+### [2026-09-19 · 1.26] A real installer
 
 Casso installs from an MSIX package, which adds it to Start and puts `casso`
 and `cassocli` on PATH.
 
 <a id="v1-25"></a>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/whatsnew/banners/1.25-dark.svg">
-  <img src="Assets/whatsnew/banners/1.25-light.svg" alt="2026-09-16 · 1.25 · Game controllers and joysticks" width="100%">
-</picture>
+### [2026-09-16 · 1.25] Game controllers and joysticks
 
 Game controllers can now be mapped to the Apple's game ports. Xbox controllers,
 gamepads, and joysticks appear in the controller picker, and selected devices
@@ -146,11 +130,7 @@ multiplayer with paddles but only a single player with a joystick.
 </table>
 
 <a id="v1-23"></a>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/whatsnew/banners/1.23-dark.svg">
-  <img src="Assets/whatsnew/banners/1.23-light.svg" alt="2026-09-06 · 1.23 · It finds its voice" width="100%">
-</picture>
+### [2026-09-06 · 1.23] It finds its voice
 
 The Mockingboard's SSI 263A is synthesized from the chip's registers rather
 than played back from recordings, and this release is where that synthesis
@@ -218,11 +198,7 @@ is about 80% smaller, by prebuilding the object meshes, optimizing tessellation
 and precompiling the shaders.
 
 <a id="v1-21"></a>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/whatsnew/banners/1.21-dark.svg">
-  <img src="Assets/whatsnew/banners/1.21-light.svg" alt="2026-08-29 · 1.21 · The skeuomorphic theme goes to 11" width="100%">
-</picture>
+### [2026-08-29 · 1.21] The skeuomorphic theme goes to 11
 
 The skeuomorphic theme used to be a picture of a monitor drawn around the
 emulator's output. It is now a room: four period devices modeled in CAD at
