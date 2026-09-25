@@ -44,6 +44,15 @@ void EmulatorShell::OpenDebuggerWindow()
         CHRF (hr, m_debuggerWindow.reset());
 
         ApplyAppIconToWindow (m_debuggerWindow->GetHwnd());
+
+        //  While the debugger's title bar is held the OS runs its own move
+        //  loop on this thread, so no frame runs for it or for the machine's
+        //  window. A frame pumped from that loop keeps both of them going, as
+        //  the printer's window does.
+        m_debuggerWindow->SetOnModalLoopTick ([this] ()
+        {
+            TryPresentUiFrame();
+        });
     }
 
     m_debuggerWindow->Show();
