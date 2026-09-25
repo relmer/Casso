@@ -34,6 +34,7 @@ rows need a person, a real controller, or a commercial disk.
 | Mutation checks: switches judged on the paddle byte (only the rate-binding test catches it, as designed), Apple keys into fire, picker row always offered, Alt kept while attached, every driver on the left jack | automated | every targeted test went red |
 | Full unit suite; scenario suite | x64 Debug | 5,637 of 5,637; 23 of 23 |
 | V1, V2: a real controller on the readout disk, //e and ][+ | manual | not yet run: needs a person holding a controller |
+| The Joyport manual's own Applesoft test program (`Joyport.do`, from the Google Drive link in web-a2e #19 and apple2ts #213; not committed), booted on a //e and driven headlessly by a throwaway harness that read each prompt and closed the switch it asked for: both non-centered sections on both jacks (Casso emulates only the Center position of the rear switch), then the centered section with each switch closed on ONLY the jack the program named | automated, one-off | passed every Atari-stick step through to the Apple-mode paddle section, which is not emulated. The listing itself confirms the mapping: PB2 right/down, PB1 left/up, PB0 fire, and in the centered section the left stick on AN0 off and the right on AN0 on |
 
 ## Phase 4: resets (US2)
 
