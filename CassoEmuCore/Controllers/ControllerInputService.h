@@ -250,6 +250,10 @@ private:
     void                            UpdateAttachOrderLocked  ();
     uint64_t                        GetAttachOrderLocked     (const ControllerUnitKey & unit) const;
 
+    static void  AddJoyportSwitches (const std::optional<size_t> & player,
+                                     const JoystickSwitches      & switches,
+                                     GamePortContribution        & merged);
+
     IControllerBackend                 & m_backend;
     GamePortInputMixer                 & m_mixer;
     std::vector<ControllerDeviceInfo>    m_devices;

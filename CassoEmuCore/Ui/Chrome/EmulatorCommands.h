@@ -164,6 +164,14 @@ public:
                            std::function<bool()> isOffered,
                            std::function<void()> toggle);
 
+    // The Sirius Joyport: a checkable row in the paddle picker, below the
+    // sources and above Multiplayer. It is not a source -- it sits on the
+    // game port whichever source drives -- so it is not one of the rows only
+    // one of which is checked. Left out on a machine that cannot take one.
+    void  SetJoyportFns (std::function<bool()> isOn,
+                         std::function<bool()> isOffered,
+                         std::function<void()> toggle);
+
     std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems        () const;
     std::vector<DxuiPopupMenuItem>  GetPaddlePickerItems        () const;
     std::wstring                    GetCheckedPaddleSourceLabel () const;
@@ -212,6 +220,9 @@ private:
 
     std::vector<InputModeRules::PaddleSource>  m_paddleSources;
     PaddleSourcePickedFn                       m_onPaddleSourcePicked;
+
+    std::shared_ptr<DxuiCommand>               m_joyportRow;
+    std::function<bool()>                      m_isJoyportOffered;
 
     // The Profiles submenu: its rows as built from the sections, the row that
     // opens it, and its New... row.

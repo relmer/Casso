@@ -55,6 +55,10 @@ public:
     //  The stock ProDOS Users Disk, or a FAILED test, on the same grounds.
     static std::vector<Byte>  RequireProDosUsersDisk();
 
+    //  An image committed to the repo, such as a readout disk under
+    //  Disks/Casso, found from the working directory up; or a FAILED test.
+    static std::vector<Byte>  RequireRepoImage (const char * repoPath);
+
     //  Mounts the bytes in slot 6 drive 1 and parks the processor on the boot
     //  ROM's entry, having executed nothing.
     //
@@ -235,4 +239,7 @@ private:
     //  has it; the Require* callers turn that into a FAILED test.
     static std::vector<Byte>  FindStockImage  (const char    * repoPath,
                                                const wchar_t * cacheName);
+
+    //  `repoPath` under the working directory and each of its parents.
+    static std::vector<Byte>  FindInRepo      (const char    * repoPath);
 };

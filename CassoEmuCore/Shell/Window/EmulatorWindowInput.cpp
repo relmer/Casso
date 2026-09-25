@@ -36,6 +36,7 @@
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Core/Prng.h"
 #include "Config/DiskSettings.h"
 #include "Core/UnicodeSymbols.h"
@@ -2506,8 +2507,11 @@ void EmulatorShell::UpdateJoystickAxesFromKeys()
 void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
     GamePortContribution  contribution;
-    bool                  button0      = false;
-    bool                  button1      = false;
+    bool                  xDown        = false;
+    bool                  zDown        = false;
+    bool                  leftAltDown  = false;
+    bool                  rightAltDown = false;
+    std::bitset<2>        buttons;
 
 
 
@@ -2520,14 +2524,17 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
     // elsewhere (GetForegroundWindow() != m_hwnd).
     if (GetForegroundWindow() == m_hwnd)
     {
-        button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
-                  (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
-        button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
-                  (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+        xDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
+        zDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
+        leftAltDown  = (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
+        rightAltDown = (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
     }
 
-    contribution.buttons.set (0, button0);
-    contribution.buttons.set (1, button1);
+    buttons = InputModeRules::GetFireKeyButtons (xDown, zDown, leftAltDown, rightAltDown,
+                                                 GetGamePortAdapter() == GamePortAdapter::SiriusJoyport);
+
+    contribution.buttons.set (0, buttons.test (0));
+    contribution.buttons.set (1, buttons.test (1));
     m_gamePortMixer.Submit (GamePortSource::FireKeys, contribution);
 }
 
@@ -2623,6 +2630,64 @@ void EmulatorShell::SetArrowsJoystick (bool on)
     // Solid-Apple is the modifier keys' own contribution, so it stays pressed.
     m_gamePortMixer.ReleaseSource (GamePortSource::ArrowKeys);
     m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetGamePortAdapter
+//
+//  Attaches or detaches the Sirius Joyport on the running machine, with no
+//  reset: the next button read answers from it, or from the machine's own
+//  lines again. A machine with no Joyport to attach (the //c) stays at None.
+//  The fire keys are resubmitted because the Alt keys drop out of them while
+//  the Joyport is attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
+{
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
+    SiriusJoyport                      * joyport  = m_machine.GetJoyport();
+
+
+
+    if (joyport != nullptr)
+    {
+        joyport->SetAttached (adapter == GamePortAdapter::SiriusJoyport);
+    }
+
+    lifetime.unlock();
+
+    if (m_arrowsJoystick)
+    {
+        UpdateJoystickButtonsFromKeys();
+    }
+
+    SyncSelectorState();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGamePortAdapter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GamePortAdapter EmulatorShell::GetGamePortAdapter() const
+{
+    const SiriusJoyport  * joyport  = m_machine.GetJoyport();
+    bool                   attached = joyport != nullptr && joyport->IsAttached();
+
+
+
+    return attached ? GamePortAdapter::SiriusJoyport : GamePortAdapter::None;
 }
 
 

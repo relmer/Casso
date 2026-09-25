@@ -350,3 +350,35 @@ InputModeRules::State InputModeRules::AfterSettingMousePaddle (State state, bool
 
     return state;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFireKeyButtons
+//
+//  The Alt keys are also the //e's Open Apple and Closed Apple. With the
+//  Joyport attached those keys must change nothing the guest reads, so a held
+//  left Alt cannot close the Joyport's fire switch; X and Z still fire.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::bitset<2> InputModeRules::GetFireKeyButtons (
+    bool  xDown,
+    bool  zDown,
+    bool  leftAltDown,
+    bool  rightAltDown,
+    bool  isJoyportAttached)
+{
+    std::bitset<2>  buttons;
+    bool            isAltUsed = !isJoyportAttached;
+
+
+
+    buttons.set (0, xDown || (isAltUsed && leftAltDown));
+    buttons.set (1, zDown || (isAltUsed && rightAltDown));
+
+    return buttons;
+}

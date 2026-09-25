@@ -361,5 +361,25 @@ namespace ControllerTests
             // goes away would cost picture for the whole session.
             Assert::IsTrue (InputModeRules::GetStandInBannerText (pad).empty());
         }
+
+
+        TEST_METHOD (FireKeys_DetachedTheAltKeysFireAsBefore)
+        {
+            //                                               X      Z      LAlt   RAlt   Joyport
+            Assert::IsTrue (InputModeRules::GetFireKeyButtons (true,  false, false, false, false).test (0), L"X is PB0");
+            Assert::IsTrue (InputModeRules::GetFireKeyButtons (false, false, true,  false, false).test (0), L"left Alt is PB0");
+            Assert::IsTrue (InputModeRules::GetFireKeyButtons (false, true,  false, false, false).test (1), L"Z is PB1");
+            Assert::IsTrue (InputModeRules::GetFireKeyButtons (false, false, false, true,  false).test (1), L"right Alt is PB1");
+        }
+
+
+        TEST_METHOD (FireKeys_AttachedTheAltKeysAreLeftOut)
+        {
+            //  The Alt keys are the //e's Open Apple and Closed Apple, which
+            //  must change nothing while the Joyport is attached.
+            Assert::IsTrue  (InputModeRules::GetFireKeyButtons (false, false, true,  true,  true).none(), L"Alt keys fire nothing");
+            Assert::IsTrue  (InputModeRules::GetFireKeyButtons (true,  false, false, false, true).test (0), L"X still fires");
+            Assert::IsTrue  (InputModeRules::GetFireKeyButtons (false, true,  false, false, true).test (1), L"Z still drives PB1");
+        }
     };
 }

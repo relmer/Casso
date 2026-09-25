@@ -493,5 +493,108 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"Profiles"), items[items.size() - 2].command->label);
             Assert::AreEqual (static_cast<int> (IDM_VIEW_CONTROLLER_SETTINGS), items.back().command->id);
         }
+
+
+        static size_t FindRow (const std::vector<DxuiPopupMenuItem> & items, const std::wstring & label)
+        {
+            for (size_t i = 0; i < items.size(); i++)
+            {
+                if (items[i].command != nullptr && items[i].command->label == label)
+                {
+                    return i;
+                }
+            }
+
+            return items.size();
+        }
+
+
+        TEST_METHOD (Joyport_ClosesTheSourcesAboveTheMultiplayerSeparator)
+        {
+            EmulatorCommands                commands;
+            InputModeRules::PaddleSource    twoPlayer = MakeSource (L"Multiplayer...", L"Multiplayer", false);
+            std::vector<DxuiPopupMenuItem>  items;
+            size_t                          row       = 0;
+
+            twoPlayer.isMultiplayer = true;
+
+            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
+                                         MakeSource (L"Use keys as joystick", L"Keys", false),
+                                         twoPlayer });
+            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+            row   = FindRow (items, L"Sirius Joyport");
+
+            Assert::AreEqual (static_cast<size_t> (2), row, L"right after the sources");
+            Assert::IsTrue   (items[3].command == nullptr, L"then the separator above Multiplayer");
+            Assert::AreEqual (std::wstring (L"Multiplayer..."), items[4].command->label);
+        }
+
+
+        TEST_METHOD (Joyport_IsAtTheEndOfTheSourcesWithNoMultiplayerRow)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+
+            Assert::AreEqual (static_cast<size_t> (1), FindRow (items, L"Sirius Joyport"));
+        }
+
+
+        TEST_METHOD (Joyport_IsCheckedExactlyWhileAttached)
+        {
+            EmulatorCommands                commands;
+            bool                            attached = false;
+            std::vector<DxuiPopupMenuItem>  items;
+            size_t                          row      = 0;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([&attached] { return attached; }, [] { return true; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+            row   = FindRow (items, L"Sirius Joyport");
+
+            Assert::IsFalse (items[row].command->IsChecked(), L"detached");
+
+            //  The check is read when the menu draws, so it follows the
+            //  attach state however it was changed, with no rebuild.
+            attached = true;
+            Assert::IsTrue (items[row].command->IsChecked(), L"attached");
+        }
+
+
+        TEST_METHOD (Joyport_PickingTheRowTogglesOnce)
+        {
+            EmulatorCommands                commands;
+            int                             toggles = 0;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [&toggles] { toggles++; });
+
+            items = commands.GetPaddlePickerItems();
+            items[FindRow (items, L"Sirius Joyport")].command->dispatch();
+
+            Assert::AreEqual (1, toggles);
+        }
+
+
+        TEST_METHOD (Joyport_IsLeftOutWhereItCannotBeAttached)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([] { return false; }, [] { return false; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+
+            Assert::AreEqual (items.size(), FindRow (items, L"Sirius Joyport"), L"the //c has no row");
+        }
     };
 }

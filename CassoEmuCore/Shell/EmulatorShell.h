@@ -625,6 +625,13 @@ private:
     // until mouse software runs thanks to the firmware-live gate).
     void    ApplyDefaultPointerForMachine();
 
+    // The device on the running machine's game socket. Attaching or
+    // detaching the Sirius Joyport takes effect on the next button read,
+    // with no reset. The machine's Joyport is the only record of it, so
+    // the answer cannot drift from what the guest reads. UI thread.
+    void             SetGamePortAdapter (GamePortAdapter adapter);
+    GamePortAdapter  GetGamePortAdapter () const;
+
 private:
     // Window-placement and chrome-layout helpers. Every reader is an
     // EmulatorShell method, so they belong to the class rather than to
