@@ -70,10 +70,16 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 
 ## What's New
 
+<!-- Feature the 3-5 most recent substantial releases here in full. A release
+     that takes almost no space, such as 1.26, stays here without counting
+     toward that. When one rolls off, move its write-up to docs/WhatsNew.md
+     and add a row to the Earlier releases table. -->
+
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
-### Separate controller profiles for each player (1.27)
+| <a id="v1-27"></a>2026-09-24 | 1.27 | Separate controller profiles for each player |
+|:---|:---|:---|
 
 Each controller can now have its own profile, chosen from the Profiles menu on
 the Controllers drop-down, so in multiplayer each player can use the mapping
@@ -81,12 +87,14 @@ that suits them.
 
 <p align="center"><img src="Assets/controllers-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: the Profiles submenu lists each player's Xbox controller under its own header, with Default checked for Player 1, Inverted checked for Player 2, and New... at the bottom" width="700" /></p>
 
-### A real installer (1.26)
+| <a id="v1-26"></a>2026-09-19 | 1.26 | A real installer |
+|:---|:---|:---|
 
 Casso installs from an MSIX package, which adds it to Start and puts `casso`
 and `cassocli` on PATH.
 
-### Game controllers and joysticks (1.25)
+| <a id="v1-25"></a>2026-09-16 | 1.25 | Game controllers and joysticks |
+|:---|:---|:---|
 
 Game controllers can now be mapped to the Apple's game ports. Xbox controllers,
 gamepads, and joysticks appear in the controller picker, and selected devices
@@ -109,7 +117,8 @@ multiplayer with paddles but only a single player with a joystick.
 </tr>
 </table>
 
-### It finds its voice (1.23)
+| <a id="v1-23"></a>2026-09-06 | 1.23 | It finds its voice |
+|:---|:---|:---|
 
 The Mockingboard's SSI 263A is synthesized from the chip's registers rather
 than played back from recordings, and this release is where that synthesis
@@ -176,7 +185,8 @@ to mean a trip to the Disk menu.
 is about 80% smaller, by prebuilding the object meshes, optimizing tessellation
 and precompiling the shaders.
 
-### The skeuomorphic theme goes to 11 (1.21)
+| <a id="v1-21"></a>2026-08-29 | 1.21 | The skeuomorphic theme goes to 11 |
+|:---|:---|:---|
 
 The skeuomorphic theme used to be a picture of a monitor drawn around the
 emulator's output. It is now a room: four period devices modeled in CAD at
@@ -255,105 +265,40 @@ bar, so the picture gets the window. Switch from **Settings → Theme** with no
 restart and no machine reset. Both are [at the top of this page](#casso), and
 [Themed chrome](#themed-chrome) has the details.
 
-### Disk file access from the command line (1.20)
+### Earlier releases
 
-The build loop no longer leaves the machine. `CassoCli disk` makes a disk, reads
-files off it and puts them back, with no third-party tool anywhere in the loop,
-and the assembler writes its object straight onto the disk. Source to a running
-machine in three commands:
+Each links to its full write-up in [docs/WhatsNew.md](docs/WhatsNew.md).
 
-```powershell
-CassoCli disk create mydisk.dsk --bootable
-CassoCli as65 prog.a65 --disk mydisk.dsk --as PROG --startup
-Casso.exe --machine Apple2e --disk1 mydisk.dsk
-```
-
-**Nothing there restates the load address.** It used to: assembling wrote a host
-file, placing it needed `--load $6000` again, and nothing checked the two
-agreed, so a source whose origin moved produced a file the guest loaded at the
-wrong address. The assembler knows the origin, so it writes it.
-
-It runs in reverse too: `disk get` hands back a file byte-for-byte and reports the
-load address DOS 3.3 doesn't keep in its catalog. `--basic` converts an Applesoft
-listing to and from tokenized form, `--text` converts high-bit encoding and line
-endings, and the default moves bytes unchanged, so extract-edit-replace perturbs
-nothing the edit didn't touch.
-
-For disks carrying no filesystem at all, `sectorread` and `sectorwrite` work at a
-track and sector — stating `--logical` or `--physical`, because the same sixteen
-sectors answer to two orders — and `blockread` / `blockwrite` do the same by
-512-byte ProDOS block.
-
-Writes are all-or-nothing. The complete image is built and checked in memory,
-written beside the target, and put in place atomically, so a locked file, a full
-volume, or a track that can't be re-encoded all leave the original byte-for-byte
-as it was, with no temporary left behind. That is deliberately not symmetric with
-the emulator: a mounted image isn't held open, so a disk mounted in Casso is
-neither noticed nor protected, and the tool says so rather than implying
-otherwise.
-
-**The assembler's command line is now AS65's, exactly**, which changes behavior
-scripts may depend on — see [CHANGELOG.md](CHANGELOG.md) before upgrading.
-
-### The Mockingboard speaks (1.19)
-
-The emulated Mockingboard is now the **Mockingboard C** by default on the ][+,
-//e and //e Enhanced. A clean-room **SSI 263A** core written from the datasheet
-provides the five attribute registers, all 64 phonemes, the documented timing
-formulas, and formant synthesis, with the ready line on the VIA's CA1 where
-speech drivers expect it. Sound-only software is untouched: the speech chip is an
-additive tap on the real board's address decode and powers up in the part's own
-silent Power Down state, so **Mockingboard A** behavior is byte-for-byte
-unchanged. Boot `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk` for three film
-lines and Daisy Bell, with HAL's eye pulsing on each syllable; there is a hi-res
-version of the same demo beside it, and `mockingboard-speech-test.dsk` is the
-smaller smoke test.
-
-Singing is the part that cannot be faked. An emulator that plays recorded
-phonemes can say the words, but only one that synthesizes from the chip's
-registers can put them on a melody, because pitch is the 12-bit inflection value
-and not a property of a recording.
-
-The chip's per-phoneme parameter ROM — never published, substituted for by every
-emulator — has been **read off the visual6502 die photographs** and fully
-decoded: 64 phonemes × 29 bits, six significance-interleaved 4-bit fields plus
-closure, class, fricative and voiced flags, with the on-die column address decoder
-read to prove the phoneme mapping. Cross-checking against the 2007 SC-01A decap
-validated it end to end (22 of 46 name-matched phonemes carry identical formant
-codes; closure agrees 46/46) and licensed that chip's measured capacitor network
-as the code-to-Hz mapping. Data and method:
-`specs/024-mockingboard-speech/rom-extraction/`.
-
-### Monochrome graphics fidelity (1.18.1)
-
-The green, amber and white monitors were showing a luminance-tinted copy of the
-*color* decode — which has already thrown away the exact detail a monochrome
-monitor exists to show. An isolated hi-res dot came out around 57% brightness
-where hardware lights it fully, and the half-dot shift was lost. Both graphics
-modes now decode for the monitor you picked.
-
-Surfaced by [(Apple IIe) Sixies](https://dskilton.itch.io/apple-sixies), which
-asks for 560×192 monochrome double-hi-res and was unreadable on every monitor
-Casso offered. The same frame, white monitor and color:
-
-<table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/feat-mono-dhgr.png" alt="Sixies on a white monochrome monitor: crisp 560-wide grid lines, legible text, sharp dice pips" width="100%" /></td>
-  <td valign="top" width="50%"><img src="Assets/feat-mono-dhgr-color.png" alt="The same Sixies frame on a color monitor, where artifact fringing breaks up the thin strokes" width="100%" /></td>
-</tr></table>
-
-### Merlin assembler dialect (1.18)
-
-`CassoCli` assembles **Merlin** source unmodified, with output verified
-byte-for-byte against six objects shipped on the Merlin Pro 2.23 distribution
-disk, including its own macro library. Merlin brings its field-based line model,
-its own directive vocabulary, macros and variable symbols, local labels,
-left-to-right unsigned 16-bit expressions, and a relocating origin.
-
-The command line states the dialect rather than guessing it — `CassoCli as65
-input.a65` and `CassoCli merlin PROG.S`. The bare `CassoCli input.a65` form is
-gone. Under `as65` the CPU is chosen with AS65's own `-x`; under `merlin` the
-source chooses it with `XC`. Where support ends is stated by name rather than
-failing as a syntax error; see [docs/Assembler.md](docs/Assembler.md#where-merlin-support-ends).
+| Date | Release | Highlights |
+|---|---|---|
+| 2026-09-10 | [1.24](docs/WhatsNew.md#v1-24) | The //e's own character ROM, Applesoft round-trip fixes, and a faster //c startup |
+| 2026-08-31 | [1.22](docs/WhatsNew.md#v1-22) | Nibble images (`.nib`, `.nb2`), and disk decoding up to 100x faster |
+| 2026-08-27 | [1.20](docs/WhatsNew.md#v1-20) | `CassoCli disk`: make disks and move files on and off them, and AS65's exact command line |
+| 2026-08-27 | [1.19](docs/WhatsNew.md#v1-19) | The Mockingboard speaks, driven by the SSI 263A's own ROM read off the die photographs |
+| 2026-08-25 | [1.18.1](docs/WhatsNew.md#v1-18-1) | Monochrome monitors show all 560 dots of double hi-res |
+| 2026-08-21 | [1.18](docs/WhatsNew.md#v1-18) | Merlin source assembles unmodified, verified against the Merlin Pro disk |
+| 2026-08-20 | [1.17](docs/WhatsNew.md#v1-17) | Salvage a damaged `.woz` into a structurally correct copy |
+| 2026-08-10 | [1.16](docs/WhatsNew.md#v1-16) | Create blank, bootable disks in the app, and a write-protect toggle |
+| 2026-07-28 | [1.15](docs/WhatsNew.md#v1-15) | MousePaint works again on the //c |
+| 2026-07-26 | [1.14](docs/WhatsNew.md#v1-14) | An emulated ImageWriter II with a live 3D preview and real print-head sound |
+| 2026-07-25 | [1.13](docs/WhatsNew.md#v1-13) | Emulation and rendering performance |
+| 2026-07-22 | [1.12](docs/WhatsNew.md#v1-12) | The first skeuomorphic CRT monitor |
+| 2026-07-19 | [1.11](docs/WhatsNew.md#v1-11) | The stable undocumented 6502 opcodes, validated against Harte |
+| 2026-07-18 | [1.10](docs/WhatsNew.md#v1-10) | The //c's 80/40 and keyboard switches |
+| 2026-07-16 | [1.9](docs/WhatsNew.md#v1-9) | Write-protect indicator |
+| 2026-07-15 | [1.8](docs/WhatsNew.md#v1-8) | The Apple //c and //e Enhanced, on a new 65C02 core |
+| 2026-07-12 | [1.7](docs/WhatsNew.md#v1-7) | Mockingboard sound card |
+| 2026-07-08 | [1.6.2](docs/WhatsNew.md#v1-6-2) | Reliable disk writes |
+| 2026-07-07 | [1.6](docs/WhatsNew.md#v1-6) | Disk picker search, and the Dxui UI library |
+| 2026-06-03 | [1.5.1523](docs/WhatsNew.md#v1-5-1523) | Play action games from the keyboard, with hardware-faithful auto-repeat |
+| 2026-05-30 | [1.5.1395](docs/WhatsNew.md#v1-5-1395) | Themed first-run downloads |
+| 2026-05-30 | [1.5.1289](docs/WhatsNew.md#v1-5-1289) | Copy-protected Broderbund games boot from unmodified images |
+| 2026-05-26 | [1.4.1171](docs/WhatsNew.md#v1-4-1171) | Themed chrome, CRT effects, and skeuomorphic drives |
+| 2026-05-15 | [1.3.670](docs/WhatsNew.md#v1-3-670) | Disk II mechanical audio |
+| 2026-05-09 | [1.3.509](docs/WhatsNew.md#v1-3-509) | Apple //e fidelity: aux RAM, the Language Card, and a cycle-accurate Disk II |
+| 2026-05-03 | [1.0.244](docs/WhatsNew.md#v1-0-244) | The first GUI emulator, for the Apple ][, ][+ and //e |
+| 2026-04-28 | [0.9.32](docs/WhatsNew.md#v0-9-32) | An AS65-compatible assembler, and a Harte-validated 6502 |
+| 2024-11-24 | [My6502](docs/WhatsNew.md#origin) | Where it started: a 6502 emulator |
 
 ## Features
 
@@ -406,7 +351,7 @@ parameter change against live output.
 <p align="center"><img src="Assets/feat-crt-effects.png" alt="Display tab CRT controls: monitor preset, brightness, contrast, gamma, scanlines, bloom, color bleed, persistence" width="540" /></p>
 
 The **CRT monitor** that frames the display is one of the CAD models pictured
-under [What's New](#the-skeuomorphic-theme-goes-to-11-121), lit and shadowed
+under [What's New](#v1-21), lit and shadowed
 with the rest of the desk scene. It can be turned off with **3D CRT monitor**
 on **Settings → Theme**, which leaves the drives standing on the desk under a
 flat picture. Alt+Enter goes full screen: every chrome band hides and the glass
@@ -762,7 +707,7 @@ Thank you to both authors for making these invaluable resources freely available
 
 Casso also builds on several third-party components and assets:
 
-- **CRT display shaders**: the optional CRT effect is a set of HLSL ports from the [libretro `glsl-shaders`](https://github.com/libretro/glsl-shaders) collection: **crt-pi** by Davide Berra (MIT), the **ntsc-adaptive** chroma stage by Themaister and hunterk (MIT), and the **bloom** passes by hunterk (public domain). Per-file attribution and license terms are in [`Casso/Shaders/CRT/LICENSES.md`](Casso/Shaders/CRT/LICENSES.md).
+- **CRT display shaders**: the optional CRT effect is a set of HLSL ports from the [libretro `glsl-shaders`](https://github.com/libretro/glsl-shaders) collection: **crt-pi** by Davide Berra (MIT), the **ntsc-adaptive** chroma stage by Themaister and hunterk (MIT), and the **bloom** passes by hunterk (public domain). Per-file attribution and license terms are in [`CassoEmuCore/Shaders/CRT/LICENSES.md`](CassoEmuCore/Shaders/CRT/LICENSES.md).
 - **[stb_vorbis](https://github.com/nothings/stb)**: Sean Barrett's public-domain Ogg Vorbis decoder ([nothings.org/stb_vorbis](http://nothings.org/stb_vorbis/)), used to decode the Disk II and printer audio samples.
 - **ImageWriter II printer sounds**: recorded from a real ImageWriter II by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 - **Disk II mechanical sounds**: recordings from the [OpenEmulator](https://github.com/openemulator/libemulation) project.
