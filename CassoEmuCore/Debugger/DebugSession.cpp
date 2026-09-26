@@ -371,11 +371,34 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::ExecuteQuery
+//
+//  Past the line assembler, whatever it is waiting for, and marked so the
+//  listing and dump handlers keep the user's continuation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteQuery (const std::string & line)
+{
+    Reply  reply = ExecuteAppleWinLine (Trim (line), true);
+
+
+
+    reply.command = line;
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ExecuteAppleWinLine
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Reply DebugSession::ExecuteAppleWinLine (const std::string & text)
+Reply DebugSession::ExecuteAppleWinLine (const std::string & text, bool isQuery)
 {
     AppleWinParseResult  parsed = AppleWinParser::Parse (text, *this);
     Reply                reply;
@@ -385,6 +408,7 @@ Reply DebugSession::ExecuteAppleWinLine (const std::string & text)
     switch (parsed.status)
     {
     case ParseStatus::Ok:
+        parsed.command.isQuery = isQuery;
         reply = Execute (parsed.command);
         break;
 

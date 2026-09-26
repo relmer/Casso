@@ -92,6 +92,11 @@ public:
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
 
+    // An AppleWin line the debugger window runs to read the machine for a
+    // pane. It is never source for the line assembler, and it leaves the
+    // point where U and D with no address go on alone.
+    Reply  ExecuteQuery          (const std::string & line);
+
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;
@@ -238,7 +243,7 @@ private:
     void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     Reply  ExecuteMonitorLine    (const std::string & text);
-    Reply  ExecuteAppleWinLine   (const std::string & text);
+    Reply  ExecuteAppleWinLine   (const std::string & text, bool isQuery = false);
     Reply  ExecuteGSSquaredLine  (const std::string & text);
     Reply  ExecuteWinDbgLine     (const std::string & text);
     bool   TryResolveIdOrAddress (DebugCommand & command, Reply & reply);

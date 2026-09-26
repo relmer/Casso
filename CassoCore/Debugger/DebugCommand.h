@@ -270,4 +270,8 @@ struct DebugCommand
     std::optional<uint64_t>  first;        // HISTORY: the window's first entry
     CommandMode              mode     = CommandMode::AppleWin;
     OutputFormat             output   = OutputFormat::AppleWin;
+
+    //  Run by the debugger window to fill a pane rather than typed, so U and
+    //  D with no address still go on from the user's own last U and D.
+    bool                     isQuery  = false;
 };
