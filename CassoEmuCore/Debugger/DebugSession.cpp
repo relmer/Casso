@@ -371,6 +371,34 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::ExecuteViewLine
+//
+//  A pane's read skips the line assembler, which would otherwise take R or D
+//  as source while an A block is open. IsViewRead is true for its duration so
+//  the handlers leave where a bare D or U continues from as the user left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteViewLine (const std::string & line)
+{
+    Reply  reply;
+
+
+
+    m_isViewRead  = true;
+    reply         = ExecuteAppleWinLine (Trim (line));
+    m_isViewRead  = false;
+    reply.command = line;
+
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ExecuteAppleWinLine
 //
 ////////////////////////////////////////////////////////////////////////////////

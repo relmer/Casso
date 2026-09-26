@@ -242,6 +242,7 @@ void DataDirectiveHandlers::List (DebugSession & session, const DebugCommand & c
 {
     DisassemblyData      data;
     Word                 first = command.hasA1 ? command.a1 : m_nextList;
+    Word                 next  = 0;
     std::optional<Word>  last;
 
 
@@ -251,8 +252,13 @@ void DataDirectiveHandlers::List (DebugSession & session, const DebugCommand & c
         last = command.a2;
     }
 
-    m_nextList = Disassemble (session, first, last, last.has_value() ? kMaxLines : kDefaultLines, data);
+    next       = Disassemble (session, first, last, last.has_value() ? kMaxLines : kDefaultLines, data);
     reply.data = data;
+
+    if (!session.IsViewRead())
+    {
+        m_nextList = next;
+    }
 }
 
 

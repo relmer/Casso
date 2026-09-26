@@ -108,6 +108,50 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  A bare D or U continues from the user's last one, not from what
+        //  the panes read in between.
+        TEST_METHOD (APaneReadLeavesBareDAndUWhereTheUserLeftThem)
+        {
+            MachineRig  rig;
+            Reply       dump;
+            Reply       list;
+
+
+
+            rig.Run ("D 2000");
+            rig.Run ("U 1000");
+            (void) rig.view.Build (rig.controller.GetSession());
+
+            dump = rig.Run ("D");
+            list = rig.Run ("U");
+
+            Assert::IsTrue   (std::holds_alternative<MemoryData> (dump.data));
+            Assert::AreEqual ((Word) 0x2040, std::get<MemoryData> (dump.data).rows.front().address);
+            Assert::IsTrue   (std::holds_alternative<DisassemblyData> (list.data));
+            Assert::IsTrue   (std::get<DisassemblyData> (list.data).lines.front().instruction.address > 0x1000);
+            Assert::IsTrue   (std::get<DisassemblyData> (list.data).lines.front().instruction.address < 0x1100);
+        }
+
+
+        //  An open A block takes the user's lines, not the panes' reads.
+        TEST_METHOD (APaneReadDuringAssemblyIsNotAssembled)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            Byte                  before   = rig.machine.GetMemoryBus().ReadByte (0x0800);
+
+
+
+            rig.Run ("A 800");
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue   (rig.controller.GetSession().IsAssembling());
+            Assert::IsFalse  (snapshot.registers.empty(), L"the register pane is filled");
+            Assert::AreEqual ((Word) 0x0300, snapshot.pc);
+            Assert::AreEqual (before,        rig.machine.GetMemoryBus().ReadByte (0x0800), L"nothing was assembled");
+        }
+
+
         TEST_METHOD (AnInstructionIsAnnotatedWithWhatItActsOn)
         {
             MachineRig            rig;

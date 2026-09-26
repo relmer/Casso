@@ -52,11 +52,11 @@ bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused,
 DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPaused) const
 {
     DebuggerViewSnapshot  snapshot;
-    Reply                 registers   = session.ExecuteLine ("R",     CommandMode::AppleWin);
-    Reply                 breakpoints = session.ExecuteLine ("BPL",   CommandMode::AppleWin);
-    Reply                 stack       = session.ExecuteLine ("STACK", CommandMode::AppleWin);
-    Reply                 watches     = session.ExecuteLine ("WL",    CommandMode::AppleWin);
-    Reply                 calls       = session.ExecuteLine ("CALLS", CommandMode::AppleWin);
+    Reply                 registers   = session.ExecuteViewLine ("R");
+    Reply                 breakpoints = session.ExecuteViewLine ("BPL");
+    Reply                 stack       = session.ExecuteViewLine ("STACK");
+    Reply                 watches     = session.ExecuteViewLine ("WL");
+    Reply                 calls       = session.ExecuteViewLine ("CALLS");
     Reply                 memory;
 
 
@@ -111,7 +111,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     snapshot.code       = snapshot.codeViews[0];
     snapshot.followView = m_follow;
 
-    memory = session.ExecuteLine (std::format ("D {:04X}", m_memoryAddress), CommandMode::AppleWin);
+    memory = session.ExecuteViewLine (std::format ("D {:04X}", m_memoryAddress));
 
     if (const MemoryData * data = std::get_if<MemoryData> (&memory.data))
     {
@@ -207,7 +207,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 void DebuggerViewState::BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
     const Cpu6502Registers  & now    = session.GetTarget().GetRegisters();
-    Reply                     code   = session.ExecuteLine (std::format ("U {:04X}", now.pc), CommandMode::AppleWin);
+    Reply                     code   = session.ExecuteViewLine (std::format ("U {:04X}", now.pc));
     Word                        length  = 1;
     InstructionTouches::Result  current;
 
@@ -354,7 +354,7 @@ void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot
 {
     uint64_t  total = session.GetTarget().GetTraceSize();
     uint64_t  first = GetTraceWindowFirst (total, m_traceTop, kTraceRows);
-    Reply     reply = session.ExecuteLine (GetHistoryLine (first, kTraceRows), CommandMode::AppleWin);
+    Reply     reply = session.ExecuteViewLine (GetHistoryLine (first, kTraceRows));
 
 
 
@@ -579,7 +579,7 @@ DebuggerViewSnapshot::MemoryWindow DebuggerViewState::ReadMemoryWindow (DebugSes
     DebuggerViewSnapshot::MemoryWindow  window;
     Word                                first = (Word) (address & ~(kMemoryRowBytes - 1));
     Word                                last  = (Word) std::min<uint32_t> ((uint32_t) first + kMemoryWindowBytes - 1, 0xFFFF);
-    Reply                               reply = session.ExecuteLine (std::format ("D {:04X}:{:04X}", first, last), CommandMode::AppleWin);
+    Reply                               reply = session.ExecuteViewLine (std::format ("D {:04X}:{:04X}", first, last));
 
 
 
@@ -1568,7 +1568,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
     //  instruction covers the longest the 6502 has. The range stops at $FFFF:
     //  one that ran past it wrapped to below its own start and listed nothing,
     //  which emptied any view within a screenful of the vectors.
-    code = session.ExecuteLine (std::format ("U {:04X}:{:04X}", codeStart, codeEnd), CommandMode::AppleWin);
+    code = session.ExecuteViewLine (std::format ("U {:04X}:{:04X}", codeStart, codeEnd));
 
     v.shown.clear();
 
@@ -1937,7 +1937,7 @@ Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int bef
     }
 
     first = (Word) (pc - (Word) (before * 3));
-    reply = session.ExecuteLine (std::format ("U {:04X}:{:04X}", first, pc), CommandMode::AppleWin);
+    reply = session.ExecuteViewLine (std::format ("U {:04X}:{:04X}", first, pc));
 
     if (const DisassemblyData * data = std::get_if<DisassemblyData> (&reply.data))
     {
@@ -2063,7 +2063,7 @@ void DebuggerViewState::MoveMemoryPane (const std::string & name, const std::str
 
 Word DebuggerViewState::GetInstructionLength (DebugSession & session, Word address)
 {
-    Reply                   code = session.ExecuteLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
+    Reply                   code = session.ExecuteViewLine (std::format ("U {:04X}", address));
     const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data);
 
 
@@ -2311,7 +2311,7 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
 
 std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session, Word address)
 {
-    Reply                   code    = session.ExecuteLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
+    Reply                   code    = session.ExecuteViewLine (std::format ("U {:04X}", address));
     const DisassemblyData * data    = std::get_if<DisassemblyData> (&code.data);
     size_t                  dollar  = std::string::npos;
     unsigned                operand = 0;
