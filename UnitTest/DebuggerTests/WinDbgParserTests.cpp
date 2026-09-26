@@ -297,6 +297,44 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0300,                 ParseOk ("!bload D:/0x2.bin 0x300").command.a1);
         }
 
+        //  x only looks up, so a symbol whose name is a SYM subcommand is found.
+        TEST_METHOD (SymbolLookup_NeverRunsTheSymSubcommands)
+        {
+            for (const char * line : { "x clear", "x on", "x off", "x load t.sym", "x save t.sym", "x name = 300", "x ! name" })
+            {
+                WinDbgParseResult  result = ParseOk (line);
+
+
+
+                Assert::AreEqual ((int) DebugVerb::LookupSymbol, (int) result.command.verb, Widen (line).c_str());
+                Assert::AreEqual (std::string (line + 2),         result.command.text,        Widen (line).c_str());
+            }
+        }
+
+        TEST_METHOD (EnterWithoutValues_SaysWhatIsMissing)
+        {
+            for (const char * line : { "eb 300", "ew 300", "eb", "ew" })
+            {
+                ParseFails (line, ParseStatus::Invalid);
+            }
+        }
+
+        TEST_METHOD (QuotedSearchText_KeepsItsSpaces)
+        {
+            WinDbgParseResult  result = ParseOk ("s 300 l100 \"A  B\"");
+
+
+
+            Assert::AreEqual ((size_t) 4, result.command.values.size());
+            Assert::AreEqual ((Byte) ' ', (Byte) (result.command.values[2] & 0x7F));
+        }
+
+        TEST_METHOD (Help_TakesACassoCommandWithItsMarker)
+        {
+            Assert::AreEqual (std::string ("mode"), ParseOk (".help !mode").command.text);
+            Assert::AreEqual (std::string ("bp"),   ParseOk (".help bp").command.text);
+        }
+
         TEST_METHOD (Malformed_ProducesAnErrorAndNoCommand)
         {
             Assert::AreEqual ((int) DebugVerb::None, (int) ParseFails ("db zzz_nope",  ParseStatus::Invalid).command.verb);
