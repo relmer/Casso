@@ -188,6 +188,15 @@ protected:
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
 
+    //  Protected so a test can apply a whole snapshot as a frame does, and
+    //  move the focus as a click does.
+    void            ApplyWholeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); ApplySnapshot(); }
+    void            FocusControl       (IDxuiControl * control) { SetFocusedControl (control); }
+    IDxuiControl  * GetFocusedControl  () const { return GetFocused(); }
+    DxuiListView  * GetWatchList       () const { return m_watchList; }
+    DxuiTextInput * GetPokeBox         () const { return m_pokeBox; }
+    DxuiTextInput * GetCommandBox      () const { return m_commandBox; }
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
