@@ -185,6 +185,30 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0xFFFF, ParseOk ("dd 300 l40000000").command.a2);
         }
 
+        TEST_METHOD (CommonExtensionsAndPointerDumps_ReportTheirFamily)
+        {
+            for (const char * line : { "!peb", "!teb", "!heap -s", "!handle", "!process 0 0", "!thread", "!address", "!gle",
+                                       "dps 300", "dds 300", "dqs 300", "dpa 300", "dpu 300", "! analyze -v" })
+            {
+                WinDbgParseResult  result = ParseFails (line, ParseStatus::NotAvailable);
+
+
+
+                Assert::IsTrue (result.error.find ("belongs to WinDbg's") != std::string::npos, Widen (std::string (line) +": " + result.error).c_str());
+            }
+        }
+
+        TEST_METHOD (Breakpoint_WithMoreThanTheAddress_IsAnError)
+        {
+            ParseFails ("bp 300 + 3",     ParseStatus::Invalid);
+            ParseFails ("bp 300 \"r; g\"", ParseStatus::Invalid);
+        }
+
+        TEST_METHOD (Step_TakesACount)
+        {
+            Assert::AreEqual ((uint32_t) 3, ParseOk ("p 3").command.count);
+        }
+
         TEST_METHOD (SourceLines_WithAndWithoutBackquotes)
         {
             for (const char * line : { "bp main.s:12", "bp `main.s:12`" })

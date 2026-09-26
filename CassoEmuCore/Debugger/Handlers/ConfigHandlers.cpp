@@ -77,7 +77,9 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 
 void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, std::optional<CommandMode> mode, Reply & result)
 {
-    size_t  start = 0;
+    size_t       start      = 0;
+    CommandMode  lineMode   = mode.value_or (session.GetLineMode());
+    CommandMode  modeBefore = lineMode;
 
 
 
@@ -105,7 +107,15 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         //  A blank line only ends the line assembler, as in batch.
         if ((!isBlank || session.IsAssembling()) && (isBlank || line[firstNonBlank] != ';'))
         {
-            RunScriptLine (session, line, mode, result);
+            modeBefore = session.GetMode();
+            RunScriptLine (session, line, lineMode, result);
+
+            //  A MODE line in a RUN or STARTUP script changes the mode of the
+            //  lines after it; LOAD's lines stay AppleWin lines.
+            if (!mode.has_value() && session.GetMode() != modeBefore)
+            {
+                lineMode = session.GetMode();
+            }
         }
 
         if (end == std::string::npos)
@@ -120,7 +130,7 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
     //  would end it, so the next line typed is a command again.
     if (session.IsAssembling())
     {
-        RunScriptLine (session, "", mode, result);
+        RunScriptLine (session, "", lineMode, result);
     }
 
     result.data = MessageData { result.text };
@@ -230,8 +240,8 @@ void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand
 //  ConfigHandlers::RunFile
 //
 //  LOAD runs its lines as AppleWin lines, which is what SAVE writes; RUN
-//  and STARTUP run theirs in the session's mode. The reply carries the
-//  first failing line's status.
+//  and STARTUP run theirs in the mode of the line that ran them. The reply
+//  carries the first failing line's status.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

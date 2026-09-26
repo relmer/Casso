@@ -130,8 +130,8 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "x",        C::SymbolsAndSource,   "x name",            "Look up a symbol",                            "SYM"           },
     { "?",        C::SessionAndSettings, "? expr",            "Evaluate an expression",                      "CALC"          },
     { ".formats", C::SessionAndSettings, ".formats expr",     "Show a value in every base",                  "CALC"          },
-    { "l+s",      C::SymbolsAndSource,   "l+s",               "Show source lines",                           "SRC"           },
-    { "l-s",      C::SymbolsAndSource,   "l-s",               "Hide source lines",                           "SRC"           },
+    { "l+s",      C::SymbolsAndSource,   "l+s",               "Step by source line",                         "SRC"           },
+    { "l-s",      C::SymbolsAndSource,   "l-s",               "Step by instruction",                         "SRC"           },
     { "lsa",      C::SymbolsAndSource,   "lsa",               "Show the source line at the PC",              "SRC"           },
     { ".help",    C::SessionAndSettings, ".help [word]",      "This list, or one command",                   "HELP ?"        },
 };

@@ -288,6 +288,23 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (WinDbgHelp_DescribesWhatSourceModeAndRegisterSetDo)
+        {
+            std::string  line;
+
+
+
+            Assert::IsTrue (CommandModeHelp::TryDescribe (CommandMode::WinDbg, "l+s", line));
+            Assert::IsTrue (line.find ("Step by source line") != std::string::npos, Widen (line).c_str());
+
+            Assert::IsTrue (CommandModeHelp::TryDescribe (CommandMode::WinDbg, "l-s", line));
+            Assert::IsTrue (line.find ("Step by instruction") != std::string::npos, Widen (line).c_str());
+
+            Assert::IsTrue (CommandModeHelp::TryDescribe (CommandMode::WinDbg, "r", line));
+            Assert::IsTrue (line.find ("r [reg[=value]]") != std::string::npos, Widen (line).c_str());
+        }
+
+
         TEST_METHOD (CassoMode_RunsEveryCommandByBareName_InAppleWinsFormat)
         {
             MockDebugTarget            target;
