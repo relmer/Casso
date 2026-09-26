@@ -70,6 +70,9 @@ public:
 
 private:
     static constexpr Byte             kJsr             = 0x20;
+    //  Recorded for an interrupt taken in place of an instruction: neither a
+    //  call nor a return.
+    static constexpr Byte             kNoOpcode        = 0x00;
     static constexpr DebugHookFilter  s_kNoInstruction = [] { DebugHookFilter none; none.everyInstruction = false; none.pages = {}; return none; }();
 
     void        UseIdleFilter    ();
@@ -79,6 +82,7 @@ private:
     void        TrackCall        (Word pc, Byte sp);
     static bool IsTransfer       (Byte opcode);
     Byte        PeekOpcode       (Word pc) const;
+    bool        IsInterruptDue   () const;
 
     //  The line at an address that a source step compares: the innermost for
     //  a step into, the outermost otherwise. Absent where no line produced

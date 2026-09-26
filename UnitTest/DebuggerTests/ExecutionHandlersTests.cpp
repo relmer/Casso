@@ -78,6 +78,33 @@ namespace DebuggerTests
 
 
 
+        //  An NMI taken in place of a JSR is not the JSR: P does not treat the
+        //  interrupt's push as the call and report a step back on the JSR it
+        //  never ran. It lands in the handler, as a step into does.
+        TEST_METHOD (StepOverAJsrPreemptedByAnNmi_IsNotReportedBackOnTheJsr)
+        {
+            static constexpr Word  kNmiUserVector = 0x03FB;
+            MachineRig             rig;
+
+
+
+            // $0300: JSR $0310 / NOP    $0310: RTS    $03FB: JMP $0320    $0320: RTI
+            rig.Load (0x0300, { 0x20, 0x10, 0x03, 0xEA }, 0x0300);
+            rig.Load (0x0310, { 0x60 }, 0x0300);
+            rig.Load (kNmiUserVector, { 0x4C, 0x20, 0x03 }, 0x0300);
+            rig.Load (0x0320, { 0x40 }, 0x0300);
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, true);
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, false);
+
+            rig.RunOk ("P");
+
+            Assert::AreNotEqual ((Word) 0x0300, rig.LastStop().pc, L"not back on the JSR that never ran");
+            Assert::AreEqual    ((Word) kNmiUserVector, rig.LastStop().pc, L"in the handler");
+            Assert::IsTrue      (rig.LastStop().reason == StopReason::Step);
+        }
+
+
+
         //  A step that is complete on the cycle the budget runs out is a step:
         //  the reason a client acts on wins over the budget.
         TEST_METHOD (AStepEndingAsTheBudgetRunsOut_IsAStep)
