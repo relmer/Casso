@@ -68,8 +68,10 @@ reaches everything the Monitor has no command for:
   `bpd` and `bpi` take a trailing `IF expression`, as in AppleWin mode.
 - An address may carry a bank, as on a IIgs: `00/300` is $0300. Any other bank
   is refused, since only bank 00 exists on these machines.
-- `m`, `x`, `map`, `video` and `novideo` are IIgs commands, and `debug` and
-  `nodebug` open device panels; these reply that they are not available.
+- `m`, `x`, `map`, `video` and `novideo` are IIgs commands; these reply that
+  they are not available. In the debugger window, `debug` lists the device
+  panels, `debug "name"` opens one and `nodebug "name"` closes it, as `PANEL`
+  does.
 - GSSquared itself steps by key rather than by command. In the debugger
   window, with the command line empty, Space and F10 step and Return runs, as
   in GSSquared; `s`, `o`, `r` and `g` are how a script does the same.

@@ -176,6 +176,9 @@ namespace DebuggerTests
             { "o",                          "P"                        },
             { "r",                          "RTS"                      },
             { "g",                          "G"                        },
+            { "debug",                      "PANEL"                    },
+            { "debug \"disk\"",             "PANEL disk"               },
+            { "nodebug \"disk\"",           "PANEL CLOSE disk"         },
         };
 
         static std::wstring Widen (const std::string & text)
@@ -194,9 +197,13 @@ namespace DebuggerTests
                 Reply     viaGs     = gssquared.session.ExecuteLine (row.gssquared);
                 Reply     viaAw     = appleWin.session.ExecuteLine  (row.appleWin);
 
+                //  PANEL is the window's own, so outside the window both modes
+                //  report it not available alike.
+                CommandStatus  expected = std::string_view (row.appleWin).starts_with ("PANEL") ? CommandStatus::NotAvailable : CommandStatus::Ok;
 
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) viaAw.status, Widen (std::string (row.appleWin) + ": " + viaAw.error.detail).c_str());
+
+                Assert::AreEqual ((int) expected, (int) viaAw.status, Widen (std::string (row.appleWin) + ": " + viaAw.error.detail).c_str());
                 Assert::AreEqual ((int) viaAw.status, (int) viaGs.status, Widen (std::string (row.gssquared) + ": " + viaGs.error.detail).c_str());
                 Assert::AreEqual (viaAw.data.index(), viaGs.data.index(), Widen (row.gssquared).c_str());
                 Assert::AreEqual (Widen (appleWin.DescribeEffect()), Widen (gssquared.DescribeEffect()), Widen (row.gssquared).c_str());

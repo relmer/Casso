@@ -2414,6 +2414,27 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  GSSquared's debug and nodebug are its words for PANEL.
+        TEST_METHOD (GSSquaredDebugAndNoDebugOpenListAndClosePanels)
+        {
+            PanelRig  rig;
+            Reply     reply;
+
+
+
+            reply = rig.Run ("debug \"fake\"", CommandMode::GSSquared);
+            Assert::IsTrue (reply.status == CommandStatus::Ok);
+            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"debug name opens");
+
+            reply = rig.Run ("debug", CommandMode::GSSquared);
+            Assert::IsTrue (Join (reply.text).find ("(open)") != std::string::npos, L"debug alone lists");
+
+            reply = rig.Run ("nodebug fake", CommandMode::GSSquared);
+            Assert::IsTrue  (reply.status == CommandStatus::Ok);
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"nodebug name closes");
+        }
+
+
         TEST_METHOD (APanelTheMachineLacksIsAnError)
         {
             PanelRig  rig;

@@ -357,9 +357,26 @@ namespace DebuggerTests
             Assert::IsTrue (Parse ("").commands.empty());
         }
 
-        TEST_METHOD (Debug_AndTheIIgsCommands_AreNotAvailable_WithTheirReason)
+        TEST_METHOD (Debug_AndNoDebug_ArePanelCommands)
         {
-            for (const char * line : { "debug \"disk\"", "debug", "nodebug \"disk\"", "m 8", "x 16", "map", "video hgr1", "novideo 1", "verify" })
+            DebugCommand  open  = One ("debug \"disk\"");
+            DebugCommand  close = One ("NODEBUG disk");
+
+
+
+            AssertVerb (DebugVerb::ListPanels, One ("debug"), "debug");
+            AssertVerb (DebugVerb::OpenPanel,  open,          "debug \"disk\"");
+            AssertVerb (DebugVerb::ClosePanel, close,         "NODEBUG disk");
+            Assert::AreEqual (std::string ("disk"), open.text);
+            Assert::AreEqual (std::string ("disk"), close.text);
+
+            Refused ("nodebug",            ParseStatus::Invalid);
+            Refused ("debug disk video",   ParseStatus::Invalid);
+        }
+
+        TEST_METHOD (TheIIgsCommands_AreNotAvailable_WithTheirReason)
+        {
+            for (const char * line : { "m 8", "x 16", "map", "video hgr1", "novideo 1", "verify" })
             {
                 GSSquaredParseResult  result = Refused (line, ParseStatus::NotAvailable);
 

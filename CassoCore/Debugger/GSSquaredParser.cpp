@@ -37,8 +37,8 @@ static constexpr GSSquaredCommand  s_kCommands[] =
     { "list",    nullptr },
     { "l",       nullptr },
     { "map",     "MAP needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU." },
-    { "debug",   "DEBUG needs a device panel in the debugger window, and this build has none." },
-    { "nodebug", "NODEBUG needs a device panel in the debugger window, and this build has none." },
+    { "debug",   nullptr },
+    { "nodebug", nullptr },
     { "sload",   nullptr },
     { "sclear",  nullptr },
     { "slookup", nullptr },
@@ -265,6 +265,7 @@ bool GSSquaredParser::TryParseWord (Line & line)
     else if (word == "watch" || word == "nowatch")  { ParseWatch           (line); }
     else if (word == "load" || word == "save")      { ParseFile            (line, word == "load"); }
     else if (word == "sload" || word == "slookup" || word == "sclear") { ParseSymbols (line, word); }
+    else if (word == "debug" || word == "nodebug")  { ParsePanel           (line, word == "nodebug"); }
     else if (word == "help" && line.tokens.size() == 2) { ParseAppleWin    (line, "HELP " + line.tokens[1], word); }
     else if (word == "help")                        { ParseNoArguments     (line, "HELP"); }
     else if (word == "s")                           { ParseNoArguments     (line, "T"); }
@@ -658,6 +659,39 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
     else if (TryParseAddress (line, line.tokens[1], value))
     {
         ParseAppleWin (line, std::format ("SYM {}", FormatHex (value)), std::string());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::ParsePanel
+//
+//  `debug` lists the device panels, `debug "name"` opens one and
+//  `nodebug "name"` closes it: PANEL, PANEL name and PANEL CLOSE name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::ParsePanel (Line & line, bool isClose)
+{
+    size_t  count = line.tokens.size();
+
+
+
+    if (count > 2 || (isClose && count != 2))
+    {
+        SetInvalid (line, isClose ? "NODEBUG takes a panel name." : "DEBUG takes a panel name or nothing.");
+    }
+    else if (count == 1)
+    {
+        ParseAppleWin (line, "PANEL", ToLower (line.tokens[0]));
+    }
+    else
+    {
+        ParseAppleWin (line, std::format ("PANEL {}{}", isClose ? "CLOSE " : "", Unquote (line.tokens[1])), ToLower (line.tokens[0]));
     }
 }
 

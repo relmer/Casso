@@ -6,6 +6,7 @@
 
 #include "Debugger/DebugSession.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/GSSquaredParser.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Debugger/AppleWinCommandTable.h"
@@ -1236,6 +1237,8 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     std::string              argument;
     const AppleWinCommand  * entry    = nullptr;
     Reply                    reply;
+    GSSquaredParseResult     parsed;
+    DebugVerb                verb     = DebugVerb::None;
 
 
 
@@ -1243,6 +1246,21 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     //  AppleWin's.
     if (mode == CommandMode::GSSquared || mode == CommandMode::WinDbg)
     {
+        //  debug and nodebug are GSSquared's PANEL, which the window runs.
+        if (mode == CommandMode::GSSquared && !session.IsAssembling())
+        {
+            parsed = GSSquaredParser::Parse (line, session);
+            verb   = parsed.commands.size() == 1 ? parsed.commands.front().verb : DebugVerb::None;
+
+            if (verb == DebugVerb::ListPanels || verb == DebugVerb::OpenPanel || verb == DebugVerb::ClosePanel)
+            {
+                reply.command = line;
+                RunPanelCommand (session, parsed.commands.front(), reply);
+                session.FormatReply (reply, mode);
+                return reply;
+            }
+        }
+
         return ExecuteLine (session, line, mode);
     }
 
