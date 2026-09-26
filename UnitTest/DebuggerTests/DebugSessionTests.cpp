@@ -333,6 +333,23 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (MachineSwitch_RestartsBreakpointNumbering)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+
+
+
+            session.GetBreakpoints().AddAddress (0x0300, 0x0300);
+            session.GetWatchpoints().Add (WatchAccess::Write, 0x0400, 0x0400);
+            session.OnMachineChanged ("Apple2c");
+
+            Assert::AreEqual (0, session.GetBreakpoints().AddAddress (0x0300, 0x0300));
+        }
+
+
+
         TEST_METHOD (ModeSwitch_KeepsTables)
         {
             MockDebugTarget  target;
