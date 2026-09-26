@@ -7,7 +7,8 @@
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DebugSession.h"
-#include "Disassembler.h"
+#include "Microcode.h"
+#include "OpcodeTable.h"
 
 
 
@@ -702,27 +703,66 @@ void BreakpointHandlers::RemoveBrkOpcodes (DebugSession & session)
 //
 //  BreakpointHandlers::IsInvalidOfLength
 //
-//  An opcode the CPU's table does not define, whose length the disassembler
-//  reports as the given one; an undefined opcode with no length counts as
-//  one byte.
+//  An undocumented opcode of the given length on the target's CPU.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BreakpointHandlers::IsInvalidOfLength (DebugSession & session, Byte opcode, int length)
 {
-    const Microcode  * set    = session.GetTarget().GetInstructionSet();
-    Disassembler       disassembler (set);
-    size_t             bytes  = 0;
+    const Microcode  * set = session.GetTarget().GetInstructionSet();
 
 
 
-    if (set == nullptr || set[opcode].isLegal)
+    if (set == nullptr)
     {
         return false;
     }
 
-    bytes = disassembler.GetLength (opcode);
-    return (int) std::max<size_t> (bytes, 1) == length;
+    return GetInvalidLength (set, opcode) == length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::GetInvalidLength
+//
+//  The length of an undocumented opcode, or 0 for a documented one.
+//
+//  An opcode the table executes but hides from the assembler (the stable
+//  NMOS undocumented opcodes, the 65C02's NOP fill) takes the length of its
+//  addressing mode. Of the opcodes the table leaves undefined, those in
+//  column 2 are the NMOS JAMs, which halt the CPU and count as one byte. The
+//  rest are the unstable NMOS opcodes: they decode their operand the way the
+//  ALU instruction in the same row and column group does ($9B as $99, $AB
+//  as $A9), so they take that instruction's length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointHandlers::GetInvalidLength (const Microcode * set, Byte opcode)
+{
+    constexpr Byte     kColumnMask = 0x0F;
+    constexpr Byte     kJamColumn  = 0x02;
+    constexpr Byte     kGroupMask  = 0x03;
+    constexpr Byte     kAluGroup   = 0x01;
+    const Microcode  & entry       = set[opcode];
+    Byte               sibling     = (Byte) ((opcode & ~kGroupMask) | kAluGroup);
+
+
+
+    if (entry.isLegal)
+    {
+        return entry.assemblerHidden ? 1 + OpcodeTable::GetOperandSize (entry.globalAddressingMode) : 0;
+    }
+
+    if ((opcode & kColumnMask) == kJamColumn || !set[sibling].isLegal)
+    {
+        return 1;
+    }
+
+    return 1 + OpcodeTable::GetOperandSize (set[sibling].globalAddressingMode);
 }
 
 

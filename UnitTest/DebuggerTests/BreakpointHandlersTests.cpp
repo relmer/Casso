@@ -25,11 +25,71 @@ namespace DebuggerTests
     {
     public:
 
-        using Rig = HandlerRig<BreakpointHandlers>;
+        using Rig        = HandlerRig<BreakpointHandlers>;
+        using MachineRig = MachineHandlerRig<BreakpointHandlers>;
 
         static std::vector<std::string> List (Rig & rig)
         {
             return rig.RunOk ("BPL").text;
+        }
+
+        // The opcodes BRK <length> ON arms on the machine's own CPU, in
+        // ascending order and written as hex, so a mismatch shows both lists.
+        static std::string ArmOpcodes (const char * machine, int length)
+        {
+            MachineRig   rig (machine);
+            std::string  opcodes;
+            std::string  on  = std::format ("BRK {} ON", length);
+            std::string  off = std::format ("BRK {} OFF", length);
+
+
+
+            rig.RunOk (on);
+
+            for (const Breakpoint & entry : rig.session.GetBreakpoints().GetAll())
+            {
+                if (entry.kind == BreakpointKind::Opcode)
+                {
+                    opcodes += std::format ("{:02X} ", entry.opcode);
+                }
+            }
+
+            rig.RunOk (off);
+            Assert::IsTrue (rig.session.GetBreakpoints().GetAll().empty(), L"OFF clears every entry ON added");
+            return opcodes;
+        }
+
+
+
+        TEST_METHOD (BRK_Lengths_NmosTable)
+        {
+            // Stable undocumented opcodes take their table lengths, the
+            // unstable ones not in the table take their column's operand
+            // length, and only the twelve JAMs count as one byte.
+            Assert::AreEqual (std::string ("02 12 1A 22 32 3A 42 52 5A 62 72 7A 92 B2 D2 DA F2 FA "),
+                              ArmOpcodes ("Apple2e", 1));
+
+            Assert::AreEqual (std::string ("03 04 07 0B 13 14 17 23 27 2B 33 34 37 43 44 47 4B 53 54 57 63 64 67 6B 73 74 77 "
+                                           "80 82 83 87 89 8B 93 97 A3 A7 AB B3 B7 C2 C3 C7 CB D3 D4 D7 E2 E3 E7 EB F3 F4 F7 "),
+                              ArmOpcodes ("Apple2e", 2));
+
+            Assert::AreEqual (std::string ("0C 0F 1B 1C 1F 2F 3B 3C 3F 4F 5B 5C 5F 6F 7B 7C 7F "
+                                           "8F 9B 9C 9E 9F AF BB BF CF DB DC DF EF FB FC FF "),
+                              ArmOpcodes ("Apple2e", 3));
+        }
+
+
+
+        TEST_METHOD (BRK_Lengths_CmosTable)
+        {
+            // Every 65C02 opcode is defined; the undocumented ones are the NOP
+            // fill, at their real one-, two- and three-byte lengths.
+            Assert::AreEqual (std::string ("03 0B 13 1B 23 2B 33 3B 43 4B 53 5B 63 6B 73 7B "
+                                           "83 8B 93 9B A3 AB B3 BB C3 CB D3 DB E3 EB F3 FB "),
+                              ArmOpcodes ("Apple2eEnhanced", 1));
+
+            Assert::AreEqual (std::string ("02 22 42 44 54 62 82 C2 D4 E2 F4 "), ArmOpcodes ("Apple2eEnhanced", 2));
+            Assert::AreEqual (std::string ("5C DC FC "),                         ArmOpcodes ("Apple2eEnhanced", 3));
         }
 
 
@@ -95,22 +155,16 @@ namespace DebuggerTests
 
         TEST_METHOD (BRK_BRKOP_BRKINT_Forms)
         {
+            static constexpr size_t  kNmosOneByte = 18;   // six implied NOPs and twelve JAMs
+
             TestCpu                   cpu;
             Rig                       rig;
             std::vector<std::string>  lines;
-            size_t                    invalidOneByte = 0;
 
 
 
             cpu.InitForTest();
             rig.target.instructionSet = cpu.GetInstructionSet();
-
-            for (int opcode = 0; opcode < 256; ++opcode)
-            {
-                invalidOneByte += !cpu.GetInstructionSet()[opcode].isLegal ? 1 : 0;
-            }
-
-            Assert::IsTrue (invalidOneByte > 0, L"the 6502 table has undefined opcodes to break on");
 
             Assert::AreEqual (std::string ("#0 enabled  on BRK, hits 0"), rig.RunOk ("BRK ON").text.at (0));
             lines = rig.RunOk ("BRK").text;
@@ -122,7 +176,7 @@ namespace DebuggerTests
             Assert::IsFalse  (rig.session.ShouldStopBefore (0x0300));
 
             lines = rig.RunOk ("BRK 1 ON").text;
-            Assert::AreEqual (invalidOneByte, lines.size(), L"one entry per undefined one-byte opcode");
+            Assert::AreEqual (kNmosOneByte, lines.size(), L"one entry per undocumented one-byte opcode");
             Assert::AreEqual (std::string ("Invalid opcodes: 1-byte on 2-byte off 3-byte off"), rig.RunOk ("BRK").text.at (1));
             Assert::AreEqual (std::string ("Invalid opcodes: 1-byte off 2-byte off 3-byte off"), rig.RunOk ("BRK 1 OFF").text.at (1));
             Assert::IsTrue   (List (rig).at (0) == "No breakpoints.");

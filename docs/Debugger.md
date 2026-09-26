@@ -279,6 +279,21 @@ first hit.
 `BPMV addr value` stops after a write leaves `addr` holding `value`, and on no
 other write.
 
+## Breaking on opcodes
+
+`BRK ON` stops on the `BRK` instruction, and `BRKOP op` on any opcode. `BRK 1
+ON`, `BRK 2 ON` and `BRK 3 ON` add an opcode breakpoint for each undocumented
+opcode of that instruction length on the machine's CPU, `BRK ALL ON` adds all
+of them plus `BRK`, and `BRK` alone reports which lengths are on. The length is
+the one the CPU executes:
+
+- **6502**: the stable undocumented opcodes (`SLO`, `LAX`, the multi-byte
+  `NOP`s and the rest) take the length of their addressing mode, and the
+  unstable ones (`ANE`, `SHX`, `LAS` and the rest) the length of their operand.
+  Only the twelve `JAM` opcodes, which halt the CPU, are one byte.
+- **65C02**: every opcode is defined, and the undocumented ones are `NOP`s: 32
+  one-byte, eleven two-byte and three three-byte (`$5C`, `$DC`, `$FC`).
+
 ## Source-level debugging
 
 A debug file maps addresses to source lines. Casso reads cc65's debug format

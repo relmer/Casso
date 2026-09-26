@@ -6,6 +6,7 @@
 #include "Debugger/WatchpointTable.h"
 
 class DebugSession;
+class Microcode;
 
 
 
@@ -67,6 +68,7 @@ private:
     static void  RemoveInvalidOpcodes (DebugSession & session, int length);
     static void  RemoveBrkOpcodes     (DebugSession & session);
     static bool  IsInvalidOfLength    (DebugSession & session, Byte opcode, int length);
+    static int   GetInvalidLength     (const Microcode * set, Byte opcode);
     static void  ReportBrk            (DebugSession & session, Reply & reply);
     static bool  HasInterrupt         (DebugSession & session);
 
