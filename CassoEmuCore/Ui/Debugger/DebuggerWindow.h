@@ -11,6 +11,7 @@
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
+#include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/StopChanges.h"
@@ -236,6 +237,7 @@ private:
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
+    void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> extra);
     void     AddListMenuItems   (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     void     AddShowInMemory    (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     static int  GetColumnAt     (const DxuiListView * list, int xPx);
@@ -382,6 +384,7 @@ private:
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
+    ConsoleHistory                                  m_consoleHistory;
 
     DxuiToolbar                                                                    * m_commandBar         = nullptr;
     std::unique_ptr<DebuggerCommands>                                                m_commands;
@@ -398,6 +401,7 @@ private:
     std::array<DxuiListView *, DebuggerViewState::kMaxCodeViews>                     m_codeLists          = {};
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxCodeViews> m_codeFrames;
     std::array<bool, DebuggerViewState::kMaxCodeViews>                               m_codeOpen           = { true };
+    uint32_t                                                                         m_shownPaneSerial    = 0;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
     int                                                                              m_activeCode         = 0;
     DxuiListView                                                                   * m_registerList       = nullptr;

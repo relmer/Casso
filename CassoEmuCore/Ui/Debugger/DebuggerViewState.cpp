@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/InstructionEffect.h"
 
 #include "Debugger/DebugSession.h"
@@ -60,10 +61,12 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 
 
 
-    snapshot.isPaused = isPaused;
-    snapshot.mode     = session.GetMode();
-    snapshot.goTo     = m_goTo;
-    snapshot.machine  = session.GetTarget().GetMachineInfo().name;
+    snapshot.isPaused       = isPaused;
+    snapshot.mode           = session.GetMode();
+    snapshot.goTo           = m_goTo;
+    snapshot.showPane       = m_showPane;
+    snapshot.showPaneSerial = m_showPaneSerial;
+    snapshot.machine        = session.GetTarget().GetMachineInfo().name;
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
     {
@@ -1257,15 +1260,7 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
         break;
 
     case AppleWinCommandFamily::Window:
-        if (std::string_view (entry->name).starts_with ("SOURCE"))
-        {
-            reply.SetError (CommandStatus::NotAvailable, "command not available", "SOURCE needs a link to an assembler listing.");
-        }
-        else
-        {
-            reply.data = MessageData { { "This window shows every pane at once." } };
-        }
-
+        ShowWindowPane (session, entry->name, reply);
         break;
 
     case AppleWinCommandFamily::Views:
@@ -1281,6 +1276,69 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
     session.FormatReply (reply, mode);
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ShowWindowPane
+//
+//  AppleWin's window commands switch its one screen between views. Here every
+//  view is a pane, so they bring one forward: CODE and CODE1 the first
+//  disassembly, CODE2 the second, DATA and DATA1 the first memory window,
+//  DATA2 the second, CONSOLE the console. A second view that is not open
+//  opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply)
+{
+    if (name.starts_with ("SOURCE"))
+    {
+        reply.SetError (CommandStatus::NotAvailable, "command not available", "SOURCE needs a link to an assembler listing.");
+        return;
+    }
+
+    if (name == "CONSOLE")
+    {
+        m_showPane = DebuggerLayout::kConsole;
+    }
+    else if (name == "CODE" || name == "CODE1")
+    {
+        m_showPane = DebuggerLayout::GetCodePaneId (0);
+    }
+    else if (name == "CODE2")
+    {
+        if (!IsCodeViewOpen (1))
+        {
+            OpenCodeView (1, session.GetTarget().GetRegisters().pc);
+        }
+
+        m_showPane = DebuggerLayout::GetCodePaneId (1);
+    }
+    else if (name == "DATA" || name == "DATA1")
+    {
+        m_showPane = DebuggerLayout::GetMemoryPaneId (1);
+    }
+    else if (name == "DATA2")
+    {
+        if (!GetMemoryWindowAddress (2).has_value())
+        {
+            OpenMemoryWindow (2, m_memoryAddress);
+        }
+
+        m_showPane = DebuggerLayout::GetMemoryPaneId (2);
+    }
+    else
+    {
+        reply.data = MessageData { { "This window shows every pane at once." } };
+        return;
+    }
+
+    ++m_showPaneSerial;
 }
 
 

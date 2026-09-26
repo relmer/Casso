@@ -1594,9 +1594,11 @@ bool DebuggerWindow::RouteConsoleMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
+    //  A press still selects in the output, but typing goes to the command
+    //  line, as it does in a terminal.
     if (ev.kind == DxuiMouseEventKind::Down)
     {
-        SetFocusedControl (m_consoleView);
+        SetFocusedControl (m_commandBox);
     }
 
     (void) m_consoleView->OnMouse (ev);
@@ -2706,6 +2708,21 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         return false;
     }
 
+    //  The console's two parts are text: the command line edits, the output
+    //  only copies.
+    if (GetPaneOfControl (m_consoleView) == pane && m_commandBox->IsVisible() && DxuiDockSite::Contains (m_commandBox->GetBounds(), clientPx))
+    {
+        SetFocusedControl (m_commandBox);
+        ShowEditMenu (m_commandBox, clientPx, {});
+        return true;
+    }
+
+    if (GetPaneOfControl (m_consoleView) == pane && m_consoleView->IsVisible() && DxuiDockSite::Contains (m_consoleView->GetBounds(), clientPx))
+    {
+        ShowEditMenu (m_consoleView, clientPx, { { L"Clear", [this] { m_console.clear(); m_consoleView->SetRows ({}); } } });
+        return true;
+    }
+
     for (DxuiListView * list : GetLists())
     {
         bounds = list->GetBounds();
@@ -2733,11 +2750,6 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         }
     }
 
-    if (DxuiDockSite::Contains (m_consoleView->GetBounds(), clientPx) && m_consoleView->IsVisible() && GetPaneOfControl (m_consoleView) == pane)
-    {
-        items.push_back ({ L"Copy",  [this] { m_consoleView->CopySelection(); } });
-        items.push_back ({ L"Clear", [this] { m_console.clear(); m_consoleView->SetRows ({}); } });
-    }
 
     if (memory != nullptr)
     {
@@ -2763,6 +2775,63 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     DxuiContextMenu::Show (*GetPopupHost(), clientPx.x, clientPx.y, std::move (menu));
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowEditMenu
+//
+//  Cut, Copy, Paste and Select all, as far as the control does them, each
+//  dimmed when it has nothing to act on; then the extra rows after a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> extra)
+{
+    static constexpr std::tuple<DxuiStandardCommand, const wchar_t *, const wchar_t *>  s_kEdits[] =
+    {
+        { DxuiStandardCommand::Cut,       L"Cut",        L"Ctrl+X" },
+        { DxuiStandardCommand::Copy,      L"Copy",       L"Ctrl+C" },
+        { DxuiStandardCommand::Paste,     L"Paste",      L"Ctrl+V" },
+        { DxuiStandardCommand::SelectAll, L"Select all", L"Ctrl+A" },
+    };
+    std::vector<DxuiPopupMenuItem>  menu;
+    bool                            enabled = false;
+
+
+
+    m_menuCommands.clear();
+    SetCommandBarMenus();
+
+    for (const auto & [command, label, accelerator] : s_kEdits)
+    {
+        if (!control->QueryCommand (command, enabled))
+        {
+            continue;
+        }
+
+        m_menuCommands.push_back (MakeMenuCommand (label, false, [this, control, command] { (void) control->InvokeCommand (command); Invalidate(); }));
+        m_menuCommands.back()->accelerator = accelerator;
+        m_menuCommands.back()->isEnabled   = [control, command] { bool on = false; return control->QueryCommand (command, on) && on; };
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    if (!extra.empty())
+    {
+        menu.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    for (auto & [label, action] : extra)
+    {
+        m_menuCommands.push_back (MakeMenuCommand (label, false, action));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), clientPx.x, clientPx.y, std::move (menu));
 }
 
 
@@ -3323,6 +3392,29 @@ void DebuggerWindow::ApplySnapshot()
     ApplySource();
     ApplyDiagnostics();
     KeepOpenViews();
+
+    //  CODE, DATA or CONSOLE: the pane comes forward, even from an edge, and
+    //  takes the keys. The console's keys go to its command line.
+    if (m_snapshot->showPaneSerial != m_shownPaneSerial)
+    {
+        std::vector<IDxuiControl *>  controls = GetPaneControls (m_snapshot->showPane);
+        IDxuiControl               * content  = controls.empty() ? nullptr : controls.front();
+
+
+
+        m_shownPaneSerial = m_snapshot->showPaneSerial;
+        m_dockSite->ActivatePane (m_snapshot->showPane);
+
+        if (m_snapshot->showPane == DebuggerLayout::kConsole)
+        {
+            content = m_commandBox;
+        }
+
+        if (content != nullptr && IsRoutable (content))
+        {
+            SetFocusedControl (content);
+        }
+    }
 }
 
 
@@ -3868,7 +3960,8 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 void DebuggerWindow::SubmitCommandBox()
 {
     HRESULT                   hr      = S_OK;
-    std::string               line    = TextEncoding::WideToNarrow (m_commandBox->GetText());
+    std::wstring              typed   = m_commandBox->GetText();
+    std::string               line    = TextEncoding::WideToNarrow (typed);
     std::optional<DebugVerb>  fileVerb;
     FileDialogSpec            spec;
     std::filesystem::path     chosen;
@@ -3895,6 +3988,12 @@ void DebuggerWindow::SubmitCommandBox()
 
         line = DebuggerViewState::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
     }
+
+    m_consoleHistory.Add (typed);
+
+    //  Running a command shows its output, however far back the console was
+    //  scrolled.
+    m_consoleView->SetTopLine (m_consoleView->GetLineCount());
 
     m_host->RunDebuggerCommand (line);
     m_commandBox->SetText (L"");
@@ -5966,6 +6065,32 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && ev.ctrl && !ev.alt && ev.vk == 'Z')
     {
         UndoWatchEdit();
+        return true;
+    }
+
+    //  Ctrl+C with nothing selected in the command line copies what is
+    //  selected in the output above it, where a click leaves the focus.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && ev.ctrl && !ev.alt && ev.vk == 'C' &&
+        m_commandBox->GetSelectionStart() == m_commandBox->GetSelectionEnd() && m_consoleView->HasSelection())
+    {
+        m_consoleView->CopySelection();
+        return true;
+    }
+
+    //  Up and Down in the command line walk the lines run before.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && !ev.ctrl && !ev.alt && (ev.vk == VK_UP || ev.vk == VK_DOWN))
+    {
+        std::optional<std::wstring>  recalled = (ev.vk == VK_UP) ? m_consoleHistory.GetOlder (m_commandBox->GetText()) : m_consoleHistory.GetNewer();
+
+
+
+        if (recalled.has_value())
+        {
+            m_commandBox->SetText (*recalled);
+            m_commandBox->SetSelection (recalled->size(), recalled->size());
+            Invalidate();
+        }
+
         return true;
     }
 

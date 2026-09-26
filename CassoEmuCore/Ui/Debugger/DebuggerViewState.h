@@ -180,6 +180,11 @@ struct DebuggerViewSnapshot
     std::optional<SourceState>            source;
     TraceState                            trace;
 
+    //  The pane CODE, DATA or CONSOLE last asked to bring forward. The
+    //  window acts on it once, when the serial changes.
+    std::wstring                          showPane;
+    uint32_t                              showPaneSerial = 0;
+
     //  Every device of the machine that publishes a panel, whether its panel
     //  is open, and the rows of each open one.
     struct PanelInfo
@@ -444,6 +449,7 @@ private:
 
     static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
     void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
+    void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
@@ -505,6 +511,8 @@ private:
     Word                                         m_memoryAddress = 0x0000;
     std::optional<uint64_t>                      m_traceTop;
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
+    std::wstring                                 m_showPane;
+    uint32_t                                     m_showPaneSerial = 0;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
 

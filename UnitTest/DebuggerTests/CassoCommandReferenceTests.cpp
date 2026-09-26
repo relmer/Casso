@@ -29,11 +29,11 @@ namespace DebuggerTests
         static bool IsListed (const AppleWinCommand & command)
         {
             //  Accepted and reported, never run: not available, or of no
-            //  effect in a window that shows every pane at once.
+            //  effect in a window that shows every pane at once. CODE, DATA
+            //  and CONSOLE bring a pane forward, so they are listed.
             static constexpr const char * kOnlyReported[] =
             {
-                "BENCHMARK", "EXITBENCH", "SOURCE1", "SOURCE2", "WIN", "WINDOW", "CODE", "CODE1", "CODE2",
-                "CONSOLE", "DATA", "DATA1", "DATA2", "\\",
+                "BENCHMARK", "EXITBENCH", "SOURCE1", "SOURCE2", "WIN", "WINDOW", "\\",
             };
 
             bool  isRunnable = command.availability == CommandAvailability::Headless ||

@@ -14,6 +14,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
@@ -1763,13 +1764,49 @@ namespace DebuggerViewStateTests
 
 
 
+        //  CODE, DATA and CONSOLE bring a pane forward; the second disassembly
+        //  and memory window open when they are not.
+        TEST_METHOD (WindowNamesBringAPaneForward)
+        {
+            MachineRig            rig;
+            DebugSession        & session  = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot = rig.view.Build (session);
+            uint32_t              serial   = snapshot.showPaneSerial;
+
+
+
+            Assert::IsTrue   (RunInWindow (rig, "CONSOLE").status == CommandStatus::Ok);
+            snapshot = rig.view.Build (session);
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), snapshot.showPane);
+            Assert::AreEqual (serial + 1, snapshot.showPaneSerial);
+
+            Assert::IsFalse  (rig.view.IsCodeViewOpen (1));
+            RunInWindow (rig, "code2");
+            snapshot = rig.view.Build (session);
+            Assert::AreEqual (DebuggerLayout::GetCodePaneId (1), snapshot.showPane);
+            Assert::IsTrue   (rig.view.IsCodeViewOpen (1), L"CODE2 opens the second disassembly");
+
+            RunInWindow (rig, "DATA2");
+            snapshot = rig.view.Build (session);
+            Assert::AreEqual (DebuggerLayout::GetMemoryPaneId (2), snapshot.showPane);
+            Assert::IsTrue   (rig.view.GetMemoryWindowAddress (2).has_value(), L"DATA2 opens the second memory window");
+
+            RunInWindow (rig, "DATA2");
+            Assert::AreEqual (serial + 4, rig.view.Build (session).showPaneSerial, L"the same pane asked again is asked again");
+
+            RunInWindow (rig, "/CODE", CommandMode::Monitor);
+            Assert::AreEqual (DebuggerLayout::GetCodePaneId (0), rig.view.Build (session).showPane, L"a / line in Monitor mode");
+        }
+
+
+
         TEST_METHOD (LayoutViewAndAppearanceNamesReplyWithoutChangingThePanes)
         {
             MachineRig  rig;
 
 
 
-            Assert::IsTrue (RunInWindow (rig, "CODE").status    == CommandStatus::Ok,           L"every pane is shown");
+            Assert::IsTrue (RunInWindow (rig, "WIN").status     == CommandStatus::Ok,           L"every pane is shown");
             Assert::IsTrue (RunInWindow (rig, "SOURCE1").status == CommandStatus::NotAvailable, L"no listing link");
             Assert::IsTrue (RunInWindow (rig, "HGR").status     == CommandStatus::NotAvailable, L"a screen view");
             Assert::IsTrue (RunInWindow (rig, "BW").status      == CommandStatus::NotAvailable, L"appearance");

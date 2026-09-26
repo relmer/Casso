@@ -166,6 +166,13 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
 
     { "->",          H::DisplayAndPanels,   "->",                                             "Move the code pane to the operand's address"                                             },
     { ".",           H::DisplayAndPanels,   ".",                                              "Make the code pane follow PC again"                                                      },
+    { "CODE",        H::DisplayAndPanels,   "CODE",                                           "Bring the disassembly forward"                                                           },
+    { "CODE1",       H::DisplayAndPanels,   "CODE1",                                          "Bring the first disassembly forward"                                                     },
+    { "CODE2",       H::DisplayAndPanels,   "CODE2",                                          "Bring the second disassembly forward, opening it"                                        },
+    { "CONSOLE",     H::DisplayAndPanels,   "CONSOLE",                                        "Bring the console forward"                                                               },
+    { "DATA",        H::DisplayAndPanels,   "DATA",                                           "Bring the memory window forward"                                                         },
+    { "DATA1",       H::DisplayAndPanels,   "DATA1",                                          "Bring the first memory window forward"                                                   },
+    { "DATA2",       H::DisplayAndPanels,   "DATA2",                                          "Bring the second memory window forward, opening it"                                      },
     { "M1",          H::DisplayAndPanels,   "M1 addr",                                        "Move the memory pane to a hex address"                                                   },
     { "M2",          H::DisplayAndPanels,   "M2 addr",                                        "Move the memory pane to a hex address"                                                   },
     { "MA1",         H::DisplayAndPanels,   "MA1 addr",                                       "Move the memory pane to a hex address"                                                   },
