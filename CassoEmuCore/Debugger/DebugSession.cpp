@@ -1184,8 +1184,33 @@ bool DebugSession::HasPendingStop() const
 void DebugSession::OnStopped (const StopEvent & stop)
 {
     StopEvent  event = stop;
+    Reply      next;
 
 
+
+    if (event.reason == StopReason::Step && m_stepsLeft > 0 && m_nextStep.has_value())
+    {
+        --m_stepsLeft;
+        m_stepCycles += event.cycles;
+        m_state       = RunState::Paused;
+
+        if (m_nextStep->budget.has_value())
+        {
+            m_nextStep->budget = (*m_nextStep->budget > event.cycles) ? *m_nextStep->budget - event.cycles : 1;
+        }
+
+        ExecuteRun (DebugCommand (*m_nextStep), next);
+
+        if (next.status == CommandStatus::Ok)
+        {
+            return;
+        }
+    }
+
+    event.cycles += m_stepCycles;
+    m_stepCycles  = 0;
+    m_stepsLeft   = 0;
+    m_nextStep.reset();
 
     if (event.reason == StopReason::Breakpoint && m_beforeHit.has_value())
     {
@@ -1638,6 +1663,18 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     if (request.kind == RunKind::StepOut)
     {
         SetStepOutFrame (request);
+    }
+
+    //  The run stop hook counts instructions, which is what T n asks for. A
+    //  step over, a step out or a source step is not a count of instructions,
+    //  so it runs as single steps, each begun as the last one ends. The last
+    //  stop, or any stop that is not a step's end, clears them.
+    if (request.count > 1 && (request.kind == RunKind::StepOver || request.kind == RunKind::StepOut || request.lineTable != nullptr))
+    {
+        m_nextStep        = command;
+        m_nextStep->count = 1;
+        m_stepsLeft       = request.count - 1;
+        request.count     = 1;
     }
 
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;

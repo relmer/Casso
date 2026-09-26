@@ -300,4 +300,11 @@ private:
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;
+
+    //  A counted step over, step out or source step runs as that many single
+    //  steps: the one to start after each step completes, how many are left,
+    //  and the cycles the steps before it took.
+    std::optional<DebugCommand>           m_nextStep;
+    uint32_t                              m_stepsLeft     = 0;
+    uint64_t                              m_stepCycles    = 0;
 };

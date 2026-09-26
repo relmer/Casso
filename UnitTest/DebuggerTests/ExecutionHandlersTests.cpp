@@ -44,6 +44,63 @@ namespace DebuggerTests
 
 
 
+        //  P n and RTS n take n steps, as T n does, and announce one stop.
+        TEST_METHOD (CountedStepOverAndStepOut_TakeEveryStep)
+        {
+            MachineRig  rig;
+            size_t      stops = 0;
+
+
+
+            // $0300: JSR $0310 / NOP / JMP $0300    $0310: INX / RTS
+            rig.Load (0x0300, { 0x20, 0x10, 0x03, 0xEA, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.Load (0x0310, { 0xE8, 0x60 }, 0x0300);
+
+            stops = rig.sink.stops.size();
+            rig.RunOk ("P 3");
+            Assert::AreEqual ((Word) 0x0300,   rig.LastStop().pc, L"over the call, the NOP and the JMP");
+            Assert::AreEqual ((uint8_t) 1,     rig.LastStop().registers.x, L"the call ran once");
+            Assert::AreEqual (stops + 1,       rig.sink.stops.size(), L"one stop announced");
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Step);
+
+            // $0300: JSR $0320 / NOP    $0320: JSR $0330 / RTS    $0330: NOP / RTS
+            rig.Load (0x0300, { 0x20, 0x20, 0x03, 0xEA }, 0x0300);
+            rig.Load (0x0320, { 0x20, 0x30, 0x03, 0x60 }, 0x0300);
+            rig.Load (0x0330, { 0xEA, 0x60 }, 0x0300);
+            rig.RunOk ("T 2");
+            Assert::AreEqual ((Word) 0x0330, rig.LastStop().pc, L"two calls deep");
+
+            stops = rig.sink.stops.size();
+            rig.RunOk ("RTS 2");
+            Assert::AreEqual ((Word) 0x0303, rig.LastStop().pc, L"out of both routines");
+            Assert::AreEqual (stops + 1,     rig.sink.stops.size());
+        }
+
+
+
+        //  A breakpoint partway through a counted step ends it there.
+        TEST_METHOD (CountedStep_EndsAtABreakpoint)
+        {
+            MachineRig  rig;
+
+
+
+            // $0300: JSR $0310 / NOP / JMP $0300    $0310: INX / RTS
+            rig.Load (0x0300, { 0x20, 0x10, 0x03, 0xEA, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.Load (0x0310, { 0xE8, 0x60 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0304, 0x0304);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("P 5");
+            Assert::AreEqual ((Word) 0x0304, rig.LastStop().pc);
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Breakpoint);
+
+            rig.RunOk ("P");
+            Assert::AreEqual ((Word) 0x0300, rig.LastStop().pc, L"the next P is a single step again");
+        }
+
+
+
         TEST_METHOD (Steps_Go_RunTo_AndSetPc)
         {
             MachineRig  rig;

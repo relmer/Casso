@@ -147,10 +147,18 @@ bool RunStopHook::ShouldStopBefore (Word pc)
         TrackCall (pc, sp);
     }
 
+    //  A run that ends on an instruction with a breakpoint stops for the
+    //  breakpoint: its hit is counted, its condition tested, and a temporary
+    //  one cleared, as if the run had gone on to reach it.
     if (m_active && !isFirst && IsRunComplete (pc, sp))
     {
         m_stopped = true;
         m_reason  = (m_request.kind == RunKind::RunTo || m_request.kind == RunKind::Go) ? StopReason::RunTo : StopReason::Step;
+
+        if (m_conditions != nullptr && m_conditions->ShouldStopBefore (pc))
+        {
+            m_reason = StopReason::Breakpoint;
+        }
     }
     else if (m_conditions != nullptr && !isFirst && m_conditions->ShouldStopBefore (pc))
     {
