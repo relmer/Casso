@@ -83,6 +83,28 @@ void ExecutionHandlers::OnRunStopped (DebugSession & session, const StopEvent & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExecutionHandlers::OnMachineChanged
+//
+//  The profile's opcodes were the old CPU's, which the new one may decode
+//  differently, and its cycle count is not the new machine's, so the counts
+//  and the instruction waiting to be billed go. Profiling stays on or off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::OnMachineChanged (DebugSession & session)
+{
+    (void) session;
+
+    m_profile.Reset();
+    m_profilePending.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecutionHandlers::SetProgramCounter
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,6 +402,14 @@ void ExecutionHandlers::BillProfile (DebugSession & session)
         return;
     }
 
+    //  A power cycle restarts the count under the pending instruction, so
+    //  what it cost is unknown and it is not billed.
+    if (target.GetCycleCount() < m_profilePending->startCycles)
+    {
+        m_profilePending.reset();
+        return;
+    }
+
     cycles    = target.GetCycleCount() - m_profilePending->startCycles;
     penalties = target.GetLastPenalties();
 
@@ -545,12 +575,27 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     std::string         verb;
     std::string         argument;
     std::string         extra;
+    std::string         rest;
     ProfileData         data;
 
 
 
-    stream >> verb >> argument >> extra;
+    stream >> verb;
+    std::getline (stream, rest);
     verb = SymbolTable::ToUpper (verb);
+
+    //  The file name is the rest of the line, so a quoted name may hold
+    //  spaces.
+    if (verb == "SAVE")
+    {
+        rest = TrimSpaces (rest);
+        SaveProfile (session, rest.empty() ? kDefaultProfile : rest, reply);
+        return;
+    }
+
+    stream.clear();
+    stream.str (rest);
+    stream >> argument >> extra;
 
     if (verb == "ON" && argument.empty())
     {
@@ -568,10 +613,6 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
         m_profile.Reset();
         m_profilePending.reset();
         reply.data = MessageData { { "Profile reset." } };
-    }
-    else if (verb == "SAVE" && extra.empty())
-    {
-        SaveProfile (session, argument.empty() ? kDefaultProfile : argument, reply);
     }
     else if ((verb.empty() || verb == "LIST") && extra.empty() && (argument.empty() || SymbolTable::ToUpper (argument) == "ADDR"))
     {
@@ -600,10 +641,9 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
 
 void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::istringstream  stream (command.text);
-    std::string         token;
-    std::string         name;
-    bool                withVideo = false;
+    std::string  name      = TrimSpaces (command.text);
+    size_t       split     = 0;
+    bool         withVideo = false;
 
 
 
@@ -615,10 +655,24 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
         return;
     }
 
-    while (stream >> token)
+    //  v is a word of its own before or after the name; the rest of the line
+    //  is the name, so a quoted name may hold spaces.
+    split = name.find_last_of (" \t");
+
+    if (name == "v" || name == "V")
     {
-        if (token == "v" || token == "V") { withVideo = true; }
-        else                              { name = token; }
+        withVideo = true;
+        name.clear();
+    }
+    else if (split != std::string::npos && (name.substr (split + 1) == "v" || name.substr (split + 1) == "V"))
+    {
+        withVideo = true;
+        name      = TrimSpaces (name.substr (0, split));
+    }
+    else if (name.starts_with ("v ") || name.starts_with ("V ") || name.starts_with ("v\t") || name.starts_with ("V\t"))
+    {
+        withVideo = true;
+        name      = TrimSpaces (name.substr (1));
     }
 
     if (session.GetFileSystem() == nullptr)
@@ -792,4 +846,29 @@ Byte ExecutionHandlers::Peek (IDebugTarget & target, Word address)
 
     target.TryPeek (address, value);
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::TrimSpaces
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExecutionHandlers::TrimSpaces (const std::string & text)
+{
+    size_t  first = text.find_first_not_of (" \t");
+    size_t  last  = text.find_last_not_of (" \t");
+
+
+
+    if (first == std::string::npos)
+    {
+        return std::string();
+    }
+
+    return text.substr (first, last - first + 1);
 }

@@ -35,6 +35,7 @@ public:
     bool  TryExecute    (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction (DebugSession & session, Word pc) override;
     void  OnRunStopped  (DebugSession & session, const StopEvent & stop) override;
+    void  OnMachineChanged (DebugSession & session) override;
 
 private:
     static constexpr Byte    kNop                 = 0xEA;
@@ -84,6 +85,7 @@ private:
     void         FlushTrace        (DebugSession & session);
     void         FeedKeys          (DebugSession & session);
     static Byte  Peek              (IDebugTarget & target, Word address);
+    static std::string  TrimSpaces (const std::string & text);
 
     TraceState                         m_trace;
     ProfileTable                       m_profile;

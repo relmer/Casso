@@ -411,6 +411,43 @@ namespace DebuggerTests
 
 
 
+        //  A quoted file name with a space in it is one name, as HISTORY SAVE
+        //  takes it.
+        TEST_METHOD (PROFILE_SAVE_TakesAQuotedNameWithSpaces)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::AreEqual (std::string ("Saved the profile to \"my profile.txt\"."), rig.RunOk ("PROFILE SAVE \"my profile.txt\"").text.at (0));
+            Assert::IsFalse  (rig.files.PeekContent (L"C:\\Work\\my profile.txt").empty());
+        }
+
+
+
+        //  The counts were gathered on the old machine's CPU, whose opcodes the
+        //  new one may decode differently, so a machine switch clears them.
+        TEST_METHOD (PROFILE_MachineSwitch_ClearsTheCounts)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xE8, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0302, 0x0302);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("PROFILE ON");
+            rig.RunOk ("G");
+            Assert::AreEqual (std::string ("Instructions: 2, cycles: 4"), rig.RunOk ("PROFILE").text.at (0));
+
+            rig.session.OnMachineChanged ("Apple //e Enhanced");
+            Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0));
+        }
+
+
+
         TEST_METHOD (PROFILE_SeparatesPenaltiesFromBaseCycles)
         {
             MachineRig                rig;
@@ -509,6 +546,32 @@ namespace DebuggerTests
             rig.RunOk ("TF trace.txt");
             rig.RunOk ("TF");
             Assert::AreEqual ((size_t) 2, SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt")).size());
+        }
+
+
+
+        //  A quoted file name with a space in it is one name, with v before
+        //  or after it.
+        TEST_METHOD (TF_TakesAQuotedNameWithSpaces)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            Assert::AreEqual (std::string ("Trace on: \"my trace.txt\""), rig.RunOk ("TF \"my trace.txt\"").text.at (0));
+            rig.RunOk ("G");
+            rig.RunOk ("TF");
+            Assert::AreEqual ((size_t) 2, SplitLines (rig.files.PeekContent (L"C:\\Work\\my trace.txt")).size());
+
+            rig.RunOk ("TF \"video trace.txt\" v");
+            rig.RunOk ("= 300");
+            rig.RunOk ("G");
+            Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\video trace.txt").starts_with ("V"), L"v after the name");
         }
 
 

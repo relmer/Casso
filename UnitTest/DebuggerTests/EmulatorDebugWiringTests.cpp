@@ -789,6 +789,42 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  A power cycle between two slices of a profiled run restarts the
+        //  cycle count under the instruction still waiting to be billed. The
+        //  profile holds no more cycles than the run took.
+        TEST_METHOD (APowerCycleDuringAProfiledRunBillsNoWrappedCount)
+        {
+            Rig                  rig;
+            Reply                reply;
+            const ProfileData  * data    = nullptr;
+            uint64_t             start   = 0;
+            uint64_t             elapsed = 0;
+
+
+
+            rig.session.SetInstructionObserver (&rig.execution);
+            (void) rig.session.ExecuteLine ("PAUSE");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PROFILE ON").status);
+
+            start = rig.target.GetCycleCount();
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("G").status);
+            rig.RunFrames (1);
+            elapsed = rig.target.GetCycleCount() - start;
+
+            rig.machine.PowerCycle();
+            rig.RunFrames (1);
+            elapsed += rig.target.GetCycleCount();
+            (void) rig.session.ExecuteLine ("PAUSE");
+
+            reply = rig.session.ExecuteLine ("PROFILE");
+            data  = std::get_if<ProfileData> (&reply.data);
+            Assert::IsNotNull (data);
+            Assert::IsTrue    (data->instructions > 0, L"the run was profiled");
+            Assert::IsTrue    (data->cycles <= elapsed, L"no instruction was billed a wrapped count");
+        }
+
+
+
         //  A step in the emulator runs on the CPU thread after the command
         //  returns. Until it stops, the machine may not be changed under it.
         TEST_METHOD (MachineWritesWaitForAStepToStop)
