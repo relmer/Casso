@@ -159,7 +159,7 @@ namespace DebugModeTests
             rig.AssertOutputIs ("stop.jsonl");
         }
 
-        //  SC-004: two runs of one script are the same bytes, in both forms.
+        //  Two runs of one script are the same bytes, in both forms.
         TEST_METHOD (TwoRuns_ProduceTheSameBytes)
         {
             BatchRig     text;
@@ -267,7 +267,7 @@ namespace DebugModeTests
             rig.AssertOutputIs ("modes.txt");
         }
 
-        //  Quickstart Story 14: WinDbg mode's commands in its own layouts, the
+        //  WinDbg mode's commands in its own layouts, the
         //  excluded families, `!` reaching the engine, and the three ways of
         //  writing one address.
         TEST_METHOD (WinDbgScript_ProducesTheExpectedText)
@@ -344,7 +344,7 @@ namespace DebugModeTests
 
 
 
-        //  Quickstart Story 12 steps 1-5: GSSquared's commands in its own
+        //  GSSquared's commands in its own
         //  layouts, the steps, a breakpoint set here listed by the Monitor's
         //  /bpl, the output format changed alone and reset by MODE, BPR with
         //  its operator unspaced, the bank rules, a IIgs command, and an
@@ -400,7 +400,7 @@ namespace DebugModeTests
 
 
 
-        //  Quickstart Story 10: an IF breakpoint on a loop that counts A up
+        //  An IF breakpoint on a loop that counts A up
         //  stops once, with A at $41; a value breakpoint stops after the
         //  write that makes $06 hold 7; an IF expression that reads an I/O
         //  address is an error, which sets the exit status, and creates
@@ -466,7 +466,7 @@ namespace DebugModeTests
             rig.AssertOutputIs ("assemble.txt");
         }
 
-        //  Quickstart Story 11: a loop of LDA $10FF,X with X crossing the page
+        //  A loop of LDA $10FF,X with X crossing the page
         //  three times in four, profiled. The crossing cycles and the taken
         //  branches are billed apart from the base cycles, the hottest address
         //  carries its symbol, and SAVE writes the same rows to a file.
