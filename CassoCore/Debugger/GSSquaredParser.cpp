@@ -357,6 +357,14 @@ void GSSquaredParser::ParseBreakpoint (Line & line)
         return;
     }
 
+    // A GSSquared range uses a period and a bank a slash, so a colon is a
+    // source line, file:line, which only the AppleWin BP reads.
+    if (line.tokens[1].find (':') != std::string::npos)
+    {
+        ParseAppleWin (line, std::format ("BP {}{}", line.tokens[1], clause), "bp");
+        return;
+    }
+
     if (TryParseRange (line, line.tokens[1], first, last))
     {
         ParseAppleWin (line, std::format ("BP {}{}", FormatRange (first, last), clause), "bp");
@@ -389,6 +397,14 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
     Word                   last     = 0;
 
 
+
+    // GSSquared's bpd always takes an access, so bpd with one argument is
+    // AppleWin's BPD: disable the breakpoint with that id.
+    if (!isIo && line.tokens.size() == 2)
+    {
+        ParseAppleWin (line, "BPD " + line.tokens[1], "bpd");
+        return;
+    }
 
     if (line.tokens.size() < 3 || !TryGetIfClause (line.tokens, 3, clause))
     {
@@ -438,6 +454,7 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
 void GSSquaredParser::ParseClearBreakpoint (Line & line)
 {
     static constexpr size_t  kAddressDigits = 4;
+    static constexpr size_t  kMaxIdDigits   = 9;
     DebugCommand             command;
     std::string              token;
     bool                     isDecimal      = false;
@@ -452,7 +469,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
     }
 
     token     = line.tokens[1];
-    isDecimal = token.find_first_not_of ("0123456789") == std::string::npos && token.size() <= kAddressDigits;
+    isDecimal = token.find_first_not_of ("0123456789") == std::string::npos && token.size() <= kMaxIdDigits;
     hasBank   = token.find ('/') != std::string::npos;
 
     command.verb       = DebugVerb::ClearBreakpoint;

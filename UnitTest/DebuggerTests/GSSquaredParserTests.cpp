@@ -85,13 +85,37 @@ namespace DebuggerTests
 
 
 
-        //  An id is at most four decimal digits, as an address is at most four
-        //  hex ones; a longer number is an error reply, never an exception.
+        //  Ids keep counting past four digits, so a five-digit id clears; a
+        //  number too long for an id is an error reply, never an exception.
         TEST_METHOD (Nobp_AnIdTooLongIsAnError)
         {
-            Assert::AreEqual ((uint32_t) 9999, One ("nobp 9999").count);
-            Refused ("nobp 99999",                ParseStatus::Invalid);
+            Assert::AreEqual ((uint32_t) 9999,  One ("nobp 9999").count);
+            Assert::AreEqual ((uint32_t) 12345, One ("nobp 12345").count);
             Refused ("nobp 99999999999999999999", ParseStatus::Invalid);
+        }
+
+
+        //  GSSquared's bpd always takes an access, so bpd with one argument
+        //  disables that id, as the window's toggle sends it.
+        TEST_METHOD (Bpd_OneArgumentDisablesAnId)
+        {
+            DebugCommand  command = One ("BPD 1");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::DisableBreakpoint, (int) command.verb);
+            Assert::AreEqual ((uint32_t) 1,                       command.count);
+        }
+
+
+        //  A source line has a colon, which no GSSquared address has.
+        TEST_METHOD (Bp_SourceLineSetsASourceBreakpoint)
+        {
+            DebugCommand  command = One ("bp main.s:12");
+
+
+
+            Assert::AreEqual ((int) AppleWinParser::Parse ("BP main.s:12", context).command.verb, (int) command.verb);
         }
 
         TEST_METHOD (Address_ExaminesOneByte)
