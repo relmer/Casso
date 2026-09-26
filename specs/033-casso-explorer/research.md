@@ -110,6 +110,30 @@ Explorer's list shows a horizontal scrollbar once a column is cut off, as
 Casso Explorer's does; its navigation pane never shows one, so Casso
 Explorer's tree no longer does either.
 
+### The light theme
+
+Measured 2026-09-25 with Windows' apps set to light for the capture and set
+back after, both windows 1601x900 on the 125% display and 2100x1300 on the
+portrait display at 200%, the session locked, so no pointer and no hover.
+
+| | File Explorer | Casso Explorer before |
+|---|---|---|
+| Caption and tab strip | #E8E8E8 | #E8E8E8 |
+| Line under the tab strip, broken under the selected tab | #DADADA | none |
+| Address strip, box | #F8F8F8, #FDFDFD | the same |
+| Command bar, and the lines above and below it | #FFFFFF, #D6D6D6 | the same |
+| List | #FFFFFF | #FFFFFF |
+| Lines between column titles | #E5E5E5 | #D6D6D6 |
+| Selected row, pane focused | #CCE8FF, outlined #000000 | #CCE4F7, outlined #5D5D5D |
+| Selected row, pane not focused (the tree) | #D9D9D9, outlined #949494 | #CCE4F7 |
+
+The selected row's box is the same in either theme and at either scale: 2 dip
+shorter than the row at top and bottom (a 24 dip box in a 28 dip row at 200%,
+31 pixels in 37 at 125%), ending 4 dip short of the last column's right edge
+rather than running across the list's empty width. A row under the pointer is
+#E5F3FF, measured 2026-09-23. A pressed row needs a click and was not
+measured.
+
 ## R1. Executable shape
 
 **Finding**: `Casso.vcxproj` holds one comment-only `Main.cpp`, one `.rc`,
