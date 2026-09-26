@@ -87,6 +87,7 @@ private:
     static bool    TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseMemoryArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseDataArguments     (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    IsBlockName               (const std::string & text);
     static bool    TryParseListArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseSymbolArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseOutputArguments   (const Arguments & args, DebugCommand & command, std::string & error);

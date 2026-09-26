@@ -47,5 +47,6 @@ private:
     static bool  TryGetTable    (const DebugCommand & command, SymbolTableId & table);
     static bool  TryParseHex    (const std::string & text, Word & value);
     static bool  TryGetFileName (const std::string & text, std::string & name, int & offset, std::string & error);
+    static bool  HasOffset      (const std::string & text);
     static std::string  Trim    (const std::string & text);
 };

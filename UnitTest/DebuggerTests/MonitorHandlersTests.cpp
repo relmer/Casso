@@ -6,6 +6,7 @@
 #include "EmuTests/TestMachine.h"
 #include "HandlerTestRig.h"
 #include "MockDebugTarget.h"
+#include "TestHelpers.h"
 #include "UiTests/InMemoryFileSystem.h"
 
 #include "CppUnitTest.h"
@@ -101,6 +102,26 @@ namespace DebuggerTests
             }
         };
 
+
+
+        //  L on its own goes on from where the last listing ended, as the
+        //  Monitor's does, not from $0000.
+        TEST_METHOD (List_WithoutAddress_ContinuesFromTheLastListing)
+        {
+            Rig          rig;
+            TestCpu      cpu;
+            std::string  line;
+
+
+
+            cpu.InitForTest();
+            rig.target.instructionSet = cpu.GetInstructionSet();
+            rig.RunOk ("300: EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA");
+            rig.RunOk ("300L");
+
+            line = rig.Line ("L", 0);
+            Assert::IsTrue (line.starts_with ("0314"), Widen (line).c_str());
+        }
 
 
         ////////////////////////////////////////////////////////////////////////

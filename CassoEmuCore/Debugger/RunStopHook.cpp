@@ -201,7 +201,13 @@ bool RunStopHook::ShouldStopBefore (Word pc)
             }
 
             m_lastOpcode = isInterruptDue ? kNoOpcode : PeekOpcode (pc);
-            ++m_instructions;
+
+            //  A call the step runs over is one instruction, its JSR: what
+            //  runs inside it does not count toward a step's count.
+            if (!m_callSp.has_value())
+            {
+                ++m_instructions;
+            }
         }
 
         if (m_conditions != nullptr)
@@ -356,7 +362,8 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
 //
 //  Into: the first instruction of a line other than the one the step began
 //  on. Over: the same, outside any call the step made, or any instruction
-//  once the routine the step began in has returned.
+//  once the routine the step began in has returned or jumped out. A pull
+//  within the line raises the stack as well, and does not end the step.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -376,7 +383,7 @@ bool RunStopHook::IsSourceStepComplete (Word pc, Byte sp) const
         break;
 
     case RunKind::StepOver:
-        isComplete = !m_callSp.has_value() && (isNewLine || sp > m_startSp);
+        isComplete = !m_callSp.has_value() && (isNewLine || (sp > m_startSp && IsTransfer (m_lastOpcode)));
         break;
 
     default:
