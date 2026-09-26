@@ -996,6 +996,9 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
 //
 //  DebugSession::OnReset
 //
+//  A reset abandons the stack a Monitor `G` pushed its return onto, so the
+//  stop at that return is disarmed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::OnReset (bool isPowerCycle)
@@ -1003,6 +1006,10 @@ void DebugSession::OnReset (bool isPowerCycle)
     Word  pc = m_target.GetRegisters().pc;
 
 
+
+    m_monitorReturn.reset();
+    m_monitorReturned = false;
+    UpdateHookInstalled();
 
     m_callRecorder.OnReset (pc, PeekByte (pc), isPowerCycle);
     m_sink.OnReset (isPowerCycle);
@@ -1255,6 +1262,10 @@ bool DebugSession::HasPendingStop() const
 //  machine, leaves the session paused and is announced. The breakpoint or
 //  watchpoint that caused it is attached here, where it was recorded.
 //
+//  The Monitor's return stays armed across a stop that is not its own: the
+//  address a Monitor `G` pushed is still on the stack, so a breakpoint partway
+//  through the program does not let the final RTS run on into the ROM.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::OnStopped (const StopEvent & stop)
@@ -1342,7 +1353,6 @@ void DebugSession::OnStopped (const StopEvent & stop)
     m_watchpoints.ClearPending();
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
-    m_monitorReturn.reset();
     m_monitorReturned = false;
     m_state = RunState::Paused;
 
@@ -2247,7 +2257,7 @@ void DebugSession::RefreshHookFilter()
 
 bool DebugSession::HasStopConditions() const
 {
-    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value();
+    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_monitorReturn.has_value();
 }
 
 

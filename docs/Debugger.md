@@ -162,6 +162,12 @@ A stop is reported with its reason and address, for example
 `Breakpoint #0 at $FDED` or `Step at $0302`. In the Monitor output format a stop prints the
 register line instead.
 
+In Monitor mode, `addrG` first pushes the Monitor's return address ($FF69), as
+the Monitor's own `G` does, so a program that ends in `RTS` comes back and
+stops there as a run to, rather than running on into the ROM. That stop stays
+armed until the program reaches it, through any breakpoint or step along the
+way; another Monitor `addrG`, a reset or a machine change replaces or clears it.
+
 Breakpoints (`BP`, `BPM`, `BPMR`, `BPMW`, `BPR`, `BPL`, `BPC`, `BPD`, `BPE`),
 watches (`W`, `WL`, `WC`) and the rest of AppleWin's commands are listed by
 `HELP`.

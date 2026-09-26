@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "HandlerTestRig.h"
 
@@ -143,6 +144,64 @@ namespace DebuggerTests
             Assert::IsTrue   (rig.LastStop().reason == StopReason::RunTo, L"not a breakpoint");
             Assert::IsFalse  (rig.LastStop().breakpointId.has_value());
             Assert::AreEqual ((uint8_t) 1, rig.LastStop().registers.x, L"the program ran");
+        }
+
+
+
+        //  A breakpoint partway through a program started by a Monitor G
+        //  leaves the return armed: resuming, the final RTS stops at the
+        //  Monitor's return rather than running on into the ROM.
+        TEST_METHOD (MonitorGo_ABreakpointPartwayLeavesTheReturnArmed)
+        {
+            MachineRig          rig;
+            BreakpointHandlers  breakpoints;
+
+
+
+            // $0300: INX / INX / RTS
+            rig.Load (0x0300, { 0xE8, 0xE8, 0x60 }, 0x0400);
+            rig.session.AddHandler (&breakpoints);
+            rig.RunOk ("BUDGET 100000");
+            rig.RunOk ("BP 301");
+
+            (void) rig.session.ExecuteLine ("300G", CommandMode::Monitor);
+            Assert::AreEqual ((Word) 0x0301, rig.LastStop().pc, L"at the breakpoint");
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Breakpoint);
+
+            rig.RunOk ("G");
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::RunTo, L"not the budget, in the Monitor ROM");
+            Assert::AreEqual ((Word) 0xFF69, rig.LastStop().pc, L"at the Monitor's return");
+            Assert::AreEqual ((uint8_t) 2,   rig.LastStop().registers.x, L"the program ran to its end");
+        }
+
+
+
+        //  A reset abandons the stack the Monitor's return was pushed onto, so
+        //  it no longer stops a run that later passes through that address.
+        TEST_METHOD (MonitorGo_AResetDisarmsTheReturn)
+        {
+            MachineRig          rig;
+            BreakpointHandlers  breakpoints;
+
+
+
+            // $0300: INX / INX / RTS
+            rig.Load (0x0300, { 0xE8, 0xE8, 0x60 }, 0x0400);
+            rig.session.AddHandler (&breakpoints);
+            rig.RunOk ("BUDGET 100000");
+            rig.RunOk ("BP 301");
+
+            (void) rig.session.ExecuteLine ("300G", CommandMode::Monitor);
+            Assert::AreEqual ((Word) 0x0301, rig.LastStop().pc, L"at the breakpoint");
+
+            rig.machine.SoftReset();
+            rig.session.OnReset (false);
+
+            // $0300: JMP $FF69
+            rig.Load (0x0300, { 0x4C, 0x69, 0xFF }, 0x0300);
+            rig.RunOk ("BPC *");
+            rig.RunOk ("G");
+            Assert::IsTrue (rig.LastStop().reason == StopReason::Budget, L"no stop at the Monitor's return after a reset");
         }
 
 
