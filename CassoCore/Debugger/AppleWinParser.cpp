@@ -314,7 +314,14 @@ bool AppleWinParser::TryParseRunArguments (const Arguments & args, DebugCommand 
         command.hasA1 = !args.tokens.empty();
         if (args.tokens.size() > 1 && !TryParseRange (args.tokens[1], *args.context, skip, error))   { return false; }
         command.a2    = skip.a1;
-        command.a3    = skip.a2;
+        command.a3    = skip.hasA2 ? skip.a2 : skip.a1;
+
+        if (command.a3 < command.a2)
+        {
+            error = "The skip range ends before it starts.";
+            return false;
+        }
+
         command.hasA2 = args.tokens.size() > 1;
         command.hasA3 = command.hasA2;
         return true;

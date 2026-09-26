@@ -460,6 +460,21 @@ namespace DebuggerTests
 
         //  A number too large for its field is an error reply, never an
         //  exception out of the parser: nothing above it would catch one.
+        //  A skip range of one address is that address alone; a range whose
+        //  end is below its start is an error.
+        TEST_METHOD (Go_SkipRangeOfOneAddress)
+        {
+            DebugCommand  command = ParseOk ("G FFFF 300").command;
+
+
+
+            Assert::IsTrue   (command.hasA2 && command.hasA3);
+            Assert::AreEqual ((Word) 0x0300, command.a2);
+            Assert::AreEqual ((Word) 0x0300, command.a3, L"the range ends where it starts");
+            Assert::AreEqual ((Word) 0x03FF, ParseOk ("GG FFFF 300:3FF").command.a3);
+            ParseFails ("G FFFF 400:300", ParseStatus::Invalid);
+        }
+
         TEST_METHOD (NumbersTooLargeForTheirField_AreErrors)
         {
             MockExpressionContext  context;

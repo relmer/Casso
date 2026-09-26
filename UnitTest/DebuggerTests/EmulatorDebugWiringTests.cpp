@@ -692,5 +692,44 @@ namespace EmulatorDebugWiringTests
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("= 300").status, L"setting the PC is not refused as running");
             Assert::AreEqual ((Word) 0x0300, rig.target.GetRegisters().pc);
         }
+
+
+
+        //  JSR changes the stack and the PC, so a running machine is left alone.
+        TEST_METHOD (JsrWhileFreeRunningChangesNothing)
+        {
+            Rig               rig;
+            Cpu6502Registers  before = rig.target.GetRegisters();
+            Reply             reply  = rig.session.ExecuteLine ("JSR 310");
+
+
+
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+            Assert::AreEqual (before.pc, rig.target.GetRegisters().pc);
+            Assert::AreEqual (before.sp, rig.target.GetRegisters().sp, L"nothing pushed");
+        }
+
+
+
+        //  A step in the emulator runs on the CPU thread after the command
+        //  returns. Until it stops, the machine may not be changed under it.
+        TEST_METHOD (MachineWritesWaitForAStepToStop)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFrames (5);
+            (void) rig.session.ExecuteLine ("PAUSE");
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("T 100").status);
+            Assert::IsTrue   (rig.session.GetRunState() == RunState::Stepping, L"the step is still on foot");
+            Assert::AreEqual (std::string ("machine running"), rig.session.ExecuteLine ("= 300").error.label);
+            Assert::AreEqual (std::string ("machine running"), rig.session.ExecuteLine ("JSR 310").error.label);
+
+            rig.RunFrames (50);
+            Assert::IsTrue   (rig.session.GetRunState() == RunState::Paused, L"the step ended");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("= 300").status);
+        }
     };
 }

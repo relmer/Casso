@@ -211,10 +211,10 @@ Reply DebugSession::Execute (const DebugCommand & command)
         return reply;
     }
 
-    //  Registers and memory are changed only with the machine stopped
-    //  (FR-103): a running program would overwrite the change, or be changed
-    //  under the code using it.
-    if (IsMachineWrite (command.verb) && (m_state == RunState::FreeRunning || m_state == RunState::DebugRun))
+    //  Registers and memory are changed only with the machine stopped: a
+    //  running program would overwrite the change, or be changed under the
+    //  code using it. A step in the emulator is still running until it stops.
+    if (IsMachineWrite (command.verb) && m_state != RunState::Paused)
     {
         SetError (reply, CommandStatus::Error, "machine running",
                   std::format ("{} changes registers or memory. Pause the machine first.", command.sourceName));
@@ -249,6 +249,7 @@ bool DebugSession::IsMachineWrite (DebugVerb verb)
     switch (verb)
     {
     case DebugVerb::SetProgramCounter:
+    case DebugVerb::CallSubroutine:
     case DebugVerb::WriteNop:
     case DebugVerb::SetRegister:
     case DebugVerb::ClearFlag:
