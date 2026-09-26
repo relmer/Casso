@@ -1726,6 +1726,26 @@ namespace DebuggerViewStateTests
 
 
 
+        TEST_METHOD (ArrowGoesToABitBranchTarget)
+        {
+            MachineRig  rig ("Apple2eEnhanced");
+            Reply       reply;
+
+
+
+            //  BBR0 $12,+$10 at $0310: the target is $0310 + 3 + $10.
+            rig.machine.GetMemoryBus().WriteByte (0x0310, 0x0F);
+            rig.machine.GetMemoryBus().WriteByte (0x0311, 0x12);
+            rig.machine.GetMemoryBus().WriteByte (0x0312, 0x10);
+
+            rig.view.SetCodeAddress (0x0310);
+            reply = RunInWindow (rig, "->");
+            Assert::IsTrue   (reply.status == CommandStatus::Ok, L"BBR0 has a branch target");
+            Assert::AreEqual ((Word) 0x0323, rig.view.GetCodeAddress().value_or (0));
+        }
+
+
+
         TEST_METHOD (MiniMemoryCommandsMoveTheMemoryPane)
         {
             MachineRig  rig;

@@ -2323,6 +2323,11 @@ std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session
         return std::nullopt;
     }
 
+    if (data->lines[0].instruction.hasTarget)
+    {
+        return data->lines[0].instruction.target;
+    }
+
     const std::string & text = data->lines[0].instruction.operand;
 
     dollar = text.find ('$');

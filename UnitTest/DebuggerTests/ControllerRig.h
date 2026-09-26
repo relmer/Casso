@@ -36,8 +36,8 @@ public:
 
 
 
-    ControllerRig() :
-        machine    (std::string ("Apple2e"), TestMachine::Slots::Empty),
+    explicit ControllerRig (const std::string & machineName = "Apple2e") :
+        machine    (machineName, TestMachine::Slots::Empty),
         controller (machine, Paused (cpuManager), transport, files, nullptr, 1)
     {
         machine.GetMemoryBus().WriteByte (0x0300, 0xA9);
