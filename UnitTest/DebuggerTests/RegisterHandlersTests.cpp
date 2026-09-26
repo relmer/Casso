@@ -67,6 +67,7 @@ namespace DebuggerTests
             rig.RunFails ("R Q 1",   "invalid arguments");
 
             Assert::IsTrue (rig.RunFails ("R =41", "invalid arguments").error.detail.starts_with ("R takes"), L"no empty register name in the message");
+            Assert::AreEqual (std::string ("S takes a byte, $00-$FF, or a stack address $0100-$01FF."), rig.RunFails ("R S 200", "value out of range").error.detail);
         }
 
 

@@ -2265,28 +2265,26 @@ void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string 
 
 void DebuggerViewState::MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply)
 {
-    int32_t      address = 0;
+    int          id      = name.ends_with ('2') ? 2 : 1;
+    Word         address = 0;
     std::string  error;
-    HRESULT      hr      = E_INVALIDARG;
-    int          window  = 1;
 
 
 
-    if (!argument.empty())
-    {
-        hr = DebugExpressionEvaluator::ParseAndEvaluate (argument, session, address, error);
-    }
-
-    if (FAILED (hr) || address < 0 || address > 0xFFFF)
+    if (argument.empty())
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs an address.", name));
         return;
     }
 
-    window = name.ends_with ('2') ? 2 : 1;
+    if (!AppleWinParser::TryEvaluate (argument, session, address, error))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", error);
+        return;
+    }
 
-    GoToMemory (window, (Word) address);
-    reply.data = MessageData { { std::format ("Memory window {} is at ${:04X}.", window, address) } };
+    GoToMemory (id, address);
+    reply.data = MessageData { { std::format ("Memory window {} is at ${:04X}.", id, address) } };
 }
 
 

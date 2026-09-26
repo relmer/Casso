@@ -6,6 +6,7 @@
 #include "Config/IFileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/AppleWinCommandTable.h"
+#include "Debugger/AppleWinParser.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -809,25 +810,7 @@ bool ConfigHandlers::TryUnquote (const std::string & item, std::string & text)
 
 bool ConfigHandlers::TryEvaluate (DebugSession & session, const std::string & text, Word & value, std::string & error)
 {
-    constexpr int32_t  kMaxWord = 0xFFFF;
-    int32_t            result   = 0;
-    HRESULT            hr       = DebugExpressionEvaluator::ParseAndEvaluate (text, session, result, error);
-
-
-
-    if (FAILED (hr))
-    {
-        return false;
-    }
-
-    if (result < 0 || result > kMaxWord)
-    {
-        error = std::format ("{} is outside $0000-$FFFF.", text);
-        return false;
-    }
-
-    value = (Word) result;
-    return true;
+    return AppleWinParser::TryEvaluate (text, session, value, error);
 }
 
 
