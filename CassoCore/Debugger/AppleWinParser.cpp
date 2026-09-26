@@ -894,9 +894,11 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
         // A quoted file name may hold spaces; the range follows the quote.
         if (args.tokens[0][0] == '"')
         {
-            size_t  open  = args.rest.find ('"');
-            size_t  close = args.rest.find ('"', open + 1);
-            Tokens  after;
+            size_t       open  = args.rest.find ('"');
+            size_t       close = args.rest.find ('"', open + 1);
+            size_t       gap   = 0;
+            std::string  tail;
+            Tokens       after;
 
 
 
@@ -907,7 +909,17 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
             }
 
             command.text = args.rest.substr (open + 1, close - open - 1);
-            after        = Split (args.rest.substr (close + 1));
+            tail         = args.rest.substr (close + 1);
+
+            // A format word may follow the closing quote: "my file.bin",RAW.
+            if (!tail.empty() && tail[0] == ',')
+            {
+                gap           = tail.find_first_of (" \t");
+                command.text += tail.substr (0, gap);
+                tail          = (gap == std::string::npos) ? std::string() : tail.substr (gap);
+            }
+
+            after = Split (tail);
             return after.empty() || TryParseRange (after[0], *args.context, command, error);
         }
 

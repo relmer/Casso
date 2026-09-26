@@ -34,6 +34,9 @@ struct MonitorState
     Word  a3 = 0;          // destination of a move, verify or search
     Word  a4 = 0;          // the Monitor's fourth pointer, used by M and V
 
+    // Set once a < has given M or V a destination to go on from.
+    bool  hasA4 = false;
+
     // Where an empty line or a space continues examining from.
     Word  lastExamined = 0;
 

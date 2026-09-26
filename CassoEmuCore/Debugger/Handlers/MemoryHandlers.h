@@ -60,5 +60,7 @@ private:
     static Word  GetLast      (const DebugCommand & command);
     static Byte  Peek         (IDebugTarget & target, Word address);
 
+    static std::string  Unquote (const std::string & text);
+
     Word  m_nextDump = 0;
 };

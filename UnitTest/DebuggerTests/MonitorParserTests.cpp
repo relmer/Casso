@@ -250,6 +250,38 @@ namespace DebuggerTests
 
 
 
+        //  WITHOUT `<`, M AND V GO ON FROM THE LAST DESTINATION, as the ROM's
+        //  A4 does: each byte moved or verified advances it. With no
+        //  destination ever given there is nothing to go on from.
+        TEST_METHOD (MoveAndVerify_WithoutADestination_GoOnFromTheLastOne)
+        {
+            Rig                 rig;
+            Rig                 fresh;
+            DebugCommand        move;
+            DebugCommand        verify;
+            MonitorParseResult  result;
+
+
+
+            rig.One ("500<300.301M");
+
+            move = rig.One ("310.311M");
+            Assert::IsTrue   (move.hasA3);
+            Assert::AreEqual ((int) 0x502, (int) move.a3, L"after the two bytes the last move wrote");
+
+            verify = rig.One ("320.320V");
+            Assert::AreEqual ((int) 0x504, (int) verify.a3);
+
+            result = fresh.Parse ("400.4FFM");
+            Assert::IsTrue   (result.status == ParseStatus::Invalid, L"no destination has been given");
+            Assert::IsTrue   (result.commands.empty());
+
+            result = fresh.Parse ("400.4FFV");
+            Assert::IsTrue   (result.status == ParseStatus::Invalid);
+        }
+
+
+
         ////////////////////////////////////////////////////////////////////////
         //
         //  The two S forms
@@ -330,6 +362,33 @@ namespace DebuggerTests
 
             AssertVerb (DebugVerb::Arithmetic, difference, "20-01");
             Assert::AreEqual (std::string ("-"), difference.text);
+        }
+
+
+
+        //  A space or Return prints the sum, as the ROM's does, and the line
+        //  goes on. A command letter drops the pending sum and acts on the
+        //  address typed before the `+`.
+        TEST_METHOD (Arithmetic_EndsAtASeparator_AndACommandTakesTheFirstAddress)
+        {
+            Rig                 rig;
+            MonitorParseResult  result = rig.Parse ("3+4 300");
+            DebugCommand        list;
+
+
+
+            Assert::IsTrue   (result.status == ParseStatus::Ok, Widen (result.error).c_str());
+            Assert::AreEqual (size_t (2), result.commands.size());
+            AssertVerb (DebugVerb::Arithmetic, result.commands[0], "3+4 300");
+            Assert::AreEqual ((int) 0x3, (int) result.commands[0].a1);
+            Assert::AreEqual ((int) 0x4, (int) result.commands[0].a2);
+            AssertVerb (DebugVerb::Examine, result.commands[1], "3+4 300");
+            Assert::AreEqual ((int) 0x300, (int) result.commands[1].a1);
+
+            list = rig.One ("3+4L");
+            AssertVerb (DebugVerb::List, list, "3+4L");
+            Assert::AreEqual ((int) 0x3, (int) list.a1);
+            Assert::IsFalse  (list.hasA2, L"a sum is not a range");
         }
 
 

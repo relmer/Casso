@@ -431,6 +431,8 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
         name   = name.substr (0, comma);
     }
 
+    name = Unquote (name);
+
     if (command.hasA1)
     {
         address = command.a1;
@@ -528,11 +530,11 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", Unquote (command.text)));
         return;
     }
 
-    data.path        = command.text;
+    data.path        = Unquote (command.text);
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
     reply.data       = data;
@@ -786,4 +788,27 @@ Byte MemoryHandlers::Peek (IDebugTarget & target, Word address)
 
     target.TryPeek (address, value);
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::Unquote
+//
+//  A file name with spaces in it is quoted; the quotes are not part of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryHandlers::Unquote (const std::string & text)
+{
+    bool  isQuoted = text.size() >= 2
+                  && (text.front() == '"' || text.front() == '\'')
+                  && text.back() == text.front();
+
+
+
+    return isQuoted ? text.substr (1, text.size() - 2) : text;
 }
