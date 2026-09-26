@@ -196,6 +196,17 @@ namespace DebuggerTests
 
 
 
+        //  The debugger cannot read $C000-$C0FF, so nothing there is a hit.
+        TEST_METHOD (Search_NeverFindsAnUnreadableByte)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("Not found."), rig.RunOk ("S C000:C0FF 00").text.at (0));
+            Assert::AreEqual (std::string ("Found 1: $C100"), rig.RunOk ("S C0FE:C101 ? 00").text.at (0), L"nor does a wildcard");
+        }
+
         TEST_METHOD (Search_WildcardsAndResults)
         {
             Rig    rig;

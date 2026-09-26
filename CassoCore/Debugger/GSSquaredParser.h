@@ -109,6 +109,7 @@ private:
     static void         ParseFile          (Line & line, bool isLoad);
     static void         ParseSymbols       (Line & line, const std::string & word);
     static void         ParseRegister      (Line & line);
+    static void         ParsePanel         (Line & line, bool isClose);
     static void         ParseNoArguments   (Line & line, const std::string & appleWin);
     static void         ParseAppleWin      (Line & line, const std::string & appleWin, const std::string & word);
     static bool         TryParseAddress    (Line & line, const std::string & token, Word & address);

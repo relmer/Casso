@@ -325,7 +325,8 @@ void MemoryHandlers::Fill (DebugSession & session, const DebugCommand & command,
 //  MemoryHandlers::Search
 //
 //  Every position in the range where each pattern byte matches under its
-//  mask. The results replace the session's, so @1 is the first hit.
+//  mask. A byte the debugger cannot read matches nothing, not even a
+//  wildcard. The results replace the session's, so @1 is the first hit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -345,11 +346,12 @@ void MemoryHandlers::Search (DebugSession & session, const DebugCommand & comman
 
         for (size_t i = 0; i < command.values.size() && isMatch; ++i)
         {
-            Byte  value = Peek (target, (Word) (address + i));
+            Byte  value = 0;
 
 
 
-            isMatch = (value & command.mask[i]) == (command.values[i] & command.mask[i]);
+            isMatch = target.TryPeek ((Word) (address + i), value) &&
+                      (value & command.mask[i]) == (command.values[i] & command.mask[i]);
         }
 
         if (isMatch)

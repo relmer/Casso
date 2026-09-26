@@ -154,6 +154,54 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  A pane's read is not the user's listing: U and D with no address
+        //  go on from the user's own last U and D.
+        TEST_METHOD (APaneReadLeavesTheConsolesContinuationAlone)
+        {
+            MachineRig            rig;
+            Reply                 list;
+            Reply                 dump;
+
+
+
+            for (Word address = 0x1000; address < 0x1004; address++)
+            {
+                rig.machine.GetMemoryBus().WriteByte (address, 0xEA);    // NOP
+            }
+
+            rig.Run ("U 1000:1002");
+            rig.Run ("D 2000:200F");
+            (void) rig.view.Build (rig.controller.GetSession());
+
+            list = rig.Run ("U");
+            dump = rig.Run ("D");
+
+            Assert::AreEqual ((Word) 0x1003, std::get<DisassemblyData> (list.data).lines.front().instruction.address, L"U goes on from the user's U");
+            Assert::AreEqual ((Word) 0x2010, std::get<MemoryData>      (dump.data).rows.front().address,             L"D goes on from the user's D");
+        }
+
+
+        //  While the line assembler takes the console's lines, the panes still
+        //  read the machine.
+        TEST_METHOD (ThePanesReadTheMachineWhileTheAssemblerIsActive)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.Run ("!", CommandMode::Monitor);
+            Assert::IsTrue (rig.controller.GetSession().IsAssembling());
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse  (snapshot.registers.empty(), L"registers");
+            Assert::IsFalse  (snapshot.code.empty(),      L"code");
+            Assert::IsFalse  (snapshot.memory.empty(),    L"memory");
+            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"and the assembler is still active");
+        }
+
+
         TEST_METHOD (AnInstructionIsAnnotatedWithWhatItActsOn)
         {
             MachineRig            rig;
@@ -3215,6 +3263,27 @@ namespace DebuggerViewStateTests
             reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), CommandMode::WinDbg), CommandMode::WinDbg);
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
             Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"WinDbg close");
+        }
+
+
+        //  GSSquared's debug and nodebug are its words for PANEL.
+        TEST_METHOD (GSSquaredDebugAndNoDebugOpenListAndClosePanels)
+        {
+            PanelRig  rig;
+            Reply     reply;
+
+
+
+            reply = rig.Run ("debug \"fake\"", CommandMode::GSSquared);
+            Assert::IsTrue (reply.status == CommandStatus::Ok);
+            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"debug name opens");
+
+            reply = rig.Run ("debug", CommandMode::GSSquared);
+            Assert::IsTrue (Join (reply.text).find ("(open)") != std::string::npos, L"debug alone lists");
+
+            reply = rig.Run ("nodebug fake", CommandMode::GSSquared);
+            Assert::IsTrue  (reply.status == CommandStatus::Ok);
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"nodebug name closes");
         }
 
 

@@ -123,6 +123,25 @@ namespace DebuggerTests
             Assert::IsTrue (monitor.text.front().starts_with   ("0300- A9 41"),    Widen (monitor.text.front()).c_str());
         }
 
+        //  GSSquared examines only a bare address; a range of one byte is
+        //  still a dump, with its character column and closing blank line.
+        TEST_METHOD (GSSquared_OneByteRange_IsADump)
+        {
+            Rig    rig;
+            Reply  range;
+            Reply  examine;
+
+
+
+            rig.Run ("MODE GSSQUARED");
+            range   = rig.Run ("300.300");
+            examine = rig.Run ("300");
+
+            Assert::AreEqual (size_t (2), range.text.size(), L"dump line and blank line");
+            Assert::AreEqual ("00/0300: A9" + std::string (47, ' ') + ")", range.text.front());
+            Assert::AreEqual (std::string ("00/0300: A9"), examine.text.front());
+        }
+
         //  A stop is a reply too: batch prints it in the output format, not
         //  in the mode's.
         TEST_METHOD (Stops_AreRenderedByTheCurrentFormat)
