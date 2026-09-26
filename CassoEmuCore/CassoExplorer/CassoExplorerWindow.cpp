@@ -378,7 +378,9 @@ void CassoExplorerWindow::OnCreate()
 void CassoExplorerWindow::ConfigureWidgets()
 {
     std::vector<DxuiTreeNode>  roots;
+    std::vector<std::wstring>  rootIds;
     bool                       grouped = false;
+    bool                       opened  = false;
 
 
 
@@ -389,6 +391,11 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_addressRoot = GetProfileRoot();
 
     m_browser.GetTreeRoots (roots);
+
+    for (const DxuiTreeNode & root : roots)
+    {
+        rootIds.push_back (root.id);
+    }
 
     m_tree->SetShowCheckboxes (false);
     m_tree->SetHorizontalScrollEnabled (false);
@@ -413,6 +420,14 @@ void CassoExplorerWindow::ConfigureWidgets()
             UpdateWatchedFolders();
         }
     });
+
+    //  Explorer opens with its navigation pane's top level open, so the Casso
+    //  places and This PC each show their first level.
+    for (const std::wstring & id : rootIds)
+    {
+        opened = m_tree->SetRowExpanded (m_tree->FindRowById (id), true);
+        IGNORE_RETURN_VALUE (opened, true);
+    }
 
 
     m_list->SetShowHeader (true);
