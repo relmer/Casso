@@ -96,5 +96,9 @@ private:
     //  The stack pointer before the outermost call the step is inside, while
     //  it is inside one, and the line the step began on.
     std::optional<Byte>                  m_callSp;
+
+    //  Where the last stop left the PC. The instruction there runs on the
+    //  next resume without being asked about again.
+    std::optional<Word>                  m_resumePc;
     std::optional<std::pair<int, int>>   m_startLine;
 };

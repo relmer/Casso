@@ -7,6 +7,7 @@
 #include "EmuTests/TestMachine.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/Handlers/BreakpointHandlers.h"
 #include "HandlerTestRig.h"
 
 
@@ -542,6 +543,129 @@ namespace EmulatorDebugWiringTests
             Assert::IsFalse (DebugCommandPayload::TryDecode ("4 2\nR",       decoded), L"not one number");
             Assert::IsFalse (DebugCommandPayload::TryDecode ("4294967296\nR", decoded), L"past 32 bits");
             Assert::IsTrue  (DebugCommandPayload::TryDecode ("4294967295\nR", decoded), L"the largest id fits");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  FreeRunStopTests
+    //
+    //  A breakpoint hit while the emulator runs with no debugger run on foot,
+    //  as when the user sets a breakpoint and resumes from the main window.
+    //  The machine runs slice by slice exactly as the CPU thread runs it:
+    //  RunCycles, then OnSliceExecuted, then stop on a short slice.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (FreeRunStopTests)
+    {
+    public:
+
+        class Rig
+        {
+        public:
+            TestMachine                machine;
+            MachineDebugTarget         target;
+            CpuManager                 cpuManager;
+            CpuManagerRunDriver        driver;
+            RecordingNotificationSink  sink;
+            DebugSession               session;
+            BreakpointHandlers         breakpoints;
+
+
+
+            //  $0300: INX / JMP $0300, with the PC on the INX.
+            Rig() :
+                machine (std::string ("Apple2e"), TestMachine::Slots::Empty),
+                target  (machine),
+                driver  (machine, cpuManager, target.GetRunHook()),
+                session (target, sink, RunState::FreeRunning)
+            {
+                Cpu6502Registers  r = {};
+
+
+
+                target.SetRunDriver (&driver);
+                session.AddHandler  (&breakpoints);
+
+                (void) target.TryPoke (0x0300, 0xE8);
+                (void) target.TryPoke (0x0301, 0x4C);
+                (void) target.TryPoke (0x0302, 0x00);
+                (void) target.TryPoke (0x0303, 0x03);
+
+                r    = target.GetRegisters();
+                r.pc = 0x0300;
+                r.x  = 0x00;
+                r.sp = 0xFF;
+                r.p  = 0x34;
+                target.SetRegisters (r);
+                cpuManager.SetPaused (false);
+            }
+
+
+
+            //  The CPU thread's frame: slices while the machine is not paused,
+            //  until a slice comes back short.
+            void RunFrames (int slices)
+            {
+                for (int i = 0; i < slices && !cpuManager.IsPaused(); i++)
+                {
+                    uint32_t  actual = (uint32_t) machine.RunCycles (1000);
+
+
+
+                    if (driver.OnSliceExecuted (actual) || actual == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+        };
+
+
+
+        TEST_METHOD (ABreakpointHitWhileFreeRunningStopsAndIsAnnounced)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 301").status);
+
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused(),                               L"the machine is paused, not frozen running");
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc,             L"at the breakpoint");
+            Assert::AreEqual ((size_t) 1,    rig.sink.stops.size(),                    L"clients hear the stop");
+            Assert::IsTrue   (rig.sink.stops[0].reason == StopReason::Breakpoint);
+            Assert::IsTrue   (rig.session.GetRunState() == RunState::Paused,          L"and the session knows it stopped");
+        }
+
+
+
+        //  Resuming with the PC on the breakpoint runs past it: the loop comes
+        //  round and stops there again with one more INX done.
+        TEST_METHOD (ResumingFromABreakpointRunsPastIt)
+        {
+            Rig   rig;
+            Byte  x = 0;
+
+
+
+            (void) rig.session.ExecuteLine ("BP 301");
+            rig.RunFrames (50);
+            x = rig.target.GetRegisters().x;
+
+            rig.cpuManager.SetPaused (false);
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused());
+            Assert::AreEqual ((Word) 0x0301,   rig.target.GetRegisters().pc);
+            Assert::AreEqual ((Byte) (x + 1),  rig.target.GetRegisters().x, L"the loop ran once more");
+            Assert::AreEqual ((size_t) 2,      rig.sink.stops.size());
         }
     };
 }

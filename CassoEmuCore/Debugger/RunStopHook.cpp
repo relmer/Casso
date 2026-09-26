@@ -86,6 +86,7 @@ void RunStopHook::Begin (const RunRequest & request)
     m_lastOpcode   = 0;
     m_overCall     = request.kind == RunKind::StepOver && PeekOpcode (pc) == kJsr;
     m_callSp.reset();
+    m_resumePc.reset();
     m_startLine    = GetStepLine (pc);
 
     SetFilter (&s_kEveryInstruction);
@@ -103,8 +104,9 @@ void RunStopHook::Begin (const RunRequest & request)
 
 void RunStopHook::End()
 {
-    m_active  = false;
-    m_stopped = false;
+    m_active   = false;
+    m_stopped  = false;
+    m_resumePc = m_host.GetCpu()->GetPC();
 
     UseIdleFilter();
 }
@@ -129,6 +131,15 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     if (m_stopped)
     {
         return true;
+    }
+
+    //  The instruction a stop left the PC on runs when the machine resumes,
+    //  though no run begins: a resume from the main window would otherwise
+    //  stop on the same breakpoint again before anything ran.
+    if (!m_active && m_resumePc.has_value())
+    {
+        isFirst = *m_resumePc == pc;
+        m_resumePc.reset();
     }
 
     if (m_active && !isFirst)

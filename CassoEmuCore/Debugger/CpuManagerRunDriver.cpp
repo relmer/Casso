@@ -121,6 +121,10 @@ void CpuManagerRunDriver::Pause()
 //  told is the reason it would act on, and "budget" for an instruction it had
 //  set a breakpoint on would send it looking for a fault that is not there.
 //
+//  With no run on foot the hook still watches the breakpoints, so a hit while
+//  the machine runs freely ends here too. Without that the hook holds the CPU
+//  at the breakpoint with the machine unpaused and nobody told.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
@@ -131,6 +135,12 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
 
     if (!m_isRunning)
     {
+        if (m_hook.HasStopped())
+        {
+            Finish (m_hook.GetReason(), cyclesExecuted);
+            return true;
+        }
+
         return false;
     }
 
@@ -185,6 +195,8 @@ void CpuManagerRunDriver::EndForUserPause()
 //  CpuManagerRunDriver::Finish
 //
 //  Stops the machine, puts back what the run borrowed, and announces the stop.
+//  A stop with no run on foot borrowed nothing: the hook installed is the
+//  target's own, and it stays.
 //
 //  THE MACHINE IS PAUSED BEFORE THE REGISTERS ARE READ, so what a client is
 //  told is what the machine holds rather than what it held a few thousand
@@ -201,7 +213,11 @@ void CpuManagerRunDriver::Finish (StopReason reason, uint64_t cycles)
     m_cpuManager.SetPaused (true);
 
     m_hook.End();
-    m_host.SetDebugHook (m_previousHook);
+
+    if (m_isRunning)
+    {
+        m_host.SetDebugHook (m_previousHook);
+    }
 
     if (m_speedChanged)
     {
