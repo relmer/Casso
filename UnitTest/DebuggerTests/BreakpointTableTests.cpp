@@ -193,6 +193,46 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (CountsOnlyEntriesAfterAStop_StillCount)
+        {
+            int                    nextId  = 0;
+            BreakpointTable        table (nextId);
+            MockExpressionContext  context;
+            int                    hitId   = -1;
+            int                    stopper = table.AddAddress (0x0300, 0x0300);
+            int                    counter = table.AddAddress (0x0300, 0x0300);
+            int                    opcode  = table.AddOpcode (kNop);
+
+
+
+            table.TrySetFlags (counter, false, false);
+            table.TrySetFlags (opcode,  false, false);
+
+            Assert::IsTrue   (table.TryMatchBeforeInstruction (0x0300, kNop, context, hitId));
+            Assert::AreEqual (stopper, hitId);
+            Assert::AreEqual ((uint32_t) 1, table.GetAll()[1].hits, L"the counts-only address entry");
+            Assert::AreEqual ((uint32_t) 1, table.GetAll()[2].hits, L"the counts-only opcode entry");
+        }
+
+
+
+        TEST_METHOD (UnreadableOpcode_MatchesNoBrkEntry)
+        {
+            int                    nextId = 0;
+            BreakpointTable        table (nextId);
+            MockExpressionContext  context;
+            int                    hitId  = -1;
+
+
+
+            table.AddBrk();
+
+            Assert::IsFalse  (table.TryMatchBeforeInstruction (0xC000, std::nullopt, context, hitId));
+            Assert::AreEqual ((uint32_t) 0, table.GetAll()[0].hits);
+        }
+
+
+
         TEST_METHOD (ClearAll_EmptiesBitmap)
         {
             int              nextId = 0;

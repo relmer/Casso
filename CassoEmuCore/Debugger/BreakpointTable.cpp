@@ -404,11 +404,12 @@ bool BreakpointTable::HasEnabledStopCondition() const
 
 bool BreakpointTable::TryMatchBeforeInstruction (
     Word                            pc,
-    Byte                            opcode,
+    std::optional<Byte>             opcode,
     const IDebugExpressionContext & context,
     int                           & hitId)
 {
     bool                    isAddressPass  = m_addressBits[pc];
+    bool                    isHit          = false;
     std::optional<int32_t>  conditionValue;
 
 
@@ -430,19 +431,19 @@ bool BreakpointTable::TryMatchBeforeInstruction (
             {
                 ++entry.hits;
 
-                if (!entry.stops)
+                if (!entry.stops || isHit)
                 {
                     continue;
                 }
 
                 hitId                = entry.id;
                 m_lastConditionValue = conditionValue;
-                return true;
+                isHit                = true;
             }
         }
     }
 
-    return false;
+    return isHit;
 }
 
 
@@ -465,29 +466,35 @@ bool BreakpointTable::TryMatchWrite (
     int                           & hitId,
     std::optional<int32_t>        & conditionValue)
 {
+    bool                    isHit = false;
+    std::optional<int32_t>  entryValue;
+
+
+
     for (Breakpoint & entry : m_entries)
     {
         bool  isTarget = entry.enabled && entry.kind == BreakpointKind::MemoryValue && entry.first == address && entry.value == value;
 
 
 
-        if (!isTarget || !ConditionContext::IsMet (entry.condition, context, address, value, conditionValue))
+        if (!isTarget || !ConditionContext::IsMet (entry.condition, context, address, value, entryValue))
         {
             continue;
         }
 
         ++entry.hits;
 
-        if (!entry.stops)
+        if (!entry.stops || isHit)
         {
             continue;
         }
 
-        hitId = entry.id;
-        return true;
+        hitId          = entry.id;
+        conditionValue = entryValue;
+        isHit          = true;
     }
 
-    return false;
+    return isHit;
 }
 
 
@@ -506,7 +513,7 @@ bool BreakpointTable::TryMatchWrite (
 bool BreakpointTable::TryMatchEntry (
     const Breakpoint              & entry,
     Word                            pc,
-    Byte                            opcode,
+    std::optional<Byte>             opcode,
     const IDebugExpressionContext & context,
     std::optional<int32_t>        & conditionValue) const
 {
@@ -526,7 +533,7 @@ bool BreakpointTable::TryMatchEntry (
 
     case BreakpointKind::Opcode:
     case BreakpointKind::Brk:
-        return opcode == entry.opcode;
+        return opcode.has_value() && *opcode == entry.opcode;
 
     case BreakpointKind::Register:
         hr = DebugExpressionEvaluator::Evaluate (entry.condition, context, value, error);

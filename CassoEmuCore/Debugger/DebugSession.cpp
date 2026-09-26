@@ -1088,16 +1088,17 @@ void DebugSession::OnUserResumed()
 
 bool DebugSession::ShouldStopBefore (Word pc)
 {
-    Byte  opcode = 0;
-    int   hitId  = -1;
-    bool  isHit  = false;
+    Byte  opcode   = 0;
+    int   hitId    = -1;
+    bool  isHit    = false;
+    bool  isPeeked = false;
 
 
 
     m_watchpoints.SetAccessPc (pc);
-    m_target.TryPeek (pc, opcode);
+    isPeeked = m_target.TryPeek (pc, opcode);
 
-    isHit = m_breakpoints.TryMatchBeforeInstruction (pc, opcode, *this, hitId);
+    isHit = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
 
     if (isHit)
     {
