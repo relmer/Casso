@@ -672,8 +672,8 @@ std::optional<std::string> DebuggerViewState::GetActionLine (
 //
 //  The controls build AppleWin lines and the session reads lines in its own
 //  mode. Monitor mode reads an AppleWin line after its `/`; GSSquared has its
-//  own words for most of what they send, and run to cursor, which has none,
-//  stays an AppleWin line. WinDbg has a word for each.
+//  own words for most of what they send. WinDbg has a word for each. Run to
+//  cursor does not come through here, since it runs in Casso mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1192,13 +1192,17 @@ Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string 
 //  DebuggerViewState::ExecuteConsoleLine
 //
 //  The echo takes the prompt of the mode the line was typed in, as batch
-//  writes it, not the mode a MODE line leaves in force.
+//  writes it, not the mode a MODE line leaves in force. A line sent with its
+//  own mode runs in that mode alone and leaves the session's as it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (DebugSession & session, const std::string & line)
+std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (
+    DebugSession                & session,
+    const std::string           & line,
+    std::optional<CommandMode>    lineMode)
 {
-    CommandMode               mode  = session.GetMode();
+    CommandMode               mode  = lineMode.value_or (session.GetMode());
     std::vector<std::string>  lines;
     Reply                     reply;
 

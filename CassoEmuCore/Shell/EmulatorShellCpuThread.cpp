@@ -660,11 +660,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunDebugCommand (uint32_t clientId, const std::string & line)
+void EmulatorShell::RunDebugCommand (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
 {
     if (m_debugCommandHandler)
     {
-        m_debugCommandHandler (clientId, line);
+        m_debugCommandHandler (clientId, line, mode);
     }
 }
 

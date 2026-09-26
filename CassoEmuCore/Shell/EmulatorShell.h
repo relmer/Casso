@@ -455,9 +455,9 @@ private:
     void PlayDriveTestSound (int drive, int kind);
 
     // A debugger command line from a client, run on the CPU thread, marshaled
-    // via IDM_DEBUG_COMMAND. Handed to whoever attached a command handler; a
-    // machine with no debugger attached drops it.
-    void RunDebugCommand (uint32_t clientId, const std::string & line);
+    // via IDM_DEBUG_COMMAND, in `mode` when given. Handed to whoever attached a
+    // command handler; a machine with no debugger attached drops it.
+    void RunDebugCommand (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode);
 
     // The user paused or resumed the machine, told to an attached session.
     // CPU thread only, marshaled via IDM_DEBUG_PAUSE_CHANGED.
@@ -470,7 +470,7 @@ private:
 
     // Where debugger commands and machine events go. Both are owned by the
     // caller, which detaches them with null before destroying them.
-    using DebugCommandHandler = std::function<void (uint32_t clientId, const std::string & line)>;
+    using DebugCommandHandler = std::function<void (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)>;
 
     void SetDebugSession        (DebugSession * session)          { m_debugSession = session; }
     void SetDebugCommandHandler (DebugCommandHandler handler)      { m_debugCommandHandler = std::move (handler); }
@@ -502,6 +502,7 @@ private:
 
     // IDebuggerWindowHost, called by the window on the UI thread.
     void    RunDebuggerCommand       (const std::string & line) override;
+    void    RunDebuggerCommandInMode (const std::string & line, CommandMode mode) override;
     void    PauseDebugger            () override;
     void    SetDebuggerCodeLines     (int lines, int view) override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address, int view) override;

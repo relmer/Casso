@@ -45,6 +45,8 @@ public:
 
     virtual void  RunDebuggerCommand      (const std::string & line)       = 0;
     virtual void  PauseDebugger           ()                               = 0;
+    //  A line read in `mode` rather than in the session's own mode.
+    virtual void  RunDebuggerCommandInMode (const std::string & line, CommandMode mode) = 0;
     //  How many lines the code pane has room for, measured by the window.
     virtual void  SetDebuggerCodeLines    (int lines, int view)             = 0;
     //  A code view: 0 is the first, 1 to 3 the others. An address given for
@@ -225,6 +227,7 @@ private:
     void     SubmitPokeBox    ();
     void     AppendConsole    (const std::vector<std::string> & lines);
     void     RunCommand       (const std::string & line);
+    void     RunToCursor      (Word address);
     void     ApplyKeyScheme   (DebuggerKeyScheme scheme);
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     void     CycleKeyScheme   ();

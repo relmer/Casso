@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Debugger/CommandModeNames.h"
+#include "Debugger/DebugCommandPayload.h"
 #include "Shell/CpuCommandDispatcher.h"
 
 #include "resource.h"
@@ -214,6 +216,17 @@ public:
 
         Assert::AreEqual ((size_t) 1, target.calls.size());
         Assert::AreEqual (std::string ("RunDebugCommand 7 [BP C000 , Stop Here]"), target.calls[0]);
+    }
+
+
+    TEST_METHOD (ADebugCommandCarriesItsMode)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (1, "G 0302", CommandMode::Casso).c_str(), target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("RunDebugCommand 1 [G 0302] casso"), target.calls[0]);
     }
 
 
@@ -440,9 +453,9 @@ private:
             calls.push_back (std::format ("PlayDriveTestSound {} {}", drive, kind));
         }
 
-        void     RunDebugCommand (uint32_t clientId, const std::string & line) override
+        void     RunDebugCommand (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode) override
         {
-            calls.push_back (std::format ("RunDebugCommand {} [{}]", clientId, line));
+            calls.push_back (std::format ("RunDebugCommand {} [{}]{}", clientId, line, mode.has_value() ? std::string (" ") + CommandModeNames::GetName (*mode) : std::string()));
         }
 
         void     NotifyDebugPauseChanged (bool paused) override

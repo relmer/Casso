@@ -546,6 +546,26 @@ namespace EmulatorDebugWiringTests
             Assert::IsFalse (DebugCommandPayload::TryDecode ("4294967296\nR", decoded), L"past 32 bits");
             Assert::IsTrue  (DebugCommandPayload::TryDecode ("4294967295\nR", decoded), L"the largest id fits");
         }
+
+
+
+        TEST_METHOD (AModeSurvivesTheTrip)
+        {
+            DebugCommandPayload  decoded;
+
+
+
+            Assert::IsTrue   (DebugCommandPayload::TryDecode (DebugCommandPayload::Encode (5, "G 0302", CommandMode::Casso), decoded));
+            Assert::AreEqual ((uint32_t) 5, decoded.clientId);
+            Assert::AreEqual (std::string ("G 0302"), decoded.line);
+            Assert::IsTrue   (decoded.mode == CommandMode::Casso);
+
+            Assert::IsTrue   (DebugCommandPayload::TryDecode (DebugCommandPayload::Encode (5, "G 0302"), decoded));
+            Assert::IsFalse  (decoded.mode.has_value(), L"no mode given");
+
+            Assert::IsFalse  (DebugCommandPayload::TryDecode ("5 bogus\nR", decoded), L"not a mode");
+            Assert::IsFalse  (DebugCommandPayload::TryDecode (" casso\nR",  decoded), L"no id before the mode");
+        }
     };
 
 
@@ -951,6 +971,45 @@ namespace EmulatorDebugWiringTests
             RunFrames (rig, 50);
 
             Assert::AreEqual ((Word) 0x0303, target.GetRegisters().pc, L"after the routine returned");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ControllerRunToCursorTests
+    //
+    //  The window's run to cursor, through its console, in the emulator.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ControllerRunToCursorTests)
+    {
+    public:
+
+        //  GSSquared's g takes no address, so run to cursor runs Casso's own G
+        //  whatever dialect the console is in.
+        TEST_METHOD (GSSquaredMode_RunToCursor_ReachesTheAddress)
+        {
+            ControllerRig               rig;
+            IDebugTarget              & target = rig.controller.GetSession().GetTarget();
+            std::vector<std::string>    lines;
+            HRESULT                     hr     = rig.controller.Open();
+
+
+
+            Assert::IsTrue (SUCCEEDED (hr));
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Run ("MODE GSSQUARED").status);
+
+            lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(),
+                                                 DebuggerViewState::GetRunToCursorLine (0x0302),
+                                                 DebuggerViewState::kRunToCursorMode);
+            ControllerStepOutTests::RunFrames (rig, 50);
+
+            Assert::AreEqual ((Word) 0x0302, target.GetRegisters().pc, L"stopped at the cursor");
+            Assert::IsTrue   (rig.controller.GetSession().GetMode() == CommandMode::GSSquared, L"the console stays in GSSquared");
         }
     };
 }

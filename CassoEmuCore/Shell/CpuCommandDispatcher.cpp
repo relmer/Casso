@@ -117,7 +117,7 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
             if (DebugCommandPayload::TryDecode (cmd.payload, decoded))
             {
-                target.RunDebugCommand (decoded.clientId, decoded.line);
+                target.RunDebugCommand (decoded.clientId, decoded.line, decoded.mode);
             }
 
             break;

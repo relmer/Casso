@@ -1807,6 +1807,26 @@ void DebuggerWindow::RunCommand (const std::string & line)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RunToCursor
+//
+//  Casso's own G, in Casso mode whatever the console's dialect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunToCursor (Word address)
+{
+    if (m_host != nullptr)
+    {
+        m_host->RunDebuggerCommandInMode (DebuggerViewState::GetRunToCursorLine (address), DebuggerViewState::kRunToCursorMode);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetSavedKeyScheme
 //
 //  A name this build does not know reads as the default.
@@ -1937,7 +1957,11 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 
     line = DebuggerViewState::GetActionLine (action, (m_snapshot != nullptr) ? &active : nullptr, row);
 
-    if (line.has_value())
+    if (line.has_value() && action == DebuggerKeySchemes::Action::RunToCursor)
+    {
+        RunToCursor (active.code[(size_t) row].address);
+    }
+    else if (line.has_value())
     {
         RunCommand (*line);
     }
@@ -3092,7 +3116,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         items.push_back ({ s.code[(size_t) row].hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
                            [this, at] { RunCommand (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, at)); } });
-        items.push_back ({ L"Run to cursor",       [this, at] { RunCommand (DebuggerViewState::GetRunToCursorLine (at)); } });
+        items.push_back ({ L"Run to cursor",       [this, at] { RunToCursor (at); } });
         items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
         items.push_back ({ L"Copy",                copy });
 

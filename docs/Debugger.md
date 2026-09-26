@@ -365,7 +365,9 @@ breakpoints, watches, the stack and memory, with a command box and console
 below the code.
 
 - **Step**, **Step over**, **Run**, **Run to cursor** and **Pause** run the
-  machine. **Follow PC** returns the code pane to the PC.
+  machine. **Follow PC** returns the code pane to the PC. Run to cursor sends
+  Casso's `G address` in Casso mode, whatever mode the console is in, since
+  GSSquared's `g` takes no address.
 - Double-clicking a code line sets or clears its breakpoint. Double-clicking a
   breakpoint clears it.
 - The memory box moves the memory pane; the poke box takes an address and a
