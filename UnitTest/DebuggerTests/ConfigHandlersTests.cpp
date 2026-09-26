@@ -254,6 +254,86 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (HELP_DescribesEveryWinDbgWordThatRuns)
+        {
+            Rig  rig;
+
+
+
+            (void) rig.session.ExecuteLine ("MODE WINDBG", CommandMode::AppleWin);
+            Assert::IsTrue (rig.RunOk (".help dd").text.at (0).starts_with ("dd "));
+            Assert::IsTrue (rig.RunOk (".help l-s").text.at (0).starts_with ("l-s"));
+            Assert::IsTrue (ListsLine (rig.RunOk (".help").text, "    dd "), L"dd runs, so the list has it");
+        }
+
+
+        TEST_METHOD (HELP_ForAnotherModesWord_SaysWhereItRuns)
+        {
+            const std::tuple<const char *, const char *, const char *>  cases[] =
+            {
+                { "APPLEWIN", "HELP nobp",    "GSSquared" },
+                { "WINDBG",   ".help sload",  "GSSquared" },
+                { "MONITOR",  "/HELP sload",  "GSSquared" },
+                { "APPLEWIN", "HELP lsa",     "WinDbg"    },
+            };
+
+
+
+            for (const auto & [mode, line, where] : cases)
+            {
+                Rig          rig;
+                std::string  text;
+
+
+
+                (void) rig.session.ExecuteLine (std::string ("MODE ") + mode, CommandMode::AppleWin);
+                text = rig.RunOk (line).text.at (0);
+                Assert::IsTrue (text.find (where) != std::string::npos, Widen (std::string (line) + ": " + text).c_str());
+            }
+        }
+
+
+        TEST_METHOD (MOTD_GivesCommandsAsTheModeTypesThem)
+        {
+            const std::tuple<const char *, const char *, const char *, const char *>  modes[] =
+            {
+                { "APPLEWIN",  "MOTD",  "HELP",  "MODE MONITOR"   },
+                { "MONITOR",   "/MOTD", "/HELP", "/MODE APPLEWIN" },
+                { "WINDBG",    "!MOTD", ".help", "!MODE APPLEWIN" },
+                { "GSSQUARED", "MOTD",  "help",  "MODE APPLEWIN"  },
+            };
+
+
+
+            for (const auto & [mode, motd, help, change] : modes)
+            {
+                Rig          rig;
+                std::string  text;
+
+
+
+                (void) rig.session.ExecuteLine (std::string ("MODE ") + mode, CommandMode::AppleWin);
+                text = rig.RunOk (motd).text.at (0);
+                Assert::IsTrue (text.find (std::string ("Use ") + help + " ") != std::string::npos, Widen (text).c_str());
+                Assert::IsTrue (text.find (change) != std::string::npos, Widen (text).c_str());
+                rig.RunOk (help);
+            }
+        }
+
+
+        static bool ListsLine (const std::vector<std::string> & lines, const std::string & start)
+        {
+            return std::any_of (lines.begin(), lines.end(), [&] (const std::string & line) { return line.starts_with (start); });
+        }
+
+
+        static std::wstring Widen (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+
+
+
         TEST_METHOD (DISASM_Settings)
         {
             Rig  rig;

@@ -52,6 +52,7 @@ private:
     static void  PrintFormatted  (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Help            (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Output          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  MessageOfTheDay (DebugSession & session, Reply & reply);
 
     static void  SplitItems      (const std::string & text, std::vector<std::string> & items);
     static bool  TryUnquote      (const std::string & item, std::string & text);

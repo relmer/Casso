@@ -56,6 +56,10 @@ public:
     //  AppleWin command table -- typed after its marker.
     static bool                    IsCassoCommandReachable (CommandMode mode, const std::string & name);
 
+    //  A Casso command as the mode types it: the mode's own word for it,
+    //  or its marker and the name.
+    static std::string             GetTypedName   (CommandMode mode, const std::string & cassoName);
+
     //  HELP with no word: the lines it prints.
     static std::vector<std::string>  BuildHelp    (CommandMode mode);
 
@@ -71,6 +75,7 @@ private:
         std::string   description;
     };
 
+    static bool         TryDescribeOtherModesWord (CommandMode mode, const std::string & word, std::string & line);
     static bool         IsCoveredByMode   (CommandMode mode, const std::string & cassoName);
     static bool         IsWordOfMode      (CommandMode mode, const std::string & name);
     static bool         IsHexWord         (const std::string & name);

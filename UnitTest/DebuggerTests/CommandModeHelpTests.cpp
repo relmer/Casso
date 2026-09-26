@@ -162,6 +162,33 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (EveryWinDbgCommand_HasAHelpEntry)
+        {
+            size_t  checked = 0;
+
+
+
+            for (const WinDbgCommand & command : WinDbgParser::GetCommands())
+            {
+                Assert::IsNotNull (CommandModeHelp::Find (CommandMode::WinDbg, command.name), Widen (command.name).c_str());
+                ++checked;
+            }
+
+            Assert::IsTrue (checked > 0);
+        }
+
+
+        TEST_METHOD (MonitorHelp_ListsArithmetic)
+        {
+            std::vector<std::string>  lines = CommandModeHelp::BuildHelp (CommandMode::Monitor);
+
+
+
+            Assert::IsTrue (ListsName (lines, "a+b"));
+            Assert::IsTrue (ListsName (lines, "a-b"));
+        }
+
+
         TEST_METHOD (HelpIsByCategory_AndAlphabeticalWithinEach)
         {
             std::vector<std::string>  lines    = CommandModeHelp::BuildHelp (CommandMode::Casso);

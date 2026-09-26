@@ -40,6 +40,8 @@ static constexpr CommandModeHelp::Entry  s_kMonitor[] =
     { "",       C::Memory,             "value<first.lastS", "Search first..last for value",                       "S SH"   },
     { "R",      C::Memory,             "first.lastR name",  "Read a file into first..last",                       "BLOAD"  },
     { "W",      C::Memory,             "first.lastW name",  "Write first..last to a file",                        "BSAVE"  },
+    { "",       C::SessionAndSettings, "a+b",               "Add two hex bytes, eight-bit",                       ""       },
+    { "",       C::SessionAndSettings, "a-b",               "Subtract two hex bytes, eight-bit",                  ""       },
     { "",       C::RegistersAndFlags,  "Ctrl+E",            "Show the registers; a : after it changes them",      "R"      },
     { "!",      C::DisassemblyAndData, "!",                 "Enter the mini-assembler",                           "A"      },
     { "I",      C::DisplayAndPanels,   "I",                 "Inverse text",                                       ""       },
@@ -115,6 +117,7 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "r",        C::RegistersAndFlags,  "r [reg[=value]]",   "Show or change the registers",                "R"             },
     { "db",       C::Memory,             "db addr [l n]",     "Show bytes",                                  "D"             },
     { "dw",       C::Memory,             "dw addr [l n]",     "Show words",                                  "D"             },
+    { "dd",       C::Memory,             "dd addr [l n]",     "Show double words",                           "D"             },
     { "da",       C::Memory,             "da addr [l n]",     "Show text",                                   "D"             },
     { "eb",       C::Memory,             "eb addr bb bb ...", "Store bytes",                                 "ME MEB"        },
     { "ew",       C::Memory,             "ew addr ww ...",    "Store words",                                 "MEW"           },
@@ -127,7 +130,8 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "x",        C::SymbolsAndSource,   "x name",            "Look up a symbol",                            "SYM"           },
     { "?",        C::SessionAndSettings, "? expr",            "Evaluate an expression",                      "CALC"          },
     { ".formats", C::SessionAndSettings, ".formats expr",     "Show a value in every base",                  "CALC"          },
-    { "l+s",      C::SymbolsAndSource,   "l+s, l-s",          "Show or hide source lines",                   "SRC"           },
+    { "l+s",      C::SymbolsAndSource,   "l+s",               "Show source lines",                           "SRC"           },
+    { "l-s",      C::SymbolsAndSource,   "l-s",               "Hide source lines",                           "SRC"           },
     { "lsa",      C::SymbolsAndSource,   "lsa",               "Show the source line at the PC",              "SRC"           },
     { ".help",    C::SessionAndSettings, ".help [word]",      "This list, or one command",                   "HELP ?"        },
 };
@@ -239,6 +243,35 @@ const char * CommandModeHelp::GetMarker (CommandMode mode)
     case CommandMode::WinDbg:  return "!";
     default:                   return "";
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::GetTypedName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandModeHelp::GetTypedName (CommandMode mode, const std::string & cassoName)
+{
+    for (const Entry & entry : GetEntries (mode))
+    {
+        std::istringstream  names (entry.casso);
+        std::string         each;
+
+        while (entry.word[0] != '\0' && names >> each)
+        {
+            if (_stricmp (each.c_str(), cassoName.c_str()) == 0)
+            {
+                return entry.word;
+            }
+        }
+    }
+
+    return GetMarker (mode) + ToUpper (cassoName);
 }
 
 
@@ -395,7 +428,7 @@ bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, s
 
     if (command == nullptr)
     {
-        return false;
+        return TryDescribeOtherModesWord (mode, word, line);
     }
 
     if (reference != nullptr && IsCassoCommandReachable (mode, word))
@@ -418,6 +451,48 @@ bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, s
     }
 
     line = std::format ("{} does not run in {} mode. It runs in {}.", upper, GetTitle (mode), GetModesThatRun (word));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::TryDescribeOtherModesWord
+//
+//  A word that only other modes' own tables hold: which modes those are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandModeHelp::TryDescribeOtherModesWord (CommandMode mode, const std::string & word, std::string & line)
+{
+    std::vector<std::string>  modes;
+    std::string               list;
+
+
+
+    for (CommandMode other : s_kModes)
+    {
+        if (other != mode && Find (other, word) != nullptr)
+        {
+            modes.push_back (GetTitle (other));
+        }
+    }
+
+    if (modes.empty())
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < modes.size(); i++)
+    {
+        list += (i == 0) ? "" : (i + 1 == modes.size()) ? " and " : ", ";
+        list += modes[i];
+    }
+
+    line = std::format ("{} does not run in {} mode. It runs in {} {}.", ToUpper (word), GetTitle (mode), list, modes.size() == 1 ? "mode" : "modes");
     return true;
 }
 

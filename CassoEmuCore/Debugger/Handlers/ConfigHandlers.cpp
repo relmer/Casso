@@ -45,9 +45,7 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::ShowOutputFormat:
     case DebugVerb::SetOutputFormat:      Output          (session, command, reply); return true;
 
-    case DebugVerb::ShowMessageOfTheDay:
-        reply.data = MessageData { { "Casso debugger. Use HELP to list the commands, or MODE MONITOR to switch to Apple II Monitor syntax." } };
-        return true;
+    case DebugVerb::ShowMessageOfTheDay:  MessageOfTheDay (session, reply);          return true;
 
     //  Device panels are the window's; the window runs PANEL itself, so any
     //  PANEL that reaches here came from batch or the pipe.
@@ -586,6 +584,35 @@ void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command,
     }
 
     reply.data = MessageData { { text } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::MessageOfTheDay
+//
+//  The HELP and MODE commands as the session's mode types them, pointing
+//  AppleWin syntax at the Monitor and every other syntax back at AppleWin.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::MessageOfTheDay (DebugSession & session, Reply & reply)
+{
+    CommandMode  mode     = session.GetMode();
+    bool         isNative = mode == CommandMode::AppleWin || mode == CommandMode::Casso;
+    std::string  help     = CommandModeHelp::GetTypedName (mode, "HELP");
+    std::string  change   = CommandModeHelp::GetTypedName (mode, "MODE");
+
+
+
+    reply.data = MessageData { { std::format ("Casso debugger. Use {} to list the commands, or {} {} to switch to {} syntax.",
+                                              help,
+                                              change,
+                                              isNative ? "MONITOR" : "APPLEWIN",
+                                              isNative ? "Apple II Monitor" : "AppleWin") } };
 }
 
 
