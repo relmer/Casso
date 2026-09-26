@@ -2151,6 +2151,21 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  A dropped file with no record has no lines to set a breakpoint on.
+        TEST_METHOD (AFileWithNoRecordTogglesNothing)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            LoadDebugFile (rig);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue (SourcePane::GetToggleLine (*snapshot.source, -1, 4).empty());
+        }
+
+
         TEST_METHOD (SplitLinesExpandsTabsAndEveryLineEnding)
         {
             std::vector<std::wstring>  lines = SourcePane::SplitLines ("a\tb\r\nc\rd\n\te");
