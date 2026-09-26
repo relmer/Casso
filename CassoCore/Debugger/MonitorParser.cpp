@@ -135,9 +135,17 @@ MonitorParseResult MonitorParser::ScanLine (const std::string & line, MonitorSta
             return result;
         }
 
+        //  AN ADDRESS TYPED OUTSIDE A RANGE IS WHERE `:` STORES NEXT, as the
+        //  ROM copies every such address into A3.
         if (TryHexDigit (character, digit))
         {
             scan.value = (Word) ((scan.value.value_or (0) << 4) | digit);
+
+            if (!scan.first.has_value())
+            {
+                state.storeAddress = *scan.value;
+            }
+
             continue;
         }
 

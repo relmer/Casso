@@ -7,9 +7,9 @@
 ; three that were deposited, so the output would be mostly the power-on
 ; pattern disassembled, and this script is about the commands.
 ;
-; Note the single ^E. It arms the next colon to set the registers instead of
-; memory, and arming it again would make the deposit at $0400 below set
-; registers too -- which is the Monitor's own rule and easy to trip over.
+; ^E arms the colon on the next line to set the registers instead of memory.
+; Only a colon with no address in front of it: the deposit at $0400 below
+; stores to memory whatever came before it.
 MODE MONITOR
 300: A9 41 60
 300.302
