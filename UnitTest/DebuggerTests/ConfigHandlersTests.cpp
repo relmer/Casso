@@ -120,6 +120,26 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (RUN_FromALineInAnotherMode_RunsTheScriptInThatMode)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\script.txt", "? 2\n");
+
+            reply = rig.session.ExecuteLine ("!run script.txt", CommandMode::WinDbg);
+            rig.session.FormatReply (reply, CommandMode::WinDbg);
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::AreEqual ((size_t) 1, reply.text.size());
+            Assert::AreEqual (std::string ("$0002  0z00000010      2  ' ' (Ctrl)"), reply.text[0], L"? is WinDbg's expression evaluator, not AppleWin's");
+            Assert::AreEqual ((int) CommandMode::AppleWin, (int) rig.session.GetMode());
+        }
+
+
+
         TEST_METHOD (RUN_ScriptThatRunsItself_StopsAtTheNestingLimit)
         {
             Rig                       rig;

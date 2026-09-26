@@ -92,6 +92,10 @@ public:
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
 
+    // The mode the line being executed was read in, so a script it runs is
+    // read in the same one; the session's mode between lines.
+    CommandMode  GetLineMode     () const { return m_lineMode.value_or (m_mode); }
+
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;
@@ -286,6 +290,7 @@ private:
 
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;
+    std::optional<CommandMode>            m_lineMode;
     OutputFormat                          m_outputFormat  = OutputFormat::AppleWin;
     LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;

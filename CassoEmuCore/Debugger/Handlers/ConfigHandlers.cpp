@@ -74,7 +74,9 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 
 void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, MessageData & output)
 {
-    size_t  start = 0;
+    size_t       start      = 0;
+    CommandMode  mode       = session.GetLineMode();
+    CommandMode  modeBefore = mode;
 
 
 
@@ -99,7 +101,15 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
 
         if (firstNonBlank == std::string::npos || line[firstNonBlank] != ';')
         {
-            reply = session.ExecuteLine (line);
+            modeBefore = session.GetMode();
+            reply      = session.ExecuteLine (line, mode);
+
+            //  A MODE line in the script changes the mode of the lines after it.
+            if (session.GetMode() != modeBefore)
+            {
+                mode = session.GetMode();
+            }
+
             session.FormatReply (reply);
             output.lines.insert (output.lines.end(), reply.text.begin(), reply.text.end());
         }
