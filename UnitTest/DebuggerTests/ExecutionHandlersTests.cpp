@@ -324,6 +324,7 @@ namespace DebuggerTests
 
 
             Assert::AreEqual (std::string ("Queued 2 keys. Keys waiting: 1."), rig.RunOk ("KEY 41 42").text.at (0));
+            Assert::AreEqual (std::string ("Queued 1 key. Keys waiting: 2."),  rig.RunOk ("KEY 43").text.at (0));
             Assert::AreEqual ((size_t) 1, rig.target.injectedKeys.size(), L"the first key goes at once");
             Assert::AreEqual ((Byte) 0x41, rig.target.injectedKeys[0]);
 
@@ -364,6 +365,49 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Last branch at $0307"), rig.RunOk ("LBR").text.at (0), L"the taken BNE");
         }
 
+
+
+        //  A reset sends the CPU through the vector, not through a transfer the
+        //  program made, so a record from before it would point at code that
+        //  did not lead to where the CPU now is.
+        TEST_METHOD (LBR_IsClearedByAResetAndAPowerCycle)
+        {
+            MachineRig  rig;
+
+
+
+            // $0300: JMP $0310
+            rig.Load (0x0300, { 0x4C, 0x10, 0x03 }, 0x0300);
+            rig.RunOk ("T");
+            Assert::AreEqual (std::string ("Last branch at $0300"), rig.RunOk ("LBR").text.at (0));
+
+            rig.machine.SoftReset();
+            Assert::AreEqual (std::string ("No branch recorded."), rig.RunOk ("LBR").text.at (0), L"after Ctrl+Reset");
+
+            rig.Load (0x0300, { 0x4C, 0x10, 0x03 }, 0x0300);
+            rig.RunOk ("T");
+            rig.machine.PowerCycle();
+            Assert::AreEqual (std::string ("No branch recorded."), rig.RunOk ("LBR").text.at (0), L"after a power cycle");
+        }
+
+
+
+        //  A taken branch whose displacement is zero, and a jump to the next
+        //  instruction, leave PC where it would have been anyway.
+        TEST_METHOD (LBR_RecordsATransferToTheNextInstruction)
+        {
+            MachineRig  rig;
+
+
+
+            // $0300: INX / BNE $0303 / JMP $0306 / NOP
+            rig.Load (0x0300, { 0xE8, 0xD0, 0x00, 0x4C, 0x06, 0x03, 0xEA }, 0x0300);
+            rig.RunOk ("T 2");
+            Assert::AreEqual (std::string ("Last branch at $0301"), rig.RunOk ("LBR").text.at (0), L"the taken BNE");
+
+            rig.RunOk ("T");
+            Assert::AreEqual (std::string ("Last branch at $0303"), rig.RunOk ("LBR").text.at (0), L"the JMP");
+        }
 
 
         TEST_METHOD (PROFILE_CountsWhileOnDuringDebuggerRuns_ResetAndSave)

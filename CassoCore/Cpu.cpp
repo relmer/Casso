@@ -650,7 +650,17 @@ void Cpu::StepOne()
 
     ExecuteInstruction (microcode, operandInfo);
 
-    if (PC != next)
+    // A taken branch or a jump to the very next instruction leaves PC where it
+    // would have been anyway, so PC alone does not tell a transfer apart.
+    bool isJump =
+        microcode.operation == Microcode::Jump                 ||
+        microcode.operation == Microcode::JumpSubroutine       ||
+        microcode.operation == Microcode::ReturnFromSubroutine ||
+        microcode.operation == Microcode::ReturnFromInterrupt  ||
+        microcode.operation == Microcode::Break                ||
+        microcode.operation == Microcode::BreakCmos;
+
+    if (PC != next || isJump || (m_lastPenalties & kPenaltyBranchTaken) != 0)
     {
         m_lastBranchFrom = start;
         m_hasLastBranch  = true;

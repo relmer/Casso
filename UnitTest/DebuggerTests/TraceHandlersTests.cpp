@@ -77,6 +77,19 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (OneEntry_IsSingular)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("HISTORY ON");
+            Fill (rig, 1);
+            Assert::AreEqual (std::string ("Saved 1 trace entry to trace.txt."), rig.RunOk ("HISTORY SAVE trace.txt").text.at (0));
+            Assert::AreEqual (std::string ("Trace off, 1 entry retained."),      rig.RunOk ("HISTORY OFF").text.at (0));
+        }
+
+
         TEST_METHOD (Window_NewestByDefault_FromFirstWhenGiven)
         {
             Rig      rig;

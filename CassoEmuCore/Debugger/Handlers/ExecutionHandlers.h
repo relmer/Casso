@@ -23,8 +23,8 @@ class IDebugTarget;
 //  instruction a debugger-driven run executes, and never from a machine
 //  running freely.
 //
-//  BENCHMARK needs a host clock, which batch mode does not have; without a
-//  benchmark runner it reports not available.
+//  BENCHMARK, BENCH and EXITBENCH report not available in every session: no
+//  benchmark runner exists.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

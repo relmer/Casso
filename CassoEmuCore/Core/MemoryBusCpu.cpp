@@ -179,6 +179,8 @@ void MemoryBusCpu::SoftReset()
     m_nmiLine    = false;
     m_nmiPending = false;
 
+    m_hasLastBranch = false;
+
     PC = ReadWord (resVector);
 }
 

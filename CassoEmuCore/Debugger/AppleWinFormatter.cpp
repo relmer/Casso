@@ -653,7 +653,7 @@ void AppleWinFormatter::FormatStepFilter (const StepFilterData & data, Lines & l
 
 void AppleWinFormatter::FormatTrace (const TraceData & data, Lines & lines)
 {
-    lines.push_back (std::format ("Trace {}, {} entries retained.", data.isOn ? "on" : "off", data.total));
+    lines.push_back (std::format ("Trace {}, {} {} retained.", data.isOn ? "on" : "off", data.total, data.total == 1 ? "entry" : "entries"));
 
     for (const TraceRecord & record : data.entries)
     {
