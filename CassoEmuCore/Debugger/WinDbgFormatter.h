@@ -43,6 +43,7 @@ private:
     static void         FormatEvaluation    (const CalcData           & data, Lines & lines);
     static void         FormatFormats       (const CalcData           & data, Lines & lines);
     static std::string  FormatCallFrame     (const CallStackFrame & frame);
+    static std::string  FormatBreakpointFlags (const BreakpointInfo & breakpoint);
     static std::string  GetCommandName      (const std::string & command);
 
     //  The dump's bytes in order, from the first row's address.

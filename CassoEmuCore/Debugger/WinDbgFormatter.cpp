@@ -353,7 +353,8 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
 //
 //  bl: id, e or d, the address, an access watchpoint's kind and size, and
 //  WinDbg's pass count, which is always one: a Casso breakpoint stops on
-//  its first hit. A condition follows.
+//  its first hit. An opcode or value entry shows its byte. A condition
+//  follows, then the hits and any flag that is off its default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,6 +378,14 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
                               :                                           "rw",
                                 breakpoint.last - breakpoint.address + 1);
         }
+        else if (breakpoint.kind == BreakpointKind::Opcode)
+        {
+            kind = std::format ("{} {:02x} ", ReplyJson::GetBreakpointKindName (breakpoint.kind), breakpoint.opcode);
+        }
+        else if (breakpoint.kind == BreakpointKind::MemoryValue)
+        {
+            kind = std::format ("{} {:02x} ", ReplyJson::GetBreakpointKindName (breakpoint.kind), breakpoint.value.value_or (0));
+        }
         else if (breakpoint.kind != BreakpointKind::Address)
         {
             kind = std::string (ReplyJson::GetBreakpointKindName (breakpoint.kind)) + " ";
@@ -389,8 +398,52 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
             text += "  IF " + breakpoint.condition;
         }
 
+        text += FormatBreakpointFlags (breakpoint);
         lines.push_back (text);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgFormatter::FormatBreakpointFlags
+//
+//  `  hits 3, temporary, counts only`, each part only when it is not the
+//  default, or nothing at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::FormatBreakpointFlags (const BreakpointInfo & breakpoint)
+{
+    std::vector<std::string>  parts;
+    std::string               text;
+
+
+
+    if (breakpoint.hits > 0)
+    {
+        parts.push_back (std::format ("hits {}", breakpoint.hits));
+    }
+
+    if (breakpoint.temporary)
+    {
+        parts.push_back ("temporary");
+    }
+
+    if (!breakpoint.stops)
+    {
+        parts.push_back ("counts only");
+    }
+
+    for (const std::string & part : parts)
+    {
+        text += (text.empty() ? "  " : ", ") + part;
+    }
+
+    return text;
 }
 
 

@@ -150,6 +150,34 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("1 d c010 w1 0001 (0001)"), lines[1]);
         }
 
+        TEST_METHOD (Bl_ShowsOpcodeValueHitsAndFlags)
+        {
+            BreakpointListData        data;
+            BreakpointInfo            opcode;
+            BreakpointInfo            value;
+            std::vector<std::string>  lines;
+
+
+
+            opcode.id         = 0;
+            opcode.kind       = BreakpointKind::Opcode;
+            opcode.opcode     = 0xEA;
+            opcode.hits       = 3;
+            opcode.temporary  = true;
+            value.id          = 1;
+            value.kind        = BreakpointKind::MemoryValue;
+            value.address     = 0x0400;
+            value.last        = 0x0400;
+            value.value       = (Byte) 0x2A;
+            value.stops       = false;
+            data.breakpoints  = { opcode, value };
+
+            lines = Render ("bl", data);
+
+            Assert::AreEqual (std::string ("0 e 0000 opcode ea 0001 (0001)  hits 3, temporary"),     lines[0]);
+            Assert::AreEqual (std::string ("1 e 0400 memoryValue 2a 0001 (0001)  counts only"),     lines[1]);
+        }
+
         TEST_METHOD (K_HeaderFramesAndBreaks)
         {
             CallStackData             data;
