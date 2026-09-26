@@ -83,10 +83,10 @@ public:
     {
         std::vector<DialogTextRun>  body = KeyboardMapText::BuildBody (MakeTwoPlus());
 
-        Assert::IsFalse (Mentions (body, L"open Apple"),
-            L"the ][+ has no open Apple key, so no row may name one");
-        Assert::IsFalse (Mentions (body, L"closed Apple"),
-            L"the ][+ has no closed Apple key, so no row may name one");
+        Assert::IsFalse (Mentions (body, L"Open Apple"),
+            L"the ][+ has no Open Apple key, so no row may mention one");
+        Assert::IsFalse (Mentions (body, L"Closed Apple"),
+            L"the ][+ has no Closed Apple key, so no row may mention one");
     }
 
     TEST_METHOD (TwoPlus_StillNamesWhatItHas)
@@ -103,8 +103,8 @@ public:
     {
         std::vector<DialogTextRun>  body = KeyboardMapText::BuildBody (MakeTwoe());
 
-        Assert::IsTrue (Mentions (body, L"open Apple"),   L"//e has an open Apple key");
-        Assert::IsTrue (Mentions (body, L"closed Apple"), L"//e has a closed Apple key");
+        Assert::IsTrue (Mentions (body, L"Open Apple"),   L"//e has an Open Apple key");
+        Assert::IsTrue (Mentions (body, L"Closed Apple"), L"//e has a Closed Apple key");
     }
 
     //  The dialog sizes itself from the rows, so a machine with fewer keys
@@ -130,7 +130,7 @@ public:
 
         Assert::IsFalse (Mentions (body, L"Joystick"),
             L"with no game port there is nothing for the arrows to drive");
-        Assert::IsTrue (Mentions (body, L"open Apple"),
+        Assert::IsTrue (Mentions (body, L"Open Apple"),
             L"dropping the joystick rows must not disturb the key rows");
     }
 

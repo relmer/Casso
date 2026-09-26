@@ -714,7 +714,7 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
         break;
 
     case SourceMatch::Unverified:
-        text = std::format ("{} has no recorded hash; it was matched by name and size.", fileName);
+        text = std::format ("{} has no recorded hash. It was matched by name and size.", fileName);
         break;
 
     case SourceMatch::NotFound:
@@ -730,7 +730,7 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
     {
         text += text.empty() ? "" : "\n";
         text += showingBody ? std::format ("Showing the macro body: {} line {}.", bodyName, bodyLine)
-                            : std::format ("Stopped inside a macro; its body line is {} line {}.", bodyName, bodyLine);
+                            : std::format ("Stopped inside a macro. Its body line is {} line {}.", bodyName, bodyLine);
     }
 
     return SourcePathList::Utf8ToWide (text);

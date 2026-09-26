@@ -137,7 +137,7 @@ HRESULT BinaryImageReader::ReadRaw (std::span<const Byte> content, std::optional
 
 
 
-    CBRFEx (hasAddress, E_INVALIDARG, error = "Raw bytes carry no address; give the address to load them at.");
+    CBRFEx (hasAddress, E_INVALIDARG, error = "A raw file has no load address. Give the address to load it at.");
     CBRFEx (hasBytes,   HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is empty.");
 
     AddBytes (image, *address, content);
@@ -209,7 +209,7 @@ HRESULT BinaryImageReader::ReadAppleSingle (std::span<const Byte> content, std::
     CHR (hr);
 
     hasAddress = address.has_value() || file.hasProDosInfo;
-    CBRFEx (hasAddress, E_INVALIDARG, error = "The AppleSingle file has no ProDOS file info to take an address from; give one.");
+    CBRFEx (hasAddress, E_INVALIDARG, error = "The AppleSingle file has no load address. Give the address to load it at.");
 
     AddBytes (image, address.value_or ((Word) file.auxType), file.data);
 
@@ -244,7 +244,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
 
 
 
-    CBRFEx (noAddress, E_INVALIDARG, error = "An Intel HEX file carries its own addresses; load it without one.");
+    CBRFEx (noAddress, E_INVALIDARG, error = "An Intel HEX file holds its own addresses. Load it without an address.");
 
     SplitLines (content, lines);
 
@@ -268,7 +268,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
             continue;
         }
 
-        CBRFEx (isRecord, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "A line does not start with the : an Intel HEX record starts with.");
+        CBRFEx (isRecord, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "A line does not start with ':', so it is not an Intel HEX record.");
 
         isHex = TryReadHexBytes (line.substr (1), bytes);
         CBRFEx (isHex, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An Intel HEX record holds something other than hex digits.");
@@ -285,7 +285,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
         }
 
         isSummed = sum == 0;
-        CBRFEx (isSummed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("An Intel HEX record's checksum does not hold at offset ${:04X}.", offset));
+        CBRFEx (isSummed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("An Intel HEX record's checksum does not match at offset ${:04X}.", offset));
 
         switch (type)
         {
@@ -308,7 +308,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
             break;
 
         default:
-            CBRFEx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("Intel HEX record type {:02X} is not one this reader knows.", type));
+            CBRFEx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("Intel HEX record type {:02X} is not supported.", type));
         }
     }
 
@@ -343,7 +343,7 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
 
 
 
-    CBRFEx (noAddress, E_INVALIDARG, error = "An S-record file carries its own addresses; load it without one.");
+    CBRFEx (noAddress, E_INVALIDARG, error = "An S-record file holds its own addresses. Load it without an address.");
 
     SplitLines (content, lines);
 
@@ -368,7 +368,7 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
             continue;
         }
 
-        CBRFEx (isRecord, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "A line does not start with the S and digit an S-record starts with.");
+        CBRFEx (isRecord, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "A line does not start with S and a digit, so it is not an S-record.");
 
         type  = line[1];
         isHex = TryReadHexBytes (line.substr (2), bytes);
@@ -383,7 +383,7 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
         }
 
         isSummed = (uint8_t) ~sum == bytes.back();
-        CBRFEx (isSummed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An S-record's checksum does not hold.");
+        CBRFEx (isSummed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An S-record's checksum does not match.");
 
         switch (type)
         {

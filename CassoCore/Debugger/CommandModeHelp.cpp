@@ -417,7 +417,7 @@ bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, s
         return true;
     }
 
-    line = std::format ("{} does not run in {} mode; it runs in {}.", upper, GetTitle (mode), GetModesThatRun (word));
+    line = std::format ("{} does not run in {} mode. It runs in {}.", upper, GetTitle (mode), GetModesThatRun (word));
     return true;
 }
 

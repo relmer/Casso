@@ -46,7 +46,7 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::SetOutputFormat:      Output          (session, command, reply); return true;
 
     case DebugVerb::ShowMessageOfTheDay:
-        reply.data = MessageData { { "Casso debugger: HELP lists the commands, MODE MONITOR switches to Apple II Monitor syntax." } };
+        reply.data = MessageData { { "Casso debugger. Use HELP to list the commands, or MODE MONITOR to switch to Apple II Monitor syntax." } };
         return true;
 
     //  Device panels are the window's; the window runs PANEL itself, so any
@@ -341,7 +341,7 @@ void ConfigHandlers::Disk (DebugSession & session, const DebugCommand & command,
     else if (verb == "EJECT" || verb == "INSERT" || verb == "PROTECT")
     {
         reply.SetError (CommandStatus::NotAvailable, "command not available",
-                        std::format ("DISK {} needs the emulator's disk manager, which this session does not have.", verb));
+                        std::format ("DISK {} is not available in this session.", verb));
     }
     else
     {

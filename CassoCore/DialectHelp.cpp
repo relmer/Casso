@@ -41,7 +41,7 @@ static constexpr CommandLineParser::FlagCategory  s_kCategoryOrder[] =
 
 std::string DialectHelp::GetAllDialects (char flagPrefix)
 {
-    std::string  text = "\nDialects (the assembler the source is written for, named rather than guessed):\n";
+    std::string  text = "\nDialects (the assembler the source is written for, which must be given explicitly):\n";
 
 
 

@@ -210,11 +210,11 @@ private:
     std::wstring          m_machineName;
     mutable std::wstring  m_resetTip;
     static constexpr wchar_t  kTipEighty[] =
-        L"80/40 column switch. Pressed in selects 80-column startup;\n"
-        L"software reads it at $C060. Takes effect when a disk boots.";
+        L"80/40 column switch. Pressed in selects 80-column startup.\n"
+        L"Software reads it at $C060. Takes effect when a disk boots.";
     static constexpr wchar_t  kTipKeyboard[] =
-        L"Keyboard layout switch. Pressed in selects the Dvorak layout;\n"
-        L"out is the standard QWERTY layout.";
+        L"Keyboard layout switch. Pressed in selects the Dvorak layout.\n"
+        L"Out is the standard QWERTY layout.";
 
     float  MeasureLabel (const wchar_t * text, float fontPx) const;
 

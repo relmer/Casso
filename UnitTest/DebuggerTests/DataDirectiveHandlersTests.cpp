@@ -170,7 +170,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("Assembling at $0300; a blank line ends it."), rig.RunOk ("A 300").text.at (0));
+            Assert::AreEqual (std::string ("Assembling at $0300. Enter a blank line to stop."), rig.RunOk ("A 300").text.at (0));
             Assert::IsTrue   (rig.session.IsAssembling());
 
             rig.RunOk ("LDA #$41");
@@ -179,7 +179,7 @@ namespace DebuggerTests
             Assert::IsFalse  (rig.session.IsAssembling());
 
             rig.target.registers.pc = 0x0400;
-            Assert::AreEqual (std::string ("Assembling at $0400; a blank line ends it."), rig.RunOk ("A").text.at (0));
+            Assert::AreEqual (std::string ("Assembling at $0400. Enter a blank line to stop."), rig.RunOk ("A").text.at (0));
             rig.RunOk ("RTS");
             Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0400]);
         }

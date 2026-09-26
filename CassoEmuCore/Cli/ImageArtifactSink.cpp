@@ -186,8 +186,8 @@ HRESULT ImageArtifactSink::ApplyStartupProgram (const CommandLineOptions        
     if (!runnable)
     {
         m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
-                             "would not run at boot: a booting DOS 3.3 RUNs its greeting, "
-                             "so a binary named as one leaves the disk booting and the program never running") + "\n";
+                             "would not run at boot: DOS 3.3 starts its greeting program with RUN, "
+                             "so a binary set as the greeting program never runs") + "\n";
     }
 
     CBR (runnable);

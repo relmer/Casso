@@ -6120,7 +6120,7 @@ CassqueActions::AddressFn CassqueWindow::MakeAddressPrompt()
 
         for (;;)
         {
-            if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Load Address",
+            if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Load address",
                                            hostName + L" is a binary. Load address:", text, 8, text))
             {
                 return false;

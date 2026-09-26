@@ -754,7 +754,7 @@ bool GSSquaredParser::TryParseAddress (Line & line, const std::string & token, W
 
     if (bank != 0)
     {
-        SetNotAvailable (line, std::format ("{:02X}/{:04X} is in bank {:02X}; only bank 00 exists on this machine.", bank, address, bank));
+        SetNotAvailable (line, std::format ("{:02X}/{:04X} is in bank {:02X}. Only bank 00 exists on this machine.", bank, address, bank));
         return false;
     }
 

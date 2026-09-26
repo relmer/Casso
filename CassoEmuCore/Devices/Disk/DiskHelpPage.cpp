@@ -48,7 +48,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lrecurse               Also list everything below <dir>, one full path per row\n",
         //  The columns still speak for themselves, and the paragraph says only
         //  what the rows cannot: where a directory goes, and the short forms.
-        "Naming a directory lists that one instead of the volume directory, on a ProDOS disk. -r and -s do what --recurse does.",
+        "On a ProDOS disk, give a directory to list it instead of the volume directory. -r and -s are the same as --recurse.",
         "CassoCli disk list mydisk.dsk" 
     },
 
@@ -84,8 +84,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"
         "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
         "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n"
-        "  %Lon-change <action>    Specifies how Casso behaves when its mounted disk file changes."
-                                   " reload inserts the modified disk; reboot inserts it and reboots the machine\n",
+        "  %Lon-change <action>    What to do when a mounted disk file changes:"
+                                   " reload inserts the changed disk, and reboot also restarts the machine\n",
         "To store a human-readable Applesoft BASIC program to disk, use the %Lbasic switch to tokenize the program into Applesoft BASIC's"
         " runnable format. If the Applesoft BASIC program is already tokenized (e.g., you retrieved it from disk without using %Lbasic),"
         " you can simply put it on another disk without conversion.  Use %Lbasic only when conversion from plain text to tokenized Applesoft"

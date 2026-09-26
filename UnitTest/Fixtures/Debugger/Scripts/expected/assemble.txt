@@ -1,5 +1,5 @@
 >A 300
-Assembling at $0300; a blank line ends it.
+Assembling at $0300. Enter a blank line to stop.
 >LDA #41
 0300: A9 41    LDA  #$41
 >JSR FDED

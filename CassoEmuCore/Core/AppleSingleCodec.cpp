@@ -50,7 +50,7 @@ HRESULT AppleSingleCodec::Decode (std::span<const Byte> bytes, AppleSingleFile &
 
     version        = ReadBigEndian32 (bytes, 4);
     isKnownVersion = version == kVersion1 || version == kVersion2;
-    CBRFEx (isKnownVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("AppleSingle version ${:08X} is not one this reader knows.", version));
+    CBRFEx (isKnownVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("AppleSingle version ${:08X} is not supported.", version));
 
     count      = ReadBigEndian16 (bytes, kHeaderSize - 2);
     hasEntries = bytes.size() >= kHeaderSize + count * kEntrySize;

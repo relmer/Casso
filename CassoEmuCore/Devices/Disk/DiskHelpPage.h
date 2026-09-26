@@ -41,10 +41,10 @@ public:
         "    0  Success\n"
         "    1  Success, with a warning: a listing cut short by damage or a file"
         " delivered with unreadable sectors as zeros\n"
-        "    2  Error, and nothing was done: a command or option refused, an image"
+        "    2  Error, and nothing was done: an invalid command or option, an image"
         " that cannot be read or holds no filesystem, a file that is not on the"
         " volume, a startup program a booting DOS 3.3 cannot run, or a write the"
-        " volume or the host refused. The image is"
+        " volume or the host did not allow. The image is"
         " byte-for-byte as it was";
 
     //

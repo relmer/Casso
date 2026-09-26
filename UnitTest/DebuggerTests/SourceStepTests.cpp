@@ -303,8 +303,8 @@ namespace DebuggerTests
             Load (rig, 0x0302);
 
             Assert::AreEqual (std::string ("$0302 is prog.a65 line 7."), rig.RunOk ("SRC").text.at (0));
-            Assert::AreEqual (std::string ("Steps go by instruction."),   rig.RunOk ("SRC").text.at (1));
-            Assert::AreEqual (std::string ("Steps go by source line."),   rig.RunOk ("SRC ON").text.at (1));
+            Assert::AreEqual (std::string ("Disassembly mode."),         rig.RunOk ("SRC").text.at (1));
+            Assert::AreEqual (std::string ("Source mode."),              rig.RunOk ("SRC ON").text.at (1));
             rig.RunFails ("SRC SIDEWAYS", "invalid arguments");
         }
 
@@ -327,7 +327,7 @@ namespace DebuggerTests
 
             lines = rig.RunOk ("BP src/prog.a65:5").text;
             Assert::AreEqual ((size_t) 2, lines.size(), L"the macro's closing line moves to the next line with code");
-            Assert::AreEqual (std::string ("Line 5 produced no code; the breakpoint is on line 6."), lines.at (1));
+            Assert::AreEqual (std::string ("Line 5 produced no code. The breakpoint is on line 6."), lines.at (1));
 
             lines = rig.RunOk ("BP prog.a65:3").text;
             Assert::IsTrue   (lines.at (0).ends_with (" at $0307, prog.a65 line 3."), L"a macro body line, where its expansion put it");

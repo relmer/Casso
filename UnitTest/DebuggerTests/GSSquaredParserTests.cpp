@@ -340,7 +340,7 @@ namespace DebuggerTests
             AssertRange (0x300, 0x30F, One ("00/300.30F"), "00/300.30F");
             Assert::AreEqual (0x300, (int) One ("bp 00/300").a1);
             Assert::IsTrue   (e1.error.find ("E1") != std::string::npos);
-            Assert::IsTrue   (e1.error.find ("only bank 00 exists on this machine") != std::string::npos);
+            Assert::IsTrue   (e1.error.find ("Only bank 00 exists on this machine") != std::string::npos);
             Refused ("bp E1/300", ParseStatus::NotAvailable);
         }
 

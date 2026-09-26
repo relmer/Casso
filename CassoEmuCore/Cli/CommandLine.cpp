@@ -590,7 +590,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintDialectFlags (DialectId::Merlin, prefix);
 
     PrintSectionHeading ("Supported subset");
-    PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is refused explicitly, with what it would take to support it. See docs\\Assembler.md.");
+    PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is reported as an error, with what it would take to support it. See docs\\Assembler.md.");
 
     PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (GetInstalledGigabytes(), false));
 }
@@ -738,7 +738,7 @@ void CommandLine::PrintRunPage (char prefix)
     PrintPageBanner (CommandLineOptions::Subcommand::Run);
     CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine ("  <binary>   An assembled image to load and execute.");
-    PrintUsageLine ("  <source>   An assembly source file to assemble and then execute. Name the assembler,");
+    PrintUsageLine ("  <source>   An assembly source file to assemble and then execute. Specify the assembler,");
     PrintUsageLine (std::format ("             {} or {}.",
                                  CommandLineParser::FormatLongOption ("--as65", prefix),
                                  CommandLineParser::FormatLongOption ("--merlin", prefix)));
@@ -769,7 +769,7 @@ void CommandLine::PrintRunPage (char prefix)
     PrintUsageLine (std::format ("  CassoCli run prog.a65 {0}as65 {0}stop $6010 {0}max-cycles 10000", lp));
     PrintUsageLine ("      Assembles prog.a65 as AS65, loads it at $8000, and runs until the PC reaches $6010 or ten thousand cycles have passed, whichever comes first.");
     PrintUsageLine (std::format ("  CassoCli run prog.bin {0}load $8000", lp));
-    PrintUsageLine ("      Loads an already-assembled binary at $8000 and runs it. A binary names no assembler, because none reads it.");
+    PrintUsageLine ("      Loads an already-assembled binary at $8000 and runs it. A binary needs no assembler option.");
 
     PrintExitCodes (std::string (CommandLineParser::kRunExitStatusHelpText));
 }
@@ -895,7 +895,7 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
     if (CommandLineParser::IsAssemblySource (word))
     {
-        std::cerr << "       it looks like a source file; assembling states its dialect:\n"
+        std::cerr << "       It looks like a source file. To assemble it, give its dialect:\n"
                   << "       CassoCli as65 " << word << "\n";
     }
     else

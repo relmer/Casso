@@ -101,9 +101,9 @@ struct RomSpec
 static constexpr RomSpec s_kRomCatalog[] =
 {
     { "Apple2",           "Apple2.rom",            "Apple2.rom",                 "Machines/Apple2",           12288, "Apple ][ ROM (Integer BASIC)"              },
-    { "Apple2",           "Apple2_Video.rom",      "Apple2_Video.rom",           "Machines/Apple2",            2048, "Apple ][/][+ Character Generator"          },
+    { "Apple2",           "Apple2_Video.rom",      "Apple2_Video.rom",           "Machines/Apple2",            2048, "Apple ][/][+ character generator"          },
     { "Apple2Plus",       "Apple2Plus.rom",        "Apple2_Plus.rom",            "Machines/Apple2Plus",       12288, "Apple ][+ ROM (Applesoft BASIC)"           },
-    { "Apple2Plus",       "Apple2_Video.rom",      "Apple2_Video.rom",           "Machines/Apple2Plus",        2048, "Apple ][/][+ Character Generator"          },
+    { "Apple2Plus",       "Apple2_Video.rom",      "Apple2_Video.rom",           "Machines/Apple2Plus",        2048, "Apple ][/][+ character generator"          },
     { "Apple2e",          "Apple2e.rom",           "Apple2e.rom",                "Machines/Apple2e",          16384, "Apple //e ROM"                             },
     // The unenhanced //e's character generator is 342-0133-A, which has
     // ordinary glyphs at $40-$5F where the enhanced part has MouseText.
@@ -111,7 +111,7 @@ static constexpr RomSpec s_kRomCatalog[] =
     // models; Casso did the same, which put MouseText on a machine that
     // never had it. The real part comes from the same preservation mirror
     // the //c's ROM 4 does.
-    { "Apple2e",          "Apple2e_Video.rom",     "",                           "Machines/Apple2e",           4096, "Apple //e Character Generator (342-0133-A)",
+    { "Apple2e",          "Apple2e_Video.rom",     "",                           "Machines/Apple2e",           4096, "Apple //e character generator (342-0133-A)",
       "mirrors.apple2.org.za",
       "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIe/ROM%20Images/Apple%20IIe%20Video%20ROM%20-%20342-0133-A%20-%20US%201982.bin",
       "apple2.org.za",
@@ -120,7 +120,7 @@ static constexpr RomSpec s_kRomCatalog[] =
       // characters. Re-fetch that exact file and nothing else.
       "52c3b87900ac939f6525402cab1ccfd8f8259290fc6df54da48fb4c98ae3ed0f" },
     { "Apple2eEnhanced",  "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       "Machines/Apple2eEnhanced",  16384, "Apple //e Enhanced ROM"                    },
-    { "Apple2eEnhanced",  "Apple2eEnhanced_Video.rom", "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced", 4096, "Apple //e Enhanced Character Generator + MouseText (342-0265-A)" },
+    { "Apple2eEnhanced",  "Apple2eEnhanced_Video.rom", "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced", 4096, "Apple //e Enhanced character generator + MouseText (342-0265-A)" },
     // AppleWin does not emulate the //c, so its 32K ROM 4 (memory-expansion
     // //c, chip 341-0445-B) comes from the apple2.org.za preservation mirror.
     { "Apple2c",          "Apple2c.rom",           "",                           "Machines/Apple2c",          32768, "Apple //c ROM 4 (341-0445-B, memory expansion)",
@@ -132,9 +132,9 @@ static constexpr RomSpec s_kRomCatalog[] =
     // It shares the part with the Enhanced //e but not the file name: each
     // machine's assets are self-contained, and one name for two different
     // parts is what hid the //e's wrong character ROM.
-    { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c Character Generator + MouseText" },
-    { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
-    { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
+    { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c character generator + MouseText" },
+    { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ boot ROM (slot 6)"                 },
+    { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ boot ROM (13-sector)"              },
 };
 
 
@@ -2844,7 +2844,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     title  = L"Casso ";
     title += s_kchEmDash;
-    title += L" Boot Disk";
+    title += L" Boot disk";
 
     if (mruCount > 0)
     {
@@ -2884,7 +2884,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
-        row.location    = present ? L"Installed" : L"Asimov archive (Download)";
+        row.location    = present ? L"Installed" : L"Asimov archive (download)";
         row.loadedUnix  = 0;
         row.resultCode  = mruCount + j;
         row.dimLocation = true;
@@ -3042,7 +3042,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     title  = L"Casso ";
     title += s_kchEmDash;
-    title += format (L" Insert Disk in Drive {}", drive);
+    title += format (L" Insert disk in Drive {}", drive);
 
     if (mruCount > 0)
     {
@@ -3095,7 +3095,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
-        row.location    = present ? L"Installed" : L"Asimov archive (Download)";
+        row.location    = present ? L"Installed" : L"Asimov archive (download)";
         row.loadedUnix  = 0;
         row.resultCode  = mruCount + j;
         row.dimLocation = true;

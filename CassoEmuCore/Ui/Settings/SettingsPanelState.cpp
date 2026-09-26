@@ -1770,7 +1770,7 @@ HRESULT SettingsPanelState::ExtractHardware (
             hw.slot        = slotNum;
             hw.type        = dev;
             hw.displayName = std::string ("Slot ") + std::to_string (slotNum)
-                           + ": " + (dev.empty() ? std::string ("(rom only)") : devNice);
+                           + ": " + (dev.empty() ? std::string ("(ROM only)") : devNice);
             hw.capability  = ParseCapability (
                 GetStringOpt (entry, "capabilityFlag", ""),
                 CapabilityFlag::Optional);   // FR-015 default for slots

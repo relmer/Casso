@@ -295,15 +295,15 @@ static constexpr CommandLineParser::ImageTargetFlag  s_kImageTargetFlags[] =
     //  reader's own prefix. The sweep that checks every option is exercised
     //  strips them back off.
     { "--disk",    " <image>", "Write the object into this disk image instead of a host file" },
-    { "--as",      " <name>",  "What the object is called on the volume. Beats a name the source gives" },
-    { "--type",    " <type>",  "The filesystem type: T, I, A, B or R on DOS 3.3, TXT, BIN, BAS or SYS on ProDOS. Beats a type the source gives" },
+    { "--as",      " <name>",  "What the object is called on the volume. Overrides the name in the source" },
+    { "--type",    " <type>",  "The filesystem type: T, I, A, B or R on DOS 3.3, TXT, BIN, BAS or SYS on ProDOS. Overrides the type in the source" },
     { "--startup", "",         "Make the object the program the volume runs when it boots" },
 
     //  Stated to a RUNNING emulator, which is what makes it different in kind
     //  from the three above: they describe where the object lands, this
     //  describes what should happen to somebody already holding the image.
     //  Omitting it asks the user, so there is no value that spells that.
-    { "--on-change", " <action>", "Specifies how Casso behaves when its mounted disk file changes. reload inserts the modified disk; reboot inserts it and reboots the machine" },
+    { "--on-change", " <action>", "What to do when a mounted disk file changes: reload inserts the changed disk, and reboot also restarts the machine" },
 };
 
 
@@ -1440,7 +1440,7 @@ void CommandLineParser::ParseDiskOptions (
 
             if (contradicts)
             {
-                Refusal (options) << "Error: --logical and --physical are one choice, not two flags\n";
+                Refusal (options) << "Error: --logical and --physical cannot be used together\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -2815,8 +2815,8 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             }
 
             Refusal (options) << "Error: surplus argument: " << arg << "\n";
-            Refusal (options) << "       assembling takes one source file, and "
-                              << options.inputFile << " is already it\n";
+            Refusal (options) << "       Only one source file can be assembled, and "
+                              << options.inputFile << " was already given.\n";
 
             if (wantsValue != 0)
             {
@@ -3443,7 +3443,7 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
         {
             Refusal (options) << "Error: " << options.flagPrefix
                               << "l takes no filename under merlin\n";
-            Refusal (options) << "       a listing is written beside each object, named after it\n";
+            Refusal (options) << "       Each object's listing is written beside it, with the same base name.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             stop                 = true;
@@ -3466,7 +3466,7 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
         {
             Refusal (options) << "Error: " << options.flagPrefix
                               << "g takes no filename under merlin\n";
-            Refusal (options) << "       a debug file is written beside each object, named after it\n";
+            Refusal (options) << "       Each object's debug file is written beside it, with the same base name.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             stop                 = true;
@@ -3648,8 +3648,8 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
             //  the other. Merlin was still silently discarding it after as65
             //  stopped, so the two grammars disagreed about the same mistake.
             Refusal (options) << "Error: surplus argument: " << arg << "\n";
-            Refusal (options) << "       assembling takes one source file, and "
-                              << options.inputFile << " is already it\n";
+            Refusal (options) << "       Only one source file can be assembled, and "
+                              << options.inputFile << " was already given.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             stop                 = true;
@@ -3969,7 +3969,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             //  sent looking for a flag they had not typed.
             Refusal (options) << "Error: surplus argument: " << arg << "\n"
                               << "       `run` takes one input file, and " << options.inputFile
-                              << " is already it\n";
+                              << " was already given.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
         }
@@ -4208,9 +4208,9 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
         else
         {
             Refusal (options) << "Error: surplus argument: " << arg << "\n"
-                              << "       `debug` takes no operand; a machine is named by "
-                              << FormatLongOption ("--machine", options.flagPrefix) << " and a script by "
-                              << FormatLongOption ("--script", options.flagPrefix) << "\n";
+                              << "       `debug` takes no operand. Use "
+                              << FormatLongOption ("--machine", options.flagPrefix) << " to give a machine and "
+                              << FormatLongOption ("--script", options.flagPrefix) << " to give a script.\n";
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
         }
 

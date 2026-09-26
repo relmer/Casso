@@ -40,11 +40,11 @@ std::vector<DialogTextRun> KeyboardMapText::BuildBody (const Machine & machine)
         // the two differ by fill alone and a reader who has not met them
         // cannot tell which is which from the picture. The words say which.
         row.text      = L"Left Alt";
-        row.rightText = std::wstring (s_kpszOpenApple) + L" open Apple";
+        row.rightText = std::wstring (s_kpszOpenApple) + L" Open Apple";
         body.push_back (row);
 
         row.text      = L"Right Alt";
-        row.rightText = std::wstring (s_kpszClosedApple) + L" closed Apple";
+        row.rightText = std::wstring (s_kpszClosedApple) + L" Closed Apple";
         body.push_back (row);
     }
 

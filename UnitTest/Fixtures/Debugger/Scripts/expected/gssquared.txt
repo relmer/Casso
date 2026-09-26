@@ -77,7 +77,7 @@ Mode: GSSQUARED
 00/0300: 20
 >e1/300
 Error: command not available
-       E1/0300 is in bank E1; only bank 00 exists on this machine.
+       E1/0300 is in bank E1. Only bank 00 exists on this machine.
 >map
 Error: command not available
        MAP needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU.
