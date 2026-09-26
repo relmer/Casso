@@ -43,4 +43,17 @@ public:
     //  as "Text Document" or "File folder". Empty, the default, when the
     //  implementation has no type name for it, and the caller keeps its own.
     virtual std::wstring  GetTypeName (const std::wstring & path, bool isDirectory) { (void) path; (void) isDirectory; return std::wstring(); }
+
+    //  What Explorer shows for a drive: its name, as "Local Disk (C:)", its
+    //  type, and its free and total bytes.
+    struct DriveInfo
+    {
+        std::wstring  name;
+        std::wstring  typeName;
+        uint64_t      freeBytes  = 0;
+        uint64_t      totalBytes = 0;
+    };
+
+    //  False, the default, when the implementation has no drive information.
+    virtual bool  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) { (void) root; (void) outInfo; return false; }
 };

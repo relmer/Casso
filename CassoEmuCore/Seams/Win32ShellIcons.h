@@ -30,6 +30,7 @@ public:
     std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) override;
     std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) override;
     std::wstring                          GetTypeName (const std::wstring & path, bool isDirectory) override;
+    bool                                  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) override;
 
     static constexpr int  kDefaultSizePx = 16;
 

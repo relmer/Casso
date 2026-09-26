@@ -62,6 +62,14 @@ public:
 
         //  The text's color in place of the theme's; zero keeps the theme's.
         uint32_t      argb        = 0;
+
+        //  A usage bar drawn in place of the text, filled to this fraction;
+        //  negative draws none. Explorer's drive tiles have one.
+        float         meter       = -1.0f;
+
+        //  The lines Tiles and Content draw under the name in place of the
+        //  other columns, for a row whose tile shows something else.
+        std::vector<Cell>  tileLines;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -345,6 +353,16 @@ public:
     //  How opaque a ghosted icon is: Explorer's hidden items, measured.
     static constexpr float  s_kGhostedIconAlpha = 0.5f;
 
+    //  Explorer's drive usage bar, measured: its size, its fill, track and
+    //  edge, and the red it turns once the drive is nearly full.
+    static constexpr int       s_kMeterWidthDip  = 190;
+    static constexpr int       s_kMeterHeightDip = 14;
+    static constexpr float     s_kMeterFullAt    = 0.9f;
+    static constexpr uint32_t  s_kMeterFillArgb  = 0xFF0070CBu;
+    static constexpr uint32_t  s_kMeterFullArgb  = 0xFFDA2626u;
+    static constexpr uint32_t  s_kMeterTrackArgb = 0xFFE6E6E6u;
+    static constexpr uint32_t  s_kMeterEdgeArgb  = 0xFFBCBCBCu;
+
     struct ItemMetrics
     {
         int   cellWDip   = 0;
@@ -353,6 +371,9 @@ public:
         bool  columns    = false;
         bool  labelBelow = false;
         int   textLines  = 1;
+
+        //  The pitch of the lines beside the icon.
+        int   lineDip    = 18;
     };
 
     void                SetView          (View view);
@@ -558,6 +579,7 @@ private:
     bool          HandleKeyboardItemNav   (WPARAM vk, bool shift);
     RECT          GetItemLabelRectPx      (const RECT & cell) const;
     void          PaintItems              (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, float x, float y) const;
+    void          PaintMeter              (IDxuiPainter & painter, float x, float y, float w, float lineH, float fraction) const;
     POINT         GetItemScrollOffsetPx   () const;
     void          BeginSelectionBand      (int lx, int ly, bool ctrl);
     void          UpdateSelectionBand     (int lx, int ly);

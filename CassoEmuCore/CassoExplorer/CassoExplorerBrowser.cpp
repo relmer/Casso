@@ -46,6 +46,17 @@ DxuiTreeNode CassoExplorerBrowser::ToTreeNode (const TreeNode & node, IShellIcon
     out.label          = node.label;
     out.dividerAbove   = node.kind == TreeNode::Kind::ThisPcRoot;   // Explorer's line above This PC
 
+    //  A drive under its name, as Explorer's tree shows it.
+    if (node.kind == TreeNode::Kind::Drive && icons != nullptr)
+    {
+        IShellIcons::DriveInfo  drive;
+
+        if (icons->GetDriveInfo (node.location.path, drive) && !drive.name.empty())
+        {
+            out.label = drive.name;
+        }
+    }
+
     //  A known folder's label is its whole path, which a narrow tree cannot
     //  hold; the folder's own name is what Explorer shows there too.
     if (node.kind == TreeNode::Kind::KnownFolder)
@@ -364,6 +375,24 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
         entry.isFolder = true;
 
         m_rows.push_back (CatalogModel::FromHostEntry (entry, false, index));
+        m_rows.back().hostPath = m_rootChildren[index].location.path;
+
+        //  A drive's tile shows its name, its type and how full it is.
+        if (m_rootChildren[index].kind == TreeNode::Kind::Drive && m_shellIcons != nullptr)
+        {
+            IShellIcons::DriveInfo  drive;
+
+            if (m_shellIcons->GetDriveInfo (m_rootChildren[index].location.path, drive))
+            {
+                CatalogRow &  row = m_rows.back();
+
+                row.name      = drive.name.empty() ? row.name : drive.name;
+                row.typeText  = drive.typeName.empty() ? row.typeText : drive.typeName;
+                row.isDrive   = true;
+                row.sizeBytes = drive.totalBytes;
+                row.freeBytes = drive.freeBytes;
+            }
+        }
     }
 
 Error:
@@ -1022,6 +1051,18 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
     }
 
     cells[0].iconGhosted = row.isHidden;
+
+    //  Explorer's drive tile: a bar as full as the drive, then what is free.
+    if (row.isDrive && row.sizeBytes > 0)
+    {
+        DxuiListView::Cell  meter;
+        DxuiListView::Cell  free;
+
+        meter.meter = 1.0f - (float) ((double) row.freeBytes / (double) row.sizeBytes);
+        free.text   = std::format (L"{} free of {}", FormatSize (row.freeBytes), FormatSize (row.sizeBytes));
+
+        cells[0].tileLines = { meter, free };
+    }
 
     return cells;
 }
@@ -2091,6 +2132,12 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
     if (at.kind == Location::Kind::HostFolder)
     {
         return icons.GetForPath (JoinPath (at.path, row.name), row.isDirectory);
+    }
+
+    //  A root's rows are its known folders and drives, with their own icons.
+    if (at.kind == Location::Kind::None && !row.hostPath.empty())
+    {
+        return icons.GetForPath (row.hostPath, true);
     }
 
     return icons.GetForKind (row.isDirectory ? IShellIcons::Kind::Folder : IShellIcons::Kind::File);

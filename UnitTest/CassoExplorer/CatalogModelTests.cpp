@@ -195,6 +195,27 @@ public:
 
 
 
+    TEST_METHOD (Sort_DrivesGoByTheirLetter)
+    {
+        std::vector<CatalogRow>  rows (2);
+
+        rows[0].name     = L"Alpha (D:)";
+        rows[0].hostPath = L"D:\\";
+        rows[1].name     = L"Zulu (C:)";
+        rows[1].hostPath = L"C:\\";
+
+        for (CatalogRow & row : rows)
+        {
+            row.isDirectory = true;
+            row.isDrive     = true;
+        }
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, false);
+
+        Assert::AreEqual (std::wstring (L"Zulu (C:)"), rows[0].name);
+    }
+
+
     TEST_METHOD (SourceIndex_SurvivesASort)
     {
         std::vector<CatalogRow>  rows;

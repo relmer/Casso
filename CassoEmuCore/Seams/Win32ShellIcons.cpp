@@ -361,3 +361,39 @@ std::wstring Win32ShellIcons::GetTypeName (const std::wstring & path, bool isDir
 
     return m_typeNames[key];
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::GetDriveInfo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellIcons::GetDriveInfo (const std::wstring & root, DriveInfo & outInfo)
+{
+    SHFILEINFOW     info      = {};
+    ULARGE_INTEGER  available = {};
+    ULARGE_INTEGER  total     = {};
+    DWORD_PTR       found     = SHGetFileInfoW (root.c_str(), 0, &info, sizeof (info), SHGFI_DISPLAYNAME | SHGFI_TYPENAME);
+
+
+
+    if (found == 0)
+    {
+        return false;
+    }
+
+    outInfo.name     = info.szDisplayName;
+    outInfo.typeName = info.szTypeName;
+
+    if (GetDiskFreeSpaceExW (root.c_str(), &available, &total, nullptr))
+    {
+        outInfo.freeBytes  = available.QuadPart;
+        outInfo.totalBytes = total.QuadPart;
+    }
+
+    return true;
+}

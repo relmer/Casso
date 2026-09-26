@@ -27,7 +27,7 @@ DxuiListView::ItemMetrics DxuiListView::GetItemMetrics (View view)
         case View::MediumIcons:     return ItemMetrics {  88,  98,  48, false, true,  2 };
         case View::SmallIcons:      return ItemMetrics { 240,  24,  16, false, false, 1 };
         case View::List:            return ItemMetrics { 240,  24,  16, true,  false, 1 };
-        case View::Tiles:           return ItemMetrics { 260,  64,  48, false, false, 3 };
+        case View::Tiles:           return ItemMetrics { 254,  58,  48, false, false, 3, 17 };
         case View::Content:         return ItemMetrics {   0,  56,  32, false, false, 2 };
         default:                    return ItemMetrics {   0,  30,  16, false, false, 1 };
     }
@@ -405,7 +405,7 @@ RECT DxuiListView::GetItemLabelRectPx (const RECT & cell) const
     ItemMetrics  metrics = GetItemMetrics (m_view);
     int          pad     = m_scaler.ToPx (s_kItemPadDip);
     int          iconPx  = m_scaler.ToPx (metrics.iconDip);
-    int          lineH   = m_scaler.ToPx (s_kItemLineDip);
+    int          lineH   = m_scaler.ToPx (metrics.lineDip);
 
 
 
@@ -442,8 +442,8 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
     int                last    = rows;
     int                pad     = m_scaler.ToPx (s_kItemPadDip);
     int                iconPx  = m_scaler.ToPx (metrics.iconDip);
-    int                lineH   = m_scaler.ToPx (s_kItemLineDip);
-    float              fontPx  = m_scaler.ToPxf (s_kFontDip);
+    int                lineH   = m_scaler.ToPx (metrics.lineDip);
+    float              fontPx  = m_scaler.ToPxf (m_fontDip);
     float              radius  = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
 
 
@@ -518,10 +518,27 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
                               DxuiFontWeight::Normal, metrics.labelBelow);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  Tiles and Content show the other columns underneath, one a line.
-        for (int line = 1; !metrics.labelBelow && line < metrics.textLines && line < (int) cells.size(); line++)
+        //  Tiles and Content show the other columns underneath, one a line,
+        //  or the row's own tile lines when it has them.
+        for (int line = 1; !metrics.labelBelow && line < metrics.textLines; line++)
         {
-            hr = text.DrawString (cells[(size_t) line].text.c_str(), (float) label.left, (float) (label.top + line * lineH),
+            bool                        own    = !cells[0].tileLines.empty();
+            const std::vector<Cell> &   source = own ? cells[0].tileLines : cells;
+            size_t                      index  = own ? (size_t) (line - 1) : (size_t) line;
+            float                       top    = (float) (label.top + line * lineH);
+
+            if (index >= source.size())
+            {
+                break;
+            }
+
+            if (source[index].meter >= 0.0f)
+            {
+                PaintMeter (painter, (float) label.left, top, (float) (label.right - label.left), (float) lineH, source[index].meter);
+                continue;
+            }
+
+            hr = text.DrawString (source[index].text.c_str(), (float) label.left, top,
                                   (float) (label.right - label.left), (float) lineH,
                                   pal.fgDim, fontPx, DxuiTheme::kBodyFace,
                                   DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
@@ -541,6 +558,40 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
         painter.OutlineRect ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
                              1.0f, pal.edgeSel != 0 ? pal.edgeSel : pal.fg);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::PaintMeter
+//
+//  Explorer's usage bar: an edged track, filled from the left to the
+//  fraction, centered in its line and no wider than the line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintMeter (IDxuiPainter & painter, float x, float y, float w, float lineH, float fraction) const
+{
+    float     edge   = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
+    float     width  = (std::min) (w, m_scaler.ToPxf ((float) s_kMeterWidthDip));
+    float     height = m_scaler.ToPxf ((float) s_kMeterHeightDip);
+    float     top    = y + (lineH - height) * 0.5f;
+    float     fill   = std::clamp (fraction, 0.0f, 1.0f);
+    uint32_t  argb   = (fill >= s_kMeterFullAt) ? s_kMeterFullArgb : s_kMeterFillArgb;
+
+
+
+    if (width <= edge * 2.0f)
+    {
+        return;
+    }
+
+    painter.FillRect (x, top, width, height, s_kMeterEdgeArgb);
+    painter.FillRect (x + edge, top + edge, width - edge * 2.0f, height - edge * 2.0f, s_kMeterTrackArgb);
+    painter.FillRect (x + edge, top + edge, (width - edge * 2.0f) * fill, height - edge * 2.0f, argb);
 }
 
 

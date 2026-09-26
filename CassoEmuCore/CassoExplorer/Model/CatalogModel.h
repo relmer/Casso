@@ -45,6 +45,14 @@ struct CatalogRow
     bool  isCompressed        = false;
     bool  isEncrypted         = false;
 
+    //  A drive in This PC, whose tile shows how full it is: sizeBytes holds
+    //  its capacity and freeBytes what is left.
+    bool      isDrive         = false;
+    uint64_t  freeBytes       = 0;
+
+    //  A root's row: the folder or drive it opens, whose icon it shows.
+    std::wstring  hostPath;
+
     //  Where the row came from in the listing it was built from, so a sort
     //  can be undone by the consumer and a selection can find its entry.
     size_t        sourceIndex  = 0;

@@ -256,7 +256,10 @@ void CatalogModel::FromListing (const VolumeListing & listing, VolumeKind kind, 
 
 bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column column)
 {
-    int  byName = _wcsicmp (a.name.c_str(), b.name.c_str());
+    //  Drives go by their letter, as Explorer orders them, whatever their
+    //  volume names.
+    bool  drives = a.isDrive && b.isDrive;
+    int   byName = drives ? _wcsicmp (a.hostPath.c_str(), b.hostPath.c_str()) : _wcsicmp (a.name.c_str(), b.name.c_str());
 
 
 

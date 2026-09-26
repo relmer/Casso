@@ -207,6 +207,32 @@ public:
     }
 
 
+    TEST_METHOD (DriveTile_ShowsHowFullAndWhatIsFree)
+    {
+        CatalogRow                       drive;
+        CatalogRow                       folder;
+        std::vector<DxuiListView::Cell>  cells;
+
+        drive.name        = L"Local Disk (C:)";
+        drive.isDirectory = true;
+        drive.isDrive     = true;
+        drive.sizeBytes   = 4000ull * 1024 * 1024 * 1024;
+        drive.freeBytes   = 1000ull * 1024 * 1024 * 1024;
+
+        cells = CassoExplorerBrowser::ToCells (drive);
+
+        Assert::AreEqual ((size_t) 2, cells[0].tileLines.size());
+        Assert::AreEqual (0.75f, cells[0].tileLines[0].meter, 0.001f);
+        Assert::AreEqual (CassoExplorerBrowser::FormatSize (drive.freeBytes) + L" free of " + CassoExplorerBrowser::FormatSize (drive.sizeBytes),
+                          cells[0].tileLines[1].text);
+
+        folder.name        = L"Games";
+        folder.isDirectory = true;
+
+        Assert::IsTrue (CassoExplorerBrowser::ToCells (folder)[0].tileLines.empty(), L"A folder's tile shows its columns");
+    }
+
+
     TEST_METHOD (SelectImage_ListsCatalogAndFreeSpace)
     {
         Host          host;
