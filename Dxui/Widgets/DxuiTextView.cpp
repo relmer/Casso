@@ -583,6 +583,265 @@ void DxuiTextView::CopySelection() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::SelectMatch
+//
+//  A forward search starts at the end of the selection and a backward one at
+//  its start, so repeating either steps from match to match. With nothing
+//  selected both start at the caret, where the last click left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle, bool matchCase, bool forward)
+{
+    std::vector<std::wstring>  texts;
+    Position                   from   = forward ? (std::max) (m_anchor, m_caret) : (std::min) (m_anchor, m_caret);
+    Position                   start;
+    FindResult                 result = FindResult::NotFound;
+
+
+
+    texts.reserve (m_rows.size());
+
+    for (const Row & row : m_rows)
+    {
+        texts.push_back (GetRowText (row));
+    }
+
+    result = FindInRows (texts, needle, matchCase, forward, from, start);
+
+    if (result != FindResult::NotFound)
+    {
+        m_anchor = start;
+        m_caret  = Position { start.row, start.offset + (int) needle.size() };
+
+        ScrollToPosition (start);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::FindInRows
+//
+//  Without a match past the starting point the search goes round: forward
+//  from the top, backward from the bottom. Without matching case, both sides
+//  are lowered first, which keeps every offset where it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView::FindResult DxuiTextView::FindInRows (
+    const std::vector<std::wstring> & rows,
+    const std::wstring              & needle,
+    bool                              matchCase,
+    bool                              forward,
+    Position                          from,
+    Position                        & outStart)
+{
+    std::vector<std::wstring>          folded;
+    const std::vector<std::wstring>  * haystack = &rows;
+    std::wstring                       key      = needle;
+    Position                           around   = forward ? Position() : Position { (int) rows.size(), 0 };
+
+
+
+    if (needle.empty())
+    {
+        return FindResult::NotFound;
+    }
+
+    if (!matchCase)
+    {
+        for (const std::wstring & text : rows)
+        {
+            folded.push_back (GetLowered (text));
+        }
+
+        key      = GetLowered (needle);
+        haystack = &folded;
+    }
+
+    if (TryFindOnce (*haystack, key, forward, from, outStart))
+    {
+        return FindResult::Found;
+    }
+
+    if (TryFindOnce (*haystack, key, forward, around, outStart))
+    {
+        return FindResult::Wrapped;
+    }
+
+    return FindResult::NotFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLowered
+//
+//  One character for one, so an offset in the result is the same offset in
+//  the text it came from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiTextView::GetLowered (const std::wstring & text)
+{
+    std::wstring  lowered = text;
+
+
+
+    for (wchar_t & ch : lowered)
+    {
+        ch = (wchar_t) towlower (ch);
+    }
+
+    return lowered;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::TryFindOnce
+//
+//  One pass, with no going round: forward, the first match starting at or
+//  after `from`; backward, the last match starting before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::TryFindOnce (
+    const std::vector<std::wstring> & rows,
+    const std::wstring              & needle,
+    bool                              forward,
+    Position                          from,
+    Position                        & outStart)
+{
+    int     count = (int) rows.size();
+    size_t  at    = std::wstring::npos;
+
+
+
+    if (forward)
+    {
+        for (int r = (std::max) (from.row, 0); r < count; r++)
+        {
+            size_t  start = (r == from.row) ? (size_t) (std::max) (from.offset, 0) : 0;
+
+            at = (start <= rows[(size_t) r].size()) ? rows[(size_t) r].find (needle, start) : std::wstring::npos;
+
+            if (at != std::wstring::npos)
+            {
+                outStart = Position { r, (int) at };
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    for (int r = (std::min) (from.row, count - 1); r >= 0; r--)
+    {
+        if (r == from.row && from.offset <= 0)
+        {
+            continue;
+        }
+
+        at = rows[(size_t) r].rfind (needle, (r == from.row) ? (size_t) (from.offset - 1) : std::wstring::npos);
+
+        if (at != std::wstring::npos)
+        {
+            outStart = Position { r, (int) at };
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLineOfPosition
+//
+//  The drawn line a position falls on: its row's first line, or a later one
+//  when the position is in the part of the last cell that wrapped. -1 when
+//  the row is not laid out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetLineOfPosition (Position pos) const
+{
+    int  line = GetFirstLineOfRow (pos.row);
+    int  base = 0;
+
+
+
+    if (line < 0)
+    {
+        return line;
+    }
+
+    base = GetCellBase (m_rows[(size_t) pos.row], (int) m_rows[(size_t) pos.row].cells.size() - 1);
+
+    while (line + 1 < (int) m_lines.size() && m_lines[(size_t) line + 1].row == pos.row &&
+           base + m_lines[(size_t) line + 1].start <= pos.offset)
+    {
+        line++;
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::ScrollToPosition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::ScrollToPosition (Position pos)
+{
+    int  line = GetLineOfPosition (pos);
+    int  cap  = GetLineCap();
+
+
+
+    if (line < 0)
+    {
+        return;
+    }
+
+    if (line < m_topLine)
+    {
+        SetTopLine (line);
+    }
+    else if (line >= m_topLine + cap)
+    {
+        SetTopLine (line - cap + 1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::SetZoom
 //
 //  A new size is measured again on the next paint, unless the host set the

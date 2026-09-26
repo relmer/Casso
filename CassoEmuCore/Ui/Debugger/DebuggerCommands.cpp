@@ -21,6 +21,7 @@ static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock wi
 static constexpr const wchar_t *  s_kGlyphPanels      = L"\uE950";   // chip
 static constexpr const wchar_t *  s_kGlyphKeys        = L"\uE765";   // keyboard
 static constexpr const wchar_t *  s_kGlyphMode        = L"\uE943";   // braces
+static constexpr const wchar_t *  s_kGlyphFind        = L"\uE721";   // magnifier, as the search box draws it
 
 
 
@@ -47,9 +48,10 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
         { kRunToCursor, L"Run to cursor", s_kGlyphRunToCursor, L"Run until the selected line",                     DxuiToolbar::Kind::Command,  1, false },
         { kShowNext,    L"Show next",     s_kGlyphShowNext,    L"Bring the code panes to the next statement",      DxuiToolbar::Kind::Command,  2, false },
         { kTrace,       L"Trace",         s_kGlyphTrace,       L"Record every instruction the machine runs",       DxuiToolbar::Kind::Toggle,   2, true  },
-        { kPanels,      L"Panels",        s_kGlyphPanels,      L"Open a panel for one of the machine's devices",   DxuiToolbar::Kind::DropDown, 3, false },
-        { kMode,        L"Dialect",       s_kGlyphMode,        L"Choose the command dialect for the console",      DxuiToolbar::Kind::DropDown, 3, false },
-        { kKeyScheme,   L"Keys",          s_kGlyphKeys,        L"Choose which editor's keyboard shortcuts to use", DxuiToolbar::Kind::DropDown, 3, false },
+        { kFind,        L"Find",          s_kGlyphFind,        L"Search the console's output",                     DxuiToolbar::Kind::Command,  3, false },
+        { kPanels,      L"Panels",        s_kGlyphPanels,      L"Open a panel for one of the machine's devices",   DxuiToolbar::Kind::DropDown, 4, false },
+        { kMode,        L"Dialect",       s_kGlyphMode,        L"Choose the command dialect for the console",      DxuiToolbar::Kind::DropDown, 4, false },
+        { kKeyScheme,   L"Keys",          s_kGlyphKeys,        L"Choose which editor's keyboard shortcuts to use", DxuiToolbar::Kind::DropDown, 4, false },
     };
 
 

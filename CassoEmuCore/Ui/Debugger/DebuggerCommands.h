@@ -16,7 +16,7 @@
 //  What the debugger's command bar shows, as DxuiCommands the strip reads at
 //  paint and click time.
 //
-//  THE IDS ARE THE KEY SCHEMES' OWN. Run, Pause and the three steps carry
+//  THE IDS ARE THE KEY SCHEMES' OWN. Run, Pause, the three steps and Find carry
 //  DebuggerKeySchemes::Action values, so a key and the entry beside it reach
 //  the same command by the same id and can never drift apart; the entries a
 //  key scheme has no action for take ids above them.
@@ -36,6 +36,7 @@ public:
     static constexpr int  kStepOver    = (int) DebuggerKeySchemes::Action::StepOver;
     static constexpr int  kStepOut     = (int) DebuggerKeySchemes::Action::StepOut;
     static constexpr int  kRunToCursor = (int) DebuggerKeySchemes::Action::RunToCursor;
+    static constexpr int  kFind        = (int) DebuggerKeySchemes::Action::Find;
 
     static constexpr int  kShowNext    = 100;
     static constexpr int  kTrace       = 101;

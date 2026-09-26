@@ -95,6 +95,37 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (EverySchemeFindsWithTheWindowsKeys)
+        {
+            for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+            {
+                Assert::IsTrue (Translate (scheme, 'F',   true)         == Action::Find,         L"Ctrl+F opens the find bar");
+                Assert::IsTrue (Translate (scheme, VK_F3)               == Action::FindNext,     L"F3 finds the next match");
+                Assert::IsTrue (Translate (scheme, VK_F3, false, true)  == Action::FindPrevious, L"Shift+F3 finds the one before");
+            }
+        }
+
+
+        TEST_METHOD (EverySchemeBindsEachChordOnce)
+        {
+            for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+            {
+                const std::vector<DxuiKeyChord> &  chords = DebuggerKeySchemes::GetMap (scheme).GetChords();
+
+                for (size_t i = 0; i < chords.size(); i++)
+                {
+                    for (size_t j = i + 1; j < chords.size(); j++)
+                    {
+                        bool  same = chords[i].vk == chords[j].vk && chords[i].ctrl == chords[j].ctrl &&
+                                     chords[i].alt == chords[j].alt && chords[i].shift == chords[j].shift;
+
+                        Assert::IsFalse (same, DebuggerKeySchemes::GetMap (scheme).GetName().c_str());
+                    }
+                }
+            }
+        }
+
+
         TEST_METHOD (NamesRoundTrip)
         {
             DebuggerKeyScheme  scheme = DebuggerKeyScheme::VisualStudio;

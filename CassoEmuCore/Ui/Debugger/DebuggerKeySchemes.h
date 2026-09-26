@@ -35,6 +35,10 @@ enum class DebuggerKeyScheme
 //  toggle a breakpoint, so both borrow Visual Studio's Shift+F5 and F9 rather
 //  than leave those actions without a key.
 //
+//  Neither has a find of its own either, so all three schemes find with the
+//  Windows keys: Ctrl+F to open the find bar, F3 and Shift+F3 for the next
+//  and previous match. No scheme binds any of them to anything else.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DebuggerKeySchemes
@@ -49,9 +53,12 @@ public:
         StepOut,
         ToggleBreakpoint,
         RunToCursor,
+        Find,
+        FindNext,
+        FindPrevious,
 
         First = Run,
-        Last  = RunToCursor,
+        Last  = FindPrevious,
     };
 
     static constexpr DebuggerKeyScheme  kDefault = DebuggerKeyScheme::VisualStudio;
