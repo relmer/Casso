@@ -83,6 +83,7 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         size_t       end  = content.find ('\n', start);
         std::string  line = content.substr (start, end == std::string::npos ? std::string::npos : end - start);
         size_t       firstNonBlank = line.find_first_not_of (" \t\r");
+        bool         isBlank       = false;
         Reply        reply;
 
 
@@ -97,7 +98,11 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
             break;
         }
 
-        if (firstNonBlank == std::string::npos || line[firstNonBlank] != ';')
+        //  A blank line matters only inside an A block, where it ends the
+        //  block. Elsewhere it is nothing, as it is in a batch.
+        isBlank = firstNonBlank == std::string::npos;
+
+        if ((isBlank && session.IsAssembling()) || (!isBlank && line[firstNonBlank] != ';'))
         {
             reply = session.ExecuteLine (line);
             session.FormatReply (reply);

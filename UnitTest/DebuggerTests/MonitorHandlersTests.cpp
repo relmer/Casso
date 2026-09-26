@@ -665,5 +665,49 @@ namespace DebuggerTests
             registers = rig.target.GetRegisters();
             Assert::AreEqual ((int) 0x41, (int) registers.a, L"the register the reader set, not the zero-page byte");
         }
+
+
+
+        //  A blank line in a script is nothing, as it is in a batch; typed at
+        //  the prompt in Monitor mode it would print the next memory row.
+        TEST_METHOD (Script_BlankLines_PrintNothing)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\rows.txt", "300.307\n\n  \r\n\n");
+
+            reply = rig.Run ("/RUN C:\\Work\\rows.txt");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+            Assert::AreEqual ((size_t) 1, reply.text.size(), L"the one examined row, and no rows after it");
+            Assert::IsTrue   (reply.text[0].starts_with ("0300-"), Widen (reply.text[0]).c_str());
+        }
+
+
+
+        //  Inside an assembler block a blank line in a script ends the block,
+        //  so the line after it is a command again.
+        TEST_METHOD (Script_BlankLineInAssemblerBlock_EndsTheBlock)
+        {
+            MachineRig  rig;
+            Reply       reply;
+            Byte        value = 0;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\asm.txt", "!\n300:LDA #41\nRTS\n\n300.302\n");
+
+            reply = rig.Run ("/RUN C:\\Work\\asm.txt");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+            Assert::IsFalse  (rig.session.IsAssembling(), L"the blank line ended the block");
+
+            rig.target.TryPeek (0x0300, value);
+            Assert::AreEqual ((int) 0xA9, (int) value);
+
+            Assert::IsFalse  (reply.text.empty());
+            Assert::AreEqual (std::string ("0300- A9 41 60"), reply.text.back(), L"the line after the block examines memory");
+        }
     };
 }
