@@ -239,6 +239,14 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) ('0' | 0x80), result.command.values[0]);
         }
 
+        TEST_METHOD (EngineText_KeepsPrefixesThatAreNotNumbers)
+        {
+            Assert::AreEqual (std::string ("0x41 and 0n10"), ParseOk ("!echo 0x41 and 0n10").command.text);
+            Assert::AreEqual (std::string ("C:\\0x1.txt"),   ParseOk ("!run C:\\0x1.txt").command.text);
+            Assert::AreEqual (std::string ("D:/0x2.bin"),    ParseOk ("!bload D:/0x2.bin 0x300").command.text);
+            Assert::AreEqual ((Word) 0x0300,                 ParseOk ("!bload D:/0x2.bin 0x300").command.a1);
+        }
+
         TEST_METHOD (Malformed_ProducesAnErrorAndNoCommand)
         {
             Assert::AreEqual ((int) DebugVerb::None, (int) ParseFails ("db zzz_nope",  ParseStatus::Invalid).command.verb);

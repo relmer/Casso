@@ -274,7 +274,13 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
         return true;
     }
 
-    parsed         = AppleWinParser::Parse (NormalizeNumbers (text), context);
+    //  ECHO's text is printed as typed, so nothing in it is a number.
+    if (_stricmp (tokens[0].c_str(), "echo") != 0)
+    {
+        text = NormalizeNumbers (text);
+    }
+
+    parsed         = AppleWinParser::Parse (text, context);
     result.status  = parsed.status;
     result.command = parsed.command;
     result.error   = parsed.error;
@@ -784,7 +790,8 @@ bool WinDbgParser::TryEvaluate (
 //  WinDbgParser::NormalizeNumbers
 //
 //  WinDbg's `0x` hex and `0n` decimal prefixes as AppleWin's `$` and `#`,
-//  where the prefix starts a number rather than sitting inside a name. A
+//  where the prefix starts a number rather than sitting inside a name or a
+//  path such as `C:\0x1.txt`. A
 //  bare number is hex in both, so it needs nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -810,7 +817,8 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
             quote = 0;
         }
 
-        isStart  = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$');
+        isStart  = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$' ||
+                               text[i - 1] == '\\' || text[i - 1] == '/');
         prefix   = (i + 1 < text.size()) ? (char) tolower ((unsigned char) text[i + 1]) : 0;
 
         if (quote == 0 && isStart && text[i] == '0' && i + 2 < text.size() &&
