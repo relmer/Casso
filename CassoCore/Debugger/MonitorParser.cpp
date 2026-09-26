@@ -77,8 +77,16 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
     //  A `/` line was never the Monitor's.
     if (opening != std::string::npos && line[opening] == '/')
     {
-        result.status       = ParseStatus::Ok;
         result.appleWinLine = Trim (line.substr (opening + 1));
+
+        if (result.appleWinLine.empty())
+        {
+            result.error  = "A / takes an AppleWin command after it.";
+            result.status = ParseStatus::Invalid;
+            return result;
+        }
+
+        result.status = ParseStatus::Ok;
         return result;
     }
 
@@ -134,12 +142,14 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             FlushExamine (scan, state, result);
             continue;
 
-        //  Everything after the colon is the byte list.
+        //  The bytes after the colon run to the first word that is not hex,
+        //  which ends store mode and is scanned as commands.
         case ':':
         {
             std::vector<Byte>  values;
+            size_t             consumed = 0;
 
-            if (!TryParseBytes (line.substr (index), values))
+            if (!TryParseBytes (line.substr (index), values, consumed))
             {
                 result.error  = "A deposit takes hex bytes.";
                 result.status = ParseStatus::Invalid;
@@ -164,7 +174,7 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
                 state.storeAddress = (Word) (command.a1 + values.size());
             }
 
-            index = line.size();
+            index += consumed;
             break;
         }
 
@@ -261,7 +271,9 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             break;
 
         case '!':
-            command = MakeCommand (DebugVerb::EnterAssembler, '!');
+            command       = MakeCommand (DebugVerb::EnterAssembler, '!');
+            command.a1    = scan.value.value_or (0);
+            command.hasA1 = scan.value.has_value();
             break;
 
         case 0x0B:
@@ -479,40 +491,56 @@ bool MonitorParser::TryHexDigit (char character, int & digit)
 //
 //  MonitorParser::TryParseBytes
 //
-//  Whitespace-separated hex bytes. An empty list is allowed, which is how a
-//  bare `:` reads.
+//  Whitespace-separated hex bytes, up to the first word holding a character
+//  that is not hex; consumed is how far into text the bytes reach. An empty
+//  list is allowed, which is how a bare `:` reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MonitorParser::TryParseBytes (const std::string & text, std::vector<Byte> & values)
+bool MonitorParser::TryParseBytes (const std::string & text, std::vector<Byte> & values, size_t & consumed)
 {
-    std::istringstream  stream (text);
-    std::string         token;
+    size_t  position = 0;
 
 
 
-    while (stream >> token)
+    consumed = text.size();
+
+    while (position < text.size())
     {
-        Word  value = 0;
+        size_t  start = text.find_first_not_of (" \t", position);
+        size_t  end   = 0;
+        Word    value = 0;
 
-        for (char character : token)
+
+
+        if (start == std::string::npos)
+        {
+            break;
+        }
+
+        end = text.find_first_of (" \t", start);
+        end = (end == std::string::npos) ? text.size() : end;
+
+        for (size_t i = start; i < end; ++i)
         {
             int  digit = 0;
 
-            if (!TryHexDigit ((char) toupper ((unsigned char) character), digit))
+            if (!TryHexDigit ((char) toupper ((unsigned char) text[i]), digit))
             {
-                return false;
+                consumed = start;
+                return true;
             }
 
             value = (Word) ((value << 4) | digit);
         }
 
-        if (token.size() > 2)
+        if (end - start > 2)
         {
             return false;
         }
 
         values.push_back ((Byte) value);
+        position = end;
     }
 
     return true;

@@ -560,7 +560,7 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 //
 //  ConfigHandlers::Help
 //
-//  HELP alone lists what can be typed in the session's mode; HELP name
+//  HELP alone lists what can be typed in the line's mode; HELP name
 //  describes one command, or says which modes run a Casso command this one
 //  cannot.
 //
@@ -568,7 +568,7 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    CommandMode  mode = session.GetMode();
+    CommandMode  mode = session.GetLineMode();
     std::string  text;
 
 

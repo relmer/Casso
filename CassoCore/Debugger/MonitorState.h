@@ -21,19 +21,14 @@
 //  the same character means different things depending on what preceded it:
 //  `S` alone steps, and `41<300.3FFS` searches.
 //
-//  The register-edit and assembler flags are the two places where one line
-//  changes what the NEXT line means, which is why they live here rather than
-//  in the scan.
+//  The register-edit flag is a place where one line changes what the NEXT
+//  line means, which is why it lives here rather than in the scan. The
+//  assembler, the other such place, is the session's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct MonitorState
 {
-    Word  a1 = 0;          // range start, and the address a command acts on
-    Word  a2 = 0;          // range end, and the digits being accumulated
-    Word  a3 = 0;          // destination of a move, verify or search
-    Word  a4 = 0;          // the Monitor's fourth pointer, used by M and V
-
     // Where an empty line or a space continues examining from.
     Word  lastExamined = 0;
 
@@ -42,7 +37,4 @@ struct MonitorState
 
     // Set by `^E`: the next `: bytes` sets the registers rather than memory.
     bool  registerEditPending = false;
-
-    // Set by `!` or `F666G`: following lines are assembly source.
-    bool  assemblerActive = false;
 };

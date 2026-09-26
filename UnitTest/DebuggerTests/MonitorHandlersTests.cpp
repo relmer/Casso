@@ -623,6 +623,99 @@ namespace DebuggerTests
 
 
 
+        //  The original ]['s step display: the instruction the step ran, then
+        //  the registers from the stop.
+        TEST_METHOD (Step_ReplyCarriesTheInstructionItRan)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            rig.Run ("300: A9 41");
+            reply = rig.Run ("300S");
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+            Assert::IsFalse  (reply.text.empty(), L"the step prints its instruction");
+            Assert::IsTrue   (reply.text[0].find ("0300-") == 0, Widen (reply.text[0]).c_str());
+            Assert::IsTrue   (reply.text[0].find ("LDA") != std::string::npos, Widen (reply.text[0]).c_str());
+        }
+
+
+
+        //  On the ROM a command character after a deposit's bytes ends store
+        //  mode and runs, so a deposit and a jump share one line.
+        TEST_METHOD (Deposit_ACommandAfterTheBytesRuns)
+        {
+            MachineRig  rig;
+            Reply       reply;
+            Byte        value = 0;
+
+
+
+            //  LDA #$41 / RTS, then run it.
+            reply = rig.Run ("300:A9 41 60 N 300G");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+
+            rig.target.TryPeek (0x0302, value);
+            Assert::AreEqual ((int) 0x60, (int) value);
+            Assert::AreEqual ((int) 0x41, (int) rig.target.GetRegisters().a, L"the G after the bytes ran");
+        }
+
+
+
+        //  `300!` assembles at $0300, not at the program counter.
+        TEST_METHOD (Assembler_StartsAtTheTypedAddress)
+        {
+            MachineRig  rig;
+            Reply       reply;
+            Byte        value = 0;
+
+
+
+            rig.Run ("300!");
+            reply = rig.Run ("LDA #41");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+
+            rig.target.TryPeek (0x0300, value);
+            Assert::AreEqual ((int) 0xA9, (int) value);
+            rig.Run ("");
+        }
+
+
+
+        //  The running-machine error reads as a sentence whatever was typed:
+        //  a deposit's source is only a colon.
+        TEST_METHOD (Deposit_WhileRunning_ErrorReadsAsASentence)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            rig.session.OnUserResumed();
+            reply = rig.Run ("300: EA");
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+            Assert::IsFalse  (reply.error.detail.starts_with (":"), Widen (reply.error.detail).c_str());
+        }
+
+
+
+        //  A slash with nothing after it is an error, not a silent success.
+        TEST_METHOD (SlashAlone_IsAnError)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("/").status);
+            Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("/   ").status);
+        }
+
+
+
         //  A Monitor `G` leaves the Monitor's return address on the stack, so
         //  a program ending in RTS comes back instead of running on.
         TEST_METHOD (Go_ReturnsToTheMonitorOnRts)

@@ -3,7 +3,7 @@
 {"type":"reply","status":"ok","command":"300: A9 41 60","data":{"kind":"memory","rows":[{"address":768,"bytes":[169,65,96],"region":"mainRam"}]},"text":["0300- A9 41 60"]}
 {"type":"reply","status":"ok","command":"300.302","data":{"kind":"memory","rows":[{"address":768,"bytes":[169,65,96],"region":"mainRam"}]},"text":["0300- A9 41 60"]}
 {"type":"reply","status":"ok","command":"41<300.302S","data":{"kind":"searchHits","addresses":[769]},"text":["0301"]}
-{"type":"reply","status":"ok","command":"300S","data":{"kind":"message"},"text":[]}
+{"type":"reply","status":"ok","command":"300S","data":{"kind":"disassembly","lines":[{"address":768,"bytes":[169,65],"mnemonic":"LDA","operand":"#$41","operandAddress":null,"operandSymbol":null,"target":null,"label":null,"documented":true}]},"text":["0300-   A9 41       LDA   #$41"]}
 {"type":"stopped","reason":"step","pc":770,"cycles":2,"registers":{"a":65,"x":0,"y":0,"p":36,"s":253,"pc":770}}
 {"type":"reply","status":"ok","command":"^E","data":{"kind":"registers","a":65,"x":0,"y":0,"p":36,"s":253,"pc":770,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A=41 X=00 Y=00 P=24 S=FD"]}
 {"type":"reply","status":"ok","command":": 01 02 03","data":{"kind":"registers","a":1,"x":2,"y":3,"p":36,"s":253,"pc":770,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A=01 X=02 Y=03 P=24 S=FD"]}

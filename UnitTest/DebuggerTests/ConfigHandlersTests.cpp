@@ -254,6 +254,22 @@ namespace DebuggerTests
 
 
 
+        //  A pipe request carries its own mode, and HELP lists that mode's
+        //  commands, not those of the mode the session is in.
+        TEST_METHOD (HELP_ListsTheLinesModeNotTheSessions)
+        {
+            Rig    rig;
+            Reply  reply = rig.session.ExecuteLine ("help", CommandMode::GSSquared);
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::AreEqual (std::string ("GSSquared commands:"), std::get<MessageData> (reply.data).lines.at (0));
+            Assert::AreEqual ((int) CommandMode::AppleWin, (int) rig.session.GetMode());
+        }
+
+
+
         TEST_METHOD (DISASM_Settings)
         {
             Rig  rig;
