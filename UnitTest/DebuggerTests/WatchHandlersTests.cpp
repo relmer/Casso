@@ -154,5 +154,34 @@ namespace DebuggerTests
             Assert::IsTrue (pointers == rig.RunOk ("ZPL").text, L"the replayed pointers keep their slots");
             rig.RunFails ("WSAVE", "invalid arguments");
         }
+
+
+
+        //  A pointer past slot 7 has no ZPn command, so its save line is a
+        //  plain ZP, which gives it the same id on replay.
+        TEST_METHOD (ZPSAVE_PointerPastSlot7_Replays)
+        {
+            Rig                       rig;
+            std::vector<std::string>  pointers;
+            std::string               script;
+
+
+
+            rig.RunOk ("ZP7 3E");
+            rig.RunOk ("ZP 40");
+            rig.RunOk ("ZPD 8");
+            pointers = rig.RunOk ("ZPL").text;
+
+            rig.RunOk ("ZPSAVE z.txt");
+            script = rig.files.PeekContent (L"C:\\Work\\z.txt");
+            Assert::AreEqual (std::string ("ZPC *\nZP7 003E\nZP 0040\nZPD 8\n"), script);
+
+            for (size_t start = 0, end = script.find ('\n'); end != std::string::npos; start = end + 1, end = script.find ('\n', start))
+            {
+                rig.RunOk (script.substr (start, end - start));
+            }
+
+            Assert::IsTrue (pointers == rig.RunOk ("ZPL").text, L"the replayed pointers match the saved ones");
+        }
     };
 }
