@@ -343,14 +343,39 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 //  The first of the ICpuCommandTarget overrides: each one outcome, over the
 //  machine, the disk manager or a mixer.
 //
+//  With the debugger attached this is the debugger's own step into, so the
+//  session starts it, the frame loop runs it as it runs any other step, and
+//  the stop is announced and drawn like one. Without it, one instruction runs
+//  here and the screen is redrawn, since a paused machine runs no frame that
+//  would draw it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::StepInstruction()
 {
-    if (m_machine.GetCpu() != nullptr)
+    DebugCommand  stepInto;
+
+
+
+    if (m_debugSession != nullptr)
     {
-        m_machine.StepOne();
+        stepInto.verb       = DebugVerb::StepInto;
+        stepInto.sourceName = "T";
+
+        (void) m_debugSession->Execute (stepInto);
+        m_isDebugViewDirty = true;
+        return;
     }
+
+    if (m_machine.GetCpu() == nullptr)
+    {
+        return;
+    }
+
+    m_machine.StepOne();
+
+    RenderFramebuffer();
+    PublishFramebuffer();
 }
 
 

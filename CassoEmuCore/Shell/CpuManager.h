@@ -66,6 +66,9 @@ public:
 
     void    PostCommand    (WORD id, const std::string & payload = {});
 
+    //  Whether a posted command is still waiting for the CPU thread.
+    bool    HasPendingCommands ();
+
     //  Work the CPU thread does whether or not the machine is paused, on every
     //  pass through its loop: the debug channel, which has to answer a client
     //  that asks about a paused machine. Set before Start. While one is set, a
@@ -91,7 +94,6 @@ public:
 private:
     void ThreadProc ();
     void DrainCommandQueue ();
-    bool HasPendingCommands ();
 
 
     std::thread                   m_thread;

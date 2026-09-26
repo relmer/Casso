@@ -741,13 +741,9 @@ void WindowCommandManager::OnMachineCommand (int id)
                 break;
             }
 
-            // The paused CPU thread runs no slices, so the step is driven
-            // directly from the UI thread. It does still drain its command
-            // queue while paused; the shell takes the machine's lifetime
-            // lock so a switch in flight skips the step rather than
-            // racing it. Delegated through the shell to avoid pulling
-            // Disk2Controller's full definition into this header.
-            m_shell.StepInstructionWhilePaused();
+            // The step runs on the CPU thread, where the machine always runs.
+            // A paused CPU thread still drains its queue, so it arrives.
+            m_shell.PostCommand (static_cast<WORD> (id));
             break;
         }
 
