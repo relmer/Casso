@@ -62,6 +62,8 @@ public:
 
     //  Whether a focused text box keeps a key rather than the scheme getting it.
     //  Function keys and Ctrl or Alt chords always reach the scheme; Space and
-    //  Enter reach it only from an empty box; every other key stays with the box.
-    static bool  DoesBoxKeepKey (WPARAM vk, bool ctrl, bool alt, bool boxFocused, bool boxEmpty);
+    //  Enter reach it only from an empty box, and not even then when an empty
+    //  line is itself input, as it is at a Monitor prompt; every other key stays
+    //  with the box.
+    static bool  DoesBoxKeepKey (WPARAM vk, bool ctrl, bool alt, bool boxFocused, bool boxEmpty, bool isEmptyLineInput);
 };

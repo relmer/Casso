@@ -132,9 +132,12 @@ bool DebuggerKeySchemes::TryParse (const std::string & name, DebuggerKeyScheme &
 //  steps on Space only from an empty line. A letter is kept even from an empty
 //  box: it is the first letter of a command.
 //
+//  At a Monitor prompt an empty line and a space are commands themselves --
+//  both continue examining -- so there the box keeps them even when empty.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerKeySchemes::DoesBoxKeepKey (WPARAM vk, bool ctrl, bool alt, bool boxFocused, bool boxEmpty)
+bool DebuggerKeySchemes::DoesBoxKeepKey (WPARAM vk, bool ctrl, bool alt, bool boxFocused, bool boxEmpty, bool isEmptyLineInput)
 {
     bool  isFunctionKey = vk >= VK_F1 && vk <= VK_F24;
     bool  keeps         = true;
@@ -147,7 +150,7 @@ bool DebuggerKeySchemes::DoesBoxKeepKey (WPARAM vk, bool ctrl, bool alt, bool bo
     }
     else if (vk == VK_SPACE || vk == VK_RETURN)
     {
-        keeps = !boxEmpty;
+        keeps = !boxEmpty || isEmptyLineInput;
     }
 
     return keeps;

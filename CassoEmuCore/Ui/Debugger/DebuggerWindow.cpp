@@ -1992,7 +1992,8 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
         m_swallowSpace = false;
     }
     else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) &&
-             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box != nullptr && box->GetText().empty()) &&
+             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box != nullptr && box->GetText().empty(),
+                                                 box != nullptr && box == m_commandBox && mode == CommandMode::Monitor) &&
              RouteMappedKey (ev))
     {
         m_swallowSpace = ev.vk == VK_SPACE;

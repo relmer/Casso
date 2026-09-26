@@ -114,35 +114,45 @@ namespace DebuggerTests
 
         TEST_METHOD (OutsideABox_TheSchemeGetsEveryKey)
         {
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey ('O',       false, false, false, true));
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE,  false, false, false, false));
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_RETURN, false, false, false, false));
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey ('O',       false, false, false, true, false));
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE,  false, false, false, false, false));
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_RETURN, false, false, false, false, false));
         }
 
 
         TEST_METHOD (InABox_SpaceAndEnterReachTheSchemeOnlyWhenItIsEmpty)
         {
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE,  false, false, true, true));
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_RETURN, false, false, true, true));
-            Assert::IsTrue  (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE,  false, false, true, false), L"typing a space");
-            Assert::IsTrue  (DebuggerKeySchemes::DoesBoxKeepKey (VK_RETURN, false, false, true, false), L"submitting a line");
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE,  false, false, true, true, false));
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_RETURN, false, false, true, true, false));
+            Assert::IsTrue  (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE,  false, false, true, false, false), L"typing a space");
+            Assert::IsTrue  (DebuggerKeySchemes::DoesBoxKeepKey (VK_RETURN, false, false, true, false, false), L"submitting a line");
+        }
+
+
+        //  At a Monitor prompt an empty line and a space continue examining,
+        //  so the box keeps them rather than the scheme running or stepping.
+        TEST_METHOD (InABox_AnEmptyLineThatIsInputKeepsSpaceAndEnter)
+        {
+            Assert::IsTrue  (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE,  false, false, true, true, true));
+            Assert::IsTrue  (DebuggerKeySchemes::DoesBoxKeepKey (VK_RETURN, false, false, true, true, true));
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_F10,    false, false, true, true, true), L"function keys still step");
         }
 
 
         TEST_METHOD (InABox_LettersAndEditingKeysStayWithIt)
         {
-            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey ('O',      false, false, true, true), L"the O of OUT");
-            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey ('7',      false, false, true, true));
-            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey (VK_LEFT,  false, false, true, false));
-            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey (VK_BACK,  false, false, true, false));
+            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey ('O',      false, false, true, true, false), L"the O of OUT");
+            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey ('7',      false, false, true, true, false));
+            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey (VK_LEFT,  false, false, true, false, false));
+            Assert::IsTrue (DebuggerKeySchemes::DoesBoxKeepKey (VK_BACK,  false, false, true, false, false));
         }
 
 
         TEST_METHOD (InABox_FunctionKeysAndChordsReachTheScheme)
         {
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_F10,   false, false, true, false));
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE, true,  false, true, false), L"Ctrl+Space");
-            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_DOWN,  true,  false, true, false), L"Ctrl+Down");
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_F10,   false, false, true, false, false));
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE, true,  false, true, false, false), L"Ctrl+Space");
+            Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_DOWN,  true,  false, true, false, false), L"Ctrl+Down");
         }
     };
 }
