@@ -267,6 +267,13 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
         return false;
     }
 
+    if (AppleWinCommandTable::Find (tokens[0]) == nullptr)
+    {
+        result.status = ParseStatus::Unknown;
+        result.error  = std::format ("!{} is not a command.", tokens[0]);
+        return true;
+    }
+
     if (!CommandModeHelp::IsCassoCommandReachable (CommandMode::WinDbg, tokens[0]))
     {
         result.status = ParseStatus::Unknown;

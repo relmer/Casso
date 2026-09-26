@@ -66,6 +66,23 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 10, ParseOk ("? 0n10").command.a1);
         }
 
+        //  A `!` word that is no command anywhere is not sent to .help, which
+        //  would only say the same.
+        TEST_METHOD (EngineMarker_UnknownWord_IsNotACommand)
+        {
+            Assert::AreEqual (std::string ("!frob is not a command."), ParseFails ("!frob", ParseStatus::Unknown).error);
+            Assert::IsTrue   (ParseFails ("!hgr", ParseStatus::Unknown).error.ends_with ("Use .help hgr to see where it runs."), L"a command of another mode still points at help");
+        }
+
+        //  Nothing after the one argument is dropped without a word.
+        TEST_METHOD (Breakpoints_ExtraArguments_AreErrors)
+        {
+            for (const char * line : { "bp 300 5", "bc 1 2 3", "bd 1 2", "be 1 2" })
+            {
+                ParseFails (line, ParseStatus::Invalid);
+            }
+        }
+
         TEST_METHOD (Lengths_AreInTheCommandsUnits)
         {
             Assert::AreEqual ((Word) 0x201F, ParseOk ("db 2000 l20").command.a2);
