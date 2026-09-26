@@ -16,6 +16,10 @@
 //  order: Main, Basic, Asm, User, User2, Src, Src2, Dos33, ProDos. An
 //  address looks up the same way and gives the first name that holds it.
 //
+//  A constant, an assembler's equate, resolves by name like any symbol, but
+//  its value is not an address: an address never looks up to it, so it
+//  labels nothing in a disassembly, and a load offset leaves it where it is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class SymbolTable
@@ -25,7 +29,7 @@ public:
 
     SymbolTable();
 
-    void     Add          (SymbolTableId table, const std::string & name, Word address);
+    void     Add          (SymbolTableId table, const std::string & name, Word address, bool isConstant = false);
     bool     TryRemove    (SymbolTableId table, const std::string & name);
     void     Clear        (SymbolTableId table);
     void     SetEnabled   (SymbolTableId table, bool enabled);
@@ -63,7 +67,8 @@ private:
     {
         std::string  name;
         std::string  upper;
-        Word         address = 0;
+        Word         address    = 0;
+        bool         isConstant = false;
     };
 
     std::vector<Entry>  m_tables[kTableCount];

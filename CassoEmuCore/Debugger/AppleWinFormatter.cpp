@@ -519,6 +519,8 @@ void AppleWinFormatter::FormatSoftSwitches (const SoftSwitchData & data, Lines &
 //
 //  AppleWinFormatter::FormatSymbols
 //
+//  `$FDED COUT (main)`, with `, constant` after the table for an equate.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleWinFormatter::FormatSymbols (const SymbolData & data, Lines & lines)
@@ -531,7 +533,8 @@ void AppleWinFormatter::FormatSymbols (const SymbolData & data, Lines & lines)
 
     for (const SymbolInfo & symbol : data.symbols)
     {
-        lines.push_back (std::format ("${:04X} {} ({})", symbol.address, symbol.name, ReplyJson::GetSymbolTableName (symbol.table)));
+        lines.push_back (std::format ("${:04X} {} ({}{})", symbol.address, symbol.name, ReplyJson::GetSymbolTableName (symbol.table),
+                                      symbol.isConstant ? ", constant" : ""));
     }
 }
 

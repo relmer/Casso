@@ -55,11 +55,11 @@ SymbolTable::SymbolTable()
 //
 //  SymbolTable::Add
 //
-//  A name already in the table takes the new address.
+//  A name already in the table takes the new address and kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolTable::Add (SymbolTableId table, const std::string & name, Word address)
+void SymbolTable::Add (SymbolTableId table, const std::string & name, Word address, bool isConstant)
 {
     std::vector<Entry> & entries = m_tables[(int) table];
     std::string          upper   = ToUpper (name);
@@ -70,12 +70,13 @@ void SymbolTable::Add (SymbolTableId table, const std::string & name, Word addre
     {
         if (entry.upper == upper)
         {
-            entry.address = address;
+            entry.address    = address;
+            entry.isConstant = isConstant;
             return;
         }
     }
 
-    entries.push_back ({ name, upper, address });
+    entries.push_back ({ name, upper, address, isConstant });
 }
 
 
@@ -174,7 +175,7 @@ void SymbolTable::GetAll (SymbolTableId table, std::vector<SymbolInfo> & symbols
 {
     for (const Entry & entry : m_tables[(int) table])
     {
-        symbols.push_back ({ entry.name, entry.address, table });
+        symbols.push_back ({ entry.name, entry.address, table, entry.isConstant });
     }
 
     std::stable_sort (symbols.begin(), symbols.end(), [] (const SymbolInfo & a, const SymbolInfo & b) { return a.address < b.address; });
@@ -251,7 +252,7 @@ void SymbolTable::FindNames (Word address, std::vector<std::string> & names) con
 
         for (const Entry & entry : m_tables[i])
         {
-            if (entry.address == address)
+            if (entry.address == address && !entry.isConstant)
             {
                 names.push_back (entry.name);
             }
@@ -330,7 +331,7 @@ bool SymbolTable::TryFindSymbolIn (SymbolTableId table, const std::string & name
     {
         if (entry.upper == upper)
         {
-            symbol = { entry.name, entry.address, table };
+            symbol = { entry.name, entry.address, table, entry.isConstant };
             return true;
         }
     }
@@ -352,7 +353,7 @@ bool SymbolTable::TryFindNameIn (SymbolTableId table, Word address, std::string 
 {
     for (const Entry & entry : m_tables[(int) table])
     {
-        if (entry.address == address)
+        if (entry.address == address && !entry.isConstant)
         {
             name = entry.name;
             return true;
@@ -370,7 +371,8 @@ bool SymbolTable::TryFindNameIn (SymbolTableId table, Word address, std::string 
 //
 //  SymbolTable::LoadFrom
 //
-//  The table is replaced by the file's symbols.
+//  The table is replaced by the file's symbols. The offset moves every label
+//  and no constant.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,7 +393,7 @@ HRESULT SymbolTable::LoadFrom (SymbolTableId table, const std::string & content,
 
     for (const SymbolFileEntry & symbol : symbols)
     {
-        Add (table, symbol.name, (Word) (symbol.address + offset));
+        Add (table, symbol.name, symbol.isConstant ? symbol.address : (Word) (symbol.address + offset), symbol.isConstant);
     }
 
     loaded = symbols.size();
@@ -408,14 +410,17 @@ Error:
 //
 //  SymbolTable::Format
 //
-//  NAME=$ADDR lines in address order, which the reader takes back.
+//  NAME=$ADDR lines in address order, which the reader takes back. The
+//  constants follow the labels under their own heading, so they load back
+//  as constants.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string SymbolTable::Format (SymbolTableId table) const
 {
     std::vector<SymbolInfo>  symbols;
-    std::string              text = "; by address\n";
+    std::string              text      = "; by address\n";
+    std::string              constants;
 
 
 
@@ -423,7 +428,16 @@ std::string SymbolTable::Format (SymbolTableId table) const
 
     for (const SymbolInfo & symbol : symbols)
     {
-        text += std::format ("{}=${:04X}\n", symbol.name, symbol.address);
+        std::string & section = symbol.isConstant ? constants : text;
+
+
+
+        section += std::format ("{}=${:04X}\n", symbol.name, symbol.address);
+    }
+
+    if (!constants.empty())
+    {
+        text += std::format ("; {}\n", SymbolFileReader::kConstantsHeading) + constants;
     }
 
     return text;

@@ -196,6 +196,16 @@ A symbol file may be in any of these formats, recognized from its contents:
 
 Lines starting with `;` are ignored.
 
+An equate (`WIDTH = 40`) loads as a constant rather than a label. A constant
+works in expressions like any symbol, and `SYM` and `SYMLIST` mark it
+`constant`, but it is never shown in place of a number: `LDA #$28` and
+`LDA $28` stay as they are in the disassembly, and an address never looks up
+to a constant. A load offset moves labels and leaves constants alone. A cc65
+debug file marks its equates (`type=equ`), and `SYM SAVE` writes constants
+under a `; constants` heading so they load back as constants. AppleWin,
+VICE and Merlin symbol tables do not tell an equate from a label, so
+everything in them loads as a label.
+
 ## Loading and saving binaries
 
 ```

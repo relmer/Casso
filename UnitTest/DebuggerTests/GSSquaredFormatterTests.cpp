@@ -262,6 +262,22 @@ namespace DebuggerTests
             AssertMatchesFixture (clear,  "sclear.txt");
         }
 
+        TEST_METHOD (Slookup_MarksAConstant)
+        {
+            Reply       lookup;
+            SymbolData  symbols;
+
+
+
+            symbols.symbols = { SymbolInfo { "WIDTH", 0x0028, SymbolTableId::User, true } };
+            lookup.verb     = DebugVerb::LookupSymbol;
+            lookup.data     = symbols;
+
+            GSSquaredFormatter::Format (lookup);
+            Assert::AreEqual ((size_t) 1, lookup.text.size());
+            Assert::IsTrue   (lookup.text[0].ends_with ("0028: WIDTH (constant)"), std::wstring (lookup.text[0].begin(), lookup.text[0].end()).c_str());
+        }
+
         //  GSSquared prints nothing for a deposit, though the reply carries
         //  the rows written.
         TEST_METHOD (Deposit_PrintsNothing)
