@@ -29,8 +29,9 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
     JsonParseError  parseError;
     std::string     type;
     std::string     mode;
-    double          budget = 0.0;
-    int             id     = 0;
+    int64_t         budget = 0;
+    int64_t         id     = 0;
+    int64_t         number = 0;
     HRESULT         hr     = S_OK;
 
 
@@ -64,10 +65,11 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
 
     //  Every request carries an id, because every reply echoes one. A record
     //  without one could be answered but never matched to what asked.
-    if (!root.HasInt ("id", id))
+    switch (GetWholeNumber (root, "id", 0, kMaxWholeNumber, id))
     {
-        SetError (error, "malformed request", "The record has no id.");
-        return false;
+    case Member::Absent:  SetError (error, "malformed request", "The record has no id.");                               return false;
+    case Member::Invalid: SetError (error, "malformed request", "The id must be a whole number from 0 to 2^53.");       return false;
+    default:                                                                                                            break;
     }
 
     request.id = id;
@@ -76,7 +78,14 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
     {
         request.type = ChannelRequestType::Hello;
         root.HasString ("client", request.client);
-        root.HasInt    ("protocol", request.protocol);
+
+        if (GetWholeNumber (root, "protocol", 0, INT_MAX, number) == Member::Invalid)
+        {
+            SetError (error, "malformed request", "The protocol must be a whole number.");
+            return false;
+        }
+
+        request.protocol = (int) number;
         return true;
     }
 
@@ -113,12 +122,52 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
         request.mode = chosen;
     }
 
-    if (root.HasNumber ("budget", budget))
+    switch (GetWholeNumber (root, "budget", 1, kMaxWholeNumber, budget))
     {
-        request.budget = (uint64_t) budget;
+    case Member::Valid:   request.budget = (uint64_t) budget;                                                               break;
+    case Member::Invalid: SetError (error, "malformed request", "A budget must be a whole number of cycles from 1 to 2^53."); return false;
+    default:                                                                                                                break;
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChannelProtocol::GetWholeNumber
+//
+//  JSON numbers are doubles. A fraction, a value out of range or a member of
+//  another type is an error rather than a value cast into something else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChannelProtocol::Member ChannelProtocol::GetWholeNumber (const JsonValue & root, const std::string & key, double low, double high, int64_t & value)
+{
+    double             number = 0.0;
+    std::string        text;
+    bool               flag   = false;
+    const JsonValue  * nested = nullptr;
+
+
+
+    if (!root.HasNumber (key, number))
+    {
+        bool  isOtherType = root.HasString (key, text) || root.HasBool (key, flag) || root.HasObject (key, nested) || root.HasArray (key, nested);
+
+        return isOtherType ? Member::Invalid : Member::Absent;
+    }
+
+    if (!(number >= low && number <= high) || std::floor (number) != number)
+    {
+        return Member::Invalid;
+    }
+
+    value = (int64_t) number;
+    return Member::Valid;
 }
 
 

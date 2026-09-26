@@ -107,6 +107,7 @@ public:
     //  A longer line is refused and the connection stays open, so one
     //  oversized request cannot end a session.
     static constexpr size_t  kMaxLineBytes    = 1024 * 1024;
+    static constexpr double  kMaxWholeNumber  = 9007199254740992.0;
 
     static bool         TryParseRequest (const std::string & line, ChannelRequest & request, ReplyError & error);
     static std::string  WriteHello      (const ChannelHello & hello);
@@ -120,5 +121,10 @@ private:
     static std::string  WriteLine  (Members && members);
     static JsonValue    MakeDisks  (const std::vector<std::optional<std::string>> & disks);
     static bool         TryGetMode (const std::string & name, CommandMode & mode);
+
+    //  A member that must be a whole number from low to high. Absent is
+    //  reported as absent; present but anything else is an error.
+    enum class Member { Absent, Valid, Invalid };
+    static Member       GetWholeNumber (const JsonValue & root, const std::string & key, double low, double high, int64_t & value);
     static void         SetError   (ReplyError & error, const std::string & label, const std::string & detail);
 };

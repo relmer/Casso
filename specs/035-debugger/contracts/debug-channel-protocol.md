@@ -68,7 +68,7 @@ replies with its own `protocol`, and the client decides whether to continue.
 | `id` | yes | client-chosen integer, echoed in the reply; unique per connection |
 | `line` | for `command` | one command line, exactly as typed in the chosen mode |
 | `mode` | no | `applewin` or `monitor` for this line only; default is the session's mode |
-| `budget` | no | cycle budget for a run started by this line. Absent: the session's `BUDGET`, which is unbounded unless a client set one. A person may be using the machine, so a client should set a budget only for unattended runs |
+| `budget` | no | cycle budget for a run started by this line, a whole number from 1 to 2^53; anything else is a `malformed request`. Absent: the session's `BUDGET`, which is unbounded unless a client set one. A person may be using the machine, so a client should set a budget only for unattended runs |
 
 - **Ordering**: commands from all clients run one at a time in the order the
   server receives them. A reply is sent only to the client that sent the

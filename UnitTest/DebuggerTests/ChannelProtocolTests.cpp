@@ -119,6 +119,31 @@ namespace DebuggerTests
         //  No record may hold a raw newline, because the framing is one object
         //  per line. The writer defaults to pretty-printing, so this is a real
         //  hazard rather than a theoretical one.
+        //  JSON numbers are doubles: an id, a protocol or a budget that is not
+        //  a whole number in range is malformed, never cast into something else.
+        TEST_METHOD (NumbersMustBeWholeAndInRange)
+        {
+            Assert::AreEqual ((int64_t) 9007199254740992, ParseOk (R"({"type":"pause","id":9007199254740992})").id);
+            Assert::AreEqual ((uint64_t) 1, *ParseOk (R"({"type":"command","id":1,"line":"G","budget":1})").budget);
+            Assert::AreEqual (2, ParseOk (R"({"type":"hello","id":1,"protocol":2})").protocol);
+
+            for (const char * line : { R"({"type":"pause","id":1.5})",
+                                       R"({"type":"pause","id":-1})",
+                                       R"({"type":"pause","id":1e300})",
+                                       R"({"type":"pause","id":"7"})",
+                                       R"({"type":"hello","id":1,"protocol":1.5})",
+                                       R"({"type":"command","id":1,"line":"G","budget":0.5})",
+                                       R"({"type":"command","id":1,"line":"G","budget":0})",
+                                       R"({"type":"command","id":1,"line":"G","budget":-5})",
+                                       R"({"type":"command","id":1,"line":"G","budget":1e300})",
+                                       R"({"type":"command","id":1,"line":"G","budget":"100"})" })
+            {
+                Assert::AreEqual (std::string ("malformed request"), ParseFails (line).label, Widen (line).c_str());
+            }
+        }
+
+
+
         TEST_METHOD (NoRecordHoldsARawNewline)
         {
             ChannelHello  hello;
