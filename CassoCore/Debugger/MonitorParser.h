@@ -86,6 +86,7 @@ private:
         char                 op = 0;     // a pending `+` or `-`
     };
 
+    static MonitorParseResult  ScanLine (const std::string & line, MonitorState & state);
     static bool         TryReadCharacter (const std::string & line, size_t & index, char & character, std::string & error);
     static bool         TryHexDigit      (char character, int & digit);
     static bool         TryParseBytes    (const std::string & text, std::vector<Byte> & values);

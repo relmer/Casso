@@ -122,6 +122,29 @@ namespace DebuggerTests
 
 
 
+        //  A line of several commands renders each in the output format a
+        //  one-command line gets, not always as Monitor text.
+        TEST_METHOD (SeveralCommands_FollowTheOutputFormat)
+        {
+            Rig    rig;
+            Reply  single;
+            Reply  both;
+
+
+
+            rig.RunOk ("300: A9 00 8D 00 03 60");
+            rig.RunOk ("/OUTPUT APPLEWIN");
+
+            single = rig.RunOk ("300.305");
+            both   = rig.RunOk ("300.305 300.305");
+
+            Assert::IsFalse (single.text.empty());
+            Assert::AreEqual (single.text.size() * 2, both.text.size());
+            Assert::AreEqual (single.text.front(), both.text.front());
+        }
+
+
+
         //  Rows break on eight-byte boundaries, so a range that starts mid-row
         //  prints a short row first.
         TEST_METHOD (Examine_BreaksRowsOnEightByteBoundaries)
@@ -232,6 +255,31 @@ namespace DebuggerTests
 
 
 
+        //  A register edit that did not happen, because the machine was
+        //  running, does not spend the arming: after a pause the same colon
+        //  sets the registers rather than storing into zero page.
+        TEST_METHOD (AnEditWhileRunning_KeepsTheColonArmed)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.RunOk ("^E");
+            rig.session.OnUserResumed();
+
+            reply = rig.Run (": 01 02 03");
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+
+            rig.session.OnUserPaused();
+            rig.RunOk (": 01 02 03");
+
+            Assert::AreEqual ((int) 0x01, (int) rig.target.GetRegisters().a);
+            Assert::AreEqual ((int) 0x00, (int) rig.target.memory[0x0000], L"nothing stored into zero page");
+        }
+
+
+
         ////////////////////////////////////////////////////////////////////////
         //
         //  Scenario 5: host files
@@ -272,6 +320,24 @@ namespace DebuggerTests
             rig.RunOk ("300.301W \"my file.bin\"");
 
             Assert::IsTrue (rig.files.Exists (L"C:\\Work\\my file.bin"));
+        }
+
+
+
+        //  A session with no file system gives the same message here as every
+        //  other command family that reads or writes host files.
+        TEST_METHOD (WriteWithNoFileSystem_GivesTheSharedMessage)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.session.SetFileSystem (nullptr);
+            reply = rig.Run ("300.301W out.bin");
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual (std::string ("This session cannot read or write host files."), reply.error.detail);
         }
 
 

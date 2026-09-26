@@ -467,9 +467,10 @@ Reply DebugSession::ExecuteWinDbgLine (const std::string & text)
 //
 //  ONE COMMAND KEEPS ITS REPLY WHOLE, data and all, because that is nearly
 //  every line and a JSON reader should see the structure. Several commands
-//  are run in order and their rendered text is concatenated, with the first
-//  failure as the line's status; the merged reply carries no data of its
-//  own, so formatting it again adds nothing. A JSON reader sees one record
+//  are run in order, each rendered as a one-command Monitor line would be,
+//  and their text is concatenated, with the first failure as the line's
+//  status; the merged reply carries no data of its own, so formatting it
+//  again adds nothing. A JSON reader sees one record
 //  with the whole line's text, which is the honest report of what a line
 //  like `300.30F 400.40F` did.
 //
@@ -496,14 +497,17 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
 
     if (parsed.commands.size() == 1)
     {
-        return Execute (parsed.commands.front());
+        merged = Execute (parsed.commands.front());
+        KeepRegisterEditArmed (parsed.commands.front(), merged);
+        return merged;
     }
 
     for (const DebugCommand & command : parsed.commands)
     {
         Reply  one = Execute (command);
 
-        MonitorFormatter::Format (one);
+        KeepRegisterEditArmed (command, one);
+        FormatReply (one, CommandMode::Monitor);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
         merged.isFormatted = true;
 
@@ -515,6 +519,29 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
     }
 
     return merged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::KeepRegisterEditArmed
+//
+//  The parser spends the `^E` arming when it reads the colon, before the
+//  session knows whether the edit can run. An edit that did not happen --
+//  the machine was running -- leaves it armed, so the same colon after a
+//  pause still sets the registers rather than storing into memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::KeepRegisterEditArmed (const DebugCommand & command, const Reply & reply)
+{
+    if (command.verb == DebugVerb::EditRegisters && reply.status != CommandStatus::Ok)
+    {
+        m_monitorState.registerEditPending = true;
+    }
 }
 
 

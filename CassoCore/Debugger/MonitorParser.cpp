@@ -58,21 +58,58 @@ static constexpr Word  s_kBytesPerLine     = 8;
 //
 //  MonitorParser::Parse
 //
-//  Left to right, one character at a time. Hex digits accumulate; `.`, `<`,
-//  `+` and `-` move what has accumulated along; a command character spends
-//  it. `:`, `R` and `W` take the rest of the line, because what follows them
-//  is a byte list or a file name rather than more commands.
+//  The scan works on a copy of the state, kept only when the line parses: a
+//  rejected line runs nothing, and it changes nothing either.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState & state)
 {
+    MonitorState        working = state;
+    MonitorParseResult  result  = ScanLine (line, working);
+
+
+
+    if (result.status != ParseStatus::Invalid)
+    {
+        state = working;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::ScanLine
+//
+//  Left to right, one character at a time. Hex digits accumulate; `.`, `<`,
+//  `+` and `-` move what has accumulated along; a command character spends
+//  it. `:`, `R` and `W` take the rest of the line, because what follows them
+//  is a byte list or a file name rather than more commands.
+//
+//  THE `^E` ARMING LASTS UNTIL THE NEXT INPUT THAT IS NOT A COLON. The ROM's
+//  `^E` only points A3 at the saved registers, so any address typed after it
+//  moves the colon somewhere else. A colon sets the registers only when
+//  nothing has come between it and the `^E`, on this line or the one before;
+//  the line leaves the arming set only when `^E` is the last thing on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MonitorParseResult MonitorParser::ScanLine (const std::string & line, MonitorState & state)
+{
     MonitorParseResult  result;
     Scan                scan;
-    size_t              index    = 0;
-    size_t              opening  = line.find_first_not_of (" \t");
+    size_t              index     = 0;
+    size_t              opening   = line.find_first_not_of (" \t");
+    bool                wasArmed  = state.registerEditPending;
 
 
+
+    state.registerEditPending = false;
 
     //  A `/` line was never the Monitor's.
     if (opening != std::string::npos && line[opening] == '/')
@@ -147,12 +184,11 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
                 return result;
             }
 
-            if (state.registerEditPending)
+            if (!scan.value.has_value() &&
+                (result.commands.empty() ? wasArmed : result.commands.back().verb == DebugVerb::ShowRegistersForEdit))
             {
                 command        = MakeCommand (DebugVerb::EditRegisters, ':');
                 command.values = values;
-
-                state.registerEditPending = false;
             }
             else
             {
@@ -287,8 +323,7 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             break;
 
         case 0x05:
-            command                   = MakeCommand (DebugVerb::ShowRegistersForEdit, character);
-            state.registerEditPending = true;
+            command = MakeCommand (DebugVerb::ShowRegistersForEdit, character);
             break;
 
         default:
@@ -318,6 +353,8 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
     {
         FlushExamine (scan, state, result);
     }
+
+    state.registerEditPending = !result.commands.empty() && result.commands.back().verb == DebugVerb::ShowRegistersForEdit;
 
     result.status = result.commands.empty() ? ParseStatus::Empty : ParseStatus::Ok;
     return result;

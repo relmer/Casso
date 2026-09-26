@@ -238,6 +238,7 @@ private:
     void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     Reply  ExecuteMonitorLine    (const std::string & text);
+    void   KeepRegisterEditArmed (const DebugCommand & command, const Reply & reply);
     Reply  ExecuteAppleWinLine   (const std::string & text);
     Reply  ExecuteGSSquaredLine  (const std::string & text);
     Reply  ExecuteWinDbgLine     (const std::string & text);

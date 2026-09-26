@@ -541,5 +541,55 @@ namespace DebuggerTests
             Assert::IsTrue  (result.commands.empty(), L"nothing runs from a line that did not parse");
             Assert::IsFalse (result.error.empty());
         }
+
+
+
+        //  A rejected line leaves the state as it found it, not just the
+        //  command list.
+        TEST_METHOD (AMalformedLine_LeavesTheStateAlone)
+        {
+            Rig  rig;
+
+
+
+            rig.One ("300");
+
+            Assert::IsTrue (rig.Parse ("^E Z").status == ParseStatus::Invalid);
+            Assert::IsFalse (rig.state.registerEditPending, L"^E on a rejected line does not arm");
+
+            Assert::IsTrue (rig.Parse ("400.410 Z").status == ParseStatus::Invalid);
+            Assert::AreEqual ((int) 0x300, (int) rig.state.lastExamined, L"examining on a rejected line does not move on");
+        }
+
+
+
+        //  The arming lasts until the next input that is not a colon, as the
+        //  ROM's does: any other line, or an address typed ahead of the colon,
+        //  spends it.
+        TEST_METHOD (ShowRegisters_ArmingEndsAtTheNextOtherInput)
+        {
+            Rig  rig;
+
+
+
+            rig.One ("^E");
+            rig.One ("300");
+            AssertVerb (DebugVerb::Deposit, rig.One (": 41"), "a line between");
+
+            rig.One ("^E");
+            rig.Parse ("");
+            AssertVerb (DebugVerb::Deposit, rig.One (": 41"), "an empty line between");
+
+            rig.One ("^E");
+            rig.Parse ("/MODE APPLEWIN");
+            AssertVerb (DebugVerb::Deposit, rig.One (": 41"), "a slash line between");
+
+            rig.One ("^E");
+            AssertVerb (DebugVerb::Deposit, rig.One ("300: 41"), "an address ahead of the colon");
+            Assert::IsFalse (rig.state.registerEditPending);
+
+            rig.One ("^E");
+            AssertVerb (DebugVerb::EditRegisters, rig.One (": 41"), "straight after");
+        }
     };
 }
