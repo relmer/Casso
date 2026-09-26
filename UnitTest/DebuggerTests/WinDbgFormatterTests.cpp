@@ -124,6 +124,39 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("0300 a941    lda #$41"), lines[1]);
         }
 
+        //  Quoted directive text keeps its case, and a long data line widens
+        //  the byte column for every line so the mnemonics stay aligned.
+        TEST_METHOD (U_DataLinesKeepQuotedCase_AndWidenTheByteColumn)
+        {
+            DisassemblyData           data;
+            DisassemblyLine           asc;
+            DisassemblyLine           db;
+            DisassemblyLine           lda;
+            std::vector<std::string>  lines;
+
+
+
+            asc.instruction.address  = 0x0300;
+            asc.instruction.bytes    = { 0xC8, 0xC5, 0xCC, 0xCC, 0xCF };
+            asc.instruction.mnemonic = "ASC";
+            asc.instruction.operand  = "\"HELLO\"";
+            db.instruction.address   = 0x0305;
+            db.instruction.bytes     = { 1, 2, 3, 4, 5, 6, 7, 8 };
+            db.instruction.mnemonic  = "DB";
+            db.instruction.operand   = "$01,$02,$03,$04,$05,$06,$07,$08";
+            lda.instruction.address  = 0x030D;
+            lda.instruction.bytes    = { 0xA9, 0x41 };
+            lda.instruction.mnemonic = "LDA";
+            lda.instruction.operand  = "#$41";
+            data.lines               = { asc, db, lda };
+
+            lines = Render ("u 300", data);
+
+            Assert::AreEqual (std::string ("0300 c8c5cccccf        asc \"HELLO\""),                  lines[0]);
+            Assert::AreEqual (std::string ("0305 0102030405060708  db $01,$02,$03,$04,$05,$06,$07,$08"), lines[1]);
+            Assert::AreEqual (std::string ("030d a941              lda #$41"),                         lines[2]);
+        }
+
         TEST_METHOD (Bl_OneLineABreakpoint)
         {
             BreakpointListData        data;
