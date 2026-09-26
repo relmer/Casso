@@ -262,6 +262,34 @@ namespace DebuggerTests
         //  Story 3 scenario 6: a stop reaches every client, not just whoever
         //  started the run. A breakpoint one client set stops the machine all
         //  of them are watching.
+        //  While the channel is closed nothing is queued, so the first client
+        //  after it opens again hears nothing that happened while it was shut.
+        TEST_METHOD (NothingRaisedWhileClosedReachesTheNextClient)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client = 0;
+            StopEvent              stop;
+
+
+
+            server.Open();
+            server.Close();
+
+            stop.reason = StopReason::Pause;
+            server.OnStopped (stop);
+            server.OnResumed();
+
+            server.Open();
+            client = transport.Connect();
+            server.Pump();
+
+            Assert::IsTrue (transport.Written (client).empty(), L"no stale stop or resume");
+        }
+
+
+
         TEST_METHOD (EveryNotificationReachesEveryClient)
         {
             InMemoryPipeTransport  transport;

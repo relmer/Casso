@@ -67,7 +67,7 @@ private:
 
     IPipeTransport            & m_transport;
     IDebugCommandRunner       & m_runner;
-    bool                        m_isOpen  = false;
+    std::atomic<bool>           m_isOpen  = false;
 
     //  The command whose run is still outstanding, so its stop can name it.
     //  Read and written under the lock, because the stop comes from the CPU

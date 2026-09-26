@@ -41,7 +41,7 @@ HRESULT DebugMode::Run (const CommandLineOptions & options, int & exitCode)
 
     if (options.debug.list)
     {
-        ListInstances (exitCode);
+        ListInstances (options.debug.json, exitCode);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -122,11 +122,12 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugMode::ListInstances (int & exitCode)
+void DebugMode::ListInstances (bool isJson, int & exitCode)
 {
-    Win32InstanceDirectory  directory;
-    std::string             text      = InstanceLister::Format (InstanceLister::List (directory));
-    bool                    isWritten = CliOutput::TryWrite (stdout, text);
+    Win32InstanceDirectory       directory;
+    std::vector<ListedInstance>  instances = InstanceLister::List (directory);
+    std::string                  text      = isJson ? InstanceLister::FormatJson (instances) : InstanceLister::Format (instances);
+    bool                         isWritten = CliOutput::TryWrite (stdout, text);
 
 
 

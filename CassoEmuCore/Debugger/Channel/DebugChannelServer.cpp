@@ -110,7 +110,13 @@ void DebugChannelServer::Close()
     FlushNotifications();
     Broadcast (ReplyJson::WriteClosing());
 
-    m_isOpen = false;
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        m_isOpen = false;
+        m_pending.clear();
+    }
+
     m_transport.Close();
 }
 
@@ -325,6 +331,13 @@ void DebugChannelServer::Queue (std::string && record)
     std::lock_guard<std::mutex>  held (m_lock);
 
 
+
+    //  A closed channel has nobody to tell, and a record kept until it
+    //  opens again would reach its next client as news that is stale.
+    if (!m_isOpen)
+    {
+        return;
+    }
 
     m_pending.push_back (std::move (record));
 }

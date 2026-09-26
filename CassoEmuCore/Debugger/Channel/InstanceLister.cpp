@@ -72,6 +72,32 @@ std::vector<ListedInstance> InstanceLister::List (IInstanceDirectory & directory
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InstanceLister::FormatJson
+//
+//  Each instance's hello record, one per line, as the channel sent it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string InstanceLister::FormatJson (const std::vector<ListedInstance> & instances)
+{
+    std::string  output;
+
+
+
+    for (const ListedInstance & instance : instances)
+    {
+        output += instance.record + "\n";
+    }
+
+    return output;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InstanceLister::TryParseHello
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +120,7 @@ bool InstanceLister::TryParseHello (const std::string & record, ListedInstance &
 
     instance           = ListedInstance();
     instance.processId = pid;
+    instance.record    = record;
 
     //  Both are optional: an instance started with no title label has none.
     if (!value.HasString ("title", instance.title))

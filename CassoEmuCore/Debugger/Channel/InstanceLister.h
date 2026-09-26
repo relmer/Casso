@@ -20,6 +20,9 @@ struct ListedInstance
     std::string                               title;
     std::string                               machine;
     std::vector<std::optional<std::string>>   disks;
+
+    //  The hello record as the instance sent it, for --list --json.
+    std::string                               record;
 };
 
 
@@ -51,6 +54,7 @@ public:
     //  Columns `pid title machine disk1 disk2`, a header then one row each.
     //  An empty title or drive prints as `-`, so every row has five fields.
     static std::string                  Format (const std::vector<ListedInstance> & instances);
+    static std::string                  FormatJson (const std::vector<ListedInstance> & instances);
 
     //  The handshake reply read back into an instance. False for anything that
     //  is not a hello record.

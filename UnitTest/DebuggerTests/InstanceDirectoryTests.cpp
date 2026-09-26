@@ -222,6 +222,23 @@ namespace InstanceDirectoryTests
 
 
 
+        //  --list --json prints each instance's hello record, one per line.
+        TEST_METHOD (TheJsonListingIsTheHelloRecords)
+        {
+            std::vector<ListedInstance>  instances (2);
+            const std::string            first  = R"({"type":"hello","id":0,"protocol":1,"pid":12,"title":"my game"})";
+            const std::string            second = R"({"type":"hello","id":0,"protocol":1,"pid":34})";
+
+
+
+            Assert::IsTrue (InstanceLister::TryParseHello (first,  instances[0]));
+            Assert::IsTrue (InstanceLister::TryParseHello (second, instances[1]));
+
+            Assert::AreEqual (first + "\n" + second + "\n", InstanceLister::FormatJson (instances));
+        }
+
+
+
         TEST_METHOD (APipeNameCarriesItsProcessId)
         {
             uint32_t  pid = 0;
