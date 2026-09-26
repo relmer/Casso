@@ -170,7 +170,10 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     {
         if (m_active)
         {
-            m_lastOpcode = PeekOpcode (pc);
+            //  An interrupt taken in place of the instruction at the PC is not
+            //  that instruction: its push is not a JSR's, and whatever runs
+            //  next is the handler.
+            m_lastOpcode = IsInterruptDue() ? kNoOpcode : PeekOpcode (pc);
             ++m_instructions;
         }
 
@@ -454,6 +457,29 @@ std::optional<std::pair<int, int>> RunStopHook::GetStepLine (Word pc) const
     chosen = (m_request.kind == RunKind::StepOver) ? &positions->front() : &positions->back();
 
     return std::pair<int, int> (chosen->file, chosen->line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::IsInterruptDue
+//
+//  Whether the CPU takes an interrupt instead of the next instruction: a
+//  pending NMI, or an IRQ with interrupts enabled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RunStopHook::IsInterruptDue() const
+{
+    static constexpr Byte  kInterruptDisable = 0x04;
+    const Cpu6502        * cpu               = m_host.GetCpu()->GetCpu6502();
+
+
+
+    return cpu->IsNmiPending() || (cpu->IsIrqLineAsserted() && (cpu->GetRegisters().p & kInterruptDisable) == 0);
 }
 
 

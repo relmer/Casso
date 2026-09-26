@@ -927,6 +927,12 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_isStepPending = false;
     m_state         = isPaused ? RunState::Paused : RunState::FreeRunning;
     m_target.ClearTrace();
+    m_isStepOutOnRecord = false;
+
+    if (m_isRecordingEndDeferred)
+    {
+        SetCallRecording (false);
+    }
 
     if (m_callRecorder.IsActive())
     {
@@ -1297,6 +1303,13 @@ void DebugSession::OnStopped (const StopEvent & stop)
     m_state = RunState::Paused;
 
     SettleCallRecord();
+    m_isStepOutOnRecord = false;
+
+    if (m_isRecordingEndDeferred)
+    {
+        SetCallRecording (false);
+    }
+
     ClearTemporary (event);
     UpdateHookInstalled();
 
@@ -1826,6 +1839,7 @@ void DebugSession::SetStepOutFrame (RunRequest & request)
     }
 
     frame = m_callRecorder.GetFrames().back();
+    m_isStepOutOnRecord = true;
 
     request.hasLeftFrame = [this, frame] (Word pc, Byte sp)
     {
@@ -1926,6 +1940,10 @@ Word DebugSession::FindStoreInProgress() const
 //
 //  DebugSession::SetCallRecording
 //
+//  Turning recording off during a step out that ends on the record waits for
+//  that step to stop: the step would otherwise end at once, on a record
+//  that no longer holds its frame.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::SetCallRecording (bool isOn)
@@ -1934,7 +1952,9 @@ void DebugSession::SetCallRecording (bool isOn)
 
 
 
-    if (isOn == m_callRecorder.IsActive())
+    m_isRecordingEndDeferred = !isOn && m_isStepOutOnRecord && m_callRecorder.IsActive();
+
+    if (isOn == m_callRecorder.IsActive() || m_isRecordingEndDeferred)
     {
         return;
     }

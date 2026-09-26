@@ -9,6 +9,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "ControllerRig.h"
 #include "HandlerTestRig.h"
 
 
@@ -807,6 +808,149 @@ namespace EmulatorDebugWiringTests
             rig.RunFrames (50);
             Assert::IsTrue   (rig.session.GetRunState() == RunState::Paused, L"the step ended");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("= 300").status);
+        }
+
+
+
+        //  An after-mode watchpoint hit while running freely is delivered and
+        //  then forgotten: the next step runs its full count.
+        TEST_METHOD (AFreeRunWatchpointHitLeavesNothingPending)
+        {
+            Rig  rig;
+
+
+
+            // $0300: INX / STX $0400 / JMP $0300
+            (void) rig.target.TryPoke (0x0301, 0x8E);
+            (void) rig.target.TryPoke (0x0302, 0x00);
+            (void) rig.target.TryPoke (0x0303, 0x04);
+            (void) rig.target.TryPoke (0x0304, 0x4C);
+            (void) rig.target.TryPoke (0x0305, 0x00);
+            (void) rig.target.TryPoke (0x0306, 0x03);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPMW 400").status);
+
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused());
+            Assert::IsTrue   (rig.sink.stops.at (0).reason == StopReason::Watchpoint);
+            Assert::IsFalse  (rig.session.HasPendingStop(), L"the hit was delivered");
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("T 2").status);
+            rig.RunFrames (50);
+
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"the JMP and the INX both ran");
+            Assert::IsTrue   (rig.sink.stops.back().reason == StopReason::Step);
+        }
+
+
+
+        //  A before-mode watchpoint hit while running freely, then a pause and
+        //  a breakpoint: the breakpoint's stop is a breakpoint's, not the old
+        //  watchpoint hit.
+        TEST_METHOD (ABreakpointAfterAFreeRunBeforeWatchpointHitIsABreakpoint)
+        {
+            Rig  rig;
+
+
+
+            // $0300: INX / STX $0400 / JMP $0300
+            (void) rig.target.TryPoke (0x0301, 0x8E);
+            (void) rig.target.TryPoke (0x0302, 0x00);
+            (void) rig.target.TryPoke (0x0303, 0x04);
+            (void) rig.target.TryPoke (0x0304, 0x4C);
+            (void) rig.target.TryPoke (0x0305, 0x00);
+            (void) rig.target.TryPoke (0x0306, 0x03);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPMW 400 BEFORE").status);
+
+            rig.RunFrames (50);
+            Assert::IsTrue   (rig.sink.stops.at (0).reason == StopReason::Watchpoint);
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPC *").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 304").status);
+            rig.cpuManager.SetPaused (false);
+            rig.session.OnUserResumed();
+            rig.session.OnUserPaused();
+            rig.cpuManager.SetPaused (false);
+            rig.session.OnUserResumed();
+            rig.RunFrames (50);
+
+            Assert::AreEqual ((Word) 0x0304, rig.target.GetRegisters().pc);
+            Assert::IsTrue   (rig.sink.stops.back().reason == StopReason::Breakpoint, L"a breakpoint stop");
+            Assert::IsFalse  (rig.sink.stops.back().watch.has_value(),                 L"with no watchpoint on it");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ControllerStepOutTests
+    //
+    //  A step out through the debugger in the emulator, run slice by slice as
+    //  the CPU thread runs it.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ControllerStepOutTests)
+    {
+    public:
+
+        static void RunFrames (ControllerRig & rig, int slices)
+        {
+            for (int i = 0; i < slices && !rig.cpuManager.IsPaused(); i++)
+            {
+                uint32_t  actual = (uint32_t) rig.machine.RunCycles (1000);
+
+
+
+                if (rig.controller.GetRunDriver().OnSliceExecuted (actual) || actual == 0)
+                {
+                    break;
+                }
+            }
+        }
+
+
+
+        //  Closing the channel mid step out ends the call record, but the step
+        //  out still runs until the routine returns.
+        TEST_METHOD (ClosingTheChannelDuringAStepOutLetsItFinish)
+        {
+            ControllerRig    rig;
+            IDebugTarget   & target    = rig.controller.GetSession().GetTarget();
+            const Byte       code[]    = { 0x20, 0x10, 0x03, 0xEA };
+            const Byte       routine[] = { 0xA2, 0x00, 0xE8, 0xD0, 0xFD, 0x60 };
+            HRESULT          hr        = S_OK;
+
+
+
+            // $0300: JSR $0310 / NOP    $0310: LDX #0 / INX / BNE $0312 / RTS
+            for (Word i = 0; i < sizeof (code); i++)
+            {
+                (void) target.TryPoke ((Word) (0x0300 + i), code[i]);
+            }
+
+            for (Word i = 0; i < sizeof (routine); i++)
+            {
+                (void) target.TryPoke ((Word) (0x0310 + i), routine[i]);
+            }
+
+            hr = rig.controller.Open();
+            Assert::IsTrue (SUCCEEDED (hr));
+
+            rig.Run ("T");
+            RunFrames (rig, 50);
+            Assert::AreEqual ((Word) 0x0310, target.GetRegisters().pc, L"inside the call");
+
+            rig.Run ("RTS");
+            RunFrames (rig, 1);
+            Assert::IsFalse (rig.cpuManager.IsPaused(), L"the loop is still running");
+
+            rig.controller.Close();
+            RunFrames (rig, 50);
+
+            Assert::AreEqual ((Word) 0x0303, target.GetRegisters().pc, L"after the routine returned");
         }
     };
 }

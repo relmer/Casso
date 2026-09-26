@@ -312,4 +312,9 @@ private:
     StopEvent                             m_heldStop;
     bool                                  m_isStartingRun = false;
     bool                                  m_isStepPending = false;
+
+    // A step out that ends on the call record keeps the record until it
+    // stops, even when recording is turned off while it runs.
+    bool                                  m_isStepOutOnRecord      = false;
+    bool                                  m_isRecordingEndDeferred = false;
 };
