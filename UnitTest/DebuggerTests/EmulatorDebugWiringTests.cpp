@@ -909,6 +909,25 @@ namespace EmulatorDebugWiringTests
             Assert::AreEqual ((Word) 0xFF69, rig.target.GetRegisters().pc,           L"at the Monitor's return");
             Assert::IsTrue   (rig.sink.stops.back().reason == StopReason::RunTo,     L"as a run to");
         }
+
+
+
+        //  A second run on a Monitor line while the first is still on foot
+        //  points at PAUSE as Monitor mode reaches it, through `/`.
+        TEST_METHOD (ASecondMonitorRunWhileSteppingPointsAtSlashPause)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+
+            reply = rig.session.ExecuteLine ("300S S", CommandMode::Monitor);
+
+            Assert::AreEqual (std::string ("already running"), reply.error.label);
+            Assert::AreEqual (std::string ("A run is in progress. Use /PAUSE to stop it."), reply.error.detail);
+        }
     };
 
 
