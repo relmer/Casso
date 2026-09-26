@@ -1728,6 +1728,31 @@ namespace DebuggerViewStateTests
 
         //  CODE, DATA and CONSOLE bring a pane forward; the second disassembly
         //  and memory window open when they are not.
+        //  A Monitor line of several commands prints each command's output
+        //  once, a failure's error included.
+        TEST_METHOD (AMonitorLineOfSeveralCommandsPrintsEachErrorOnce)
+        {
+            MachineRig                rig;
+            Reply                     reply = rig.Run ("300 C0FF:00", CommandMode::Monitor);
+            std::vector<std::string>  text;
+            size_t                    errors = 0;
+
+
+
+            text = reply.text;
+
+            for (const std::string & line : text)
+            {
+                errors += line.starts_with ("Error:") ? 1 : 0;
+            }
+
+            Assert::IsTrue   (reply.status != CommandStatus::Ok, L"the deposit to I/O failed");
+            Assert::AreEqual ((size_t) 1, errors,                L"its error is printed once");
+            Assert::IsTrue   (text.front().starts_with ("0300"), L"the examine before it printed");
+        }
+
+
+
         TEST_METHOD (WindowNamesBringAPaneForward)
         {
             MachineRig            rig;

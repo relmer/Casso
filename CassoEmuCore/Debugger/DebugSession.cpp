@@ -505,6 +505,7 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
 
         MonitorFormatter::Format (one);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
+        merged.isFormatted = true;
 
         if (merged.status == CommandStatus::Ok)
         {
@@ -575,6 +576,7 @@ Reply DebugSession::ExecuteGSSquaredLine (const std::string & text)
 
         FormatReply (one);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
+        merged.isFormatted = true;
 
         if (merged.status == CommandStatus::Ok)
         {
@@ -678,6 +680,11 @@ void DebugSession::FormatReply (Reply & reply, CommandMode mode) const
 
 void DebugSession::RenderReply (Reply & reply, OutputFormat format)
 {
+    if (reply.isFormatted)
+    {
+        return;
+    }
+
     switch (format)
     {
     case OutputFormat::Monitor:    MonitorFormatter::Format   (reply); break;

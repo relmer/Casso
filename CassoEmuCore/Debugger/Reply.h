@@ -509,6 +509,10 @@ struct Reply
     std::vector<std::string>  text;
     ReplyError                error;
 
+    //  The text is final, as a line of several commands has it: each was
+    //  formatted as it ran, errors included, so none is formatted again.
+    bool                      isFormatted = false;
+
     void SetError (CommandStatus errorStatus, const std::string & label, const std::string & detail)
     {
         status       = errorStatus;
