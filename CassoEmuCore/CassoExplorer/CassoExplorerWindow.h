@@ -155,6 +155,16 @@ public:
     //  Each zoom step, in percent of the theme's text size.
     static constexpr int    kPreviewZoomStep     = 10;
 
+    //  The status bar's fields, left to right: Explorer's item count and
+    //  selection, flowing from the left; the space between; then free space,
+    //  the preview's detail and its zoom.
+    static constexpr size_t  kStatusCount    = 0;
+    static constexpr size_t  kStatusSelected = 1;
+    static constexpr size_t  kStatusFill     = 2;
+    static constexpr size_t  kStatusFree     = 3;
+    static constexpr size_t  kStatusDetail   = 4;
+    static constexpr size_t  kStatusZoom     = 5;
+
     //  Status bar field widths: free space, and the preview's detail and zoom
     //  when the preview is hidden and they cannot follow its edge.
     static constexpr int    kStatusFreeDip       = 140;

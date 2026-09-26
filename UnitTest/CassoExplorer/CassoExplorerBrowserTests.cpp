@@ -248,7 +248,7 @@ public:
         host.browser.SetSelectedRows ({ 0, 1 });
 
         Assert::IsTrue (host.browser.GetPreview().lines.empty());
-        Assert::AreNotEqual (std::wstring::npos, host.browser.GetStatus().selection.find (L"2 selected"));
+        Assert::AreEqual (0u, (unsigned) host.browser.GetStatus().selected.find (L"2 items selected"), L"the selection has a field of its own");
     }
 
 
@@ -580,6 +580,10 @@ public:
         Assert::AreEqual (std::wstring (L"110 KB"), CassoExplorerBrowser::FormatSizeColumn (112537));
         Assert::AreEqual (std::wstring (L"1 item"),    CassoExplorerBrowser::FormatSelection (0, 1));
         Assert::AreEqual (std::wstring (L"7 items, 3 selected"), CassoExplorerBrowser::FormatSelection (3, 7));
+
+        //  Explorer's selection field, the size after two spaces.
+        Assert::AreEqual (std::wstring (L"1 item selected"),           CassoExplorerBrowser::FormatSelected (1, 0, false));
+        Assert::AreEqual (std::wstring (L"4 items selected  777 bytes"), CassoExplorerBrowser::FormatSelected (4, 777, true));
 
         //  1984-08-17 12:34, as the scratch ProDOS volume records it.
         //  In the user's own short date and time, whatever they are set to.

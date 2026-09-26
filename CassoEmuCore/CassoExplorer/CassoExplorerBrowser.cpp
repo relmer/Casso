@@ -861,7 +861,24 @@ bool CassoExplorerBrowser::TryPreviewAppleSingle (const std::wstring & folder, c
 void CassoExplorerBrowser::UpdateStatus()
 {
     m_status = Status();
-    m_status.selection = FormatSelection (m_selectedRows.size(), m_rows.size());
+    m_status.selection = FormatSelection (0, m_rows.size());
+
+    if (!m_selectedRows.empty())
+    {
+        uint64_t  bytes   = 0;
+        bool      anyFile = false;
+
+        for (int selected : m_selectedRows)
+        {
+            if (!m_rows[(size_t) selected].isDirectory)
+            {
+                bytes  += m_rows[(size_t) selected].sizeBytes;
+                anyFile = true;
+            }
+        }
+
+        m_status.selected = FormatSelected (m_selectedRows.size(), bytes, anyFile);
+    }
 
     if (m_selectedRows.size() == 1)
     {
@@ -1106,6 +1123,32 @@ std::wstring CassoExplorerBrowser::FormatModified (int64_t unixSeconds, bool wal
     }
 
     return std::wstring (date) + L" " + time;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::FormatSelected
+//
+//  Two spaces before the size, as Explorer's field has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::FormatSelected (size_t selected, uint64_t bytes, bool anyFile)
+{
+    std::wstring  text = std::format (L"{} {} selected", selected, selected == 1 ? L"item" : L"items");
+
+
+
+    if (anyFile)
+    {
+        text += L"  " + FormatSize (bytes);
+    }
+
+    return text;
 }
 
 

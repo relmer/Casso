@@ -574,7 +574,8 @@ void CassoExplorerWindow::ConfigureWidgets()
         RecomputeLayout();
     });
 
-    m_status->SetFields ({ { L"", 0, true }, { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
+    m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
+                           { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
 
     m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
     m_tabs->SetOnMove   ([this] (int from, int to)
@@ -1512,10 +1513,11 @@ void CassoExplorerWindow::FillStatus()
         detail = (chars == 1) ? std::wstring (L"1 character selected") : std::format (L"{} characters selected", chars);
     }
 
-    m_status->SetText (0, status.selection);
-    m_status->SetText (1, status.freeSpace);
-    m_status->SetText (2, detail);
-    m_status->SetText (3, std::format (L"{}%", m_prefs.previewZoom));
+    m_status->SetText (kStatusCount,    status.selection);
+    m_status->SetText (kStatusSelected, status.selected);
+    m_status->SetText (kStatusFree,     status.freeSpace);
+    m_status->SetText (kStatusDetail,   detail);
+    m_status->SetText (kStatusZoom,     std::format (L"{}%", m_prefs.previewZoom));
 }
 
 
@@ -1546,7 +1548,9 @@ void CassoExplorerWindow::LayoutStatusFields()
     //  The detail field starts on the splitter's visible line: the lighter of
     //  the two it draws in the middle of its sash, since the darker one is the
     //  color of the panes beside it. The two dividers then meet.
-    m_status->SetFields ({ { L"", 0, true },
+    m_status->SetFields ({ { L"", 0, false, -1, true },
+                           { L"", 0, false, -1, true },
+                           { L"", 0, true },
                            { L"", kStatusFreeDip, false },
                            { L"", 0, false, detail },
                            { L"", kStatusZoomDip, false } });
@@ -1993,7 +1997,7 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  A click on the zoom level puts it back to 100%.
     if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left
-        && Contains (m_status->GetFieldRect (3), point))
+        && Contains (m_status->GetFieldRect (kStatusZoom), point))
     {
         Dispatch (CassoExplorerCommands::kZoomReset);
         return true;
@@ -4957,7 +4961,7 @@ void CassoExplorerWindow::ReportOutcome (const CassoExplorerActions::Outcome & o
 {
     if (outcome.Succeeded())
     {
-        m_status->SetText (2, std::format (L"{}: {} file(s)", verbName, outcome.written));
+        m_status->SetText (kStatusDetail, std::format (L"{}: {} file(s)", verbName, outcome.written));
         return;
     }
 
@@ -5176,7 +5180,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertDone:
-                m_status->SetText (2, L"Inserted into Casso");
+                m_status->SetText (kStatusDetail, L"Inserted into Casso");
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertRefused:

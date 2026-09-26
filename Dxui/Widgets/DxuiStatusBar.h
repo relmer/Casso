@@ -32,6 +32,12 @@ public:
         //  A width in pixels, used instead of widthDip when not negative, for
         //  a field that has to line up with an edge elsewhere in the window.
         int           widthPx  = -1;
+
+        //  Placed right after the flowing field before it, as wide as its
+        //  text, with a short divider after it: File Explorer's item count
+        //  and selection. Flowing fields come first; an empty one takes no
+        //  room and draws no divider. Its own rectangle is not used.
+        bool          flow     = false;
     };
 
     DxuiStatusBar() = default;
@@ -58,6 +64,8 @@ public:
     std::wstring        GetAccessibleName () const override;
 
     static constexpr int    kFieldPadDip = 8;
+    static constexpr float  kFlowGapDip  = 10.0f;   // text to divider, divider to the next field
+    static constexpr float  kFlowRuleDip = 12.0f;   // the divider's height
     static constexpr float  kFontDip     = 12.0f;
 
 private:

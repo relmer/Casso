@@ -46,7 +46,8 @@ class CassoExplorerBrowser
 public:
     struct Status
     {
-        std::wstring  selection;
+        std::wstring  selection;   // how many items: "22 items"
+        std::wstring  selected;    // what is selected, empty when nothing is
         std::wstring  detail;
         std::wstring  freeSpace;
     };
@@ -205,6 +206,10 @@ public:
     static constexpr int  kSizeColumnDip     = 80;
     static constexpr int  kAddressColumnDip  = 72;
     static constexpr int  kLockedColumnDip   = 64;
+
+    //  Explorer's selection field: "1 item selected" or "4 items selected",
+    //  then two spaces and the files' total size when any file is selected.
+    static std::wstring  FormatSelected  (size_t selected, uint64_t bytes, bool anyFile);
 
     static std::wstring  FormatSize      (uint64_t bytes);
     static std::wstring  FormatSizeColumn (uint64_t bytes);
