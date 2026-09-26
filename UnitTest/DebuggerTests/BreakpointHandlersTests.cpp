@@ -196,6 +196,21 @@ namespace DebuggerTests
 
 
 
+        //  BRKOP alone lists only the opcode entries, so with none it says
+        //  that rather than that there are no breakpoints at all.
+        TEST_METHOD (BRKOP_AloneWithNoOpcodeEntriesSaysSo)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 300");
+
+            Assert::AreEqual (std::string ("No opcode breakpoints."), rig.RunOk ("BRKOP").text.at (0));
+        }
+
+
+
         TEST_METHOD (BRK_All_CoversTheBrkOpcode)
         {
             Rig  rig;

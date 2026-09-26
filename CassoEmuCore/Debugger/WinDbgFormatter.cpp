@@ -376,8 +376,10 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
 //
 //  bl: id, e or d, the address, an access watchpoint's kind and size, and
 //  WinDbg's pass count, which is always one: a Casso breakpoint stops on
-//  its first hit. A condition follows. A breakpoint on an opcode, a register,
-//  BRK or an interrupt has no address, so what it stops on takes that place.
+//  its first hit. A value entry shows its byte. A condition follows, then the
+//  hits and any flag that is off its default. A breakpoint on an opcode, a
+//  register, BRK or an interrupt has no address, so what it stops on takes
+//  that place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -417,6 +419,7 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
             text += "  IF " + breakpoint.condition;
         }
 
+        text += FormatBreakpointFlags (breakpoint);
         lines.push_back (text);
     }
 }
@@ -444,6 +447,49 @@ std::string WinDbgFormatter::DescribeTarget (const BreakpointInfo & breakpoint)
     case BreakpointKind::Interrupt: return "interrupt";
     default:                        return std::format ("{:04x}", breakpoint.address);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgFormatter::FormatBreakpointFlags
+//
+//  `  hits 3, temporary, counts only`, each part only when it is not the
+//  default, or nothing at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::FormatBreakpointFlags (const BreakpointInfo & breakpoint)
+{
+    std::vector<std::string>  parts;
+    std::string               text;
+
+
+
+    if (breakpoint.hits > 0)
+    {
+        parts.push_back (std::format ("hits {}", breakpoint.hits));
+    }
+
+    if (breakpoint.temporary)
+    {
+        parts.push_back ("temporary");
+    }
+
+    if (!breakpoint.stops)
+    {
+        parts.push_back ("counts only");
+    }
+
+    for (const std::string & part : parts)
+    {
+        text += (text.empty() ? "  " : ", ") + part;
+    }
+
+    return text;
 }
 
 

@@ -106,9 +106,25 @@ void RunStopHook::Begin (const RunRequest & request)
 
 void RunStopHook::End()
 {
-    m_active   = false;
-    m_stopped  = false;
-    m_resumePc = m_host.GetCpu()->GetPC();
+    Word  pc         = m_host.GetCpu()->GetPC();
+    bool  isWatchHit = !m_stopped && m_conditions != nullptr && m_conditions->HasPendingStop();
+
+
+
+    m_active  = false;
+    m_stopped = false;
+
+    m_resumePc.reset();
+    m_unaskedPc.reset();
+
+    if (isWatchHit)
+    {
+        m_unaskedPc = pc;
+    }
+    else
+    {
+        m_resumePc = pc;
+    }
 
     UseIdleFilter();
 }
@@ -130,6 +146,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     bool  isInInterrupt = false;
     bool  isResumed     = false;
     bool  isInterrupted = m_isInterruptTaken;
+    bool  isUnasked     = false;
 
 
 
@@ -139,6 +156,11 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     }
 
     m_isInterruptTaken = false;
+
+    //  A run that begins where a watchpoint hit ended the last one asks the
+    //  breakpoints about its first instruction, which nothing has asked about.
+    isUnasked = isFirst && m_unaskedPc == pc;
+    m_unaskedPc.reset();
 
     //  The instruction a stop left the PC on runs when the machine resumes,
     //  though no run begins: a resume from the main window would otherwise
@@ -181,12 +203,12 @@ bool RunStopHook::ShouldStopBefore (Word pc)
             m_reason = StopReason::Breakpoint;
         }
     }
-    else if (!isFirst && !isResumed && IsBreakpointHit (pc, isInterrupted))
+    else if ((!isFirst || isUnasked) && !isResumed && IsBreakpointHit (pc, isInterrupted))
     {
         m_stopped = true;
         m_reason  = StopReason::Breakpoint;
     }
-    else if (isFirst && m_conditions != nullptr && m_conditions->ShouldStopAtRunStart (pc))
+    else if (isFirst && !isUnasked && m_conditions != nullptr && m_conditions->ShouldStopAtRunStart (pc))
     {
         //  The instruction a run begins on is asked only whether a before-mode
         //  watchpoint stops it, which a breakpoint there must not do again.

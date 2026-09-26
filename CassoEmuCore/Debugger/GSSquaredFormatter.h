@@ -48,7 +48,7 @@ private:
     static void  FormatSymbols        (const SymbolData         & data, Lines & lines);
     static void  TrimTrailingSpaces   (Lines & lines);
 
-    static std::string  DescribeFlags (const BreakpointInfo & breakpoint);
+    static std::string  DescribeFlags (const BreakpointInfo & breakpoint, bool includeFlags);
 
     static constexpr size_t  kBytesPerLine    = 16;
     static constexpr size_t  kOperandColumn   = 23;

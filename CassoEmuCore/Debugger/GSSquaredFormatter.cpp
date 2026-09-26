@@ -198,6 +198,7 @@ void GSSquaredFormatter::FormatDisassembly (const DisassemblyData & data, Lines 
 //
 //  `[id] exec 00/0300`, `[id] exec 00/0300.030F`, `[id] data 00/C019 r`. A
 //  kind GSSquared has no word for is described as AppleWin describes it.
+//  A condition, BEFORE and the entry's state follow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,7 +212,9 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
 
     for (const BreakpointInfo & breakpoint : data.breakpoints)
     {
-        std::string  place = FormatAddress (breakpoint.address);
+        std::string  place       = FormatAddress (breakpoint.address);
+        std::string  text;
+        bool         isDescribed = false;
 
 
 
@@ -223,22 +226,24 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
         switch (breakpoint.kind)
         {
         case BreakpointKind::Address:
-            lines.push_back (std::format ("[{}] exec {}", breakpoint.id, place) + DescribeFlags (breakpoint));
+            text = std::format ("[{}] exec {}", breakpoint.id, place);
             break;
 
         case BreakpointKind::Memory:
-            lines.push_back (std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]) + DescribeFlags (breakpoint));
+            text = std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]);
             break;
 
         case BreakpointKind::Io:
-            lines.push_back (std::format ("[{}] io {} rw", breakpoint.id, place) + DescribeFlags (breakpoint));
+            text = std::format ("[{}] io {} rw", breakpoint.id, place);
             break;
 
         default:
-            lines.push_back (std::format ("[{}] {}", breakpoint.id, AppleWinFormatter::DescribeBreakpoint (breakpoint)) +
-                             (breakpoint.enabled ? "" : ", disabled"));
+            text = std::format ("[{}] {}", breakpoint.id, AppleWinFormatter::DescribeBreakpoint (breakpoint));
+            isDescribed = true;
             break;
         }
+
+        lines.push_back (text + DescribeFlags (breakpoint, !isDescribed));
     }
 }
 
@@ -252,33 +257,34 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
 //
 //  What decides whether a listed entry stops, when it is off its default:
 //  the condition, a watch that stops before the access, temporary, counts
-//  only, and disabled. An entry with none of these lists exactly as
-//  GSSquared lists it.
+//  only, and disabled, then the hits. An entry with none of these lists
+//  exactly as GSSquared lists it. The condition and the flags are left to
+//  an AppleWin description, which already gives them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string GSSquaredFormatter::DescribeFlags (const BreakpointInfo & breakpoint)
+std::string GSSquaredFormatter::DescribeFlags (const BreakpointInfo & breakpoint, bool includeFlags)
 {
     std::string  text;
 
 
 
-    if (!breakpoint.condition.empty())
+    if (includeFlags && !breakpoint.condition.empty())
     {
         text += " if " + breakpoint.condition;
     }
 
-    if (breakpoint.kind == BreakpointKind::Memory && breakpoint.mode == WatchMode::Before)
+    if (includeFlags && breakpoint.kind == BreakpointKind::Memory && breakpoint.mode == WatchMode::Before)
     {
         text += ", before the access";
     }
 
-    if (breakpoint.temporary)
+    if (includeFlags && breakpoint.temporary)
     {
         text += ", temporary";
     }
 
-    if (!breakpoint.stops)
+    if (includeFlags && !breakpoint.stops)
     {
         text += ", counts only";
     }
@@ -286,6 +292,11 @@ std::string GSSquaredFormatter::DescribeFlags (const BreakpointInfo & breakpoint
     if (!breakpoint.enabled)
     {
         text += ", disabled";
+    }
+
+    if (breakpoint.hits > 0)
+    {
+        text += std::format (", hits {}", breakpoint.hits);
     }
 
     return text;
