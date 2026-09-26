@@ -91,6 +91,7 @@ private:
     static std::string  ToLower           (const std::string & text);
     static std::string  Join              (const Tokens & tokens, size_t first);
     static std::string  NormalizeNumbers  (const std::string & text);
+    static std::string  RewriteRegisters  (const std::string & text);
     static std::string  StripBackquotes   (const std::string & text);
 
     static bool  TryFindExclusion      (const std::string & name, const WinDbgExclusion *& exclusion);

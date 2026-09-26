@@ -183,6 +183,11 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
         rest = NormalizeNumbers (rest);
     }
 
+    if (name != "ea" && name != "r" && name != "x" && name != ".help")
+    {
+        rest = RewriteRegisters (rest);
+    }
+
     tokens = Split (rest);
 
     if (!TryRewrite (name, tokens, rest, context, rewrite))
@@ -514,7 +519,8 @@ bool WinDbgParser::TryRewriteDump (
 //
 //  `ba r1|w1|e1 addr [IF expr]`: a watchpoint on reads and writes (WinDbg's
 //  r covers both) or on writes, or for execute a breakpoint. A size above
-//  one covers that many bytes.
+//  one covers that many bytes; it is decimal, as WinDbg reads it, so it goes
+//  on with AppleWin's decimal prefix.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -533,7 +539,7 @@ bool WinDbgParser::TryRewriteAccess (const Tokens & args, Rewrite & rewrite)
         return false;
     }
 
-    target = (size == "1") ? args[1] : std::format ("{},{}", args[1], size);
+    target = (size == "1") ? args[1] : std::format ("{},#{}", args[1], size);
 
     switch (access[0])
     {
@@ -823,6 +829,92 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
 
         result += text[i];
         i++;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::RewriteRegisters
+//
+//  WinDbg writes a register @a, @x, @y, @sp, @pc or @fl, and reads a bare
+//  word as a number before a register, so a bare a is $0A. AppleWin reads a
+//  bare register name as the register and @n as a search result, so @reg
+//  becomes the bare name and a bare a takes the $ prefix. Quoted text is
+//  left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::RewriteRegisters (const std::string & text)
+{
+    static constexpr std::pair<const char *, const char *>  kNames[] =
+    {
+        { "a", "A" }, { "x", "X" }, { "y", "Y" }, { "sp", "S" }, { "pc", "PC" }, { "fl", "P" },
+    };
+    std::string  result;
+    size_t       i       = 0;
+    char         quote   = 0;
+    bool         isStart = false;
+    bool         isAt    = false;
+    size_t       end     = 0;
+    std::string  word;
+    std::string  replaced;
+
+
+
+    while (i < text.size())
+    {
+        if (quote == 0 && (text[i] == '"' || text[i] == '\''))
+        {
+            quote = text[i];
+        }
+        else if (text[i] == quote)
+        {
+            quote = 0;
+        }
+
+        isStart = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || strchr ("_$#.@", text[i - 1]) != nullptr);
+        isAt    = text[i] == '@';
+
+        if (quote != 0 || !isStart || !(isAt || isalpha ((unsigned char) text[i])))
+        {
+            result += text[i++];
+            continue;
+        }
+
+        end = isAt ? i + 1 : i;
+
+        while (end < text.size() && (isalnum ((unsigned char) text[end]) || text[end] == '_' || text[end] == '.'))
+        {
+            end++;
+        }
+
+        word = ToLower (text.substr (isAt ? i + 1 : i, end - (isAt ? i + 1 : i)));
+
+        if (!isAt && word == "a")
+        {
+            result += "$" + text.substr (i, end - i);
+            i       = end;
+            continue;
+        }
+
+        replaced = text.substr (i, end - i);
+
+        for (const auto & [windbg, applewin] : kNames)
+        {
+            if (isAt && word == windbg)
+            {
+                replaced = applewin;
+            }
+        }
+
+        result += replaced;
+        i       = end;
     }
 
     return result;

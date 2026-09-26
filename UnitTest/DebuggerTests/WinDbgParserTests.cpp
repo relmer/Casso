@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "ControllerRig.h"
 #include "Debugger/WinDbgParser.h"
 #include "MockExpressionContext.h"
 
@@ -87,6 +88,32 @@ namespace DebuggerTests
             ParseFails ("ba x1 300", ParseStatus::Invalid);
             ParseFails ("ba w0 300", ParseStatus::Invalid);
             ParseFails ("ba w1",     ParseStatus::Invalid);
+        }
+
+        //  WinDbg's ba size is decimal, so w10 covers ten bytes, not sixteen.
+        TEST_METHOD (AccessBreakpoints_SizeIsDecimal)
+        {
+            Assert::AreEqual ((Word) 0x0409, ParseOk ("ba w10 400").command.a2);
+            Assert::AreEqual ((Word) 0x040F, ParseOk ("ba r16 400").command.a2);
+        }
+
+        //  A bare a is hex, as WinDbg reads it; @a is the register.
+        TEST_METHOD (BareA_IsHex_AndAtAIsTheRegister)
+        {
+            ControllerRig  rig;
+            Reply          reply;
+
+
+
+            rig.Run ("r a=41", CommandMode::WinDbg);
+            rig.Run ("eb 300 a", CommandMode::WinDbg);
+            Assert::AreEqual ((Byte) 0x0A, rig.machine.GetMemoryBus().ReadByte (0x0300));
+
+            rig.Run ("eb 301 @a", CommandMode::WinDbg);
+            Assert::AreEqual ((Byte) 0x41, rig.machine.GetMemoryBus().ReadByte (0x0301));
+
+            reply = rig.Run ("? a+1", CommandMode::WinDbg);
+            Assert::AreEqual (std::string ("Evaluate expression: 11 = 000b"), reply.text[0]);
         }
 
         TEST_METHOD (ClearDisableEnable_TakeAnIdOrStar)
