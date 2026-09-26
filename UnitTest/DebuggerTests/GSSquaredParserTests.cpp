@@ -118,6 +118,17 @@ namespace DebuggerTests
             Assert::AreEqual ((int) AppleWinParser::Parse ("BP main.s:12", context).command.verb, (int) command.verb);
         }
 
+
+        //  help takes one word, as ? does.
+        TEST_METHOD (Help_TakesAWord)
+        {
+            DebugCommand  command = One ("help bp");
+
+
+
+            AssertVerb (DebugVerb::Help, command, "help bp");
+        }
+
         TEST_METHOD (Address_ExaminesOneByte)
         {
             DebugCommand  command = One ("300");
