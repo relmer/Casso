@@ -111,6 +111,10 @@ namespace DebuggerTests
         using DebuggerWindow::GetFindCaseBox;
         using DebuggerWindow::GetFindWordBox;
         using DebuggerWindow::GetFindStatus;
+        using DebuggerWindow::ApplyFrameSnapshot;
+        using DebuggerWindow::BeginWatchEdit;
+        using DebuggerWindow::EndWatchEdit;
+        using DebuggerWindow::GetFocused;
 
         //  A key as the window's message handling delivers it: to the window
         //  first, then to the key scheme if nothing took it.
@@ -623,6 +627,149 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring (L"or"), window.GetMemoryBox()->GetText());
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"o and r step only outside a box");
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerWindowKeyTests
+    //
+    //  Keys that move focus, walk the command history and edit a watch, sent
+    //  as the window's message handling sends them.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerWindowKeyTests)
+    {
+    public:
+
+        static void  Build (TextSizeWindow & window)
+        {
+            DxuiDpiScaler  scaler;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+        }
+
+
+        static void  CollectShown (IDxuiControl * control, std::set<IDxuiControl *> & out)
+        {
+            if (control == nullptr || !control->IsVisible() || !control->IsEnabled())
+            {
+                return;
+            }
+
+            if (control->IsFocusable() && control->GetTabIndex() != IDxuiControl::kTabIndexExcluded)
+            {
+                out.insert (control);
+            }
+
+            for (size_t i = 0; i < control->GetChildCount(); i++)
+            {
+                CollectShown (control->GetChild (i), out);
+            }
+        }
+
+
+        TEST_METHOD (TabReachesEveryShownControlAndNoHiddenOne)
+        {
+            CassoTheme                theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost         host;
+            TextSizeWindow            window  (theme, host);
+            std::set<IDxuiControl *>  shown;
+            std::set<IDxuiControl *>  reached;
+
+
+
+            Build (window);
+
+            for (size_t i = 0; i < window.GetChildCount(); i++)
+            {
+                CollectShown (window.GetChild (i), shown);
+            }
+
+            for (size_t i = 0; i < shown.size() * 2; i++)
+            {
+                window.Press (VK_TAB);
+                reached.insert (window.GetFocused());
+            }
+
+            Assert::IsTrue (shown.size() > 3, L"the window shows several controls Tab can reach");
+
+            for (IDxuiControl * control : reached)
+            {
+                Assert::IsTrue (shown.contains (control), L"Tab never lands on a hidden control");
+            }
+
+            Assert::AreEqual (shown.size(), reached.size(), L"Tab reaches every shown control");
+        }
+
+
+        TEST_METHOD (DownAfterEditingARecalledLineKeepsTheEdit)
+        {
+            CassoTheme          theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window  (theme, host);
+            DxuiTextInput     * box     = nullptr;
+
+
+
+            Build (window);
+
+            box = dynamic_cast<DxuiTextInput *> (window.GetFocused());
+            Assert::IsNotNull (box, L"the command line has the keys");
+
+            window.Type  (L"R");
+            window.Press (VK_RETURN);
+            window.Type  (L"T");
+            window.Press (VK_RETURN);
+
+            window.Press (VK_UP);
+            Assert::AreEqual (std::wstring (L"T"), box->GetText());
+
+            window.Type  (L"X");
+            window.Press (VK_DOWN);
+            Assert::AreEqual (std::wstring (L"TX"), box->GetText(), L"Down keeps an edited line");
+
+            window.Press (VK_UP);
+            Assert::AreEqual (std::wstring (L"T"), box->GetText(), L"Up walks back from the most recent line");
+
+            window.Press (VK_DOWN);
+            Assert::AreEqual (std::wstring (L"TX"), box->GetText(), L"and the edit comes back at the end of the walk");
+        }
+
+
+        TEST_METHOD (AnAutomaticWatchEditGoesToTheWatchItBeganOn)
+        {
+            CassoTheme                              theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                       host;
+            TextSizeWindow                          window (theme, host);
+            auto                                    before = std::make_shared<DebuggerViewSnapshot>();
+            auto                                    after  = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::AutoWatchLine     reg;
+            DebuggerViewSnapshot::AutoWatchLine     mem;
+
+
+
+            reg.key   = "R:A";
+            reg.label = "A";
+            reg.value = "00";
+            mem.key   = "M:0010";
+            mem.label = "$0010";
+            mem.value = "00";
+
+            before->autoWatches = { reg, mem };
+            after->autoWatches  = { mem, reg };
+
+            Build (window);
+            window.ApplyFrameSnapshot (before);
+
+            //  Row 0 is the heading; row 1 is register A.
+            window.BeginWatchEdit (1, 1);
+            window.ApplyFrameSnapshot (after);
+            window.Type (L"42");
+            window.EndWatchEdit (true);
+
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"one line runs");
+            Assert::AreEqual (std::string ("R A 42"), host.commands.front(), L"the value goes to A, where the edit began");
         }
     };
 }

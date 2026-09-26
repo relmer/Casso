@@ -48,6 +48,8 @@ void ConsoleHistory::Add (const std::wstring & line)
 
 std::optional<std::wstring> ConsoleHistory::GetOlder (const std::wstring & typed)
 {
+    EndWalkIfEdited (typed);
+
     if (m_lines.empty())
     {
         return std::nullopt;
@@ -79,8 +81,10 @@ std::optional<std::wstring> ConsoleHistory::GetOlder (const std::wstring & typed
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::wstring> ConsoleHistory::GetNewer()
+std::optional<std::wstring> ConsoleHistory::GetNewer (const std::wstring & typed)
 {
+    EndWalkIfEdited (typed);
+
     if (!m_index.has_value())
     {
         return std::nullopt;
@@ -94,4 +98,25 @@ std::optional<std::wstring> ConsoleHistory::GetNewer()
 
     ++*m_index;
     return m_lines[*m_index];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleHistory::EndWalkIfEdited
+//
+//  A box that no longer holds the line the walk last returned was edited, and
+//  the edit is kept rather than walked past.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleHistory::EndWalkIfEdited (const std::wstring & typed)
+{
+    if (m_index.has_value() && *m_index < m_lines.size() && m_lines[*m_index] != typed)
+    {
+        m_index.reset();
+    }
 }

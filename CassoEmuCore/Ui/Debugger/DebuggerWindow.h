@@ -193,6 +193,13 @@ protected:
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
 
+    //  Protected so a test can apply a whole snapshot as a frame does, edit a
+    //  watch as F2 and Enter do, and see where the keys go.
+    void            ApplyFrameSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); ApplySnapshot(); }
+    void            BeginWatchEdit     (int row, int column);
+    void            EndWatchEdit       (bool commit);
+    IDxuiControl  * GetFocused         () const;
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -248,8 +255,6 @@ private:
     void     ApplySnapshot    ();
     void     UpdateChanges    ();
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
-    void     BeginWatchEdit   (int row, int column);
-    void     EndWatchEdit     (bool commit);
     void     RemoveSelectedWatch ();
     void     UndoWatchEdit    ();
     void     KeepOpenViews    ();
@@ -259,7 +264,6 @@ private:
     void     RunCommand       (const std::string & line);
     void     RunToCursor      (Word address);
     DebuggerKeyScheme  GetSavedKeyScheme () const;
-    void     CycleKeyScheme   ();
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
     bool     RouteFindKey     (const DxuiKeyEvent & ev, bool & handled);
     void     ConfigureFindBar ();
@@ -297,7 +301,6 @@ private:
     std::wstring                 GetPaneTitle      (const std::wstring & pane) const;
     std::wstring                 GetPaneOfControl  (const IDxuiControl * control) const;
     bool                         IsRoutable        (const IDxuiControl * control) const;
-    IDxuiControl *               GetFocused        () const;
     void                         SetFocusedControl (IDxuiControl * control);
     HWND                         GetRoutingHwnd    () const;
     void                         RequestFloat      (const std::wstring & pane, POINT clientPx);
@@ -398,12 +401,15 @@ private:
 
     //  Editing a watch in place (FR-096): a box laid over the cell, as Visual
     //  Studio's watch window opens one. Column 0 is the expression, 1 the
-    //  value; an automatic watch's expression is not editable.
+    //  value; an automatic watch's expression is not editable. An automatic
+    //  watch is found again by its key, since a snapshot taken during the
+    //  edit can list the automatic watches in another order.
     struct WatchEdit
     {
-        int       row    = -1;
-        int       column = 0;
-        WatchRow  what;
+        int          row    = -1;
+        int          column = 0;
+        WatchRow     what;
+        std::string  autoKey;
     };
 
     DxuiTextInput                         * m_watchEditor        = nullptr;
