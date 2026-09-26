@@ -41,10 +41,11 @@ private:
     static void  GoTo   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Save   (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
 
-    static WatchTable  & GetTable   (DebugSession & session, WatchListKind kind);
-    static const char  * GetNoun    (WatchListKind kind);
-    static const char  * GetPlural  (WatchListKind kind);
-    static bool          TryGetSlot (const std::string & sourceName, int & slot);
-    static Word          PeekWord   (DebugSession & session, Word address);
-    static void          SetNoSuch  (Reply & reply, WatchListKind kind, int id);
+    static WatchTable          & GetTable       (DebugSession & session, WatchListKind kind);
+    static const char          * GetNoun        (WatchListKind kind);
+    static const char          * GetPlural      (WatchListKind kind);
+    static bool                  TryGetSlot     (const std::string & sourceName, int & slot);
+    static bool                  TryGetFreeSlot (const WatchTable & table, int & slot);
+    static std::optional<Word>   PeekWord       (DebugSession & session, Word address, WatchListKind kind);
+    static void                  SetNoSuch      (Reply & reply, WatchListKind kind, int id);
 };
