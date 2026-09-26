@@ -203,7 +203,7 @@
 
 **Purpose**: what walking the built window turned up. The parity work belongs to Dxui, so Casso inherits every fix; the tab and address-bar work is chrome Casso Explorer needs and the library does not have yet.
 
-- [ ] T095 [US5] Measure Dxui's Windows light and dark themes against File Explorer at 100% and 200%: text faces and sizes, list background and edge grays, header rendering, row hover, tree chevrons. Capture both windows and correct the palettes and metrics in Dxui until a side-by-side names no difference (FR-031, SC-009)
+- [ ] T095 [US5] Measure Dxui's Windows light and dark themes against File Explorer at 100% and 200%: text faces and sizes, list background and edge grays, header rendering, row hover, tree chevrons. Capture both windows and correct the palettes and metrics in Dxui until a side-by-side shows no difference (FR-031, SC-009) -- status 2026-09-25: the dark theme is measured at 100% to 200% (research.md), including row selection, focus and hover; the light theme's row hover and pressed colors and a 200% light capture remain
 - [x] T096 [P] [US5] `DxuiSplitter`: a hairline to the eye over a grab band far wider than the line, Explorer's proportions; the grab must not follow the drawn width (FR-032)
 - [x] T097 [P] [US1] Explorer's iconography for Back, Forward, Up and Refresh, through `UnicodeSymbols.h` (FR-033)
 - [x] T098 [US1] The preview toggle moves to the toolbar's trailing end, which `DxuiToolbar` needs a trailing group for (FR-034)
@@ -234,8 +234,8 @@
 
 **Purpose**: the menu bar gives way to File Explorer's command bar, the file list gains Explorer's eight views, and settings move to an Options dialog.
 
-- [ ] T109 [US1] Measure File Explorer's command bar at 100% and 200%: buttons, order, icons, labels, spacing, dropdown arrows, and the overflow when the window narrows; record it in `research.md`
-- [ ] T110 [US1] Retire Casso Explorer's menu bar; the command bar takes its row, built on `DxuiToolbar` with Explorer's metrics from T109, including its overflow (FR-041, SC-012) -- status 2026-09-17: the menu bar is gone and the command bar has its own row under the address row, with See more; its spacing is the toolbar's own until Explorer can be measured (T109), which needs an unlocked screen
+- [x] T109 [US1] Measure File Explorer's command bar at 100% and 200%: buttons, order, icons, labels, spacing, dropdown arrows, and the overflow when the window narrows; record it in `research.md` -- done 2026-09-23: 100%, 125%, 150% and 200% in research.md, File Explorer's command bar and list, measured
+- [x] T110 [US1] Retire Casso Explorer's menu bar; the command bar takes its row, built on `DxuiToolbar` with Explorer's metrics from T109, including its overflow (FR-041, SC-012) -- status 2026-09-17: the menu bar is gone and the command bar has its own row under the address row, with See more; its spacing is the toolbar's own until Explorer can be measured (T109), which needs an unlocked screen -- done 2026-09-23: every strip, button pitch, separator and row matches Explorer to within 2 pixels at each scale, and buttons that do not fit move whole into See more
 - [x] T111 [US2] Cut, Copy, Paste and Delete buttons with Explorer's icons over the file list's selection; New tab, Close tab and Exit removed (FR-042)
 - [x] T112 [P] [US1] `DxuiListView` views beyond details -- Explorer's extra large, large, medium and small icons, list, tiles and content -- each with selection, keyboard navigation, drag and context menus; headless tests for hit testing and arrow-key movement in each (FR-044)
 - [x] T113 [US1] Sort and View dropdowns over the list, the view choice persisted through `CassoExplorerPrefs`; Preview toggle and Theme dropdown at the bar's trailing end (FR-043, FR-044, FR-027)
