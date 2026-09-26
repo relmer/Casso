@@ -159,7 +159,8 @@ struct DebuggerViewSnapshot
     //  Whether the machine was stopped when this was built. The command bar
     //  gates on it: stepping a running machine is not a command it can take.
     bool                         isPaused      = false;
-    //  Whether the session was taking assembly lines, which read no command.
+    //  Whether the line assembler takes the command box's lines, which read no
+    //  command, so that Return on an empty box ends it rather than acting as a key.
     bool                         isAssembling  = false;
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
@@ -414,6 +415,10 @@ public:
     static std::string  GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line);
     static bool         IsHexBytes    (const std::string & text);
 
+    //  SRC ON or SRC OFF, which the window sends when focus moves between the
+    //  source and the disassembly, in the words of the given mode.
+    static std::string  GetSourceStepLine (bool isSource, CommandMode mode);
+
     //  In GSSquared mode with the command line empty, Space and F10 step and
     //  Return resumes, as GSSquared's own window does, whatever the key
     //  scheme; otherwise nothing, and the key goes where it would have.
@@ -423,6 +428,10 @@ public:
                                                                            bool        alt,
                                                                            bool        shift,
                                                                            bool        isLineEmpty);
+
+    //  While the line assembler is taking lines, Return and Space go to the
+    //  command box whatever the scheme, so an empty line can end it.
+    static bool  DoesAssemblerKeepKey (const DebuggerViewSnapshot * snapshot, WPARAM vk, bool ctrl, bool alt);
 
     //  A line from the window's command box, run and formatted exactly as batch
     //  mode runs and formats it. CPU thread only.

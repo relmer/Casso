@@ -150,12 +150,13 @@ void DataDirectiveHandlers::ChooseOperandSymbol (DebugSession & session, Disasse
 
 void DataDirectiveHandlers::Define (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    DataBlockKind      kind      = DataBlockKind::Bytes;
-    int                perLine   = kBytesPerLine;
-    int                itemBytes = 1;
-    Word               last      = 0;
-    DataBlockListData  list;
-    DataBlockEntry     entry;
+    static constexpr uint32_t  kLastAddress = 0xFFFF;
+    DataBlockKind              kind         = DataBlockKind::Bytes;
+    int                        perLine      = kBytesPerLine;
+    int                        itemBytes    = 1;
+    Word                       last         = 0;
+    DataBlockListData          list;
+    DataBlockEntry             entry;
 
 
 
@@ -164,6 +165,18 @@ void DataDirectiveHandlers::Define (DebugSession & session, const DebugCommand &
     if (!command.hasA1)
     {
         ListBlocks (session, reply);
+        return;
+    }
+
+    if (!command.hasA2 && (uint32_t) command.a1 + itemBytes - 1 > kLastAddress)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("One item at ${:04X} runs past $FFFF.", command.a1));
+        return;
+    }
+
+    if (command.hasA2 && command.a2 < command.a1)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "The range ends before it begins.");
         return;
     }
 
@@ -243,6 +256,7 @@ void DataDirectiveHandlers::List (DebugSession & session, const DebugCommand & c
     DisassemblyData      data;
     Word                 first = command.hasA1 ? command.a1 : m_nextList;
     std::optional<Word>  last;
+    Word                 next  = 0;
 
 
 
@@ -251,7 +265,13 @@ void DataDirectiveHandlers::List (DebugSession & session, const DebugCommand & c
         last = command.a2;
     }
 
-    m_nextList = Disassemble (session, first, last, last.has_value() ? kMaxLines : kDefaultLines, data);
+    next = Disassemble (session, first, last, last.has_value() ? kMaxLines : kDefaultLines, data);
+
+    if (!session.IsViewQuery())
+    {
+        m_nextList = next;
+    }
+
     reply.data = data;
 }
 
