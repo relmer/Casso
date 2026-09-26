@@ -729,6 +729,26 @@ namespace EmulatorDebugWiringTests
 
             Assert::IsTrue   (rig.cpuManager.IsPaused());
             Assert::AreEqual ((Word) 0x0302, rig.target.GetRegisters().pc, L"before the BRK");
+            Assert::IsTrue   (rig.sink.stops.at (0).reason == StopReason::Brk, L"reported as a BRK stop");
+            Assert::IsTrue   (rig.sink.stops.at (0).breakpointId.has_value(),  L"with its breakpoint's id");
+        }
+
+
+
+        //  BRKOP stops before its opcode and says so.
+        TEST_METHOD (BrkopStopsBeforeItsOpcode)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BRKOP 4C").status);
+
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused());
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"before the JMP");
+            Assert::IsTrue   (rig.sink.stops.at (0).reason == StopReason::InvalidOpcode);
         }
 
 

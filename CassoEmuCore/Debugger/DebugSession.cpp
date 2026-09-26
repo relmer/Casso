@@ -1049,6 +1049,7 @@ bool DebugSession::ShouldStopBefore (Word pc)
     if (m_monitorReturn.has_value() && pc == *m_monitorReturn)
     {
         m_monitorReturn.reset();
+        m_monitorReturned = true;
         return true;
     }
 
@@ -1225,7 +1226,25 @@ void DebugSession::OnStopped (const StopEvent & stop)
     }
     else if (event.reason == StopReason::Breakpoint)
     {
+        Breakpoint  breakpoint;
+
+
+
         event.breakpointId = m_lastBreakpointId;
+
+        //  BRK ON and BRKOP stops keep their breakpoint's id and say which
+        //  kind of stop they are. A stop at the Monitor's own return, with no
+        //  breakpoint behind it, is the program coming back: a run to there.
+        if (m_lastBreakpointId.has_value() && m_breakpoints.TryFind (*m_lastBreakpointId, breakpoint))
+        {
+            event.reason = (breakpoint.kind == BreakpointKind::Brk)    ? StopReason::Brk
+                         : (breakpoint.kind == BreakpointKind::Opcode) ? StopReason::InvalidOpcode
+                         :                                                StopReason::Breakpoint;
+        }
+        else if (!m_lastBreakpointId.has_value() && m_monitorReturned)
+        {
+            event.reason = StopReason::RunTo;
+        }
     }
     else if (event.reason == StopReason::Watchpoint)
     {
@@ -1245,6 +1264,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
     m_monitorReturn.reset();
+    m_monitorReturned = false;
     m_state = RunState::Paused;
 
     SettleCallRecord();

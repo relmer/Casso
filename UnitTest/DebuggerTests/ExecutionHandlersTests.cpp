@@ -101,6 +101,25 @@ namespace DebuggerTests
 
 
 
+        //  A Monitor G leaves the Monitor's return on the stack; a program
+        //  that returns there stops as a run to it, not as a breakpoint.
+        TEST_METHOD (MonitorGo_ReturningToTheMonitorIsARunTo)
+        {
+            MachineRig  rig;
+
+
+
+            // $0300: INX / RTS
+            rig.Load (0x0300, { 0xE8, 0x60 }, 0x0400);
+
+            (void) rig.session.ExecuteLine ("300G", CommandMode::Monitor);
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::RunTo, L"not a breakpoint");
+            Assert::IsFalse  (rig.LastStop().breakpointId.has_value());
+            Assert::AreEqual ((uint8_t) 1, rig.LastStop().registers.x, L"the program ran");
+        }
+
+
+
         //  A breakpoint partway through a counted step ends it there.
         TEST_METHOD (CountedStep_EndsAtABreakpoint)
         {
