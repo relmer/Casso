@@ -66,6 +66,17 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 10, ParseOk ("? 0n10").command.a1);
         }
 
+        //  A prefix is rewritten only on a number standing alone, so a file
+        //  name that starts like one is left as typed, and a decimal-only
+        //  engine command takes 0n.
+        TEST_METHOD (Numbers_InFileNamesAreLeftAlone_AndDecimalTakes0n)
+        {
+            Assert::AreEqual (std::string ("0x1.txt"),  ParseOk ("!tf 0x1.txt").command.text);
+            Assert::AreEqual (std::string ("0n1.txt"),  ParseOk ("!history save 0n1.txt").command.text);
+            Assert::AreEqual ((uint64_t) 100,           ParseOk ("!history 0n100 0n20").command.first.value_or (0));
+            Assert::AreEqual ((uint32_t) 20,            ParseOk ("!history 0n100 0n20").command.count);
+        }
+
         TEST_METHOD (Lengths_AreInTheCommandsUnits)
         {
             Assert::AreEqual ((Word) 0x201F, ParseOk ("db 2000 l20").command.a2);
