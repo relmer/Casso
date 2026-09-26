@@ -416,6 +416,27 @@ namespace DebuggerTests
 
 
 
+        //  The Monitor's loop compares a byte before it tests the end, so a
+        //  reversed range still compares its first byte.
+        TEST_METHOD (Verify_ReversedRange_ComparesTheFirstByte)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.RunOk ("30F: 42");
+            rig.RunOk ("400: 99");
+
+            reply = rig.RunOk ("400<30F.300V");
+
+            Assert::AreEqual (1u, std::get<CompareData> (reply.data).compared);
+            Assert::AreEqual (size_t (1), reply.text.size());
+            Assert::AreEqual (std::string ("030F-42 (99)"), reply.text[0]);
+        }
+
+
+
         ////////////////////////////////////////////////////////////////////////
         //
         //  Several commands on one line

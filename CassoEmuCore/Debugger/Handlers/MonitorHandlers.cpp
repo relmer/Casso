@@ -535,11 +535,14 @@ bool MonitorHandlers::TryPokeRange (DebugSession & session, Word first, std::spa
 //
 //  MonitorHandlers::GetLast
 //
+//  The Monitor handles a byte before it tests for the end, so a range whose
+//  end is below its start still covers its first byte.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Word MonitorHandlers::GetLast (const DebugCommand & command)
 {
-    return command.hasA2 ? command.a2 : command.a1;
+    return command.hasA2 ? std::max (command.a1, command.a2) : command.a1;
 }
 
 
