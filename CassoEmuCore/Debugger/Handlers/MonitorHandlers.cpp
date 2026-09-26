@@ -142,13 +142,15 @@ void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & comm
 //
 //  MonitorHandlers::List
 //
-//  Twenty instructions, which is what the Monitor's L shows.
+//  Twenty instructions, which is what the Monitor's L shows. A bare L goes
+//  on from where the last one stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorHandlers::List (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     DisassemblyData      data;
+    Word                 first = command.hasA1 ? command.a1 : m_nextList;
     std::optional<Word>  last;
 
 
@@ -158,7 +160,7 @@ void MonitorHandlers::List (DebugSession & session, const DebugCommand & command
         last = command.a2;
     }
 
-    DataDirectiveHandlers::Disassemble (session, command.a1, last, kListLines, data);
+    m_nextList = DataDirectiveHandlers::Disassemble (session, first, last, kListLines, data);
     reply.data = data;
 }
 

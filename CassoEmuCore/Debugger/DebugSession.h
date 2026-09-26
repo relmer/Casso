@@ -237,9 +237,9 @@ private:
     void   ExecuteSource         (const DebugCommand & command, Reply & reply);
     void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
-    Reply  ExecuteMonitorLine    (const std::string & text);
+    Reply  ExecuteMonitorLine    (const std::string & text, CommandMode mode);
     Reply  ExecuteAppleWinLine   (const std::string & text);
-    Reply  ExecuteGSSquaredLine  (const std::string & text);
+    Reply  ExecuteGSSquaredLine  (const std::string & text, CommandMode mode);
     Reply  ExecuteWinDbgLine     (const std::string & text);
     bool   TryResolveIdOrAddress (DebugCommand & command, Reply & reply);
     void   PushMonitorReturn     ();

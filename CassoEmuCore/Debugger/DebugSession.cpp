@@ -355,8 +355,8 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 
     switch (mode)
     {
-    case CommandMode::Monitor:    reply = ExecuteMonitorLine   (text); break;
-    case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text); break;
+    case CommandMode::Monitor:    reply = ExecuteMonitorLine   (text, mode); break;
+    case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text, mode); break;
     case CommandMode::WinDbg:     reply = ExecuteWinDbgLine    (text); break;
     default:                      reply = ExecuteAppleWinLine  (text); break;
     }
@@ -467,15 +467,15 @@ Reply DebugSession::ExecuteWinDbgLine (const std::string & text)
 //
 //  ONE COMMAND KEEPS ITS REPLY WHOLE, data and all, because that is nearly
 //  every line and a JSON reader should see the structure. Several commands
-//  are run in order and their rendered text is concatenated, with the first
-//  failure as the line's status; the merged reply carries no data of its
-//  own, so formatting it again adds nothing. A JSON reader sees one record
+//  are run in order and their text, rendered in the line's output format,
+//  is concatenated, with the first failure as the line's status; the merged
+//  reply carries no data of its own, so formatting it again adds nothing. A JSON reader sees one record
 //  with the whole line's text, which is the honest report of what a line
 //  like `300.30F 400.40F` did.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Reply DebugSession::ExecuteMonitorLine (const std::string & text)
+Reply DebugSession::ExecuteMonitorLine (const std::string & text, CommandMode mode)
 {
     MonitorParseResult  parsed = MonitorParser::Parse (text, m_monitorState);
     Reply               merged;
@@ -503,7 +503,7 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
     {
         Reply  one = Execute (command);
 
-        MonitorFormatter::Format (one);
+        FormatReply (one, mode);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
         merged.isFormatted = true;
 
@@ -531,7 +531,7 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Reply DebugSession::ExecuteGSSquaredLine (const std::string & text)
+Reply DebugSession::ExecuteGSSquaredLine (const std::string & text, CommandMode mode)
 {
     GSSquaredParseResult  parsed = GSSquaredParser::Parse (text, *this);
     Reply                 merged;
@@ -574,7 +574,7 @@ Reply DebugSession::ExecuteGSSquaredLine (const std::string & text)
     {
         Reply  one = Execute (command);
 
-        FormatReply (one);
+        FormatReply (one, mode);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
         merged.isFormatted = true;
 
@@ -791,7 +791,7 @@ void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
     //  `$cmd` runs a Monitor command and leaves the assembler active.
     if (line[0] == '$')
     {
-        reply = ExecuteMonitorLine (Trim (line.substr (1)));
+        reply = ExecuteMonitorLine (Trim (line.substr (1)), CommandMode::Monitor);
         return;
     }
 

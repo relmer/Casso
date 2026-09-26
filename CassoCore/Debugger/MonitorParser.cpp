@@ -71,12 +71,16 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
     Scan                scan;
     size_t              index    = 0;
     size_t              opening  = line.find_first_not_of (" \t");
+    bool                isEditArmed = state.registerEditPending;
+    bool                isArmedHere = false;
 
 
 
     //  A `/` line was never the Monitor's.
     if (opening != std::string::npos && line[opening] == '/')
     {
+        state.registerEditPending = false;
+
         result.status       = ParseStatus::Ok;
         result.appleWinLine = Trim (line.substr (opening + 1));
         return result;
@@ -97,9 +101,19 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             return result;
         }
 
+        //  AN ADDRESS TYPED OUTSIDE A RANGE IS WHERE `:` STORES NEXT, as the
+        //  ROM copies every such address into A3. It also ends a register
+        //  edit, since `:` no longer points at the registers.
         if (TryHexDigit (character, digit))
         {
             scan.value = (Word) ((scan.value.value_or (0) << 4) | digit);
+
+            if (!scan.first.has_value())
+            {
+                state.storeAddress = *scan.value;
+                isEditArmed        = false;
+            }
+
             continue;
         }
 
@@ -147,12 +161,10 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
                 return result;
             }
 
-            if (state.registerEditPending)
+            if (isEditArmed && !scan.value.has_value())
             {
                 command        = MakeCommand (DebugVerb::EditRegisters, ':');
                 command.values = values;
-
-                state.registerEditPending = false;
             }
             else
             {
@@ -163,6 +175,8 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
 
                 state.storeAddress = (Word) (command.a1 + values.size());
             }
+
+            isEditArmed = false;
 
             index = line.size();
             break;
@@ -287,8 +301,9 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             break;
 
         case 0x05:
-            command                   = MakeCommand (DebugVerb::ShowRegistersForEdit, character);
-            state.registerEditPending = true;
+            command     = MakeCommand (DebugVerb::ShowRegistersForEdit, character);
+            isEditArmed = true;
+            isArmedHere = true;
             break;
 
         default:
@@ -318,6 +333,9 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
     {
         FlushExamine (scan, state, result);
     }
+
+    //  A register edit is armed only until the next line.
+    state.registerEditPending = isArmedHere && isEditArmed;
 
     result.status = result.commands.empty() ? ParseStatus::Empty : ParseStatus::Ok;
     return result;

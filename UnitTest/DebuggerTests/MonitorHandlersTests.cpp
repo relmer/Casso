@@ -665,5 +665,152 @@ namespace DebuggerTests
             registers = rig.target.GetRegisters();
             Assert::AreEqual ((int) 0x41, (int) registers.a, L"the register the reader set, not the zero-page byte");
         }
+
+
+
+        //  A bare L picks up where the last listing stopped, as the help
+        //  says, rather than listing from $0000.
+        TEST_METHOD (List_Bare_ContinuesFromTheLastListing)
+        {
+            MachineRig               rig;
+            Reply                    first;
+            Reply                    next;
+            const DisassemblyData  * listed = nullptr;
+            const DisassemblyData  * more   = nullptr;
+            Word                     after  = 0;
+            std::string              nops   = "300:";
+
+
+
+            //  Forty-eight NOPs, enough for two listings of twenty.
+            for (int i = 0; i < 48; i++)
+            {
+                nops += " EA";
+            }
+
+            rig.Run (nops);
+            first  = rig.Run ("300L");
+            listed = std::get_if<DisassemblyData> (&first.data);
+            Assert::IsNotNull (listed);
+            Assert::IsFalse   (listed->lines.empty());
+
+            after = (Word) (listed->lines.back().instruction.address + listed->lines.back().instruction.bytes.size());
+
+            next = rig.Run ("L");
+            more = std::get_if<DisassemblyData> (&next.data);
+            Assert::IsNotNull (more);
+            Assert::IsFalse   (more->lines.empty());
+            Assert::AreEqual  ((int) after, (int) more->lines.front().instruction.address);
+        }
+
+
+
+        //  A line of several commands where one fails shows the error once.
+        TEST_METHOD (SeveralCommands_WithAFailure_ShowTheErrorOnce)
+        {
+            MonitorHandlersTests::Rig rig;
+            Reply   reply = rig.Run ("300.300 9^K");
+            size_t  count = 0;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+
+            for (const std::string & line : reply.text)
+            {
+                count += line == "ERR" ? 1 : 0;
+            }
+
+            Assert::AreEqual ((size_t) 1, count);
+        }
+
+
+
+        //  A line of several commands renders in the output format in force,
+        //  the same as a line of one.
+        TEST_METHOD (SeveralCommands_FollowTheOutputFormat)
+        {
+            MonitorHandlersTests::Rig  rig;
+            Reply                      one;
+            Reply                      two;
+
+
+
+            rig.RunOk ("/OUTPUT APPLEWIN");
+            one = rig.RunOk ("300.300");
+            two = rig.RunOk ("300.300 300.300");
+
+            Assert::IsFalse  (two.text.empty());
+            Assert::AreEqual (one.text.front(), two.text.front());
+        }
+
+
+
+        //  A GSSquared line run in its own mode on a session in another mode
+        //  renders in GSSquared's format, whether it is one command or several.
+        TEST_METHOD (SeveralGSSquaredCommands_FollowTheLinesMode)
+        {
+            MonitorHandlersTests::Rig  rig;
+            Reply                      one;
+            Reply                      two;
+
+
+
+            rig.RunOk ("/MODE APPLEWIN");
+
+            one = rig.session.ExecuteLine ("watch 300", CommandMode::GSSquared);
+            rig.session.FormatReply (one, CommandMode::GSSquared);
+            two = rig.session.ExecuteLine ("watch 301.302", CommandMode::GSSquared);
+            rig.session.FormatReply (two, CommandMode::GSSquared);
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) two.status);
+            Assert::IsFalse  (one.text.empty());
+            Assert::IsFalse  (two.text.empty());
+            Assert::AreEqual (one.text.front().substr (0, 6), two.text.front().substr (0, 6));
+        }
+
+
+
+        //  An address in front of the colon deposits there even with a
+        //  register edit armed, and the arming lasts only to the next line.
+        TEST_METHOD (RegisterEdit_OnlyAnAddresslessColonOnTheNextLine)
+        {
+            MachineRig  rig;
+            Byte        value = 0;
+
+
+
+            rig.Run ("^E");
+            rig.Run ("400: 77");
+
+            Assert::IsTrue   (rig.target.TryPeek (0x400, value));
+            Assert::AreEqual ((int) 0x77, (int) value, L"an address in front deposits");
+
+            rig.Run ("^E");
+            rig.Run ("300.300");
+            rig.Run (": 66");
+
+            Assert::IsTrue   (rig.target.TryPeek (0x300, value));
+            Assert::AreEqual ((int) 0x66, (int) value, L"a line between ends the arming");
+            Assert::AreNotEqual ((int) 0x66, (int) rig.target.GetRegisters().a);
+        }
+
+
+
+        //  `: bytes` stores at the last address typed, as the ROM's A3 does.
+        TEST_METHOD (Deposit_WithNoAddress_StoresAtTheLastAddressTyped)
+        {
+            MonitorHandlersTests::Rig  rig;
+            Byte                       value = 0;
+
+
+
+            rig.RunOk ("500: 01 02");
+            rig.RunOk ("300");
+            rig.RunOk (": 12");
+
+            Assert::IsTrue   (rig.target.TryPeek (0x300, value));
+            Assert::AreEqual ((int) 0x12, (int) value);
+        }
     };
 }

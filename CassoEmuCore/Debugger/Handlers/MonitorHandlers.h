@@ -71,7 +71,7 @@ private:
 
     static void  Examine        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Deposit        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  List           (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         List           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Verify         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Arithmetic     (const DebugCommand & command, Reply & reply);
     static void  SetTextMode    (DebugSession & session, bool isInverse, Reply & reply);
@@ -90,4 +90,7 @@ private:
     static Word  GetLast        (const DebugCommand & command);
     static Byte  Peek           (IDebugTarget & target, Word address);
     static void  PokeWord       (IDebugTarget & target, Word address, Word value);
+
+    //  Where a bare L continues, the Monitor's own, apart from U's.
+    Word  m_nextList = 0;
 };
