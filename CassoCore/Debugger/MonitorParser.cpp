@@ -103,6 +103,16 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             continue;
         }
 
+        //  A command letter drops a pending `+` or `-` and acts on the address
+        //  typed before it, as the ROM's does: digits after the sign never
+        //  reach A1.
+        if (scan.op != 0 && std::string_view (".<+- \t\r\n").find (character) == std::string_view::npos)
+        {
+            scan.value = scan.first;
+            scan.first.reset();
+            scan.op    = 0;
+        }
+
         switch (character)
         {
         //  A `.` with nothing in front of it continues from the last byte
@@ -131,7 +141,15 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
         case '\t':
         case '\r':
         case '\n':
-            FlushExamine (scan, state, result);
+            if (scan.op != 0)
+            {
+                FlushArithmetic (scan, result);
+            }
+            else
+            {
+                FlushExamine (scan, state, result);
+            }
+
             continue;
 
         //  Everything after the colon is the byte list.
@@ -216,10 +234,12 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             command = MakeCommand (character == 'M' ? DebugVerb::MoveMemory : DebugVerb::Verify, character);
             ApplyRange (scan, command);
 
-            if (scan.dest.has_value())
+            if (!TryApplyDestination (scan, state, command))
             {
-                command.a3    = *scan.dest;
-                command.hasA3 = true;
+                result.error  = std::format ("{} needs a destination. Give one as dest<first.last{}.", character, character);
+                result.status = ParseStatus::Invalid;
+                result.commands.clear();
+                return result;
             }
 
             break;
@@ -304,15 +324,7 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
 
     if (scan.op != 0)
     {
-        DebugCommand  arithmetic = MakeCommand (DebugVerb::Arithmetic, scan.op);
-
-        arithmetic.a1    = scan.first.value_or (0);
-        arithmetic.a2    = scan.value.value_or (0);
-        arithmetic.hasA1 = true;
-        arithmetic.hasA2 = true;
-        arithmetic.text  = std::string (1, scan.op);
-
-        result.commands.push_back (arithmetic);
+        FlushArithmetic (scan, result);
     }
     else
     {
@@ -372,6 +384,74 @@ void MonitorParser::FlushExamine (Scan & scan, MonitorState & state, MonitorPars
 
     result.commands.push_back (command);
     scan = Scan();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::FlushArithmetic
+//
+//  A pending `+` or `-` at a space, a Return or the end of the line prints
+//  the sum or difference of the addresses on either side of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MonitorParser::FlushArithmetic (Scan & scan, MonitorParseResult & result)
+{
+    DebugCommand  arithmetic = MakeCommand (DebugVerb::Arithmetic, scan.op);
+
+
+
+    arithmetic.a1    = scan.first.value_or (0);
+    arithmetic.a2    = scan.value.value_or (0);
+    arithmetic.hasA1 = true;
+    arithmetic.hasA2 = true;
+    arithmetic.text  = std::string (1, scan.op);
+
+    result.commands.push_back (arithmetic);
+    scan = Scan();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::TryApplyDestination
+//
+//  M and V without a `<` go on from the last destination, as the ROM's A4
+//  does: each byte moved or verified advances it, so the next move lands
+//  after the last one. With no destination ever given there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MonitorParser::TryApplyDestination (const Scan & scan, MonitorState & state, DebugCommand & command)
+{
+    Word  first = command.a1;
+    Word  last  = command.hasA2 ? command.a2 : command.a1;
+    Word  count = (last >= first) ? (Word) (last - first + 1) : (Word) 1;
+
+
+
+    if (scan.dest.has_value())
+    {
+        state.a4    = *scan.dest;
+        state.hasA4 = true;
+    }
+
+    if (!state.hasA4)
+    {
+        return false;
+    }
+
+    command.a3    = state.a4;
+    command.hasA3 = true;
+    state.a4      = (Word) (state.a4 + count);
+    return true;
 }
 
 
