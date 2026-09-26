@@ -309,6 +309,7 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
         std::string  mnemonic = line.instruction.mnemonic;
         std::string  operand  = line.GetShownOperand();
         std::string  text;
+        bool         isQuoted = false;
 
 
 
@@ -327,9 +328,15 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
             ch = (char) tolower ((unsigned char) ch);
         }
 
+        //  Text in quotes is data and keeps its case.
         for (char & ch : operand)
         {
-            ch = line.operandSymbol.empty() ? (char) tolower ((unsigned char) ch) : ch;
+            if (ch == '"')
+            {
+                isQuoted = !isQuoted;
+            }
+
+            ch = (line.operandSymbol.empty() && !isQuoted) ? (char) tolower ((unsigned char) ch) : ch;
         }
 
         text = std::format ("{:04x} {:<{}}  {} {}", line.instruction.address, bytes, kBytesWidth, mnemonic, operand);
