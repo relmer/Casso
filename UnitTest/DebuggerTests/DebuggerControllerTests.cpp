@@ -278,6 +278,27 @@ namespace DebuggerControllerTests
 
 
 
+        //  A new machine ends an A block, whose opcodes were the old CPU's,
+        //  and the session is paused or running as the new machine is.
+        TEST_METHOD (AMachineChangeEndsAnAssemblyBlockAndTakesTheMachinesState)
+        {
+            Rig  rig (true);
+
+
+
+            (void) rig.controller.RunLine ("A 300", {}, {});
+            Assert::IsTrue (rig.controller.GetSession().IsAssembling());
+
+            rig.controller.GetSession().OnMachineChanged ("Apple //c", false);
+            Assert::IsFalse (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue  (rig.controller.GetSession().GetRunState() == RunState::FreeRunning, L"the new machine runs");
+
+            rig.controller.GetSession().OnMachineChanged ("Apple //e", true);
+            Assert::IsTrue  (rig.controller.GetSession().GetRunState() == RunState::Paused);
+        }
+
+
+
         TEST_METHOD (APauseWithNoRunStopsTheMachineAndSaysSo)
         {
             Rig  rig (false);

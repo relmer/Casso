@@ -904,16 +904,28 @@ void DebugSession::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
 //
 //  A different machine makes every address meaningless, so breakpoints,
 //  watchpoints and the trace go and the call record starts over. Watches and
-//  bookmarks are only labels and stay.
+//  bookmarks are only labels and stay. An A block ends, since its opcodes
+//  were the old CPU's, and so does what is left of a counted step. The new
+//  machine is paused or running as the caller says.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::OnMachineChanged (const std::string & machineName)
+void DebugSession::OnMachineChanged (const std::string & machineName, bool isPaused)
 {
     m_breakpoints.ClearAll();
     m_watchpoints.ClearAll();
+    m_watchpoints.ClearPending();
     m_lastBreakpointId.reset();
-    m_state = RunState::Paused;
+    m_beforeHit.reset();
+    m_monitorReturn.reset();
+    m_monitorReturned = false;
+    m_assemblyAddress.reset();
+    m_assemblyOpcodes.reset();
+    m_nextStep.reset();
+    m_stepsLeft     = 0;
+    m_stepCycles    = 0;
+    m_isStepPending = false;
+    m_state         = isPaused ? RunState::Paused : RunState::FreeRunning;
     m_target.ClearTrace();
 
     if (m_callRecorder.IsActive())

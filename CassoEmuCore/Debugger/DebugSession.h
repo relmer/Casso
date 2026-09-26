@@ -108,7 +108,7 @@ public:
     void   ClearAllBreakpoints   ();
 
     // Machine events the host reports.
-    void   OnMachineChanged      (const std::string & machineName);
+    void   OnMachineChanged      (const std::string & machineName, bool isPaused = true);
     void   OnReset               (bool isPowerCycle);
     void   OnUserPaused          ();
     void   OnUserResumed         ();

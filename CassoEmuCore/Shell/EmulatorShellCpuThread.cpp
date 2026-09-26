@@ -732,9 +732,16 @@ void EmulatorShell::NotifyDebugReset (bool isPowerCycle)
 
 void EmulatorShell::NotifyDebugMachineChanged (const std::string & machineName)
 {
+    //  A debugger run on the old machine ends with it, announced as a pause,
+    //  and gives back the speed it borrowed.
+    if (m_debugRunDriver != nullptr)
+    {
+        m_debugRunDriver->EndForUserPause();
+    }
+
     if (m_debugSession != nullptr)
     {
-        m_debugSession->OnMachineChanged (machineName);
+        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
     }
 }
 
