@@ -217,22 +217,72 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
         switch (breakpoint.kind)
         {
         case BreakpointKind::Address:
-            lines.push_back (std::format ("[{}] exec {}", breakpoint.id, place));
+            lines.push_back (std::format ("[{}] exec {}", breakpoint.id, place) + DescribeFlags (breakpoint));
             break;
 
         case BreakpointKind::Memory:
-            lines.push_back (std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]));
+            lines.push_back (std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]) + DescribeFlags (breakpoint));
             break;
 
         case BreakpointKind::Io:
-            lines.push_back (std::format ("[{}] io {} rw", breakpoint.id, place));
+            lines.push_back (std::format ("[{}] io {} rw", breakpoint.id, place) + DescribeFlags (breakpoint));
             break;
 
         default:
-            lines.push_back (std::format ("[{}] {}", breakpoint.id, AppleWinFormatter::DescribeBreakpoint (breakpoint)));
+            lines.push_back (std::format ("[{}] {}", breakpoint.id, AppleWinFormatter::DescribeBreakpoint (breakpoint)) +
+                             (breakpoint.enabled ? "" : ", disabled"));
             break;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredFormatter::DescribeFlags
+//
+//  What decides whether a listed entry stops, when it is off its default:
+//  the condition, a watch that stops before the access, temporary, counts
+//  only, and disabled. An entry with none of these lists exactly as
+//  GSSquared lists it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string GSSquaredFormatter::DescribeFlags (const BreakpointInfo & breakpoint)
+{
+    std::string  text;
+
+
+
+    if (!breakpoint.condition.empty())
+    {
+        text += " if " + breakpoint.condition;
+    }
+
+    if (breakpoint.kind == BreakpointKind::Memory && breakpoint.mode == WatchMode::Before)
+    {
+        text += ", before the access";
+    }
+
+    if (breakpoint.temporary)
+    {
+        text += ", temporary";
+    }
+
+    if (!breakpoint.stops)
+    {
+        text += ", counts only";
+    }
+
+    if (!breakpoint.enabled)
+    {
+        text += ", disabled";
+    }
+
+    return text;
 }
 
 

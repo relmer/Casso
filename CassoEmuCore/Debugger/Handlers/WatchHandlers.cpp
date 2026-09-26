@@ -136,7 +136,9 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 //  WatchHandlers::Add
 //
 //  ZP0-ZP7 and P0-P4 carry a slot in their name and fill it; the others
-//  take the next id. The reply lists the entry.
+//  take the next id. The reply lists the entry. With no address nothing is
+//  added, and the reply is the list; a watch list then carries the verb a
+//  list of watches has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,6 +154,11 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
 
     if (!command.hasA1)
     {
+        if (kind == WatchListKind::Watch)
+        {
+            reply.verb = DebugVerb::ListWatches;
+        }
+
         reply.data = list;
         return;
     }

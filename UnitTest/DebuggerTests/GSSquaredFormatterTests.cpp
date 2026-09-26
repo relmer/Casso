@@ -1,7 +1,10 @@
 #include "Pch.h"
 
+#include "Debugger/DebugHandlerSet.h"
 #include "Debugger/GSSquaredFormatter.h"
 #include "EmuTests/FixtureProvider.h"
+#include "HandlerTestRig.h"
+#include "MockDebugTarget.h"
 
 #include "CppUnitTest.h"
 
@@ -232,6 +235,65 @@ namespace DebuggerTests
 
             AssertMatchesFixture (list,  "watches.txt");
             AssertMatchesFixture (added, "watch-set.txt");
+        }
+
+        //  Casso's W with no address lists the watches; it sets none.
+        TEST_METHOD (WatchWithNoAddress_ListsTheWatches)
+        {
+            MockDebugTarget            target;
+            RecordingNotificationSink  sink;
+            DebugSession               session (target, sink, RunState::Paused);
+            DebugHandlerSet            handlers;
+            Reply                      reply;
+
+
+
+            handlers.Attach (session);
+            session.ExecuteLine ("MODE GSSQUARED", CommandMode::AppleWin);
+            session.ExecuteLine ("watch 6");
+            session.ExecuteLine ("watch 7");
+
+            reply = session.ExecuteLine ("W");
+            session.FormatReply (reply);
+
+            Assert::AreEqual ((size_t) 3, reply.text.size());
+            Assert::AreEqual (std::string ("Current memory watches:"), reply.text[0]);
+            Assert::AreEqual (std::string ("[1] 00/0007"),             reply.text[2]);
+        }
+
+        //  What decides whether an entry stops is shown after it, so a
+        //  disabled or conditional breakpoint does not list as a plain one.
+        TEST_METHOD (BreakpointList_ShowsWhatDecidesTheStop)
+        {
+            Reply               reply;
+            BreakpointListData  data;
+            BreakpointInfo      disabled;
+            BreakpointInfo      counting;
+
+
+
+            disabled.id        = 0;
+            disabled.address   = 0x300;
+            disabled.last      = 0x300;
+            disabled.enabled   = false;
+            disabled.condition = "A==1";
+
+            counting.id        = 1;
+            counting.kind      = BreakpointKind::Memory;
+            counting.address   = 0xC019;
+            counting.last      = 0xC019;
+            counting.access    = WatchAccess::Read;
+            counting.mode      = WatchMode::Before;
+            counting.temporary = true;
+            counting.stops     = false;
+
+            data.breakpoints = { disabled, counting };
+            reply.verb       = DebugVerb::ListBreakpoints;
+            reply.data       = data;
+            GSSquaredFormatter::Format (reply);
+
+            Assert::AreEqual (std::string ("[0] exec 00/0300 if A==1, disabled"),                               reply.text.at (1));
+            Assert::AreEqual (std::string ("[1] data 00/C019 r, before the access, temporary, counts only"), reply.text.at (2));
         }
 
         TEST_METHOD (Save_Slookup_Sclear)
