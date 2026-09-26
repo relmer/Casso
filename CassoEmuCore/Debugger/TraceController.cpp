@@ -32,7 +32,7 @@ TraceController::~TraceController()
 //
 //  Starts a new trace: the ring is emptied and sized, and the bus reports
 //  every access here. The bus is switched first, so the first entry already
-//  gets its access.
+//  gets its access. A trace already on goes on as it is, entries and all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +42,11 @@ void TraceController::On()
     Cpu6502    * cpu = m_host.GetCpu()->GetCpu6502();
 
 
+
+    if (m_isOn)
+    {
+        return;
+    }
 
     bus.SetTraceSink     (this);
     bus.SetTraceAllPages (true);
@@ -95,8 +100,9 @@ void TraceController::Off()
 //
 //  TraceController::Clear
 //
-//  After a machine switch the addresses in the ring belong to another
-//  machine, so the entries go with the trace.
+//  After a machine switch the entries belonged to the old CPU, which went
+//  with them. The new CPU's ring is its own -- the --trace capture or a Debug
+//  build's look-back -- and is left recording.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,11 +114,6 @@ void TraceController::Clear()
 
     bus.SetTraceAllPages (false);
     bus.SetTraceSink     (nullptr);
-
-    if (m_hasEntries)
-    {
-        m_host.GetCpu()->GetCpu6502()->EnableTrace (0);
-    }
 
     m_isOn       = false;
     m_hasEntries = false;
@@ -204,6 +205,11 @@ void TraceController::OnWatchedAccess (
     std::optional<Byte>   previous)
 {
     UNREFERENCED_PARAMETER (previous);
+
+    if (m_isHostAccess)
+    {
+        return;
+    }
 
     m_host.GetCpu()->GetCpu6502()->RecordTraceAccess (address, value, access == BusAccess::Write);
 }

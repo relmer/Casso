@@ -188,6 +188,78 @@ namespace DebuggerTests
 
 
 
+        //  The new machine's CPU comes with its own ring, from --trace or a
+        //  Debug build's look-back, and the switch leaves it recording.
+        TEST_METHOD (MachineSwitch_LeavesTheNewCpusRingAlone)
+        {
+            static constexpr size_t  kOwnRing = 64;
+            Rig                      rig;
+
+
+
+            LoadProgram (rig);
+            rig.RunOk ("HISTORY ON");
+            rig.RunOk ("T");
+
+            rig.machine.SetCpu (std::make_unique<EmuCpu> (rig.machine.GetMemoryBus()));
+            rig.machine.GetCpu()->EnableTrace (kOwnRing);
+
+            rig.session.OnMachineChanged ("Apple //e");
+
+            Assert::IsTrue   (rig.machine.GetCpu()->IsTraceEnabled(), L"the new CPU's ring still records");
+            Assert::AreEqual ((size_t) 0, rig.target.GetTraceSize(),  L"and the debugger's trace is empty");
+        }
+
+
+
+        TEST_METHOD (On_WhileOn_KeepsTheEntries)
+        {
+            Rig  rig;
+
+
+
+            LoadProgram (rig);
+            rig.RunOk ("HISTORY ON");
+            rig.RunOk ("T");
+            rig.RunOk ("T");
+
+            rig.RunOk ("HISTORY ON");
+
+            Assert::IsTrue   (rig.target.IsTraceOn());
+            Assert::AreEqual ((size_t) 2, rig.target.GetTraceSize(), L"a second HISTORY ON discards nothing");
+        }
+
+
+
+        //  IN between instructions is the debugger's own access, not the last
+        //  instruction's.
+        TEST_METHOD (In_WhilePaused_LeavesTheLastEntrysAccess)
+        {
+            static constexpr Word     kOther  = 0x0500;
+            Rig                       rig;
+            std::vector<TraceRecord>  entries;
+
+
+
+            LoadProgram (rig);
+            rig.RunOk ("HISTORY ON");
+            rig.RunOk ("T");
+            rig.RunOk ("T");
+
+            (void) rig.target.ReadIo (kOther);
+            rig.target.WriteIo (kOther, 0x07);
+
+            entries = GetAll (rig);
+
+            Assert::AreEqual ((size_t) 2, entries.size());
+            Assert::IsTrue   (entries[1].hasAccess);
+            Assert::IsTrue   (entries[1].accessIsWrite);
+            Assert::AreEqual ((int) kData, (int) entries[1].accessAddress, L"still the STA's write");
+            Assert::AreEqual (0x05,        (int) entries[1].accessData);
+        }
+
+
+
         TEST_METHOD (History_ShowsAWindowWithSymbols)
         {
             Rig                       rig;

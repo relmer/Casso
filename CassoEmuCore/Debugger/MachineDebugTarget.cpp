@@ -157,7 +157,15 @@ MemoryRegion MachineDebugTarget::GetRegion (Word address) const
 
 Byte MachineDebugTarget::ReadIo (Word address)
 {
-    return m_host.GetMemoryBus().ReadByte (address);
+    Byte  value = 0;
+
+
+
+    m_trace.SetHostAccess (true);
+    value = m_host.GetMemoryBus().ReadByte (address);
+    m_trace.SetHostAccess (false);
+
+    return value;
 }
 
 
@@ -174,7 +182,9 @@ Byte MachineDebugTarget::ReadIo (Word address)
 
 void MachineDebugTarget::WriteIo (Word address, Byte value)
 {
+    m_trace.SetHostAccess (true);
     m_host.GetMemoryBus().WriteByte (address, value);
+    m_trace.SetHostAccess (false);
 }
 
 

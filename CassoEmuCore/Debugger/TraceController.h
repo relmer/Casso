@@ -46,6 +46,10 @@ public:
     bool    IsOn      () const { return m_isOn; }
     size_t  GetSize   () const;
 
+    //  While set, bus accesses are the debugger's own (IN and OUT between
+    //  instructions) and are not recorded onto the newest entry.
+    void    SetHostAccess (bool isHostAccess) { m_isHostAccess = isHostAccess; }
+
     //  Up to count entries from first, oldest first, with the raw fields
     //  only: no disassembly and no symbols.
     void    GetWindow (size_t first, size_t count, std::vector<TraceRecord> & entries) const;
@@ -58,6 +62,7 @@ public:
 
 private:
     MachineHost  & m_host;
-    bool           m_isOn       = false;
-    bool           m_hasEntries = false;
+    bool           m_isOn         = false;
+    bool           m_hasEntries   = false;
+    bool           m_isHostAccess = false;
 };
