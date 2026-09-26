@@ -1896,44 +1896,6 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::CycleKeyScheme
-//
-//  Visual Studio, AppleWin, GSSquared, and round again; the choice is saved at
-//  once, so it holds whether or not the window is closed cleanly.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::CycleKeyScheme()
-{
-    static constexpr DebuggerKeyScheme  kOrder[] = { DebuggerKeyScheme::VisualStudio,
-                                                     DebuggerKeyScheme::AppleWin,
-                                                     DebuggerKeyScheme::GSSquared };
-    size_t                              next     = 0;
-
-
-
-    for (size_t i = 0; i < std::size (kOrder); ++i)
-    {
-        if (kOrder[i] == m_keyScheme)
-        {
-            next = (i + 1) % std::size (kOrder);
-        }
-    }
-
-    ApplyKeyScheme (kOrder[next]);
-
-    if (m_host != nullptr)
-    {
-        m_host->SetDebuggerKeyScheme (DebuggerKeySchemes::GetName (kOrder[next]));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::OnMappedCommand
 //
 //  Every action is the command its button sends, except Pause, which is the
@@ -4083,7 +4045,12 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
 
     OffsetRect (&cell, list.left, list.top);
 
-    m_watchEdit = WatchEdit { row, column, what };
+    m_watchEdit = WatchEdit { row, column, what, {} };
+
+    if (what.kind == WatchRowKind::Automatic)
+    {
+        m_watchEdit.autoKey = m_snapshot->autoWatches[(size_t) what.index].key;
+    }
 
     //  In the list's own face and size, so the text does not jump when the
     //  box opens over it.
@@ -4126,8 +4093,20 @@ void DebuggerWindow::EndWatchEdit (bool commit)
     {
         bool                                        isManual = m_watchEdit.what.kind == WatchRowKind::Manual;
         std::optional<int>                          watchId  = isManual ? std::optional<int> (m_watchEdit.what.index) : std::nullopt;
-        std::optional<int>                          autoAt   = isManual ? std::nullopt : std::optional<int> (m_watchEdit.what.index);
+        std::optional<int>                          autoAt;
         std::optional<DebuggerViewState::WatchUndo> undo;
+
+
+
+        //  An automatic watch that is no longer listed takes no edit.
+        for (size_t i = 0; !isManual && i < m_snapshot->autoWatches.size(); i++)
+        {
+            if (m_snapshot->autoWatches[i].key == m_watchEdit.autoKey)
+            {
+                autoAt = (int) i;
+                break;
+            }
+        }
 
         lines = DebuggerViewState::GetWatchEditLines (*m_snapshot, watchId, autoAt, m_watchEdit.column,
                                                       TextEncoding::WideToNarrow (typed));
@@ -6585,9 +6564,10 @@ void DebuggerWindow::SavePlacementIfMoved()
 
 bool DebuggerWindow::RouteDockKey (const DxuiKeyEvent & ev)
 {
-    std::wstring  pane   = GetPaneOfFocus();
-    RECT          bounds = {};
-    DxuiDockSide  side   = DxuiDockSide::Left;
+    std::wstring     pane    = GetPaneOfFocus();
+    IDxuiControl   * focused = GetFocused();
+    RECT             bounds  = {};
+    DxuiDockSide     side    = DxuiDockSide::Left;
 
 
 
@@ -6596,9 +6576,11 @@ bool DebuggerWindow::RouteDockKey (const DxuiKeyEvent & ev)
         return false;
     }
 
+    //  The menu opens at the focused control of the window the key came from,
+    //  a floating pane's own when it came from one.
     if (ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift && !ev.ctrl && !ev.alt))
     {
-        bounds = m_focusMgr.GetFocusedControl()->GetBounds();
+        bounds = (focused != nullptr) ? focused->GetBounds() : RECT {};
         ShowDockToMenu (pane, POINT { bounds.left, bounds.top });
         return true;
     }
@@ -6695,7 +6677,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  Up and Down in the command line walk the lines run before.
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && !ev.ctrl && !ev.alt && (ev.vk == VK_UP || ev.vk == VK_DOWN))
     {
-        std::optional<std::wstring>  recalled = (ev.vk == VK_UP) ? m_consoleHistory.GetOlder (m_commandBox->GetText()) : m_consoleHistory.GetNewer();
+        std::optional<std::wstring>  recalled = (ev.vk == VK_UP) ? m_consoleHistory.GetOlder (m_commandBox->GetText()) : m_consoleHistory.GetNewer (m_commandBox->GetText());
 
 
 
@@ -6772,6 +6754,9 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
 
         if (!handled && ev.vk == VK_TAB && m_routingPane.empty())
         {
+            //  Panes show, hide and move between one Tab and the next, so the
+            //  order is taken from the layout as it stands now.
+            m_focusMgr.Rebuild();
             m_focusMgr.HandleKey (ev.shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             handled = true;
         }

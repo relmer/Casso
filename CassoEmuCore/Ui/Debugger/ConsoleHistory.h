@@ -12,6 +12,8 @@
 //  line already in the history moves it to the most recent place rather than
 //  keeping two copies. Up and Down walk it from the most recent line back; the
 //  text being typed when the walk began comes back after the most recent line.
+//  Editing a recalled line ends the walk: Up starts a new one that returns to
+//  the edited text, and Down leaves it where it is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,12 +24,13 @@ public:
 
     void                            Add       (const std::wstring & line);
     std::optional<std::wstring>     GetOlder  (const std::wstring & typed);
-    std::optional<std::wstring>     GetNewer  ();
-    void                            EndBrowse ()       { m_index.reset(); }
+    std::optional<std::wstring>     GetNewer  (const std::wstring & typed);
 
     const std::vector<std::wstring> & GetLines () const { return m_lines; }
 
 private:
+    void  EndWalkIfEdited (const std::wstring & typed);
+
     std::vector<std::wstring>  m_lines;
     std::optional<size_t>      m_index;
     std::wstring               m_draft;
