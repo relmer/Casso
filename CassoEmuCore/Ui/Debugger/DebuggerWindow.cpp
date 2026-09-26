@@ -3528,26 +3528,17 @@ void DebuggerWindow::ApplySnapshot()
     ApplyDiagnostics();
     KeepOpenViews();
 
-    //  CODE, DATA or CONSOLE: the pane comes forward, even from an edge, and
-    //  takes the keys. The console's keys go to its command line.
+    //  CODE, DATA or CONSOLE: the pane comes forward, even from an edge. The
+    //  keys stay where they were, so the next command can be typed; CONSOLE
+    //  alone brings them to its command line.
     if (m_snapshot->showPaneSerial != m_shownPaneSerial)
     {
-        std::vector<IDxuiControl *>  controls = GetPaneControls (m_snapshot->showPane);
-        IDxuiControl               * content  = controls.empty() ? nullptr : controls.front();
-
-
-
         m_shownPaneSerial = m_snapshot->showPaneSerial;
         m_dockSite->ActivatePane (m_snapshot->showPane);
 
-        if (m_snapshot->showPane == DebuggerLayout::kConsole)
+        if (m_snapshot->showPane == DebuggerLayout::kConsole && IsRoutable (m_commandBox))
         {
-            content = m_commandBox;
-        }
-
-        if (content != nullptr && IsRoutable (content))
-        {
-            SetFocusedControl (content);
+            SetFocusedControl (m_commandBox);
         }
     }
 }
