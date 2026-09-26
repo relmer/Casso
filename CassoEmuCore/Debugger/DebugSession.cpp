@@ -2,6 +2,8 @@
 
 #include "Debugger/DebugSession.h"
 
+#include "Core/TextEncoding.h"
+
 #include "OpcodeTable.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
@@ -720,7 +722,7 @@ std::wstring DebugSession::ResolvePath (const std::string & path) const
         bare = bare.substr (1, bare.size() - 2);
     }
 
-    wide.assign (bare.begin(), bare.end());
+    wide     = TextEncoding::NarrowToWide (bare);
     isRooted = wide.starts_with (L'\\') || wide.starts_with (L'/') || (wide.size() > 1 && wide[1] == L':');
 
     if (isRooted || m_currentDirectory.empty() || wide.empty())
