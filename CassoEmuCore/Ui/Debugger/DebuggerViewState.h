@@ -475,7 +475,7 @@ private:
     void  MoveCodePane   (DebugSession & session, const std::string & name, Reply & reply);
 
     static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
-    void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
+    void  MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply);
     void  GoToMemory     (int window, Word address);
     void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
 
