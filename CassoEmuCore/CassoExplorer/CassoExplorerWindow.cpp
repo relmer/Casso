@@ -577,6 +577,11 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
                            { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
 
+    //  Explorer's tab close glyph is Segoe Fluent Icons', thinner than MDL2's.
+    m_tabs->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                         ? DxuiToolbar::kFluentIconFace
+                         : DxuiToolbar::kMdl2IconFace);
+
     m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
     m_tabs->SetOnMove   ([this] (int from, int to)
     {

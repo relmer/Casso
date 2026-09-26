@@ -1082,7 +1082,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                          (m_pressedClose == i) ? closePress : closeHover);
             }
 
-            hr = text.DrawString (s_kpszMdl2Cancel,
+            hr = text.DrawString (s_kpszMdl2ChromeClose,
                                   (float) close.left, (float) close.top,
                                   (float) (close.right - close.left), (float) (close.bottom - close.top),
                                   isSel ? textArgb : mutedText,

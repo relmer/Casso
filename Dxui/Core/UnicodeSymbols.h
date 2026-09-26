@@ -59,6 +59,7 @@ static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";  // U+E76C Segoe MD
 static constexpr LPCWSTR s_kpszMdl2ChevronDown  = L"\xE70D";  // U+E70D Segoe MDL2 ChevronDown
 static constexpr LPCWSTR s_kpszMdl2More   = L"\xE712";       // U+E712 Segoe MDL2 More (three dots)
 static constexpr LPCWSTR s_kpszMdl2Cancel = L"\xE711";       // U+E711 Segoe MDL2 Cancel (the clear button's X)
+static constexpr LPCWSTR s_kpszMdl2ChromeClose = L"\xE8BB";   // U+E8BB Segoe MDL2 ChromeClose (a window or tab close X)
 static constexpr LPCWSTR s_kpszMdl2Search = L"\xE721";       // U+E721 Segoe MDL2 Search (magnifying glass)
 static constexpr LPCWSTR s_kpszMdl2WarningSolid = L"\xE814";  // U+E814 Segoe MDL2 warning triangle, filled
 
