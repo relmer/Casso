@@ -497,7 +497,7 @@ bool MonitorHandlers::TryGetFiles (DebugSession & session, Reply & reply, IFileS
 
     if (files == nullptr)
     {
-        reply.SetError (CommandStatus::Error, "no file access", "This session has no file system.");
+        reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
         return false;
     }
 

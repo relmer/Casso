@@ -2050,7 +2050,8 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
         m_swallowSpace = false;
     }
     else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) &&
-             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box != nullptr && box->GetText().empty()) &&
+             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box != nullptr && box->GetText().empty(),
+                                                 box != nullptr && box == m_commandBox && mode == CommandMode::Monitor) &&
              RouteMappedKey (ev))
     {
         m_swallowSpace = ev.vk == VK_SPACE;
@@ -2119,7 +2120,7 @@ bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
         return true;
     }
 
-    if (isDown && ev.vk != VK_TAB && DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, false))
+    if (isDown && ev.vk != VK_TAB && DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, false, false))
     {
         (void) m_findBox->OnKey (ev);
         handled = true;
