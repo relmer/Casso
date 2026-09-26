@@ -268,6 +268,10 @@ bool DebugSession::IsMachineWrite (DebugVerb verb)
     case DebugVerb::EditRegisters:
     case DebugVerb::ReadFile:
     case DebugVerb::EnterAssembler:
+    case DebugVerb::SetInverse:
+    case DebugVerb::SetNormal:
+    case DebugVerb::SetInputSlot:
+    case DebugVerb::SetOutputSlot:
         return true;
 
     default:
@@ -1725,6 +1729,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     Cpu6502Registers  registers = {};
     HRESULT           hr        = S_OK;
     bool              isStep    = false;
+    bool              setsPc    = false;
     bool              isOuter   = false;
 
 
@@ -1745,6 +1750,18 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         request.kind = RunKind::RunTo;
     }
 
+    isStep = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
+    setsPc = (request.kind == RunKind::Go && command.hasA3 && !command.hasA2) || (isStep && command.hasA1);
+
+    //  A run from an address sets PC, and a Monitor G pushes onto the stack,
+    //  so on a free-running machine it waits for a pause like any write.
+    if (setsPc && m_state != RunState::Paused)
+    {
+        SetError (reply, CommandStatus::Error, "machine running",
+                  std::format ("{} changes registers or memory. Pause the machine first.", command.sourceName));
+        return;
+    }
+
     if (request.kind == RunKind::Go && command.hasA3 && !command.hasA2)
     {
         //  A Monitor `G` leaves the Monitor's own return address on the
@@ -1759,8 +1776,6 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         registers.pc = command.a3;
         m_target.SetRegisters (registers);
     }
-
-    isStep = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
 
     //  The Monitor's `300S` and `300T` step and trace FROM an address, where
     //  AppleWin's T and P take a count and never an address. Keying on the

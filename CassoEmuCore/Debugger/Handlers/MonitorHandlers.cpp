@@ -354,13 +354,19 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
 {
     IFileSystem      * files   = nullptr;
     Word               last    = GetLast (command);
-    uint32_t           wanted  = (uint32_t) (last - command.a1 + 1);
+    uint32_t           wanted  = 0;
     std::string        content;
     std::vector<Byte>  bytes;
     FileIoData         data;
     HRESULT            hr      = S_OK;
 
 
+
+    if (!IsForwardRange (command))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "R takes a range, first.lastR, that does not end before it starts.");
+        return;
+    }
 
     if (command.text.empty())
     {
@@ -381,6 +387,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
         return;
     }
 
+    wanted = (uint32_t) (last - command.a1) + 1;
     bytes.assign (content.begin(), content.begin() + std::min<size_t> (content.size(), wanted));
 
     if (!TryPokeRange (session, command.a1, bytes, reply))
@@ -414,6 +421,12 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
     HRESULT        hr    = S_OK;
 
 
+
+    if (!IsForwardRange (command))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "W takes a range, first.lastW, that does not end before it starts.");
+        return;
+    }
 
     if (command.text.empty())
     {
@@ -540,6 +553,24 @@ bool MonitorHandlers::TryPokeRange (DebugSession & session, Word first, std::spa
 Word MonitorHandlers::GetLast (const DebugCommand & command)
 {
     return command.hasA2 ? command.a2 : command.a1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorHandlers::IsForwardRange
+//
+//  first.last with last no lower than first, which R and W need: the ROM
+//  moves bytes until A1 passes A2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MonitorHandlers::IsForwardRange (const DebugCommand & command)
+{
+    return command.hasA1 && command.hasA2 && command.a2 >= command.a1;
 }
 
 

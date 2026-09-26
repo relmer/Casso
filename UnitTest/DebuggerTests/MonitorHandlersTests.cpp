@@ -290,6 +290,32 @@ namespace DebuggerTests
 
 
 
+        //  R and W act on a range, first to last. A reversed range or none at
+        //  all is an error, and neither memory nor the file is touched.
+        TEST_METHOD (ReadAndWrite_WithoutAForwardRange_AreErrors)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\in.bin", std::string ("\x11\x22\x33", 3));
+
+            for (const char * line : { "3FF.300R in.bin", "R in.bin", "300R in.bin", "3FF.300W out.bin", "W out.bin" })
+            {
+                reply = rig.Run (line);
+                Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status, Widen (line).c_str());
+                Assert::AreEqual (std::string ("invalid arguments"), reply.error.label, Widen (line).c_str());
+            }
+
+            Assert::AreEqual ((int) 0x00, (int) rig.target.memory[0x0000]);
+            Assert::AreEqual ((int) 0x00, (int) rig.target.memory[0x0300]);
+            Assert::AreEqual ((int) 0x00, (int) rig.target.memory[0x03FF]);
+            Assert::IsFalse  (rig.files.Exists (L"C:\\Work\\out.bin"));
+        }
+
+
+
         ////////////////////////////////////////////////////////////////////////
         //
         //  Scenario 6: one session behind both syntaxes
@@ -576,6 +602,47 @@ namespace DebuggerTests
 
             rig.target.TryPeek (0x0300, value);
             Assert::AreEqual ((int) 0xEA, (int) value);
+        }
+
+
+
+        //  I, N, ^K and ^P write zero page, and a run from an address sets PC
+        //  (and G pushes the Monitor's return), so none of them may act while
+        //  the machine runs freely.
+        TEST_METHOD (ZeroPageWritesAndRunsFromAnAddress_WaitForAPausedMachine)
+        {
+            MachineRig        rig;
+            Reply             reply;
+            Cpu6502Registers  before;
+            Byte              value  = 0;
+            Byte              stack  = 0;
+
+
+
+            rig.target.TryPoke (0x0032, 0x5A);
+            rig.target.TryPoke (0x0036, 0x5A);
+            rig.target.TryPoke (0x0038, 0x5A);
+            rig.target.TryPoke (0x01FF, 0x5A);
+            rig.session.OnUserResumed();
+            before = rig.target.GetRegisters();
+
+            for (const char * line : { "I", "N", "3^K", "3^P", "300G", "300S", "300T", "^Y" })
+            {
+                reply = rig.Run (line);
+                Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status, Widen (line).c_str());
+                Assert::AreEqual (std::string ("machine running"), reply.error.label, Widen (line).c_str());
+            }
+
+            rig.target.TryPeek (0x0032, value);
+            Assert::AreEqual ((int) 0x5A, (int) value, L"INVFLG");
+            rig.target.TryPeek (0x0036, value);
+            Assert::AreEqual ((int) 0x5A, (int) value, L"CSWL");
+            rig.target.TryPeek (0x0038, value);
+            Assert::AreEqual ((int) 0x5A, (int) value, L"KSWL");
+            rig.target.TryPeek (0x01FF, stack);
+            Assert::AreEqual ((int) 0x5A, (int) stack, L"no return address pushed");
+            Assert::AreEqual ((int) before.sp, (int) rig.target.GetRegisters().sp);
+            Assert::AreEqual ((int) before.pc, (int) rig.target.GetRegisters().pc);
         }
 
 

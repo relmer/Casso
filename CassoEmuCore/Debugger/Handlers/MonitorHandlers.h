@@ -88,6 +88,7 @@ private:
     static bool  TryGetFiles    (DebugSession & session, Reply & reply, IFileSystem *& files);
     static bool  TryPokeRange   (DebugSession & session, Word first, std::span<const Byte> bytes, Reply & reply);
     static Word  GetLast        (const DebugCommand & command);
+    static bool  IsForwardRange (const DebugCommand & command);
     static Byte  Peek           (IDebugTarget & target, Word address);
     static void  PokeWord       (IDebugTarget & target, Word address, Word value);
 };
