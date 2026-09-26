@@ -104,9 +104,25 @@ void RunStopHook::Begin (const RunRequest & request)
 
 void RunStopHook::End()
 {
-    m_active   = false;
-    m_stopped  = false;
-    m_resumePc = m_host.GetCpu()->GetPC();
+    Word  pc         = m_host.GetCpu()->GetPC();
+    bool  isWatchHit = !m_stopped && m_conditions != nullptr && m_conditions->HasPendingStop();
+
+
+
+    m_active  = false;
+    m_stopped = false;
+
+    m_resumePc.reset();
+    m_unaskedPc.reset();
+
+    if (isWatchHit)
+    {
+        m_unaskedPc = pc;
+    }
+    else
+    {
+        m_resumePc = pc;
+    }
 
     UseIdleFilter();
 }
@@ -125,6 +141,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
 {
     Byte  sp            = m_host.GetCpu()->GetSP();
     bool  isFirst       = m_active && m_instructions == 0;
+    bool  isUnasked     = false;
 
 
 
@@ -132,6 +149,11 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     {
         return true;
     }
+
+    //  A run that begins where a watchpoint hit ended the last one asks the
+    //  breakpoints about its first instruction, which nothing has asked about.
+    isUnasked = isFirst && m_unaskedPc == pc;
+    m_unaskedPc.reset();
 
     //  The instruction a stop left the PC on runs when the machine resumes,
     //  though no run begins: a resume from the main window would otherwise
@@ -160,7 +182,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
             m_reason = StopReason::Breakpoint;
         }
     }
-    else if (m_conditions != nullptr && !isFirst && m_conditions->ShouldStopBefore (pc))
+    else if (m_conditions != nullptr && (!isFirst || isUnasked) && m_conditions->ShouldStopBefore (pc))
     {
         m_stopped = true;
         m_reason  = StopReason::Breakpoint;

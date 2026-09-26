@@ -881,6 +881,100 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  $0300: INX / STX $0400 / JMP $0300, a write watchpoint on $0400 and
+        //  a breakpoint on the JMP, with the machine paused.
+        static void SetUpWatchThenBreakpoint (Rig & rig)
+        {
+            (void) rig.target.TryPoke (0x0301, 0x8E);
+            (void) rig.target.TryPoke (0x0302, 0x00);
+            (void) rig.target.TryPoke (0x0303, 0x04);
+            (void) rig.target.TryPoke (0x0304, 0x4C);
+            (void) rig.target.TryPoke (0x0305, 0x00);
+            (void) rig.target.TryPoke (0x0306, 0x03);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+            rig.sink.stops.clear();
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPMW 400").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 304").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("G").status);
+
+            rig.RunFrames (50);
+
+            Assert::AreEqual ((int) StopReason::Watchpoint, (int) rig.sink.stops.at (0).reason, L"the watchpoint stops the run");
+            Assert::AreEqual ((Word) 0x0304, rig.target.GetRegisters().pc, L"after the STX, before the JMP");
+        }
+
+
+
+        //  A watchpoint hit ends a run before the next instruction is asked
+        //  about, so the next run asks: the breakpoint there stops it at once.
+        TEST_METHOD (ARunAfterAWatchpointHitStopsOnTheNextInstructionsBreakpoint)
+        {
+            Rig   rig;
+            Byte  x = 0;
+
+
+
+            SetUpWatchThenBreakpoint (rig);
+            x = rig.target.GetRegisters().x;
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("G").status);
+            rig.RunFrames (50);
+
+            Assert::AreEqual ((int) StopReason::Breakpoint, (int) rig.sink.stops.at (1).reason, L"the breakpoint is reported");
+            Assert::AreEqual ((Word) 0x0304, rig.target.GetRegisters().pc);
+            Assert::AreEqual (x, rig.target.GetRegisters().x,                         L"before the loop ran again");
+        }
+
+
+
+        //  The same, resumed from the main window rather than by a run.
+        TEST_METHOD (AResumeAfterAWatchpointHitStopsOnTheNextInstructionsBreakpoint)
+        {
+            Rig   rig;
+            Byte  x = 0;
+
+
+
+            SetUpWatchThenBreakpoint (rig);
+            x = rig.target.GetRegisters().x;
+
+            rig.cpuManager.SetPaused (false);
+            rig.session.OnUserResumed();
+            rig.RunFrames (50);
+
+            Assert::AreEqual ((int) StopReason::Breakpoint, (int) rig.sink.stops.at (1).reason, L"the breakpoint is reported");
+            Assert::AreEqual ((Word) 0x0304, rig.target.GetRegisters().pc);
+            Assert::AreEqual (x, rig.target.GetRegisters().x,                         L"before the loop ran again");
+        }
+
+
+
+        //  A breakpoint hit while running freely leaves nothing latched: with
+        //  every entry cleared and a new one set that is never reached, the
+        //  machine runs on.
+        TEST_METHOD (ABreakpointSetAfterAFreeRunHitDoesNotFreezeTheMachine)
+        {
+            Rig  rig;
+
+
+
+            (void) rig.session.ExecuteLine ("BP 301");
+            rig.RunFrames (50);
+            Assert::AreEqual ((size_t) 1, rig.sink.stops.size());
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPC *").status);
+            rig.cpuManager.SetPaused (false);
+            rig.session.OnUserResumed();
+            rig.RunFrames (5);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 310").status);
+            rig.RunFrames (5);
+
+            Assert::IsFalse  (rig.cpuManager.IsPaused(), L"still running");
+            Assert::AreEqual ((size_t) 1, rig.sink.stops.size(), L"no second stop");
+        }
+
+
+
         //  A Monitor G stopped at a breakpoint, the breakpoint cleared, and the
         //  machine resumed from the main window: nothing else is armed, and the
         //  final RTS still stops at the Monitor's return.
