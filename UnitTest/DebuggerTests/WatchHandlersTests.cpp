@@ -296,5 +296,34 @@ namespace DebuggerTests
 
             Assert::IsTrue (pointers == rig.RunOk ("ZPL").text, L"pointers 0 and 1 replay with their ids and states");
         }
+
+
+
+        //  A saved list writes each pointer with its ZPn slot, so the plain ZP
+        //  that took slot 0 replays there too, and its disable line matches.
+        TEST_METHOD (ZPSAVE_PlainPointer_SavesAsItsSlot)
+        {
+            Rig                       rig;
+            std::vector<std::string>  pointers;
+            std::string               script;
+
+
+
+            rig.RunOk ("ZP7 3E");
+            rig.RunOk ("ZP 40");
+            rig.RunOk ("ZPD 0");
+            pointers = rig.RunOk ("ZPL").text;
+
+            rig.RunOk ("ZPSAVE z.txt");
+            script = rig.files.PeekContent (L"C:\\Work\\z.txt");
+            Assert::AreEqual (std::string ("ZPC *\nZP0 0040\nZP7 003E\nZPD 0\n"), script);
+
+            for (size_t start = 0, end = script.find ('\n'); end != std::string::npos; start = end + 1, end = script.find ('\n', start))
+            {
+                rig.RunOk (script.substr (start, end - start));
+            }
+
+            Assert::IsTrue (pointers == rig.RunOk ("ZPL").text, L"the replayed pointers match the saved ones");
+        }
     };
 }
