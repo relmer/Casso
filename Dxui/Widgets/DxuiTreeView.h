@@ -131,10 +131,11 @@ public:
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
 
     //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.
-    static constexpr int    s_kRowHeightDip   = 32;
-    static constexpr float  s_kDefaultFontDip = 13.0f;
-    static constexpr int    s_kIconDip        = 16;
-    static constexpr int    s_kIconGapDip     = 6;
+    static constexpr int    s_kRowHeightDip     = 32;
+    static constexpr float  s_kDefaultFontDip   = 13.0f;
+    static constexpr int    s_kIconDip          = 16;
+    static constexpr int    s_kIconGapDip       = 6;
+    static constexpr int    s_kDefaultIndentDip = 18;
 
     //  How opaque a ghosted icon is: Explorer's hidden items, measured.
     static constexpr float  s_kGhostedIconAlpha = 0.5f;
@@ -142,11 +143,14 @@ public:
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }
     void  SetOnToggle  (ToggleFn fn) { m_toggle = std::move (fn); }
+
+    //  How far each level sits in from its parent.
+    void  SetIndentDip (int dip) { m_indentDip = dip; m_indentPx = m_scaler.ToPx (dip); }
     void  SetDpi       (UINT dpi)
     {
         m_scaler.SetDpi (dpi);
         m_rowHeightPx = m_scaler.ToPx (s_kRowHeightDip);
-        m_indentPx    = m_scaler.ToPx (18);
+        m_indentPx    = m_scaler.ToPx (m_indentDip);
         m_checkboxPx  = m_scaler.ToPx (16);
         m_twistyPx    = m_scaler.ToPx (16);
     }
@@ -255,7 +259,8 @@ private:
     SelectFn                   m_onSelect;
     ExpandFn                   m_onExpand;
     int                        m_rowHeightPx    = 22;
-    int                        m_indentPx       = 18;
+    int                        m_indentDip      = s_kDefaultIndentDip;
+    int                        m_indentPx       = s_kDefaultIndentDip;
     int                        m_checkboxPx     = 16;
     int                        m_twistyPx       = 16;
     int                        m_highlight      = -1;

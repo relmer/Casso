@@ -158,6 +158,10 @@ public:
     //  The widest a pane's message runs before it wraps.
     static constexpr int     kMessageWidthDip = 400;
 
+    //  How far each level of the tree sits in from its parent: File
+    //  Explorer's, measured at 125% as 10 pixels.
+    static constexpr int     kTreeIndentDip   = 8;
+
     //  The status bar's fields, left to right: Explorer's item count and
     //  selection, flowing from the left; the space between; then free space,
     //  the preview's detail and its zoom.

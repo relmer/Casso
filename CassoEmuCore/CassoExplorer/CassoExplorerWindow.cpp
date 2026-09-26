@@ -401,6 +401,7 @@ void CassoExplorerWindow::ConfigureWidgets()
 
     m_tree->SetShowCheckboxes (false);
     m_tree->SetFontDip (kProseFontDip);
+    m_tree->SetIndentDip (kTreeIndentDip);
     m_tree->SetHorizontalScrollEnabled (false);
     m_tree->SetNodes (std::move (roots));
     m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_browser.GetTreeChildren (id); });
