@@ -12,6 +12,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
+#include "Debugger/WinDbgParser.h"
 
 
 
@@ -473,20 +474,21 @@ void ConfigHandlers::Print (DebugSession & session, const DebugCommand & command
 //  ConfigHandlers::PrintFormatted
 //
 //  PRINTF "format"[,expr]: %x and %X give four hex digits, %d decimal, %z
-//  eight binary digits, %c the character, %% a percent sign, and \n ends a
-//  line.
+//  eight binary digits, %c the character with the high bit dropped, %% a
+//  percent sign, and \n ends a line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
+    static constexpr Word     kLowBits = 0x7F;
     std::vector<std::string>  items;
     std::string               format;
     std::string               line;
     std::string               error;
     MessageData               message;
-    size_t                    next  = 1;
-    Word                      value = 0;
+    size_t                    next     = 1;
+    Word                      value    = 0;
 
 
 
@@ -541,7 +543,7 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
         case 'X': line += std::format ("{:04X}", value);        break;
         case 'D': line += std::format ("{}", value);            break;
         case 'Z': line += std::format ("{:08b}", (Byte) value); break;
-        case 'C': line += (char) value;                         break;
+        case 'C': line += (char) (value & kLowBits);            break;
         default:
             reply.SetError (CommandStatus::Error, "invalid arguments", "PRINTF conversions are %x, %d, %z, %c and %%.");
             return;
@@ -568,8 +570,9 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    CommandMode  mode = session.GetMode();
-    std::string  text;
+    CommandMode        mode = session.GetMode();
+    std::string        text;
+    WinDbgParseResult  parsed;
 
 
 
@@ -579,7 +582,19 @@ void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    if (!CommandModeHelp::TryDescribe (mode, command.text, text))
+    //  A WinDbg word the parser knows but does not run is described by the
+    //  reason typing it gives.
+    if (!CommandModeHelp::TryDescribe (mode, command.text, text) && mode == CommandMode::WinDbg)
+    {
+        parsed = WinDbgParser::Parse (command.text, session);
+
+        if (parsed.status == ParseStatus::NotAvailable)
+        {
+            text = parsed.error;
+        }
+    }
+
+    if (text.empty())
     {
         reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (command.text)));
         return;
