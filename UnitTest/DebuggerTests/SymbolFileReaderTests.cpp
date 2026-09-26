@@ -169,14 +169,32 @@ namespace DebuggerTests
                 "al 0310 .loop\n"
                 "al FDED .cout\n";
 
-            std::vector<SymbolFileEntry>  symbols = ReadOk ("al 0310 .loop\nal FDED .cout\n", SymbolFileFormat::ViceLabels);
+            std::vector<SymbolFileEntry>  symbols = ReadOk (kFile, SymbolFileFormat::ViceLabels);
 
 
 
-            Assert::AreEqual ((size_t) 2,    symbols.size());
+            Assert::AreEqual ((size_t) 3,    symbols.size());
+            Assert::AreEqual ((Word) 0x0300, Find (symbols, "start"), L"VICE writes the C: memory space");
             Assert::AreEqual ((Word) 0x0310, Find (symbols, "loop"));
             Assert::AreEqual ((Word) 0xFDED, Find (symbols, "cout"));
-            Assert::AreEqual ((int) SymbolFileFormat::ViceLabels, (int) SymbolFileReader::Detect (kFile));
+        }
+
+
+
+        //  ld65 -Ln writes six hex digits and no memory space. Only the
+        //  computer's memory space and addresses up to $FFFF are taken.
+        TEST_METHOD (ViceLabels_Ld65SixDigitsAndOtherSpaces)
+        {
+            std::vector<SymbolFileEntry>  ld65  = ReadOk ("al 000300 .start\nal 00FDED .cout\n", SymbolFileFormat::ViceLabels);
+            std::vector<SymbolFileEntry>  mixed = ReadOk ("al C:0300 .start\nal 8:0300 .drive\nal 010300 .far\n", SymbolFileFormat::ViceLabels);
+
+
+
+            Assert::AreEqual ((size_t) 2,    ld65.size());
+            Assert::AreEqual ((Word) 0x0300, Find (ld65, "start"));
+            Assert::AreEqual ((Word) 0xFDED, Find (ld65, "cout"));
+            Assert::AreEqual ((size_t) 1,    mixed.size());
+            Assert::AreEqual ((Word) 0x0300, Find (mixed, "start"));
         }
 
 

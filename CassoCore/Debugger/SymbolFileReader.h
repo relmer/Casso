@@ -51,7 +51,8 @@ public:
     static HRESULT           Read   (const std::string & content, std::vector<SymbolFileEntry> & symbols, SymbolFileFormat & format, std::string & error);
 
 private:
-    static constexpr size_t  kAddressDigits = 4;
+    static constexpr size_t  kAddressDigits     = 4;
+    static constexpr size_t  kViceAddressDigits = 6;
 
     static void  SplitLines        (const std::string & content, std::vector<std::string> & lines);
     static bool  IsCassoLine       (const std::string & line);
@@ -59,6 +60,7 @@ private:
     static bool  IsViceLine        (const std::string & line);
     static bool  HasMerlinHeading  (const std::string & line);
     static bool  TryParseHex       (const std::string & text, Word & value);
+    static bool  TryParseViceAddress (const std::string & text, uint32_t & value, bool & isComputer);
     static void  AddUnique         (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address);
     static void  ReadCasso         (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
     static void  ReadCc65          (const DebugFile & file, std::vector<SymbolFileEntry> & symbols);

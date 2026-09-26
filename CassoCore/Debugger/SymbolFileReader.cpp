@@ -192,7 +192,8 @@ bool SymbolFileReader::IsAppleWinLine (const std::string & line)
 //
 //  SymbolFileReader::IsViceLine
 //
-//  al ADDR .NAME
+//  al ADDR .NAME, where VICE writes ADDR with a memory space (`C:0300`) and
+//  ld65 -Ln writes six digits (`000300`).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,12 +203,13 @@ bool SymbolFileReader::IsViceLine (const std::string & line)
     std::string         al;
     std::string         address;
     std::string         name;
-    Word                value = 0;
+    uint32_t            value      = 0;
+    bool                isComputer = false;
 
 
 
     stream >> al >> address >> name;
-    return al == "al" && TryParseHex (address, value) && name.size() > 1 && name[0] == '.';
+    return al == "al" && TryParseViceAddress (address, value, isComputer) && name.size() > 1 && name[0] == '.';
 }
 
 
@@ -258,6 +260,37 @@ bool SymbolFileReader::TryParseHex (const std::string & text, Word & value)
     }
 
     value = (Word) std::stoul (digits, nullptr, 16);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::TryParseViceAddress
+//
+//  Up to six hex digits, after an optional memory space and colon. The
+//  computer's space is C; the others are disk drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolFileReader::TryParseViceAddress (const std::string & text, uint32_t & value, bool & isComputer)
+{
+    size_t       colon  = text.find (':');
+    std::string  digits = (colon == std::string::npos) ? text : text.substr (colon + 1);
+
+
+
+    isComputer = colon == std::string::npos || _stricmp (text.substr (0, colon).c_str(), "C") == 0;
+
+    if (digits.empty() || digits.size() > kViceAddressDigits || digits.find_first_not_of ("0123456789ABCDEFabcdef") != std::string::npos)
+    {
+        return false;
+    }
+
+    value = (uint32_t) std::stoul (digits, nullptr, 16);
     return true;
 }
 
@@ -463,6 +496,8 @@ void SymbolFileReader::ReadAppleWin (const std::vector<std::string> & lines, std
 //
 //  SymbolFileReader::ReadVice
 //
+//  Only the computer's memory space, and only addresses the CPU reaches.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SymbolFileReader::ReadVice (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols)
@@ -473,15 +508,16 @@ void SymbolFileReader::ReadVice (const std::vector<std::string> & lines, std::ve
         std::string         al;
         std::string         address;
         std::string         name;
-        Word                value = 0;
+        uint32_t            value      = 0;
+        bool                isComputer = false;
 
 
 
         stream >> al >> address >> name;
 
-        if (IsViceLine (line) && TryParseHex (address, value))
+        if (IsViceLine (line) && TryParseViceAddress (address, value, isComputer) && isComputer && value <= 0xFFFF)
         {
-            AddUnique (symbols, name.substr (1), value);
+            AddUnique (symbols, name.substr (1), (Word) value);
         }
     }
 }
