@@ -166,6 +166,10 @@ protected:
     void             SubmitMemoryBox ();
     DxuiTextInput  * GetMemoryBox    () const { return m_memoryBox; }
 
+    //  Protected so a test can apply a snapshot's disassembly as a frame does.
+    void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
+    DxuiListView  * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -411,6 +415,7 @@ private:
     uint32_t                                                                         m_shownPaneSerial    = 0;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
     int                                                                              m_activeCode         = 0;
+    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>                m_codeSelected;
     DxuiListView                                                                   * m_registerList       = nullptr;
     DxuiListView                                                                   * m_breakpointList     = nullptr;
     DxuiListView                                                                   * m_watchList          = nullptr;

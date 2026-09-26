@@ -93,6 +93,8 @@ namespace DebuggerTests
         using DebuggerWindow::GetTextZoom;
         using DebuggerWindow::SubmitMemoryBox;
         using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::ApplyCodeSnapshot;
+        using DebuggerWindow::GetCodeList;
     };
 
 
@@ -232,6 +234,52 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 1, host.goTos.size(), L"A is the register, resolved against the machine");
             Assert::AreEqual (std::string ("a"), host.goTos[0]);
+        }
+
+
+
+
+
+        static std::shared_ptr<const DebuggerViewSnapshot> MakeCodeSnapshot (Word first)
+        {
+            auto  snapshot = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            for (Word i = 0; i < 10; i++)
+            {
+                DebuggerViewSnapshot::CodeLine  line;
+
+
+
+                line.address = (Word) (first + i);
+                snapshot->codeViews[0].push_back (line);
+            }
+
+            return snapshot;
+        }
+
+
+
+
+
+        TEST_METHOD (TheSelectedCodeRowFollowsItsAddressAcrossNewRows)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            window.OnCreate();
+            window.ApplyCodeSnapshot (MakeCodeSnapshot (0x0300), 0);
+            window.GetCodeList (0)->ClickRow (5, false, false);
+
+            window.ApplyCodeSnapshot (MakeCodeSnapshot (0x0302), 0);
+            Assert::AreEqual (3, window.GetCodeList (0)->GetSelectedRow(), L"$0305 moved up two rows");
+
+            window.ApplyCodeSnapshot (MakeCodeSnapshot (0x0400), 0);
+            Assert::AreEqual (-1, window.GetCodeList (0)->GetSelectedRow(), L"$0305 is off the pane");
         }
     };
 }

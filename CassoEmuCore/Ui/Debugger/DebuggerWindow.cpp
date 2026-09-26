@@ -3305,9 +3305,10 @@ void DebuggerWindow::RenderFrame()
 
 void DebuggerWindow::ApplyCodeView (int view)
 {
-    DxuiListView                                  * list    = m_codeLists[(size_t) view];
+    DxuiListView                                  * list     = m_codeLists[(size_t) view];
     std::vector<std::vector<DxuiListView::Cell>>    rows;
-    int                                             current = -1;
+    int                                             current  = -1;
+    int                                             selected = -1;
     std::optional<Word>                             target;
 
 
@@ -3372,6 +3373,28 @@ void DebuggerWindow::ApplyCodeView (int view)
     }
 
     list->SetRows (std::move (rows));
+
+    //  The selection is an instruction, not a row: new rows move it to the
+    //  row that holds its address, or clear it when none does, so F9 and run
+    //  to cursor act on what the user selected.
+    if (list->GetSelectedRow() >= 0)
+    {
+        selected = -1;
+
+        for (size_t i = 0; i < GetCodeLines (view).size(); i++)
+        {
+            if (m_codeSelected[(size_t) view] == GetCodeLines (view)[i].address)
+            {
+                selected = (int) i;
+                break;
+            }
+        }
+
+        if (selected != list->GetSelectedRow())
+        {
+            list->SetSelectedRow (selected);
+        }
+    }
 
     if (current >= 0 && list->GetSelectedRow() < 0)
     {
@@ -4508,10 +4531,12 @@ void DebuggerWindow::ConfigureCodeList (int view)
     {
         const std::vector<DebuggerViewSnapshot::CodeLine> & lines = GetCodeLines (view);
 
-        m_activeCode = view;
+        m_activeCode                  = view;
+        m_codeSelected[(size_t) view] = std::nullopt;
 
         if (row >= 0 && row < (int) lines.size())
         {
+            m_codeSelected[(size_t) view] = lines[(size_t) row].address;
             ShowSourceLine (lines[(size_t) row].sourceFileId, lines[(size_t) row].sourceLine);
         }
     });
