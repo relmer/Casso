@@ -53,7 +53,9 @@ bool WatchHandlers::TryExecute (DebugSession & session, const DebugCommand & com
 //  WatchHandlers::MakeScript
 //
 //  A clear line, one add per entry with its slot for zero-page pointers,
-//  then a disable line for each disabled entry.
+//  then a disable line for each disabled entry. Only ZP0-ZP7 carry a slot,
+//  so a pointer past them is added plainly and takes the next id on replay;
+//  its disable line gives that id.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,27 +64,35 @@ std::string WatchHandlers::MakeScript (DebugSession & session, WatchListKind kin
     static constexpr const char * kClear[]   = { "WC *", "ZPC *", "BMC *" };
     static constexpr const char * kAdd[]     = { "WA", "ZP", "BMA" };
     static constexpr const char * kDisable[] = { "WD", "ZPD", nullptr };
+    static constexpr int          kLastSlot  = 7;
     const WatchTable            & table      = GetTable (session, kind);
     std::string                   script     = std::string (kClear[(int) kind]) + "\n";
-    size_t                        index      = 0;
+    std::vector<int>              replayIds;
+    int                           nextId     = 0;
 
 
 
     for (const WatchItem & item : table.GetAll())
     {
-        script += (kind == WatchListKind::ZeroPage)
-                ? std::format ("{}{} {:04X}\n", kAdd[(int) kind], item.id, item.address)
-                : std::format ("{} {:04X}\n",   kAdd[(int) kind], item.address);
+        if (kind == WatchListKind::ZeroPage && item.id <= kLastSlot)
+        {
+            script += std::format ("{}{} {:04X}\n", kAdd[(int) kind], item.id, item.address);
+            nextId  = (std::max) (nextId, item.id + 1);
+            replayIds.push_back (item.id);
+        }
+        else
+        {
+            script += std::format ("{} {:04X}\n", kAdd[(int) kind], item.address);
+            replayIds.push_back (nextId++);
+        }
     }
 
-    for (const WatchItem & item : table.GetAll())
+    for (size_t i = 0; i < table.GetAll().size(); i++)
     {
-        if (!item.enabled && kDisable[(int) kind] != nullptr)
+        if (!table.GetAll()[i].enabled && kDisable[(int) kind] != nullptr)
         {
-            script += std::format ("{} {}\n", kDisable[(int) kind], kind == WatchListKind::ZeroPage ? item.id : (int) index);
+            script += std::format ("{} {}\n", kDisable[(int) kind], replayIds[i]);
         }
-
-        ++index;
     }
 
     return script;
