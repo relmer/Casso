@@ -234,11 +234,13 @@ public:
     bool   ShouldStopBefore         (Word pc) override;
     bool   HasPendingStop           () const override;
     void   OnInstruction            (Word pc) override;
+    void   OnInterrupt              (Word pc) override;
     bool   ShouldStopAtRunStart     (Word pc) override;
     bool   ShouldStopAfterInterrupt (Word pc) override;
 
     // IRunObserver
     void   OnStopped             (const StopEvent & stop) override;
+    void   OnFreeRunSlice        () override;
 
     // IOpcodeWatcher: the call record's instructions, from the CPU.
     void   OnWatchedFetch        (Word pc, Byte sp, Byte opcode) override;
@@ -251,8 +253,9 @@ public:
 private:
     struct VideoBreak
     {
-        uint32_t  first = 0;
-        uint32_t  last  = 0;
+        uint32_t  first        = 0;
+        uint32_t  last         = 0;
+        uint32_t  lastScanline = 0;
     };
 
     //  Where a Monitor `G` returns to. The ROM's own G pushes the address of
@@ -282,7 +285,7 @@ private:
     bool   HasStopConditions     () const;
     bool   TryMatchBeforeWatchpoint (Word pc);
     void   NoteCpuOwnReads       (Word pc);
-    bool   IsVideoBreakHit       () const;
+    bool   HasEnteredVideoBreak  ();
     void   ClearTemporary        (const StopEvent & stop);
     void   AttachCondition       (StopEvent & event) const;
 

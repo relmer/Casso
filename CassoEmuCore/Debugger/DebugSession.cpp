@@ -1059,6 +1059,40 @@ void DebugSession::OnInstruction (Word pc)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::OnInterrupt
+//
+//  An interrupt dispatched in place of the instruction at pc. Its pushes are
+//  reported from pc, as the instruction's own accesses would have been, but
+//  it fetches none of the instruction's bytes, and the instruction itself
+//  runs only after the return.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::OnInterrupt (Word pc)
+{
+    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping;
+
+
+
+    m_watchpoints.SetAccessPc (pc);
+
+    if (m_watchpoints.HasEnabled())
+    {
+        m_watchpoints.SetCpuOwnReads (pc, 0, std::nullopt);
+    }
+
+    if (isDebuggerRun && m_instructionObserver != nullptr)
+    {
+        m_instructionObserver->OnInterrupt (*this);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::NoteCpuOwnReads
 //
 //  The reads the instruction at pc makes that are not the program reading
@@ -1306,7 +1340,7 @@ bool DebugSession::ShouldStopBefore (Word pc)
         return true;
     }
 
-    if (IsVideoBreakHit())
+    if (HasEnteredVideoBreak())
     {
         m_videoBreakHit = true;
         return true;
@@ -1391,7 +1425,13 @@ bool DebugSession::ShouldStopAfterInterrupt (Word pc)
 
 void DebugSession::SetVideoBreak (uint32_t first, uint32_t last)
 {
-    m_videoBreak = VideoBreak { first, last };
+    uint32_t  scanline = m_target.GetVideoPosition().scanline;
+
+
+
+    //  A beam already on the range's first line has not entered it, so the
+    //  break waits for the beam to come round again.
+    m_videoBreak = VideoBreak { first, last, scanline };
     UpdateHookInstalled();
 }
 
@@ -1417,13 +1457,19 @@ void DebugSession::ClearVideoBreak()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::IsVideoBreakHit
+//  DebugSession::HasEnteredVideoBreak
+//
+//  True only on the instruction at which the beam moves onto the range's
+//  first scanline, not on every instruction while it stays inside. The beam
+//  runs one way and an instruction is far shorter than a scanline, so every
+//  entry passes that line, even for a range that covers the whole frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugSession::IsVideoBreakHit() const
+bool DebugSession::HasEnteredVideoBreak()
 {
     uint32_t  scanline = 0;
+    uint32_t  previous = 0;
 
 
 
@@ -1432,8 +1478,11 @@ bool DebugSession::IsVideoBreakHit() const
         return false;
     }
 
-    scanline = m_target.GetVideoPosition().scanline;
-    return scanline >= m_videoBreak->first && scanline <= m_videoBreak->last;
+    scanline                   = m_target.GetVideoPosition().scanline;
+    previous                   = m_videoBreak->lastScanline;
+    m_videoBreak->lastScanline = scanline;
+
+    return scanline == m_videoBreak->first && previous != m_videoBreak->first;
 }
 
 
@@ -1495,6 +1544,28 @@ bool DebugSession::TryMatchBeforeWatchpoint (Word pc)
 bool DebugSession::HasPendingStop() const
 {
     return m_watchpoints.HasPendingStop();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::OnFreeRunSlice
+//
+//  A slice of a free run has executed without stopping. What waits on the
+//  guest, such as queued keys, is fed here, since no run reports its
+//  instructions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::OnFreeRunSlice()
+{
+    if (m_instructionObserver != nullptr)
+    {
+        m_instructionObserver->OnFreeRunSlice (*this);
+    }
 }
 
 

@@ -141,6 +141,11 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
             return true;
         }
 
+        if (m_observer != nullptr)
+        {
+            m_observer->OnFreeRunSlice();
+        }
+
         return false;
     }
 

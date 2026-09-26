@@ -737,6 +737,35 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  KEY feeds its queue while the machine runs freely, one key each
+        //  time the guest clears the strobe, not only during debugger runs.
+        TEST_METHOD (KeysQueuedWhileFreeRunningAreAllDelivered)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            // $0300: LDA $C010 / JMP $0300, clearing the strobe each pass.
+            (void) rig.target.TryPoke (0x0300, 0xAD);
+            (void) rig.target.TryPoke (0x0301, 0x10);
+            (void) rig.target.TryPoke (0x0302, 0xC0);
+            (void) rig.target.TryPoke (0x0303, 0x4C);
+            (void) rig.target.TryPoke (0x0304, 0x00);
+            (void) rig.target.TryPoke (0x0305, 0x03);
+            rig.session.SetInstructionObserver (&rig.execution);
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("KEY 41 42 43").status);
+            rig.RunFrames (10);
+
+            //  With the queue drained, a new key goes to the keyboard at once.
+            reply = rig.session.ExecuteLine ("KEY 44");
+            Assert::IsFalse  (rig.cpuManager.IsPaused());
+            Assert::AreEqual (std::string ("Queued 1 key. Keys waiting: 0."), std::get<MessageData> (reply.data).lines.at (0));
+        }
+
+
+
         //  An opcode breakpoint armed beside an address breakpoint does not
         //  hide the address one: both stop a free run.
         TEST_METHOD (AnAddressBreakpointStopsWhileBrkIsArmed)

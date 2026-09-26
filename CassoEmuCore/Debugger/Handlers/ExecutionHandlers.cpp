@@ -68,6 +68,42 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExecutionHandlers::OnInterrupt
+//
+//  The instruction the interrupt was taken in place of has not run, so it
+//  gets no trace line and no profile count; it is reported again when it
+//  runs after the return. The instruction before it is billed now, before
+//  the dispatch's cycles are added to the count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::OnInterrupt (DebugSession & session)
+{
+    FeedKeys    (session);
+    BillProfile (session);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::OnFreeRunSlice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::OnFreeRunSlice (DebugSession & session)
+{
+    FeedKeys (session);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecutionHandlers::OnRunStopped
 //
 //  The trace file is written at every stop, so a script that never turns
@@ -78,10 +114,15 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 
 void ExecutionHandlers::OnRunStopped (DebugSession & session, const StopEvent & stop)
 {
+    HRESULT  hr = S_OK;
+
+
+
     BillProfile (session);
 
     m_lastRunCycles = stop.cycles;
-    FlushTrace (session);
+    hr              = FlushTrace (session);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -246,8 +287,8 @@ void ExecutionHandlers::WriteNop (DebugSession & session, Reply & reply)
 //  ExecutionHandlers::QueueKeys
 //
 //  The first key goes to the keyboard at once if none is pending; the rest
-//  wait in the queue and are fed as the guest clears the strobe during a
-//  debugger-driven run.
+//  wait in the queue and are fed as the guest clears the strobe, before each
+//  instruction of a debugger-driven run and after each slice of a free run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -292,7 +333,8 @@ void ExecutionHandlers::FeedKeys (DebugSession & session)
 //  ExecutionHandlers::BreakOnVideoLine
 //
 //  BPV vpos[,len] stops when the scanline enters the range, once. A range
-//  that starts past the frame's last scanline could never stop.
+//  that starts past the frame's last scanline could never stop. The
+//  scanline is hex, like every number BPV and VIDEOINFO show.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -659,14 +701,24 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
     std::string  name      = TrimSpaces (command.text);
     size_t       split     = 0;
     bool         withVideo = false;
+    HRESULT      hr        = S_OK;
 
 
 
     if (m_trace.isOn)
     {
-        FlushTrace (session);
-        reply.data = MessageData { { std::format ("Trace off: {}", m_trace.name) } };
-        m_trace    = TraceState();
+        hr = FlushTrace (session);
+
+        if (FAILED (hr) || m_trace.hasFailed)
+        {
+            reply.SetError (CommandStatus::Error, "file not written", std::format ("Trace off. {} could not be written.", m_trace.name));
+        }
+        else
+        {
+            reply.data = MessageData { { std::format ("Trace off: {}", m_trace.name) } };
+        }
+
+        m_trace = TraceState();
         return;
     }
 
@@ -696,11 +748,63 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
         return;
     }
 
+    name = name.empty() ? kDefaultTrace : name;
+
+    //  A path that cannot be written is reported now rather than lost at the
+    //  first stop, where no reply is sent.
+    hr = ProbeWritable (*session.GetFileSystem(), session.ResolvePath (name));
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        return;
+    }
+
     m_trace.isOn      = true;
     m_trace.withVideo = withVideo;
-    m_trace.name      = name.empty() ? kDefaultTrace : name;
+    m_trace.name      = name;
     m_trace.path      = session.ResolvePath (m_trace.name);
     reply.data        = MessageData { { std::format ("Trace on: {}", m_trace.name) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::ProbeWritable
+//
+//  Writes the file without changing what it holds: an existing file gets
+//  its own content back, and a new one is created empty and removed again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ExecutionHandlers::ProbeWritable (IFileSystem & files, const std::wstring & path)
+{
+    HRESULT      hr       = S_OK;
+    bool         isThere  = files.Exists (path);
+    std::string  content;
+
+
+
+    if (isThere)
+    {
+        hr = files.ReadAllText (path, content);
+        CHR (hr);
+    }
+
+    hr = files.WriteAllText (path, content);
+    CHR (hr);
+
+    if (!isThere)
+    {
+        hr = files.Delete (path);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -762,9 +866,12 @@ void ExecutionHandlers::RecordTrace (DebugSession & session, Word pc)
 //
 //  ExecutionHandlers::FlushTrace
 //
+//  A failed write is remembered, so turning the trace off reports it even
+//  when the write that failed was made at a stop, where no reply is sent.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::FlushTrace (DebugSession & session)
+HRESULT ExecutionHandlers::FlushTrace (DebugSession & session)
 {
     HRESULT  hr = S_OK;
 
@@ -773,8 +880,14 @@ void ExecutionHandlers::FlushTrace (DebugSession & session)
     if (m_trace.isOn && !m_trace.lines.empty() && session.GetFileSystem() != nullptr)
     {
         hr = session.GetFileSystem()->WriteAllText (m_trace.path, m_trace.lines);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (FAILED (hr))
+        {
+            m_trace.hasFailed = true;
+        }
     }
+
+    return hr;
 }
 
 

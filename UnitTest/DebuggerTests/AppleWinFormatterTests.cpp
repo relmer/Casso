@@ -462,7 +462,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("$000D  0z00001101     13  ' ' (Ctrl)"),      Render (CalcData { 0x0D })[0]);
             Assert::AreEqual (std::string ("$00C1  0z11000001    193  'A' (High)"),      Render (CalcData { 0xC1 })[0]);
             Assert::AreEqual (std::string ("$008D  0z10001101    141  ' ' (High Ctrl)"), Render (CalcData { 0x8D })[0]);
-            Assert::AreEqual (std::string ("Scanline 42, cycle 17"),            Render (VideoInfoData { 42, 17 })[0]);
+            Assert::AreEqual (std::string ("Scanline $2A, cycle $11"),          Render (VideoInfoData { 42, 17 })[0]);
             Assert::AreEqual (std::string ("Last branch at $0303"),             Render (BranchRecordData { (Word) 0x0303 })[0]);
             Assert::AreEqual (std::string ("No branch recorded."),              Render (BranchRecordData())[0]);
             Assert::AreEqual (std::string ("#3 enabled  at $0300, temporary, counts only, hits 0"), Render (flagged)[0]);

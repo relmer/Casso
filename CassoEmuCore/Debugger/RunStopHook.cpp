@@ -241,7 +241,11 @@ bool RunStopHook::ShouldStopBefore (Word pc)
             }
         }
 
-        if (m_conditions != nullptr)
+        if (m_conditions != nullptr && m_isInterruptTaken)
+        {
+            m_conditions->OnInterrupt (pc);
+        }
+        else if (m_conditions != nullptr)
         {
             m_conditions->OnInstruction (pc);
         }

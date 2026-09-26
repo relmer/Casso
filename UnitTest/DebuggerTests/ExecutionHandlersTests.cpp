@@ -869,7 +869,7 @@ namespace DebuggerTests
             rig.RunFails ("CYCLES sideways", "invalid arguments");
 
             rig.target.videoPosition = { 42, 17 };
-            Assert::AreEqual (std::string ("Scanline 42, cycle 17"), rig.RunOk ("VIDEOINFO").text.at (0));
+            Assert::AreEqual (std::string ("Scanline $2A, cycle $11"), rig.RunOk ("VIDEOINFO").text.at (0));
 
             Assert::AreEqual (std::string ("Breakpoint set on video scanlines $A0-$A0. It clears after it fires."), rig.RunOk ("BPV A0").text.at (0));
             Assert::IsTrue   (rig.target.hookInstalled);
@@ -923,6 +923,111 @@ namespace DebuggerTests
 
             rig.RunOk ("BPV 105");
             Assert::IsTrue  (rig.session.HasVideoBreak(), L"scanline 261 is the frame's last");
+        }
+
+
+
+        //  A reversed range holds no scanline, so it could never stop.
+        TEST_METHOD (BPV_ReversedRangeIsAnError)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("BPV 100:50", "invalid arguments");
+            Assert::IsFalse (rig.session.HasVideoBreak());
+        }
+
+
+
+        //  The break stops when the beam enters the range, not while it is
+        //  inside: one armed with the beam already there waits for the next
+        //  pass.
+        TEST_METHOD (BPV_StopsOnEnteringTheRange)
+        {
+            Rig  rig;
+
+
+
+            rig.target.videoPosition.scanline = 0xA0;
+            rig.RunOk ("BPV A0,10");
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0300), L"already inside when armed");
+            rig.target.videoPosition.scanline = 0xA1;
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0301), L"still inside");
+
+            rig.target.videoPosition.scanline = 0;
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0302), L"outside");
+            rig.target.videoPosition.scanline = 0xA0;
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0303), L"entered");
+        }
+
+
+
+        //  An interrupt taken in place of an instruction is not that
+        //  instruction: it gets no trace line and no profile count, and the
+        //  dispatch's cycles are not billed to it. It is traced and counted
+        //  once, when it runs after the return.
+        TEST_METHOD (TF_PROFILE_AnInterruptIsNotThePreemptedInstruction)
+        {
+            MachineRig                rig;
+            std::vector<std::string>  lines;
+            size_t                    jsrLines = 0;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            LoadCallWithAnNmiPending (rig);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("PROFILE ON");
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("G");
+            Assert::AreEqual ((Word) 0x0303, rig.LastStop().pc);
+
+            lines = SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt"));
+
+            for (const std::string & line : lines)
+            {
+                jsrLines += line.find ("0300: JSR") != std::string::npos ? 1 : 0;
+            }
+
+            Assert::AreEqual ((size_t) 1, jsrLines, L"the JSR is traced once, when it runs");
+            Assert::AreEqual ((size_t) 6, lines.size(), L"JMP, INC, RTI, JSR, INX, RTS");
+            Assert::AreEqual (std::string ("Instructions: 6, cycles: 28"), rig.RunOk ("PROFILE").text.at (0), L"the dispatch is billed to nothing");
+        }
+
+
+
+        //  A trace file that cannot be written is reported, when tracing is
+        //  turned on and when a write at a stop failed.
+        TEST_METHOD (TF_AFileThatCannotBeWrittenIsAnError)
+        {
+            MachineRig  rig;
+            HRESULT     hr = S_OK;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            hr = rig.files.WriteAllText (L"C:\\Work\\locked.txt", "kept");
+            Assert::AreEqual (S_OK, hr);
+            hr = rig.files.SetReadOnlyAttribute (L"C:\\Work\\locked.txt", true);
+            Assert::AreEqual (S_OK, hr);
+            rig.RunFails ("TF locked.txt", "file not written");
+            Assert::AreEqual (std::string ("kept"), rig.files.PeekContent (L"C:\\Work\\locked.txt"));
+
+            rig.RunOk ("TF trace.txt");
+            Assert::IsFalse (rig.files.Exists (L"C:\\Work\\trace.txt"), L"checking the path leaves no file behind");
+            hr = rig.files.WriteAllText (L"C:\\Work\\trace.txt", "");
+            Assert::AreEqual (S_OK, hr);
+            hr = rig.files.SetReadOnlyAttribute (L"C:\\Work\\trace.txt", true);
+            Assert::AreEqual (S_OK, hr);
+            rig.RunOk ("G");
+            rig.RunFails ("TF", "file not written");
         }
     };
 }
