@@ -52,7 +52,13 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 {
     FeedKeys      (session);
     RecordProfile (session, pc);
-    RecordTrace   (session, pc);
+
+    // Tested here, not in RecordTrace, so a run with TF off does not pay for
+    // the disassembler and the register reads RecordTrace sets up.
+    if (m_trace.isOn)
+    {
+        RecordTrace (session, pc);
+    }
 }
 
 
@@ -232,7 +238,7 @@ void ExecutionHandlers::QueueKeys (DebugSession & session, const DebugCommand & 
 
     m_keys.insert (m_keys.end(), command.values.begin(), command.values.end());
     FeedKeys (session);
-    reply.data = MessageData { { std::format ("Queued {} keys. Keys waiting: {}.", command.values.size(), m_keys.size()) } };
+    reply.data = MessageData { { std::format ("Queued {} key{}. Keys waiting: {}.", command.values.size(), command.values.size() == 1 ? "" : "s", m_keys.size()) } };
 }
 
 

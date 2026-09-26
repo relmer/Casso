@@ -301,6 +301,19 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Trace_OneEntryIsSingular)
+        {
+            TraceData  data;
+
+
+
+            data.isOn  = true;
+            data.total = 1;
+
+            Assert::AreEqual (std::string ("Trace on, 1 entry retained."), Render (data).at (0));
+        }
+
+
         TEST_METHOD (Trace_StateThenOneLinePerEntry)
         {
             TraceData                 data;

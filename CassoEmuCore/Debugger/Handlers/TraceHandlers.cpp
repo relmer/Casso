@@ -140,7 +140,7 @@ void TraceHandlers::Switch (DebugSession & session, const DebugCommand & command
     target.SetTraceOn (isOn);
 
     reply.data = isOn ? MessageData { { "Trace on." } }
-                      : MessageData { { std::format ("Trace off, {} entries retained.", target.GetTraceSize()) } };
+                      : MessageData { { std::format ("Trace off, {} {} retained.", target.GetTraceSize(), target.GetTraceSize() == 1 ? "entry" : "entries") } };
 }
 
 
@@ -180,7 +180,7 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
     hr = files->WriteAllText (session.ResolvePath (command.text), text);
     CHRF (hr, reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text)));
 
-    reply.data = MessageData { { std::format ("Saved {} trace entries to {}.", entries.size(), command.text) } };
+    reply.data = MessageData { { std::format ("Saved {} trace {} to {}.", entries.size(), entries.size() == 1 ? "entry" : "entries", command.text) } };
 
 Error:
     return;
