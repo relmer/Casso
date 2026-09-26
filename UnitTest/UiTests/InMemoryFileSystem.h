@@ -151,6 +151,21 @@ public:
     HRESULT EnumerateEntries     (const std::wstring           & directory,
                                   std::vector<FileSystemEntry> & outEntries) override
     {
+        return ListEntries (directory, false, outEntries);
+    }
+
+
+    HRESULT EnumerateAllEntries  (const std::wstring           & directory,
+                                  std::vector<FileSystemEntry> & outEntries) override
+    {
+        return ListEntries (directory, true, outEntries);
+    }
+
+
+    HRESULT ListEntries          (const std::wstring           & directory,
+                                  bool                           includeHidden,
+                                  std::vector<FileSystemEntry> & outEntries)
+    {
         std::lock_guard<std::mutex>  lock   (m_mutex);
         std::wstring                 prefix = Normalize (directory);
         std::set<std::wstring>       dirs;
@@ -188,6 +203,14 @@ public:
                 entry.isFolder     = false;
                 entry.sizeBytes    = kv.second.content.size();
                 entry.modifiedUnix = kv.second.modifiedUnix;
+                entry.isHidden     = kv.second.hidden;
+                entry.isSystem     = kv.second.system;
+                entry.isCompressed = kv.second.compressed;
+
+                if (!includeHidden && (entry.isHidden || entry.isSystem))
+                {
+                    continue;
+                }
 
                 outEntries.push_back (std::move (entry));
             }
@@ -278,6 +301,19 @@ public:
     }
 
 
+    void        SetAttributes (const std::wstring & path, bool hidden, bool system, bool compressed)
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        auto                         it   = m_files.find (Normalize (path));
+        if (it != m_files.end())
+        {
+            it->second.hidden     = hidden;
+            it->second.system     = system;
+            it->second.compressed = compressed;
+        }
+    }
+
+
     void        Clear       ()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
@@ -292,6 +328,9 @@ private:
         std::wstring  original;       // case-preserved path, separators unified
         bool          readOnly     = false;
         int64_t       modifiedUnix = 0;
+        bool          hidden       = false;
+        bool          system       = false;
+        bool          compressed   = false;
     };
 
 

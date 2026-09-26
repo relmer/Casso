@@ -203,6 +203,7 @@
     <ClCompile Include="CassoExplorer\Model\RefreshAnchor.cpp" />
     <ClCompile Include="Seams\Win32FolderWatcher.cpp" />
     <ClCompile Include="CassoExplorer\Model\CatalogModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\FolderOptions.cpp" />
     <ClCompile Include="CassoExplorer\Model\ContentSniffer.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskOperations.cpp" />
     <ClCompile Include="CassoExplorer\Model\DragPayload.cpp" />
@@ -502,6 +503,7 @@
     <ClInclude Include="CassoExplorer\Model\IFolderWatcher.h" />
     <ClInclude Include="Seams\Win32FolderWatcher.h" />
     <ClInclude Include="CassoExplorer\Model\CatalogModel.h" />
+    <ClInclude Include="CassoExplorer\Model\FolderOptions.h" />
     <ClInclude Include="CassoExplorer\Model\ContentSniffer.h" />
     <ClInclude Include="CassoExplorer\Model\DiskOperations.h" />
     <ClInclude Include="CassoExplorer\Model\DragPayload.h" />

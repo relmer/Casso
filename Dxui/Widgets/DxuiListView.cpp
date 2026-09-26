@@ -2967,8 +2967,9 @@ void DxuiListView::PaintDataRows (
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {
-            uint32_t      argb      = cells[c].dim ? pal.fgDim : pal.fg;
+            uint32_t      argb      = cells[c].dim ? pal.fgDim : (cells[c].argb != 0 ? cells[c].argb : pal.fg);
             float         iconShift = 0.0f;
+            float         alpha     = text.GetGlobalAlpha();
             std::wstring  shown;
 
             if (!m_columns[c].visible || colWPx[c] <= 0)
@@ -2980,11 +2981,18 @@ void DxuiListView::PaintDataRows (
             {
                 float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
 
+                if (cells[c].iconGhosted)
+                {
+                    text.SetGlobalAlpha (alpha * s_kGhostedIconAlpha);
+                }
+
                 hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
                                           x + colOff + (float) colXPx[c] + cellPadL,
                                           ry + (rowH - iconPx) * 0.5f,
                                           iconPx, iconPx);
                 IGNORE_RETURN_VALUE (hr, S_OK);
+
+                text.SetGlobalAlpha (alpha);
 
                 iconShift = iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
             }

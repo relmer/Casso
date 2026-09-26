@@ -39,6 +39,12 @@ struct CatalogRow
     bool  isDirectory         = false;
     bool  isDiskImage         = false;
 
+    //  A host item's attributes: a hidden one's icon is drawn faded, and a
+    //  compressed or encrypted one's name in color, as Explorer draws them.
+    bool  isHidden            = false;
+    bool  isCompressed        = false;
+    bool  isEncrypted         = false;
+
     //  Where the row came from in the listing it was built from, so a sort
     //  can be undone by the consumer and a selection can find its entry.
     size_t        sourceIndex  = 0;

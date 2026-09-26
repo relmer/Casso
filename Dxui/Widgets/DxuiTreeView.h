@@ -67,6 +67,9 @@ struct DxuiTreeNode
 
     //  Drawn before the label, as Explorer draws a folder's; none draws none.
     std::shared_ptr<const DxuiIconImage>  icon;
+
+    //  The icon drawn at half opacity, as Explorer draws a hidden item's.
+    bool                       iconGhosted    = false;
 };
 
 
@@ -132,6 +135,9 @@ public:
     static constexpr float  s_kDefaultFontDip = 13.0f;
     static constexpr int    s_kIconDip        = 16;
     static constexpr int    s_kIconGapDip     = 6;
+
+    //  How opaque a ghosted icon is: Explorer's hidden items, measured.
+    static constexpr float  s_kGhostedIconAlpha = 0.5f;
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }

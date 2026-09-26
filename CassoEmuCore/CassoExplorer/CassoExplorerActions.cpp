@@ -954,7 +954,7 @@ bool CassoExplorerActions::TryGetHostEntry (const std::wstring & path, FileSyste
     std::vector<FileSystemEntry>  siblings;
     std::filesystem::path         item   (path);
     std::wstring                  leaf   = item.filename().wstring();
-    HRESULT                       hr     = m_fs.EnumerateEntries (item.parent_path().wstring(), siblings);
+    HRESULT                       hr     = m_fs.EnumerateAllEntries (item.parent_path().wstring(), siblings);
 
 
 

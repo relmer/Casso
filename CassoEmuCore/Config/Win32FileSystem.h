@@ -37,8 +37,15 @@ public:
                                   std::vector<std::wstring> & outDirNames) override;
     HRESULT EnumerateEntries     (const std::wstring           & directory,
                                   std::vector<FileSystemEntry> & outEntries) override;
+    HRESULT EnumerateAllEntries  (const std::wstring           & directory,
+                                  std::vector<FileSystemEntry> & outEntries) override;
     HRESULT GetReadOnlyAttribute (const std::wstring & path,
                                   bool               & outReadOnly) override;
     HRESULT SetReadOnlyAttribute (const std::wstring & path,
                                   bool                 readOnly) override;
+
+private:
+    static HRESULT  ListEntries (const std::wstring           & directory,
+                                 bool                           includeHidden,
+                                 std::vector<FileSystemEntry> & outEntries);
 };

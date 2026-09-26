@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/FolderOptions.h"
 #include "CassoExplorer/Model/Location.h"
 #include "Config/IFileSystem.h"
 
@@ -29,6 +30,7 @@ struct TreeNode
     Location      location;
     bool          canExpand = false;
     bool          missing   = false;     // a known folder that is no longer there, drawn dimmed
+    bool          hidden    = false;     // a hidden host folder, its icon drawn faded
     std::wstring  loadError;             // an image that failed to parse: the tooltip and the list-area message
 };
 
@@ -64,6 +66,10 @@ public:
     bool  IsKnownFolder     (const std::wstring & path) const;
     void  SetDrives         (std::vector<std::wstring> driveRoots);
     void  SetDirectoryProbe (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
+
+    //  Which hidden folders and images are listed. A change applies to the
+    //  folders listed after it; the caller invalidates what is cached.
+    void  SetFolderOptions  (const FolderOptions & options) { m_folderOptions = options; }
 
     void     GetRoots    (std::vector<TreeNode> & outNodes) const;
     HRESULT  GetChildren (const std::wstring & id, std::vector<TreeNode> & outNodes);
@@ -114,6 +120,7 @@ private:
     std::vector<std::wstring>                        m_knownFolders;
     std::vector<std::wstring>                        m_drives;
     DirectoryProbe                                   m_directoryProbe;
+    FolderOptions                                    m_folderOptions;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
     int                                              m_fetchCount = 0;
 };

@@ -192,6 +192,9 @@ CatalogRow CatalogModel::FromHostEntry (const FileSystemEntry & entry, bool isDi
     row.hasModified  = entry.modifiedUnix != 0;
     row.modifiedUnix = entry.modifiedUnix;
     row.sourceIndex  = sourceIndex;
+    row.isHidden     = entry.isHidden;
+    row.isCompressed = entry.isCompressed;
+    row.isEncrypted  = entry.isEncrypted;
 
     if (entry.isFolder)
     {

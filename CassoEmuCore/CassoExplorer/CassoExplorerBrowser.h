@@ -190,7 +190,20 @@ public:
     //  The shell's icons for the tree and the list. None set, none drawn.
     void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
 
+    //  Which hidden items the tree and the list show, and whether compressed
+    //  items are colored. The next listing follows them.
+    void                   SetFolderOptions (const FolderOptions & options) { m_folderOptions = options; m_tree.SetFolderOptions (options); }
+    const FolderOptions &  GetFolderOptions () const                        { return m_folderOptions; }
+
     static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row, const Location & at = Location(), IShellIcons * icons = nullptr);
+
+    //  The color a row's name is drawn in, or zero for the theme's.
+    static uint32_t  GetNameArgb (const CatalogRow & row, const FolderOptions & options, bool dark);
+
+    static constexpr uint32_t  kCompressedDarkArgb  = 0xFF3A99E8u;
+    static constexpr uint32_t  kEncryptedDarkArgb   = 0xFF4EB54Eu;
+    static constexpr uint32_t  kCompressedLightArgb = 0xFF0000FFu;
+    static constexpr uint32_t  kEncryptedLightArgb  = 0xFF008000u;
 
     //  The narrower set a disk image's catalog uses in the preview pane.
     static std::vector<DxuiListView::Column>  GetCatalogPreviewColumns();
@@ -248,6 +261,7 @@ private:
     std::map<std::wstring, TreeNode>    m_nodes;
     std::vector<CatalogRow>             m_rows;
     std::vector<FileSystemEntry>        m_hostEntries;
+    FolderOptions                       m_folderOptions;
     std::vector<TreeNode>               m_rootChildren;
     std::wstring                        m_rootId;
     VolumeListing                       m_listing;

@@ -14,6 +14,7 @@
 #include "Core/TextEncoding.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Core/DxuiClipboard.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
 #include "Window/DxuiMessageBox.h"
@@ -360,6 +361,7 @@ void CassoExplorerWindow::OnCreate()
     //  handed to the browser before the first nodes and rows are built.
     m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
+    m_browser.SetFolderOptions (FolderOptions::ReadFromShell());
     SizeListIcons();
 
     ConfigureWidgets();
@@ -1124,6 +1126,7 @@ void CassoExplorerWindow::FillList()
     const BrowserModel                            & model    = m_browser.GetBrowserModel();
     std::wstring                                    message  = m_browser.GetListError();
     Location                                        location = m_browser.GetLocation();
+    bool                                            dark     = DxuiColor::ComputeRelativeLuminance (m_theme->Background()) < 0.5f;
 
 
 
@@ -1136,6 +1139,7 @@ void CassoExplorerWindow::FillList()
     for (const CatalogRow & row : m_browser.GetRows())
     {
         rows.push_back (CassoExplorerBrowser::ToCells (row, location, &m_listIcons));
+        rows.back()[0].argb = CassoExplorerBrowser::GetNameArgb (row, m_browser.GetFolderOptions(), dark);
     }
 
     m_list->SetRows (std::move (rows));
@@ -3428,6 +3432,7 @@ void CassoExplorerWindow::Dispatch (int id)
 
 
         case CassoExplorerCommands::kRefresh:
+            ReadFolderOptions();
             m_browser.GetBrowserModel().InvalidateAllCatalogs();
             hr     = m_browser.Refresh();
             refill = true;
@@ -4718,6 +4723,38 @@ std::wstring CassoExplorerWindow::GetPasteFolder() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::ReadFolderOptions
+//
+//  Explorer's options for hidden items, read again. When one has changed,
+//  the tree is listed again under them, and true is returned so the caller
+//  relists the folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::ReadFolderOptions()
+{
+    FolderOptions  options = FolderOptions::ReadFromShell();
+
+
+
+    if (options == m_browser.GetFolderOptions())
+    {
+        return false;
+    }
+
+    m_browser.SetFolderOptions (options);
+    m_browser.GetTreeModel().InvalidateAll();
+    RefreshTree();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::RefreshAfterHostChange
 //
 //  The folder watcher sees the change too, a moment later; rereading now
@@ -5722,6 +5759,15 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     {
         DxuiWindowsThemeColors::Instance().Refresh();
         ApplyTheme();
+    }
+
+    //  Explorer's folder options send no message either, so they too are read
+    //  again, and the folders relisted only when one changed.
+    if (active && m_list != nullptr && ReadFolderOptions())
+    {
+        hr = m_browser.Reload (true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        FillList();
     }
 
     //  NO RE-READ HERE. Coming back to the window used to re-enumerate the

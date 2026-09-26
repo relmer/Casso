@@ -71,6 +71,7 @@ DxuiTreeNode CassoExplorerBrowser::ToTreeNode (const TreeNode & node, IShellIcon
     //  A known folder that is gone is dimmed. An image that will not open is
     //  not: the preview says why when it is chosen.
     out.dimmed         = node.missing;
+    out.iconGhosted    = node.hidden;
 
     if (icons != nullptr)
     {
@@ -299,13 +300,15 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
 
 
 
-    hr = m_fs.EnumerateEntries (path, m_hostEntries);
+    hr = m_fs.EnumerateAllEntries (path, m_hostEntries);
 
     if (FAILED (hr))
     {
         m_listError = L"This folder could not be read.";
         return hr;
     }
+
+    std::erase_if (m_hostEntries, [this] (const FileSystemEntry & entry) { return !m_folderOptions.IsShown (entry); });
 
     for (index = 0; index < m_hostEntries.size(); index++)
     {
@@ -1018,7 +1021,45 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
         cells[0].icon = GetRowIcon (row, at, *icons);
     }
 
+    cells[0].iconGhosted = row.isHidden;
+
     return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetNameArgb
+//
+//  Explorer's colors for a compressed or an encrypted item's name, when its
+//  options ask for them. The dark theme's compressed blue is measured from
+//  Explorer; its encrypted green, which EFS would be needed to measure, is a
+//  green of the same lightness. The light theme's are Explorer's classic
+//  pair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t CassoExplorerBrowser::GetNameArgb (const CatalogRow & row, const FolderOptions & options, bool dark)
+{
+    if (!options.colorCompressed)
+    {
+        return 0;
+    }
+
+    if (row.isEncrypted)
+    {
+        return dark ? kEncryptedDarkArgb : kEncryptedLightArgb;
+    }
+
+    if (row.isCompressed)
+    {
+        return dark ? kCompressedDarkArgb : kCompressedLightArgb;
+    }
+
+    return 0;
 }
 
 

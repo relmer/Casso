@@ -453,6 +453,9 @@ private:
     void  ClearDropTarget        ();
     void  OnDrop                 (IDataObject * data, int tag, POINT screen);
     void  RefreshAfterHostChange ();
+
+    //  Explorer's folder options read again; true when one changed.
+    bool  ReadFolderOptions ();
     void  CopySelectedPaths      ();
     void  ShowRowProperties      (int row);
     void  ShowLocationProperties (const Location & location);

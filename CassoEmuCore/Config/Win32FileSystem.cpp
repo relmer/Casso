@@ -378,16 +378,52 @@ Error:
 //
 //  EnumerateEntries
 //
-//  Non-recursive listing of files AND sub-directories with metadata. Hidden
-//  and system entries are excluded here, at the Win32 layer, so every
-//  consumer sees the same filtered view. modifiedUnix converts the FILETIME
-//  last-write stamp (100ns ticks since 1601, converted to seconds) to Unix
-//  seconds.
+//  Hidden and system entries are excluded here, at the Win32 layer, so every
+//  consumer that does not ask for them sees the same filtered view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32FileSystem::EnumerateEntries (
     const std::wstring            & directory,
+    std::vector<FileSystemEntry>  & outEntries)
+{
+    return ListEntries (directory, false, outEntries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnumerateAllEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::EnumerateAllEntries (
+    const std::wstring            & directory,
+    std::vector<FileSystemEntry>  & outEntries)
+{
+    return ListEntries (directory, true, outEntries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ListEntries
+//
+//  Non-recursive listing of files AND sub-directories with metadata.
+//  modifiedUnix converts the FILETIME last-write stamp (100ns ticks since
+//  1601, converted to seconds) to Unix seconds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::ListEntries (
+    const std::wstring            & directory,
+    bool                            includeHidden,
     std::vector<FileSystemEntry>  & outEntries)
 {
     // FILETIME epoch (1601-01-01) to Unix epoch (1970-01-01), in seconds.
@@ -425,7 +461,7 @@ HRESULT Win32FileSystem::EnumerateEntries (
         ULARGE_INTEGER   size  = {};
         ULARGE_INTEGER   ticks = {};
 
-        if ((findData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0)
+        if (!includeHidden && (findData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0)
         {
             continue;
         }
@@ -448,6 +484,10 @@ HRESULT Win32FileSystem::EnumerateEntries (
         entry.sizeBytes    = entry.isFolder ? 0 : size.QuadPart;
         entry.modifiedUnix = (int64_t) (ticks.QuadPart / kFiletimeTicksPerSecond)
                            - kFiletimeToUnixSeconds;
+        entry.isHidden     = (findData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN)     != 0;
+        entry.isSystem     = (findData.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM)     != 0;
+        entry.isCompressed = (findData.dwFileAttributes & FILE_ATTRIBUTE_COMPRESSED) != 0;
+        entry.isEncrypted  = (findData.dwFileAttributes & FILE_ATTRIBUTE_ENCRYPTED)  != 0;
 
         outEntries.push_back (std::move (entry));
     }

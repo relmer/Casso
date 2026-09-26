@@ -162,6 +162,51 @@ public:
     }
 
 
+    TEST_METHOD (HiddenItems_FollowExplorersFolderOptions)
+    {
+        Host           host;
+        FolderOptions  options;
+        CatalogRow     row;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\hidden.txt", "h"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\protected.sys", "p"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\system.txt", "s"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\packed.txt", "c"));
+        host.fs.SetAttributes (L"C:\\Disks\\hidden.txt",    true,  false, false);
+        host.fs.SetAttributes (L"C:\\Disks\\protected.sys", true,  true,  false);
+        host.fs.SetAttributes (L"C:\\Disks\\system.txt",    false, true,  false);
+        host.fs.SetAttributes (L"C:\\Disks\\packed.txt",    false, false, true);
+
+        //  Explorer's defaults: a system item shows unless it is hidden too.
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+        Assert::AreEqual ((size_t) 5, host.browser.GetRows().size());
+        FindRow (host.browser, L"system.txt");
+
+        options.showHidden = true;
+        host.browser.SetFolderOptions (options);
+        AssertSucceeded (host.browser.Reload (true));
+        Assert::AreEqual ((size_t) 6, host.browser.GetRows().size(), L"Hidden items shown");
+
+        row = host.browser.GetRows()[(size_t) FindRow (host.browser, L"hidden.txt")];
+        Assert::IsTrue (row.isHidden);
+        Assert::IsTrue (CassoExplorerBrowser::ToCells (row)[0].iconGhosted, L"and drawn faded");
+
+        options.showProtected = true;
+        host.browser.SetFolderOptions (options);
+        AssertSucceeded (host.browser.Reload (true));
+        Assert::AreEqual ((size_t) 7, host.browser.GetRows().size(), L"Protected items shown");
+
+        //  A compressed name is colored only when Explorer colors them.
+        row = host.browser.GetRows()[(size_t) FindRow (host.browser, L"packed.txt")];
+        Assert::AreEqual (0u, CassoExplorerBrowser::GetNameArgb (row, options, true));
+
+        options.colorCompressed = true;
+        Assert::AreEqual (CassoExplorerBrowser::kCompressedDarkArgb,  CassoExplorerBrowser::GetNameArgb (row, options, true));
+        Assert::AreEqual (CassoExplorerBrowser::kCompressedLightArgb, CassoExplorerBrowser::GetNameArgb (row, options, false));
+        Assert::AreEqual (0u, CassoExplorerBrowser::GetNameArgb (host.browser.GetRows()[(size_t) FindRow (host.browser, L"system.txt")], options, true));
+    }
+
+
     TEST_METHOD (SelectImage_ListsCatalogAndFreeSpace)
     {
         Host          host;

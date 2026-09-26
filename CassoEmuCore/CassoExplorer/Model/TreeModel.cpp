@@ -599,12 +599,19 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
 
     outNodes.clear();
 
-    hr = m_fs.EnumerateEntries (path, entries);
+    hr = m_fs.EnumerateAllEntries (path, entries);
     CHR (hr);
 
     for (const FileSystemEntry & entry : entries)
     {
         TreeNode  node;
+
+        if (!m_folderOptions.IsShown (entry))
+        {
+            continue;
+        }
+
+        node.hidden = entry.isHidden;
 
         if (entry.isFolder)
         {

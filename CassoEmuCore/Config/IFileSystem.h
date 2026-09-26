@@ -40,6 +40,13 @@ struct FileSystemEntry
     bool          isFolder     = false;
     uint64_t      sizeBytes    = 0;
     int64_t       modifiedUnix = 0;
+
+    //  Set only by EnumerateAllEntries; EnumerateEntries lists no hidden or
+    //  system entries to begin with.
+    bool          isHidden     = false;
+    bool          isSystem     = false;
+    bool          isCompressed = false;
+    bool          isEncrypted  = false;
 };
 
 
@@ -76,6 +83,15 @@ public:
     // callers sort.
     virtual HRESULT EnumerateEntries     (const std::wstring           & directory,
                                           std::vector<FileSystemEntry> & outEntries) = 0;
+
+    // The same listing with hidden and system entries included, and each
+    // entry's attributes set. A file system with no such attributes has no
+    // such entries, so the default is the plain listing.
+    virtual HRESULT EnumerateAllEntries  (const std::wstring           & directory,
+                                          std::vector<FileSystemEntry> & outEntries)
+    {
+        return EnumerateEntries (directory, outEntries);
+    }
 
     // The file's read-only attribute (drives the write-protect toggle for
     // sector-image formats).

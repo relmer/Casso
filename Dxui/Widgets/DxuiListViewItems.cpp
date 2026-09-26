@@ -495,16 +495,25 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         if (cells[0].icon && !cells[0].icon->bgraPremul.empty())
         {
+            float  alpha = text.GetGlobalAlpha();
+
+            if (cells[0].iconGhosted)
+            {
+                text.SetGlobalAlpha (alpha * s_kGhostedIconAlpha);
+            }
+
             hr = text.DrawIconBitmap (cells[0].icon->bgraPremul.data(), cells[0].icon->width, cells[0].icon->height,
                                       iconX, iconY, (float) iconPx, (float) iconPx);
             IGNORE_RETURN_VALUE (hr, S_OK);
+
+            text.SetGlobalAlpha (alpha);
         }
 
         label = GetItemLabelRectPx (cell);
 
         hr = text.DrawString (cells[0].text.c_str(), (float) label.left, (float) label.top,
                               (float) (label.right - label.left), (float) (label.bottom - label.top),
-                              cells[0].dim ? pal.fgDim : pal.fg, fontPx, DxuiTheme::kBodyFace,
+                              cells[0].dim ? pal.fgDim : (cells[0].argb != 0 ? cells[0].argb : pal.fg), fontPx, DxuiTheme::kBodyFace,
                               metrics.labelBelow ? DxuiTextHAlign::Center : DxuiTextHAlign::Left, DxuiTextVAlign::Top,
                               DxuiFontWeight::Normal, metrics.labelBelow);
         IGNORE_RETURN_VALUE (hr, S_OK);

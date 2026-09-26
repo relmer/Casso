@@ -56,6 +56,12 @@ public:
 
         //  Drawn at the start of the cell, the text moved along past it.
         std::shared_ptr<const DxuiIconImage>  icon;
+
+        //  The icon drawn at half opacity, as Explorer draws a hidden item's.
+        bool          iconGhosted = false;
+
+        //  The text's color in place of the theme's; zero keeps the theme's.
+        uint32_t      argb        = 0;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -336,6 +342,9 @@ public:
     //  One item's cell in dips (a zero width spans the list), its icon's size,
     //  whether items run down columns rather than along rows, whether the
     //  name sits under the icon, and how many text lines it has.
+    //  How opaque a ghosted icon is: Explorer's hidden items, measured.
+    static constexpr float  s_kGhostedIconAlpha = 0.5f;
+
     struct ItemMetrics
     {
         int   cellWDip   = 0;
