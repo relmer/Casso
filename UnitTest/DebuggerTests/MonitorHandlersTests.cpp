@@ -368,13 +368,113 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (AnUnknownSlot_IsAnError)
+        //  The ROM keeps only the low four bits of the number, so every
+        //  value is a slot: 8 is $C800, $13 is slot 3, and $10 is slot 0.
+        TEST_METHOD (TheHookSlot_IsTheLowFourBitsOfTheNumber)
         {
             Rig  rig;
 
 
 
-            Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("9^K").status);
+            rig.RunOk ("8^K");
+            Assert::AreEqual ((int) 0xC8, (int) rig.target.memory[0x39]);
+
+            rig.RunOk ("13^K");
+            Assert::AreEqual ((int) 0xC3, (int) rig.target.memory[0x39]);
+
+            rig.RunOk ("10^P");
+            Assert::AreEqual ((int) 0xF0, (int) rig.target.memory[0x36]);
+            Assert::AreEqual ((int) 0xFD, (int) rig.target.memory[0x37]);
+        }
+
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  A range whose end is before its start
+        //
+        //  The ROM's loops test the end after each byte, so the start byte is
+        //  always handled once.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Examine_WithTheEndBeforeTheStart_ShowsTheStartByte)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("300: 41");
+
+            Assert::AreEqual (std::string ("0300- 41"), rig.Line ("300.200", 0));
+        }
+
+
+
+        TEST_METHOD (Verify_WithTheEndBeforeTheStart_ComparesTheStartByte)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.RunOk ("300: 41");
+            rig.RunOk ("400: 42");
+
+            reply = rig.RunOk ("400<300.200V");
+
+            Assert::AreEqual (size_t (1), reply.text.size());
+            Assert::AreEqual (std::string ("0300-41 (42)"), reply.text[0]);
+        }
+
+
+
+        TEST_METHOD (Write_WithTheEndBeforeTheStart_WritesTheStartByte)
+        {
+            Rig          rig;
+            std::string  saved;
+
+
+
+            rig.RunOk ("300: 41");
+            rig.RunOk ("300.200W one.bin");
+
+            Assert::AreEqual (S_OK, rig.files.ReadAllText (L"C:\\Work\\one.bin", saved));
+            Assert::AreEqual (std::string ("\x41"), saved);
+        }
+
+
+
+        //  One byte, not the whole file wrapped through $FFFF.
+        TEST_METHOD (Read_WithTheEndBeforeTheStart_ReadsTheStartByte)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\three.bin", std::string ("\x01\x02\x03"));
+            rig.RunOk ("300.200R three.bin");
+
+            Assert::AreEqual ((int) 0x01, (int) rig.target.memory[0x300]);
+            Assert::AreEqual ((int) 0x00, (int) rig.target.memory[0x301]);
+        }
+
+
+
+        //  A file longer than the range is cut to it, and the reply says the
+        //  sizes differ.
+        TEST_METHOD (Read_AFileLongerThanTheRange_ReportsTheSizeDifference)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\four.bin", std::string ("\x01\x02\x03\x04"));
+            reply = rig.RunOk ("300.301R four.bin");
+
+            Assert::IsTrue   (std::get<FileIoData> (reply.data).mismatch);
+            Assert::AreEqual ((int) 0x00, (int) rig.target.memory[0x302]);
         }
 
 
@@ -664,6 +764,74 @@ namespace DebuggerTests
 
             registers = rig.target.GetRegisters();
             Assert::AreEqual ((int) 0x41, (int) registers.a, L"the register the reader set, not the zero-page byte");
+        }
+
+
+
+        static DisassemblyData GetListing (const Reply & reply)
+        {
+            Assert::IsTrue (std::holds_alternative<DisassemblyData> (reply.data), L"the reply is not a listing");
+            return std::get<DisassemblyData> (reply.data);
+        }
+
+
+
+        //  A bare L lists on from where the last listing stopped.
+        TEST_METHOD (List_WithNoAddress_ContinuesFromTheLastListing)
+        {
+            MachineRig       rig;
+            DisassemblyData  listing;
+
+
+
+            rig.Run ("300: EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA EA");
+            rig.Run ("300L");
+
+            listing = GetListing (rig.Run ("L"));
+
+            Assert::AreEqual (size_t (20), listing.lines.size());
+            Assert::AreEqual ((int) 0x0314, (int) listing.lines.front().instruction.address);
+        }
+
+
+
+        //  The ROM's L ignores the end of a range and always lists twenty.
+        TEST_METHOD (List_WithARange_ListsTwentyInstructions)
+        {
+            MachineRig       rig;
+            DisassemblyData  listing;
+
+
+
+            rig.Run ("300: EA EA EA EA");
+
+            listing = GetListing (rig.Run ("300.302L"));
+
+            Assert::AreEqual (size_t (20), listing.lines.size());
+            Assert::AreEqual ((int) 0x0300, (int) listing.lines.front().instruction.address);
+        }
+
+
+
+        //  With the language card's RAM write-enabled, a deposit can wrap from
+        //  $FFFF to $0000, and the reply shows the bytes on both sides.
+        TEST_METHOD (Deposit_PastTheTopOfMemory_ShowsTheWrappedBytes)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            //  LDA $C08B twice write-enables the card's RAM; RTS returns.
+            rig.Run ("300: AD 8B C0 AD 8B C0 60");
+            rig.Run ("300G");
+
+            reply = rig.Run ("FFFF: 41 42");
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+            Assert::AreEqual (size_t (2), reply.text.size());
+            Assert::AreEqual (std::string ("FFFF- 41"), reply.text[0]);
+            Assert::AreEqual (std::string ("0000- 42"), reply.text[1]);
         }
     };
 }

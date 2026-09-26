@@ -64,14 +64,15 @@ private:
 
     static constexpr Word  kSlotBase      = 0xC000;
     static constexpr Word  kSlotStride    = 0x0100;
-    static constexpr int   kLastSlot      = 7;
+    static constexpr int   kSlotMask      = 0x0F;
     static constexpr int   kListLines     = 20;
     static constexpr int   kBytesPerRow   = 8;
     static constexpr Byte  kLowByte       = 0xFF;
+    static constexpr Word  kLastAddress   = 0xFFFF;
 
     static void  Examine        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Deposit        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  List           (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         List           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Verify         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Arithmetic     (const DebugCommand & command, Reply & reply);
     static void  SetTextMode    (DebugSession & session, bool isInverse, Reply & reply);
@@ -90,4 +91,7 @@ private:
     static Word  GetLast        (const DebugCommand & command);
     static Byte  Peek           (IDebugTarget & target, Word address);
     static void  PokeWord       (IDebugTarget & target, Word address, Word value);
+
+    //  Where a bare L continues: the address after the last listing.
+    Word  m_nextList = 0;
 };

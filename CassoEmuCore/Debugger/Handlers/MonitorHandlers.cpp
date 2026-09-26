@@ -110,13 +110,16 @@ void MonitorHandlers::Examine (DebugSession & session, const DebugCommand & comm
 //
 //  MonitorHandlers::Deposit
 //
-//  The reply shows what was written, as the Monitor does not echo it.
+//  The reply shows what was written, as the Monitor does not echo it. A
+//  deposit that runs past $FFFF wraps to $0000, and so do its rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    Word  last = 0;
+    Word        last = 0;
+    MemoryData  rows;
+    MemoryData  wrapped;
 
 
 
@@ -128,10 +131,23 @@ void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & comm
 
     last = (Word) (command.a1 + command.values.size() - 1);
 
-    if (TryPokeRange (session, command.a1, command.values, reply))
+    if (!TryPokeRange (session, command.a1, command.values, reply))
     {
-        reply.data = MakeRows (session.GetTarget(), command.a1, last);
+        return;
     }
+
+    if (last >= command.a1)
+    {
+        rows = MakeRows (session.GetTarget(), command.a1, last);
+    }
+    else
+    {
+        rows    = MakeRows (session.GetTarget(), command.a1, kLastAddress);
+        wrapped = MakeRows (session.GetTarget(), 0, last);
+        rows.rows.insert (rows.rows.end(), wrapped.rows.begin(), wrapped.rows.end());
+    }
+
+    reply.data = rows;
 }
 
 
@@ -142,23 +158,20 @@ void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & comm
 //
 //  MonitorHandlers::List
 //
-//  Twenty instructions, which is what the Monitor's L shows.
+//  Twenty instructions, which is what the Monitor's L shows, whatever the
+//  end of a range says: the ROM's L ignores A2. Without an address it
+//  continues from where the last listing stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorHandlers::List (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    DisassemblyData      data;
-    std::optional<Word>  last;
+    DisassemblyData  data;
+    Word             first = command.hasA1 ? command.a1 : m_nextList;
 
 
 
-    if (command.hasA2)
-    {
-        last = command.a2;
-    }
-
-    DataDirectiveHandlers::Disassemble (session, command.a1, last, kListLines, data);
+    m_nextList = DataDirectiveHandlers::Disassemble (session, first, std::nullopt, kListLines, data);
     reply.data = data;
 }
 
@@ -256,7 +269,8 @@ void MonitorHandlers::SetTextMode (DebugSession & session, bool isInverse, Reply
 //  MonitorHandlers::SetHook
 //
 //  `n^K` points the input hook at slot n's $Cn00 and `n^P` the output hook;
-//  slot 0 restores the ROM's own keyboard and screen routines.
+//  slot 0 restores the ROM's own keyboard and screen routines. Only the low
+//  four bits of n count, as in the ROM, so `8^K` is $C800 and `13^K` is $C300.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -264,17 +278,10 @@ void MonitorHandlers::SetHook (DebugSession & session, const DebugCommand & comm
 {
     Word  hook    = isInput ? kInputHook : kOutputHook;
     Word  restore = isInput ? kKeyIn : kCharacterOut;
-    int   slot    = (int) command.count;
+    int   slot    = (int) (command.count & kSlotMask);
     Word  target  = 0;
 
 
-
-    if (slot < 0 || slot > kLastSlot)
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments",
-                        std::format ("There is no slot {}. The slots are 0 to {}.", slot, kLastSlot));
-        return;
-    }
 
     target = (slot == 0) ? restore : (Word) (kSlotBase + kSlotStride * slot);
 
@@ -391,7 +398,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
     data.path        = command.text;
     data.requested   = wanted;
     data.transferred = (uint32_t) bytes.size();
-    data.mismatch    = data.transferred != wanted;
+    data.mismatch    = content.size() != wanted;
     reply.data       = data;
 }
 
@@ -535,11 +542,15 @@ bool MonitorHandlers::TryPokeRange (DebugSession & session, Word first, std::spa
 //
 //  MonitorHandlers::GetLast
 //
+//  An end before the start is the start itself. The ROM's loops test the end
+//  after each byte, so examine, verify, read and write always handle the
+//  start byte once.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Word MonitorHandlers::GetLast (const DebugCommand & command)
 {
-    return command.hasA2 ? command.a2 : command.a1;
+    return (command.hasA2 && command.a2 > command.a1) ? command.a2 : command.a1;
 }
 
 
