@@ -275,7 +275,7 @@ void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const 
 {
     for (const SymbolFileEntry & existing : symbols)
     {
-        if (existing.name == name)
+        if (_stricmp (existing.name.c_str(), name.c_str()) == 0)
         {
             return;
         }
@@ -320,7 +320,8 @@ void SymbolFileReader::ReadCasso (const std::vector<std::string> & lines, std::v
 //
 //  The symbols in a scope with no parent, which is the module's own; a
 //  symbol with no scope at all is taken too. Local labels and the labels
-//  macro expansions made sit in scopes below it.
+//  macro expansions made sit in scopes below it. An import carries no
+//  value; its export elsewhere supplies the address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -340,7 +341,7 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
 
     for (const DebugSymbol & symbol : file.symbols)
     {
-        if (symbol.scope < 0 || topLevel.contains (symbol.scope))
+        if (symbol.type != "imp" && (symbol.scope < 0 || topLevel.contains (symbol.scope)))
         {
             AddUnique (symbols, symbol.name, (Word) symbol.value);
         }

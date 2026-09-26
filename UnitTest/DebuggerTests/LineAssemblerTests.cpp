@@ -147,6 +147,8 @@ namespace DebuggerTests
             Assemble (cpu.GetInstructionSet(), 0x0300, "BCC $0382",     LineAssemblyStatus::BranchOutOfRange);
             Assemble (cpu.GetInstructionSet(), 0x0300, "BEQ $0282",     LineAssemblyStatus::Ok,               { 0xF0, 0x80 });
             Assemble (cpu.GetInstructionSet(), 0x0300, "BEQ $0281",     LineAssemblyStatus::BranchOutOfRange);
+            Assemble (cpu.GetInstructionSet(), 0xFFF0, "BNE $0010",     LineAssemblyStatus::Ok,               { 0xD0, 0x1E });
+            Assemble (cpu.GetInstructionSet(), 0x0010, "BNE $FFF0",     LineAssemblyStatus::Ok,               { 0xD0, 0xDE });
         }
 
 

@@ -102,6 +102,31 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Cc65Debug_ImportsAndCaseDuplicatesStayOut)
+        {
+            static constexpr const char * kFile =
+                "version\tmajor=2,minor=0\n"
+                "file\tid=0,name=\"main.a65\",size=10,mtime=0,mod=0\n"
+                "mod\tid=0,name=\"main\",file=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=4,addrsize=absolute,type=rw\n"
+                "sym\tid=0,name=\"print\",addrsize=absolute,scope=0,type=imp\n"
+                "sym\tid=1,name=\"print\",addrsize=absolute,scope=0,val=0x0310,seg=0,type=lab\n"
+                "sym\tid=2,name=\"Loop\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "sym\tid=3,name=\"LOOP\",addrsize=absolute,scope=0,val=0x0302,seg=0,type=lab\n"
+                "scope\tid=0,name=\"\",mod=0\n";
+
+            std::vector<SymbolFileEntry>  symbols = ReadOk (kFile, SymbolFileFormat::Cc65Debug);
+
+
+
+            Assert::AreEqual ((size_t) 2,    symbols.size());
+            Assert::AreEqual ((Word) 0x0310, Find (symbols, "print"), L"the import has no value");
+            Assert::AreEqual ((Word) 0x0300, Find (symbols, "Loop"));
+        }
+
+
+
+
         TEST_METHOD (Cc65Debug_WrongVersionSaysWhich)
         {
             std::vector<SymbolFileEntry>  symbols;
