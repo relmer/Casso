@@ -648,7 +648,9 @@ namespace DebuggerTests
         TEST_METHOD (Go_DoesNotReloadRegistersFromZeroPage)
         {
             MachineRig        rig;
+            Cpu6502Registers  before;
             Cpu6502Registers  registers;
+            Reply             reply;
 
 
 
@@ -657,13 +659,23 @@ namespace DebuggerTests
             rig.Run ("/MODE APPLEWIN");
             rig.Run ("MEB 300 EA 60");          // NOP / RTS
             rig.Run ("R A 41");
-            rig.Run ("MEB 45 99");              // what the ROM would have loaded
+            rig.Run ("R X 22");
+            rig.Run ("R Y 33");
+            rig.Run ("MEB 45 99 88 77 00 10");  // A, X, Y, P and S as the ROM would load them
             rig.Run ("MODE MONITOR");
 
-            rig.Run ("300G");
+            before = rig.target.GetRegisters();
+            reply  = rig.Run ("300G");
 
             registers = rig.target.GetRegisters();
-            Assert::AreEqual ((int) 0x41, (int) registers.a, L"the register the reader set, not the zero-page byte");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::IsFalse  (rig.sink.stops.empty(), L"the run must report a stop");
+            Assert::AreEqual ((int) 0xFF69,    (int) rig.sink.stops.back().pc, L"the program ran and returned");
+            Assert::AreEqual ((int) 0x41,      (int) registers.a,  L"the register the reader set, not the zero-page byte");
+            Assert::AreEqual ((int) 0x22,      (int) registers.x);
+            Assert::AreEqual ((int) 0x33,      (int) registers.y);
+            Assert::AreEqual ((int) before.p,  (int) registers.p);
+            Assert::AreEqual ((int) before.sp, (int) registers.sp);
         }
     };
 }
