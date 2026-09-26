@@ -254,6 +254,24 @@ namespace DebuggerTests
 
 
 
+        //  A line sent in another mode, as a per-request pipe line is, gets
+        //  that mode's help, not the session's.
+        TEST_METHOD (HELP_AnswersInTheModeTheLineRanIn)
+        {
+            Rig    rig;
+            Reply  list  = rig.session.ExecuteLine (".help", CommandMode::WinDbg);
+            Reply  entry = rig.session.ExecuteLine (".help ba", CommandMode::WinDbg);
+
+
+
+            Assert::IsTrue   (rig.session.GetMode() == CommandMode::AppleWin);
+            Assert::IsTrue   (list.status == CommandStatus::Ok);
+            Assert::AreEqual (std::string ("WinDbg commands:"), std::get<MessageData> (list.data).lines.at (0));
+            Assert::AreEqual (std::string ("ba r1|w1|e1 addr: Break on a read, write or execution of addr"), std::get<MessageData> (entry.data).lines.at (0));
+        }
+
+
+
         TEST_METHOD (DISASM_Settings)
         {
             Rig  rig;

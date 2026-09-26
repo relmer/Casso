@@ -340,8 +340,9 @@ Reply DebugSession::ExecuteLine (const std::string & line)
 
 Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 {
-    Reply        reply;
-    std::string  text = Trim (line);
+    Reply                       reply;
+    std::string                 text          = Trim (line);
+    std::optional<CommandMode>  outerLineMode = m_lineMode;
 
 
 
@@ -352,6 +353,7 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
         return reply;
     }
 
+    m_lineMode = mode;
 
     switch (mode)
     {
@@ -361,6 +363,7 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
     default:                      reply = ExecuteAppleWinLine  (text); break;
     }
 
+    m_lineMode    = outerLineMode;
     reply.command = line;
     return reply;
 }
