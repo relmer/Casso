@@ -40,15 +40,15 @@ static constexpr CommandModeHelp::Entry  s_kMonitor[] =
     { "",       C::Memory,             "value<first.lastS", "Search first..last for value",                       "S SH"   },
     { "R",      C::Memory,             "first.lastR name",  "Read a file into first..last",                       "BLOAD"  },
     { "W",      C::Memory,             "first.lastW name",  "Write first..last to a file",                        "BSAVE"  },
-    { "",       C::RegistersAndFlags,  "Ctrl+E",            "Show the registers; a : after it changes them",      "R"      },
+    { "",       C::RegistersAndFlags,  "^E",                "Show the registers; a : after it changes them",      "R"      },
     { "!",      C::DisassemblyAndData, "!",                 "Enter the mini-assembler",                           "A"      },
     { "I",      C::DisplayAndPanels,   "I",                 "Inverse text",                                       ""       },
     { "N",      C::DisplayAndPanels,   "N",                 "Normal text",                                        ""       },
-    { "",       C::SessionAndSettings, "slot Ctrl+K",       "Take input from a slot",                             ""       },
-    { "",       C::SessionAndSettings, "slot Ctrl+P",       "Send output to a slot",                              ""       },
-    { "",       C::RunningAndStepping, "Ctrl+B",            "BASIC cold start",                                   ""       },
-    { "",       C::RunningAndStepping, "Ctrl+C",            "BASIC warm start",                                   ""       },
-    { "",       C::RunningAndStepping, "Ctrl+Y",            "Jump through the user vector at $03F8",              ""       },
+    { "",       C::SessionAndSettings, "slot^K",            "Take input from a slot",                             ""       },
+    { "",       C::SessionAndSettings, "slot^P",            "Send output to a slot",                              ""       },
+    { "",       C::RunningAndStepping, "^B",                "BASIC cold start",                                   ""       },
+    { "",       C::RunningAndStepping, "^C",                "BASIC warm start",                                   ""       },
+    { "",       C::RunningAndStepping, "^Y",                "Jump through the user vector at $03F8",              ""       },
 };
 
 
@@ -372,15 +372,19 @@ std::vector<std::string> CommandModeHelp::BuildHelp (CommandMode mode)
 //
 //  CommandModeHelp::TryDescribe
 //
-//  The mode's own word first, then a Casso command it runs. A Casso command
-//  it cannot run is answered with the modes that can, never described as if
-//  it ran here.
+//  The mode's own word first, then a Casso command it runs. A word written
+//  with the mode's marker, /W or !DB, is the Casso command alone, since the
+//  bare word may be the mode's own. A Casso command it cannot run is
+//  answered with the modes that can, never described as if it ran here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, std::string & line)
+bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & text, std::string & line)
 {
-    const Entry                          * own       = Find (mode, word);
+    std::string                            marker    = GetMarker (mode);
+    bool                                   isMarked  = !marker.empty() && text.size() > marker.size() && text.starts_with (marker);
+    std::string                            word      = isMarked ? text.substr (marker.size()) : text;
+    const Entry                          * own       = isMarked ? nullptr : Find (mode, word);
     const CassoCommandReference::Entry   * reference = CassoCommandReference::Find (word);
     const AppleWinCommand                * command   = AppleWinCommandTable::Find (word);
     std::string                            upper     = ToUpper (word);

@@ -254,6 +254,56 @@ namespace DebuggerTests
 
 
 
+        //  A word written with the mode's marker is the Casso command, so a
+        //  Casso row that shares a word with the mode can still be described.
+        TEST_METHOD (HELP_MarkedWordDescribesTheCassoCommand)
+        {
+            {
+                Rig  rig;
+
+
+
+                (void) rig.session.ExecuteLine ("MODE MONITOR", CommandMode::AppleWin);
+                Assert::IsTrue (rig.RunOk ("/HELP W").text.at (0).starts_with ("first.lastW"), L"the bare word is the Monitor's");
+                Assert::IsTrue (rig.RunOk ("/HELP /W").text.at (0).starts_with ("/W"),         L"the marked word is Casso's");
+                Assert::IsTrue (rig.RunOk ("/HELP /V").text.at (0).starts_with ("/V"));
+            }
+
+            {
+                Rig  rig;
+
+
+
+                (void) rig.session.ExecuteLine ("MODE WINDBG", CommandMode::AppleWin);
+                Assert::IsTrue (rig.RunOk (".help db").text.at (0).starts_with ("db addr"), L"the bare word is WinDbg's");
+                Assert::IsTrue (rig.RunOk (".help !db").text.at (0).starts_with ("!DB"),    L"the marked word is Casso's");
+                Assert::IsTrue (rig.RunOk (".help !x").text.at (0).starts_with ("!X"));
+            }
+        }
+
+
+
+        //  The Monitor's control-key rows show the ^ form the console can type.
+        TEST_METHOD (HELP_MonitorControlKeysShowTheCaretForm)
+        {
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            (void) rig.session.ExecuteLine ("MODE MONITOR", CommandMode::AppleWin);
+            lines = rig.RunOk ("/HELP").text;
+
+            for (const std::string & line : lines)
+            {
+                Assert::IsTrue (line.find ("Ctrl+") == std::string::npos, L"no row shows a key the console cannot enter");
+            }
+
+            Assert::IsTrue (std::any_of (lines.begin(), lines.end(), [] (const std::string & line) { return line.starts_with ("    ^E "); }));
+        }
+
+
+
         TEST_METHOD (DISASM_Settings)
         {
             Rig  rig;

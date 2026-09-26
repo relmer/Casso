@@ -61,7 +61,7 @@ public:
 
     //  HELP word: the line describing it, or, for a Casso command the mode
     //  cannot run, which modes run it. False for a word that is no command.
-    static bool                    TryDescribe    (CommandMode mode, const std::string & word, std::string & line);
+    static bool                    TryDescribe    (CommandMode mode, const std::string & text, std::string & line);
 
 private:
     struct Row
