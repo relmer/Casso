@@ -203,6 +203,14 @@ namespace DebuggerTests
             Assert::IsTrue   (rig.RunOk ("? BPIO").text.at (0).starts_with ("BPM, BPIO "), L"an alias answers with its command's line");
             Assert::AreEqual (std::string ("HGR: not available in Casso"), rig.RunOk ("HELP HGR").text.at (0));
             Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("HELP FROB").status);
+
+            for (const char * name : { "WIN", "WINDOW", "\\" })
+            {
+                std::string  line = rig.RunOk (std::string ("HELP ") + name).text.at (0);
+
+                Assert::IsTrue (line.starts_with (std::string (name) + ": ") && !line.ends_with ("not available in Casso"), L"the window's layout names run there");
+            }
+
             Assert::AreEqual (std::string ("Casso " VERSION_STRING), rig.RunOk ("VERSION").text.at (0));
             Assert::IsFalse  (rig.RunOk ("MOTD").text.at (0).empty());
         }

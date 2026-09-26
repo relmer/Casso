@@ -410,6 +410,13 @@ bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, s
         return true;
     }
 
+    //  A layout name the debugger window takes and answers without a change.
+    if (reference == nullptr && command->family == AppleWinCommandFamily::Window)
+    {
+        line = std::format ("{}: changes nothing; the debugger window shows every pane at once", upper);
+        return true;
+    }
+
     //  A name AppleWin's scripts use that has no effect in Casso.
     if (reference == nullptr)
     {
