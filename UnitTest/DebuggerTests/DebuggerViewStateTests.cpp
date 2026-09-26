@@ -25,6 +25,7 @@
 #include "Ui/Debugger/StopChanges.h"
 #include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
+#include "UnreadableStackTarget.h"
 
 
 
@@ -1698,30 +1699,90 @@ namespace DebuggerViewStateTests
 
 
 
+        //  The row of the code pane that shows `address`, or -1.
+        static int GetRowOf (const DebuggerViewSnapshot & snapshot, Word address)
+        {
+            for (size_t row = 0; row < snapshot.code.size(); row++)
+            {
+                if (snapshot.code[row].address == address)
+                {
+                    return (int) row;
+                }
+            }
+
+            return -1;
+        }
+
+
+
+        //  RET and -> are navigations: the target lands on the middle line,
+        //  with what leads to it above.
         TEST_METHOD (RetAndArrowGoToTheAddressesTheyRead)
         {
             MachineRig        rig;
-            Cpu6502Registers  r    = rig.controller.GetSession().GetTarget().GetRegisters();
+            DebugSession    & session = rig.controller.GetSession();
+            Cpu6502Registers  r       = session.GetTarget().GetRegisters();
             Reply             reply;
+            constexpr Byte    kNop    = 0xEA;
 
 
 
             r.sp = 0xFD;
-            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            session.GetTarget().SetRegisters (r);
             rig.machine.GetMemoryBus().WriteByte (0x01FE, 0x34);
             rig.machine.GetMemoryBus().WriteByte (0x01FF, 0x12);
 
+            //  NOPs above both targets, so the lines above them are certain.
+            for (Word address = 0x1200; address < 0x1235; address++)
+            {
+                rig.machine.GetMemoryBus().WriteByte (address, kNop);
+            }
+
+            for (Word address = 0x03E0; address < 0x0400; address++)
+            {
+                rig.machine.GetMemoryBus().WriteByte (address, kNop);
+            }
+
             RunInWindow (rig, "RET");
-            Assert::AreEqual ((Word) 0x1235, rig.view.GetCodeAddress().value_or (0), L"one past the pushed address");
+            Assert::AreEqual (DebuggerViewState::kCodeLines / 2, GetRowOf (rig.view.Build (session), 0x1235),
+                              L"one past the pushed address, on the middle line");
 
             rig.view.SetCodeAddress (0x0302);
             RunInWindow (rig, "->");
-            Assert::AreEqual ((Word) 0x0400, rig.view.GetCodeAddress().value_or (0), L"STA $0400's address");
+            Assert::AreEqual (DebuggerViewState::kCodeLines / 2, GetRowOf (rig.view.Build (session), 0x0400),
+                              L"STA $0400's address, on the middle line");
 
             rig.view.SetCodeAddress (0x0300);
             reply = RunInWindow (rig, "->");
             Assert::IsTrue   (reply.status == CommandStatus::Error, L"LDA #$41 has no address");
             Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeAddress().value_or (0), L"and the pane stays");
+        }
+
+
+
+        //  With nothing readable on the stack there is no return address, and
+        //  RET says so rather than moving the pane.
+        TEST_METHOD (RetWithAnUnreadableStackIsAnError)
+        {
+            TestCpu                    cpu;
+            UnreadableStackTarget      target;
+            RecordingNotificationSink  sink;
+            DebugSession               session { target, sink, RunState::Paused };
+            DebugHandlerSet            handlers;
+            DebuggerViewState          view;
+            Reply                      reply;
+
+
+
+            cpu.InitForTest();
+            target.instructionSet = cpu.GetInstructionSet();
+            handlers.Attach (session);
+            view.SetCodeAddress (0x0300);
+
+            reply = view.ExecuteWindowLine (session, "RET", CommandMode::AppleWin);
+
+            Assert::IsTrue   (reply.status == CommandStatus::Error, L"no return address");
+            Assert::AreEqual ((Word) 0x0300, view.GetCodeAddress().value_or (0), L"and the pane stays");
         }
 
 
@@ -1741,7 +1802,87 @@ namespace DebuggerViewStateTests
             rig.view.SetCodeAddress (0x0310);
             reply = RunInWindow (rig, "->");
             Assert::IsTrue   (reply.status == CommandStatus::Ok, L"BBR0 has a branch target");
-            Assert::AreEqual ((Word) 0x0323, rig.view.GetCodeAddress().value_or (0));
+            Assert::IsTrue   (GetRowOf (rig.view.Build (rig.controller.GetSession()), 0x0323) >= 0);
+        }
+
+
+
+        //  A following pane shows the PC in its middle; one V moves the lines
+        //  on screen up by one, not the PC to the top.
+        TEST_METHOD (CursorMovesStartFromTheLinesAFollowingPaneShows)
+        {
+            MachineRig            rig;
+            DebugSession        & session  = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot;
+            constexpr Byte        kNop     = 0xEA;
+
+
+
+            //  NOPs above the PC, so the lines above it are certain.
+            for (Word address = 0x0200; address < 0x0300; address++)
+            {
+                rig.machine.GetMemoryBus().WriteByte (address, kNop);
+            }
+
+            snapshot = rig.view.Build (session);
+            Assert::IsTrue   (snapshot.code.size() > 2);
+            Assert::IsTrue   (snapshot.code[0].address != 0x0300, L"the PC is not on the top line");
+
+            RunInWindow (rig, "V");
+            Assert::AreEqual (snapshot.code[1].address, rig.view.GetCodeAddress().value_or (0), L"V moves one line");
+
+            RunInWindow (rig, "^");
+            Assert::AreEqual (snapshot.code[0].address, rig.view.GetCodeAddress().value_or (0), L"^ moves it back");
+        }
+
+
+
+        //  A page is as many lines as the pane has.
+        TEST_METHOD (APageIsThePanesOwnLineCount)
+        {
+            MachineRig            rig;
+            DebugSession        & session = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot;
+            constexpr int         kLines  = 3;
+
+
+
+            rig.view.SetCodeLines   (kLines + 1);
+            rig.view.SetCodeAddress (0x0300);
+            snapshot = rig.view.Build (session);
+            Assert::AreEqual ((size_t) (kLines + 1), snapshot.code.size());
+
+            rig.view.SetCodeLines   (kLines);
+            rig.view.SetCodeAddress (0x0300);
+            RunInWindow (rig, "PAGEDN");
+            Assert::AreEqual (snapshot.code[kLines].address, rig.view.GetCodeAddress().value_or (0), L"PAGEDN");
+
+            RunInWindow (rig, "PAGEUP");
+            Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeAddress().value_or (0), L"PAGEUP");
+        }
+
+
+
+        //  Moving down stops at the page whose last line holds $FFFF, as the
+        //  wheel does, rather than wrapping to $0000.
+        TEST_METHOD (CursorMovesStopAtTheTopOfMemory)
+        {
+            MachineRig            rig;
+            DebugSession        & session = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.SetCodeAddress (0xFFFE);
+            RunInWindow (rig, "V");
+            snapshot = rig.view.Build (session);
+
+            Assert::IsTrue   (rig.view.GetCodeAddress().value_or (0) > 0xFF00, L"no wrap to $0000");
+            Assert::AreEqual ((size_t) DebuggerViewState::kCodeLines, snapshot.code.size(), L"every line filled");
+
+            rig.view.SetCodeAddress (0x0000);
+            RunInWindow (rig, "PAGEUP");
+            Assert::AreEqual ((Word) 0x0000, rig.view.GetCodeAddress().value_or (0xFFFF), L"no wrap below $0000");
         }
 
 
@@ -1761,6 +1902,39 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (RunInWindow (rig, "MA1").status == CommandStatus::Error, L"no address");
             Assert::IsTrue   (RunInWindow (rig, "MA1 XYZ").status == CommandStatus::Error, L"not hex");
             Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a bad address leaves the pane");
+        }
+
+
+
+        //  The memory pane places its view only once, then follows its own
+        //  scrolling; a new address reaches it as a Go to, as the Go to box
+        //  does, or the pane scrolls straight back.
+        TEST_METHOD (MiniMemoryCommandsAndData2GoToTheirAddress)
+        {
+            MachineRig            rig;
+            DebugSession        & session  = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot = rig.view.Build (session);
+            uint32_t              serial   = snapshot.goTo.has_value() ? snapshot.goTo->serial : 0;
+
+
+
+            RunInWindow (rig, "MD1 2000");
+            snapshot = rig.view.Build (session);
+
+            Assert::IsTrue   (snapshot.goTo.has_value(), L"MD1 asks the pane to go there");
+            Assert::AreEqual (1, snapshot.goTo->window);
+            Assert::AreEqual ((Word) 0x2000, snapshot.goTo->address.value_or (0));
+            Assert::IsTrue   (snapshot.goTo->serial != serial, L"a new Go to");
+
+            serial = snapshot.goTo->serial;
+            rig.view.OpenMemoryWindow  (2, 0x1000);
+            rig.view.CloseMemoryWindow (2);
+            RunInWindow (rig, "DATA2");
+            snapshot = rig.view.Build (session);
+
+            Assert::AreEqual (2, snapshot.goTo->window, L"a reopened window 2 goes to its address");
+            Assert::AreEqual ((Word) 0x2000, snapshot.goTo->address.value_or (0));
+            Assert::IsTrue   (snapshot.goTo->serial != serial);
         }
 
 
@@ -2486,6 +2660,29 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size());
             Assert::AreEqual (std::string ("mmu"), snapshot.diagnostics[0].id);
             Assert::IsTrue   (std::holds_alternative<DiagnosticsMemoryMap> (snapshot.diagnostics[0].visual));
+        }
+
+
+        //  The Panels menu sends its line in the session's mode; GSSquared
+        //  and WinDbg lines open and close a panel as AppleWin's do.
+        TEST_METHOD (PanelLinesWorkInEveryMode)
+        {
+            for (CommandMode mode : { CommandMode::GSSquared, CommandMode::WinDbg, CommandMode::Monitor })
+            {
+                MachineRig      rig;
+                DebugSession  & session = rig.controller.GetSession();
+                Reply           reply;
+
+
+
+                reply = rig.view.ExecuteWindowLine (session, DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", true), mode), mode);
+                Assert::IsTrue   (reply.status == CommandStatus::Ok, L"PANEL mmu");
+                Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
+
+                reply = rig.view.ExecuteWindowLine (session, DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", false), mode), mode);
+                Assert::IsTrue   (reply.status == CommandStatus::Ok, L"PANEL CLOSE mmu");
+                Assert::IsFalse  (rig.view.IsPanelOpen ("mmu"));
+            }
         }
 
 

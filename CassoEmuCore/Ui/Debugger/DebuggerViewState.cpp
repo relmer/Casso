@@ -1240,9 +1240,23 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
 
     //  GSSquared and WinDbg have no layout commands, and their words are not
-    //  AppleWin's.
+    //  AppleWin's. PANEL is the one they share, as it is (GSSquared) or
+    //  after WinDbg's engine marker, which is how the Panels menu sends it.
     if (mode == CommandMode::GSSquared || mode == CommandMode::WinDbg)
     {
+        if (mode == CommandMode::WinDbg && first != std::string::npos && line[first] == '!')
+        {
+            text = line.substr (first + 1);
+        }
+
+        stream.str (text);
+        stream >> name;
+
+        if (_stricmp (name.c_str(), "PANEL") == 0 && !session.IsAssembling() && (mode == CommandMode::GSSquared || text != line))
+        {
+            return ExecutePanelLine (session, text, line, mode);
+        }
+
         return ExecuteLine (session, line, mode);
     }
 
@@ -1356,7 +1370,7 @@ void DebuggerViewState::ShowWindowPane (DebugSession & session, const std::strin
     {
         if (!GetMemoryWindowAddress (2).has_value())
         {
-            OpenMemoryWindow (2, m_memoryAddress);
+            GoToMemory (2, m_memoryAddress);
         }
 
         m_showPane = DebuggerLayout::GetMemoryPaneId (2);
@@ -1831,57 +1845,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     {
         top = v.address.value_or (shown ? v.followAnchor : FindStartAbove (session, pc, v.lines / 2));
 
-        for (int i = 0; i < v.scrollLines && top < 0xFFFF; i++)
-        {
-            Word  next = (Word) (top + GetInstructionLength (session, top));
-
-            top = (next > top) ? next : top;
-        }
-
-        //  Down: no further than the page whose last line holds $FFFF, as up
-        //  stops at $0000.
-        if (v.scrollLines > 0)
-        {
-            Word  last  = top;
-            int   count = 1;
-
-            while (count < v.lines)
-            {
-                Word  next = (Word) (last + GetInstructionLength (session, last));
-
-                if (next <= last)
-                {
-                    break;
-                }
-
-                last = next;
-                count++;
-            }
-
-            if (count < v.lines)
-            {
-                top = FindStartAbove (session, last, v.lines - 1);
-            }
-        }
-
-        //  Up: the alignment that lands on the top line, from as many lines
-        //  above as can be found; a byte at a time where none can.
-        if (v.scrollLines < 0)
-        {
-            Word  from = top;
-
-            for (int above = -v.scrollLines; above > 0 && top == from; above--)
-            {
-                top = FindStartAbove (session, from, above);
-            }
-
-            if (top == from && from > 0)
-            {
-                top = (Word) (from - (Word) (std::min) ((int) from, -v.scrollLines));
-            }
-        }
-
-        v.address = top;
+        v.address     = ScrollCodeTop (session, top, v.lines, v.scrollLines);
         v.scrollLines = 0;
     }
 
@@ -1903,6 +1867,76 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     }
 
     return v.followAnchor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ScrollCodeTop
+//
+//  The top line of a pane of `lines` lines moved `count` instructions from
+//  `top`, down when positive. Down goes no further than the page whose last
+//  line holds $FFFF, as up stops at $0000, so the pane always fills.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lines, int count)
+{
+    Word  from  = top;
+    Word  last  = 0;
+    int   shown = 1;
+
+
+
+    for (int i = 0; i < count && top < 0xFFFF; i++)
+    {
+        Word  next = (Word) (top + GetInstructionLength (session, top));
+
+        top = (next > top) ? next : top;
+    }
+
+    if (count > 0)
+    {
+        last = top;
+
+        while (shown < lines)
+        {
+            Word  next = (Word) (last + GetInstructionLength (session, last));
+
+            if (next <= last)
+            {
+                break;
+            }
+
+            last = next;
+            shown++;
+        }
+
+        if (shown < lines)
+        {
+            top = FindStartAbove (session, last, lines - 1);
+        }
+    }
+
+    //  Up: the alignment that lands on the top line, from as many lines
+    //  above as can be found; a byte at a time where none can.
+    if (count < 0)
+    {
+        for (int above = -count; above > 0 && top == from; above--)
+        {
+            top = FindStartAbove (session, from, above);
+        }
+
+        if (top == from && from > 0)
+        {
+            top = (Word) (from - (Word) (std::min) ((int) from, -count));
+        }
+    }
+
+    return top;
 }
 
 
@@ -1963,47 +1997,53 @@ Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int bef
 //  DebuggerViewState::MoveCodePane
 //
 //  Where the code pane is pinned, by name: "." lets it follow the PC again,
-//  and the rest move it to an address the name stands for.
+//  RET and -> bring an address to its middle line as any navigation does,
+//  and the rest move its top line. A following pane moves from the lines it
+//  shows, which have the PC in their middle, not from the PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string & name, Reply & reply)
 {
-    Word                 start  = m_code[(size_t) m_follow].address.value_or (session.GetTarget().GetRegisters().pc);
-    std::optional<Word>  target = start;
+    CodeView             & v      = m_code[(size_t) m_follow];
+    Word                   pc     = session.GetTarget().GetRegisters().pc;
+    Word                   start  = v.address.value_or (v.shown.empty() ? pc : v.shown.front());
+    std::optional<Word>    target = start;
+    int                    count  = 0;
 
 
 
     if (name == ".")
     {
-        m_code[(size_t) m_follow].address = std::nullopt;
-        reply.data    = MessageData { { "The code pane follows the PC." } };
+        v.address  = std::nullopt;
+        reply.data = MessageData { { "The code pane follows the PC." } };
         return;
     }
 
-    if (name == "RET")
+    if (name == "RET" || name == "->")
     {
-        target = GetReturnAddress (session);
-    }
-    else if (name == "->")
-    {
-        target = GetOperandAddress (session, start);
+        //  -> reads the pinned top line's operand, or the PC's.
+        start  = v.address.value_or (pc);
+        target = (name == "RET") ? GetReturnAddress (session) : GetOperandAddress (session, start);
 
         if (!target.has_value())
         {
-            reply.SetError (CommandStatus::Error, "no address", std::format ("The instruction at ${:04X} has no address operand.", start));
+            reply.SetError (CommandStatus::Error, "no address",
+                            (name == "RET") ? std::string ("The stack cannot be read, so there is no return address.")
+                                            : std::format ("The instruction at ${:04X} has no address operand.", start));
             return;
         }
-    }
-    else if (name == "^" || name == "V" || name == "PAGEUP" || name == "PAGEDN")
-    {
-        int  count = (name == "^" || name == "V") ? 1 : kCodeLines;
 
-        for (int i = 0; i < count; i++)
-        {
-            *target = (name == "^" || name == "PAGEUP") ? GetPreviousInstruction (session, *target)
-                                                        : (Word) (*target + GetInstructionLength (session, *target));
-        }
+        CenterCodeOn (*target, m_follow);
+        reply.data = MessageData { { std::format ("The code pane shows ${:04X}.", *target) } };
+        return;
+    }
+
+    if (name == "^" || name == "V" || name == "PAGEUP" || name == "PAGEDN")
+    {
+        count   = (name == "^" || name == "V") ? 1 : v.lines;
+        count   = (name == "^" || name == "PAGEUP") ? -count : count;
+        *target = ScrollCodeTop (session, start, v.lines, count);
     }
     else if (name == "PAGEUP256")   { *target = (Word) (start - 0x0100); }
     else if (name == "PAGEUP4K")    { *target = (Word) (start - 0x1000); }
@@ -2047,8 +2087,38 @@ void DebuggerViewState::MoveMemoryPane (const std::string & name, const std::str
         return;
     }
 
-    m_memoryAddress = (Word) address;
-    reply.data      = MessageData { { std::format ("The memory pane is at ${:04X}.", address) } };
+    GoToMemory (1, (Word) address);
+    reply.data = MessageData { { std::format ("The memory pane is at ${:04X}.", address) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GoToMemory
+//
+//  A memory pane places its view once and then follows its own scrolling, so
+//  a new address alone would be scrolled straight back. It reaches the pane
+//  as a Go to, as the Go to box's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::GoToMemory (int window, Word address)
+{
+    DebuggerViewSnapshot::GoTo  goTo;
+
+
+
+    OpenMemoryWindow (window, address);
+
+    goTo.window  = window;
+    goTo.text    = std::format ("{:04X}", address);
+    goTo.address = address;
+    goTo.serial  = m_goTo.has_value() ? m_goTo->serial + 1 : 1;
+
+    m_goTo = goTo;
 }
 
 

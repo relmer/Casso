@@ -453,6 +453,7 @@ private:
 
     static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
     void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
+    void  GoToMemory     (int window, Word address);
     void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
@@ -489,6 +490,10 @@ private:
     //  it ended -- so this walks forward from far enough back and takes the
     //  alignment that reaches `pc` exactly.
     static Word  FindStartAbove  (DebugSession & session, Word pc, int before);
+
+    //  The top line of a pane of `lines` lines moved `count` instructions,
+    //  kept within the ends of memory so the pane fills.
+    static Word  ScrollCodeTop   (DebugSession & session, Word top, int lines, int count);
 
     //  One disassembly view. `address` pins it; `centerOn` and `scrollLines`
     //  are moves the next build makes. `followAnchor` and `shown` are where a
