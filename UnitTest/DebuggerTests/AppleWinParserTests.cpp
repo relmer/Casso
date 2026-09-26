@@ -381,6 +381,16 @@ namespace DebuggerTests
 
 
 
+        //  A file name is the rest of the line as typed, so its spaces and
+        //  tabs survive.
+        TEST_METHOD (FileNamesKeepTheirSpacing)
+        {
+            Assert::AreEqual (std::string ("my  syms.sym"),   ParseOk ("SYM LOAD my  syms.sym").command.text);
+            Assert::AreEqual (std::string ("a\tb.sym"),       ParseOk ("SYM SAVE a\tb.sym").command.text);
+            Assert::AreEqual (std::string ("trace  one.txt"), ParseOk ("HISTORY SAVE trace  one.txt").command.text);
+        }
+
+
         TEST_METHOD (Engine_History)
         {
             AppleWinParseResult  bare   = ParseOk ("HISTORY");

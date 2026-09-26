@@ -152,6 +152,30 @@ std::string AppleWinParser::Join (const Tokens & tokens, size_t first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinParser::GetTextAfterFirstWord
+//
+//  The rest of the line after its first argument, as typed, for a file name
+//  that may hold runs of spaces or tabs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinParser::GetTextAfterFirstWord (const Arguments & args)
+{
+    size_t  from = args.rest.find_first_of (" \t");
+
+
+
+    from = args.rest.find_first_not_of (" \t", from);
+
+    return (from == std::string::npos) ? std::string() : args.rest.substr (from);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinParser::TryParseShorthand
 //
 //  The classic Monitor forms AppleWin also accepts: `addr:bytes` deposits,
@@ -1009,7 +1033,7 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
     if (first == "LOAD" || first == "SAVE")
     {
         command.verb = (first == "LOAD") ? DebugVerb::LoadSymbols : DebugVerb::SaveSymbols;
-        command.text = Join (args.tokens, 1);
+        command.text = GetTextAfterFirstWord (args);
 
         if (command.text.empty())
         {
@@ -1047,9 +1071,9 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
 //
 //  AppleWinParser::TryParseEngineArguments
 //
-//  MODE [APPLEWIN | MONITOR | GSSQUARED], OUTPUT with the same names, and
-//  BUDGET n with n in decimal, as --max-cycles takes it. PATCH takes its
-//  arguments as ME does and PROFILE its keywords as text.
+//  MODE [APPLEWIN | MONITOR | GSSQUARED | WINDBG | CASSO], OUTPUT with the
+//  same names, and BUDGET n with n in decimal, as --max-cycles takes it.
+//  PATCH takes its arguments as ME does and PROFILE its keywords as text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1231,7 +1255,7 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
     if (first == "SAVE")
     {
         command.verb = DebugVerb::SaveHistory;
-        command.text = Join (args.tokens, 1);
+        command.text = GetTextAfterFirstWord (args);
 
         if (command.text.empty())
         {
