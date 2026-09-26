@@ -54,11 +54,11 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 {
     static constexpr uint32_t  kPaneDumpBytes = 64;
     DebuggerViewSnapshot       snapshot;
-    Reply                 registers   = session.ExecuteLine ("R",     CommandMode::AppleWin);
-    Reply                 breakpoints = session.ExecuteLine ("BPL",   CommandMode::AppleWin);
-    Reply                 stack       = session.ExecuteLine ("STACK", CommandMode::AppleWin);
-    Reply                 watches     = session.ExecuteLine ("WL",    CommandMode::AppleWin);
-    Reply                 calls       = session.ExecuteLine ("CALLS", CommandMode::AppleWin);
+    Reply                 registers   = session.ExecutePaneLine ("R",     CommandMode::AppleWin);
+    Reply                 breakpoints = session.ExecutePaneLine ("BPL",   CommandMode::AppleWin);
+    Reply                 stack       = session.ExecutePaneLine ("STACK", CommandMode::AppleWin);
+    Reply                 watches     = session.ExecutePaneLine ("WL",    CommandMode::AppleWin);
+    Reply                 calls       = session.ExecutePaneLine ("CALLS", CommandMode::AppleWin);
     MemoryData            memory;
 
 
@@ -209,7 +209,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 void DebuggerViewState::BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
     const Cpu6502Registers  & now    = session.GetTarget().GetRegisters();
-    Reply                     code   = session.ExecuteLine (std::format ("U {:04X}", now.pc), CommandMode::AppleWin);
+    Reply                     code   = session.ExecutePaneLine (std::format ("U {:04X}", now.pc), CommandMode::AppleWin);
     Word                        length  = 1;
     InstructionTouches::Result  current;
 
@@ -379,7 +379,7 @@ void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot
 {
     uint64_t  total = session.GetTarget().GetTraceSize();
     uint64_t  first = GetTraceWindowFirst (total, m_traceTop, kTraceRows);
-    Reply     reply = session.ExecuteLine (GetHistoryLine (first, kTraceRows), CommandMode::AppleWin);
+    Reply     reply = session.ExecutePaneLine (GetHistoryLine (first, kTraceRows), CommandMode::AppleWin);
 
 
 
@@ -1652,7 +1652,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
     //  instruction covers the longest the 6502 has. The range stops at $FFFF:
     //  one that ran past it wrapped to below its own start and listed nothing,
     //  which emptied any view within a screenful of the vectors.
-    code = session.ExecuteLine (std::format ("U {:04X}:{:04X}", codeStart, codeEnd), CommandMode::AppleWin);
+    code = session.ExecutePaneLine (std::format ("U {:04X}:{:04X}", codeStart, codeEnd), CommandMode::AppleWin);
 
     v.shown.clear();
 
@@ -2041,7 +2041,7 @@ Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int bef
     }
 
     first = (Word) (pc - (Word) (before * 3));
-    reply = session.ExecuteLine (std::format ("U {:04X}:{:04X}", first, pc), CommandMode::AppleWin);
+    reply = session.ExecutePaneLine (std::format ("U {:04X}:{:04X}", first, pc), CommandMode::AppleWin);
 
     if (const DisassemblyData * data = std::get_if<DisassemblyData> (&reply.data))
     {
@@ -2203,7 +2203,7 @@ void DebuggerViewState::GoToMemory (int window, Word address)
 
 Word DebuggerViewState::GetInstructionLength (DebugSession & session, Word address)
 {
-    Reply                   code = session.ExecuteLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
+    Reply                   code = session.ExecutePaneLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
     const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data);
 
 
@@ -2451,7 +2451,7 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
 
 std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session, Word address)
 {
-    Reply                   code    = session.ExecuteLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
+    Reply                   code    = session.ExecutePaneLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
     const DisassemblyData * data    = std::get_if<DisassemblyData> (&code.data);
     size_t                  dollar  = std::string::npos;
     unsigned                operand = 0;

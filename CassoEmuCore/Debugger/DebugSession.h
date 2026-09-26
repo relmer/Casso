@@ -92,6 +92,10 @@ public:
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
 
+    // The same for a pane's read: it runs as a command even while the line
+    // assembler waits for the user's next line.
+    Reply  ExecutePaneLine       (const std::string & line, CommandMode mode);
+
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;

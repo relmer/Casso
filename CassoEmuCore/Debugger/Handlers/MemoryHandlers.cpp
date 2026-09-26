@@ -48,7 +48,8 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //
 //  MemoryHandlers::MakeRows
 //
-//  An unreadable byte, which is any in $C000-$C0FF, is an empty cell.
+//  An unreadable byte, which is any in $C000-$C0FF, is an empty cell. A row
+//  ends early where the region changes, so its region holds for every byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +69,7 @@ MemoryData MemoryHandlers::MakeRows (IDebugTarget & target, Word first, Word las
         row.address = (Word) address;
         row.region  = target.GetRegion ((Word) address);
 
-        for (int i = 0; i < kBytesPerRow && address <= last; ++i, ++address)
+        for (int i = 0; i < kBytesPerRow && address <= last && target.GetRegion ((Word) address) == row.region; ++i, ++address)
         {
             Byte  value = 0;
 
