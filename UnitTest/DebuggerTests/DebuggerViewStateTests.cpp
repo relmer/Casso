@@ -2464,6 +2464,27 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  The window opens its saved panels, and its menu opens and closes
+        //  them, through each mode's line for PANEL.
+        TEST_METHOD (ThePanelLineRunsInEveryMode)
+        {
+            for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+            {
+                PanelRig  rig;
+                Reply     reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), mode), mode);
+
+
+
+                Assert::IsTrue  (reply.status == CommandStatus::Ok);
+                Assert::IsTrue  (rig.view.IsPanelOpen ("fake"));
+
+                reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), mode), mode);
+                Assert::IsTrue  (reply.status == CommandStatus::Ok);
+                Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+            }
+        }
+
+
         TEST_METHOD (TheMenuSendsPanelLines)
         {
             Assert::AreEqual (std::string ("PANEL disk"),        DebuggerViewState::GetPanelLine ("disk", true));
