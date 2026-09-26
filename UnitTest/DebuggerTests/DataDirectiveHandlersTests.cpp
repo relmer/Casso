@@ -100,6 +100,54 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Range_ReversedOrPastFFFF_Fails)
+        {
+            CpuRig  rig;
+
+
+
+            Assert::AreEqual (std::string ("The range ends before it begins."), rig.RunFails ("U 400:300",  "invalid arguments").error.detail);
+            Assert::AreEqual (std::string ("The range runs past $FFFF."),       rig.RunFails ("U FFF0,20",  "invalid arguments").error.detail);
+            rig.Run      ("DB 310:300");
+            Assert::IsTrue (rig.session.GetDataBlocks().GetAll().empty(), L"no block that ends before it begins");
+            rig.RunFails ("X 308:304",  "invalid arguments");
+            rig.RunOk    ("U FFF0,10");
+        }
+
+
+
+        TEST_METHOD (Define_ItemPastFFFF_Fails)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("One item at $FFFF runs past $FFFF."), rig.RunFails ("DW FFFF", "invalid arguments").error.detail);
+            rig.RunFails ("DA FFFF", "invalid arguments");
+            rig.RunFails ("DF FFFC", "invalid arguments");
+            rig.RunOk    ("DF FFFB");
+
+            Assert::AreEqual ((size_t) 1, rig.session.GetDataBlocks().GetAll().size(), L"only the float that fits");
+        }
+
+
+
+        TEST_METHOD (Table_ReversedRemove_LeavesBlockWhole)
+        {
+            Rig  rig;
+
+
+
+            rig.session.GetDataBlocks().Add    ("", 0x0300, 0x030F, DataBlockKind::Bytes, 8);
+            rig.session.GetDataBlocks().Remove (0x0308, 0x0304);
+            rig.session.GetDataBlocks().Add    ("", 0x0320, 0x0310, DataBlockKind::Bytes, 8);
+
+            Assert::AreEqual ((size_t) 1, rig.session.GetDataBlocks().GetAll().size());
+            Assert::AreEqual ((int) 0x030F, (int) rig.session.GetDataBlocks().GetAll()[0].last);
+        }
+
+
+
         TEST_METHOD (U_ShowsLoadedSymbols)
         {
             CpuRig                    rig;

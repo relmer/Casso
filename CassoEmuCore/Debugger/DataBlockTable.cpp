@@ -18,6 +18,11 @@ void DataBlockTable::Add (const std::string & name, Word first, Word last, DataB
 
 
 
+    if (last < first)
+    {
+        return;
+    }
+
     Remove (first, last);
 
     entry.name    = name.empty() ? MakeName (kind, first) : name;
@@ -40,7 +45,7 @@ void DataBlockTable::Add (const std::string & name, Word first, Word last, DataB
 //
 //  A block inside the range goes; one straddling an end is trimmed; one
 //  that contains the range is split around it, both halves keeping the
-//  name.
+//  name. A range that ends before it begins covers nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +54,11 @@ void DataBlockTable::Remove (Word first, Word last)
     std::vector<DataBlockEntry>  kept;
 
 
+
+    if (last < first)
+    {
+        return;
+    }
 
     for (const DataBlockEntry & entry : m_entries)
     {

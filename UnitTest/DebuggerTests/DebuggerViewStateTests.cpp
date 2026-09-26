@@ -2051,6 +2051,34 @@ namespace DebuggerViewStateTests
 
 
 
+        //  Focus moving between the source and the disassembly switches how
+        //  steps go, in whatever mode the session is in, and runs nothing.
+        TEST_METHOD (TheSourceStepLineWorksInEveryMode)
+        {
+            for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+            {
+                MachineRig    rig;
+                Reply         reply;
+                std::wstring  where = std::format (L"mode {}", (int) mode);
+
+
+
+                LoadDebugFile (rig);
+
+                reply = rig.Run (DebuggerViewState::GetSourceStepLine (true, mode), mode);
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
+
+                reply = rig.Run (DebuggerViewState::GetSourceStepLine (false, mode), mode);
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                Assert::IsFalse  (rig.controller.GetSession().IsStepBySource(), where.c_str());
+
+                Assert::AreEqual ((int) 0x0300, (int) rig.controller.GetSession().GetTarget().GetRegisters().pc, where.c_str());
+            }
+        }
+
+
+
         static void SetPc (MachineRig & rig, Word pc)
         {
             Cpu6502Registers  r = rig.controller.GetSession().GetTarget().GetRegisters();
@@ -2540,6 +2568,112 @@ namespace DebuggerViewStateTests
             Assert::IsFalse (map.IsVisible());
             Assert::IsFalse (meters.IsVisible());
             Assert::AreEqual (2, list.GetRowCount());
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ViewQueryTests
+    //
+    //  The lines the panes run to fill themselves are the window's own, not
+    //  the user's: they neither go to the line assembler nor move where a bare
+    //  U or D continues.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ViewQueryTests)
+    {
+    public:
+
+        static Word FirstListed (const Reply & reply)
+        {
+            const DisassemblyData * data = std::get_if<DisassemblyData> (&reply.data);
+
+
+
+            Assert::IsTrue (data != nullptr && !data->lines.empty());
+            return data->lines[0].instruction.address;
+        }
+
+
+
+        static Word FirstDumped (const Reply & reply)
+        {
+            const MemoryData * data = std::get_if<MemoryData> (&reply.data);
+
+
+
+            Assert::IsTrue (data != nullptr && !data->rows.empty());
+            return data->rows[0].address;
+        }
+
+
+
+        TEST_METHOD (APaneIsFilledWhileTheUserAssembles)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.Run ("A 800");
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse  (snapshot.registers.empty(), L"the registers pane");
+            Assert::IsFalse  (snapshot.code.empty(),      L"the code pane");
+            Assert::IsFalse  (snapshot.memory.empty(),    L"the memory pane");
+            Assert::IsTrue   (snapshot.isAssembling);
+            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the user's assembly goes on");
+
+            rig.Run ("NOP");
+            rig.Run ("");
+            Assert::AreEqual ((int) 0xEA, (int) rig.machine.GetMemoryBus().ReadByte (0x0800));
+            Assert::IsFalse  (rig.controller.GetSession().IsAssembling());
+        }
+
+
+
+        TEST_METHOD (ABareUOrDContinuesTheUsersListingAfterARebuild)
+        {
+            MachineRig  plain;
+            MachineRig  rebuilt;
+            Word        listed = 0;
+            Word        dumped = 0;
+
+
+
+            plain.Run ("U 1000");
+            plain.Run ("D 2000");
+            listed = FirstListed (plain.Run ("U"));
+            dumped = FirstDumped (plain.Run ("D"));
+
+            rebuilt.Run ("U 1000");
+            rebuilt.Run ("D 2000");
+            (void) rebuilt.view.Build (rebuilt.controller.GetSession());
+
+            Assert::AreEqual ((int) listed, (int) FirstListed (rebuilt.Run ("U")));
+            Assert::AreEqual ((int) dumped, (int) FirstDumped (rebuilt.Run ("D")));
+        }
+
+
+
+        TEST_METHOD (ReturnAndSpaceEndAnAssemblyFromTheBox)
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_RETURN, false, false));
+
+            snapshot.isAssembling = true;
+            Assert::IsTrue  (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_RETURN, false, false));
+            Assert::IsTrue  (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_SPACE,  false, false));
+            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_F5,     false, false), L"a function key is still the scheme's");
+            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_SPACE,  true,  false));
+            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (nullptr,   VK_RETURN, false, false));
         }
     };
 }

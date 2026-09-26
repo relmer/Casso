@@ -1655,7 +1655,7 @@ void DebuggerWindow::NoteViewFocus (bool isSource)
 
     if (m_snapshot->source->stepBySource != isSource)
     {
-        m_host->RunDebuggerCommand (isSource ? "SRC ON" : "SRC OFF");
+        m_host->RunDebuggerCommand (DebuggerViewState::GetSourceStepLine (isSource, m_snapshot->mode));
     }
 }
 
@@ -1973,6 +1973,14 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
     std::optional<DebuggerKeySchemes::Action>     consoleAction;
 
 
+
+    //  While the line assembler takes the box's lines, Return and Space are
+    //  the box's, so an empty line ends the assembly.
+    if (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_commandBox &&
+        DebuggerViewState::DoesAssemblerKeepKey (m_snapshot.get(), ev.vk, ev.ctrl, ev.alt))
+    {
+        return false;
+    }
 
     consoleAction = (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_commandBox)
                   ? DebuggerViewState::GetConsoleKeyAction (mode, ev.vk, ev.ctrl, ev.alt, ev.shift, box->GetText().empty())

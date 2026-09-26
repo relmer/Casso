@@ -371,6 +371,36 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::ExecuteViewLine
+//
+//  The user's assembly is set aside for the line and put back after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteViewLine (const std::string & line, CommandMode mode)
+{
+    std::optional<Word>  assembly = m_assemblyAddress;
+    Reply                reply;
+
+
+
+    m_assemblyAddress.reset();
+    m_isViewQuery = true;
+
+    reply = ExecuteLine (line, mode);
+
+    m_isViewQuery     = false;
+    m_assemblyAddress = assembly;
+
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ExecuteAppleWinLine
 //
 ////////////////////////////////////////////////////////////////////////////////

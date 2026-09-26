@@ -1575,8 +1575,9 @@ bool AppleWinParser::TryParseRange (
     DebugCommand                   & command,
     std::string                    & error)
 {
-    size_t  separator = text.find_first_of (",:");
-    Word    second    = 0;
+    static constexpr uint32_t  kLastAddress = 0xFFFF;
+    size_t                     separator    = text.find_first_of (",:");
+    Word                       second       = 0;
 
 
 
@@ -1597,11 +1598,22 @@ bool AppleWinParser::TryParseRange (
 
     if (text[separator] == ':')
     {
+        if (second < command.a1)
+        {
+            error = "The range ends before it begins.";
+            return false;
+        }
+
         command.a2 = second;
     }
     else if (second == 0)
     {
         error = "A range length must be at least 1.";
+        return false;
+    }
+    else if ((uint32_t) command.a1 + second - 1 > kLastAddress)
+    {
+        error = "The range runs past $FFFF.";
         return false;
     }
     else

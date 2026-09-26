@@ -92,6 +92,12 @@ public:
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
 
+    // A line the debugger window runs to fill a pane. It never goes to the
+    // line assembler, and IsViewQuery tells a handler not to move where the
+    // user's bare U or D continues.
+    Reply  ExecuteViewLine       (const std::string & line, CommandMode mode);
+    bool   IsViewQuery           () const { return m_isViewQuery; }
+
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;
@@ -298,6 +304,7 @@ private:
 
     std::optional<Word>                   m_assemblyAddress;
     std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;
+    bool                                  m_isViewQuery   = false;
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;
