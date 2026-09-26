@@ -46,6 +46,7 @@ public:
     int                      maskChanges      = 0;
     IWatchSink             * watchSink        = nullptr;
     std::vector<RunRequest>  runs;
+    HRESULT                  startRunResult   = S_OK;
     int                      pauseRequests    = 0;
     std::vector<Byte>        injectedKeys;
     std::vector<Word>        ioReads;
@@ -110,7 +111,7 @@ public:
     void GetSoftSwitches (std::vector<SoftSwitch> & switches) const override { switches = softSwitches; }
 
     void    SetRunObserver   (IRunObserver * value) override         { observer = value; }
-    HRESULT StartRun         (const RunRequest & request) override   { runs.push_back (request); return S_OK; }
+    HRESULT StartRun         (const RunRequest & request) override   { runs.push_back (request); return startRunResult; }
     void    RequestPause     () override                             { ++pauseRequests; }
     void    SetHookInstalled (bool installed) override               { hookInstalled = installed; ++hookChanges; }
     void    SetOpcodeWatch   (const bool * opcodes, IOpcodeWatcher *) override { watchedOpcodes = opcodes; }

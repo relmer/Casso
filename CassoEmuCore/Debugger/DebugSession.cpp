@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Debugger/DebugSession.h"
 
 #include "OpcodeTable.h"
@@ -720,7 +721,7 @@ std::wstring DebugSession::ResolvePath (const std::string & path) const
         bare = bare.substr (1, bare.size() - 2);
     }
 
-    wide.assign (bare.begin(), bare.end());
+    wide     = TextEncoding::NarrowToWide (bare);
     isRooted = wide.starts_with (L'\\') || wide.starts_with (L'/') || (wide.size() > 1 && wide[1] == L':');
 
     if (isRooted || m_currentDirectory.empty() || wide.empty())
@@ -1721,11 +1722,16 @@ void DebugSession::ExecuteStepFilter (const DebugCommand & command, Reply & repl
 
 void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 {
-    RunRequest        request;
-    Cpu6502Registers  registers = {};
-    HRESULT           hr        = S_OK;
-    bool              isStep    = false;
-    bool              isOuter   = false;
+    static constexpr Word  kStackPage = 0x0100;
+    RunRequest             request;
+    Cpu6502Registers       registers  = {};
+    Cpu6502Registers       before     = m_target.GetRegisters();
+    Byte                   stackHigh  = 0;
+    Byte                   stackLow   = 0;
+    bool                   isPushed   = false;
+    HRESULT                hr         = S_OK;
+    bool                   isStep     = false;
+    bool                   isOuter    = false;
 
 
 
@@ -1752,7 +1758,10 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         //  running on into whatever follows it.
         if (command.mode == CommandMode::Monitor)
         {
+            m_target.TryPeek ((Word) (kStackPage + before.sp), stackHigh);
+            m_target.TryPeek ((Word) (kStackPage + (Byte) (before.sp - 1)), stackLow);
             PushMonitorReturn();
+            isPushed = true;
         }
 
         registers    = m_target.GetRegisters();
@@ -1829,6 +1838,16 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     if (isOuter)
     {
         m_isStartingRun = false;
+    }
+
+    //  A run that never started leaves no trace of the Monitor's return
+    //  address: not on the stack, not in the registers, and not as a stop.
+    if (FAILED (hr) && isPushed)
+    {
+        m_target.TryPoke ((Word) (kStackPage + before.sp), stackHigh);
+        m_target.TryPoke ((Word) (kStackPage + (Byte) (before.sp - 1)), stackLow);
+        m_target.SetRegisters (before);
+        m_monitorReturn.reset();
     }
 
     if (FAILED (hr))
