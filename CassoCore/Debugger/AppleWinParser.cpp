@@ -1025,14 +1025,28 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
         command.verb  = DebugVerb::AddSymbol;
         command.text  = Split (args.rest.substr (0, equals)).empty() ? std::string() : Split (args.rest.substr (0, equals))[0];
         command.hasA1 = true;
-        return !command.text.empty() && TryEvaluate (args.rest.substr (equals + 1), *args.context, command.a1, error);
+
+        if (command.text.empty())
+        {
+            error = "SYM name = addr needs a name.";
+            return false;
+        }
+
+        return TryEvaluate (args.rest.substr (equals + 1), *args.context, command.a1, error);
     }
 
     if (first == "!" || first == "~")
     {
         command.verb = DebugVerb::RemoveSymbol;
         command.text = args.tokens.size() > 1 ? args.tokens[1] : std::string();
-        return !command.text.empty();
+
+        if (command.text.empty())
+        {
+            error = std::format ("SYM {} needs the name of the symbol to remove.", first);
+            return false;
+        }
+
+        return true;
     }
 
     command.text = args.rest;
