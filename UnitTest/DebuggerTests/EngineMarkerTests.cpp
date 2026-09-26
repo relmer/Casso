@@ -27,7 +27,7 @@ namespace DebuggerTests
     //
     //  EngineMarkerTests
     //
-    //  FR-014 and R-037: Casso's engine commands, the Engine family of
+    //  Casso's engine commands, the Engine family of
     //  AppleWinCommandTable, are reachable in every mode through that mode's
     //  own marker -- a bare name in AppleWin and GSSquared modes, `/` in
     //  Monitor mode, `!` in WinDbg mode -- and mean the same thing in each.
@@ -35,6 +35,7 @@ namespace DebuggerTests
     //  THE TESTS WALK THE TABLE, NOT A LIST OF NAMES, so a command added to
     //  the Engine family is covered here, and reachable in every mode, with
     //  no change to any parser: each parser hands its marker-stripped line to
+    //  the same AppleWin command table.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +77,7 @@ namespace DebuggerTests
 
 
 
-        //  The commands FR-014 names, as far as they exist yet; PANEL,
+        //  The engine commands, as far as they exist yet; PANEL,
         //  HISTORY and CALLS join the family when they are built.
         TEST_METHOD (TheEngineFamily_HoldsTheEngineCommands)
         {
