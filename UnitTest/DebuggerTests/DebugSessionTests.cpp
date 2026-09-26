@@ -606,6 +606,22 @@ namespace DebuggerTests
 
 
 
+        //  A name the window's picker handed over through WideToNarrow comes
+        //  back as the same wide name, accented letters included.
+        TEST_METHOD (ResolvePath_NonAsciiNameRoundTrips)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            std::wstring     name = L"C:\\Caf\u00E9\\r\u00E9sum\u00E9.bin";
+
+
+
+            Assert::AreEqual (name, session.ResolvePath (TextEncoding::WideToNarrow (name)));
+        }
+
+
+
         //  A Monitor G whose run never starts leaves nothing of the Monitor's
         //  return behind: the stack, SP and PC are as they were, and a later
         //  run through $FF69 does not stop there.
@@ -632,6 +648,7 @@ namespace DebuggerTests
             Assert::AreEqual ((int) 0x34,   (int) target.memory[0x01FE]);
             Assert::IsFalse  (target.hookInstalled, L"no Monitor return left armed");
         }
+
 
 
         TEST_METHOD (SearchResults_ResolveAsAtN)
