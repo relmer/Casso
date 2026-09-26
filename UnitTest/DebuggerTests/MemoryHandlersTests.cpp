@@ -65,6 +65,37 @@ namespace DebuggerTests
 
 
 
+        //  A row that would cross from RAM into I/O, or from slot ROM into the
+        //  language card, ends at the boundary, so every row's region is true of
+        //  all its bytes.
+        TEST_METHOD (D_RowEndsWhereTheRegionChanges)
+        {
+            MachineHandlerRig<MemoryHandlers>  rig;
+            Reply                              reply;
+            MemoryData                         data;
+
+
+
+            reply = rig.Run ("D BFFC:C003");
+            data  = std::get<MemoryData> (reply.data);
+
+            Assert::AreEqual ((size_t) 2, data.rows.size());
+            Assert::AreEqual ((Word) 0xBFFC, data.rows[0].address);
+            Assert::AreEqual ((size_t) 4, data.rows[0].bytes.size());
+            Assert::AreEqual ((int) MemoryRegion::MainRam, (int) data.rows[0].region);
+            Assert::AreEqual ((Word) 0xC000, data.rows[1].address);
+            Assert::AreEqual ((int) MemoryRegion::Io, (int) data.rows[1].region);
+
+            reply = rig.Run ("D CFFC:D003");
+            data  = std::get<MemoryData> (reply.data);
+
+            Assert::AreEqual ((size_t) 2, data.rows.size());
+            Assert::AreEqual ((Word) 0xD000, data.rows[1].address);
+            Assert::AreNotEqual ((int) data.rows[0].region, (int) data.rows[1].region);
+        }
+
+
+
         TEST_METHOD (Enter_BytesWordsAndShorthand_RomRejected)
         {
             Rig    rig;

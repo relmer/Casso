@@ -1386,6 +1386,48 @@ namespace DebuggerViewStateTests
 
 
 
+        //  The panes read the machine while the line assembler waits for the next
+        //  line, and the reads neither assemble nor come back empty.
+        TEST_METHOD (ThePanesStayFilledWhileAssembling)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            Assert::IsTrue (rig.Run ("A 300").status == CommandStatus::Ok);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the assembly is still open");
+            Assert::AreEqual ((size_t) 6, snapshot.registers.size());
+            Assert::IsFalse  (snapshot.memory.empty());
+            Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300), L"nothing was assembled");
+
+            Assert::IsTrue   (rig.Run ("NOP").status == CommandStatus::Ok);
+            Assert::AreEqual ((Byte) 0xEA, rig.machine.GetMemoryBus().ReadByte (0x0300), L"the next line typed goes to $0300");
+        }
+
+
+
+        //  A WinDbg command stopped by the running machine says so under the
+        //  name typed, not the AppleWin command it became.
+        TEST_METHOD (AWinDbgWriteWhileRunningShowsTheWinDbgCommand)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            Assert::IsTrue (rig.Run ("G").status == CommandStatus::Ok);
+
+            reply = rig.Run ("eb 300 00", CommandMode::WinDbg);
+
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+            Assert::IsTrue   (reply.error.detail.starts_with ("eb "), std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+        }
+
+
+
         TEST_METHOD (EditingAByteWritesIt)
         {
             MachineRig  rig;

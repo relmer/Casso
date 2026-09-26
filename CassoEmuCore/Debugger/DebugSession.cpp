@@ -340,17 +340,37 @@ Reply DebugSession::ExecuteLine (const std::string & line)
 
 Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 {
-    Reply        reply;
-    std::string  text = Trim (line);
+    Reply  reply;
 
 
 
     if (m_assemblyAddress.has_value())
     {
-        ExecuteAssemblyLine (text, reply);
+        ExecuteAssemblyLine (Trim (line), reply);
         reply.command = line;
         return reply;
     }
+
+    return ExecutePaneLine (line, mode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecutePaneLine
+//
+//  One line as a command, whether or not an assembly is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
+{
+    Reply        reply;
+    std::string  text = Trim (line);
+
 
 
     switch (mode)

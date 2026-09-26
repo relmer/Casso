@@ -198,6 +198,13 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
     result.status  = parsed.status;
     result.command = parsed.command;
     result.error   = parsed.error;
+
+    //  A reply or error refers to the command as typed, not as rewritten.
+    if (result.status == ParseStatus::Ok)
+    {
+        result.command.sourceName = name;
+    }
+
     return result;
 }
 
