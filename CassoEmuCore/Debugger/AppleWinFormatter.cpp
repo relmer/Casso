@@ -812,7 +812,8 @@ std::string AppleWinFormatter::FormatCallFrame (const CallStackFrame & frame)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinFormatter::FormatProfile//
+//  AppleWinFormatter::FormatProfile
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)
