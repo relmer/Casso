@@ -63,9 +63,9 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("disk"),        open.command.text);
             Assert::AreEqual ((int) DebugVerb::ClosePanel, (int) close.command.verb);
             Assert::AreEqual (std::string ("MMU"),         close.command.text);
-            ParseFails ("PANEL CLOSE",          ParseStatus::Invalid);
-            ParseFails ("PANEL disk mmu",       ParseStatus::Invalid);
-            ParseFails ("PANEL CLOSE disk mmu", ParseStatus::Invalid);
+            Assert::AreEqual (std::string ("Disk II"),     ParseOk ("PANEL Disk II").command.text, L"a title may hold a space");
+            Assert::AreEqual (std::string ("Disk II"),     ParseOk ("PANEL CLOSE Disk II").command.text);
+            ParseFails ("PANEL CLOSE", ParseStatus::Invalid);
         }
 
 

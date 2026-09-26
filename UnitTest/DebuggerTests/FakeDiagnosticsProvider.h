@@ -20,7 +20,7 @@ class FakeDiagnosticsProvider : public IDiagnosticsProvider
 {
 public:
     std::string        id      = "fake";
-    std::string        title   = "Fake";
+    std::string        title   = "Disk widget";
     Byte               value   = 0x80;
     DiagnosticsVisual  visual;
     mutable int        calls   = 0;
