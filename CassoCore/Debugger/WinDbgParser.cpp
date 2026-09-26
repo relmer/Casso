@@ -359,7 +359,7 @@ bool WinDbgParser::TryRewrite (
     else if (name == "bc")       { line = "BPC " + rest; }
     else if (name == "bd")       { line = "BPD " + rest; }
     else if (name == "be")       { line = "BPE " + rest; }
-    else if (name == "eb")       { line = "MEB " + rest; }
+    else if (name == "eb")       { return TryRewriteBytes (args, rest, context, rewrite); }
     else if (name == "ew")       { line = "MEW " + rest; }
     else if (name == "x")        { line = "SYM " + rest; }
     else if (name == "?")        { line = "CALC " + rest; }
@@ -415,6 +415,48 @@ bool WinDbgParser::TryRewrite (
         return false;
     }
 
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteBytes
+//
+//  `eb addr values`: MEB, whose values above $FF become two bytes, so each
+//  value is checked here to be a byte, as WinDbg's eb takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteBytes (
+    const Tokens                   & args,
+    const std::string              & rest,
+    const IDebugExpressionContext  & context,
+    Rewrite                        & rewrite)
+{
+    static constexpr uint32_t  kMaxByte = 0xFF;
+    uint32_t                   value    = 0;
+
+
+
+    for (size_t i = 1; i < args.size(); i++)
+    {
+        if (!TryEvaluate (args[i], context, value, rewrite.error))
+        {
+            return false;
+        }
+
+        if (value > kMaxByte)
+        {
+            rewrite.error = std::format ("{} is not a byte. eb takes bytes, 00-FF.", args[i]);
+            return false;
+        }
+    }
+
+    rewrite.appleWinLine = "MEB " + rest;
     return true;
 }
 
@@ -594,6 +636,8 @@ bool WinDbgParser::TryRewriteRegister (const std::string & rest, Rewrite & rewri
     std::string  joined = rest;
     size_t       split  = 0;
     std::string  name;
+    std::string  value;
+    bool         isShow = false;
 
 
 
@@ -606,14 +650,19 @@ bool WinDbgParser::TryRewriteRegister (const std::string & rest, Rewrite & rewri
     std::replace (joined.begin(), joined.end(), '=', ' ');
     split = joined.find_first_of (" \t");
     name  = ToLower (joined.substr (0, split));
+    value = (split == std::string::npos) ? std::string() : joined.substr (split);
 
     for (const auto & [windbg, applewin] : kNames)
     {
-        if (name == windbg)
+        if (name != windbg)
         {
-            rewrite.appleWinLine = std::format ("R {} {}", applewin, split == std::string::npos ? std::string() : joined.substr (split));
-            return true;
+            continue;
         }
+
+        //  A name alone shows the registers, that one among them.
+        isShow               = value.find_first_not_of (" \t") == std::string::npos;
+        rewrite.appleWinLine = isShow ? std::string ("R") : std::format ("R {} {}", applewin, value);
+        return true;
     }
 
     rewrite.error = std::format ("{} is not a register. The registers are a, x, y, sp, pc and fl.", name);

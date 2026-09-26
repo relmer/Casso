@@ -62,7 +62,7 @@ public:
     //  One, two, four bytes a value, and round again. Returns the new grouping.
     int   CycleGrouping ();
 
-    bool  Undo    () { return m_model.Undo(); }
+    bool  Undo    () { return m_view->IsEditable() && m_model.Undo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
     //  Where a read should start to hold the rows on screen, or nothing when
