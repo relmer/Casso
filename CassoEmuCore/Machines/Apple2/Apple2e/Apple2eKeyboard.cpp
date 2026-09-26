@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
 
@@ -75,27 +76,9 @@ Byte Apple2eKeyboard::Read (Word address)
         // No data behind the address — the read still returns 0.
         m_mouse->AccessRstXY();
     }
-    else if (address == 0xC061)
+    else if (address >= kFirstButtonAddress && address < kFirstButtonAddress + kButtonCount)
     {
-        // Open Apple (bit 7), or the key held through a reset.
-        value = (m_openApple.load (memory_order_acquire) ||
-                 m_holdOpenApple.load (memory_order_acquire)) ? 0x80 : 0x00;
-        EmitButtonRead (address, value);
-    }
-    else if (address == 0xC062)
-    {
-        // Closed Apple (bit 7), or the key held through a reset.
-        value = (m_closedApple.load (memory_order_acquire) ||
-                 m_holdClosedApple.load (memory_order_acquire)) ? 0x80 : 0x00;
-        EmitButtonRead (address, value);
-    }
-    else if (address == 0xC063)
-    {
-        // Mouse button on the //c (ACTIVE LOW; the //c wires the button where
-        // the //e had its shift-key mod); Shift (bit 7) on the //e.
-        value = (m_mouse != nullptr)
-                    ? m_mouse->ReadButton()
-                    : (m_shift.load (memory_order_acquire) ? 0x80 : 0x00);
+        value = ReadButton (address);
         EmitButtonRead (address, value);
     }
     else if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
@@ -114,6 +97,61 @@ Byte Apple2eKeyboard::Read (Word address)
         // base AppleKeyboard. Other unowned addresses ($C020-$C02F,
         // $C040-$C04F, $C060) keep the 0 — no device behind them on a //e.
         value = AppleKeyboard::Read (address);
+    }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadButton
+//
+//  $C061-$C063. An attached Joyport answers first, so Open Apple, Closed
+//  Apple and Shift change nothing while it is active; when it declines
+//  (detached, or in its window after a reset) the lines are the keys:
+//
+//    $C061  Open Apple (bit 7), or the key held through a reset
+//    $C062  Closed Apple (bit 7), or the key held through a reset
+//    $C063  Shift (bit 7) on the //e; the mouse button on the //c (ACTIVE
+//           LOW; the //c wires the button where the //e had its shift-key
+//           mod)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eKeyboard::ReadButton (Word address) const
+{
+    int   index    = static_cast<int> (address - kFirstButtonAddress);
+    Byte  value    = 0;
+    bool  isDown   = false;
+    Byte  joyValue = 0;
+
+
+
+    if (m_joyport != nullptr && m_joyport->TryReadButton (index, joyValue))
+    {
+        value = joyValue;
+    }
+    else if (address == 0xC061)
+    {
+        isDown = m_openApple.load (memory_order_acquire) || m_holdOpenApple.load (memory_order_acquire);
+        value  = isDown ? 0x80 : 0x00;
+    }
+    else if (address == 0xC062)
+    {
+        isDown = m_closedApple.load (memory_order_acquire) || m_holdClosedApple.load (memory_order_acquire);
+        value  = isDown ? 0x80 : 0x00;
+    }
+    else if (m_mouse != nullptr)
+    {
+        value = m_mouse->ReadButton();
+    }
+    else
+    {
+        value = m_shift.load (memory_order_acquire) ? 0x80 : 0x00;
     }
 
     return value;

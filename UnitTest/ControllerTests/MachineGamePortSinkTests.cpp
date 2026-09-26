@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -256,6 +257,54 @@ namespace ControllerTests
 
             Assert::IsFalse  (applied, L"a write during a rebuild must be refused so the mixer keeps it pending");
             Assert::AreEqual (0, lookups, L"no device may be touched while the rebuild holds the machine");
+        }
+
+
+        TEST_METHOD (Joyport_JacksReachTheJoyportOnlyWhenChanged)
+        {
+            std::shared_mutex    lifetime;
+            SiriusJoyport        joyport;
+            GamePortTargets      targets;
+            GamePortState        first;
+            GamePortState        second;
+            Byte                 value = 0;
+
+            targets.joyport = &joyport;
+            joyport.SetAttached (true);
+
+            MachineGamePortSink  sink (lifetime, [&targets] { return targets; });
+
+            first.jacks.jack[JoyportJacks::kLeftJack].set (static_cast<size_t> (JoystickSwitch::Fire));
+            sink.TryApply (first, nullptr);
+
+            Assert::IsTrue   (joyport.TryReadButton (0, value));
+            Assert::AreEqual<Byte> (0x00, value, L"the left jack's fire reached the Joyport");
+
+            //  Only the right jack changes; the left jack is not rewritten, so
+            //  a value planted behind the sink's back survives.
+            joyport.SetJackSwitches (JoyportJacks::kLeftJack, JoystickSwitches());
+            second = first;
+            second.jacks.jack[JoyportJacks::kRightJack].set (static_cast<size_t> (JoystickSwitch::Fire));
+            sink.TryApply (second, &first);
+
+            Assert::IsTrue   (joyport.TryReadButton (0, value));
+            Assert::AreEqual<Byte> (0x80, value, L"an unchanged jack is not written again");
+        }
+
+
+        TEST_METHOD (Joyport_NoneOnTheMachineIsNotAFailure)
+        {
+            std::shared_mutex    lifetime;
+            GamePortTargets      targets;
+            GamePortState        state;
+            bool                 applied = false;
+
+            MachineGamePortSink  sink (lifetime, [&targets] { return targets; });
+
+            state.jacks.jack[JoyportJacks::kRightJack].set (static_cast<size_t> (JoystickSwitch::Up));
+            applied = sink.TryApply (state, nullptr);
+
+            Assert::IsTrue (applied, L"a //c has no Joyport, and the write still succeeds");
         }
     };
 }

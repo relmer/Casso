@@ -271,5 +271,95 @@ public:
                 L"External-drive node must not appear on unsupported machines.");
         }
     }
+
+
+    static const DxuiTreeNode * FindGamePortGroup (const std::vector<DxuiTreeNode> & nodes)
+    {
+        for (const DxuiTreeNode & n : nodes)
+        {
+            if (n.label == L"Game port")
+            {
+                return &n;
+            }
+        }
+
+        return nullptr;
+    }
+
+
+    static bool IsRowChecked (const DxuiTreeNode & group, const std::wstring & label)
+    {
+        for (const DxuiTreeNode & row : group.children)
+        {
+            if (row.label == label)
+            {
+                return row.checked;
+            }
+        }
+
+        Assert::Fail ((L"no row " + label).c_str());
+        return false;
+    }
+
+
+    TEST_METHOD (BuildNodes_TheGamePortGroupHasExactlyOneChoiceChecked)
+    {
+        std::vector<HardwareEntry>  entries;
+        std::vector<DxuiTreeNode>   none    = HardwarePage::BuildNodes (entries, false, false, true, true, false, true, GamePortAdapter::None);
+        std::vector<DxuiTreeNode>   joyport = HardwarePage::BuildNodes (entries, false, false, true, true, false, true, GamePortAdapter::SiriusJoyport);
+
+        Assert::IsNotNull (FindGamePortGroup (none), L"a machine with annunciators offers the game port");
+        Assert::AreEqual (static_cast<size_t> (2), FindGamePortGroup (none)->children.size(), L"None and Sirius Joyport");
+
+        Assert::IsTrue  (IsRowChecked (*FindGamePortGroup (none), L"None"));
+        Assert::IsFalse (IsRowChecked (*FindGamePortGroup (none), L"Sirius Joyport"));
+        Assert::IsFalse (IsRowChecked (*FindGamePortGroup (joyport), L"None"));
+        Assert::IsTrue  (IsRowChecked (*FindGamePortGroup (joyport), L"Sirius Joyport"));
+    }
+
+
+    TEST_METHOD (BuildNodes_TheIIcHasNoGamePortGroup)
+    {
+        std::vector<HardwareEntry>  entries;
+        std::vector<DxuiTreeNode>   nodes = HardwarePage::BuildNodes (entries, true, false, true, false, false, false);
+
+        Assert::IsNull (FindGamePortGroup (nodes), L"the //c joystick port has no annunciators");
+    }
+
+
+    TEST_METHOD (GamePortRows_ActAsARadioPair)
+    {
+        //  Checking a row chooses it; unchecking the Joyport chooses None;
+        //  unchecking None would leave nothing, so it changes nothing.
+        Assert::IsTrue (HardwarePage::ResolveGamePortToggle (L"Sirius Joyport", true,  GamePortAdapter::None)          == GamePortAdapter::SiriusJoyport);
+        Assert::IsTrue (HardwarePage::ResolveGamePortToggle (L"Sirius Joyport", false, GamePortAdapter::SiriusJoyport) == GamePortAdapter::None);
+        Assert::IsTrue (HardwarePage::ResolveGamePortToggle (L"None",           true,  GamePortAdapter::SiriusJoyport) == GamePortAdapter::None);
+        Assert::IsTrue (HardwarePage::ResolveGamePortToggle (L"None",           false, GamePortAdapter::None)          == GamePortAdapter::None);
+    }
+
+
+    TEST_METHOD (GamePortRows_ReCheckingInPlaceLeavesOneChecked)
+    {
+        std::vector<HardwareEntry>  entries;
+        std::vector<DxuiTreeNode>   nodes = HardwarePage::BuildNodes (entries, false, false, true, false, false, true, GamePortAdapter::None);
+
+        //  What the tree has done by the time the handler runs: the clicked
+        //  row flipped, so both rows read checked.
+        for (DxuiTreeNode & n : nodes)
+        {
+            for (DxuiTreeNode & row : n.children)
+            {
+                if (row.label == L"Sirius Joyport")
+                {
+                    row.checked = true;
+                }
+            }
+        }
+
+        HardwarePage::SetGamePortChecks (nodes, GamePortAdapter::SiriusJoyport);
+
+        Assert::IsFalse (IsRowChecked (*FindGamePortGroup (nodes), L"None"), L"None is unchecked again");
+        Assert::IsTrue  (IsRowChecked (*FindGamePortGroup (nodes), L"Sirius Joyport"));
+    }
 };
 

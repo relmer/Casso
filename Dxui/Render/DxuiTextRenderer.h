@@ -134,6 +134,7 @@ public:
     HRESULT  FillVectorIcon   (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override;
     HRESULT  DrawEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, float thicknessDip, uint32_t argbColor) override;
     HRESULT  DrawLine         (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
+    HRESULT  FillPolygon      (const DxuiPointF * points, size_t count, uint32_t argbColor) override;
 
     HRESULT  FillRect         (float    xDip,
                                float    yDip,

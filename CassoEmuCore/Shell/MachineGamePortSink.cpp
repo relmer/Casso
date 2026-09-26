@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 
 
 
@@ -55,6 +56,7 @@ bool MachineGamePortSink::TryApply (const GamePortState & target, const GamePort
 
         WritePaddles (targets, target, lastApplied);
         WriteButtons (targets, target, lastApplied);
+        WriteJacks   (targets, target, lastApplied);
     }
 
     return isAvailable;
@@ -163,4 +165,43 @@ void MachineGamePortSink::WriteButtons (
             targets.iieKeyboard->SetShift (isPressed);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteJacks
+//
+//  Written whether or not the Joyport is attached, so attaching it mid-game
+//  reads the switches as they are now rather than as they were when it was
+//  last attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineGamePortSink::WriteJacks (
+    const GamePortTargets  & targets,
+    const GamePortState    & target,
+    const GamePortState    * lastApplied)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (targets.joyport == nullptr, S_OK);
+
+    for (size_t jack = 0; jack < JoyportJacks::kJackCount; jack++)
+    {
+        bool  isChanged = lastApplied == nullptr || lastApplied->jacks.jack[jack] != target.jacks.jack[jack];
+
+        if (isChanged)
+        {
+            targets.joyport->SetJackSwitches (jack, target.jacks.jack[jack]);
+        }
+    }
+
+Error:
+    return;
 }

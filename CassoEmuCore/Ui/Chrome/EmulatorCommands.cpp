@@ -19,9 +19,9 @@
 // documented 3+ line exception rather than moving onto the class.
 static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
 {
-    { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &Printer Preview",  nullptr          },
-    { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy Printout to Clipboard",    nullptr   },
-    { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard Printout (Tear Off)",   nullptr   },
+    { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &printer preview",  nullptr          },
+    { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy printout to clipboard",    nullptr   },
+    { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard printout (tear off)",   nullptr   },
     { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
     { IDM_FILE_EXIT,                MainMenuId::File,    L"E&xit",                  nullptr          },
     { IDM_EDIT_COPY_TEXT,           MainMenuId::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
@@ -29,8 +29,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
     { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
     { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
-    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
-    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
+    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map arrows to &joystick", L"Ctrl+Shift+J",  true   },
+    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map mouse to &paddle",   nullptr,          true   },
     { 0,                            MainMenuId::Machine, nullptr,                   nullptr          },
     { IDM_VIEW_CONTROLLER_SETTINGS, MainMenuId::Machine, L"&Controller settings...", nullptr         },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
@@ -56,7 +56,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
     { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
     { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
-    { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input Debug...",         L"Ctrl+Shift+I"  },
+    { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input debug...",         L"Ctrl+Shift+I"  },
 };
 
 // The toolbar's entries, in strip order. The order is also the COLLAPSE
@@ -104,7 +104,6 @@ static constexpr ToolbarRow  s_kToolbarRows[] =
     { IDM_PRINTER_PREVIEW,         DxuiToolbar::Kind::Command,  0, s_kGlyphPrint,      L"Printer",     nullptr          },
     { EmulatorCommands::kIdVolume, DxuiToolbar::Kind::Flyout,   1, s_kGlyphVolume,     L"Volume",      L"Mute"          },
     { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Controller",  L"Joystick and paddle source" },
-    { EmulatorCommands::kIdProfile, DxuiToolbar::Kind::DropDown, 2, nullptr,           L"Default",     L"Controller profile" },
     { EmulatorCommands::kIdMouse,  DxuiToolbar::Kind::Toggle,   2, s_kGlyphMouse,      L"Mouse",       L"Mouse" },
     { IDM_VIEW_FULLSCREEN,         DxuiToolbar::Kind::Command,  3, s_kGlyphFullscreen, L"Full screen", nullptr          },
     { IDM_EDIT_COPY_SCREENSHOT,    DxuiToolbar::Kind::Command,  3, s_kGlyphScreenshot, L"Screenshot",  nullptr          },
@@ -225,19 +224,18 @@ EmulatorCommands::EmulatorCommands()
         }
     }
 
-    // The profile picker wears the active profile's name the same way, and
-    // is disabled rather than removed while no controller is selected.
+    // The paddle picker's Profiles submenu, and its New... row.
+    m_profilesRow           = std::make_shared<DxuiCommand>();
+    m_profilesRow->label    = L"Profiles";
+    m_newProfileRow         = std::make_shared<DxuiCommand>();
+    m_newProfileRow->label  = L"New...";
+    m_newProfileRow->dispatch = [this] ()
     {
-        std::shared_ptr<DxuiCommand>  profile = FindMutable (kIdProfile);
-
-        if (profile != nullptr)
+        if (m_onNewProfile)
         {
-            profile->shortLabel.clear();
-            profile->labelText = [this] () { return GetActiveProfileLabel(); };
-            profile->isEnabled = [this] () { return m_isProfileOffered; };
-            profile->tip       = profile->label;
+            m_onNewProfile();
         }
-    }
+    };
 
     for (size_t i = 0; i < std::size (s_kMonitorColorRows); i++)
     {
@@ -733,119 +731,92 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorCommands::SetProfiles
+//  EmulatorCommands::SetProfileSections
 //
-//  Default always leads, whether or not the list handed in carries it or
-//  where: the service plays Default for any name its model lacks, so it is
-//  always a real choice.
+//  Default always leads a section, whether or not its list carries it or
+//  where: the service plays Default for any name a model lacks, so it is
+//  always a real choice. Sections are kept apart by a separator, and New...
+//  closes the list below one more.
+//
+//  A menu on screen shares ownership of its rows, so dropping ours frees only
+//  the rows nothing else still holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorCommands::SetProfiles (const std::vector<std::string> & names,
-                                    const std::string              & activeProfile,
-                                    bool                             isOffered)
+void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
 {
     const char *  pszDefault = ControllerProfile::kpszDefaultName;
 
 
 
-    m_isProfileOffered = isOffered;
-    m_activeProfile    = activeProfile;
+    m_profileSections = std::move (sections);
+    m_profileItems.clear();
 
-    m_profileNames.clear();
-    m_profileNames.push_back (pszDefault);
-
-    if (isOffered)
+    for (const ProfileSection & section : m_profileSections)
     {
-        for (const std::string & name : names)
+        std::vector<std::string>  names;
+        bool                      isActiveListed = false;
+
+        if (!m_profileItems.empty())
+        {
+            m_profileItems.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        if (!section.header.empty())
+        {
+            m_profileItems.push_back (DxuiPopupMenuItem::ForHeader (section.header));
+        }
+
+        names.push_back (pszDefault);
+
+        for (const std::string & name : section.names)
         {
             if (_stricmp (name.c_str(), pszDefault) != 0)
             {
-                m_profileNames.push_back (name);
+                names.push_back (name);
             }
+        }
+
+        // An empty active name is Default, and so is a name the model does
+        // not have, which is what the service plays in that case.
+        for (const std::string & name : names)
+        {
+            isActiveListed = isActiveListed || _stricmp (name.c_str(), section.active.c_str()) == 0;
+        }
+
+        for (size_t i = 0; i < names.size(); i++)
+        {
+            std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
+            std::string                   name      = names[i];
+            ControllerUnitKey             unit      = section.unit;
+            bool                          isDefault = (i == 0);
+            bool                          isChecked = isActiveListed ? _stricmp (name.c_str(), section.active.c_str()) == 0
+                                                                     : isDefault;
+
+            cmd->id        = (int) i;
+            cmd->label     = TextEncoding::NarrowToWide (name);
+            cmd->isChecked = [isChecked] () { return isChecked; };
+
+            // The row carries its controller and name by value rather than an
+            // index, so a row from a list rebuilt since still picks the
+            // profile it shows, for the controller it was shown for.
+            cmd->dispatch  = [this, unit, name, isDefault] ()
+            {
+                if (m_onProfilePicked)
+                {
+                    m_onProfilePicked (unit, isDefault ? std::string() : name);
+                }
+            };
+
+            m_profileItems.push_back (DxuiPopupMenuItem::ForCommand (cmd));
         }
     }
 
-    // A menu on screen shares ownership of its rows, so dropping ours frees
-    // only the rows nothing else still holds.
-    m_profileRows.clear();
-
-    if (!isOffered)
+    if (!m_profileItems.empty())
     {
-        return;
+        m_profileItems.push_back (DxuiPopupMenuItem::ForSeparator());
+        m_profileItems.push_back (DxuiPopupMenuItem::ForCommand (m_newProfileRow));
     }
-
-    for (size_t i = 0; i < m_profileNames.size(); i++)
-    {
-        std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
-        std::string                   name      = m_profileNames[i];
-        bool                          isDefault = (i == 0);
-        bool                          isChecked = false;
-
-        // An empty active name is Default, and so is a name the model does not
-        // have, which is what the service plays in that case.
-        isChecked = (_stricmp (name.c_str(), GetActiveProfileName().c_str()) == 0);
-
-        cmd->id        = (int) i;
-        cmd->label     = TextEncoding::NarrowToWide (name);
-        cmd->isChecked = [isChecked] () { return isChecked; };
-
-        // The row carries its own name by value rather than an index, so a
-        // row from a list rebuilt since still picks the profile it shows.
-        cmd->dispatch  = [this, name, isDefault] ()
-        {
-            if (m_onProfilePicked)
-            {
-                m_onProfilePicked (isDefault ? std::string() : name);
-            }
-        };
-
-        m_profileRows.push_back (std::move (cmd));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorCommands::GetActiveProfileName
-//
-//  The listed name the active profile resolves to, in the list's own case:
-//  Default when the active name is empty or the model has no such profile.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string EmulatorCommands::GetActiveProfileName() const
-{
-    if (m_isProfileOffered && !m_activeProfile.empty())
-    {
-        for (const std::string & name : m_profileNames)
-        {
-            if (_stricmp (name.c_str(), m_activeProfile.c_str()) == 0)
-            {
-                return name;
-            }
-        }
-    }
-
-    return ControllerProfile::kpszDefaultName;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorCommands::GetActiveProfileLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring EmulatorCommands::GetActiveProfileLabel() const
-{
-    return TextEncoding::NarrowToWide (GetActiveProfileName());
 }
 
 
@@ -860,16 +831,7 @@ std::wstring EmulatorCommands::GetActiveProfileLabel() const
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetProfileItems() const
 {
-    std::vector<DxuiPopupMenuItem>  items;
-
-
-
-    for (const std::shared_ptr<DxuiCommand> & cmd : m_profileRows)
-    {
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
-    }
-
-    return items;
+    return m_profileItems;
 }
 
 
@@ -898,6 +860,32 @@ void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
     mouse->isChecked = std::move (isOn);
     mouse->isEnabled = std::move (isOffered);
     mouse->dispatch  = std::move (toggle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::SetJoyportFns
+//
+//  The row's check is asked each time the menu draws, so it shows whether
+//  the Joyport is attached however it came to be -- from this row or from
+//  the Machine tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetJoyportFns (std::function<bool()> isOn,
+                                      std::function<bool()> isOffered,
+                                      std::function<void()> toggle)
+{
+    m_joyportRow = std::make_shared<DxuiCommand>();
+
+    m_joyportRow->label     = L"Sirius Joyport";
+    m_joyportRow->isChecked = std::move (isOn);
+    m_joyportRow->dispatch  = std::move (toggle);
+    m_isJoyportOffered      = std::move (isOffered);
 }
 
 
@@ -994,14 +982,20 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 //  are the one thing that drives the game port; it is the mode where two
 //  things do, so grouping it with them would read as a third source.
 //
+//  The Sirius Joyport row has a group of its own below them, on a machine that
+//  can take one. It is not something that drives the game port but a device
+//  on it, attached whichever source drives, so beside the sources it would
+//  read as one more of them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
 {
     std::vector<DxuiPopupMenuItem>      items;
-    std::vector<DxuiPopupMenuItem>      rows     = GetPaddleSourceItems();
-    std::shared_ptr<const DxuiCommand>  settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
-    size_t                              i        = 0;
+    std::vector<DxuiPopupMenuItem>      rows      = GetPaddleSourceItems();
+    std::shared_ptr<const DxuiCommand>  settings  = Find (IDM_VIEW_CONTROLLER_SETTINGS);
+    size_t                              i         = 0;
+    bool                                isJoyport = m_joyportRow != nullptr && m_isJoyportOffered && m_isJoyportOffered();
 
 
 
@@ -1015,9 +1009,26 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
         items.push_back (rows[i]);
     }
 
-    if (settings != nullptr)
+    if (isJoyport)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_joyportRow));
+    }
+
+    // The profiles of the controllers in play, one submenu away from the
+    // controllers themselves, above the settings that edit them.
+    if (!m_profileItems.empty() || settings != nullptr)
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    if (!m_profileItems.empty())
+    {
+        items.push_back (DxuiPopupMenuItem::ForSubmenu (m_profilesRow, m_profileItems));
+    }
+
+    if (settings != nullptr)
+    {
         items.push_back (DxuiPopupMenuItem::ForCommand (settings));
     }
 
@@ -1101,5 +1112,4 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
     toolbar.SetDropDownItems (kIdTheme, GetThemeItems());
     toolbar.SetDropDownItems (kIdColor, GetMonitorItems());
     toolbar.SetDropDownItems (kIdPaddle, GetPaddlePickerItems());
-    toolbar.SetDropDownItems (kIdProfile, GetProfileItems());
 }

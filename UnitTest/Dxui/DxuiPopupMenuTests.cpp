@@ -430,6 +430,37 @@ public:
     }
 
 
+    //  A header titles the rows under it. It takes a row's height, but the
+    //  keyboard steps over it and a click on it picks nothing.
+    TEST_METHOD (Header_IsTitleNotChoice)
+    {
+        Fixture                         f;
+        DxuiPopupMenu                   menu;
+        MockDxuiTextRenderer            text;
+        std::vector<DxuiPopupMenuItem>  rows;
+        RECT                            r      = {};
+
+
+        rows.push_back (DxuiPopupMenuItem::ForHeader (L"Player 1"));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (f.alpha));
+        rows.push_back (DxuiPopupMenuItem::ForHeader (L"Player 2"));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (f.gamma));
+
+        menu.ShowAt (0, 0, std::move (rows), text, MakeHost (800, 600));
+        r = menu.GetRect();
+
+        Assert::AreEqual ((LONG) (4 * RowPx (menu)), r.bottom - r.top, L"a header is a full row tall");
+        Assert::AreEqual (-1, menu.HitTestRow (r.left + 5, r.top + 5), L"a click on a header picks nothing");
+
+        Assert::IsTrue   (menu.OnKey (VK_DOWN));
+        Assert::AreEqual (1, menu.GetHighlight(), L"the first choice, not the header above it");
+        Assert::IsTrue   (menu.OnKey (VK_DOWN));
+        Assert::AreEqual (3, menu.GetHighlight(), L"the second header is stepped over");
+        Assert::IsTrue   (menu.OnKey (VK_DOWN));
+        Assert::AreEqual (1, menu.GetHighlight(), L"and wraps past the first");
+    }
+
+
     TEST_METHOD (Right_OpensSubmenu_WithFirstEnabledRowHighlighted)
     {
         Fixture               f;

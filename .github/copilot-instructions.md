@@ -137,6 +137,15 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   (which can be stuck with a name like `ERROR_CANCELLED`) it can always be
   phrased around them. If the gate rejects your push, rephrase; do not reach
   for `--no-verify`, which switches off every rule rather than one.
+- **Sentence case for every label, ALWAYS.** Buttons, menu items, tabs, tips,
+  dialog and window titles and column headings capitalize the first word and
+  proper nouns only: "Create new disk", "Map arrows to joystick", "Casso
+  printer", NEVER "Create New Disk". Proper nouns keep their capitals (Casso,
+  Cassque, Apple II, ImageWriter, Disk II, Mockingboard, Windows, Visual
+  Studio), as do key names (Open Apple, Caps Lock, Esc), a numbered drive
+  ("Drive 1") and Apple's product names ("Language Card"). A feature copied
+  from Visual Studio takes its layout, not its title case. Names Casso writes
+  to disk -- folders, default file names -- keep the case they shipped with.
 
 ### Function Names
 

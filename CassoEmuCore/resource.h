@@ -85,6 +85,11 @@
 #define IDM_MOUSE_CONNECT             40058
 #define IDM_MOUSE_DISCONNECT          40059
 
+// The device on the game socket, posted by the Settings apply sink on OK: the
+// Sirius Joyport attached or detached with no reset. Not menu items.
+#define IDM_GAMEPORT_ADAPTER_NONE     40076
+#define IDM_GAMEPORT_ADAPTER_JOYPORT  40077
+
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).
 #define IDM_PRINTER_DISCARD         40061

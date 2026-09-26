@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
 
@@ -81,18 +82,26 @@ void AppleGamePort::Write (Word address, Byte value)
 //  ReadButton
 //
 //  Pushbutton status read: bit 7 is the pressed state; the low seven bits
-//  are the floating bus (modeled as zero here).
+//  are the floating bus (modeled as zero here). An attached Joyport answers
+//  first; when it declines, the staged button does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte AppleGamePort::ReadButton (Word address) const
 {
-    int   idx     = static_cast<int> (address - s_kwFirstButtonAddress);
-    bool  pressed = m_buttonState[idx].load (memory_order_acquire);
+    int   idx      = static_cast<int> (address - s_kwFirstButtonAddress);
+    bool  pressed  = m_buttonState[idx].load (memory_order_acquire);
+    Byte  value    = pressed ? 0x80 : 0x00;
+    Byte  joyValue = 0;
 
 
 
-    return pressed ? 0x80 : 0x00;
+    if (m_joyport != nullptr && m_joyport->TryReadButton (idx, joyValue))
+    {
+        value = joyValue;
+    }
+
+    return value;
 }
 
 
@@ -108,6 +117,9 @@ Byte AppleGamePort::ReadButton (Word address) const
 //  counts up to the position value. With no cycle source wired (tests) the
 //  timer reads as already expired so a poll loop can never hang.
 //
+//  With a Joyport attached there is no potentiometer on any input, so the
+//  one-shot never times out and PDL(n) reads 255.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte AppleGamePort::ReadPaddle (Word address) const
@@ -115,6 +127,7 @@ Byte AppleGamePort::ReadPaddle (Word address) const
     int       axis    = static_cast<int> (address - s_kwPaddle0Address);
     Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
     uint64_t  elapsed = UINT64_MAX;
+    Byte      value   = 0;
 
 
 
@@ -123,7 +136,14 @@ Byte AppleGamePort::ReadPaddle (Word address) const
         elapsed = *m_cpuCycleSource - m_paddleTriggerCycle;
     }
 
-    return (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? 0x80 : 0x00;
+    value = (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? s_knPaddleTiming : 0x00;
+
+    if (m_joyport != nullptr && m_joyport->IsDrivingPaddles())
+    {
+        value = s_knPaddleTiming;
+    }
+
+    return value;
 }
 
 

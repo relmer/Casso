@@ -488,5 +488,177 @@ namespace ControllerTests
             Assert::IsTrue  (evaluator.Evaluate (sample, mapping, kNoDeadzone).buttons.test (2), L"PB2 reads pressed");
             Assert::IsFalse (evaluator.Evaluate (sample, mapping, kNoDeadzone).buttons.test (0), L"and PB0 does not");
         }
+
+
+        //  A stick on PDL0/PDL1 and a button on PB0, the shape a joystick
+        //  profile has, for the Joyport switch tests below.
+        static ControlMapping MakeStickMapping (AxisResponse response = AxisResponse::Absolute)
+        {
+            ControlMapping  mapping;
+            AxisBinding     x;
+            AxisBinding     y;
+
+            x.analog   = { ControlKind::Axis, 0 };
+            x.response = response;
+            y.analog   = { ControlKind::Axis, 1 };
+            y.response = response;
+            mapping.pdl0.push_back (x);
+            mapping.pdl1.push_back (y);
+            mapping.pb0.push_back (ButtonBinding { { ControlKind::Button, 0 } });
+            return mapping;
+        }
+
+
+        static bool IsClosed (const GamePortContribution & result, JoystickSwitch sw)
+        {
+            return result.switches.test (static_cast<size_t> (sw));
+        }
+
+
+        TEST_METHOD (Switches_EachDirectionClosesOnlyPastTheThreshold)
+        {
+            struct Case { int axis; float sign; JoystickSwitch sw; const wchar_t * name; };
+
+            const Case  cases[] =
+            {
+                { 0, -1.0f, JoystickSwitch::Left,  L"left"  },
+                { 0,  1.0f, JoystickSwitch::Right, L"right" },
+                { 1, -1.0f, JoystickSwitch::Up,    L"up"    },
+                { 1,  1.0f, JoystickSwitch::Down,  L"down"  },
+            };
+
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeStickMapping();
+
+            for (const Case & c : cases)
+            {
+                ControllerSample  sample = MakeSample();
+
+                sample.axes[c.axis] = c.sign * (MappingEvaluator::kSwitchThreshold - 0.01f);
+                Assert::IsTrue (evaluator.Evaluate (sample, mapping, kNoDeadzone).switches.none(),
+                    std::format (L"{} short of the threshold closes nothing", c.name).c_str());
+
+                sample.axes[c.axis] = c.sign * (MappingEvaluator::kSwitchThreshold + 0.01f);
+                GamePortContribution  result = evaluator.Evaluate (sample, mapping, kNoDeadzone);
+
+                Assert::IsTrue (IsClosed (result, c.sw), std::format (L"{} past the threshold closes", c.name).c_str());
+                Assert::AreEqual (static_cast<size_t> (1), result.switches.count(),
+                    std::format (L"{} closes only itself", c.name).c_str());
+            }
+        }
+
+
+        TEST_METHOD (Switches_TheThresholdIsMeasuredAfterTheDeadzone)
+        {
+            constexpr float   kDeadzone = 0.5f;
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping   = MakeStickMapping();
+            ControllerSample  sample    = MakeSample();
+
+            //  0.7 raw is 0.4 of the travel beyond a 0.5 deadzone: short of it.
+            sample.axes[0] = 0.7f;
+            Assert::IsFalse (IsClosed (evaluator.Evaluate (sample, mapping, kDeadzone), JoystickSwitch::Right));
+
+            //  0.8 raw is 0.6 of the travel beyond it: past.
+            sample.axes[0] = 0.8f;
+            Assert::IsTrue (IsClosed (evaluator.Evaluate (sample, mapping, kDeadzone), JoystickSwitch::Right));
+        }
+
+
+        TEST_METHOD (Switches_ADiagonalClosesOneOfEachPair)
+        {
+            MappingEvaluator      evaluator;
+            ControlMapping        mapping = MakeStickMapping();
+            ControllerSample      sample  = MakeSample();
+            GamePortContribution  result;
+
+            sample.axes[0] = -0.7f;
+            sample.axes[1] = -0.7f;
+            result = evaluator.Evaluate (sample, mapping, kNoDeadzone);
+
+            Assert::IsTrue (IsClosed (result, JoystickSwitch::Left), L"up-left closes left");
+            Assert::IsTrue (IsClosed (result, JoystickSwitch::Up),   L"and up");
+            Assert::AreEqual (static_cast<size_t> (2), result.switches.count(), L"and nothing else");
+        }
+
+
+        TEST_METHOD (Switches_ADigitalPairClosesAtOnceAndBothHeldClosesNeither)
+        {
+            ControlMapping        mapping;
+            ControllerSample      sample = MakeSample();
+            MappingEvaluator      evaluator;
+            GamePortContribution  result;
+            AxisBinding           dpad;
+
+            dpad.kind     = AxisBindingKind::DigitalPair;
+            dpad.negative = { ControlKind::DpadLeft, 0 };
+            dpad.positive = { ControlKind::DpadRight, 0 };
+            mapping.pdl0.push_back (dpad);
+
+            sample.hats[0] = ControllerSample::kHatLeft;
+            result = evaluator.Evaluate (sample, mapping, 0.9f);
+            Assert::IsTrue (IsClosed (result, JoystickSwitch::Left), L"a D-pad press needs no threshold, even under a large deadzone");
+
+            sample.hats[0] = ControllerSample::kHatLeft | ControllerSample::kHatRight;
+            result = evaluator.Evaluate (sample, mapping, kNoDeadzone);
+            Assert::IsTrue (result.switches.none(), L"a stick cannot close both, so both held closes neither");
+        }
+
+
+        TEST_METHOD (Switches_ARateBindingOpensWhenTheStickIsReleased)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeStickMapping (AxisResponse::Rate);
+            ControllerSample  pushed  = MakeSample();
+            Byte              held    = 0;
+
+            pushed.axes[0] = 1.0f;
+            Assert::IsTrue (IsClosed (evaluator.Evaluate (pushed, mapping, kNoDeadzone, 0.05f), JoystickSwitch::Right),
+                L"deflected closes");
+
+            for (int i = 0; i < 20; i++)
+            {
+                evaluator.Evaluate (pushed, mapping, kNoDeadzone, 0.05f);
+            }
+
+            GamePortContribution  released = evaluator.Evaluate (MakeSample(), mapping, kNoDeadzone, 0.05f);
+
+            held = released.paddle[0].value();
+            Assert::AreEqual ((int) 255, (int) held, L"the rate paddle stays at the end it was turned to");
+            Assert::IsTrue (released.switches.none(), L"but the switch follows the stick, not the paddle, and opens");
+        }
+
+
+        TEST_METHOD (Switches_InvertedSwapsTheDirection)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeStickMapping();
+            ControllerSample  sample  = MakeSample();
+
+            mapping.pdl1[0].inverted = true;
+            sample.axes[1] = -1.0f;
+
+            Assert::IsTrue (IsClosed (evaluator.Evaluate (sample, mapping, kNoDeadzone), JoystickSwitch::Down),
+                L"inverted full up is down");
+        }
+
+
+        TEST_METHOD (Switches_FireIsPb0AndPb1Pb2DriveNothing)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeStickMapping();
+            ControllerSample  sample  = MakeSample();
+
+            mapping.pb1.push_back (ButtonBinding { { ControlKind::Button, 1 } });
+            mapping.pb2.push_back (ButtonBinding { { ControlKind::Button, 2 } });
+
+            sample.buttons.set (1);
+            sample.buttons.set (2);
+            Assert::IsTrue (evaluator.Evaluate (sample, mapping, kNoDeadzone).switches.none(),
+                L"PB1 and PB2 have no Joyport switch to drive");
+
+            sample.buttons.set (0);
+            Assert::IsTrue (IsClosed (evaluator.Evaluate (sample, mapping, kNoDeadzone), JoystickSwitch::Fire), L"PB0 is fire");
+        }
     };
 }

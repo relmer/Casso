@@ -131,6 +131,8 @@ public:
         { L"IDM_DRIVE_EXTERNAL_DISCONNECT", IDM_DRIVE_EXTERNAL_DISCONNECT },
         { L"IDM_MOUSE_CONNECT",             IDM_MOUSE_CONNECT             },
         { L"IDM_MOUSE_DISCONNECT",          IDM_MOUSE_DISCONNECT          },
+        { L"IDM_GAMEPORT_ADAPTER_NONE",     IDM_GAMEPORT_ADAPTER_NONE     },
+        { L"IDM_GAMEPORT_ADAPTER_JOYPORT",  IDM_GAMEPORT_ADAPTER_JOYPORT  },
         { L"IDM_PRINTER_DISCARD",           IDM_PRINTER_DISCARD           },
         { L"IDM_PRINTER_COPY",              IDM_PRINTER_COPY              },
         { L"IDM_PRINTER_PREVIEW",           IDM_PRINTER_PREVIEW           },
@@ -228,6 +230,15 @@ public:
     {
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE1) == WindowCommandRoute::Disk);
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE2) == WindowCommandRoute::Disk);
+    }
+
+
+    TEST_METHOD (GamePort_Commands_Route_To_The_Game_Port_Handler)
+    {
+        //  Posted by the Settings sheet's OK, and handled on the UI thread,
+        //  where the picker's row is resynced.
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_GAMEPORT_ADAPTER_NONE)    == WindowCommandRoute::GamePort);
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_GAMEPORT_ADAPTER_JOYPORT) == WindowCommandRoute::GamePort);
     }
 
 
@@ -342,6 +353,5 @@ public:
         // axes is the picker, and mouse mode is a toggle beside it.
         Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdPaddle).get());
         Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdMouse).get());
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdProfile).get());
     }
 };

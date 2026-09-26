@@ -443,7 +443,7 @@ void CreateDiskDialog::OnDownloadClicked()
     {
         DxuiMessageBox (GetHwnd(), m_theme,
                         L"The download failed. Check your connection and try again.",
-                        L"Create New Disk", MB_OK | MB_ICONWARNING);
+                        L"Create new disk", MB_OK | MB_ICONWARNING);
     }
 
     UpdateBootableRow();
@@ -586,7 +586,7 @@ void CreateDiskDialog::OnCreateClicked()
         case TargetVerdict::InvalidName:
             message = L"\"" + name + L"\" is not a valid file name.";
             DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
-                            L"Create New Disk", MB_OK | MB_ICONWARNING);
+                            L"Create new disk", MB_OK | MB_ICONWARNING);
             break;
 
         case TargetVerdict::MountedInDrive:
@@ -594,13 +594,13 @@ void CreateDiskDialog::OnCreateClicked()
                     + std::to_wstring (drive + 1)
                     + L". Eject it before overwriting it with a new disk.";
             DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
-                            L"Create New Disk", MB_OK | MB_ICONWARNING);
+                            L"Create new disk", MB_OK | MB_ICONWARNING);
             break;
 
         case TargetVerdict::Exists:
             message = L"\"" + name + L"\" already exists. Replace it?";
             choice  = DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
-                                      L"Create New Disk",
+                                      L"Create new disk",
                                       MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
             if (choice != IDYES)

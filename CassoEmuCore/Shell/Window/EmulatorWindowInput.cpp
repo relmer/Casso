@@ -36,6 +36,7 @@
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Core/Prng.h"
 #include "Config/DiskSettings.h"
 #include "Core/UnicodeSymbols.h"
@@ -2215,7 +2216,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     }
 
     // Arrow keys double as the emulated joystick axes / the X / Z keys as
-    // fire buttons when "Map Arrows to Joystick" is on AND a game-port
+    // fire buttons when "Map arrows to joystick" is on AND a game-port
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
     bool  driveJoystick = m_arrowsJoystick &&
@@ -2264,7 +2265,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // has it at all. Gated on the auto-repeat bit so the host OS repeat
         // never reaches the latch; a fresh press arms the $C000 strobe once
         // and registers the key for the emulator's own authentic //e
-        // auto-repeat cadence (Tick). With "Map Arrows to Joystick" on (and a
+        // auto-repeat cadence (Tick). With "Map arrows to joystick" on (and a
         // game-port paddle bank present), arrow keys are withheld from the
         // keyboard latch so a held direction cannot flood $C000 and starve a
         // joystick game's reads.
@@ -2506,8 +2507,11 @@ void EmulatorShell::UpdateJoystickAxesFromKeys()
 void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
     GamePortContribution  contribution;
-    bool                  button0      = false;
-    bool                  button1      = false;
+    bool                  xDown        = false;
+    bool                  zDown        = false;
+    bool                  leftAltDown  = false;
+    bool                  rightAltDown = false;
+    std::bitset<2>        buttons;
 
 
 
@@ -2520,14 +2524,17 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
     // elsewhere (GetForegroundWindow() != m_hwnd).
     if (GetForegroundWindow() == m_hwnd)
     {
-        button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
-                  (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
-        button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
-                  (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+        xDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
+        zDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
+        leftAltDown  = (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
+        rightAltDown = (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
     }
 
-    contribution.buttons.set (0, button0);
-    contribution.buttons.set (1, button1);
+    buttons = InputModeRules::GetFireKeyButtons (xDown, zDown, leftAltDown, rightAltDown,
+                                                 GetGamePortAdapter() == GamePortAdapter::SiriusJoyport);
+
+    contribution.buttons.set (0, buttons.test (0));
+    contribution.buttons.set (1, buttons.test (1));
     m_gamePortMixer.Submit (GamePortSource::FireKeys, contribution);
 }
 
@@ -2623,6 +2630,87 @@ void EmulatorShell::SetArrowsJoystick (bool on)
     // Solid-Apple is the modifier keys' own contribution, so it stays pressed.
     m_gamePortMixer.ReleaseSource (GamePortSource::ArrowKeys);
     m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetGamePortAdapter
+//
+//  The picker row: attach or detach the Sirius Joyport now, and save the
+//  choice with the running machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
+{
+    ApplyGamePortAdapterLive         (adapter);
+    PersistGamePortAdapterForMachine (adapter);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyGamePortAdapterLive
+//
+//  Attaches or detaches the Sirius Joyport on the running machine, with no
+//  reset: the next button read answers from it, or from the machine's own
+//  lines again. A machine with no Joyport to attach (the //c) stays at None.
+//  The fire keys are resubmitted because the Alt keys drop out of them while
+//  the Joyport is attached.
+//
+//  Saves nothing. The Settings sheet reaches this through its OK, and the
+//  sheet saves the machine's block itself; a second save from here could
+//  land on a different machine when the same OK switches machines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
+{
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
+    SiriusJoyport                      * joyport  = m_machine.GetJoyport();
+
+
+
+    if (joyport != nullptr)
+    {
+        joyport->SetAttached (adapter == GamePortAdapter::SiriusJoyport);
+    }
+
+    lifetime.unlock();
+
+    if (m_arrowsJoystick)
+    {
+        UpdateJoystickButtonsFromKeys();
+    }
+
+    SyncSelectorState();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGamePortAdapter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GamePortAdapter EmulatorShell::GetGamePortAdapter() const
+{
+    const SiriusJoyport  * joyport  = m_machine.GetJoyport();
+    bool                   attached = joyport != nullptr && joyport->IsAttached();
+
+
+
+    return attached ? GamePortAdapter::SiriusJoyport : GamePortAdapter::None;
 }
 
 
@@ -2852,14 +2940,15 @@ void EmulatorShell::SyncPaddleSourceList()
             InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection, live, snapshot.axisCount));
     }
 
+    // The Profiles submenu follows the same controllers and rides inside the
+    // picker's list, so it is rebuilt before that list is handed over.
+    SyncProfileList (snapshot);
+
     // Straight onto the command bar's Input drop-down rather than a submenu
     // off the Machine menu: this is a list the user picks from while playing,
     // and a cascade puts two hovers between them and their controller.
     m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
                                 m_mainMenu.GetCommands().GetPaddlePickerItems());
-
-    // The profile list follows the same selection, so it is rebuilt with it.
-    SyncProfileList (snapshot);
 
     // The picker wears the chosen source, so its width moves with the answer.
     // Without laying the strip out again the new word paints into the rect
@@ -2882,44 +2971,83 @@ void EmulatorShell::SyncPaddleSourceList()
 //
 //  SyncProfileList
 //
-//  The profile picker's rows: the selected controller model's profiles. A
-//  selected controller whose model has nothing saved yet still has its
-//  Default while attached; with no controller, or one absent with nothing
-//  saved, the picker is disabled and reads Default.
+//  The Profiles submenu: a section for each attached controller in play --
+//  both players' in multiplayer, each under a header saying whose it is, or
+//  the one selected controller, with no header, otherwise. A controller whose
+//  model has nothing saved yet still has its Default. With no controller in
+//  play the submenu is left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & snapshot)
 {
-    std::vector<std::string>  names;
-    bool                      isOffered = false;
+    std::map<std::string, ControllerModelSettings>  models = m_controllerService->GetModelSettings();
+    std::vector<EmulatorCommands::ProfileSection>   sections;
+    std::vector<ControllerUnitKey>                  units;
+    std::vector<std::wstring>                       headers;
+    size_t                                          i      = 0;
 
 
 
-    if (snapshot.selection.has_value())
+    if (snapshot.isMultiplayerLive)
     {
-        std::map<std::string, ControllerModelSettings>  models = m_controllerService->GetModelSettings();
-        auto                                            found  = models.find (ControllerTokens::ModelToToken (snapshot.selection.value().model));
-
-        if (found != models.end())
+        for (i = 0; i < MultiplayerSetup::kPlayerCount; i++)
         {
-            for (const ControllerProfile & profile : found->second.profiles)
+            if (snapshot.multiplayer.players[i].unit.has_value())
             {
-                names.push_back (profile.name);
+                units.push_back   (snapshot.multiplayer.players[i].unit.value());
+                headers.push_back (L"Player " + std::to_wstring (i + 1));
             }
-
-            isOffered = true;
-        }
-        else
-        {
-            isOffered = snapshot.isSelectedConnected;
         }
     }
+    else if (snapshot.selection.has_value())
+    {
+        units.push_back   (snapshot.selection.value());
+        headers.push_back (std::wstring());
+    }
 
-    m_mainMenu.GetCommands().SetProfiles (names, snapshot.activeProfile, isOffered);
+    for (i = 0; i < units.size(); i++)
+    {
+        EmulatorCommands::ProfileSection  section;
+        const ControllerDeviceInfo      * device = nullptr;
+        auto                              model  = models.find (ControllerTokens::ModelToToken (units[i].model));
+        auto                              active = snapshot.activeProfiles.find (ControllerTokens::UnitToToken (units[i]));
 
-    m_toolbar.SetDropDownItems (EmulatorCommands::kIdProfile,
-                                m_mainMenu.GetCommands().GetProfileItems());
+        for (const ControllerDeviceInfo & candidate : snapshot.devices)
+        {
+            if (candidate.unit == units[i])
+            {
+                device = &candidate;
+            }
+        }
+
+        // An absent controller has nothing to switch, and one whose model has
+        // nothing saved has no list to switch within.
+        if (device == nullptr)
+        {
+            continue;
+        }
+
+        section.unit   = units[i];
+        section.active = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
+
+        if (!headers[i].empty())
+        {
+            section.header = headers[i] + L" " + s_kchEmDash + L" " + device->description;
+        }
+
+        if (model != models.end())
+        {
+            for (const ControllerProfile & profile : model->second.profiles)
+            {
+                section.names.push_back (profile.name);
+            }
+        }
+
+        sections.push_back (std::move (section));
+    }
+
+    m_mainMenu.GetCommands().SetProfileSections (std::move (sections));
 }
 
 
@@ -2930,20 +3058,21 @@ void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & sn
 //
 //  PickControllerProfile
 //
-//  UI thread. The user chose the profile the machine plays with. The rate
+//  UI thread. The user chose the profile one controller plays with. The rate
 //  paddles return to center, since the old profile's position means nothing
-//  to the new one, and the choice is saved with the machine.
+//  to the new one, and the choice is saved with the global controller
+//  settings, since it belongs to the controller on every machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PickControllerProfile (std::string profileName)
+void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string profileName)
 {
     if (m_controllerService == nullptr)
     {
         return;
     }
 
-    m_controllerService->SetActiveProfile (profileName);
+    m_controllerService->SetActiveProfile (unit, profileName);
     m_controllerService->ResetPaddleRate();
 
     if (m_controllerThread != nullptr)
@@ -2951,8 +3080,32 @@ void EmulatorShell::PickControllerProfile (std::string profileName)
         m_controllerThread->Wake();
     }
 
-    PersistInputModeForMachine();
+    SaveControllerCalibrations();
     SyncPaddleSourceList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartNewControllerProfile
+//
+//  The Profiles submenu's New... Settings opens on the Controllers page, where
+//  Editing is already the controller the submenu lists first, and the New
+//  Profile dialog comes up for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StartNewControllerProfile()
+{
+    OpenSettings (true);
+
+    if (m_settingsSheet != nullptr)
+    {
+        m_settingsSheet->StartNewControllerProfile();
+    }
 }
 
 

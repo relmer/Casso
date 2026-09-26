@@ -6,7 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.26.1]: The one with consistent Xbox controller assignment
+## [1.28.0] - 2026-09-25: The one with Joyport/Atari joystick emulation, Siriously
+
+### Added
+
+- Sirius Joyport emulation for the Apple ][, ][+ and //e. The Joyport let
+  Apple games read Atari 2600 joysticks. Turn it on from the controller picker
+  or the Machine tab in Settings, with no reset, and a controller's stick and
+  fire button become the Atari joystick's switches. In multiplayer, each
+  player's controller is on its own jack.
+- While the Joyport is on, the Controllers page in Settings shows only the
+  settings the Joyport uses, beside a drawing of an Atari joystick that lights
+  each direction and the fire button as they are pressed.
+- A Joyport test disk, Apple2/Demos/Joyport.do, based on the test program in
+  the Joyport's manual, with a menu of tests, retries and a skip key.
+
+## [1.27.0] - 2026-09-24: The one with separate multiplayer controller profiles
+
+### Changed
+
+- Each controller now has its own active profile, so two players can use
+  different profiles, and a profile can be used on any machine.
+- Profiles are now picked from a Profiles submenu on the toolbar's controller
+  picker, which replaces the separate profile drop-down. New... in the submenu
+  creates a profile.
+
+### Fixed
+
+- Menus now keep highlighting and picking their items while one of their
+  submenus is open.
+
+## [1.26.1] - 2026-09-23: The one with consistent Xbox controller assignment
 
 ### Changed
 
@@ -25,13 +55,13 @@ Entries before versioning was introduced use dates only.
 - Fixed a bug with the menu bar margin when Casso is dragged to a monitor with
   a different display scale.
 
-## [1.26.0]: The one with a real installer
+## [1.26.0] - 2026-09-19: The one with a real installer
 
 ### Added
 
 - An MSIX installer for Casso.
 
-## [1.25.0]: The one that finally has Xbox controllers
+## [1.25.0] - 2026-09-16: The one that finally has Xbox controllers
 
 ### Added
 
@@ -115,7 +145,7 @@ Entries before versioning was introduced use dates only.
   Previously, it came back in the monitor's own phosphor, such as green.
 - Clicking OK in Settings no longer disconnects a Disk ][ card's second drive.
 
-## [1.24.2]: The one with the redist dist
+## [1.24.2] - 2026-09-10: The one with the redist dist
 
 ### Fixed
 
@@ -123,7 +153,7 @@ Entries before versioning was introduced use dates only.
   executables. Previously, a machine without the Visual C++ Redistributable
   could not start Casso or CassoCli.
 
-## [1.24.1]: The one with all the shouting
+## [1.24.1] - 2026-09-10: The one with all the shouting
 
 ### Fixed
 
@@ -134,7 +164,7 @@ Entries before versioning was introduced use dates only.
   Previously, letters passed through in whatever case Windows delivered, so a
   session with Caps Lock off started with `SYNTAX ERROR`.
 
-## [1.24.0]: The one where I sneak in some minor bug fixes while working on a massive refactor
+## [1.24.0] - 2026-09-10: The one where I sneak in some minor bug fixes while working on a massive refactor
 
 ### Fixed
 
@@ -169,7 +199,7 @@ Entries before versioning was introduced use dates only.
   only what a user can change: cards in slots, attached devices, and the
   monitor.
 
-## [1.23.2]: The one where Rescue Raiders speaks
+## [1.23.2] - 2026-09-08: The one where Rescue Raiders speaks
 
 ### Fixed
 
@@ -189,7 +219,7 @@ Entries before versioning was introduced use dates only.
   the top,** which leaves all 192 scanlines for the cassowary and uses a real
   typeface thresholded onto the cell grid rather than a scaled 7-row bitmap font.
 
-## [1.23.1]: The one that boots green and ships signed
+## [1.23.1] - 2026-09-06: The one that boots green and ships signed
 
 ### Added
 
@@ -218,7 +248,7 @@ Entries before versioning was introduced use dates only.
 - **Ctrl+0 reset the monitor's tilt without saving the reset,** so the bezel
   came back tilted at the next launch.
 
-## [1.23.0]: The one with... wow, that's a lot of stuff!
+## [1.23.0] - 2026-09-06: The one with... wow, that's a lot of stuff!
 
 ### Added
 
@@ -547,7 +577,7 @@ Entries before versioning was introduced use dates only.
   the text shadow effect. The 2D drive widget uses the same padlock.
 - **Chrome text could be painted over by the controls under it.**
 
-## [1.22.0]: The one with nibble support
+## [1.22.0] - 2026-08-31: The one with nibble support
 
 ### Added
 - **Nibble disk images (`.nib`, `.nb2`) are supported.**
@@ -556,7 +586,7 @@ Entries before versioning was introduced use dates only.
 - **Faster disk decoding**: ~2x on formatted tracks and ~100x on unformatted
   ones, for every image format.
 
-## [1.21.0]: The one where skeuomorphism goes to 11
+## [1.21.0] - 2026-08-29: The one where skeuomorphism goes to 11
 
 ### Added
 
@@ -665,7 +695,7 @@ Entries before versioning was introduced use dates only.
   create dialog did not offer them. Both write a DOS-ordered image now, byte
   for byte the same as `.dsk`.
 
-## [1.20.1]: The one that gets physical--and logical--and liberates more silicon secrets
+## [1.20.1] - 2026-08-27: The one that gets physical--and logical--and liberates more silicon secrets
 
 ### Fixed
 - **`disk sectorread` and `sectorwrite` wrote to physical sector rather than logical.**
@@ -696,7 +726,7 @@ Entries before versioning was introduced use dates only.
   blocks.** Block numbers run 0 to 279 on a 5.25-inch image. The disk
   doesn't need ProDOS on it and any container works, not just `.po`.
 
-## [1.20.0]: The one where CassoCLI gets disk super powers
+## [1.20.0] - 2026-08-27: The one where CassoCLI gets disk super powers
 
 ### Added
 - **A `disk` subcommand.** `list`, `get`, `put`, `delete`, `boot`, `create`,
@@ -737,7 +767,7 @@ Entries before versioning was introduced use dates only.
   `-o` takes either form.
 - Various command line parsing improvements across all CassoCli modes
 
-## [1.19.0]: The one where the Mockingboard speaks
+## [1.19.0] - 2026-08-27: The one where the Mockingboard speaks
 
 ### Added
 - **Mockingboard C — the voice chip speaks** (#123). The SSI 263A phoneme
@@ -808,7 +838,7 @@ Entries before versioning was introduced use dates only.
   capture: zero click events and zero dropout gaps over 20 s, from a ~1/s
   floor before.
 
-## [1.18.2]: The one with honest execution traces
+## [1.18.2] - 2026-08-25: The one with honest execution traces
 
 ### Fixed
 - **`--trace` now records operand bytes from the memory bank that actually
@@ -822,7 +852,7 @@ Entries before versioning was introduced use dates only.
   still bypasses the bus: reading a soft switch toggles it, and recording the
   machine must never change it.
 
-## [1.18.1]: The one with monochrome graphics fidelity
+## [1.18.1] - 2026-08-25: The one with monochrome graphics fidelity
 
 The green, amber, and white monitors were showing a tinted copy of what a
 *color* monitor makes from the dots — and that decode has already thrown away
@@ -867,7 +897,7 @@ every monitor Casso offered.
   monitors now decode one dot per pixel, and lit dots reach full phosphor
   brightness. The color monitor is unchanged.
 
-## [1.18.0]: The one that conjures Merlin
+## [1.18.0] - 2026-08-21: The one that conjures Merlin
 
 ### Breaking changes
 - **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself
@@ -1097,7 +1127,7 @@ every monitor Casso offered.
   happened to sit at that line of the outer source. The originating file is now
   captured where the diagnostic is created and travels with it.
 
-## [1.17.0]: The one that salvages a damaged disk
+## [1.17.0] - 2026-08-20: The one that salvages a damaged disk
 
 ### Added
 - **Salvage the readable sectors of a damaged disk.** A disk whose stored
@@ -1339,7 +1369,7 @@ every monitor Casso offered.
   atomic write, and a failed serialize now fails loudly and leaves the image
   dirty so a later flush retries.
 
-## [1.16.2]: The one with safer disk image writes
+## [1.16.2] - 2026-08-18: The one with safer disk image writes
 
 ### Fixed
 - **A failed disk save no longer destroys the disk.** Flushing a mounted image
@@ -1388,7 +1418,7 @@ every monitor Casso offered.
   processing one, so a character sent on the first clear reading races into
   that window and is dropped.
 
-## [1.16.1]: The one where the //c mouse works with VBL software
+## [1.16.1] - 2026-08-13: The one where the //c mouse works with VBL software
 
 ### Fixed
 - **The //c mouse was dead in MousePaint** (and in anything else that runs
@@ -1408,7 +1438,7 @@ every monitor Casso offered.
   is active low there (`$00` = pressed), unlike the //e's shift-key mod
   at the same address.
 
-## [1.16.0]: The one that creates blank disks
+## [1.16.0] - 2026-08-10: The one that creates blank disks
 
 ### Added
 - **Create blank disks in-app.** The insert-disk picker gains a pinned
@@ -1454,13 +1484,13 @@ every monitor Casso offered.
   Ctrl+Left/Right word jumps (host supplies the text renderer)
 - ui: the file-open picker no longer advertises `*.nib` (never mountable)
 
-## [1.15.2]: The one with the settings live-preview fixes
+## [1.15.2] - 2026-08-07: The one with the settings live-preview fixes
 
 ### Fixed
 - fix(settings): the Display live-preview reveal shows the emulator instead of an opaque gray block (DWM frame fill behind the composited sheet; reveal now hugs the CRT image and pins the emulator window behind the sheet)
 - fix(settings): the emulator responds to Display slider drags immediately instead of in bursts when the drag pauses (message-drain deadline + the sheet no longer stacks a second vblank wait)
 
-## [1.15.1]: The one with the drive-door polish
+## [1.15.1] - 2026-08-07: The one with the drive-door polish
 
 ### Fixed
 - fix(chrome): drive door animates in parallel with the disk picker instead of stalling until it closes
@@ -1478,7 +1508,7 @@ every monitor Casso offered.
 - trace: interrupt-handler entries tagged; IRQ/NMI rates summarized
 - internal: repo-wide style sweep, now gated by CheckStyle in the pre-push hook and CI
 
-## [1.15.0]: The one with the //c mouse fixes
+## [1.15.0] - 2026-07-28: The one with the //c mouse fixes
 
 ### Fixed
 - **fix(2c): acknowledge the //c VBL interrupt across the whole $C070-$C07F
@@ -1499,7 +1529,7 @@ every monitor Casso offered.
   drain at a coarse cadence (`kSampleQuantum`). ~31% cheaper per tick
   (4.07 → 2.81 ns, microbenchmarked); //c-only, feel-neutral.
 
-## [1.14.0]: The one with the ImageWriter II (spec 015)
+## [1.14.0] - 2026-07-26: The one with the ImageWriter II (spec 015)
 
 ### Added
 - **feat(printer): parallel printer card + original slot firmware**: a dumb,
@@ -1572,7 +1602,7 @@ every monitor Casso offered.
   builds; the run-state tag and build-identity stamp are kept in Debug only,
   and a paused / stopped emulator is still flagged in every build.
 
-## [1.13.0]: The one that got faster
+## [1.13.0] - 2026-07-25: The one that got faster
 
 ### Changed
 - **perf(emulation): per-instruction hot path**: a sweep of the work that runs
@@ -1600,7 +1630,7 @@ every monitor Casso offered.
   the menu no longer trips a UI-thread assertion; the pointer and joystick
   controls are re-synced on the UI thread once the switch completes.
 
-## [1.12.0]: The one with the CRT monitor
+## [1.12.0] - 2026-07-22: The one with the CRT monitor
 
 ### Added
 - **feat(chrome): skeuomorphic CRT monitor desk scene**: an opt-in
@@ -1649,7 +1679,7 @@ every monitor Casso offered.
   borderless popup, the toggle self-heals from a state desync and always
   hands back a movable, closable window.
 
-## [1.11.0]: The one with the undocumented opcodes
+## [1.11.0] - 2026-07-19: The one with the undocumented opcodes
 
 ### Added
 - **feat(cpu): stable undocumented NMOS 6502 opcodes** (#95), the CPU now
@@ -1669,7 +1699,7 @@ every monitor Casso offered.
   top-right corner is draggable even though the close button sits on it. Every
   Dxui-chromed window (main window + dialogs) is fixed at once.
 
-## [1.10.0]: The one with the //c case-switch strip
+## [1.10.0] - 2026-07-18: The one with the //c case-switch strip
 
 ### Added
 - **feat(machine): //c case-switch strip**: the two latching switches on
@@ -1707,7 +1737,7 @@ every monitor Casso offered.
   interleaved auxiliary + main text banks when the 80-column display is active,
   instead of capturing only every other character.
 
-## [1.9.0]: The one with the write-protect indicator
+## [1.9.0] - 2026-07-16: The one with the write-protect indicator
 
 ### Added
 - **feat(disk): write-protect indicator**: a write-protected drive now
@@ -1726,7 +1756,7 @@ every monitor Casso offered.
   is likewise treated as write-protected so in-emulator writes can't be
   silently lost.
 
-## [1.8.0]: The one with the //c and the Enhanced //e (spec 016 + #86)
+## [1.8.0] - 2026-07-15: The one with the //c and the Enhanced //e (spec 016 + #86)
 
 ### Added
 - **feat(machine): Apple //c**: a new machine profile on the //e substrate,
@@ -1778,7 +1808,7 @@ every monitor Casso offered.
   download-on-demand asset. Auto-discovered by the machine picker; cold-boots
   its firmware on the 65C02 (headless boot test).
 
-## [1.7.0]: The one with the Mockingboard (GH #66)
+## [1.7.0] - 2026-07-12: The one with the Mockingboard (GH #66)
 
 ### Added
 - **feat(emu): Mockingboard A/C sound card emulation.** Adds the de-facto
@@ -1811,7 +1841,7 @@ every monitor Casso offered.
   firing; without dispatch they stayed silent. Each step site now
   dispatches a pending NMI/IRQ before executing the next instruction.
 
-## [1.6.4]: The one with the virtualized debug panel (GH #88)
+## [1.6.4] - 2026-07-09: The one with the virtualized debug panel (GH #88)
 
 ### Fixed
 - **fix(ui): the Disk ][ Debug panel no longer wedges under disk-heavy
@@ -1837,7 +1867,7 @@ every monitor Casso offered.
   instead of silently jumping. The resolution logic is a pure, headlessly
   unit-tested helper (`DebugDialogProjection::ResolveSelection`).
 
-## [1.6.3]: The one where disk writes persist
+## [1.6.3] - 2026-07-09: The one where disk writes persist
 
 Follows GH #89 (which fixed the emulated write *bit*) by fixing the
 *persistence* layer that #89 never touched, the path from the in-memory
@@ -1898,7 +1928,7 @@ track bit streams back to the host file.
   still shows the old files" symptom was flush *timing*, now addressed by the
   motor-idle auto-flush above.
 
-## [1.6.2]: The one where disk writes round-trip (GH #89)
+## [1.6.2] - 2026-07-08: The one where disk writes round-trip (GH #89)
 
 ### Fixed
 - **fix(disk): writes to `.dsk` images now round-trip (GH #89).** DOS 3.3
@@ -1920,7 +1950,7 @@ track bit streams back to the host file.
   raw bitstream, and an end-to-end DOS 3.3 `SAVE`/`LOAD`/`LIST` round trip
 , closing the bit-exact write-fidelity gap deferred in #67.
 
-## [1.6.1]: The one with the keyboard accelerator fixes
+## [1.6.1] - 2026-07-07: The one with the keyboard accelerator fixes
 
 Emulator keyboard shortcuts moved off plain `Ctrl+<letter>` so they stop
 stealing valid //e control keystrokes from the running software.
@@ -1941,7 +1971,7 @@ stealing valid //e control keystrokes from the running software.
   Added to the source-checkout demo disks listed in the picker (Carmen as
   its side A / side B flip-disk pair).
 
-## [1.6.0]: The one with the disk picker and Dxui (spec 013)
+## [1.6.0] - 2026-07-07: The one with the disk picker and Dxui (spec 013)
 
 The boot / Insert-Disk picker gained search and sort and is preloaded with
 the repo's demo disks; Settings added an "Apply now" theme, a
@@ -2062,7 +2092,7 @@ Direct3D swap chain directly.
   rather than "Asimov archive (Download)"; selecting it mounts the local
   copy without re-downloading.
 
-## [1.5.1566]: The one with the drive-audio mixer
+## [1.5.1566] - 2026-06-25: The one with the drive-audio mixer
 
 ### Added
 - **feat(audio): per-drive volume, stereo pan, and sound audition.** The
@@ -2107,7 +2137,7 @@ Direct3D swap chain directly.
   names case-insensitively and stores the canonical mixed-case form, so the
   selected mechanism is applied at startup.
 
-## [1.5.1555]: The one with the ][ plus game port
+## [1.5.1555] - 2026-06-23: The one with the ][ plus game port
 
 ### Added
 - **feat(machine): Apple ][ / ][ plus game port (paddles, buttons, trigger).**
@@ -2158,7 +2188,7 @@ Direct3D swap chain directly.
   it misreported instructions in banked regions (Language Card / ROM). It now
   logs the byte the CPU actually executed.
 
-## [1.5.1526]: The one with Space Quarks' quarky opcodes
+## [1.5.1526] - 2026-06-21: The one with Space Quarks' quarky opcodes
 
 ### Added
 - **feat(cpu): NMOS 6502 undocumented opcodes DOP and DCP.** Implements
@@ -2202,7 +2232,7 @@ Direct3D swap chain directly.
   ("Installed") alongside download rows for the ones that are absent. The
   runtime Insert-Disk picker gains the same present-master rows.
 
-## [1.5.1523]: The one with the game input revamp
+## [1.5.1523] - 2026-06-03: The one with the game input revamp
 
 Authentic //e keyboard handling that makes real-time action games
 playable, a keyboard-mapped game-port joystick with an on-screen
@@ -2272,7 +2302,7 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   heap-corruption assert). The clear is now staged behind an atomic flag
   and serviced on the render thread, keeping that state single-threaded.
 
-## [1.5.1405]: The one with the disk-insert picker polish
+## [1.5.1405] - 2026-05-30: The one with the disk-insert picker polish
 
 Field-test fixes for the themed disk-insert MRU picker and the
 underlying dialog primitives.
@@ -2334,7 +2364,7 @@ underlying dialog primitives.
   passes `drive + 1` to `PromptInsertDiskMru` so the title reads
   "Insert Disk, Drive 1/2" and the mount call gets the right slot.
 
-## [1.5.1398]: The one with the themed MRU picker
+## [1.5.1398] - 2026-05-30: The one with the themed MRU picker
 
 The runtime disk-insert flow (Disk → Insert Disk Image, drive-widget
 click, or `IDM_DISK_INSERT1`/`2`) now opens the themed MRU picker
@@ -2359,7 +2389,7 @@ native `IFileOpenDialog` path for off-MRU images.
 - **refactor(011): `OnDiskCommand` IDM_DISK_INSERT1/2** now invoke
   `PromptInsertDiskMru` instead of `PromptForDiskImage` directly.
 
-## [1.5.1395]: The one that went native on dialogs (spec 011)
+## [1.5.1395] - 2026-05-30: The one that went native on dialogs (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 `TaskDialogIndirect` consumer in the app (except the pre-shell EHM
@@ -2662,7 +2692,7 @@ is preserved as the lone deliberate Win32 surface.
   file I/O. Plus `Disk2DebugPanelLayoutTests` (10) covering the new
   layout slots. Total suite: 1653/1653 passing.
 
-## [1.5.1289]: The one where copy-protected games boot
+## [1.5.1289] - 2026-05-30: The one where copy-protected games boot
 
 This release celebrates a milestone: Casso now boots original,
 copy-protected Apple II games straight from their unmodified WOZ
@@ -2678,7 +2708,7 @@ which those pieces came together well enough to run real protected
 software, and bumps Casso to **1.5**.
 
 
-## [1.4.1288]: The one with the quarter-track pipeline
+## [1.4.1288] - 2026-05-30: The one with the quarter-track pipeline
 
 ### Added
 - **feat(disk2): quarter-track read pipeline for half-track copy
@@ -2699,7 +2729,7 @@ software, and bumps Casso to **1.5**.
   Isolated bumps stay firm thunks; a genuine step re-arms the pattern.
 
 
-## [1.4.1279]: The one with the copy-protection foundations
+## [1.4.1279] - 2026-05-29: The one with the copy-protection foundations
 
 ### Added
 - **feat(disk2): MC3470 weak-bit emulation.** WOZ floating (fake-bit)
@@ -2721,7 +2751,7 @@ software, and bumps Casso to **1.5**.
   a `$C0Ex` access occurs rather than the end-of-instruction rollup.
 
 
-## [1.4.1260]: The one with the drive widget
+## [1.4.1260] - 2026-05-27: The one with the drive widget
 
 ### Changed
 - **perf(chrome): snappier drive-widget click-to-dialog.** The post-door-open
@@ -2771,7 +2801,7 @@ software, and bumps Casso to **1.5**.
 
 
 
-## [1.4.1229]: The one that moved UserPrefs to JSON
+## [1.4.1229] - 2026-05-27: The one that moved UserPrefs to JSON
 
 ### Added
 - **feat(window): per-window DPI ownership.** `Window` base class now
@@ -2835,7 +2865,7 @@ software, and bumps Casso to **1.5**.
 
 
 
-## [1.4.1171]: The one with the UI overhaul (spec 007)
+## [1.4.1171] - 2026-05-26: The one with the UI overhaul (spec 007)
 
 ### Added
 - **feat(settings): Display-page live preview uses a gaussian-blurred dark
@@ -2939,7 +2969,7 @@ padding, over-allocation clamping, `ClientSizeForCenter`
 inverse-roundtrip, contributor mutation, and a regression test for
 the historical Ctrl+0 pillarbox.
 
-## [1.3.808]: The one with the plain silhouette icon
+## [1.3.808] - 2026-05-25: The one with the plain silhouette icon
 
 ### Changed
 - **Default app icon is now the plain cassowary silhouette.** The
@@ -2950,7 +2980,7 @@ overlay both compete for the same pixels. The new
 with no extra ornamentation, so it stays legible at 16x16. The
 other four motifs remain embedded for callers that want them.
 
-## [1.3.807]: The one with the app icon
+## [1.3.807] - 2026-05-25: The one with the app icon
 
 ### Added
 - **Casso has an app icon.** The window title bar, taskbar, and Windows
@@ -2961,7 +2991,7 @@ flat-color head, photoreal); the silhouette+accent variant is the
 default. PNG masters and multi-resolution ICOs live in
 `Resources/Icons/`, regeneratable via `Assets/Icon/build_icons.py`.
 
-## [1.3.772]: The one with the machine picker fixes
+## [1.3.772] - 2026-05-20: The one with the machine picker fixes
 
 ### Fixed
 - **Machine picker showed empty list.** `MachinePickerDialog::ScanMachines`
@@ -3030,7 +3060,7 @@ default. PNG masters and multi-resolution ICOs live in
   field, empty search paths.
 - Added `ChromeLayoutTests` (17 cases): see Tech notes above.
 
-## [1.3.764]: The one with the Disk II debug window (spec 006)
+## [1.3.764] - 2026-05-19: The one with the Disk II debug window (spec 006)
 
 ### Added
 - **Disk II Debug Window**: modeless live event log of motor / head /
@@ -3119,7 +3149,7 @@ default. PNG masters and multi-resolution ICOs live in
   FR-001a enablement decision, FR-004a uptime-reset path,
   insert / eject / SwitchMachine regression coverage.
 
-## [1.3.684]: The one with the mechanism dropdown
+## [1.3.684] - 2026-05-16: The one with the mechanism dropdown
 
 ### Added
 - **Options dialog mechanism dropdown (FR-006 / SC-010)**:
@@ -3154,7 +3184,7 @@ default. PNG masters and multi-resolution ICOs live in
   multi-source reload, Alps→Shugart round trip with distinct
   amplitudes, and pre-context SetMechanism (defers load).
 
-## [1.3.682]: The one with the disk audio bootstrap
+## [1.3.682] - 2026-05-16: The one with the disk audio bootstrap
 
 ### Added
 - **Bootstrap fetch (FR-017, FR-018, NFR-006)**: on first launch with
@@ -3199,7 +3229,7 @@ default. PNG masters and multi-resolution ICOs live in
   exercised by the manual integration test in T138 (per
   constitution §II, automated tests do not hit the network).
 
-## [1.3.675]: The one with the per-machine asset layout
+## [1.3.675] - 2026-05-16: The one with the per-machine asset layout
 
 ### Changed
 - **Per-machine ROM directories**: ROM images now live under
@@ -3237,7 +3267,7 @@ Users with an existing install:
   layout), or move each ROM file into the corresponding new
   location (see the table at the top of `scripts/FetchRoms.ps1`).
 
-## [1.3.670]: The one with the Disk II audio
+## [1.3.670] - 2026-05-15: The one with the Disk II audio
 
 ### Added
 - **Disk II mechanical audio**: motor hum (looping while
@@ -3293,7 +3323,7 @@ Users with an existing install:
   filesystem reads, no audio device (constitution §II).
 - All pre-existing speaker tests pass identically (FR-011 / SC-006).
 
-## [1.3.660]: 2026-05-14, The one where the demo first frame got faster
+## [1.3.660] - 2026-05-14: The one where the demo first frame got faster
 
 ### Changed (demo)
 - **Disk layout reordered so DHGR loads first.** Previously the disk
@@ -3326,7 +3356,7 @@ Users with an existing install:
   (~9.8 sec emulated vs ~58 sec). Test runtime dropped from
   ~9s to <1s. Full suite now ~93s instead of ~180s.
 
-## [1.3.652]: 2026-05-14, The one where DHGR matches HGR framing
+## [1.3.652] - 2026-05-14: The one where DHGR matches HGR framing
 
 ### Changed (demo)
 - **DHGR cassowary now uses the same crop, letterbox, and "Casso"
@@ -3351,7 +3381,7 @@ Users with an existing install:
   generalised the centering to use `canvas.width` so the same
   helper works for HGR (280) and any future width.
 
-## [1.3.651]: 2026-05-14, The one with the amber monitor
+## [1.3.651] - 2026-05-14: The one with the amber monitor
 
 ### Changed (demo)
 - **DHGR cassowary is now mode 0**: first thing you see at boot,
@@ -3408,7 +3438,7 @@ Users with an existing install:
   Steinberg within each byte's palette-pair constraint;
   deferred.
 
-## [1.3.645]: 2026-05-14, The one with the DHGR cassowary
+## [1.3.645] - 2026-05-14: The one with the DHGR cassowary
 
 ### Added (demo)
 - **DHGR mode now shows a cassowary**, not just test bars. New
@@ -3446,7 +3476,7 @@ Users with an existing install:
   is kept for future test-pattern needs (regenerates the .bin
   files on demand).
 
-## [1.3.640]: 2026-05-14, The one where DHGR joins the demo
+## [1.3.640] - 2026-05-14: The one where DHGR joins the demo
 
 ### Added (demo)
 - **Mode 3: DHGR**: 16-color test bars rendered through the //e
@@ -3490,7 +3520,7 @@ Users with an existing install:
   group's center dot, and packing nibbles LSB-first into the
   aux/main interleaved byte stream.
 
-## [1.3.632]: 2026-05-14, The one that loosened the perf tolerance
+## [1.3.632] - 2026-05-14: The one that loosened the perf tolerance
 
 ### Changed (tests)
 - **`CycleEmulation_StableRunToRun` tolerance bumped 30% → 60%.** A
@@ -3501,7 +3531,7 @@ Users with an existing install:
   any real perf regression, but no longer trips on hypervisor
   scheduling hiccups.
 
-## [1.3.627]: 2026-05-14, The one that swapped to BGRA
+## [1.3.627] - 2026-05-14: The one that swapped to BGRA
 
 ### Changed (rendering)
 - **Framebuffer format is now `DXGI_FORMAT_B8G8R8A8_UNORM`** (was
@@ -3544,7 +3574,7 @@ Users with an existing install:
   instead of the older GR color-bands placeholder. Retired
   `Assets/Apple ][ GR Color Bands.png`.
 
-## [1.3.619]: 2026-05-14, The one with the American spellings
+## [1.3.619] - 2026-05-14: The one with the American spellings
 
 ### Fixed (demo)
 - **Cycling past LoRes now actually drops to a usable BASIC prompt.**
@@ -3562,7 +3592,7 @@ Users with an existing install:
   `color`, `artefact` → `artifact`, `behavior` → `behavior`,
   `synthesise` → `synthesize` in newly authored content.
 
-## [1.3.618]: 2026-05-14, The one with the LoRes test pattern
+## [1.3.618] - 2026-05-14: The one with the LoRes test pattern
 
 ### Added (demo)
 - **LoRes (Apple `GR`) 16-color bar test pattern.** New
@@ -3595,7 +3625,7 @@ Users with an existing install:
 - The //e text mode is monochrome on stock hardware (no per-glyph
   color), so there's no "TEXT" color test to add.
 
-## [1.3.603]: 2026-05-14, The one with the HGR color fix
+## [1.3.603] - 2026-05-14: The one with the HGR color fix
 
 ### Fixed (video)
 - **HGR/LoRes/DHGR color palettes were rendering with R and B swapped**
@@ -3676,7 +3706,7 @@ Users with an existing install:
   `--title-size N` (default 18) and `--title-stroke N` (default 0;
   bump to 1 for a heavier look).
 
-## [1.3.582]: 2026-05-13, The one where reset reloads disks
+## [1.3.582] - 2026-05-13: The one where reset reloads disks
 
 ### Fixed (shell)
 - **`Reset` and `Power Cycle` menu commands now re-read mounted slot-6
@@ -3701,7 +3731,7 @@ Users with an existing install:
   `--title-size N` (default 18) and `--title-stroke N` (default 0;
   bump to 1 for a heavier look).
 
-## [1.3.581]: 2026-05-13, The one with the better cassowary crop
+## [1.3.581] - 2026-05-13: The one with the better cassowary crop
 
 ### Changed
 - **Tightened the cassowary crop** to capture the casque + head + neck
@@ -3737,7 +3767,7 @@ Users with an existing install:
   best-effort first pass; future work could add Floyd-Steinberg
   error diffusion across byte boundaries.
 
-## [1.3.579]: 2026-05-13, The one with the HGR cassowary
+## [1.3.579] - 2026-05-13: The one with the HGR cassowary
 
 ### Added
 - **HGR cassowary demo on the bootable demo disk.** The
@@ -3759,7 +3789,7 @@ Users with an existing install:
   page2 off, hires on) and that `$2000-$3FFF` matches the on-disk
   framebuffer byte-for-byte.
 
-## [1.3.577]: 2026-05-13, The one where the cursor investigation closed
+## [1.3.577] - 2026-05-13: The one where the cursor investigation closed
 
 ### Documented (video)
 - **80-col cursor at the BASIC prompt is intentionally a steady
@@ -3779,7 +3809,7 @@ Users with an existing install:
   it served its purpose during investigation and is no longer
   needed now that the 80-col cursor behavior is understood.
 
-## [1.3.576]: 2026-05-13, The one with the 80-column cursor fix
+## [1.3.576] - 2026-05-13: The one with the 80-column cursor fix
 
 ### Fixed (video)
 - **The 80-col cursor (and any inverse-character cell) is now
@@ -3803,7 +3833,7 @@ Users with an existing install:
   `IIeRom_Apple80ColTextMode_InverseSpace_RendersSolidBlock` pin
   the contract using the real `Apple2e_Video.rom`.
 
-## [1.3.575]: 2026-05-13, The one with the PR#3 cursor investigation
+## [1.3.575] - 2026-05-13: The one with the PR#3 cursor investigation
 
 ### Added (test)
 - New `Pr3AuxClearTest::Pr3_StaticCursor_Lands_At_Main0480` pins the
@@ -3827,7 +3857,7 @@ Users with an existing install:
   bank-switch for the 80-column firmware isn't taking effect after
   `PR#3`; that is the actual bug to chase next.
 
-## [1.3.574]: 2026-05-13, The one with the PowerCycle drive-state fix
+## [1.3.574] - 2026-05-13: The one with the PowerCycle drive-state fix
 
 ### Fixed (disk)
 - **Ctrl+Shift+R no longer leaves the drives empty.** The
@@ -3849,7 +3879,7 @@ Users with an existing install:
   `DiskIINibbleEngineTests::ResetClearsLifetimeNibbleCounters`
   pins the contract.
 
-## [1.3.573]: 2026-05-13, The one with the friendly first run
+## [1.3.573] - 2026-05-13: The one with the friendly first run
 
 ### Added
 - **Friendly first-run boot disk.** When a machine config has a Disk
@@ -3930,7 +3960,7 @@ Users with an existing install:
   of hardcoded `C:\Users\…` paths, and skip cleanly when their input
   disk image / ROM is absent (CI runners don't have them).
 
-## [1.3.536]: 2026-05-10, The one with Disk II and //e text fidelity
+## [1.3.536] - 2026-05-10: The one with Disk II and //e text fidelity
 
 ### Fixed (disk)
 - **DOS 3.3 boots from `.dsk` images.** Disk II nibblization corrected:
@@ -4003,7 +4033,7 @@ Users with an existing install:
 
 
 
-## [1.3.509]: 2026-05-09, The one with the Apple //e (spec 004, Phases 0-16)
+## [1.3.509] - 2026-05-09: The one with the Apple //e (spec 004, Phases 0-16)
 
 The bulk of this entry completes Apple //e fidelity work begun in
 `[1.3.416]`. After this release the //e cold-boots to BASIC, runs Disk II
@@ -4167,7 +4197,7 @@ IRQ/NMI infrastructure.
   `FixtureProvider`, scraper / injector helpers) is now the canonical
   path for emulator integration tests.
 
-## [1.3.416]: 2026-05-06
+## [1.3.416] - 2026-05-06
 
 ### Added (Apple //e fidelity: Phase 6: keyboard + soft-switch read surface)
 - **Open Apple / Closed Apple / Shift modifiers** are now reachable at the
@@ -4208,7 +4238,7 @@ IRQ/NMI infrastructure.
 - Closes the foundational Apple //e fidelity work (spec 004 Phases 0-6).
   Phase 7 (User Story 1 MVP cold boot) is the next planned increment.
 
-## [1.2.315]: 2026-05-04
+## [1.2.315] - 2026-05-04
 
 ### Added
 - **Character generator ROM loading**: text mode renderers now load the real
@@ -4224,7 +4254,7 @@ IRQ/NMI infrastructure.
   bit-reversed 2KB layout and the //e's primary + alt char set arrangement.
   Falls back to embedded $20-$5F glyphs if no ROM file is configured.
 
-## [1.1.311]: 2026-05-04
+## [1.1.311] - 2026-05-04
 
 ### Changed
 - **Machine config schema v2**: breaking change. Refactored from a single `memory[]`
@@ -4249,7 +4279,7 @@ IRQ/NMI infrastructure.
 - **Apple //e Disk II slot ROM**: `Disk2.rom` now loads at $C600-$C6FF (slot 6)
   via the new schema, satisfying the //e autostart scan
 
-## [1.0.307]: 2026-05-04
+## [1.0.307] - 2026-05-04
 
 ### Added
 - **Machine picker dialog**: modal Win32 ListView showing all `Machines/*.json` configs
@@ -4297,7 +4327,7 @@ IRQ/NMI infrastructure.
 ### Removed
 - **Cpu::Run()**: dead code (never called); CLI uses its own StepOne loop
 
-## [1.0.244]: 2026-05-03
+## [1.0.244] - 2026-05-03
 
 ### Added
 - **Apple II platform emulator (Casso.exe)**: GUI-based Apple ][, ][ plus, and //e emulator
@@ -4343,7 +4373,7 @@ IRQ/NMI infrastructure.
 - **Black screen**: D3D11 shaders implemented via runtime D3DCompile
 - **ParseHexAddress**: overflow and invalid-char validation added
 
-## [0.9.32]: 2026-04-28
+## [0.9.32] - 2026-04-28
 
 ### Added
 - Tom Harte SingleStepTests: per-opcode validation against 151 legal-opcode test sets (10,000 vectors each)

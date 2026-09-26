@@ -385,5 +385,92 @@ namespace ControllerTests
 
             Assert::AreEqual (2, requests, L"a submission after the flush must request a new one");
         }
+
+
+        static bool IsClosed (const GamePortState & state, size_t jack, JoystickSwitch sw)
+        {
+            return state.jacks.jack[jack].test (static_cast<size_t> (sw));
+        }
+
+
+        //  Every source that could reach the switches, all at once, so each
+        //  owner's row of the rule is checked against the others' noise.
+        static void SubmitEverySource (GamePortInputMixer & mixer)
+        {
+            GamePortContribution  controller;
+            JoyportJacks          jacks;
+
+            jacks.jack[JoyportJacks::kRightJack].set (static_cast<size_t> (JoystickSwitch::Down));
+            controller.jacks = jacks;
+
+            mixer.Submit (GamePortSource::Controller,        controller);
+            mixer.Submit (GamePortSource::ArrowKeys,         MakePaddle (0, 255));
+            mixer.Submit (GamePortSource::FireKeys,          MakeButtons (true, false, false));
+            mixer.Submit (GamePortSource::MousePaddle,       MakePaddle (0, 0));
+            mixer.Submit (GamePortSource::AppleModifierKeys, MakeButtons (true, true, true));
+        }
+
+
+        TEST_METHOD (Jacks_TheControllerOwnerPlacesItsOwnPlayers)
+        {
+            GamePortInputMixer  mixer;
+            GamePortState       state;
+
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            SubmitEverySource (mixer);
+            state = mixer.GetTargetState();
+
+            Assert::IsTrue (IsClosed (state, JoyportJacks::kRightJack, JoystickSwitch::Down), L"the controller's right jack");
+            Assert::IsTrue (state.jacks.jack[JoyportJacks::kLeftJack].none(), L"and nothing from the keys or the Apple keys");
+        }
+
+
+        TEST_METHOD (Jacks_TheArrowKeysAreOnePlayerOnBothJacks)
+        {
+            GamePortInputMixer  mixer;
+            GamePortState       state;
+
+            mixer.SetAxisOwner (AxisOwner::ArrowKeys);
+            SubmitEverySource (mixer);
+            state = mixer.GetTargetState();
+
+            for (size_t jack = 0; jack < JoyportJacks::kJackCount; jack++)
+            {
+                Assert::IsTrue  (IsClosed (state, jack, JoystickSwitch::Left),  L"PDL0 at 0 is left");
+                Assert::IsTrue  (IsClosed (state, jack, JoystickSwitch::Down),  L"PDL1 at 255 is down");
+                Assert::IsTrue  (IsClosed (state, jack, JoystickSwitch::Fire),  L"the fire key is fire");
+                Assert::IsFalse (IsClosed (state, jack, JoystickSwitch::Right));
+                Assert::IsFalse (IsClosed (state, jack, JoystickSwitch::Up));
+            }
+        }
+
+
+        TEST_METHOD (Jacks_TheMousePaddleAndNoOwnerCloseNothing)
+        {
+            for (AxisOwner owner : { AxisOwner::MousePaddle, AxisOwner::None })
+            {
+                GamePortInputMixer  mixer;
+                GamePortState       state;
+
+                mixer.SetAxisOwner (owner);
+                SubmitEverySource (mixer);
+                state = mixer.GetTargetState();
+
+                Assert::IsTrue (state.jacks == JoyportJacks(),
+                    L"an Atari stick has no paddle for the mouse, and with no owner even a fire key held from arrows mode is open");
+            }
+        }
+
+
+        TEST_METHOD (Jacks_TheAppleKeysNeverCloseASwitch)
+        {
+            GamePortInputMixer  mixer;
+
+            mixer.SetAxisOwner (AxisOwner::ArrowKeys);
+            mixer.Submit (GamePortSource::AppleModifierKeys, MakeButtons (true, true, true));
+
+            Assert::IsTrue (mixer.GetTargetState().jacks == JoyportJacks(),
+                L"Open Apple and Closed Apple are what the Joyport's lines replace");
+        }
     };
 }
