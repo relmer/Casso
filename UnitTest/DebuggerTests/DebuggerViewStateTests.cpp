@@ -6,6 +6,7 @@
 #include "Debugger/MonitorParser.h"
 #include "EmuTests/TestMachine.h"
 #include "FakeDiagnosticsProvider.h"
+#include "ControllerRig.h"
 #include "HandlerTestRig.h"
 #include "InMemoryPipeTransport.h"
 #include "TestHelpers.h"
@@ -71,51 +72,7 @@ namespace DebuggerViewStateTests
 
 
 
-    class MachineRig
-    {
-    public:
-        TestMachine            machine;
-        CpuManager             cpuManager;
-        InMemoryPipeTransport  transport;
-        InMemoryFileSystem     files;
-        DebuggerController     controller;
-        DebuggerViewState      view;
-
-
-
-        MachineRig() :
-            machine    (std::string ("Apple2e"), TestMachine::Slots::Empty),
-            controller (machine, Paused (cpuManager), transport, files, nullptr, 1)
-        {
-            //  LDA #$41 / STA $0400 / RTS at $0300, with the PC on it.
-            machine.GetMemoryBus().WriteByte (0x0300, 0xA9);
-            machine.GetMemoryBus().WriteByte (0x0301, 0x41);
-            machine.GetMemoryBus().WriteByte (0x0302, 0x8D);
-            machine.GetMemoryBus().WriteByte (0x0303, 0x00);
-            machine.GetMemoryBus().WriteByte (0x0304, 0x04);
-            machine.GetMemoryBus().WriteByte (0x0305, 0x60);
-
-            Cpu6502Registers  r = controller.GetSession().GetTarget().GetRegisters();
-
-            r.pc = 0x0300;
-            controller.GetSession().GetTarget().SetRegisters (r);
-        }
-
-
-
-        static CpuManager & Paused (CpuManager & cpu)
-        {
-            cpu.SetPaused (true);
-            return cpu;
-        }
-
-
-
-        Reply Run (const std::string & line)
-        {
-            return DebuggerViewState::ExecuteLine (controller.GetSession(), line, CommandMode::AppleWin);
-        }
-    };
+    using MachineRig = ControllerRig;
 
 
 
