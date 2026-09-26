@@ -369,6 +369,16 @@ bool AppleWinParser::TryParseRunArguments (const Arguments & args, DebugCommand 
     case DebugVerb::PushStack:
         return TryParseValues (args.tokens, 0, ValueWidth::Bytes, *args.context, command, error);
 
+    //  NOP acts on the instruction at PC; it has no address to take.
+    case DebugVerb::WriteNop:
+        if (!args.tokens.empty())
+        {
+            error = std::format ("{} takes no arguments. It replaces the instruction at PC.", ToUpper (command.sourceName));
+            return false;
+        }
+
+        return true;
+
     default:
         command.text = args.rest;
         return true;
@@ -1648,6 +1658,8 @@ bool AppleWinParser::TryEvaluate (
     static constexpr int32_t  kMaxWord = 0xFFFF;
     int32_t                   result   = 0;
     HRESULT                   hr       = DebugExpressionEvaluator::ParseAndEvaluate (text, context, result, error);
+    size_t                    first    = text.find_first_not_of (" \t");
+    size_t                    last     = text.find_last_not_of (" \t");
 
 
 
@@ -1656,9 +1668,10 @@ bool AppleWinParser::TryEvaluate (
         return false;
     }
 
+    //  The value as typed, without the separator a caller left in front of it.
     if (result < 0 || result > kMaxWord)
     {
-        error = std::format ("{} is outside $0000-$FFFF.", text);
+        error = std::format ("{} is outside $0000-$FFFF.", first == std::string::npos ? text : text.substr (first, last - first + 1));
         return false;
     }
 

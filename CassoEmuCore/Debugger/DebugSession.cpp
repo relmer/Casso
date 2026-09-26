@@ -976,7 +976,8 @@ void DebugSession::ClearAllBreakpoints()
     m_breakpoints.ClearAll();
     m_watchpoints.ClearAll();
     m_videoBreak.reset();
-    m_nextId = 0;
+    m_videoBreakHit = false;
+    m_nextId        = 0;
     UpdateHookInstalled();
 }
 

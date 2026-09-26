@@ -69,6 +69,9 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //
 //  ConfigHandlers::RunScript
 //
+//  Each line's text is rendered as it runs and kept in order; the first line
+//  that fails sets the script's status, and the lines after it still run.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, std::optional<CommandMode> mode, Reply & result)
@@ -640,9 +643,9 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 //
 //  ConfigHandlers::Help
 //
-//  HELP alone lists what can be typed in the session's mode; HELP name
-//  describes one command, or says which modes run a Casso command this one
-//  cannot.
+//  HELP alone lists what can be typed in the mode the line was run in; HELP
+//  name describes one command, or says which modes run a Casso command this
+//  one cannot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -678,7 +681,7 @@ void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command,
 
     if (text.empty())
     {
-        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (word)));
+        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", word));
         return;
     }
 

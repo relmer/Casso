@@ -905,5 +905,24 @@ namespace DebuggerTests
             Assert::IsFalse (rig.session.HasVideoBreak(), L"a machine change clears the video break");
             Assert::IsFalse (rig.target.hookInstalled);
         }
+
+
+
+        //  A scanline past the frame's last can never be reached, so BPV
+        //  there is an error.
+        TEST_METHOD (BPV_UnreachableIsAnError)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("BPV 200",   "invalid arguments");
+            rig.RunFails ("BPV FFFF",  "invalid arguments");
+            rig.RunFails ("BPV A0:10", "invalid arguments");
+            Assert::IsFalse (rig.session.HasVideoBreak());
+
+            rig.RunOk ("BPV 105");
+            Assert::IsTrue  (rig.session.HasVideoBreak(), L"scanline 261 is the frame's last");
+        }
     };
 }
