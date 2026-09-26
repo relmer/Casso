@@ -335,6 +335,12 @@ filter: a step into its `JSR` runs the call and stops after it, so stepping
 never lands inside `COUT` and its like. `SKIP` lists the filter, `SKIP - name`
 removes an entry and `SKIP CLEAR` empties it.
 
+An interrupt taken during a step over or a step out runs to its `RTI`
+without ending the step, which then goes on from where the interrupt came
+in: `P` on a `JSR` with an interrupt pending runs the handler, then the call,
+and stops after it. A breakpoint in the handler still stops there. A step
+into stops on the handler's first instruction.
+
 ## The instruction trace
 
 `HISTORY ON` records every instruction the machine runs, keeping the newest

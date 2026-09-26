@@ -86,6 +86,7 @@ void RunStopHook::Begin (const RunRequest & request)
     m_lastOpcode   = 0;
     m_overCall     = request.kind == RunKind::StepOver && PeekOpcode (pc) == kJsr;
     m_callSp.reset();
+    m_interruptSp.reset();
     m_resumePc.reset();
     m_startLine    = GetStepLine (pc);
 
@@ -125,6 +126,8 @@ bool RunStopHook::ShouldStopBefore (Word pc)
 {
     Byte  sp            = m_host.GetCpu()->GetSP();
     bool  isFirst       = m_active && m_instructions == 0;
+    bool  isInInterrupt = false;
+    bool  isResumed     = false;
 
 
 
@@ -142,7 +145,21 @@ bool RunStopHook::ShouldStopBefore (Word pc)
         m_resumePc.reset();
     }
 
-    if (m_active && !isFirst)
+    //  An interrupt the run goes through is invisible to it: nothing in the
+    //  handler ends the run but a breakpoint, and the instruction the
+    //  interrupt was taken in place of, already asked about, runs on return.
+    if (m_active && m_interruptSp.has_value())
+    {
+        isInInterrupt = !HasLeftInterrupt (sp);
+        isResumed     = !isInInterrupt && pc == m_interruptPc;
+
+        if (!isInInterrupt)
+        {
+            m_interruptSp.reset();
+        }
+    }
+
+    if (m_active && !isFirst && !isInInterrupt && !isResumed)
     {
         TrackCall (pc, sp);
     }
@@ -150,7 +167,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     //  A run that ends on an instruction with a breakpoint stops for the
     //  breakpoint: its hit is counted, its condition tested, and a temporary
     //  one cleared, as if the run had gone on to reach it.
-    if (m_active && !isFirst && IsRunComplete (pc, sp))
+    if (m_active && !isFirst && !isInInterrupt && !isResumed && IsRunComplete (pc, sp))
     {
         m_stopped = true;
         m_reason  = (m_request.kind == RunKind::RunTo || m_request.kind == RunKind::Go) ? StopReason::RunTo : StopReason::Step;
@@ -160,7 +177,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
             m_reason = StopReason::Breakpoint;
         }
     }
-    else if (m_conditions != nullptr && !isFirst && m_conditions->ShouldStopBefore (pc))
+    else if (m_conditions != nullptr && !isFirst && !isResumed && m_conditions->ShouldStopBefore (pc))
     {
         m_stopped = true;
         m_reason  = StopReason::Breakpoint;
@@ -173,7 +190,17 @@ bool RunStopHook::ShouldStopBefore (Word pc)
             //  An interrupt taken in place of the instruction at the PC is not
             //  that instruction: its push is not a JSR's, and whatever runs
             //  next is the handler.
-            m_lastOpcode = IsInterruptDue() ? kNoOpcode : PeekOpcode (pc);
+            bool  isInterruptDue = IsInterruptDue();
+
+
+
+            if (isInterruptDue && !m_interruptSp.has_value() && IsRunThroughInterrupts())
+            {
+                m_interruptSp = sp;
+                m_interruptPc = pc;
+            }
+
+            m_lastOpcode = isInterruptDue ? kNoOpcode : PeekOpcode (pc);
             ++m_instructions;
         }
 
@@ -397,6 +424,44 @@ void RunStopHook::TrackCall (Word pc, Byte sp)
     {
         m_callSp = (Byte) (sp + kReturnAddressBytes);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::IsRunThroughInterrupts
+//
+//  A step over and a step out run an interrupt's handler to its end, as a
+//  step over runs a call; the other runs stop in it where they would anywhere
+//  else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RunStopHook::IsRunThroughInterrupts() const
+{
+    return m_request.kind == RunKind::StepOver || m_request.kind == RunKind::StepOut;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::HasLeftInterrupt
+//
+//  The handler is over once the stack pointer is back at its level before
+//  the interrupt and a return or a jump has just executed: the same rule as
+//  the end of a call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RunStopHook::HasLeftInterrupt (Byte sp) const
+{
+    return sp >= *m_interruptSp && IsTransfer (m_lastOpcode);
 }
 
 

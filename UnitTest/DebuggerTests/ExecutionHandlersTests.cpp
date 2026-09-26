@@ -78,29 +78,181 @@ namespace DebuggerTests
 
 
 
-        //  An NMI taken in place of a JSR is not the JSR: P does not treat the
-        //  interrupt's push as the call and report a step back on the JSR it
-        //  never ran. It lands in the handler, as a step into does.
-        TEST_METHOD (StepOverAJsrPreemptedByAnNmi_IsNotReportedBackOnTheJsr)
+        //  $0300: JSR $0310 / NOP    $0310: INX / RTS
+        //  $03FB (the NMI's user vector): JMP $0320    $0320: INC $10 / RTI
+        static void LoadCallAndNmiHandler (MachineRig & rig)
         {
-            static constexpr Word  kNmiUserVector = 0x03FB;
-            MachineRig             rig;
-
-
-
-            // $0300: JSR $0310 / NOP    $0310: RTS    $03FB: JMP $0320    $0320: RTI
+            rig.Load (0x0010, { 0x00 }, 0x0300);
             rig.Load (0x0300, { 0x20, 0x10, 0x03, 0xEA }, 0x0300);
-            rig.Load (0x0310, { 0x60 }, 0x0300);
-            rig.Load (kNmiUserVector, { 0x4C, 0x20, 0x03 }, 0x0300);
-            rig.Load (0x0320, { 0x40 }, 0x0300);
+            rig.Load (0x0310, { 0xE8, 0x60 }, 0x0300);
+            rig.Load (s_kNmiUserVector, { 0x4C, 0x20, 0x03 }, 0x0300);
+            rig.Load (0x0320, { 0xE6, 0x10, 0x40 }, 0x0300);
+        }
+
+
+
+        //  The same, with an NMI pending, so it is taken in place of the JSR.
+        static void LoadCallWithAnNmiPending (MachineRig & rig)
+        {
+            LoadCallAndNmiHandler (rig);
+            RaiseNmi (rig);
+        }
+
+
+
+        static void RaiseNmi (MachineRig & rig)
+        {
             rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, true);
             rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, false);
+        }
+
+
+
+        static Byte PeekHandlerCount (MachineRig & rig)
+        {
+            Byte  count = 0;
+
+
+
+            rig.target.TryPeek (0x0010, count);
+            return count;
+        }
+
+
+
+        static constexpr Word  s_kNmiUserVector = 0x03FB;
+
+
+
+        //  P runs an interrupt taken in place of the JSR through its RTI, then
+        //  steps over the JSR: it stops after the call returns, not in the
+        //  handler and not back on the JSR.
+        TEST_METHOD (StepOverAJsrPreemptedByAnNmi_RunsTheHandlerThenTheCall)
+        {
+            MachineRig  rig;
+
+
+
+            LoadCallWithAnNmiPending (rig);
 
             rig.RunOk ("P");
 
-            Assert::AreNotEqual ((Word) 0x0300, rig.LastStop().pc, L"not back on the JSR that never ran");
-            Assert::AreEqual    ((Word) kNmiUserVector, rig.LastStop().pc, L"in the handler");
-            Assert::IsTrue      (rig.LastStop().reason == StopReason::Step);
+            Assert::AreEqual ((Word) 0x0303, rig.LastStop().pc, L"after the call returns");
+            Assert::AreEqual ((Byte) 1,      PeekHandlerCount (rig), L"the handler ran once");
+            Assert::AreEqual ((uint8_t) 1,   rig.LastStop().registers.x, L"the call ran once");
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Step);
+        }
+
+
+
+        //  P over an instruction other than a call runs the interrupt through
+        //  as well, then that one instruction.
+        TEST_METHOD (StepOverANopPreemptedByAnNmi_RunsTheHandlerThenTheNop)
+        {
+            MachineRig  rig;
+
+
+
+            LoadCallWithAnNmiPending (rig);
+            rig.Load (0x0300, { 0xEA, 0xEA }, 0x0300);
+
+            rig.RunOk ("P");
+
+            Assert::AreEqual ((Word) 0x0301, rig.LastStop().pc);
+            Assert::AreEqual ((Byte) 1,      PeekHandlerCount (rig), L"the handler ran once");
+        }
+
+
+
+        //  A breakpoint in the handler still stops a step over that runs
+        //  through the interrupt, as one in a called routine does.
+        TEST_METHOD (StepOverThroughAnNmi_StopsAtABreakpointInTheHandler)
+        {
+            MachineRig  rig;
+
+
+
+            LoadCallWithAnNmiPending (rig);
+            rig.session.GetBreakpoints().AddAddress (0x0320, 0x0320);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("P");
+
+            Assert::AreEqual ((Word) 0x0320, rig.LastStop().pc);
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Breakpoint);
+        }
+
+
+
+        //  T lands in the handler of an interrupt taken in place of the JSR.
+        TEST_METHOD (StepIntoAJsrPreemptedByAnNmi_LandsInTheHandler)
+        {
+            MachineRig  rig;
+
+
+
+            LoadCallWithAnNmiPending (rig);
+
+            rig.RunOk ("T");
+
+            Assert::AreEqual ((Word) s_kNmiUserVector, rig.LastStop().pc, L"in the handler");
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Step);
+        }
+
+
+
+        //  RTS runs an interrupt taken inside the routine through its RTI and
+        //  goes on out of the routine.
+        TEST_METHOD (StepOutWithAnNmiPending_RunsTheHandlerAndReturns)
+        {
+            MachineRig  rig;
+
+
+
+            LoadCallAndNmiHandler (rig);
+
+            rig.RunOk ("T");
+            Assert::AreEqual ((Word) 0x0310, rig.LastStop().pc, L"in the routine");
+
+            RaiseNmi (rig);
+            rig.RunOk ("RTS");
+
+            Assert::AreEqual ((Word) 0x0303, rig.LastStop().pc, L"out of the routine");
+            Assert::AreEqual ((Byte) 1,      PeekHandlerCount (rig), L"the handler ran once");
+        }
+
+
+
+        //  RTS in a routine entered before the step began, so no call is on
+        //  record, ends on the stack pointer. An IRQ taken after the routine
+        //  pulls a byte is not its return: the handler's RTI leaves the stack
+        //  above where the step began, but the step goes on to the RTS.
+        TEST_METHOD (StepOutWithNoFrameOnRecord_RunsAnIrqThrough)
+        {
+            static constexpr Word  kIrqUserVector = 0x03FE;
+            MachineRig             rig;
+            Cpu6502Registers       registers;
+
+
+
+            // $0310: PLA / CLI / PHA / RTS
+            // $0320: PLA / ORA #$04 / PHA / INC $10 / LDA $45 / RTI   (masks the IRQ it returns to)
+            rig.Load (0x0010, { 0x00 }, 0x0310);
+            rig.Load (0x0310, { 0x68, 0x58, 0x48, 0x60 }, 0x0310);
+            rig.Load (0x0320, { 0x68, 0x09, 0x04, 0x48, 0xE6, 0x10, 0xA5, 0x45, 0x40 }, 0x0310);
+            rig.Load (kIrqUserVector, { 0x20, 0x03 }, 0x0310);
+
+            //  A return to $0303 on the stack, as a JSR at $0300 left it.
+            rig.Load (0x01FE, { 0x02, 0x03 }, 0x0310);
+            registers    = rig.target.GetRegisters();
+            registers.sp = 0xFD;
+            rig.target.SetRegisters (registers);
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kMaskable, true);
+
+            rig.RunOk ("RTS");
+
+            Assert::AreEqual ((Word) 0x0303, rig.LastStop().pc, L"out of the routine, not back in it after the RTI");
+            Assert::AreEqual ((Byte) 1,      PeekHandlerCount (rig), L"the handler ran once");
         }
 
 
