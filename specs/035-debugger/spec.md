@@ -1051,11 +1051,14 @@ confirm it disables without being removed.
 - **FR-014**: Every engine command Casso adds beyond the dialects (`MODE`,
   `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`, `SKIP`, `CALLS`,
   `HISTORY`, `PANEL`, `OUTPUT`, `PROFILE`, and any added later), and every
-  other Casso command the mode has no equivalent for (`DISK` in GSSquared
-  mode, for one), MUST be reachable in every mode through that mode's own
-  marker: `/` in Monitor mode, bare names in AppleWin, GSSquared and Casso
-  modes, and `!` in WinDbg mode. A command whose name the mode already uses
-  for something else (GSSquared's `R`, `S`, `G`, `L`) is not reached that way.
+  other Casso command (`DISK` in GSSquared mode, for one), MUST be reachable
+  in every mode through that mode's own marker: `/` in Monitor mode, bare
+  names in AppleWin, GSSquared and Casso modes, and `!` in WinDbg mode. A
+  command whose name the mode already uses for something else (GSSquared's
+  `R`, `S`, `G`, `L`, and any bare hex word, which GSSquared reads as an
+  address) is not reached that way. A command the mode has a form of its own
+  for still runs through the marker, so the debugger's controls and scripts
+  work in every mode, but help lists the mode's form (FR-122).
   The documentation MUST describe each engine command once and list the
   marker per mode.
 - **FR-122**: Help in each mode MUST list only commands that can be typed in
@@ -1790,8 +1793,8 @@ confirm it disables without being removed.
 - **SC-028**: Every pane's tab title is shown in full or reachable by the
   strip's arrows, at any group width down to the pane's minimum.
 - **SC-031**: In every mode, every command its help lists runs when typed as
-  listed -- 100% of them -- and no command a mode can run is missing from its
-  help.
+  listed -- 100% of them -- and every Casso command the mode runs appears in
+  its help, itself or as the mode's own form of it.
 - **SC-029**: Every breakpoint the console can set can also be set, enabled,
   disabled, deleted and found from the breakpoints pane alone, with no command
   typed.

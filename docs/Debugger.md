@@ -17,7 +17,7 @@ up in the other. The channel is documented in [DebugChannel.md](DebugChannel.md)
 
 ## Command modes
 
-The debugger reads each line in one of four modes.
+The debugger reads each line in one of five modes.
 
 - **AppleWin** (the default) uses AppleWin's debugger command names: `BP`, `G`,
   `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols.
@@ -29,14 +29,17 @@ The debugger reads each line in one of four modes.
 - **WinDbg** is WinDbg-flavored: the WinDbg commands a 6502 session uses, with
   WinDbg's arguments and layouts, described below. It is not WinDbg; the rest
   of WinDbg has no meaning on this machine and says so.
+- **Casso** is Casso's complete native command set: every command Casso has,
+  AppleWin's names and Casso's own, by name, with replies in AppleWin's
+  format.
 
-Switch with `MODE MONITOR`, `MODE GSSQUARED`, `MODE WINDBG` and
-`MODE APPLEWIN`; `MODE` alone
-shows the current mode. Batch mode starts in the mode `--mode` gives.
+Switch with `MODE MONITOR`, `MODE GSSQUARED`, `MODE WINDBG`, `MODE CASSO`
+and `MODE APPLEWIN`, or from the Dialect menu; `MODE` alone shows the current
+mode. Batch mode starts in the mode `--mode` gives.
 
 ### The `/` prefix
 
-In Monitor mode, a line starting with `/` is read as an AppleWin line. This
+In Monitor mode, a line starting with `/` is read as a Casso command, so it
 reaches everything the Monitor has no command for:
 
 ```
@@ -111,24 +114,32 @@ AppleWin's.
 
 ## Getting help
 
-`HELP` (or `?`) lists every command by family. `HELP name` describes one, and
-says whether it is an alias, needs the debugger window, or is not available.
+Each mode's help command (`HELP` or `?`, `/HELP` in Monitor, `help` in
+GSSquared, `.help` in WinDbg) lists what can be typed in that mode, grouped by
+category and alphabetical within each, syntax on the left and what it does on
+the right: the mode's own commands first, then the Casso commands it reaches,
+written as they are typed there. A Casso command the mode has its own form of
+is not repeated, and one whose name the mode already uses -- GSSquared's `r`,
+or any hex word, which GSSquared reads as an address -- is not listed. Asking
+help for one command describes it, or says which modes run it.
 
-## Casso engine commands
+## Casso commands
 
-These are Casso's own, alongside AppleWin's names. Each mode reaches them
-through its own marker:
+Every mode reaches Casso's commands -- AppleWin's names and Casso's own --
+through its own marker, unless the mode uses the name for something else:
 
 | Mode | Marker | Example |
 |---|---|---|
-| AppleWin | the bare name | `SWITCHES` |
-| Monitor | `/` | `/switches` |
-| GSSquared | the bare name; `/` is its bank separator | `switches` |
-| WinDbg | `!` | `!switches` |
+| AppleWin, Casso | the bare name | `SWITCHES`, `DISK` |
+| Monitor | `/` | `/switches`, `/disk` |
+| GSSquared | the bare name; `/` is its bank separator | `switches`, `disk` |
+| WinDbg | `!` | `!switches`, `!disk` |
+
+These are Casso's own additions to AppleWin's set:
 
 | Command | Effect |
 |---|---|
-| `MODE [APPLEWIN\|MONITOR\|GSSQUARED\|WINDBG]` | shows or sets the command mode, and sets the output format to match |
+| `MODE [APPLEWIN\|MONITOR\|GSSQUARED\|WINDBG\|CASSO]` | shows or sets the command mode, and sets the output format to match |
 | `OUTPUT [APPLEWIN\|MONITOR\|GSSQUARED\|WINDBG]` | shows or sets the output format alone |
 | `PAUSE` | stops a running machine |
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
