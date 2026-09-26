@@ -388,6 +388,10 @@ public:
     static std::string  GetRunLine              ()             { return "G"; }
     static std::string  GetRunToCursorLine      (Word address);
 
+    //  The mode run to cursor runs in, whatever the console's: GSSquared's g
+    //  takes no address, so the window sends Casso's own G in every dialect.
+    static constexpr CommandMode  kRunToCursorMode = CommandMode::Casso;
+
     //  PANEL to open or close a device panel, as an AppleWin line; RunCommand
     //  marks it for the current mode.
     static std::string  GetPanelLine            (const std::string & id, bool open);
@@ -426,8 +430,9 @@ public:
     Reply  ExecuteWindowLine (DebugSession & session, const std::string & line, CommandMode mode);
 
     //  The lines the window's console shows for a line: the line behind the
-    //  prompt of the mode it was typed in, then the reply. CPU thread only.
-    std::vector<std::string>  ExecuteConsoleLine (DebugSession & session, const std::string & line);
+    //  prompt of the mode it runs in, then the reply. It runs in `lineMode`
+    //  when given, otherwise in the session's mode. CPU thread only.
+    std::vector<std::string>  ExecuteConsoleLine (DebugSession & session, const std::string & line, std::optional<CommandMode> lineMode = std::nullopt);
 
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.

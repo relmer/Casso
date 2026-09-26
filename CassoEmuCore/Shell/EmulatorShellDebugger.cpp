@@ -371,6 +371,21 @@ void EmulatorShell::RunDebuggerCommand (const std::string & line)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RunDebuggerCommandInMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunDebuggerCommandInMode (const std::string & line, CommandMode mode)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line, mode));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PauseDebugger
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -591,7 +606,7 @@ void EmulatorShell::OpenDebugChannel()
         return;
     }
 
-    SetDebugCommandHandler ([this] (uint32_t clientId, const std::string & line)
+    SetDebugCommandHandler ([this] (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
     {
         std::vector<std::string>  lines;
 
@@ -602,7 +617,7 @@ void EmulatorShell::OpenDebugChannel()
             return;
         }
 
-        lines = m_debugViewState.ExecuteConsoleLine (m_debugger->GetSession(), line);
+        lines = m_debugViewState.ExecuteConsoleLine (m_debugger->GetSession(), line, mode);
 
         {
             std::lock_guard<std::mutex>  held (m_debugViewMutex);

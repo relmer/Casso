@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Debugger/DebugCommand.h"
 #include "Shell/CpuManager.h"
 
 
@@ -47,8 +48,9 @@ public:
     virtual void     PlayDriveTestSound       (int drive, int kind)                             = 0;
 
     //  A debugger command line and the client its reply goes to, run on the
-    //  thread that owns the machine.
-    virtual void     RunDebugCommand          (uint32_t clientId, const std::string & line)     = 0;
+    //  thread that owns the machine, in `mode` when given and otherwise in the
+    //  session's own.
+    virtual void     RunDebugCommand          (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode) = 0;
 
     //  The user paused or resumed the machine, told to an attached debugger.
     virtual void     NotifyDebugPauseChanged  (bool paused)                                     = 0;
