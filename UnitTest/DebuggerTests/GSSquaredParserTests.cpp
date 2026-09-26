@@ -371,6 +371,8 @@ namespace DebuggerTests
             Assert::IsTrue (Parse ("map").error.find ("IIgs")  != std::string::npos);
             Assert::IsTrue (Parse ("m").error.find   ("IIgs")  != std::string::npos);
             Assert::IsTrue (Parse ("video").error.find ("screen") != std::string::npos);
+            Assert::IsTrue (Parse ("debug").error.find   ("PANEL")  != std::string::npos, L"DEBUG points to PANEL");
+            Assert::IsTrue (Parse ("nodebug").error.find ("PANEL")  != std::string::npos, L"NODEBUG points to PANEL");
         }
 
         //  FR-022b: bank 00 is the address; any other bank does not exist here.
