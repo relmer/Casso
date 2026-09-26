@@ -72,6 +72,8 @@ namespace DebuggerTests
             rig.RunFails ("PRINTF",             "invalid arguments");
             rig.RunFails ("PRINTF \"%d %d\",1", "invalid arguments");
             rig.RunFails ("PRINT NOSUCH",       "invalid arguments");
+            Assert::AreEqual (std::string ("12345 is outside $0000-$FFFF."), rig.RunFails ("PRINT 12345", "invalid arguments").error.detail);
+            rig.RunFails ("PRINT #-1",          "invalid arguments");
             rig.RunFails ("CALC",               "invalid arguments");
         }
 

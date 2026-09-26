@@ -51,6 +51,9 @@ class AppleWinParser
 public:
     static AppleWinParseResult  Parse (const std::string & line, const IDebugExpressionContext & context);
 
+    //  One expression as a word; a value outside $0000-$FFFF is an error.
+    static bool  TryEvaluate (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);
+
 private:
     using Tokens = std::vector<std::string>;
 
@@ -74,6 +77,7 @@ private:
     static Tokens  Split              (const std::string & text);
     static std::string  ToUpper       (const std::string & text);
     static std::string  Join          (const Tokens & tokens, size_t first);
+    static std::string  GetTextAfterFirstWord (const Arguments & args);
     static bool    TryParseShorthand  (const std::string & first, const Arguments & args, AppleWinParseResult & result);
     static bool    TryParseMoveShorthand (const std::string & upper, const Arguments & args, AppleWinParseResult & result);
     static bool    TryParseArguments  (const Arguments & args, DebugCommand & command, std::string & error);
@@ -98,7 +102,6 @@ private:
     static bool    TryParseCount             (const std::string & text, uint32_t & value);
     static bool    TryParsePanelArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseSkipRange  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
-    static bool    TryEvaluate        (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);
     static bool    TryParseRange      (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryParseSourceLine (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool    TryParseValues     (const Tokens & tokens, size_t first, ValueWidth width, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
