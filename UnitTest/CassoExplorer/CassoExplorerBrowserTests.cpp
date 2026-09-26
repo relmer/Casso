@@ -572,7 +572,12 @@ public:
     TEST_METHOD (Formatting)
     {
         Assert::AreEqual (std::wstring (L"777 bytes"), CassoExplorerBrowser::FormatSize (777));
-        Assert::AreEqual (std::wstring (L"8.0 KB"),    CassoExplorerBrowser::FormatSize (8192));
+        Assert::AreEqual (std::wstring (L"8.00 KB"),   CassoExplorerBrowser::FormatSize (8192));
+
+        //  The Size column, as Explorer's: whole kilobytes, rounded up.
+        Assert::AreEqual (std::wstring (L"0 KB"),   CassoExplorerBrowser::FormatSizeColumn (0));
+        Assert::AreEqual (std::wstring (L"1 KB"),   CassoExplorerBrowser::FormatSizeColumn (187));
+        Assert::AreEqual (std::wstring (L"110 KB"), CassoExplorerBrowser::FormatSizeColumn (112537));
         Assert::AreEqual (std::wstring (L"1 item"),    CassoExplorerBrowser::FormatSelection (0, 1));
         Assert::AreEqual (std::wstring (L"7 items, 3 selected"), CassoExplorerBrowser::FormatSelection (3, 7));
 

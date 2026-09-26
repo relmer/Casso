@@ -21,6 +21,7 @@
 #include <mferror.h>
 #include <propvarutil.h>
 #include <shlobj.h>
+#include <shlwapi.h>
 #include <knownfolders.h>
 #include <wincodec.h>
 #include <wrl/client.h>

@@ -4,6 +4,8 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 
+#pragma comment(lib, "shlwapi.lib")
+
 
 
 
@@ -947,7 +949,7 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCatalogPreviewCells (con
 
     cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.typeText, false });
-    cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSize (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
 
     return cells;
 }
@@ -976,7 +978,7 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
 
     cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.typeText, false });
-    cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSize (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
     cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });
@@ -997,19 +999,50 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
 //
 //  CassoExplorerBrowser::FormatSize
 //
-//  Bytes up to a kilobyte, then kilobytes with one decimal: an Apple file is
-//  small enough that the byte count is what someone wants to see.
+//  A size as Explorer's status bar and its free space show one: Windows' own
+//  byte-size format, three significant digits in the largest unit that fits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring CassoExplorerBrowser::FormatSize (uint64_t bytes)
 {
-    if (bytes < 1024)
+    wchar_t  text[64] = {};
+
+
+
+    if (StrFormatByteSizeW ((LONGLONG) bytes, text, (UINT) std::size (text)) == nullptr)
     {
         return std::format (L"{} bytes", bytes);
     }
 
-    return std::format (L"{:.1f} KB", bytes / 1024.0);
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::FormatSizeColumn
+//
+//  A size as Explorer's Size column shows one: whole kilobytes rounded up,
+//  with the user's thousands separator, so a 187-byte file is "1 KB".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::FormatSizeColumn (uint64_t bytes)
+{
+    wchar_t  text[64] = {};
+
+
+
+    if (StrFormatKBSizeW ((LONGLONG) bytes, text, (UINT) std::size (text)) == nullptr)
+    {
+        return std::format (L"{} KB", (bytes + 1023) / 1024);
+    }
+
+    return text;
 }
 
 

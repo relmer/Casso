@@ -198,6 +198,7 @@ public:
     static DxuiTreeNode  ToTreeNode (const TreeNode & node, IShellIcons * icons = nullptr);
 
     static std::wstring  FormatSize      (uint64_t bytes);
+    static std::wstring  FormatSizeColumn (uint64_t bytes);
     static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);
     static std::wstring  FormatSelection (size_t selected, size_t total);
 
