@@ -370,8 +370,7 @@ void DebuggerWindow::ConfigureWidgets()
     m_registerList->SetColumns   ({ { L"Reg",         0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left },
                                     { L"",            0, false, DxuiTextHAlign::Left } });
-    m_breakpointList->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left   },
-                                    { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
+    m_breakpointList->SetColumns ({ { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
     //  The value runs to the pane's edge, as Visual Studio's does, so the
     //  Automatic and Watches headings span the pane rather than the columns.
     m_watchList->SetColumns      ({ { L"Watch",       0, false, DxuiTextHAlign::Left },
@@ -383,13 +382,21 @@ void DebuggerWindow::ConfigureWidgets()
     //  to copy it.
     m_consoleView->SetOwnerWindow (GetHwnd());
 
-    //  Activating a breakpoint shows its address; its circle, in the gutter,
-    //  turns it on and off.
+    //  Activating a breakpoint shows its address; its checkbox turns it on
+    //  and off, as Visual Studio's Breakpoints window does.
     m_breakpointList->SetOnActivateRow ([this] (int row)
     {
         if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->breakpoints.size())
         {
             ShowCode (m_snapshot->breakpoints[(size_t) row].address);
+        }
+    });
+
+    m_breakpointList->SetOnCheckToggled ([this] (int row, size_t, bool checked)
+    {
+        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->breakpoints.size())
+        {
+            RunCommand (std::format ("{} {}", checked ? "BPE" : "BPD", m_snapshot->breakpoints[(size_t) row].id));
         }
     });
 
@@ -3226,13 +3233,17 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
+    //  A checkbox, the mark the code views' gutter shows, then the breakpoint.
     for (const DebuggerViewSnapshot::BreakpointLine & bp : m_snapshot->breakpoints)
     {
-        DxuiListView::Cell  circle;
+        DxuiListView::Cell  cell;
 
-        circle.icon = GetBreakpointIcon (bp.enabled);
+        cell.check = bp.enabled;
+        cell.icon  = GetBreakpointIcon (bp.enabled);
+        cell.text  = Widen (bp.text);
+        cell.dim   = !bp.enabled;
 
-        rows.push_back ({ circle, { Widen (bp.text), !bp.enabled } });
+        rows.push_back ({ cell });
     }
 
     m_breakpointList->SetRows (std::move (rows));
@@ -4413,8 +4424,8 @@ void DebuggerWindow::ShowCode (std::optional<Word> address)
 //  DebuggerWindow::ClickGutter
 //
 //  A press on the first column of the code pane sets or clears the
-//  breakpoint on that row; on the breakpoints pane it turns the breakpoint
-//  on or off without removing it.
+//  breakpoint on that row. The breakpoints pane turns one on or off with its
+//  checkbox instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4432,7 +4443,7 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
         return false;
     }
 
-    for (DxuiListView * list : { m_codeLists[0], m_codeLists[1], m_codeLists[2], m_codeLists[3], m_breakpointList })
+    for (DxuiListView * list : { m_codeLists[0], m_codeLists[1], m_codeLists[2], m_codeLists[3] })
     {
         bounds = list->GetBounds();
         lx     = ev.positionDip.x - bounds.left;
@@ -4453,14 +4464,6 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
         if (GetCodeViewOf (list) >= 0 && row >= 0 && row < (int) GetCodeLines (GetCodeViewOf (list)).size())
         {
             RunCommand (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, GetCodeLines (GetCodeViewOf (list))[(size_t) row].address));
-            return true;
-        }
-
-        if (list == m_breakpointList && row >= 0 && row < (int) m_snapshot->breakpoints.size())
-        {
-            const DebuggerViewSnapshot::BreakpointLine & bp = m_snapshot->breakpoints[(size_t) row];
-
-            RunCommand (std::format ("{} {}", bp.enabled ? "BPD" : "BPE", bp.id));
             return true;
         }
 

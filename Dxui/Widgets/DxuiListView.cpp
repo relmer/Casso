@@ -586,7 +586,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
                 hr = text.MeasureString (row[c].text.c_str(), fontDip, GetBodyFace(), w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
-                wpx = std::max (wpx, (int) std::ceil (w) + (row[c].icon ? m_scaler.ToPx (s_kCellIconDip + s_kCellIconGapDip) : 0));
+                wpx = std::max (wpx, (int) std::ceil (w) + GetCellLeadPx (row[c]));
             }
         }
 
@@ -2486,9 +2486,9 @@ bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) co
 
     left = colXPx[column] + colOff + m_scaler.ToPx (m_cellPadLeftDip);
 
-    if (column < GetRowCells (row).size() && GetRowCells (row)[column].icon)
+    if (column < GetRowCells (row).size())
     {
-        left += m_scaler.ToPx (s_kCellIconDip + s_kCellIconGapDip);
+        left += GetCellLeadPx (GetRowCells (row)[column]);
     }
 
     outRect.left   = left;
@@ -2497,6 +2497,210 @@ bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) co
     outRect.bottom = outRect.top + rowH;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCheckRectPx
+//
+//  At the start of the cell, past its left padding, centered in the row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetCheckRectPx (int row, size_t column, RECT & outRect) const
+{
+    int               rowH    = GetRowHeightPx();
+    int               headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
+    int               hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
+    int               cap     = GetVisibleRowCapacity();
+    bool              needBar = (GetRowCount() > cap) && (cap > 0);
+    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int               colOff  = m_hScrollEnabled ? -m_leftPx : 0;
+    int               size    = m_scaler.ToPx (s_kCellCheckDip);
+    int               top     = 0;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (IsItemsView() || row < m_topRow || row >= m_topRow + cap || row >= GetRowCount() || column >= m_columns.size() ||
+        !m_columns[column].visible || column >= GetRowCells (row).size() || !GetRowCells (row)[column].check.has_value())
+    {
+        return false;
+    }
+
+    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    if (colWPx[column] <= 0)
+    {
+        return false;
+    }
+
+    top     = headerH + hdrGap + (row - m_topRow) * rowH + (rowH - size) / 2;
+    outRect = RECT { colXPx[column] + colOff + m_scaler.ToPx (m_cellPadLeftDip), top, 0, top + size };
+
+    outRect.right = outRect.left + size;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCellLeadPx
+//
+//  The room a cell's checkbox and icon take ahead of its text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetCellLeadPx (const Cell & cell) const
+{
+    int  lead = 0;
+
+
+
+    lead += cell.check.has_value() ? m_scaler.ToPx (s_kCellCheckDip + s_kCellCheckGapDip) : 0;
+    lead += cell.icon              ? m_scaler.ToPx (s_kCellIconDip  + s_kCellIconGapDip)  : 0;
+
+    return lead;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestCheck
+//
+//  The column of the checkbox under a point on a row, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::HitTestCheck (int lx, int ly, int row) const
+{
+    RECT  box = {};
+
+
+
+    for (size_t c = 0; c < m_columns.size(); c++)
+    {
+        if (GetCheckRectPx (row, c, box) && lx >= box.left && lx < box.right && ly >= box.top && ly < box.bottom)
+        {
+            return (int) c;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleChecks
+//
+//  Space on the list: each selected row's first checkbox asks for the state
+//  opposite the keyboard row's, so a mixed selection all goes one way, as
+//  Windows' lists do. Reports whether any selected row has a checkbox;
+//  toggles only when `apply` is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::ToggleChecks (bool apply)
+{
+    std::vector<int>     rows   = { m_selectedRow };
+    std::optional<bool>  target;
+
+
+
+    //  The keyboard row first, so its state decides; then the rest once each.
+    for (int row : m_selectedRows)
+    {
+        if (row != m_selectedRow)
+        {
+            rows.push_back (row);
+        }
+    }
+
+    for (int row : rows)
+    {
+        if (row < 0 || row >= GetRowCount())
+        {
+            continue;
+        }
+
+        const std::vector<Cell> &  cells = GetRowCells (row);
+
+        for (size_t c = 0; c < cells.size() && c < m_columns.size(); c++)
+        {
+            if (!cells[c].check.has_value())
+            {
+                continue;
+            }
+
+            if (!target.has_value())
+            {
+                target = !*cells[c].check;
+            }
+
+            if (apply && m_onCheckToggled)
+            {
+                m_onCheckToggled (row, c, *target);
+            }
+
+            break;
+        }
+    }
+
+    return target.has_value();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintCheck
+//
+//  A rounded box, as Windows draws one: outlined when clear, filled with the
+//  accent and carrying a check mark when checked. Only the rows' paint calls
+//  it, and that runs only with a theme.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintCheck (IDxuiPainter & painter, IDxuiTextRenderer & text, float x, float y, float size, bool checked) const
+{
+    static constexpr uint32_t  kMarkArgb  = 0xFFFFFFFFu;   // the check mark, on the accent
+    static constexpr float     kCornerDip = 3.0f;
+    static constexpr float     kMarkScale = 0.75f;         // the mark's size in the box
+    static constexpr float     kEdgeAlpha = 0.7f;          // a clear box's outline, a little softer than the text
+    HRESULT                    hr         = S_OK;
+    float                      line       = (std::max) (1.0f, std::round (m_scaler.ToPxf (1.0f)));
+    float                      corner     = m_scaler.ToPxf (kCornerDip);
+
+
+
+    if (!checked)
+    {
+        painter.OutlineRoundedRect (x, y, size, size, corner, line, DxuiColor::ScaleAlpha (m_theme->Foreground(), kEdgeAlpha));
+        return;
+    }
+
+    painter.FillRoundedRect (x, y, size, size, corner, m_theme->Accent());
+
+    hr = text.DrawString (s_kpszMdl2Accept, x, y, size, size, kMarkArgb, size * kMarkScale, L"Segoe MDL2 Assets",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -2966,17 +3170,27 @@ void DxuiListView::PaintDataRows (
                 painter.FillRect (x + colOff + (float) colXPx[c], ry, (float) colWPx[c], rowH, cells[c].background);
             }
 
+            if (cells[c].check.has_value())
+            {
+                float  checkPx = (float) m_scaler.ToPx (s_kCellCheckDip);
+
+                PaintCheck (painter, text, x + colOff + (float) colXPx[c] + cellPadL, ry + (float) (((int) rowH - (int) checkPx) / 2),
+                            checkPx, *cells[c].check);
+
+                iconShift = checkPx + m_scaler.ToPxf ((float) s_kCellCheckGapDip);
+            }
+
             if (cells[c].icon && !cells[c].icon->bgraPremul.empty())
             {
                 float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
 
                 hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
-                                          x + colOff + (float) colXPx[c] + cellPadL,
+                                          x + colOff + (float) colXPx[c] + cellPadL + iconShift,
                                           ry + (rowH - iconPx) * 0.5f,
                                           iconPx, iconPx);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
-                iconShift = iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
+                iconShift += iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
             }
 
             //  Selected characters, as a text box draws them: the selection
@@ -3502,6 +3716,19 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     }
 
     row = HitTestRow (lx, ly);
+
+    //  A press on a checkbox toggles it and nothing else: the selection stays
+    //  where it was, as it does in Visual Studio's Breakpoints window.
+    if (int checkCol = (row >= 0) ? HitTestCheck (lx, ly, row) : -1; checkCol >= 0)
+    {
+        if (m_onCheckToggled)
+        {
+            m_onCheckToggled (row, (size_t) checkCol, !GetRowCells (row)[(size_t) checkCol].check.value_or (false));
+        }
+
+        handled = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     if (row >= 0)
     {
@@ -4335,6 +4562,13 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
     bool  handled    = false;
 
 
+
+    //  Space toggles the checkboxes of the selected rows, as it does a lone
+    //  checkbox; the character it also sends is then spent, not a type-ahead.
+    if (ev.vk == VK_SPACE && !ev.ctrl && !ev.alt && ToggleChecks (false))
+    {
+        return (ev.kind == DxuiKeyEventKind::Down) ? ToggleChecks (true) : true;
+    }
 
     //  A printable character jumps to a row, as it does in Explorer. With Ctrl
     //  or Alt down it is a shortcut instead, and is left to the host.

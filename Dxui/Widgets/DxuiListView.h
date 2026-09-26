@@ -54,6 +54,11 @@ public:
         //  columns only, as matches are.
         std::vector<std::pair<int, int>>  dimRanges;
 
+        //  A checkbox at the start of the cell, ahead of the icon, checked or
+        //  not; none draws none. Pressing it, or Space on its row, reports the
+        //  toggle to the host, which sets the new state with the next rows.
+        std::optional<bool>  check;
+
         //  Drawn at the start of the cell, the text moved along past it.
         std::shared_ptr<const DxuiIconImage>  icon;
 
@@ -377,6 +382,10 @@ public:
     //  hidden column.
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const;
 
+    //  Where a cell's checkbox is drawn and hit, in the same coordinates;
+    //  false for a cell with none, a row out of view or a hidden column.
+    bool  GetCheckRectPx      (int row, size_t column, RECT & outRect) const;
+
     // Self-contained mouse input. Forward widget-relative mouse events
     // (positionDip = the point minus the list's own origin) via OnMouse;
     // the list owns scrolling, thumb / column-resize drags, hover, and
@@ -391,6 +400,10 @@ public:
     void  ClearSelection        ()                               { SetSelectedRows ({}, -1); if (m_onSelectionChanged) { m_onSelectionChanged (-1); } }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
+
+    //  A checkbox toggled: the row, the column, and the state it asks for.
+    using CheckToggledFn = std::function<void (int row, size_t column, bool checked)>;
+    void  SetOnCheckToggled     (CheckToggledFn cb)              { m_onCheckToggled     = std::move (cb); }
 
     // Mouse activation policy. By default a click release over a row raises
     // onActivateRow; with double-click required, the release only activates
@@ -468,6 +481,8 @@ private:
     static constexpr int    s_kScrollbarWidthDip = 10;
     static constexpr int    s_kCellIconDip       = 16;
     static constexpr int    s_kCellIconGapDip    = 6;
+    static constexpr int    s_kCellCheckDip      = 14;
+    static constexpr int    s_kCellCheckGapDip   = 6;
     static constexpr int    s_kMinColWidthDip    = 48;
     static constexpr int    s_kResizeGrabDip     = 4;
 
@@ -737,6 +752,7 @@ private:
     std::function<void (int)>         m_onSelectionChanged;
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int)>         m_onSortColumn;
+    CheckToggledFn                    m_onCheckToggled;
     std::function<void (int, int)>    m_onColumnResized;
 
     bool     m_activateOnDoubleClick = false;
@@ -756,6 +772,10 @@ private:
 
     TextPos       HitTestText          (int lx, int ly) const;
     int           HitTestCharInCell    (int row, size_t col, int lx) const;
+    int           GetCellLeadPx        (const Cell & cell) const;
+    int           HitTestCheck         (int lx, int ly, int row) const;
+    bool          ToggleChecks         (bool apply);
+    void          PaintCheck           (IDxuiPainter & painter, IDxuiTextRenderer & text, float x, float y, float size, bool checked) const;
     bool          GetCellTextSelection (int row, size_t col, int length, int & start, int & end) const;
     void          SelectWordAt         (int lx, int ly);
     std::wstring  GetTextSelectionText () const;
