@@ -197,6 +197,14 @@ public:
 
     void   SetInstructionObserver (IInstructionObserver * observer) { m_instructionObserver = observer; }
 
+    // RUN, LOAD and STARTUP run each script line through the runner when one
+    // is set, so the debugger window runs them as it runs a typed line. The
+    // runner's replies come back formatted.
+    using ScriptLineRunner = std::function<Reply (const std::string &)>;
+
+    void                       SetScriptLineRunner (ScriptLineRunner runner)       { m_scriptLineRunner = std::move (runner); }
+    const ScriptLineRunner   & GetScriptLineRunner () const                        { return m_scriptLineRunner; }
+
     // BPV: stop when the video scanline enters the range, once.
     void   SetVideoBreak         (uint32_t first, uint32_t last);
     void   ClearVideoBreak       ();
@@ -298,6 +306,7 @@ private:
 
     std::optional<Word>                   m_assemblyAddress;
     std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;
+    ScriptLineRunner                      m_scriptLineRunner;
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;

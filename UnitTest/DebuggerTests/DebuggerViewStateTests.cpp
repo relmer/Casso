@@ -2472,6 +2472,46 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  A script run from the window runs its lines as the window does,
+        //  so its PANEL and CODE lines reach the panes.
+        TEST_METHOD (AScriptRunFromTheWindowRunsWindowCommands)
+        {
+            MachineRig            rig;
+            Reply                 reply;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\panes.txt", "PANEL mmu\nCODE\n");
+
+            reply    = rig.view.ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\panes.txt\"", CommandMode::AppleWin);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            for (const std::string & text : reply.text)
+            {
+                Assert::IsTrue (text.find ("needs the debugger window") == std::string::npos, L"no script line was sent away from the window");
+            }
+
+            Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size(), L"the script's PANEL line opened the panel");
+        }
+
+
+        //  A script that ends inside an A block ends the block, so the next
+        //  line typed is a command again.
+        TEST_METHOD (AScriptEndingInsideAnAssemblyBlockEndsTheBlock)
+        {
+            MachineRig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\asm.txt", "A 300\nLDA #1\n");
+
+            (void) rig.view.ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\asm.txt\"", CommandMode::AppleWin);
+
+            Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the script's end ended the block");
+        }
+
+
         //  A real machine's MMU panel arrives with its map.
         TEST_METHOD (TheMmuPanelOfARealMachine)
         {

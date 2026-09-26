@@ -43,6 +43,7 @@ private:
     static void  PrintDirectory  (DebugSession & session, Reply & reply);
     static void  ChangeDirectory (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  RunFile         (DebugSession & session, const std::string & name, Reply & reply);
+    static void  RunScriptLine   (DebugSession & session, const std::string & line, MessageData & output);
     static void  SaveAll         (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         Disassembly     (const DebugCommand & command, Reply & reply);
     static void  Disk            (DebugSession & session, const DebugCommand & command, Reply & reply);

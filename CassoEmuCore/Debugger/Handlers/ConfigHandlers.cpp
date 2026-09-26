@@ -99,9 +99,7 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
 
         if (firstNonBlank == std::string::npos || line[firstNonBlank] != ';')
         {
-            reply = session.ExecuteLine (line);
-            session.FormatReply (reply);
-            output.lines.insert (output.lines.end(), reply.text.begin(), reply.text.end());
+            RunScriptLine (session, line, output);
         }
 
         if (end == std::string::npos)
@@ -111,6 +109,42 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
 
         start = end + 1;
     }
+
+    //  An A block the script leaves open ends with it, as a blank line
+    //  would end it, so the next line typed is a command again.
+    if (session.IsAssembling())
+    {
+        RunScriptLine (session, "", output);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::RunScriptLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::RunScriptLine (DebugSession & session, const std::string & line, MessageData & output)
+{
+    Reply  reply;
+
+
+
+    if (session.GetScriptLineRunner())
+    {
+        reply = session.GetScriptLineRunner() (line);
+    }
+    else
+    {
+        reply = session.ExecuteLine (line);
+        session.FormatReply (reply);
+    }
+
+    output.lines.insert (output.lines.end(), reply.text.begin(), reply.text.end());
 }
 
 

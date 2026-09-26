@@ -460,6 +460,7 @@ private:
     void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
     Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
+    Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
     void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static const IDiagnosticsProvider *  FindProvider (const std::vector<const IDiagnosticsProvider *> & providers, const std::string & name);
