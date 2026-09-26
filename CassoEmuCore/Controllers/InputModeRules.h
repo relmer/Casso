@@ -105,4 +105,12 @@ public:
     static State      AfterSelectingController (State state);
     static State      AfterSettingArrows       (State state, bool on);
     static State      AfterSettingMousePaddle  (State state, bool on);
+
+    // PB0 and PB1 as the keys-as-joystick fire keys drive them: X or left Alt,
+    // and Z or right Alt. With the Joyport attached the Alt keys are left out.
+    static std::bitset<2>  GetFireKeyButtons (bool xDown,
+                                              bool zDown,
+                                              bool leftAltDown,
+                                              bool rightAltDown,
+                                              bool isJoyportAttached);
 };

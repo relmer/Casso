@@ -547,7 +547,7 @@ static HRESULT ModernTaskRequested (HWND postHwnd, ComPtr<IUnknown> session,
     CHR (hr);
 
     hr = request->CreatePrintTask (
-             HStringReference (L"Casso Printout").Get(),
+             HStringReference (L"Casso printout").Get(),
              Callback<awgp::IPrintTaskSourceRequestedHandler> (
                  [session] (awgp::IPrintTaskSourceRequestedArgs * srcArgs) -> HRESULT
                  {

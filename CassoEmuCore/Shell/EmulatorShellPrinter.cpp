@@ -329,7 +329,7 @@ void EmulatorShell::UpdatePrinterPreview()
 
     // Printer-sound volume + mute (Settings > Printing audio, FR-034). Read from
     // prefs each frame so an OK / Cancel in Settings binds on the next update
-    // without any live-apply plumbing; the shared "Drive Audio" master still
+    // without any live-apply plumbing; the shared "Drive audio" master still
     // gates the whole bus above this.
     m_printerAudio.SetVolume (m_globalPrefs.printerAudioVolume);
     m_printerAudio.SetMuted  (!m_globalPrefs.printerAudioEnabled);

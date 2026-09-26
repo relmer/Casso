@@ -74,17 +74,25 @@ void SettingsApplyController::BindControllers (ControllersPageState * state, Con
 HRESULT SettingsApplyController::CommitControllerSettings (const std::map<std::string, ControllerModelSettings> & models,
                                                            const std::map<std::string, ControllerCalibration>   & calibrations)
 {
-    HRESULT                 hr = S_OK;
-    ControllerProfileStore  store;
-    GlobalUserPrefs         saved;
+    HRESULT                   hr = S_OK;
+    ControllerProfileStore    store;
+    ControllerProfileStore    existing;
+    std::vector<std::string>  unreadable;
+    GlobalUserPrefs           saved;
 
 
 
     CBRA (m_prefs != nullptr);
     CBRA (m_fs != nullptr);
 
+    // This commits a profile's edits, not a change of which profile is
+    // active, so the active profiles already saved are written back as they
+    // were rather than dropped by a store that never held them.
+    existing.FromJson (m_prefs->controllers, unreadable);
+
     store.models         = models;
     store.calibrations   = calibrations;
+    store.activeProfiles = existing.activeProfiles;
     m_prefs->controllers = store.ToJson (m_prefs->controllers);
 
     if (m_controllerService != nullptr)
@@ -450,9 +458,9 @@ void SettingsApplyController::CommitApply()
     // The page's baseline advances only once the save lands, as the other
     // baselines do.
     //
-    // The profile chosen on the page becomes the machine's active profile,
-    // after the settings that hold it so a new profile resolves at once, and
-    // is written to the machine's prefs beside the controller selection.
+    // Each controller's active profile, as chosen on the page, goes to the
+    // service after the settings that hold it, so a new profile resolves at
+    // once. It is global, saved with the settings rather than per machine.
     if (m_controllersState != nullptr && m_controllersState->IsDirty() && m_prefs != nullptr)
     {
         ControllerProfileStore  store;
@@ -461,6 +469,7 @@ void SettingsApplyController::CommitApply()
 
         store.models         = m_controllersState->GetModels();
         store.calibrations   = m_controllersState->GetCalibrations();
+        store.activeProfiles = m_controllersState->GetActiveProfiles();
         m_prefs->controllers = store.ToJson (m_prefs->controllers);
 
         if (m_controllerService != nullptr)
@@ -470,8 +479,8 @@ void SettingsApplyController::CommitApply()
 
             if (profileChange)
             {
-                m_controllerService->SetActiveProfile (m_controllersState->GetActiveProfileName());
-                m_emuShell->PersistInputModeForMachine();
+                m_controllerService->SetActiveProfiles (store.activeProfiles);
+                m_emuShell->SyncPaddleSourceList();
             }
         }
 

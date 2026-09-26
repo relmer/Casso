@@ -45,6 +45,10 @@ struct DxuiPopupMenuItem
         //  to the end, with the separator after it, when the menu opens
         //  upward. The keyboard passes over it; its commands are elsewhere.
         IconRow,
+
+        //  A label over the rows that follow it, as Windows 11 menus title a
+        //  group. Never hovered, clicked or reached by the keyboard.
+        Header,
     };
 
     Kind                                kind     = Kind::Command;
@@ -55,6 +59,7 @@ struct DxuiPopupMenuItem
     static DxuiPopupMenuItem  ForSeparator ();
     static DxuiPopupMenuItem  ForSubmenu   (std::shared_ptr<const DxuiCommand> cmd, std::vector<DxuiPopupMenuItem> children);
     static DxuiPopupMenuItem  ForIconRow   (std::vector<std::shared_ptr<const DxuiCommand>> commands);
+    static DxuiPopupMenuItem  ForHeader    (std::wstring label);
 };
 
 

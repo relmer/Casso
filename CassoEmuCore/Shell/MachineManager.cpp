@@ -518,6 +518,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         //  that booted to a garbage screen was the one nobody switched to.
         hr = m_shell.BuildMachineDevices (newConfig);
         CHR (hr);
+
+        // The new machine's Joyport comes up detached; its own saved setting
+        // attaches it, before the power cycle below opens the reset window.
+        m_shell.AdoptGamePortAdapterForMachine (inputUiPrefs);
     }
 
     // The new devices hold none of the game-port state the mixer wrote to the

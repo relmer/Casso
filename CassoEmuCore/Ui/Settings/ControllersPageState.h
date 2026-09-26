@@ -24,6 +24,20 @@ enum class PaddleTarget
 
 
 
+// Which Joyport jack a controller drives: its multiplayer slot's, or both
+// when it plays alone.
+enum class JoyportJack
+{
+    None,
+    Left,
+    Right,
+    Both,
+};
+
+
+
+
+
 enum class CalibrationStep
 {
     None,
@@ -79,14 +93,24 @@ public:
 
     // The page opens. `hasPb2` is false on a machine whose $C063 is not a
     // pushbutton, the //c, where the PB2 target is unavailable.
-    // `activeProfile` is the machine's active profile, empty for Default.
-    // `selection` is the machine's selected controller, which the page opens
-    // on; with none, or one not attached, it opens on the first attached.
+    // `activeProfiles` is every controller's active profile by unit token,
+    // empty for Default. `selection` is the machine's selected controller,
+    // which the page opens on; with none, or one not attached, it opens on the
+    // first attached.
     void  Load (const std::vector<ControllerDeviceInfo>              & devices,
                 const std::map<std::string, ControllerModelSettings> & models,
                 const std::map<std::string, ControllerCalibration>   & calibrations,
                 bool                                                   hasPb2,
-                const std::string                                    & activeProfile = std::string(),
+                const std::map<std::string, std::string>             & activeProfiles,
+                const std::optional<ControllerUnitKey>               & selection);
+
+    // The same, with one name as the active profile of the controller the
+    // page opens on and no other controller's recorded.
+    void  Load (const std::vector<ControllerDeviceInfo>              & devices,
+                const std::map<std::string, ControllerModelSettings> & models,
+                const std::map<std::string, ControllerCalibration>   & calibrations,
+                bool                                                   hasPb2,
+                const std::string                                    & openedProfile = std::string(),
                 const std::optional<ControllerUnitKey>               & selection     = std::nullopt);
 
     // The machine's display name, for saying which machine a target is not
@@ -114,6 +138,17 @@ public:
     const MultiplayerSetup &  GetMultiplayer          () const;
     size_t                    GetAxisCount            () const;
     bool                      IsMultiplayerEnabled    () const;
+
+    // The Joyport jack the controller in Editing drives, for the page's
+    // switch lights, and the heading the page shows above them.
+    JoyportJack               GetJoyportJack          () const;
+    static std::wstring       GetJoyportHeading       (JoyportJack jack);
+
+    // What a row drives while the Joyport is attached: PDL0 the left and
+    // right switches, PDL1 up and down, PB0 fire. PB1 and PB2 drive nothing,
+    // so the page leaves them out; their bindings stay in the profile.
+    static bool               IsJoyportTarget         (PaddleTarget target);
+    static std::wstring       GetJoyportRowLabel      (PaddleTarget target);
 
     // One player's controller, or their target. Both normalize, so a slot that
     // cannot be played beside the other one is emptied rather than kept.
@@ -186,8 +221,10 @@ public:
                                             const std::map<std::string, ControllerCalibration>   & calibrations)>;
     HRESULT                               SaveProfileEdits         (const CommitFn & commit);
 
-    // The profile that becomes the machine's active one on OK, empty for
-    // Default, and whether it differs from the one the page opened on.
+    // Every controller's active profile as it stands on the page, by unit
+    // token, which becomes the service's on OK; whether any differs from when
+    // the page opened; and the edited controller's, empty for Default.
+    const std::map<std::string, std::string> &  GetActiveProfiles () const { return m_activeProfiles; }
     bool                                  HasActiveProfileChanged  () const;
     const std::string &                   GetActiveProfileName     () const;
 
@@ -250,10 +287,21 @@ private:
     std::map<std::string, ControllerModelSettings>  m_baselineModels;
     std::map<std::string, ControllerCalibration>    m_baselineCalibrations;
 
-    // The edited profile's name as chosen, empty for Default, and as it was
-    // when the page opened or last committed.
+    // The edited controller's active profile as chosen, empty for Default. It
+    // is that controller's entry in m_activeProfiles, loaded when Editing
+    // moves to it and written back whenever it changes.
     std::string                                     m_editedProfile;
-    std::string                                     m_baselineProfile;
+
+    // Every controller's active profile, by unit token, and as it was when
+    // the page opened or last committed.
+    std::map<std::string, std::string>              m_activeProfiles;
+    std::map<std::string, std::string>              m_baselineActiveProfiles;
+
+    void  LoadEditedProfile      ();
+    void  StoreEditedProfile     ();
+    void  RetargetActiveProfiles (const std::string & modelToken, const std::string & from, const std::string & to);
+
+    static bool  IsEachPlayedAlike (const std::map<std::string, std::string> & from, const std::map<std::string, std::string> & in);
 
     // Per model token, a profile's name as edited mapped to its name in the
     // committed settings. An empty committed name marks a profile created on

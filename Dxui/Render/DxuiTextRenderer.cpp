@@ -1681,6 +1681,75 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillPolygon
+//
+//  An anti-aliased filled polygon through the D2D context: one closed figure
+//  through the points in order. Fewer than three points is not a polygon and
+//  draws nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::FillPolygon (const DxuiPointF * points, size_t count, uint32_t argbColor)
+{
+    constexpr size_t               kMinVertices = 3;
+    HRESULT                        hr           = S_OK;
+    ComPtr<ID2D1SolidColorBrush>   brush;
+    ComPtr<ID2D1PathGeometry1>     geometry;
+    ComPtr<ID2D1GeometrySink>      sink;
+    bool                           isPolygon    = points != nullptr && count >= kMinVertices;
+    size_t                         i            = 0;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    BAIL_OUT_IF (!isPolygon, S_OK);
+
+    CBRA (m_d2dContext);
+    CBRA (m_d2dFactory);
+    CBRA (m_drawing);
+
+    hr = m_d2dFactory->CreatePathGeometry (&geometry);
+    CHRA (hr);
+
+    hr = geometry->Open (&sink);
+    CHRA (hr);
+
+    sink->BeginFigure (D2D1::Point2F (points[0].x, points[0].y), D2D1_FIGURE_BEGIN_FILLED);
+
+    for (i = 1; i < count; i++)
+    {
+        sink->AddLine (D2D1::Point2F (points[i].x, points[i].y));
+    }
+
+    sink->EndFigure (D2D1_FIGURE_END_CLOSED);
+
+    hr = sink->Close();
+    CHRA (hr);
+
+    hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
+    CHRA (hr);
+
+    if (m_globalAlpha < 1.0f)
+    {
+        D2D1_COLOR_F  scaled = brush->GetColor();
+
+        scaled.a *= m_globalAlpha;
+        brush->SetColor (scaled);
+    }
+
+    m_d2dContext->FillGeometry (geometry.Get(), brush.Get());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FillRect
 //
 //  Paints a filled axis-aligned rectangle through the D2D context.

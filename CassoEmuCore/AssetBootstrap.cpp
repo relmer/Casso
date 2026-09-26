@@ -147,7 +147,7 @@ static constexpr RomSpec s_kRomCatalog[] =
 //
 //  Apple master disk images downloaded from the Asimov mirror when the
 //  user picks one in the boot or insert disk picker, or clicks Download
-//  in Create New Disk. Nothing fetches them on its own. The on-disk
+//  in Create new disk. Nothing fetches them on its own. The on-disk
 //  filename is shorter than the Asimov one; a copy dropped into Disks/
 //  under that name is picked up without a download.
 //
@@ -1917,7 +1917,7 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 //
 //  Pure download helper behind the DOS 3.3 / ProDOS rows of the boot and
 //  insert disk pickers and, through EnsureStockBootDisk, the Download
-//  button in Create New Disk. Returns at once when the file is already
+//  button in Create new disk. Returns at once when the file is already
 //  under `diskDir`; otherwise fetches `spec` from the Asimov mirror,
 //  writes it there, and returns the absolute path in `outDiskPath`. No
 //  UI; the caller owns the prompt and any error reporting.

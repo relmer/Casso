@@ -22,6 +22,7 @@ class Apple2eMmu;
 class AppleMouse;
 class DebugHook;
 struct DebugHookFilter;
+class SiriusJoyport;
 class IDisk2EventSink;
 class IInputEventSink;
 class Prng;
@@ -133,6 +134,7 @@ public:
     Apple2eMmu      *  GetMmu             () noexcept { return m_mmu.get(); }
     Apple2cRomBank  *  GetApple2cRomBank  () noexcept { return m_apple2cRomBank.get(); }
     AppleMouse      *  GetMouse           () noexcept { return m_mouse.get(); }
+    SiriusJoyport   *  GetJoyport         () noexcept { return m_joyport.get(); }
     VideoTiming     *  GetVideoTiming     () noexcept { return m_videoTiming.get(); }
 
     const EmuCpu          *  GetCpu            () const noexcept { return m_cpu.get(); }
@@ -140,6 +142,7 @@ public:
     const Apple2eMmu      *  GetMmu            () const noexcept { return m_mmu.get(); }
     const Apple2cRomBank  *  GetApple2cRomBank () const noexcept { return m_apple2cRomBank.get(); }
     const AppleMouse      *  GetMouse          () const noexcept { return m_mouse.get(); }
+    const SiriusJoyport   *  GetJoyport        () const noexcept { return m_joyport.get(); }
     const VideoTiming     *  GetVideoTiming    () const noexcept { return m_videoTiming.get(); }
 
     void  SetCpu            (std::unique_ptr<EmuCpu>          cpu);
@@ -147,6 +150,7 @@ public:
     void  SetMmu            (std::unique_ptr<Apple2eMmu>      mmu);
     void  SetApple2cRomBank (std::unique_ptr<Apple2cRomBank>  romBank);
     void  SetMouse          (std::unique_ptr<AppleMouse>      mouse);
+    void  SetJoyport        (std::unique_ptr<SiriusJoyport>   joyport);
     void  SetVideoTiming    (std::unique_ptr<VideoTiming>     videoTiming);
 
     //  Everything the machine owns and destroys as a unit. The ACIA
@@ -290,6 +294,7 @@ private:
     std::unique_ptr<Apple2eMmu>      m_mmu;
     std::unique_ptr<Apple2cRomBank>  m_apple2cRomBank;
     std::unique_ptr<AppleMouse>      m_mouse;
+    std::unique_ptr<SiriusJoyport>   m_joyport;
     std::unique_ptr<VideoTiming>     m_videoTiming;
 
     // On the heap: together they are most of the host's size, and a test

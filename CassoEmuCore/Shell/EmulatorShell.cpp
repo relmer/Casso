@@ -447,6 +447,7 @@ HRESULT EmulatorShell::Initialize (
         targets.gamePort    = m_machine.GetRefs().gamePort;
         targets.iieSwitches = m_machine.GetRefs().iieSoftSwitches;
         targets.iieKeyboard = m_machine.GetRefs().iieKeyboard;
+        targets.joyport     = m_machine.GetJoyport();
 
         if (definition != nullptr)
         {
@@ -478,8 +479,9 @@ HRESULT EmulatorShell::Initialize (
         std::vector<std::string>  rejected;
 
         store.FromJson (m_globalPrefs.controllers, rejected);
-        m_controllerService->SetModelSettings (store.models);
-        m_controllerService->SetCalibrations  (store.calibrations);
+        m_controllerService->SetModelSettings  (store.models);
+        m_controllerService->SetCalibrations   (store.calibrations);
+        m_controllerService->SetActiveProfiles (store.activeProfiles);
 
         if (!rejected.empty())
         {

@@ -147,6 +147,11 @@ public:
     std::map<std::string, ControllerModelSettings>  models;
     std::map<std::string, ControllerCalibration>    calibrations;
 
+    // Each controller's active profile, by unit token; an empty name is the
+    // Default. Global rather than per machine, so a profile made for one
+    // machine can be played on any of them.
+    std::map<std::string, std::string>              activeProfiles;
+
     void       FromJson (const JsonValue & controllers, std::vector<std::string> & outRejected);
     JsonValue  ToJson   (const JsonValue & controllers) const;
 
@@ -179,6 +184,7 @@ private:
 
     void              ReadModels        (const JsonValue & modelsObj, std::vector<std::string> & outRejected);
     void              ReadCalibrations  (const JsonValue & calibrationObj, std::vector<std::string> & outRejected);
+    void              ReadActiveProfiles(const JsonValue & activeObj, std::vector<std::string> & outRejected);
 
     static bool       ReadProfile       (const JsonValue & profileObj, ControllerProfile & outProfile);
     static bool       ReadMapping       (const JsonValue & mappingObj, ControlMapping & outMapping);

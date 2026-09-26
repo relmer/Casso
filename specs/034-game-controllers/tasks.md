@@ -102,7 +102,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T037 [US1] Build; run `scripts/RunTests.ps1 -Filter Controller`; run quickstart sections 3-4 scenarios 2, 3, 6 and 10 on hardware (launch with `--title`), recording results in `specs/034-game-controllers/validation.md`
 - [X] T038 [US1] Commit: `feat(input): physical controller drives the game port`
 
-**Checkpoint**: MVP. A plugged-in controller plays joystick games.
+**Checkpoint**: MVP. Joystick games can be played with a plugged-in controller.
 
 ---
 
@@ -286,6 +286,20 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
+## Phase 11: Active Profile per Controller (after 1.26.1)
+
+**Goal**: Each controller unit has its own active profile, stored globally, picked from a Profiles submenu on the paddle-source picker (FR-028, FR-029, clarifications 2026-09-24).
+
+- [X] T111 [US6] Port 035's two submenu fixes to `Dxui/Widgets/DxuiPopupMenu.cpp`, and add a `Header` row kind that titles a group of rows and is never hovered or picked, with `Header_IsTitleNotChoice` in `UnitTest/Dxui/DxuiPopupMenuTests.cpp`
+- [X] T112 [US6] Add `activeProfiles` (unit token to profile name) to `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp` per `contracts/prefs-schema.md`, and key `ControllerInputService`'s active profile by unit, so each driver resolves its own
+- [X] T113 [US6] Make the Controllers page's Profile drop-down the active profile of the controller in Editing (`ControllersPageState`), following renames and deletes across every controller of the model; an absent entry and an empty one both count as the Default when deciding whether the page is dirty
+- [X] T114 [US6] Remove the toolbar's profile drop-down; add the Profiles submenu to the paddle-source picker in `CassoEmuCore/Ui/Chrome/EmulatorCommands.cpp`, with a section per controller in play, a header per player in multiplayer, and New... opening the New Profile dialog
+- [X] T115 [US6] Move a machine's legacy `controllerProfile` onto its saved controller once, in `EmulatorShell::AdoptControllerForMachine`, and stop writing the key
+- [X] T116 Keep a hosted menu tracking the mouse while its submenu holds the capture: moves and presses outside the submenu go to the ancestor popup under the pointer (`Dxui/Window/DxuiPopupHost.cpp`)
+- [X] T117 Validate by hand: one pad, two pads of one model with different profiles, a relaunch, the Settings Editing profile, and New...; all passed 2026-09-24
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies
@@ -342,7 +356,7 @@ Task: "PaddleSourceRowsTests.cpp (T041)"
 
 1. Phase 1 hardware check.
 2. Phase 2: mixer migration, then backend and thread.
-3. Phase 3: a plugged-in controller plays.
+3. Phase 3: games can be played with a plugged-in controller.
 4. Stop and validate on hardware (quickstart scenarios 2, 3, 6, 10).
 
 ### Incremental Delivery

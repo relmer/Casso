@@ -23,10 +23,16 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
         "mode": "user",
         "axes": [ { "index": 0, "center": 0.02, "min": -0.93, "max": 0.95 } ]
       }
+    },
+    "activeProfiles": {
+      "xinput/product:045e:02e0":   "Lode Runner (D-pad)",
+      "xinput/product:045e:02e0:2": ""
     }
   }
 }
 ```
+
+`activeProfiles` maps a unit token to the name of that controller's active profile, one of its model's profiles. An empty name is the Default, the same as no entry. An entry is kept even when it names the Default, since its presence is what stops a legacy `controllerProfile` from being moved onto that controller again (below).
 
 ### Mapping object
 
@@ -57,6 +63,8 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
 | Duplicate profile names (case-insensitive) | Later duplicates dropped and reported |
 | A calibration entry that fails the invariant | Entry dropped; the unit uses automatic calibration; reported |
 | `deadzone` out of [0, 0.9] | Clamped |
+| An `activeProfiles` entry whose key is not a unit token, or whose value is not a string | Entry dropped and reported; that controller uses Default |
+| An `activeProfiles` name its model has no profile of | Kept; the controller uses Default until a profile of that name exists |
 
 ## Per machine: `$cassoUiPrefs` block
 
@@ -65,7 +73,7 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 | Key | Value | Absent means |
 |---|---|---|
 | `controller` | Unit token, e.g. `xinput:045e:0b13` or `dinput:044f:b10a/{8E8A...}` | No controller selected |
-| `controllerProfile` | Profile name | Default |
+| `controllerProfile` | Profile name. Read only: written by builds before the active profile moved to `activeProfiles` | Nothing to move |
 | `multiplayer` | `{ "enabled": <bool>, "players": [ <slot>, <slot> ] }` | Single-source mode: the selected controller drives PDL0/PDL1 and PB0-PB2, exactly as before this key existed |
 
 ```json
@@ -88,6 +96,7 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 - A pick from the command-bar paddle picker turns the mode off, keeping both slots.
 - **`controllerAxes`, the short-lived per-axis assignment key, is gone.** It never shipped in a release, so it is neither read nor migrated; a file still carrying it keeps it as an unknown key and it has no effect.
 - Selecting arrows-to-joystick or mouse-to-paddle removes `controller` (FR-008), which lets automatic selection apply at the next connect (FR-032).
+- A `controllerProfile` is moved to `activeProfiles` under the machine's saved `controller` when the machine is loaded, if that controller has no `activeProfiles` entry yet (FR-029). It is never written again, so once any machine has moved its name onto a controller, another machine's older name cannot overwrite it.
 
 ## Unit-test obligations
 

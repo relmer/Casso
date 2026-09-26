@@ -70,7 +70,7 @@ EmulatorShell ── owns ── MachineManager ── builds ── the machine
 
 ## 2. Threading model
 
-Two threads matter:
+Two threads own the emulator's state:
 
 - **The emulation (CPU) thread**: `CpuManager::ThreadProc`. It drains a command
   queue (`DrainCommandQueue`), runs CPU slices (`ExecuteCpuSlices`), ticks the
@@ -81,6 +81,29 @@ Two threads matter:
   tree is **single-threaded and UI-thread-affine** (enforced by
   `DxuiAssertUiThread`, ~154 call sites), so anything that mutates a panel or
   measures text must run here.
+
+Four more long-lived threads each do one narrow job:
+
+- **Audio render**: `WasapiAudio::RenderPump` drains the pending sample queue
+  into WASAPI (see §7).
+- **Controller input**: `ControllerInputThread` reads game controllers, waiting
+  on DirectInput's change events, or on a timeout while an XInput controller is
+  selected.
+- **Printer**: `PrinterWorker` paces `PrinterEngine::Tick` against the wall
+  clock.
+- **Disk image watcher**: `Win32ImageWatcher` runs one thread per directory
+  holding a mounted image, so Casso detects an external rewrite of the image.
+
+<p align="center"><img src="docs/threads.svg" alt="Swimlanes for the controller input, UI, CPU, audio render, disk image watcher and printer threads. Controller samples reach the UI thread by a posted WM_APP_GAMEPORT_FLUSH message; the UI thread sends the CPU thread commands through the command queue and input through atomics; the CPU thread returns frames through a mutex and ready event, posted WM_APP messages and the debug event rings; the CPU thread feeds the audio render thread through the sample queue and the printer thread through PrinterByteRing; the disk image watcher records pending changes that the CPU thread polls; and the printer thread publishes its raster to the UI preview under a mutex." width="100%" /></p>
+
+Short-lived threads come and go for the first-run downloads
+(`StartupDownloadDialog`) and for Print to PDF, which needs an MTA
+(`WindowCommandManager`).
+
+**A running Casso shows well over 100 threads, and almost none are Casso's.**
+On a 32-thread Ryzen with an NVIDIA GPU, 103 of 116 started in `nvwgf2umx.dll`,
+all at one entry point: the D3D11 user-mode driver's worker pool. The rest are Casso's own six, a few Windows thread-pool
+workers, and one each for COM, DirectInput and the input host.
 
 **Command routing** (get this wrong and you trip `DxuiAssertUiThread`):
 
@@ -291,12 +314,16 @@ cost, the perf facet of the off-thread-compositing initiative (#100; see §9).
 
 ## 7. Audio
 
-WASAPI output on the UI/audio side; the generators (speaker delta-sigma, Disk II
-mechanical, Mockingboard PSG) produce PCM from cycle-timestamped events on the
-CPU thread. `WasapiAudio::SubmitFrame` is **non-blocking** (it drops rather than
-blocks, capped at a 3-frame backlog) so audio buffer pressure never throttles
-the emulation thread. (Emulation speed is governed by the frame pacing in the
-CPU-thread loop, not by audio.)
+The generators (speaker delta-sigma, Disk II and printer mechanical sound,
+Mockingboard PSGs and speech) produce PCM from cycle-timestamped events on the
+CPU thread, and `WasapiAudio::SubmitFrame` mixes them into a pending sample
+queue. A dedicated render thread, `WasapiAudio::RenderPump`, drains that queue
+into WASAPI whenever the endpoint signals it has room. `SubmitFrame` is
+**non-blocking** (it drops rather than blocks, capped at a 3-frame backlog) so
+audio buffer pressure never throttles the emulation thread. (Emulation speed is
+governed by the frame pacing in the CPU-thread loop, not by audio.)
+
+<p align="center"><img src="docs/audio-stack.svg" alt="The audio path: the speaker, Disk II drives, printer and Mockingboard feed the AudioGenerator and two DriveAudioMixers; WasapiAudio::SubmitFrame mixes them on the CPU thread into a pending sample queue, with an optional CASSO_AUDIO_DUMP file tap; WasapiAudio::RenderPump drains the queue on the render thread into IAudioClient, which an endpoint notifier reopens on device change, and on to the Windows audio mixer" width="680" /></p>
 
 ---
 

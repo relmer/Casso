@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/SiriusJoyport.h"
+
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
@@ -216,6 +218,9 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 //  counts up to the position value. With no cycle source wired (tests) the
 //  timer reads as already expired so a poll loop can never hang.
 //
+//  With a Joyport attached there is no potentiometer on any input, so the
+//  one-shot never times out and PDL(n) reads 255.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
@@ -223,6 +228,7 @@ Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
     int       axis    = static_cast<int> (address - s_kwPaddle0Address);
     Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
     uint64_t  elapsed = UINT64_MAX;
+    Byte      value   = 0;
 
 
 
@@ -231,7 +237,14 @@ Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
         elapsed = *m_cpuCycleSource - m_paddleTriggerCycle;
     }
 
-    return (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? 0x80 : 0x00;
+    value = (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? s_knPaddleTiming : 0x00;
+
+    if (m_joyport != nullptr && m_joyport->IsDrivingPaddles())
+    {
+        value = s_knPaddleTiming;
+    }
+
+    return value;
 }
 
 
@@ -349,6 +362,7 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 //
 //  $C00C-$C00F (80COL/ALTCHARSET) toggle on read OR write per real //e.
 //  $C054-$C057 (PAGE2/HIRES) trigger banking-changed so MMU can re-resolve.
+//  $C058-$C05D set and clear annunciators AN0-AN2 in the base bank.
 //  $C05E/$C05F toggle DHIRES (display-only).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,7 +492,9 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             bankingChange = true;
         }
 
-        if (address >= 0xC050 && address <= 0xC057)
+        // $C050-$C057 display switches and $C058-$C05D annunciators AN0-AN2.
+        // The //c with IOU access on never reaches here for $C058-$C05F.
+        if (address >= 0xC050 && address <= 0xC05D)
         {
             result = AppleSoftSwitchBank::Read (address);
         }

@@ -20,7 +20,7 @@ void ControllersPageState::Load (
     const std::map<std::string, ControllerModelSettings> & models,
     const std::map<std::string, ControllerCalibration>   & calibrations,
     bool                                                   hasPb2,
-    const std::string                                    & activeProfile,
+    const std::map<std::string, std::string>             & activeProfiles,
     const std::optional<ControllerUnitKey>               & selection)
 {
     size_t  i = 0;
@@ -30,13 +30,13 @@ void ControllersPageState::Load (
     m_controllers.clear();
     m_selected.reset();
 
-    m_hasPb2               = hasPb2;
-    m_models               = models;
-    m_calibrations         = calibrations;
-    m_baselineModels       = models;
-    m_baselineCalibrations = calibrations;
-    m_editedProfile        = activeProfile;
-    m_baselineProfile      = activeProfile;
+    m_hasPb2                 = hasPb2;
+    m_models                 = models;
+    m_calibrations           = calibrations;
+    m_baselineModels         = models;
+    m_baselineCalibrations   = calibrations;
+    m_activeProfiles         = activeProfiles;
+    m_baselineActiveProfiles = activeProfiles;
 
     m_committedNames.clear();
     m_capture.Cancel();
@@ -56,6 +56,133 @@ void ControllersPageState::Load (
         if (m_controllers[i].unit == selection.value())
         {
             m_selected = i;
+        }
+    }
+
+    LoadEditedProfile();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Load
+//
+//  One name, recorded as the active profile of whichever controller the page
+//  opens on, once the full Load has decided which that is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::Load (
+    const std::vector<ControllerDeviceInfo>              & devices,
+    const std::map<std::string, ControllerModelSettings> & models,
+    const std::map<std::string, ControllerCalibration>   & calibrations,
+    bool                                                   hasPb2,
+    const std::string                                    & openedProfile,
+    const std::optional<ControllerUnitKey>               & selection)
+{
+    Load (devices, models, calibrations, hasPb2, std::map<std::string, std::string>(), selection);
+
+    if (openedProfile.empty() || !m_selected.has_value())
+    {
+        return;
+    }
+
+    m_editedProfile = openedProfile;
+    StoreEditedProfile();
+    m_baselineActiveProfiles = m_activeProfiles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadEditedProfile
+//
+//  m_editedProfile is the edited controller's entry in m_activeProfiles: read
+//  from the map when Editing moves to a controller, written back to it each
+//  time it changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::LoadEditedProfile()
+{
+    auto  found = m_activeProfiles.end();
+
+
+
+    m_editedProfile.clear();
+
+    if (!m_selected.has_value() || m_selected.value() >= m_controllers.size())
+    {
+        return;
+    }
+
+    found = m_activeProfiles.find (ControllerTokens::UnitToToken (m_controllers[m_selected.value()].unit));
+
+    if (found != m_activeProfiles.end())
+    {
+        m_editedProfile = found->second;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StoreEditedProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::StoreEditedProfile()
+{
+    if (!m_selected.has_value() || m_selected.value() >= m_controllers.size())
+    {
+        return;
+    }
+
+    m_activeProfiles[ControllerTokens::UnitToToken (m_controllers[m_selected.value()].unit)] = m_editedProfile;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RetargetActiveProfiles
+//
+//  A profile renamed or deleted on one controller is the same profile for
+//  every controller of its model, so each of them that had it active follows:
+//  to the new name, or to the Default when `to` is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::RetargetActiveProfiles (const std::string & modelToken, const std::string & from, const std::string & to)
+{
+    ControllerUnitKey  unit;
+    HRESULT            hr   = S_OK;
+
+
+
+    for (auto & entry : m_activeProfiles)
+    {
+        hr = ControllerTokens::UnitFromToken (entry.first, unit);
+
+        if (FAILED (hr) || ControllerTokens::ModelToToken (unit.model) != modelToken)
+        {
+            continue;
+        }
+
+        if (entry.second.size() == from.size() && _stricmp (entry.second.c_str(), from.c_str()) == 0)
+        {
+            entry.second = to;
         }
     }
 }
@@ -149,6 +276,9 @@ void ControllersPageState::SelectController (size_t index)
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
     m_liveEvaluator.ResetRate();
+
+    // The Profile drop-down shows this controller's own active profile.
+    LoadEditedProfile();
 }
 
 
@@ -251,6 +381,142 @@ size_t ControllersPageState::GetAxisCount() const
 bool ControllersPageState::IsMultiplayerEnabled() const
 {
     return m_multiplayer.isEnabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetJoyportJack
+//
+//  Which Joyport jack the controller in Editing drives: both, when one
+//  controller plays alone, or its slot's, slot 1 left and slot 2 right, in
+//  multiplayer. None when nothing is being edited, or the controller has no
+//  slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoyportJack ControllersPageState::GetJoyportJack() const
+{
+    const ControllerEntry  * selected = GetSelected();
+    JoyportJack              jack     = JoyportJack::None;
+    size_t                   player   = 0;
+
+
+
+    if (selected != nullptr && !m_multiplayer.isEnabled)
+    {
+        jack = JoyportJack::Both;
+    }
+    else if (selected != nullptr)
+    {
+        for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
+        {
+            const std::optional<ControllerUnitKey>  & unit = m_multiplayer.players[player].unit;
+
+            if (unit.has_value() && unit.value() == selected->unit)
+            {
+                jack = (player == JoyportJacks::kLeftJack) ? JoyportJack::Left : JoyportJack::Right;
+                break;
+            }
+        }
+    }
+
+    return jack;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetJoyportHeading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetJoyportHeading (JoyportJack jack)
+{
+    std::wstring  heading = L"Joyport";
+
+
+
+    switch (jack)
+    {
+        case JoyportJack::Left:
+            heading = L"Joyport: left jack";
+            break;
+
+        case JoyportJack::Right:
+            heading = L"Joyport: right jack";
+            break;
+
+        case JoyportJack::Both:
+            heading = L"Joyport: both jacks";
+            break;
+
+        case JoyportJack::None:
+        default:
+            break;
+    }
+
+    return heading;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsJoyportTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsJoyportTarget (PaddleTarget target)
+{
+    return target == PaddleTarget::Pdl0 || target == PaddleTarget::Pdl1 || target == PaddleTarget::Pb0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetJoyportRowLabel
+//
+//  Empty for a target the Joyport does not use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetJoyportRowLabel (PaddleTarget target)
+{
+    std::wstring  label;
+
+
+
+    switch (target)
+    {
+        case PaddleTarget::Pdl0:
+            label = L"Left/right:";
+            break;
+
+        case PaddleTarget::Pdl1:
+            label = L"Up/down:";
+            break;
+
+        case PaddleTarget::Pb0:
+            label = L"Fire:";
+            break;
+
+        default:
+            break;
+    }
+
+    return label;
 }
 
 
@@ -979,6 +1245,7 @@ void ControllersPageState::SelectProfile (const std::string & name)
 
 
     m_editedProfile = (profile == nullptr || profile->isDefault) ? std::string() : profile->name;
+    StoreEditedProfile();
 
     m_capture.Cancel();
     m_liveEvaluator.ResetRate();
@@ -1124,6 +1391,8 @@ ProfileEditResult ControllersPageState::RenameProfile (const std::string & newNa
     if (result == ProfileEditResult::Ok)
     {
         m_editedProfile = ControllerModelSettings::TrimProfileName (newName);
+        RetargetActiveProfiles (token, oldName, m_editedProfile);
+        StoreEditedProfile();
 
         m_committedNames[token].erase (oldName);
         m_committedNames[token][m_editedProfile] = committedName;
@@ -1164,6 +1433,7 @@ ProfileEditResult ControllersPageState::DeleteProfile()
     if (result == ProfileEditResult::Ok)
     {
         m_committedNames[ControllerTokens::ModelToToken (GetSelected()->unit.model)].erase (name);
+        RetargetActiveProfiles (ControllerTokens::ModelToToken (GetSelected()->unit.model), name, std::string());
         SelectProfile (std::string());
     }
 
@@ -1270,7 +1540,9 @@ void ControllersPageState::DiscardProfileEdits()
         name = profile->name;
         EnsureSelectedModel()->DeleteProfile (name);
         m_committedNames[token].erase (name);
+        RetargetActiveProfiles (token, name, std::string());
         m_editedProfile.clear();
+        StoreEditedProfile();
     }
 
     if (m_baselineModels.find (token) == m_baselineModels.end())
@@ -1347,11 +1619,43 @@ Error:
 //
 //  HasActiveProfileChanged
 //
+//  A controller with no entry plays the Default, the same as one whose entry
+//  is empty, so picking the Default for it is no change.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ControllersPageState::HasActiveProfileChanged() const
 {
-    return m_editedProfile != m_baselineProfile;
+    return !IsEachPlayedAlike (m_activeProfiles, m_baselineActiveProfiles) ||
+           !IsEachPlayedAlike (m_baselineActiveProfiles, m_activeProfiles);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsEachPlayedAlike
+//
+//  Every controller in `from` plays the same profile in `in`, where no entry
+//  plays the Default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsEachPlayedAlike (const std::map<std::string, std::string> & from, const std::map<std::string, std::string> & in)
+{
+    for (const auto & entry : from)
+    {
+        auto  found = in.find (entry.first);
+
+        if ((found != in.end() ? found->second : std::string()) != entry.second)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 
@@ -1876,8 +2180,10 @@ void ControllersPageState::Revert()
 {
     m_models          = m_baselineModels;
     m_calibrations    = m_baselineCalibrations;
-    m_editedProfile   = m_baselineProfile;
+    m_activeProfiles  = m_baselineActiveProfiles;
     m_calibrationStep = CalibrationStep::None;
+
+    LoadEditedProfile();
 
     m_committedNames.clear();
     m_capture.Cancel();
@@ -1896,9 +2202,9 @@ void ControllersPageState::Revert()
 
 void ControllersPageState::MarkCommitted()
 {
-    m_baselineModels       = m_models;
-    m_baselineCalibrations = m_calibrations;
-    m_baselineProfile      = m_editedProfile;
+    m_baselineModels         = m_models;
+    m_baselineCalibrations   = m_calibrations;
+    m_baselineActiveProfiles = m_activeProfiles;
 
     m_committedNames.clear();
 }

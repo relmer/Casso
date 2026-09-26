@@ -34,6 +34,11 @@ public:
     // inactive -- would otherwise jump the paddle across the screen at once.
     static constexpr float  kMaxRateStep = 0.05f;
 
+    // How far past the deadzone PDL0 or PDL1 must be deflected to close a
+    // Joyport direction switch, as a fraction of the travel that remains. An
+    // Atari stick's switches close well before the stick reaches its stop.
+    static constexpr float  kSwitchThreshold = 0.5f;
+
     // axisCount limits which axis targets are evaluated: the ones past it are
     // left absent in the result (FR-035).
     GamePortContribution  Evaluate     (const ControllerSample & sample,
@@ -53,23 +58,24 @@ public:
 
 private:
 
-    static float  ReadAnalog          (const ControllerSample & sample, const ControlId & control);
-    static bool   IsHeld              (const ControllerSample & sample, const ControlId & control);
-    static bool   IsButtonHeld        (const ControllerSample & sample, const ButtonBinding & binding);
-    static bool   IsButtonListHeld    (const ControllerSample & sample, const std::vector<ButtonBinding> & bindings);
-    static float  EvaluateAxisBinding (const ControllerSample & sample, const AxisBinding & binding);
-    static float  EvaluateAxis        (const ControllerSample & sample, const std::vector<AxisBinding> & bindings, const AxisBinding *& outWinner);
-    static bool   IsOneStick          (const std::vector<AxisBinding> & xBindings, const std::vector<AxisBinding> & yBindings);
+    static float  ReadAnalog           (const ControllerSample & sample, const ControlId & control);
+    static bool   IsHeld               (const ControllerSample & sample, const ControlId & control);
+    static bool   IsButtonHeld         (const ControllerSample & sample, const ButtonBinding & binding);
+    static bool   IsButtonListHeld     (const ControllerSample & sample, const std::vector<ButtonBinding> & bindings);
+    static float  EvaluateAxisBinding  (const ControllerSample & sample, const AxisBinding & binding);
+    static float  EvaluateAxis         (const ControllerSample & sample, const std::vector<AxisBinding> & bindings, const AxisBinding *& outWinner);
+    static bool   IsOneStick           (const std::vector<AxisBinding> & xBindings, const std::vector<AxisBinding> & yBindings);
+    static void   SetDirectionSwitches (float shapedX, float shapedY, JoystickSwitches & switches);
 
-    void          EvaluatePair        (const ControllerSample         & sample,
-                                       const std::vector<AxisBinding> & xBindings,
-                                       const std::vector<AxisBinding> & yBindings,
-                                       size_t                           firstAxis,
-                                       size_t                           axisCount,
-                                       float                            deadzone,
-                                       float                            step,
-                                       GamePortContribution           & contribution);
-    Byte          ToAxisPaddle        (size_t axis, float shaped, const AxisBinding * winner, float elapsedSeconds);
+    void          EvaluatePair         (const ControllerSample         & sample,
+                                        const std::vector<AxisBinding> & xBindings,
+                                        const std::vector<AxisBinding> & yBindings,
+                                        size_t                           firstAxis,
+                                        size_t                           axisCount,
+                                        float                            deadzone,
+                                        float                            step,
+                                        GamePortContribution           & contribution);
+    Byte          ToAxisPaddle         (size_t axis, float shaped, const AxisBinding * winner, float elapsedSeconds);
 
     // Each axis's rate-binding paddle, in paddle units.
     std::array<float, GamePortContribution::kAxisCount>  m_rateValue    = { kRateCenter, kRateCenter, kRateCenter, kRateCenter };

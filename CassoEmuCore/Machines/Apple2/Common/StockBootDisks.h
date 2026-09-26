@@ -13,7 +13,7 @@
 //  MAKING A DISK BOOTABLE MEANS COPYING AN OPERATING SYSTEM ONTO IT, so
 //  something has to specify which file that is. The emulator downloads each of
 //  the two when the user picks it in a disk picker or clicks Download in
-//  Create New Disk, and keeps them in a cache beside its other assets; this
+//  Create new disk, and keeps them in a cache beside its other assets; this
 //  is the half of that knowledge a tool needs in order to FIND one.
 //
 //  IT LIVES HERE BECAUSE BOTH EXECUTABLES NEED IT. All of it sat in

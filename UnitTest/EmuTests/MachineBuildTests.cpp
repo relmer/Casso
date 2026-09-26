@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/MachineDefinitions.h"
 
 #include "TestMachine.h"
@@ -186,5 +187,31 @@ public:
                 std::format (L"{} must boot into ROM; PC was ${:04X}",
                              name, machine.GetCpu()->GetPC()).c_str());
         }
+    }
+
+
+    TEST_METHOD (EveryMachineWithAnnunciatorsBuildsADetachedJoyport)
+    {
+        //  The Joyport is the adapter on the game socket, so every machine
+        //  whose socket has annunciators gets one, and it starts detached:
+        //  nothing reads differently until the user attaches it.
+        for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
+        {
+            TestMachine   machine (id, TestMachine::Slots::Empty);
+            std::wstring  name (id, id + strlen (id));
+
+            Assert::IsNotNull (machine.GetJoyport(),
+                std::format (L"{} must build a Joyport", name).c_str());
+            Assert::IsFalse (machine.GetJoyport()->IsAttached(),
+                std::format (L"{} must build it detached", name).c_str());
+        }
+    }
+
+
+    TEST_METHOD (TheIIcBuildsNoJoyport)
+    {
+        TestMachine  machine ("Apple2c", TestMachine::Slots::Empty);
+
+        Assert::IsNull (machine.GetJoyport(), L"the //c joystick port has no annunciators to drive one");
     }
 };

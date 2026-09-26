@@ -334,62 +334,118 @@ namespace ControllerTests
         }
 
 
+        static ControllerUnitKey MakeUnit (const char * productId)
+        {
+            ControllerUnitKey  unit;
+
+            unit.model.kind = ControllerKind::XInput;
+            unit.unitId     = productId;
+            unit.source     = ControllerUnitSource::XInputProduct;
+
+            return unit;
+        }
+
+
+        static EmulatorCommands::ProfileSection MakeSection (const char *                      productId,
+                                                             std::vector<std::string>          names,
+                                                             const char *                      active,
+                                                             const wchar_t *                   header = L"")
+        {
+            EmulatorCommands::ProfileSection  section;
+
+            section.unit   = MakeUnit (productId);
+            section.names  = std::move (names);
+            section.active = active;
+            section.header = header;
+
+            return section;
+        }
+
+
+        //  One controller in play: its profiles with Default first, then New...
+        //  below a separator, and no header, since there is nothing to tell
+        //  apart.
         TEST_METHOD (ProfileRows_AreOnePerProfileDefaultFirst)
         {
             EmulatorCommands                commands;
             std::vector<DxuiPopupMenuItem>  items;
 
-            commands.SetProfiles ({ "Paddles", "Default", "Swapped" }, "", true);
+            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Paddles", "Default", "Swapped" }, "") });
 
             items = commands.GetProfileItems();
 
-            Assert::AreEqual (static_cast<size_t> (3), items.size());
+            Assert::AreEqual (static_cast<size_t> (5), items.size(), L"three profiles, a separator, New...");
             Assert::AreEqual (std::wstring (L"Default"), items[0].command->label, L"Default leads wherever the store keeps it");
             Assert::AreEqual (std::wstring (L"Paddles"), items[1].command->label);
             Assert::AreEqual (std::wstring (L"Swapped"), items[2].command->label);
+            Assert::IsTrue   (items[3].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::AreEqual (std::wstring (L"New..."), items[4].command->label);
         }
 
 
         TEST_METHOD (ProfileRows_CheckedIsTheActiveIgnoringCase)
         {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
+            EmulatorCommands  commands;
 
-            commands.SetProfiles ({ "Default", "Paddles" }, "PADDLES", true);
+            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles" }, "PADDLES") });
 
-            items = commands.GetProfileItems();
+            Assert::IsFalse (commands.GetProfileItems()[0].command->IsChecked());
+            Assert::IsTrue  (commands.GetProfileItems()[1].command->IsChecked());
 
-            Assert::IsFalse  (items[0].command->IsChecked());
-            Assert::IsTrue   (items[1].command->IsChecked());
-            Assert::AreEqual (std::wstring (L"Paddles"), commands.GetActiveProfileLabel(),
-                L"the face wears the name as the store writes it");
+            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles" }, "") });
 
-            commands.SetProfiles ({ "Default", "Paddles" }, "", true);
-
-            Assert::IsTrue   (commands.GetProfileItems()[0].command->IsChecked(), L"empty means Default");
-            Assert::AreEqual (std::wstring (L"Default"), commands.GetActiveProfileLabel());
+            Assert::IsTrue  (commands.GetProfileItems()[0].command->IsChecked(), L"empty means Default");
         }
 
 
-        TEST_METHOD (ProfileRows_RebuiltOnCreateRenameDelete)
+        //  A deleted active profile plays the Default, so the Default is what
+        //  the list checks.
+        TEST_METHOD (ProfileRows_AnActiveProfileTheModelLacksChecksDefault)
         {
             EmulatorCommands  commands;
 
-            commands.SetProfiles ({ "Default" }, "", true);
-            Assert::AreEqual (static_cast<size_t> (1), commands.GetProfileItems().size());
+            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default" }, "Racing") });
 
-            commands.SetProfiles ({ "Default", "Paddles" }, "", true);
-            Assert::AreEqual (static_cast<size_t> (2), commands.GetProfileItems().size(), L"created");
+            Assert::IsTrue (commands.GetProfileItems()[0].command->IsChecked());
+        }
 
-            commands.SetProfiles ({ "Default", "Racing" }, "Racing", true);
-            Assert::AreEqual (std::wstring (L"Racing"), commands.GetProfileItems()[1].command->label, L"renamed");
-            Assert::AreEqual (std::wstring (L"Racing"), commands.GetActiveProfileLabel());
 
-            commands.SetProfiles ({ "Default" }, "Racing", true);
-            Assert::AreEqual (static_cast<size_t> (1), commands.GetProfileItems().size(), L"deleted");
-            Assert::AreEqual (std::wstring (L"Default"), commands.GetActiveProfileLabel(),
-                L"a deleted active profile plays Default, so the face says so");
-            Assert::IsTrue   (commands.GetProfileItems()[0].command->IsChecked());
+        //  In multiplayer each controller in play has its own section, under a
+        //  header saying whose it is, and its own check -- which is what lets
+        //  two players on two pads of one model play different profiles.
+        TEST_METHOD (ProfileRows_EachControllerHasItsOwnSectionAndCheck)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+            ControllerUnitKey               pickedUnit;
+            std::string                     pickedName = "unset";
+
+            commands.SetProfilePickedFn ([&] (const ControllerUnitKey & unit, const std::string & name)
+            {
+                pickedUnit = unit;
+                pickedName = name;
+            });
+
+            commands.SetProfileSections ({ MakeSection ("045e:02e0",   { "Default", "Test" }, "",     L"Player 1"),
+                                           MakeSection ("045e:02e0:2", { "Default", "Test" }, "Test", L"Player 2") });
+
+            items = commands.GetProfileItems();
+
+            // Player 1: header, Default, Test; separator; Player 2: header,
+            // Default, Test; separator; New...
+            Assert::AreEqual (static_cast<size_t> (9), items.size());
+            Assert::IsTrue   (items[0].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::AreEqual (std::wstring (L"Player 1"), items[0].command->label);
+            Assert::IsTrue   (items[1].command->IsChecked(),  L"player one plays Default");
+            Assert::IsFalse  (items[2].command->IsChecked());
+            Assert::IsTrue   (items[3].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::IsTrue   (items[4].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::IsFalse  (items[5].command->IsChecked());
+            Assert::IsTrue   (items[6].command->IsChecked(),  L"player two plays Test on a pad of the same model");
+
+            items[6].command->dispatch();
+            Assert::IsTrue   (pickedUnit == MakeUnit ("045e:02e0:2"), L"a row picks for the controller it was listed under");
+            Assert::AreEqual (std::string ("Test"), pickedName);
         }
 
 
@@ -399,14 +455,14 @@ namespace ControllerTests
             std::vector<DxuiPopupMenuItem>  stale;
             std::string                     picked  = "unset";
 
-            commands.SetProfilePickedFn ([&] (const std::string & name) { picked = name; });
+            commands.SetProfilePickedFn ([&] (const ControllerUnitKey &, const std::string & name) { picked = name; });
 
-            commands.SetProfiles ({ "Default", "Paddles", "Swapped" }, "", true);
+            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles", "Swapped" }, "") });
             stale = commands.GetProfileItems();
 
             // Paddles deleted while the menu is open: Swapped now sits where
             // Paddles was.
-            commands.SetProfiles ({ "Default", "Swapped" }, "", true);
+            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Swapped" }, "") });
 
             stale[1].command->dispatch();
             Assert::AreEqual (std::string ("Paddles"), picked);
@@ -416,23 +472,138 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (ProfilePicker_DisabledWithoutAController)
+        //  With no controller in play there is nothing to switch, so the
+        //  paddle picker carries no Profiles submenu; with one, the submenu
+        //  sits above Controller settings...
+        TEST_METHOD (ProfilesSubmenu_OnlyWhileAControllerIsInPlay)
         {
-            EmulatorCommands                    commands;
-            std::shared_ptr<const DxuiCommand>  profile = commands.Find (EmulatorCommands::kIdProfile);
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+            bool                            hasSubmenu = false;
 
-            commands.SetProfiles ({ "Default", "Paddles" }, "Paddles", false);
+            commands.SetProfileSections ({});
 
-            Assert::IsNotNull (profile.get(), L"disabled, not removed, so the strip does not reflow");
-            Assert::IsFalse   (profile->IsEnabled());
-            Assert::AreEqual  (std::wstring (L"Default"), profile->GetLabelText());
-            Assert::AreEqual  (std::wstring (L"Controller profile"), profile->tip);
-            Assert::AreEqual  (static_cast<size_t> (0), commands.GetProfileItems().size());
+            for (const DxuiPopupMenuItem & item : commands.GetPaddlePickerItems())
+            {
+                hasSubmenu = hasSubmenu || item.kind == DxuiPopupMenuItem::Kind::Submenu;
+            }
 
-            commands.SetProfiles ({ "Default", "Paddles" }, "Paddles", true);
+            Assert::IsFalse (hasSubmenu);
+            Assert::AreEqual (static_cast<size_t> (0), commands.GetProfileItems().size());
 
-            Assert::IsTrue    (profile->IsEnabled());
-            Assert::AreEqual  (std::wstring (L"Paddles"), profile->GetLabelText());
+            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default" }, "") });
+            items = commands.GetPaddlePickerItems();
+
+            Assert::IsTrue   (items.size() >= 2);
+            Assert::IsTrue   (items[items.size() - 2].kind == DxuiPopupMenuItem::Kind::Submenu);
+            Assert::AreEqual (std::wstring (L"Profiles"), items[items.size() - 2].command->label);
+            Assert::AreEqual (static_cast<int> (IDM_VIEW_CONTROLLER_SETTINGS), items.back().command->id);
+        }
+
+
+        static size_t FindRow (const std::vector<DxuiPopupMenuItem> & items, const std::wstring & label)
+        {
+            for (size_t i = 0; i < items.size(); i++)
+            {
+                if (items[i].command != nullptr && items[i].command->label == label)
+                {
+                    return i;
+                }
+            }
+
+            return items.size();
+        }
+
+
+        TEST_METHOD (Joyport_HasAGroupOfItsOwnBelowMultiplayer)
+        {
+            //  It is a device on the game port, not one more thing that
+            //  drives it, so it is kept apart from the sources.
+            EmulatorCommands                commands;
+            InputModeRules::PaddleSource    twoPlayer = MakeSource (L"Multiplayer...", L"Multiplayer", false);
+            std::vector<DxuiPopupMenuItem>  items;
+            size_t                          row       = 0;
+
+            twoPlayer.isMultiplayer = true;
+
+            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
+                                         MakeSource (L"Use keys as joystick", L"Keys", false),
+                                         twoPlayer });
+            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+            row   = FindRow (items, L"Sirius Joyport");
+
+            Assert::AreEqual (std::wstring (L"Multiplayer..."), items[row - 2].command->label, L"below Multiplayer");
+            Assert::IsTrue   (items[row - 1].command == nullptr, L"with a separator between them");
+            Assert::IsTrue   (items[row + 1].command == nullptr, L"and one below it, above Profiles and Controller settings");
+        }
+
+
+        TEST_METHOD (Joyport_IsItsOwnGroupWithNoMultiplayerRow)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+
+            Assert::AreEqual (static_cast<size_t> (2), FindRow (items, L"Sirius Joyport"), L"after the sources and a separator");
+            Assert::IsTrue   (items[1].command == nullptr);
+        }
+
+
+        TEST_METHOD (Joyport_IsCheckedExactlyWhileAttached)
+        {
+            EmulatorCommands                commands;
+            bool                            attached = false;
+            std::vector<DxuiPopupMenuItem>  items;
+            size_t                          row      = 0;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([&attached] { return attached; }, [] { return true; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+            row   = FindRow (items, L"Sirius Joyport");
+
+            Assert::IsFalse (items[row].command->IsChecked(), L"detached");
+
+            //  The check is read when the menu draws, so it follows the
+            //  attach state however it was changed, with no rebuild.
+            attached = true;
+            Assert::IsTrue (items[row].command->IsChecked(), L"attached");
+        }
+
+
+        TEST_METHOD (Joyport_PickingTheRowTogglesOnce)
+        {
+            EmulatorCommands                commands;
+            int                             toggles = 0;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [&toggles] { toggles++; });
+
+            items = commands.GetPaddlePickerItems();
+            items[FindRow (items, L"Sirius Joyport")].command->dispatch();
+
+            Assert::AreEqual (1, toggles);
+        }
+
+
+        TEST_METHOD (Joyport_IsLeftOutWhereItCannotBeAttached)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetJoyportFns ([] { return false; }, [] { return false; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+
+            Assert::AreEqual (items.size(), FindRow (items, L"Sirius Joyport"), L"the //c has no row");
         }
 
 

@@ -441,13 +441,13 @@ HRESULT SettingsSheet::OpenModeless (
         {
             ControllerInputService::Snapshot  snapshot = service->GetSnapshot();
 
-            // The page opens on the machine's selected controller and active
-            // profile.
+            // The page opens on the machine's selected controller, with every
+            // controller's own active profile.
             m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
                                      !m_emuShell->MachineHasCaseSwitches(),
-                                     snapshot.activeProfile,
+                                     snapshot.activeProfiles,
                                      snapshot.selection);
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
@@ -474,6 +474,11 @@ HRESULT SettingsSheet::OpenModeless (
             m_controllersPage->SetOnInspect ([service] (const std::optional<ControllerUnitKey> & unit)
             {
                 service->SetInspectedUnit (unit);
+            });
+
+            m_controllersPage->SetJoyportAttachedFn ([this] ()
+            {
+                return m_emuShell->GetGamePortAdapter() == GamePortAdapter::SiriusJoyport;
             });
         }
 
@@ -616,6 +621,24 @@ void SettingsSheet::ShowControllersPage()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StartNewControllerProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::StartNewControllerProfile()
+{
+    if (m_controllersPage != nullptr)
+    {
+        m_controllersPage->StartNewProfile();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnOk / OnCancel
 //
 //  Commit hooks from DxuiPropertySheet's button row. OnOk runs the apply
@@ -658,6 +681,19 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+
+    // The command bar's Sirius Joyport row works while the sheet is open. The
+    // Machine tab follows it, and OK then writes what is live rather than
+    // what the sheet opened with.
+    if (m_emuShell != nullptr && m_hardwarePage != nullptr)
+    {
+        bool  isGamePortChanged = m_state.ObserveLiveGamePortAdapter (m_emuShell->GetGamePortAdapter());
+
+        if (isGamePortChanged)
+        {
+            m_hardwarePage->Rebuild();
+        }
+    }
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.

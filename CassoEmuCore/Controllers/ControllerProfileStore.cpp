@@ -33,6 +33,7 @@ static constexpr const char *  s_kpszPb0Key         = "pb0";
 static constexpr const char *  s_kpszPb1Key         = "pb1";
 static constexpr const char *  s_kpszPb2Key         = "pb2";
 static constexpr const char *  s_kpszCalibrationKey = "calibration";
+static constexpr const char *  s_kpszActiveKey      = "activeProfiles";
 static constexpr const char *  s_kpszModeKey        = "mode";
 static constexpr const char *  s_kpszAxesKey        = "axes";
 static constexpr const char *  s_kpszIndexKey       = "index";
@@ -366,11 +367,13 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
 {
     const JsonValue *  modelsObj      = nullptr;
     const JsonValue *  calibrationObj = nullptr;
+    const JsonValue *  activeObj      = nullptr;
 
 
 
     models.clear();
     calibrations.clear();
+    activeProfiles.clear();
 
     if (controllers.GetType() != JsonType::Object)
     {
@@ -385,6 +388,11 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
     if (controllers.HasObject (s_kpszCalibrationKey, calibrationObj) && calibrationObj != nullptr)
     {
         ReadCalibrations (*calibrationObj, outRejected);
+    }
+
+    if (controllers.HasObject (s_kpszActiveKey, activeObj) && activeObj != nullptr)
+    {
+        ReadActiveProfiles (*activeObj, outRejected);
     }
 }
 
@@ -409,6 +417,7 @@ JsonValue ControllerProfileStore::ToJson (const JsonValue & controllers) const
     std::vector<std::pair<std::string, JsonValue>>  members;
     std::vector<std::pair<std::string, JsonValue>>  modelEntries;
     std::vector<std::pair<std::string, JsonValue>>  calibrationEntries;
+    std::vector<std::pair<std::string, JsonValue>>  activeEntries;
 
 
 
@@ -430,8 +439,14 @@ JsonValue ControllerProfileStore::ToJson (const JsonValue & controllers) const
         }
     }
 
+    for (const auto & kv : activeProfiles)
+    {
+        activeEntries.emplace_back (kv.first, JsonValue (kv.second));
+    }
+
     ReplaceMember (members, s_kpszModelsKey,      std::move (modelEntries));
     ReplaceMember (members, s_kpszCalibrationKey, std::move (calibrationEntries));
+    ReplaceMember (members, s_kpszActiveKey,      std::move (activeEntries));
 
     if (members.empty() && controllers.GetType() != JsonType::Object)
     {
@@ -721,6 +736,41 @@ void ControllerProfileStore::ReadCalibrations (const JsonValue & calibrationObj,
         {
             outRejected.push_back (entry.first);
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadActiveProfiles
+//
+//  Each controller's active profile, keyed by unit token. An empty name is
+//  the Default, kept as an entry so that choosing the Default is remembered
+//  as a choice rather than read as nothing having been chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerProfileStore::ReadActiveProfiles (const JsonValue & activeObj, std::vector<std::string> & outRejected)
+{
+    ControllerUnitKey  unit;
+    HRESULT            hr   = S_OK;
+
+
+
+    for (const auto & entry : activeObj.GetObjectEntries())
+    {
+        hr = ControllerTokens::UnitFromToken (entry.first, unit);
+
+        if (FAILED (hr) || entry.second.GetType() != JsonType::String)
+        {
+            outRejected.push_back (entry.first);
+            continue;
+        }
+
+        activeProfiles[entry.first] = entry.second.GetString();
     }
 }
 

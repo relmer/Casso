@@ -376,7 +376,86 @@ GamePortState GamePortInputMixer::ComputeTargetLocked() const
         }
     }
 
+    state.jacks = ComputeJacksLocked (m_owners[0]);
+
     return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeJacksLocked
+//
+//  The Joyport's switches come from whoever owns the joystick axes. The
+//  controllers have already placed each player on a jack. The arrow keys are
+//  one player, on both jacks, with the fire keys' PB0 as fire. The mouse
+//  paddle drives no switches -- an Atari stick has no paddle for it to stand
+//  in for -- and with no owner every switch is open. The Apple modifier keys
+//  never reach the switches: on a //e they are Open Apple and Closed Apple,
+//  which the Joyport's lines replace.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoyportJacks GamePortInputMixer::ComputeJacksLocked (AxisOwner owner) const
+{
+    const GamePortContribution  & controller = m_contributions[static_cast<size_t> (GamePortSource::Controller)];
+    const GamePortContribution  & arrows     = m_contributions[static_cast<size_t> (GamePortSource::ArrowKeys)];
+    const GamePortContribution  & fire       = m_contributions[static_cast<size_t> (GamePortSource::FireKeys)];
+    JoyportJacks                  jacks;
+    JoystickSwitches              keys;
+
+
+
+    if (owner == AxisOwner::Controller)
+    {
+        jacks = controller.jacks.value_or (JoyportJacks());
+    }
+    else if (owner == AxisOwner::ArrowKeys)
+    {
+        keys = GetSwitchesFromKeys (arrows, fire);
+
+        jacks.jack[JoyportJacks::kLeftJack]  = keys;
+        jacks.jack[JoyportJacks::kRightJack] = keys;
+    }
+
+    return jacks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSwitchesFromKeys
+//
+//  The arrow keys submit each axis at one end or at center, never both ends,
+//  so the switches need no threshold: an end is a closed switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoystickSwitches GamePortInputMixer::GetSwitchesFromKeys (
+    const GamePortContribution  & arrows,
+    const GamePortContribution  & fire)
+{
+    constexpr Byte    kNearEnd = 0;
+    constexpr Byte    kFarEnd  = 255;
+    JoystickSwitches  switches;
+    Byte              x        = arrows.paddle[0].value_or (GamePortState::kPaddleCenter);
+    Byte              y        = arrows.paddle[1].value_or (GamePortState::kPaddleCenter);
+
+
+
+    switches.set (static_cast<size_t> (JoystickSwitch::Left),  x == kNearEnd);
+    switches.set (static_cast<size_t> (JoystickSwitch::Right), x == kFarEnd);
+    switches.set (static_cast<size_t> (JoystickSwitch::Up),    y == kNearEnd);
+    switches.set (static_cast<size_t> (JoystickSwitch::Down),  y == kFarEnd);
+    switches.set (static_cast<size_t> (JoystickSwitch::Fire),  fire.buttons.test (0));
+
+    return switches;
 }
 
 

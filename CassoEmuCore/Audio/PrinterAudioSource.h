@@ -25,7 +25,7 @@
 //      looped while the head sweeps;
 //    * line-feed clacks (three variants, rotated) fired at each new line;
 //    * page-feed one-shots (short / medium / long) picked by feed distance for
-//      Form Feed;
+//      Form feed;
 //    * paper-tear one-shots (five, chosen at random) for Discard.
 //
 //  Threading: LoadSounds / SetQuality / PublishReveal / PlayFormFeed /
@@ -110,7 +110,7 @@ public:
     void  PublishReveal (int64_t progressDots, int colDots, bool inkActive = true,
                          int sweepWidthDots = 1280);
 
-    // User-action one-shots (UI thread; consumed on the audio thread). Form Feed
+    // User-action one-shots (UI thread; consumed on the audio thread). Form feed
     // picks the page-feed grain by how much of the page will feed (`unusedPage01`
     // in 0..1 -> less == shorter); Discard picks a random paper-tear.
     void  PlayFormFeed (float unusedPage01);

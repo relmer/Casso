@@ -28,6 +28,12 @@ public:
     static std::string  ControlToToken   (const ControlId & control);
     static HRESULT      ControlFromToken (std::string_view token, ControlId & outControl);
 
+    static std::string      GamePortAdapterToToken   (GamePortAdapter adapter);
+    static GamePortAdapter  GamePortAdapterFromToken (std::string_view token);
+
+    static constexpr const char *  kpszAdapterNone          = "none";
+    static constexpr const char *  kpszAdapterSiriusJoyport = "siriusJoyport";
+
 private:
 
     static constexpr const char *  kpszXInputKind      = "xinput";

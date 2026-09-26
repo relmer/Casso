@@ -12,21 +12,24 @@
 //
 //  Fixed-capacity single-producer / single-consumer lock-free ring buffer
 //  carrying raw printer data bytes from the CPU emulation thread (producer --
-//  the slot card's Write) to the presenter tick on the UI thread (consumer).
+//  the slot card's Write) to PrinterEngine::Tick on the PrinterWorker thread
+//  (consumer).
 //  Power-of-two capacity so the index-to-slot mapping is a cheap mask.
 //
 //  Capacity is deliberately large (64 KiB) -- orders of magnitude beyond the
 //  fastest sustained 6502 store-loop burst across many drain intervals. The
 //  card exposes a ready bit driven by GetFreeBytes: it de-asserts within a
 //  high-water margin of capacity, so a guest honoring the handshake stalls
-//  rather than overflows if the drain is delayed (e.g. a modal print dialog
-//  holds the UI thread). Overflow past that guard is a programming error and
-//  surfaces as TryPush returning false.
+//  rather than overflows if the drain is delayed (e.g. while the UI thread has
+//  the worker stopped to eject or persist the paper). Overflow past that guard
+//  is a programming error and surfaces as TryPush returning false.
 //
 //  Concurrency contract mirrors InputEventRing / Disk2EventRing (standard
 //  SPSC formulation, Vyukov 2010):
 //    * Exactly one thread calls TryPush / GetFreeBytes (the CPU thread).
-//    * Exactly one thread calls TryPop / Drain (the UI/presenter thread).
+//    * Exactly one thread calls TryPop / Drain at a time: the PrinterWorker
+//      thread, or the UI thread through FlushNow once Stop has joined the
+//      worker.
 //    * Head/tail are 32-bit unsigned counters; the mask isolates the slot.
 //      Counter overflow is harmless because subtraction modulo 2^32 still
 //      yields the in-flight count.

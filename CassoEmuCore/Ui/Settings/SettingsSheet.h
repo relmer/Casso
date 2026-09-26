@@ -81,6 +81,12 @@ public:
     //
     void    ShowControllersPage ();
 
+    //
+    //  The New Profile dialog on the Controllers page, for the Profiles
+    //  submenu's New... The caller has already brought the page forward.
+    //
+    void    StartNewControllerProfile ();
+
 protected:
     void     OnBuildPages () override;
 

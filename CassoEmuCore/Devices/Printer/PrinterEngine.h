@@ -20,7 +20,7 @@ class PrinterByteRing;
 //  PrinterHead mechanical model, and the "wet ink" presented layer, and it
 //  publishes the head's state for the UI thread through lock-free atomics.
 //
-//  One Tick(nowMs) is a single print step: play any host Form Feed, run the
+//  One Tick(nowMs) is a single print step: play any host Form feed, run the
 //  interpreter just far enough ahead to keep the line buffer full (backpressure),
 //  advance the head by the elapsed real time (capped by the guest cycle delta),
 //  and publish the platen / reveal frontier / carriage. The wall clock is passed
@@ -77,7 +77,7 @@ public:
     // gate for the live pin band.
     int           GetSpanInkExtent (int firstRow, int lastRow);
 
-    // Host form feed (the preview's Form Feed button): records the request; the
+    // Host form feed (the preview's Form feed button): records the request; the
     // next Tick performs the feed on the Ticking thread so the interpreter, raster
     // and timeline stay single-writer. Safe to call from another thread.
     void          FormFeed ();
@@ -119,7 +119,7 @@ private:
     std::atomic<int>         m_revealTop     { 0 };   // reveal-mask top row (print frontier)
     std::atomic<int>         m_carriageCol   { 0 };   // physical carriage column for the glyph (holds in feeds)
     std::atomic<int>         m_headMoving    { 0 };   // carriage sweeping or paper feeding
-    std::atomic<int>         m_hostFormFeeds { 0 };   // host Form Feed requests, played by Tick
+    std::atomic<int>         m_hostFormFeeds { 0 };   // host Form feed requests, played by Tick
 
     // Wall-clock + cycle pacing (see SetCycleClock / the class comment).
     const uint64_t *         m_guestCycles   = nullptr;   // CPU cycle accumulator (caps the print rate)

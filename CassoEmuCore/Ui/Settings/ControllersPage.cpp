@@ -90,6 +90,8 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_lights[target]);
     }
 
+    Adopt (m_switchView);
+
     for (target = 0; target < kAxisCount; target++)
     {
         Adopt (m_invert[target]);
@@ -389,6 +391,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     axesBottom  = 0;
     int     playerX     = 0;
     bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
+    bool    isJoyport   = IsJoyportAttached();
     size_t  target      = 0;
     size_t  player      = 0;
     size_t  row         = 0;
@@ -424,11 +427,15 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_playerController[player].SetVisible (isTwoPlayer);
         m_playerController[player].SetRect    (MakeRect (playerX + labelWidth, y, rowWidth, rowH));
 
+        // With the Joyport attached a player's slot is their jack, and the
+        // paddles the slot maps to play no part, so the jack takes the place
+        // of that choice. The choice is kept for when the Joyport comes off.
         m_playerMapsLabel[player].SetVisible (isTwoPlayer);
-        m_playerMapsLabel[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap, y, mapsWidth, rowH));
-        m_playerMapsLabel[player].SetText    (L"maps to");
+        m_playerMapsLabel[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap, y,
+                                                        isJoyport ? targetWidth : mapsWidth, rowH));
+        m_playerMapsLabel[player].SetText    (isJoyport ? (player == 0 ? L"left jack" : L"right jack") : L"maps to");
 
-        m_playerTarget[player].SetVisible (isTwoPlayer);
+        m_playerTarget[player].SetVisible (isTwoPlayer && !isJoyport);
         m_playerTarget[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
 
         if (isTwoPlayer)
@@ -462,14 +469,23 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_deleteProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2, y, profileBtnW, rowH));
     y += rowH + sectionGap;
 
+    // With the Joyport attached the heading gives the jack this controller
+    // drives, and the stick's square shows the switches it closes instead.
+    m_isJoyportShown = isJoyport;
+
     m_joystickHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
-    m_joystickHeading.SetText (L"Joystick");
+    m_joystickHeading.SetText (isJoyport && m_state != nullptr
+                                   ? ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack())
+                                   : std::wstring (L"Joystick"));
     y += rowH;
 
     stickTop   = y;
     axesBottom = y;
 
+    m_stick.SetVisible (!isJoyport);
     m_stick.Layout (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    m_switchView.SetVisible (isJoyport);
+    m_switchView.Layout     (MakeRect (x, stickTop, stickSize, stickSize), scaler);
 
     // The two axes, stacked to the right of the stick. An axis this
     // controller's player does not drive is GONE rather than grayed: a row
@@ -477,15 +493,16 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     for (target = 0; target < kAxisCount; target++)
     {
         size_t        shown     = GetShownRows (target);
-        bool          isInPlay  = m_state == nullptr || m_state->IsTargetInPlay (TargetAt (target));
+        bool          isInPlay  = IsTargetShown (target);
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
         m_targetLabel[target].SetVisible (isInPlay);
         m_targetLabel[target].SetRect    (MakeRect (axesX, axesBottom, labelWidth, rowH));
 
         // While two play, a row is named for the paddle the guest reads it
-        // on: a player holding the second joystick drives PDL2 and PDL3.
-        m_targetLabel[target].SetText (playLabel.empty() ? s_kTargetNames[target] : playLabel);
+        // on: a player holding the second joystick drives PDL2 and PDL3. With
+        // the Joyport attached it is named for the switches it closes.
+        m_targetLabel[target].SetText (GetRowLabel (target, playLabel, isJoyport));
 
         for (row = 0; row < kMaxRows; row++)
         {
@@ -515,11 +532,14 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         // widths and the row width are the same span in DIPs, but each is
         // scaled to pixels on its own, so the rounding left the edges a pixel
         // or two apart. Taking the remainder of the row lands it exactly.
-        m_response[target].SetVisible (true);
+        // Position or paddle speed decides the paddle value only. A Joyport
+        // switch follows the stick's deflection either way, so the choice and
+        // its speed are not on the page while one is attached.
+        m_response[target].SetVisible (!isJoyport);
         m_response[target].SetRect    (MakeRect (axesX + labelWidth + optionWidth, axesBottom, rowWidth - optionWidth, rowH));
         m_response[target].SetItems   ({ L"Position", L"Paddle speed" });
 
-        m_speed[target].SetVisible (true);
+        m_speed[target].SetVisible (!isJoyport);
 
         // The speed slider starts at the "+" above it so the column edge reads
         // straight, and runs to where that column ends. A slider keeps a fixed
@@ -547,15 +567,18 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     {
         size_t        shown     = GetShownRows (target);
         size_t        light     = target - kAxisCount;
-        bool          isInPlay  = m_state == nullptr || m_state->IsTargetInPlay (TargetAt (target));
+        bool          isInPlay  = IsTargetShown (target);
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_lights[light].SetVisible (isInPlay);
+        m_lights[light].SetVisible (isInPlay && !isJoyport);
         m_lights[light].Layout     (MakeRect (x, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
 
+        // With the Joyport attached the button lights are gone, so the label
+        // takes their place at the margin rather than indenting for nothing.
         m_targetLabel[target].SetVisible (isInPlay);
-        m_targetLabel[target].SetRect    (MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
-        m_targetLabel[target].SetText    (playLabel.empty() ? s_kTargetNames[target] : playLabel);
+        m_targetLabel[target].SetRect    (isJoyport ? MakeRect (x, y, labelWidth, rowH)
+                                                    : MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
+        m_targetLabel[target].SetText    (GetRowLabel (target, playLabel, isJoyport));
 
         for (row = 0; row < kMaxRows; row++)
         {
@@ -691,6 +714,13 @@ void ControllersPage::Poll()
         Refresh();
     }
 
+    // The Joyport can be attached or detached from the command bar while the
+    // page is open; the readout above the rows changes form with it.
+    if (IsJoyportAttached() != m_isJoyportShown)
+    {
+        Relayout();
+    }
+
     selected = m_state->GetSelectedIndex();
 
     if (selected.has_value())
@@ -728,6 +758,7 @@ void ControllersPage::Poll()
             m_lights[light].SetLit (false);
         }
 
+        PollSwitchLights (nullptr);
         return;
     }
 
@@ -789,6 +820,108 @@ void ControllersPage::Poll()
         // A button the machine lacks stays dark whatever is pressed.
         m_lights[light].SetLit (reading.buttons.test (light) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light)));
     }
+
+    PollSwitchLights (&reading);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsJoyportAttached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsJoyportAttached() const
+{
+    return m_isJoyportAttached && m_isJoyportAttached();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollSwitchLights
+//
+//  Lit exactly when the switch would read closed, from the page's own reading
+//  of the edited mapping, so a profile can be checked against the Joyport
+//  without booting a game. The heading follows Editing, which can move to
+//  another player's controller while the page is open. No reading: all dark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::PollSwitchLights (const GamePortContribution * reading)
+{
+    HRESULT  hr        = S_OK;
+    bool     isShowing = m_isJoyportShown && m_state != nullptr;
+
+
+
+    BAIL_OUT_IF (!isShowing, S_OK);
+
+    m_joystickHeading.SetText (ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack()));
+
+    m_switchView.SetActive   (reading != nullptr);
+    m_switchView.SetSwitches (reading != nullptr ? reading->switches : JoystickSwitches());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsTargetShown
+//
+//  Whether a target's rows are on the page: one this controller's player
+//  drives, and, with the Joyport attached, one the Joyport reads. Layout and
+//  the row re-sync both ask here, so they cannot disagree about a row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsTargetShown (size_t target) const
+{
+    PaddleTarget  paddleTarget = TargetAt (target);
+    bool          isInPlay     = m_state == nullptr || m_state->IsTargetInPlay (paddleTarget);
+    bool          isUsed       = !m_isJoyportShown || ControllersPageState::IsJoyportTarget (paddleTarget);
+
+
+
+    return isInPlay && isUsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRowLabel
+//
+//  With the Joyport attached, what the row closes; otherwise the paddle or
+//  button the guest reads it on, which while two play is the player's own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPage::GetRowLabel (size_t target, const std::wstring & playLabel, bool isJoyport)
+{
+    std::wstring  label = isJoyport ? ControllersPageState::GetJoyportRowLabel (TargetAt (target)) : std::wstring();
+
+
+
+    if (label.empty())
+    {
+        label = playLabel.empty() ? std::wstring (s_kTargetNames[target]) : playLabel;
+    }
+
+    return label;
 }
 
 
@@ -1268,7 +1401,7 @@ void ControllersPage::RefreshRows()
         // A target this controller's player does not drive is not on the page
         // at all while two people play. Layout leaves its rows out; this has
         // to agree, or a re-sync puts them back on top of the rows below.
-        bool          isInPlay     = m_state->IsTargetInPlay (paddleTarget);
+        bool          isInPlay     = IsTargetShown (target);
         bool          isEditable   = available && isInPlay;
         size_t        count        = GetBindingCount (target);
         size_t        shown        = GetShownRows (target);

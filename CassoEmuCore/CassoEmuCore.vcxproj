@@ -224,6 +224,7 @@
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleGamePort.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SiriusJoyport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleKeyboard.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleSoftSwitchBank.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleSpeaker.cpp" />
@@ -426,6 +427,7 @@
     <ClCompile Include="Ui\Settings\SettingsApplyAdapter.cpp" />
     <ClCompile Include="Ui\Settings\ControllerReadoutViews.cpp" />
     <ClCompile Include="Ui\Settings\ControllersPage.cpp" />
+    <ClCompile Include="Ui\Settings\JoyportSwitchView.cpp" />
     <ClCompile Include="Ui\Settings\ControllersPageState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsApplyController.cpp" />
     <ClCompile Include="Ui\Settings\SettingsDisplayCrtBridge.cpp" />
@@ -747,6 +749,7 @@
     <ClInclude Include="Devices\RamDevice.h" />
     <ClInclude Include="Devices\RomDevice.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleGamePort.h" />
+    <ClInclude Include="Machines\Apple2\Common\SiriusJoyport.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleKeyboard.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleSoftSwitchBank.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleSpeaker.h" />
@@ -888,6 +891,7 @@
     <ClInclude Include="Ui\Settings\SettingsApplyAdapter.h" />
     <ClInclude Include="Ui\Settings\ControllerReadoutViews.h" />
     <ClInclude Include="Ui\Settings\ControllersPage.h" />
+    <ClInclude Include="Ui\Settings\JoyportSwitchView.h" />
     <ClInclude Include="Ui\Settings\ControllersPageState.h" />
     <ClInclude Include="Ui\Settings\SettingsApplyController.h" />
     <ClInclude Include="Ui\Settings\SettingsDisplayCrtBridge.h" />

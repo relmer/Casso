@@ -4,6 +4,7 @@
 #include "Core/WindowTrace.h"
 
 
+#include "Controllers/ControllerTokens.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Core/MachineConfigUpgrade.h"
@@ -741,6 +742,7 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
     uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
+    uiObj.emplace_back ("gamePortAdapter",    JsonValue (std::string (ControllerTokens::kpszAdapterNone)));
     wp.emplace_back (JsonValue (false));
     wp.emplace_back (JsonValue (false));
     uiObj.emplace_back ("writeProtect", JsonValue (std::move (wp)));

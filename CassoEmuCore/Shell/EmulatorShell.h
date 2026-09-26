@@ -691,7 +691,11 @@ private:
     void    SyncProfileList        (const ControllerInputService::Snapshot & snapshot);
 
     // BY VALUE for the same reason as PickPaddleSource. Empty for Default.
-    void    PickControllerProfile  (std::string profileName);
+    void    PickControllerProfile  (ControllerUnitKey unit, std::string profileName);
+
+    // Opens Settings on the Controllers page with the New Profile dialog up,
+    // for the controller Editing opens on.
+    void    StartNewControllerProfile ();
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from
@@ -718,6 +722,16 @@ private:
     // defaults Pointer to Mouse (runtime nudge, not persisted; invisible
     // until mouse software runs thanks to the firmware-live gate).
     void    ApplyDefaultPointerForMachine();
+
+    // The device on the running machine's game socket. Attaching or
+    // detaching the Sirius Joyport takes effect on the next button read,
+    // with no reset. The machine's Joyport is the only record of it, so
+    // the answer cannot drift from what the guest reads. UI thread.
+    // SetGamePortAdapter also saves it with the machine; the live-only form
+    // is the Settings sheet's, which saves on its own.
+    void             SetGamePortAdapter       (GamePortAdapter adapter);
+    void             ApplyGamePortAdapterLive (GamePortAdapter adapter);
+    GamePortAdapter  GetGamePortAdapter       () const;
 
 private:
     // Window-placement and chrome-layout helpers. Every reader is an
@@ -1564,10 +1578,12 @@ private:
     // to the id ThemeManager wants. Rebuilt whenever the catalog is.
     std::vector<std::string>  m_toolbarThemeIds;
 
-    void  WireToolbarPickers          ();
-    void  RefreshToolbarThemeList     ();
-    void  SyncToolbarState            ();
-    void  PersistColorModeForMachine  (int settingsColorModeIndex);
+    void  WireToolbarPickers               ();
+    void  RefreshToolbarThemeList          ();
+    void  SyncToolbarState                 ();
+    void  PersistColorModeForMachine       (int settingsColorModeIndex);
+    void  PersistGamePortAdapterForMachine (GamePortAdapter adapter);
+    void  AdoptGamePortAdapterForMachine   (const JsonValue * uiPrefs);
 
     // The pure model deriving the printer LED state from the worker's live
     // signals, plus the last state pushed to the toolbar so a transition
@@ -2092,7 +2108,7 @@ private:
     PrinterAudioSource                   m_printerAudio;
 
     // Mockingboard audio. Its own mixer so the "Mockingboard" Options
-    // toggle is independent of the Drive Audio toggle. The PSG audio
+    // toggle is independent of the Drive audio toggle. The PSG audio
     // sources are owned by the MockingboardCard device; the mixer holds
     // borrowed pointers, re-registered by MachineManager on every build.
     DriveAudioMixer                      m_mockingboardAudioMixer;
