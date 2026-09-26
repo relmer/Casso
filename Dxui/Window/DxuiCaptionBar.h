@@ -80,6 +80,11 @@ public:
                   const IDxuiTheme    & theme) override;
 
     DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
+
+    // The full title when the last paint cut it short and the point, in
+    // client pixels, is over it; null otherwise, so a title that fits shows
+    // no tip. The anchor is the title's rect.
+    const wchar_t *  GetTooltipAt (POINT clientPx, RECT & anchorPx) const;
     DxuiAccessibleRole  GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
@@ -89,6 +94,8 @@ private:
     bool                               m_renderCaption = false;
     Buttons                            m_buttons       = Buttons::None;
     std::wstring                       m_title;
+    bool                               m_titleCut      = false;
+    RECT                               m_titleRectPx   = {};
     std::vector<uint32_t>              m_iconPixels;
     int                                m_iconW         = 0;
     int                                m_iconH         = 0;

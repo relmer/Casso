@@ -271,6 +271,28 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTooltipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DxuiCaptionBar::GetTooltipAt (POINT clientPx, RECT & anchorPx) const
+{
+    if (!m_titleCut || !PtInRect (&m_titleRectPx, clientPx))
+    {
+        return nullptr;
+    }
+
+    anchorPx = m_titleRectPx;
+
+    return m_title.c_str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Host-owned mode: gradient fill + app icon + title text, then the
@@ -309,6 +331,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (!m_renderCaption)
     {
+        m_titleCut = false;
         DxuiPanel::Paint (painter, text, theme);
         return;
     }
@@ -351,6 +374,10 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     //  One line, as Windows draws a caption: a title too long for the room
     //  is cut short with an ellipsis rather than wrapped.
     shown = DxuiTextElide::ToWidth (text, m_title, fontPx, kTitleFamily, titleWidthPx, DxuiElide::Tail);
+
+    m_titleCut    = shown != m_title;
+    m_titleRectPx = RECT { std::lround (textLeftPx), std::lround (yPx),
+                           std::lround (textLeftPx + titleWidthPx), std::lround (yPx + hPx) };
 
     {
         HRESULT  hrText = text.DrawString (shown.c_str(),

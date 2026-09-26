@@ -2,6 +2,7 @@
 
 #include "DxuiHwndSource.h"
 #include "DxuiCaptionBar.h"
+#include "Widgets/DxuiTooltip.h"
 #include "DxuiPopupHost.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "DxuiSystemButton.h"
@@ -23,6 +24,11 @@
 // (WM_ENTERSIZEMOVE..WM_EXITSIZEMOVE) to drive IDxuiHostClient::OnModalLoopTick.
 // Distinct from any client SetTimer id, which route to OnTimer instead.
 static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
+
+// Host-owned WM_TIMER id that runs the caption title's tooltip while it opens
+// or fades. Armed only while the tooltip has something to animate.
+static constexpr UINT_PTR  s_kCaptionTipTimerId = 0xDCE2;
+static constexpr UINT      s_kCaptionTipTickMs  = 16;
 
 
 
@@ -2614,6 +2620,11 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
                 result = 0;
             }
+            else if (wp == s_kCaptionTipTimerId)
+            {
+                TickCaptionTip();
+                result = 0;
+            }
             else
             {
                 isHandled = false;
@@ -3080,6 +3091,8 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 
 
+    UpdateCaptionTip (msg, wp, lp);
+
     if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
         ev.kind = DxuiMouseEventKind::Leave;
@@ -3197,6 +3210,103 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 Error:
     return toDefault ? DefaultProc (msg, wp, lp) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::UpdateCaptionTip
+//
+//  Windows' own title bar shows the full title in a tooltip when it is cut
+//  short. The pointer over the title, and the title cut, opens it; anywhere
+//  else, or leaving the caption, closes it, and a press closes it at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::UpdateCaptionTip (UINT msg, WPARAM wp, LPARAM lp)
+{
+    POINT            pointPx  = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+    RECT             anchorPx = {};
+    RECT             clientPx = {};
+    const wchar_t *  tip      = nullptr;
+    int64_t          nowMs    = (int64_t) GetTickCount64();
+    TRACKMOUSEEVENT  tme      = { sizeof (tme) };
+
+
+
+    if (m_caption == nullptr || !m_captionVisible || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (m_captionTip == nullptr)
+    {
+        m_captionTip = std::make_unique<DxuiTooltip>();
+        m_captionTip->SetPopupHost (this);
+    }
+
+    if (msg == WM_NCMOUSEMOVE && wp == (WPARAM) HTCAPTION && ScreenToClient (m_hwnd, &pointPx))
+    {
+        tip = m_caption->GetTooltipAt (pointPx, anchorPx);
+    }
+
+    if (tip != nullptr)
+    {
+        GetClientRect (m_hwnd, &clientPx);
+        m_captionTip->SetDpi (m_scaler.GetDpi());
+        m_captionTip->SetViewportSize (clientPx.right - clientPx.left, clientPx.bottom - clientPx.top);
+
+        if (m_theme != nullptr)
+        {
+            m_captionTip->SetTheme (*m_theme);
+        }
+
+        m_captionTip->RequestShow (anchorPx, tip, nowMs);
+
+        //  The leave that closes it only arrives when asked for.
+        tme.dwFlags   = TME_NONCLIENT | TME_LEAVE;
+        tme.hwndTrack = m_hwnd;
+        TrackMouseEventHost (&tme);
+    }
+    else if (msg == WM_NCLBUTTONDOWN)
+    {
+        m_captionTip->HideImmediate();
+    }
+    else
+    {
+        m_captionTip->RequestHide (nowMs);
+    }
+
+    if (m_captionTip->WantsTick())
+    {
+        ::SetTimer (m_hwnd, s_kCaptionTipTimerId, s_kCaptionTipTickMs, nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TickCaptionTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::TickCaptionTip()
+{
+    if (m_captionTip != nullptr)
+    {
+        m_captionTip->Tick ((int64_t) GetTickCount64());
+    }
+
+    if (m_captionTip == nullptr || !m_captionTip->WantsTick())
+    {
+        ::KillTimer (m_hwnd, s_kCaptionTipTimerId);
+    }
 }
 
 

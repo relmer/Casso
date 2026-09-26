@@ -14,6 +14,7 @@ class DxuiPopupHost;
 class DxuiPopupMenu;
 class IDxuiHostClient;
 class DxuiCaptionBar;
+class DxuiTooltip;
 
 // Opaque declaration rather than including IDxuiHostClient.h: this header keeps
 // the client interface to a forward declaration (it only ever holds a pointer),
@@ -722,6 +723,8 @@ private:
     LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);
     LRESULT  HandleNcHitTest           (LPARAM lp);
     LRESULT  HandleNcMouse             (UINT msg, WPARAM wp, LPARAM lp);
+    void     UpdateCaptionTip          (UINT msg, WPARAM wp, LPARAM lp);
+    void     TickCaptionTip            ();
     LRESULT  DefaultProc               (UINT msg, WPARAM wp, LPARAM lp);
     BOOL     TrackMouseEventHost       (TRACKMOUSEEVENT * pEvent);
     void     TrackClientMouseLeave     ();
@@ -794,6 +797,7 @@ private:
     DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
     bool                              m_captionVisible     = true;
+    std::unique_ptr<DxuiTooltip>      m_captionTip;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
     std::unique_ptr<DxuiPopupMenu>    m_contextMenu;
