@@ -293,6 +293,29 @@ namespace DebuggerTests
 
 
 
+        //  With two arguments the first is always the name, even when it
+        //  would also evaluate; '=' may touch either side; extra tokens fail.
+        TEST_METHOD (DataDirectives_NameThatEvaluatesAndEqualsForms)
+        {
+            for (const char * line : { "DB FACE 300", "DB A 300", "DB FACE=300", "DB FACE= 300", "DB FACE =300", "DB FACE = 300" })
+            {
+                AppleWinParseResult  result = ParseOk (line);
+                std::wstring         where  (line, line + strlen (line));
+
+
+
+                Assert::IsTrue   (result.command.text == "FACE" || result.command.text == "A", where.c_str());
+                Assert::IsTrue   (result.command.hasA1, where.c_str());
+                Assert::AreEqual ((Word) 0x0300, result.command.a1, where.c_str());
+            }
+
+            ParseFails ("DB TABLE 300 310",   ParseStatus::Invalid);
+            ParseFails ("DB TABLE = 300 310", ParseStatus::Invalid);
+            ParseFails ("DB = 300",           ParseStatus::Invalid);
+        }
+
+
+
         TEST_METHOD (Symbols_TableSubcommands)
         {
             AppleWinParseResult  load = ParseOk ("SYMUSER LOAD \"game.sym\",800");
