@@ -1389,6 +1389,26 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         SlideIn();
     }
 
+    //  The wheel over a group's tabs scrolls them when they overflow. Over the
+    //  chrome it means nothing to the pane below, so it stops here either way.
+    if (ev.kind == DxuiMouseEventKind::Wheel)
+    {
+        if (m_slidGroup.IsVisible() && m_slidGroup.IsChromeAt (ev.positionDip))
+        {
+            (void) m_slidGroup.OnMouse (ev);
+            return true;
+        }
+
+        for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+        {
+            if (group->IsVisible() && group->IsChromeAt (ev.positionDip) && !Contains (m_slidRect, ev.positionDip))
+            {
+                (void) group->OnMouse (ev);
+                return true;
+            }
+        }
+    }
+
     //  The slid pane's title bar is the site's; its controls are the window's.
     if (ev.kind == DxuiMouseEventKind::Down && m_slidGroup.IsVisible() && m_slidGroup.IsChromeAt (ev.positionDip))
     {

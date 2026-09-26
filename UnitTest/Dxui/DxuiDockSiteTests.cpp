@@ -121,6 +121,45 @@ namespace DxuiDockSiteTests
         }
 
 
+        //  Tabs too many for their strip scroll under the wheel, as Visual
+        //  Studio's do; the pane below never sees that wheel.
+        TEST_METHOD (TheWheelOverOverflowingTabsScrollsThem)
+        {
+            Rig               rig;
+            DxuiTabGroup    * group  = nullptr;
+            DxuiMouseEvent    wheel;
+            long              before = 0;
+
+
+
+            rig.site.Layout (RECT { 0, 0, 1000, 600 }, rig.scaler);
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
+            }
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a group of two tabs");
+                return;
+            }
+
+            //  Narrow the tabbed group until its two tabs cannot both fit. The
+            //  strip scrolls to keep the shown tab, the second, in view.
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, POINT { rig.stack.GetBounds().left, 300 }));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { 900, 300 }));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   POINT { 900, 300 }));
+
+            before            = group->GetTabRect (0).left;
+            wheel             = Mouse (DxuiMouseEventKind::Wheel, Center (group->GetTabRect (1)));
+            wheel.wheelDelta  = 1.0f;
+
+            Assert::IsTrue   (rig.site.OnMouse (wheel), L"the wheel over the tabs stops at the site");
+            Assert::IsTrue   (group->GetTabRect (0).left > before, L"the tabs moved back toward the first");
+        }
+
+
         TEST_METHOD (DraggingASashChangesTheRatio)
         {
             Rig   rig;
