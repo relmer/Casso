@@ -406,6 +406,7 @@ public:
     //  Any other line, and any line in another mode, is returned as it is.
     static std::string  GetModeLine   (const std::string & line, CommandMode mode);
     static std::string  GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line);
+    static bool         IsHexBytes    (const std::string & text);
 
     //  In GSSquared mode with the command line empty, Space and F10 step and
     //  Return resumes, as GSSquared's own window does, whatever the key
@@ -479,6 +480,7 @@ private:
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
+    static Byte  GetRegisterByte  (const std::string & name, const Cpu6502Registers & registers);
     static void  AddAutoWatches   (DebugSession & session, const InstructionTouches::Result & touches,
                                    const Cpu6502Registers & now, bool isPrevious,
                                    std::vector<DebuggerViewSnapshot::AutoWatchLine> & lines);

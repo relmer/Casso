@@ -264,6 +264,29 @@ bool DebuggerViewState::IsSameRegisters (const Cpu6502Registers & left, const Cp
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetRegisterByte
+//
+//  The byte a register item stands for: A, X, Y, the status register P, or
+//  the stack pointer S.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte DebuggerViewState::GetRegisterByte (const std::string & name, const Cpu6502Registers & registers)
+{
+    if (name == "A") { return registers.a; }
+    if (name == "X") { return registers.x; }
+    if (name == "Y") { return registers.y; }
+    if (name == "P") { return registers.p; }
+
+    return registers.sp;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::AddAutoWatches
 //
 //  Each register, flag and address the instruction touches, with what it holds
@@ -298,7 +321,7 @@ void DebuggerViewState::AddAutoWatches (DebugSession & session, const Instructio
 
         if (item.kind == InstructionTouches::Kind::Register)
         {
-            Byte  held = (item.name == "A") ? now.a : (item.name == "X") ? now.x : (item.name == "Y") ? now.y : now.sp;
+            Byte  held = GetRegisterByte (item.name, now);
 
             line.key   = "R:" + item.name;
             line.label = item.name;
@@ -712,12 +735,48 @@ std::string DebuggerViewState::GetModeLine (const std::string & line, CommandMod
     if (name == "BP")  { return "bp " + rest; }
     if (name == "BPC") { return "nobp " + rest; }
 
-    if (name == "MEB" && split != std::string::npos)
+    //  The deposit takes hex bytes only; any other value stays an AppleWin
+    //  MEB, which GSSquared mode runs too.
+    if (name == "MEB" && split != std::string::npos && IsHexBytes (rest.substr (split)))
     {
         return rest.substr (0, split) + ":" + rest.substr (split);
     }
 
     return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::IsHexBytes
+//
+//  True when text is one or more values of one or two hex digits each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsHexBytes (const std::string & text)
+{
+    static constexpr size_t  kMaxDigits = 2;
+    std::istringstream       values (text);
+    std::string              value;
+    bool                     any = false;
+
+
+
+    while (values >> value)
+    {
+        if (value.size() > kMaxDigits || value.find_first_not_of ("0123456789ABCDEFabcdef") != std::string::npos)
+        {
+            return false;
+        }
+
+        any = true;
+    }
+
+    return any;
 }
 
 
@@ -2179,8 +2238,8 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 
         if (item.kind == InstructionTouches::Kind::Register)
         {
-            Byte  held = (item.name == "A") ? registers.a : (item.name == "X") ? registers.x
-                       : (item.name == "Y") ? registers.y : registers.sp;
+            Byte  held = GetRegisterByte (item.name, registers);
+
 
             registerText += std::format ("{}={:02X} ", item.name, held);
         }

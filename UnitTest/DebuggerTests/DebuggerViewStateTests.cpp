@@ -602,6 +602,36 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (TheStatusRegisterWatchShowsPRatherThanS)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r      = target.GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+            std::string           shown;
+
+
+
+            //  PHP reads the whole status register.
+            (void) target.TryPoke (0x0300, 0x08);
+
+            r.pc = 0x0300;
+            r.p  = 0xE5;
+            r.sp = 0xF0;
+            target.SetRegisters (r);
+
+            snapshot = rig.view.Build (rig.controller.GetSession(), true);
+
+            for (const DebuggerViewSnapshot::AutoWatchLine & line : snapshot.autoWatches)
+            {
+                shown = (line.key == "R:P") ? line.value : shown;
+            }
+
+            Assert::AreEqual (std::string ("E5"), shown, L"the P row holds P");
+            Assert::IsTrue   (LineAt (snapshot, 0x0300).annotation.find ("P=E5") != std::string::npos, L"the annotation shows P");
+        }
+
+
         TEST_METHOD (TheInstructionTouchesAreWhatTheInstructionTouches)
         {
             using Kind = InstructionTouches::Kind;
@@ -1578,6 +1608,30 @@ namespace DebuggerViewStateTests
                                                                CommandMode::GSSquared);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
+            }
+        }
+
+        //  A watch edit takes any value AppleWin's MEB takes, in GSSquared mode
+        //  too, though its deposit takes only hex bytes.
+        TEST_METHOD (GSSquaredMode_AWatchEditTakesAnyByteExpression)
+        {
+            MachineRig  rig;
+
+
+
+            rig.controller.GetSession().ExecuteLine ("MODE GSSQUARED");
+
+            for (const auto & [line, expected] : { std::pair<const char *, Byte> { "MEB 0400 $41", 0x41 },
+                                                   std::pair<const char *, Byte> { "MEB 0400 #66", 0x42 },
+                                                   std::pair<const char *, Byte> { "MEB 0400 A",   0x0A },
+                                                   std::pair<const char *, Byte> { "MEB 0400 44",  0x44 } })
+            {
+                Reply  reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
+                                                               DebuggerViewState::GetModeLine (line, CommandMode::GSSquared),
+                                                               CommandMode::GSSquared);
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
+                Assert::AreEqual (expected, rig.machine.GetMemoryBus().ReadByte (0x0400), std::wstring (line, line + strlen (line)).c_str());
             }
         }
 
