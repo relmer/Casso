@@ -696,6 +696,25 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  A video breakpoint armed while the machine runs freely stops it
+        //  within a frame, paused and announced rather than frozen.
+        TEST_METHOD (AVideoBreakpointHitWhileFreeRunningStopsAndIsAnnounced)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPV 0,106").status);
+
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused(),                      L"the machine is paused, not frozen running");
+            Assert::AreEqual ((size_t) 1, rig.sink.stops.size(),              L"clients hear the stop");
+            Assert::IsTrue   (rig.session.GetRunState() == RunState::Paused, L"and the session knows it stopped");
+        }
+
+
+
         //  An opcode breakpoint armed beside an address breakpoint does not
         //  hide the address one: both stop a free run.
         TEST_METHOD (AnAddressBreakpointStopsWhileBrkIsArmed)
