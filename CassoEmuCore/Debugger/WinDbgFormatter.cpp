@@ -294,14 +294,23 @@ void WinDbgFormatter::FormatString (const MemoryData & data, Lines & lines)
 //  WinDbgFormatter::FormatDisassembly
 //
 //  u: a label on a line of its own, then address, bytes and instruction.
+//  The byte column fits the longest line, an instruction's three bytes or
+//  a data line's eight. Quoted text in an operand keeps its case.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & lines)
 {
-    static constexpr size_t  kBytesWidth = 6;
+    static constexpr size_t  kHexPerByte       = 2;
+    static constexpr size_t  kInstructionWidth = 6;
+    size_t                   bytesWidth        = kInstructionWidth;
 
 
+
+    for (const DisassemblyLine & line : data.lines)
+    {
+        bytesWidth = std::max (bytesWidth, line.instruction.bytes.size() * kHexPerByte);
+    }
 
     for (const DisassemblyLine & line : data.lines)
     {
@@ -309,7 +318,7 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
         std::string  mnemonic = line.instruction.mnemonic;
         std::string  operand  = line.GetShownOperand();
         std::string  text;
-        bool         isQuoted = false;
+        char         quote    = 0;
 
 
 
@@ -331,15 +340,21 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
         //  Text in quotes is data and keeps its case.
         for (char & ch : operand)
         {
-            if (ch == '"')
+            if (quote == 0 && (ch == '"' || ch == '\''))
             {
-                isQuoted = !isQuoted;
+                quote = ch;
             }
-
-            ch = (line.operandSymbol.empty() && !isQuoted) ? (char) tolower ((unsigned char) ch) : ch;
+            else if (ch == quote)
+            {
+                quote = 0;
+            }
+            else if (quote == 0 && line.operandSymbol.empty())
+            {
+                ch = (char) tolower ((unsigned char) ch);
+            }
         }
 
-        text = std::format ("{:04x} {:<{}}  {} {}", line.instruction.address, bytes, kBytesWidth, mnemonic, operand);
+        text = std::format ("{:04x} {:<{}}  {} {}", line.instruction.address, bytes, bytesWidth, mnemonic, operand);
 
         while (!text.empty() && text.back() == ' ')
         {

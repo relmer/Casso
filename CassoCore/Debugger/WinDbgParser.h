@@ -87,12 +87,16 @@ private:
         bool         isDeferred = false;
     };
 
-    static Tokens       Split             (const std::string & text);
-    static std::string  ToLower           (const std::string & text);
-    static std::string  Join              (const Tokens & tokens, size_t first);
-    static std::string  GetTail           (const std::string & text, size_t first);
-    static std::string  NormalizeNumbers  (const std::string & text);
-    static std::string  StripBackquotes   (const std::string & text);
+    static Tokens       Split                    (const std::string & text);
+    static std::string  ToLower                  (const std::string & text);
+    static std::string  Join                     (const Tokens & tokens, size_t first);
+    static std::string  GetTail                  (const std::string & text, size_t first);
+    static std::string  NormalizeNumbers         (const std::string & text);
+    static std::string  StripBackquotes          (const std::string & text);
+    static std::string  NormalizeEngineArguments (const std::string & text, const Tokens & tokens);
+    static std::string  ShortenSearchBytes       (const std::string & text);
+    static bool         IsPath                   (const std::string & token);
+    static bool         TryReadNumber            (const std::string & token, uint64_t & value);
 
     static bool  IsWholeNumber         (const std::string & text, size_t first, char prefix);
     static bool  TryFindExclusion      (const std::string & name, const WinDbgExclusion *& exclusion);
