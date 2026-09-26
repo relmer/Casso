@@ -253,6 +253,28 @@ namespace DebuggerTests
         }
 
 
+        //  BRK and BRKINT set one entry each only when turned on, so only that
+        //  form can replace an entry.
+        TEST_METHOD (BPEDIT_TakesBrkOnAndBrkintOn)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 300");
+            Assert::AreEqual (std::string ("Breakpoint #0 set on BRK"),       rig.RunOk ("BPEDIT 0 BRK ON").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint #0 set on BRK"),       rig.RunOk ("BPEDIT 0 BRK 0 ON").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint #0 set on interrupt"), rig.RunOk ("BPEDIT 0 BRKINT ON").text.at (0));
+
+            rig.RunFails ("BPEDIT 0 BRK ALL ON", "invalid arguments");
+            rig.RunFails ("BPEDIT 0 BRK 1 ON",   "invalid arguments");
+            rig.RunFails ("BPEDIT 0 BRK OFF",    "invalid arguments");
+            rig.RunFails ("BPEDIT 0 BRKINT OFF", "invalid arguments");
+            rig.RunFails ("BPEDIT 0 BRKINT",     "invalid arguments");
+            Assert::AreEqual ((size_t) 1, List (rig).size());
+        }
+
+
 
         TEST_METHOD (BPCHANGE_Flags)
         {

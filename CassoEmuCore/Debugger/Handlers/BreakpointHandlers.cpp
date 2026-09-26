@@ -1009,7 +1009,7 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
     if (!TryMakeEntry (parsed.command, id, old, breakpoint, watchpoint, isWatchpoint))
     {
         reply.SetError (CommandStatus::Error, "invalid arguments",
-                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV or BRKOP would take it.");
+                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV or BRKOP would take it, or BRK ON or BRKINT ON.");
         return;
     }
 
@@ -1103,6 +1103,15 @@ bool BreakpointHandlers::TryMakeEntry (
         breakpoint.opcode = definition.values.empty() ? 0 : definition.values[0];
         return definition.values.size() == 1;
 
+    case DebugVerb::BreakOnBrk:
+        breakpoint.kind   = BreakpointKind::Brk;
+        breakpoint.opcode = kBrkOpcode;
+        return IsBrkOn (definition.text);
+
+    case DebugVerb::BreakOnInterrupt:
+        breakpoint.kind = BreakpointKind::Interrupt;
+        return definition.text == "ON";
+
     case DebugVerb::SetMemoryWatchpoint: watchpoint.access = WatchAccess::ReadWrite; isWatchpoint = true; return true;
     case DebugVerb::SetReadWatchpoint:   watchpoint.access = WatchAccess::Read;      isWatchpoint = true; return true;
     case DebugVerb::SetWriteWatchpoint:  watchpoint.access = WatchAccess::Write;     isWatchpoint = true; return true;
@@ -1110,6 +1119,36 @@ bool BreakpointHandlers::TryMakeEntry (
     default:
         return false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::IsBrkOn
+//
+//  BRK's arguments as a definition: ON, alone or after the BRK selector 0.
+//  Any other selector adds an entry per invalid opcode, and a definition
+//  replaces exactly one entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::IsBrkOn (const std::string & text)
+{
+    int                  selector = kBrkSelector;
+    std::optional<bool>  isOn;
+    std::string          error;
+
+
+
+    if (!TryParseBrkArguments (text, selector, isOn, error))
+    {
+        return false;
+    }
+
+    return selector == kBrkSelector && isOn == true;
 }
 
 

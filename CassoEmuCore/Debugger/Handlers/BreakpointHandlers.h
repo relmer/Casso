@@ -72,6 +72,7 @@ private:
 
     static bool  TryFindInfo    (DebugSession & session, int id, BreakpointInfo & info);
     static bool  TryMakeEntry   (const DebugCommand & definition, int id, const BreakpointInfo & old, Breakpoint & breakpoint, Watchpoint & watchpoint, bool & isWatchpoint);
+    static bool  IsBrkOn        (const std::string & text);
     static void  SetNoSuch      (Reply & reply, int id);
     static WatchMode  GetMode   (const DebugCommand & command);
 };
