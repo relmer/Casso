@@ -15,13 +15,14 @@
 //  WinDbgFormatter::Format
 //
 //  Text a handler already wrote is kept, and data adds its lines after it,
-//  as in AppleWin mode.
+//  as in AppleWin mode. The command picks a layout only when it was written
+//  in WinDbg: a Monitor DA is the byte at $DA, not da.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WinDbgFormatter::Format (Reply & reply)
 {
-    std::string  name = GetCommandName (reply.command);
+    std::string  name = (reply.mode == CommandMode::WinDbg) ? GetCommandName (reply.command) : std::string();
 
 
 
@@ -448,7 +449,8 @@ void WinDbgFormatter::FormatCallStack (const CallStackData & data, Lines & lines
 //  WinDbgFormatter::FormatCallFrame
 //
 //  The call site, the target and its symbol, then how it was entered and
-//  which mechanism found it.
+//  which mechanism found it. A long symbol pushes the rest right rather than
+//  running into it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -469,7 +471,7 @@ std::string WinDbgFormatter::FormatCallFrame (const CallStackFrame & frame)
         how += ", " + frame.note;
     }
 
-    return std::format ("{:<11}{:<14}{}", std::format ("{:04x}", frame.callSite),
+    return std::format ("{:<11}{:<13} {}", std::format ("{:04x}", frame.callSite),
                         std::format ("{:04x} {}", frame.target, frame.symbol), how);
 }
 

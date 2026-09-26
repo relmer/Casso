@@ -506,6 +506,7 @@ struct Reply
     CommandStatus             status = CommandStatus::Ok;
     DebugVerb                 verb   = DebugVerb::None;
     std::string               command;
+    CommandMode               mode   = CommandMode::AppleWin;   // the dialect command is written in
     ReplyData                 data;
     std::vector<std::string>  text;
     ReplyError                error;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/WinDbgFormatter.h"
+#include "ControllerRig.h"
 
 #include "CppUnitTest.h"
 
@@ -34,6 +35,7 @@ namespace DebuggerTests
 
 
             reply.command = command;
+            reply.mode    = CommandMode::WinDbg;
             reply.data    = std::move (data);
             WinDbgFormatter::Format (reply);
             return reply.text;
@@ -173,6 +175,46 @@ namespace DebuggerTests
             Assert::IsTrue   (lines[1].starts_with ("00 0305       fded COUT"));
             Assert::IsTrue   (lines[1].find ("recorded") != std::string::npos);
             Assert::IsTrue   (lines[2].starts_with ("-- "));
+        }
+
+        //  A symbol too long for its column still leaves a space before how
+        //  the frame was entered.
+        TEST_METHOD (K_LongSymbolKeepsASpaceBeforeHow)
+        {
+            CallStackData             data;
+            CallStackFrame            frame;
+            CallStackRow              row;
+            std::vector<std::string>  lines;
+
+
+
+            frame.callSite = 0x0305;
+            frame.target   = 0x0310;
+            frame.symbol   = "printline";
+            row.frame      = frame;
+            data.rows      = { row };
+
+            lines = Render ("k", data);
+
+            Assert::IsTrue (lines[1].find ("0310 printline ") != std::string::npos, std::wstring (lines[1].begin(), lines[1].end()).c_str());
+        }
+
+        //  With OUTPUT WINDBG, a Monitor examine written DA is the byte at $DA,
+        //  so it keeps the db layout rather than taking da's.
+        TEST_METHOD (OtherModesCommand_KeepsTheDbLayout)
+        {
+            ControllerRig  rig;
+            Reply          reply;
+
+
+
+            rig.Run ("MODE MONITOR");
+            rig.Run ("/OUTPUT WINDBG", CommandMode::Monitor);
+            reply = rig.Run ("DA", CommandMode::Monitor);
+
+            Assert::IsFalse (reply.text.empty());
+            Assert::IsTrue  (reply.text[0].starts_with ("00da  "), std::wstring (reply.text[0].begin(), reply.text[0].end()).c_str());
+            Assert::IsTrue  (reply.text[0].find ('"') == std::string::npos, std::wstring (reply.text[0].begin(), reply.text[0].end()).c_str());
         }
 
         TEST_METHOD (Evaluate_AndFormats)

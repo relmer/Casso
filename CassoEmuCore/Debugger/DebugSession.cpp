@@ -362,6 +362,7 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
     }
 
     reply.command = line;
+    reply.mode    = mode;
     return reply;
 }
 
