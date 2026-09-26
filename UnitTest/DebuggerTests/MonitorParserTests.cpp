@@ -529,6 +529,30 @@ namespace DebuggerTests
         }
 
 
+        //  An AppleWin window name typed without `/` is a Monitor line, as
+        //  the Monitor itself would read it: WIN writes a file called IN, and
+        //  GR and DGR resume the machine.
+        TEST_METHOD (AppleWinWindowNameWithoutSlash_IsAMonitorLine)
+        {
+            Rig                 rig;
+            MonitorParseResult  win = rig.Parse ("WIN");
+            MonitorParseResult  gr  = rig.Parse ("GR");
+            MonitorParseResult  dgr = rig.Parse ("DGR");
+
+
+
+            Assert::IsTrue   (win.appleWinLine.empty());
+            AssertVerb       (DebugVerb::WriteFile, win.commands.at (0), "WIN");
+            Assert::AreEqual (std::string ("IN"), win.commands.at (0).text);
+
+            AssertVerb       (DebugVerb::Go, gr.commands.at (0), "GR");
+            Assert::IsFalse  (gr.commands.at (0).hasA3);
+
+            AssertVerb       (DebugVerb::Go, dgr.commands.at (0), "DGR");
+            Assert::AreEqual ((int) 0x000D, (int) dgr.commands.at (0).a3);
+        }
+
+
 
         TEST_METHOD (AMalformedLine_IsAnErrorAndNoCommand)
         {
