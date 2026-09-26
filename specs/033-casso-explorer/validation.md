@@ -68,9 +68,9 @@ Found on this pass:
 
 - Keys posted to a window that is not in the foreground do not reach it, so
   F2 and typing into the rename box did nothing; rename needs the keyboard.
-- With the location deep in the folder tree, the tree reveals its row but
-  every label lies past the pane's right edge, with no horizontal scroll to
-  bring them back.
+- With the location deep in the folder tree, every label lay past the pane's
+  right edge. The tree has no horizontal scroll, as Explorer's has none; the
+  cause was an 18 dip indent per level against Explorer's 8, now matched.
 
 Still to check by a person: §1 beyond delete (get, put, create, init,
 sector and block reads and writes need the folder picker or a drag); §2
