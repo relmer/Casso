@@ -616,6 +616,19 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("SYM ! needs the name of the symbol to remove."),  ParseFails ("SYM !",     ParseStatus::Invalid).error);
         }
 
+        //  F start end value takes an end at or after the start, so a value
+        //  in the end's place is not read as a one-byte fill.
+        TEST_METHOD (FillThreeArgumentForm_EndBeforeStartFails)
+        {
+            AppleWinParseResult  fill = ParseOk ("F 300 3FF EA");
+
+
+
+            Assert::AreEqual ((int) 0x300, (int) fill.command.a1);
+            Assert::AreEqual ((int) 0x3FF, (int) fill.command.a2);
+            Assert::AreEqual (std::string ("F's end address $00AA is before its start $0300."), ParseFails ("F 300 AA BB", ParseStatus::Invalid).error);
+        }
+
         TEST_METHOD (UnknownWindowOnlyAndNotAvailable)
         {
             MockExpressionContext  context;
