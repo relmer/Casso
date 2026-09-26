@@ -789,6 +789,23 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  A run from an address sets the PC first, so a running machine is
+        //  left alone, as it is for JSR.
+        TEST_METHOD (RunFromAddressWhileFreeRunningChangesNothing)
+        {
+            Rig               rig;
+            Cpu6502Registers  before = rig.target.GetRegisters();
+            Reply             reply  = rig.session.ExecuteLine ("310G");
+
+
+
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+            Assert::AreEqual (before.pc, rig.target.GetRegisters().pc);
+            Assert::IsTrue   (rig.session.GetRunState() == RunState::FreeRunning);
+        }
+
+
+
         //  A step in the emulator runs on the CPU thread after the command
         //  returns. Until it stops, the machine may not be changed under it.
         TEST_METHOD (MachineWritesWaitForAStepToStop)

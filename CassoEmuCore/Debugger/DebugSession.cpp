@@ -1748,6 +1748,18 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         request.kind = RunKind::RunTo;
     }
 
+    isStep = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
+
+    //  A run from an address sets the PC first, which, like any register
+    //  change, waits for the machine to stop.
+    if (m_state != RunState::Paused &&
+        ((request.kind == RunKind::Go && command.hasA3 && !command.hasA2) || (isStep && command.hasA1)))
+    {
+        SetError (reply, CommandStatus::Error, "machine running",
+                  std::format ("{} from an address sets the program counter. Pause the machine first.", command.sourceName));
+        return;
+    }
+
     if (request.kind == RunKind::Go && command.hasA3 && !command.hasA2)
     {
         //  A Monitor `G` leaves the Monitor's own return address on the
@@ -1762,8 +1774,6 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         registers.pc = command.a3;
         m_target.SetRegisters (registers);
     }
-
-    isStep = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
 
     //  The Monitor's `300S` and `300T` step and trace FROM an address, where
     //  AppleWin's T and P take a count and never an address. Keying on the
