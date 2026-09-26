@@ -116,7 +116,9 @@ void MonitorHandlers::Examine (DebugSession & session, const DebugCommand & comm
 
 void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    Word  last = 0;
+    static constexpr Word  kLastAddress = 0xFFFF;
+    Word                   last         = 0;
+    MemoryData             rows;
 
 
 
@@ -128,10 +130,27 @@ void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & comm
 
     last = (Word) (command.a1 + command.values.size() - 1);
 
-    if (TryPokeRange (session, command.a1, command.values, reply))
+    if (!TryPokeRange (session, command.a1, command.values, reply))
     {
-        reply.data = MakeRows (session.GetTarget(), command.a1, last);
+        return;
     }
+
+    // A deposit that runs past $FFFF wraps to $0000, so its rows do too.
+    if (last < command.a1)
+    {
+        MemoryData  wrapped = MakeRows (session.GetTarget(), 0, last);
+
+
+
+        rows = MakeRows (session.GetTarget(), command.a1, kLastAddress);
+        rows.rows.insert (rows.rows.end(), wrapped.rows.begin(), wrapped.rows.end());
+    }
+    else
+    {
+        rows = MakeRows (session.GetTarget(), command.a1, last);
+    }
+
+    reply.data = rows;
 }
 
 
@@ -264,19 +283,19 @@ void MonitorHandlers::SetHook (DebugSession & session, const DebugCommand & comm
 {
     Word  hook    = isInput ? kInputHook : kOutputHook;
     Word  restore = isInput ? kKeyIn : kCharacterOut;
-    int   slot    = (int) command.count;
     Word  target  = 0;
 
 
 
-    if (slot < 0 || slot > kLastSlot)
+    // The slot was typed in hex, so it is reported in hex.
+    if (command.count > (uint32_t) kLastSlot)
     {
         reply.SetError (CommandStatus::Error, "invalid arguments",
-                        std::format ("There is no slot {}. The slots are 0 to {}.", slot, kLastSlot));
+                        std::format ("There is no slot {:X}. The slots are 0 to {}.", command.count, kLastSlot));
         return;
     }
 
-    target = (slot == 0) ? restore : (Word) (kSlotBase + kSlotStride * slot);
+    target = (command.count == 0) ? restore : (Word) (kSlotBase + kSlotStride * command.count);
 
     PokeWord (session.GetTarget(), hook, target);
 
