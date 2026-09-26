@@ -2053,6 +2053,15 @@ void DebugSession::RefreshHookFilter()
         m_hookFilter.pages[*m_monitorReturn >> 8] = true;
     }
 
+    //  With only opcode breakpoints armed, the host asks about an instruction
+    //  only when its opcode is one of theirs. An address breakpoint beside
+    //  them is on no such list, so every instruction is asked about instead.
+    if (m_hookFilter.opcodesStop && std::ranges::any_of (m_hookFilter.pages, [] (bool marked) { return marked; }))
+    {
+        m_hookFilter.opcodesStop = false;
+        isEvery                  = true;
+    }
+
     m_hookFilter.everyInstruction = isEvery;
 
     if (isEvery || m_hookFilter.opcodesStop)

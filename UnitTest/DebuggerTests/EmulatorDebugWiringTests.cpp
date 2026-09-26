@@ -695,6 +695,44 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  An opcode breakpoint armed beside an address breakpoint does not
+        //  hide the address one: both stop a free run.
+        TEST_METHOD (AnAddressBreakpointStopsWhileBrkIsArmed)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BRK ON").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 301").status);
+
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused(), L"the address breakpoint stopped the machine");
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc);
+        }
+
+
+
+        //  BRK ON alone still stops on a BRK, and runs everything else freely.
+        TEST_METHOD (BrkOnAloneStopsOnABrk)
+        {
+            Rig  rig;
+
+
+
+            (void) rig.target.TryPoke (0x0302, 0x00);
+            (void) rig.target.TryPoke (0x0301, 0xEA);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BRK ON").status);
+
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused());
+            Assert::AreEqual ((Word) 0x0302, rig.target.GetRegisters().pc, L"before the BRK");
+        }
+
+
+
         //  JSR changes the stack and the PC, so a running machine is left alone.
         TEST_METHOD (JsrWhileFreeRunningChangesNothing)
         {
