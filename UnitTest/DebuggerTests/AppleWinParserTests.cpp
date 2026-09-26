@@ -64,8 +64,22 @@ namespace DebuggerTests
             Assert::AreEqual ((int) DebugVerb::ClosePanel, (int) close.command.verb);
             Assert::AreEqual (std::string ("MMU"),         close.command.text);
             ParseFails ("PANEL CLOSE",          ParseStatus::Invalid);
-            ParseFails ("PANEL disk mmu",       ParseStatus::Invalid);
-            ParseFails ("PANEL CLOSE disk mmu", ParseStatus::Invalid);
+        }
+
+
+        //  A panel's title can hold a space, and FindProvider matches titles,
+        //  so every word after the verb is the name.
+        TEST_METHOD (Panel_NameWithSpace_IsOneName)
+        {
+            AppleWinParseResult  open  = ParseOk ("PANEL Disk II");
+            AppleWinParseResult  close = ParseOk ("PANEL CLOSE Disk II");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::OpenPanel,  (int) open.command.verb);
+            Assert::AreEqual (std::string ("Disk II"),     open.command.text);
+            Assert::AreEqual ((int) DebugVerb::ClosePanel, (int) close.command.verb);
+            Assert::AreEqual (std::string ("Disk II"),     close.command.text);
         }
 
 

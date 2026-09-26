@@ -1344,14 +1344,21 @@ bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugComman
         return true;
     }
 
-    if ((close && args.tokens.size() != 2) || (!close && args.tokens.size() != 1))
+    if (close && args.tokens.size() < 2)
     {
         error = "Use PANEL LIST to list the device panels, PANEL name to open one, or PANEL CLOSE name to close one.";
         return false;
     }
 
+    //  A panel's title can hold a space ("Disk II"), so every word after the
+    //  verb is the name.
     command.verb = close ? DebugVerb::ClosePanel : DebugVerb::OpenPanel;
-    command.text = close ? args.tokens[1] : args.tokens[0];
+
+    for (size_t i = close ? 1 : 0; i < args.tokens.size(); ++i)
+    {
+        command.text += command.text.empty() ? args.tokens[i] : " " + args.tokens[i];
+    }
+
     return true;
 }
 
