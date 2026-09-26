@@ -354,7 +354,6 @@ bool WinDbgParser::TryRewrite (
     if      (name == "t")        { line = "T " + rest; }
     else if (name == "p")        { line = "P " + rest; }
     else if (name == "gu")       { line = "RTS"; }
-    else if (name == "g")        { line = "G " + rest; }
     else if (name == "bl")       { line = "BPL"; }
     else if (name == "bc")       { line = "BPC " + rest; }
     else if (name == "bd")       { line = "BPD " + rest; }
@@ -378,6 +377,12 @@ bool WinDbgParser::TryRewrite (
     else if (name == "f" || name == "s" || name == "m")
     {
         return TryRewriteRange (name, args, rewrite);
+    }
+    else if (name == "g")
+    {
+        rewrite.error = "g takes one address to stop at, or none to resume.";
+        line          = "G " + rest;
+        return args.size() <= 1;
     }
     else if (name == "pa" || name == "ta")
     {
