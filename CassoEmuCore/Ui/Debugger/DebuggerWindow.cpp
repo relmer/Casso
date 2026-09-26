@@ -555,16 +555,16 @@ void DebuggerWindow::SetCommandBarMenus()
 
     for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
     {
+        //  Applying the scheme rebuilds these rows, this one among them, so
+        //  it is the last thing the row does.
         m_menuCommands.push_back (MakeMenuCommand (DebuggerKeySchemes::GetMap (scheme).GetName(), scheme == m_keyScheme, [this, scheme]
         {
-            ApplyKeyScheme (scheme);
-
             if (m_host != nullptr)
             {
                 m_host->SetDebuggerKeyScheme (DebuggerKeySchemes::GetName (scheme));
             }
 
-            SetCommandBarMenus();
+            ApplyKeyScheme (scheme);
         }));
 
         schemes.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -1868,6 +1868,9 @@ DebuggerKeyScheme DebuggerWindow::GetSavedKeyScheme() const
 //
 //  DebuggerWindow::ApplyKeyScheme
 //
+//  The Keys drop-down is rebuilt too, since its rows carry the scheme that
+//  was checked when they were built.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
@@ -1887,6 +1890,11 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
     if (m_commands != nullptr)
     {
         m_commands->ApplyKeyScheme (scheme);
+    }
+
+    if (m_commandBar != nullptr)
+    {
+        SetCommandBarMenus();
     }
 }
 
@@ -3615,16 +3623,7 @@ void DebuggerWindow::RenderFrame()
     {
         if (snapshot != nullptr)
         {
-            m_snapshot = std::move (snapshot);
-            ApplySnapshot();
-
-            //  The drop-downs carry the mode and the panels they were built
-            //  with, so they are rebuilt when either changes.
-            if (GetMenuState() != m_menuState)
-            {
-                m_menuState = GetMenuState();
-                SetCommandBarMenus();
-            }
+            TakeSnapshot (std::move (snapshot));
         }
 
         AppendConsole (console);
@@ -3809,6 +3808,37 @@ void DebuggerWindow::ApplyCodeView (int view)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::TakeSnapshot
+//
+//  A new snapshot from the machine, applied as each frame applies one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
+{
+    m_snapshot = std::move (snapshot);
+    ApplySnapshot();
+
+    for (DebuggerViewState::WatchUndo & undo : m_watchUndo)
+    {
+        DebuggerViewState::NoteMovedWatch (*m_snapshot, undo);
+    }
+
+    //  The drop-downs carry the mode and the panels they were built with, so
+    //  they are rebuilt when either changes.
+    if (GetMenuState() != m_menuState)
+    {
+        m_menuState = GetMenuState();
+        SetCommandBarMenus();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplySnapshot
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3830,6 +3860,13 @@ void DebuggerWindow::ApplySnapshot()
         if (m_codeOpen[(size_t) view] != open)
         {
             m_codeOpen[(size_t) view] = open;
+
+            //  The keys and the command bar act on the view last used, and a
+            //  closed one has nothing to act on, so the first view takes over.
+            if (!open && view == m_activeCode)
+            {
+                m_activeCode = 0;
+            }
 
             if (open && view > 0)
             {
@@ -4092,7 +4129,7 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
     m_watchEditor->SetText    (text);
     m_watchEditor->Layout     (cell, m_scaler);
     m_watchEditor->SetVisible (true);
-    m_focusMgr.SetFocused     (m_watchEditor);
+    SetFocusedControl         (m_watchEditor);
     m_watchEditor->SelectAll();
     Invalidate();
 }
@@ -4143,7 +4180,7 @@ void DebuggerWindow::EndWatchEdit (bool commit)
 
     m_watchEdit = WatchEdit {};
     m_watchEditor->SetVisible (false);
-    m_focusMgr.SetFocused     (m_watchList);
+    SetFocusedControl         (m_watchList);
     Invalidate();
 
     for (const std::string & line : lines)
@@ -4193,7 +4230,7 @@ void DebuggerWindow::RemoveSelectedWatch()
 
 void DebuggerWindow::UndoWatchEdit()
 {
-    DebuggerViewState::WatchUndo  undo;
+    std::optional<std::vector<std::string>>  lines;
 
 
 
@@ -4202,25 +4239,17 @@ void DebuggerWindow::UndoWatchEdit()
         return;
     }
 
-    undo = std::move (m_watchUndo.back());
-    m_watchUndo.pop_back();
+    //  A move no snapshot has shown yet stays on the stack for the next try.
+    lines = DebuggerViewState::GetWatchUndoLines (*m_snapshot, m_watchUndo.back());
 
-    if (undo.restoreAddress.has_value())
+    if (!lines.has_value())
     {
-        for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
-        {
-            if (std::find (undo.movedFromIds.begin(), undo.movedFromIds.end(), watch.id) == undo.movedFromIds.end())
-            {
-                RunCommand (std::format ("WC {}", watch.id));
-                RunCommand (std::format ("W {:04X}", *undo.restoreAddress));
-                return;
-            }
-        }
-
         return;
     }
 
-    for (const std::string & line : undo.lines)
+    m_watchUndo.pop_back();
+
+    for (const std::string & line : *lines)
     {
         RunCommand (line);
     }
@@ -5745,7 +5774,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseBox, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
-    if (pane == DebuggerLayout::kWatches)     { return { m_watchList };                  }
+    if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
     if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceList };                  }

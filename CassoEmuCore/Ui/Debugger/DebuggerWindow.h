@@ -181,8 +181,17 @@ protected:
     DxuiCheckbox   * GetFindCaseBox  () const { return m_findCaseBox; }
     std::wstring     GetFindStatus   () const { return m_findStatusText; }
 
-    //  Protected so a test can choose a scheme as the Keys menu does.
+    //  Protected so a test can choose a scheme as the Keys menu does, and
+    //  read the drop-down rows it leaves.
     void             ApplyKeyScheme  (DebuggerKeyScheme scheme);
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () const { return m_menuCommands; }
+
+    //  Protected so a test can hand the window a snapshot as a frame does.
+    void             TakeSnapshot    (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
+
+    //  Protected so a test can see which pane the watch editor goes with.
+    std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
+    DxuiTextInput  * GetWatchEditor   () const { return m_watchEditor; }
 
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
@@ -290,7 +299,6 @@ private:
     std::vector<IDxuiControl *>  GetPaneControls   (const std::wstring & pane) const;
     IDxuiControl *               GetPaneContent    (const std::wstring & pane) const;
     std::wstring                 GetPaneTitle      (const std::wstring & pane) const;
-    std::wstring                 GetPaneOfControl  (const IDxuiControl * control) const;
     bool                         IsRoutable        (const IDxuiControl * control) const;
     IDxuiControl *               GetFocused        () const;
     void                         SetFocusedControl (IDxuiControl * control);

@@ -1170,6 +1170,78 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::NoteMovedWatch
+//
+//  The engine numbers watches in order and never reuses a number, so the
+//  watch a move made is the lowest id the snapshot holds that was not there
+//  before. It is noted from the first snapshot that shows it, so a watch
+//  removed and another added later is never taken for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::NoteMovedWatch (const DebuggerViewSnapshot & now, WatchUndo & undo)
+{
+    if (!undo.restoreAddress.has_value() || undo.movedToId.has_value())
+    {
+        return;
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : now.watches)
+    {
+        bool  existed = std::find (undo.movedFromIds.begin(), undo.movedFromIds.end(), watch.id) != undo.movedFromIds.end();
+
+        if (!existed && (!undo.movedToId.has_value() || watch.id < *undo.movedToId))
+        {
+            undo.movedToId = watch.id;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetWatchUndoLines
+//
+//  Nothing yet when the snapshot does not show the watch a move made, so the
+//  undo is kept for a later try. A moved watch that has since been removed
+//  has nothing left to put back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::vector<std::string>> DebuggerViewState::GetWatchUndoLines (const DebuggerViewSnapshot & now, WatchUndo & undo)
+{
+    if (!undo.restoreAddress.has_value())
+    {
+        return undo.lines;
+    }
+
+    NoteMovedWatch (now, undo);
+
+    if (!undo.movedToId.has_value())
+    {
+        return std::nullopt;
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : now.watches)
+    {
+        if (watch.id == *undo.movedToId)
+        {
+            return std::vector<std::string> { std::format ("WC {}", watch.id), std::format ("W {:04X}", *undo.restoreAddress) };
+        }
+    }
+
+    return std::vector<std::string> {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::FormatOpenViews
 //
 ////////////////////////////////////////////////////////////////////////////////
