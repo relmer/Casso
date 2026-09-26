@@ -216,8 +216,18 @@ JsonValue CassoExplorerPrefs::ToJson() const
     std::vector<JsonValue>                          typedValues;
     std::vector<JsonValue>                          widthValues;
     std::vector<JsonValue>                          orderValues;
+    std::vector<JsonValue>                          viewValues;
 
 
+
+    for (const FolderViewEntry & entry : folderViews.GetEntries())
+    {
+        std::vector<std::pair<std::string, JsonValue>>  fields;
+
+        fields.emplace_back ("key",  JsonValue (TextEncoding::WideToNarrow (entry.key)));
+        fields.emplace_back ("view", JsonValue ((double) (int) entry.view));
+        viewValues.push_back (JsonValue (std::move (fields)));
+    }
 
     for (const std::wstring & typed : typedPaths)
     {
@@ -252,7 +262,6 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("theme",          JsonValue (theme));
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
-    root.emplace_back ("listView",       JsonValue ((double) listView));
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
@@ -265,6 +274,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
+    root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
 
     return JsonValue (std::move (root));
 }
@@ -292,6 +302,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * typedArray = nullptr;
     const JsonValue  * widthArray = nullptr;
     const JsonValue  * orderArray = nullptr;
+    const JsonValue  * viewArray  = nullptr;
     std::string        text;
     size_t             i          = 0;
     int                grouping   = kDefaultHexGrouping;
@@ -330,11 +341,6 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     if (root.HasString ("hostNaming", text) && (text == kNamingDescriptive || text == kNamingCiderPress || text == kNamingAppleSingle))
     {
         hostNaming = text;
-    }
-
-    if (root.HasInt ("listView", view) && view >= 0 && view < kViewCount)
-    {
-        listView = view;
     }
 
     if (root.HasInt ("hexGrouping", grouping) && IsKnownHexGrouping (grouping))
@@ -414,6 +420,24 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
 
             columnOrder.push_back ((value.GetType() == JsonType::Number) ? (int) value.GetNumber() : -1);
         }
+    }
+
+    if (root.HasArray ("folderViews", viewArray))
+    {
+        std::vector<FolderViewEntry>  entries;
+
+        for (i = 0; i < viewArray->GetArraySize(); i++)
+        {
+            const JsonValue &  value = viewArray->GetArrayElement (i);
+            std::string        key;
+
+            if (value.GetType() == JsonType::Object && value.HasString ("key", key) && value.HasInt ("view", view) && view >= 0 && view < kViewCount)
+            {
+                entries.push_back (FolderViewEntry { TextEncoding::NarrowToWide (key), (DxuiListView::View) view });
+            }
+        }
+
+        folderViews.SetEntries (std::move (entries));
     }
 
 Error:

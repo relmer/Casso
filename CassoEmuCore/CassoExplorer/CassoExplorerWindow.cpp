@@ -481,7 +481,7 @@ void CassoExplorerWindow::ConfigureWidgets()
         FillStatus();
     });
 
-    m_list->SetView ((DxuiListView::View) m_prefs.listView);
+    m_list->SetView (m_listView);
 
     m_list->SetOnSortColumn ([this] (int column)
     {
@@ -1135,6 +1135,10 @@ void CassoExplorerWindow::FillList()
     {
         EndRename (false);
     }
+
+    //  Before the cells are built, since their icons are fetched at the
+    //  view's size.
+    ApplyFolderView();
 
     for (const CatalogRow & row : m_browser.GetRows())
     {
@@ -2635,7 +2639,7 @@ bool CassoExplorerWindow::IsChecked (int id) const
 
     if (id >= CassoExplorerCommands::kViewFirst && id < CassoExplorerCommands::kViewFirst + CassoExplorerPrefs::kViewCount)
     {
-        return m_prefs.listView == id - CassoExplorerCommands::kViewFirst;
+        return (int) m_listView == id - CassoExplorerCommands::kViewFirst;
     }
 
     switch (id)
@@ -3365,8 +3369,11 @@ void CassoExplorerWindow::Dispatch (int id)
 
     if (id >= CassoExplorerCommands::kViewFirst && id < CassoExplorerCommands::kViewFirst + CassoExplorerPrefs::kViewCount)
     {
-        m_prefs.listView = id - CassoExplorerCommands::kViewFirst;
-        m_list->SetView ((DxuiListView::View) m_prefs.listView);
+        //  Chosen for this folder alone, as Explorer remembers it.
+        m_listView    = (DxuiListView::View) (id - CassoExplorerCommands::kViewFirst);
+        m_listViewKey = GetFolderViewKey (nullptr);
+        m_prefs.folderViews.Remember (m_listViewKey, m_listView);
+        m_list->SetView (m_listView);
         SizeListIcons();
         FillList();
         Invalidate();
@@ -4600,8 +4607,8 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
 
 void CassoExplorerWindow::SizeListIcons()
 {
-    DxuiListView::ItemMetrics  metrics = DxuiListView::GetItemMetrics ((DxuiListView::View) m_prefs.listView);
-    int                        dip     = (m_prefs.listView == 0) ? DxuiTreeView::s_kIconDip : metrics.iconDip;
+    DxuiListView::ItemMetrics  metrics = DxuiListView::GetItemMetrics (m_listView);
+    int                        dip     = (m_listView == DxuiListView::View::Details) ? DxuiTreeView::s_kIconDip : metrics.iconDip;
 
 
 
@@ -4715,6 +4722,79 @@ std::wstring CassoExplorerWindow::GetPasteFolder() const
     }
 
     return m_browser.GetLocation().path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetFolderViewKey
+//
+//  A host folder by its path, a place inside a disk image by the image and
+//  the directory, and a root by its id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetFolderViewKey (FolderViews::FolderType * outType) const
+{
+    Location                 location = m_browser.GetLocation();
+    FolderViews::FolderType  type     = FolderViews::FolderType::Generic;
+
+
+
+    switch (location.kind)
+    {
+        case Location::Kind::None:
+            if (outType != nullptr)
+            {
+                *outType = (m_browser.GetRootId() == TreeModel::kThisPcRootId) ? FolderViews::FolderType::Drives : type;
+            }
+
+            return m_browser.GetRootId();
+
+        case Location::Kind::HostFolder:
+            if (outType != nullptr)
+            {
+                *outType = FolderViews::ReadFolderType (location.path);
+            }
+
+            return location.path;
+
+        default:
+            return location.path + L"|" + TextEncoding::NarrowToWide (location.innerPath);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ApplyFolderView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ApplyFolderView()
+{
+    FolderViews::FolderType  type = FolderViews::FolderType::Generic;
+    std::wstring             key  = GetFolderViewKey (nullptr);
+
+
+
+    if (key == m_listViewKey)
+    {
+        return;
+    }
+
+    GetFolderViewKey (&type);
+
+    m_listViewKey = key;
+    m_listView    = m_prefs.folderViews.GetView (key, type);
+    m_list->SetView (m_listView);
+    SizeListIcons();
 }
 
 

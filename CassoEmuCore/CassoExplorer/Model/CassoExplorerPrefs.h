@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
 #include "Config/IFileSystem.h"
 #include "Core/JsonValue.h"
@@ -40,8 +41,10 @@ struct CassoExplorerPrefs
     bool                   previewVisible  = true;
     std::string            hostNaming      = kNamingDescriptive;
 
-    //  The file list's view, as DxuiListView numbers them; Details is 0.
-    int                    listView        = 0;
+    //  Each folder's view as last chosen, most recent first. A folder with
+    //  none opens in its type's view, as Explorer's do; the single listView
+    //  of earlier builds is not read.
+    FolderViews            folderViews;
     Placement              placement;
     int                    treeWidthDip    = kDefaultTreeWidthDip;
     int                    previewWidthDip = kDefaultPreviewWidthDip;

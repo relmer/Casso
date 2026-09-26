@@ -59,7 +59,7 @@ public:
         saved.theme               = CassoExplorerPrefs::kThemeDark;
         saved.previewVisible      = false;
         saved.hostNaming          = CassoExplorerPrefs::kNamingCiderPress;
-        saved.listView            = 6;
+        saved.folderViews.Remember (L"C:\\Disks", DxuiListView::View::Tiles);
         saved.placement.x         = 10;
         saved.placement.y         = 20;
         saved.placement.w         = 800;
@@ -80,7 +80,7 @@ public:
         Assert::AreEqual (saved.theme, loaded.theme);
         Assert::IsFalse  (loaded.previewVisible);
         Assert::AreEqual (saved.hostNaming, loaded.hostNaming);
-        Assert::AreEqual (6, loaded.listView);
+        Assert::IsTrue   (loaded.folderViews.GetView (L"c:\\disks\\", FolderViews::FolderType::Generic) == DxuiListView::View::Tiles);
         Assert::AreEqual (10,  loaded.placement.x);
         Assert::AreEqual (600, loaded.placement.h);
         Assert::IsTrue   (loaded.placement.maximized);

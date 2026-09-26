@@ -158,6 +158,9 @@ public:
     VolumeKind                       GetVolumeKind () const { return m_kind; }
     bool                             IsImageLocation () const { return m_isImage; }
 
+    //  The root being listed, or empty when the list is a location's.
+    const std::wstring &             GetRootId () const { return m_rootId; }
+
     //  Whether the image shown is write-protected, read once when it loads:
     //  the commands that would write to it ask on every repaint, which is too
     //  often to hit the file system.

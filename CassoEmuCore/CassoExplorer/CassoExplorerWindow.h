@@ -456,6 +456,14 @@ private:
 
     //  Explorer's folder options read again; true when one changed.
     bool  ReadFolderOptions ();
+
+    //  The folder the list shows, as FolderViews keys it, and its type when
+    //  asked for, which a host folder costs a read of its desktop.ini.
+    std::wstring  GetFolderViewKey (FolderViews::FolderType * outType) const;
+
+    //  The list in the view of the folder it now shows, when that folder is
+    //  not the one the view was last set for.
+    void          ApplyFolderView ();
     void  CopySelectedPaths      ();
     void  ShowRowProperties      (int row);
     void  ShowLocationProperties (const Location & location);
@@ -513,10 +521,15 @@ private:
     RECT                                         m_client            = {};
     RECT                                         m_previewRect       = {};
     Location                                     m_listLocation;
-    bool                                         m_treeRevealPending = false;
-    Pane                                         m_focus             = Pane::Tree;
-    int                                          m_toolbarFocus      = 0;
-    int                                          m_commandBarFocus   = 0;
+
+    //  The list's view, and the key of the folder it was chosen for: a new
+    //  folder opens in its own view.
+    DxuiListView::View  m_listView          = DxuiListView::View::Details;
+    std::wstring        m_listViewKey;
+    bool                m_treeRevealPending = false;
+    Pane                m_focus             = Pane::Tree;
+    int                 m_toolbarFocus      = 0;
+    int                 m_commandBarFocus   = 0;
 
     //  What a right-drag dropped, held between the drop and the menu's
     //  answer: where it landed, and either the host files or the entries of

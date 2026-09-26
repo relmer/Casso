@@ -311,6 +311,7 @@
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPrefsTests.cpp" />
+    <ClCompile Include="CassoExplorer\FolderViewsTests.cpp" />
     <ClCompile Include="CassoExplorer\TypedPathHistoryTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderWatchTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
