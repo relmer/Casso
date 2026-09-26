@@ -77,6 +77,7 @@ private:
 
     static bool         TryDescribeOtherModesWord (CommandMode mode, const std::string & word, std::string & line);
     static bool         IsCoveredByMode   (CommandMode mode, const std::string & cassoName);
+    static std::string  GetCoveringForms  (CommandMode mode, const std::string & cassoName);
     static bool         IsWordOfMode      (CommandMode mode, const std::string & name);
     static bool         IsHexWord         (const std::string & name);
     static std::string  GetShownSyntax    (CommandMode mode, const CassoCommandReference::Entry & entry);

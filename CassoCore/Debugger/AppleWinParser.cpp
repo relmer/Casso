@@ -1474,6 +1474,8 @@ bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugComman
         return false;
     }
 
+    //  A panel's title can hold a space ("Disk II"), so every word after the
+    //  verb is the name.
     command.verb = close ? DebugVerb::ClosePanel : DebugVerb::OpenPanel;
     command.text = Join (args.tokens, close ? 1 : 0);
     return true;

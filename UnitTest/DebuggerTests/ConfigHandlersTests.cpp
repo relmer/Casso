@@ -158,6 +158,20 @@ namespace DebuggerTests
 
 
 
+        //  Apple text has the high bit set; %c drops it, as CALC does, so the
+        //  reply never holds a byte that is not text.
+        TEST_METHOD (PRINTF_Char_DropsTheHighBit)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("[A]"), rig.RunOk ("PRINTF \"[%c]\",C1").text.at (0));
+            Assert::AreEqual (std::string ("[A]"), rig.RunOk ("PRINTF \"[%c]\",41").text.at (0));
+        }
+
+
+
         TEST_METHOD (LOG_Levels)
         {
             Rig  rig;
@@ -551,6 +565,22 @@ namespace DebuggerTests
             }
 
             Assert::IsTrue (std::any_of (lines.begin(), lines.end(), [] (const std::string & line) { return line.starts_with ("    ^E "); }));
+        }
+
+
+
+        //  A WinDbg word the parser knows but does not run is described as
+        //  typing it describes it, not as no command at all.
+        TEST_METHOD (HELP_WinDbgExcludedOrDeferredWord_SaysWhy)
+        {
+            Rig  rig;
+
+
+
+            (void) rig.session.ExecuteLine ("MODE WINDBG", CommandMode::AppleWin);
+            Assert::IsTrue (rig.RunOk (".help lm").text.at (0).find ("modules and symbol paths") != std::string::npos);
+            Assert::IsTrue (rig.RunOk (".help ??").text.at (0).find ("types and locals")         != std::string::npos);
+            Assert::IsTrue (rig.RunOk (".help wt").text.at (0).find ("not available yet")        != std::string::npos);
         }
 
 
