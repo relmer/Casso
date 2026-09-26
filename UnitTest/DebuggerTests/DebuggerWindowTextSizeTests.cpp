@@ -88,6 +88,7 @@ namespace DebuggerTests
 
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
+        using DebuggerWindow::OnKey;
         using DebuggerWindow::ApplyTextZoom;
         using DebuggerWindow::StepTextZoom;
         using DebuggerWindow::GetTextZoom;
@@ -197,8 +198,8 @@ namespace DebuggerTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
 
-            for (int i = 0; i < 20; i++) { window.StepTextZoom (+1); }
-            for (int i = 0; i < 9;  i++) { window.StepTextZoom (-1); }
+            for (int i = 0; i < 40; i++) { window.StepTextZoom (+1); }
+            for (int i = 0; i < 20; i++) { window.StepTextZoom (-1); }
 
             Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"up past the largest size and back down");
 
@@ -206,6 +207,73 @@ namespace DebuggerTests
             for (int i = 0; i < 5;  i++) { window.StepTextZoom (+1); }
 
             Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"down past the smallest size and back up");
+        }
+
+
+
+
+
+        TEST_METHOD (EachStepIsTenPercentagePointsFromHalfToThreeTimes)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            window.StepTextZoom (+1);
+            Assert::AreEqual (1.1f, window.GetTextZoom(), 0.001f, L"one step up");
+
+            window.StepTextZoom (+1);
+            Assert::AreEqual (1.2f, window.GetTextZoom(), 0.001f, L"two steps up add, not multiply");
+
+            for (int i = 0; i < 40; i++) { window.StepTextZoom (+1); }
+
+            Assert::AreEqual (3.0f, window.GetTextZoom(), 0.001f, L"the largest size");
+
+            for (int i = 0; i < 40; i++) { window.StepTextZoom (-1); }
+
+            Assert::AreEqual (0.5f, window.GetTextZoom(), 0.001f, L"the smallest size");
+
+            window.StepTextZoom (+1);
+            Assert::AreEqual (0.6f, window.GetTextZoom(), 0.001f, L"one step up from the smallest");
+        }
+
+
+
+
+
+        TEST_METHOD (CtrlPlusMinusAndZeroStepAndReset)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+            DxuiKeyEvent        plus   = { DxuiKeyEventKind::Down, VK_OEM_PLUS,  false, false, true, false };
+            DxuiKeyEvent        minus  = { DxuiKeyEventKind::Down, VK_OEM_MINUS, false, false, true, false };
+            DxuiKeyEvent        zero   = { DxuiKeyEventKind::Down, '0',          false, false, true, false };
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            Assert::IsTrue (window.OnKey (plus));
+            Assert::IsTrue (window.OnKey (plus));
+            Assert::IsTrue (window.OnKey (plus));
+            Assert::AreEqual (1.3f, window.GetTextZoom(), 0.001f, L"three steps up with Ctrl+Plus");
+
+            Assert::IsTrue (window.OnKey (minus));
+            Assert::AreEqual (1.2f, window.GetTextZoom(), 0.001f, L"one back with Ctrl+Minus");
+
+            Assert::IsTrue (window.OnKey (zero));
+            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"Ctrl+0 back to the usual size");
         }
 
 

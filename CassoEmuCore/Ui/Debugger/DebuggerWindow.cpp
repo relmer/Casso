@@ -787,22 +787,22 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 //
 //  DebuggerWindow::StepTextZoom
 //
-//  Each size is a whole power of 1.1, so a step past either end is lost
-//  rather than stored as a clamped fraction, and the same number of steps
-//  back always returns to the size they left.
+//  Each size is a whole number of ten-percentage-point steps, so a step past
+//  either end is lost rather than stored as a clamped fraction, and the same
+//  number of steps back always returns to the size they left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::StepTextZoom (int steps)
 {
-    static constexpr int  kSmallest = -5;
-    static constexpr int  kLargest  = 9;
-    int                   step      = (int) std::lround (std::log (m_textZoom) / std::log (1.1f));
+    int  smallest = (int) std::lround (kMinTextZoom / kTextZoomStep);
+    int  largest  = (int) std::lround (kMaxTextZoom / kTextZoomStep);
+    int  step     = (int) std::lround (m_textZoom / kTextZoomStep);
 
 
 
-    step = std::clamp (step + steps, kSmallest, kLargest);
-    ApplyTextZoom (std::pow (1.1f, (float) step));
+    step = std::clamp (step + steps, smallest, largest);
+    ApplyTextZoom ((float) step * kTextZoomStep);
 }
 
 
@@ -823,7 +823,7 @@ void DebuggerWindow::StepTextZoom (int steps)
 
 void DebuggerWindow::ApplyTextZoom (float zoom)
 {
-    m_textZoom = std::clamp (zoom, 0.6f, 2.5f);
+    m_textZoom = std::clamp (zoom, kMinTextZoom, kMaxTextZoom);
 
     for (DxuiListView * list : GetLists())
     {

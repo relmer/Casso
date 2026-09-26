@@ -206,6 +206,12 @@ private:
     static constexpr int    kGutterColumnDip       = 24;
     static constexpr int    kCodeInstructionColumn = 5;
 
+    //  The panes' text size runs from half to three times the usual, in
+    //  steps of ten percentage points.
+    static constexpr float  kMinTextZoom           = 0.5f;
+    static constexpr float  kMaxTextZoom           = 3.0f;
+    static constexpr float  kTextZoomStep          = 0.1f;
+
     static void  MakeDense (DxuiListView * list);
     static std::wstring  GetPromptText  (CommandMode mode);
     static std::wstring  GetHelpCommand (CommandMode mode);
