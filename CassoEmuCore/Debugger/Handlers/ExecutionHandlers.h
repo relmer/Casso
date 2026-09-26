@@ -38,15 +38,6 @@ public:
 
 private:
     static constexpr Byte          kNop            = 0xEA;
-    static constexpr Byte          kJsr            = 0x20;
-    static constexpr Byte          kJmpAbsolute    = 0x4C;
-    static constexpr Byte          kJmpIndirect    = 0x6C;
-    static constexpr Byte          kRts            = 0x60;
-    static constexpr Byte          kRti            = 0x40;
-    static constexpr Byte          kBrk            = 0x00;
-    static constexpr Byte          kBranchMask     = 0x1F;
-    static constexpr Byte          kBranchBits     = 0x10;
-    static constexpr Byte          kBraCmos        = 0x80;
     static constexpr Word          kStackPage      = 0x0100;
     static constexpr const char  * kDefaultTrace   = "Trace.txt";
     static constexpr const char  * kDefaultProfile = "Profile.txt";
@@ -77,14 +68,13 @@ private:
     void         QueueKeys         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  BreakOnVideoLine  (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ShowVideoInfo     (DebugSession & session, Reply & reply);
-    void         ShowBranchRecord  (Reply & reply) const;
+    static void  ShowBranchRecord  (DebugSession & session, Reply & reply);
     void         ToggleTrace       (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         Profile           (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         ShowCycles        (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         ResetCycles       (DebugSession & session, Reply & reply);
     static void  Benchmark         (const DebugCommand & command, Reply & reply);
 
-    void         RecordBranch      (DebugSession & session, Word pc);
     void         RecordProfile     (DebugSession & session, Word pc);
     void         BillProfile       (DebugSession & session);
     void         BuildProfile      (DebugSession & session, bool isByAddress, ProfileData & data) const;
@@ -92,12 +82,8 @@ private:
     void         RecordTrace       (DebugSession & session, Word pc);
     void         FlushTrace        (DebugSession & session);
     void         FeedKeys          (DebugSession & session);
-    static bool  IsControlTransfer (Byte opcode, bool isCmos);
     static Byte  Peek              (IDebugTarget & target, Word address);
 
-    std::optional<Word>                m_lastBranch;
-    std::optional<Word>                m_previousPc;
-    Byte                               m_previousOpcode = 0;
     TraceState                         m_trace;
     ProfileTable                       m_profile;
     std::optional<PendingInstruction>  m_profilePending;

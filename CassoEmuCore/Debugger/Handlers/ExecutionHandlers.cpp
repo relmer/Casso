@@ -27,7 +27,7 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
     case DebugVerb::InjectKey:         QueueKeys         (session, command, reply); return true;
     case DebugVerb::BreakOnVideoLine:  BreakOnVideoLine  (session, command, reply); return true;
     case DebugVerb::ShowVideoInfo:     ShowVideoInfo     (session, reply);          return true;
-    case DebugVerb::ShowBranchRecord:  ShowBranchRecord  (reply);                   return true;
+    case DebugVerb::ShowBranchRecord:  ShowBranchRecord  (session, reply);          return true;
     case DebugVerb::TraceToFile:       ToggleTrace       (session, command, reply); return true;
     case DebugVerb::Profile:           Profile           (session, command, reply); return true;
     case DebugVerb::ShowCycles:        ShowCycles        (session, command, reply); return true;
@@ -51,7 +51,6 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
 void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 {
     FeedKeys      (session);
-    RecordBranch  (session, pc);
     RecordProfile (session, pc);
     RecordTrace   (session, pc);
 }
@@ -75,7 +74,6 @@ void ExecutionHandlers::OnRunStopped (DebugSession & session, const StopEvent & 
     BillProfile (session);
 
     m_lastRunCycles = stop.cycles;
-    m_previousPc.reset();
     FlushTrace (session);
 }
 
@@ -297,71 +295,19 @@ void ExecutionHandlers::ShowVideoInfo (DebugSession & session, Reply & reply)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::ShowBranchRecord (Reply & reply) const
+void ExecutionHandlers::ShowBranchRecord (DebugSession & session, Reply & reply)
 {
-    reply.data = BranchRecordData { m_lastBranch };
-}
+    Word              from   = 0;
+    BranchRecordData  record;
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExecutionHandlers::RecordBranch
-//
-//  When the instruction that just ran was a branch, jump, call, return or
-//  BRK and the next instruction is not the one after it, that instruction
-//  transferred control.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExecutionHandlers::RecordBranch (DebugSession & session, Word pc)
-{
-    IDebugTarget  & target      = session.GetTarget();
-    Disassembler    disassembler (target.GetInstructionSet());
-    bool            isCmos      = target.GetCpuKind() == DebugCpuKind::M65C02;
-    Word            fallThrough = 0;
-
-
-
-    if (target.GetInstructionSet() == nullptr)
+    if (session.GetTarget().TryGetLastBranch (from))
     {
-        return;
+        record.address = from;
     }
 
-    if (m_previousPc.has_value())
-    {
-        fallThrough = (Word) (*m_previousPc + disassembler.GetLength (m_previousOpcode));
-
-        if (pc != fallThrough && IsControlTransfer (m_previousOpcode, isCmos))
-        {
-            m_lastBranch = m_previousPc;
-        }
-    }
-
-    m_previousPc     = pc;
-    m_previousOpcode = Peek (target, pc);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExecutionHandlers::IsControlTransfer
-//
-//  The eight conditional branches are xxx10000; BRA is $80 on the 65C02.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExecutionHandlers::IsControlTransfer (Byte opcode, bool isCmos)
-{
-    return (opcode & kBranchMask) == kBranchBits ||
-           opcode == kJsr || opcode == kJmpAbsolute || opcode == kJmpIndirect ||
-           opcode == kRts || opcode == kRti || opcode == kBrk ||
-           (isCmos && opcode == kBraCmos);
+    reply.data = record;
 }
 
 

@@ -50,6 +50,8 @@ void Cpu::Reset()
     SP = 0xFF;
     PC = 0;
 
+    m_hasLastBranch = false;
+
     std::fill (memory.begin(), memory.end(), Byte (0));
 }
 
@@ -555,10 +557,11 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 void Cpu::StepOne()
 {
-
+    Word               start       = PC;
     Byte               opcode      = ReadByte (PC);
     const Microcode  & microcode   = instructionSet[opcode];
     OperandInfo        operandInfo = { 0 };
+    Word               next        = 0;
 
 
 
@@ -596,6 +599,7 @@ void Cpu::StepOne()
 
     FetchOperand (microcode, operandInfo);
     ++PC;
+    next = PC;
 
     // Page-crossing penalty for indexed reads (+1 cycle).
     // Stores and RMW always pay the penalty (baked into baseCycles).
@@ -645,6 +649,12 @@ void Cpu::StepOne()
     }
 
     ExecuteInstruction (microcode, operandInfo);
+
+    if (PC != next)
+    {
+        m_lastBranchFrom = start;
+        m_hasLastBranch  = true;
+    }
 }
 
 

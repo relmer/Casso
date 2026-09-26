@@ -96,6 +96,10 @@ public:
     // The Cpu::kPenalty bits the last instruction paid.
     virtual Byte                GetLastPenalties  () const = 0;
 
+    // The address of the last instruction that transferred control; false
+    // if none has since the CPU was reset.
+    virtual bool                TryGetLastBranch  (Word & from) const = 0;
+
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;

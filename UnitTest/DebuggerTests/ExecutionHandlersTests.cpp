@@ -168,13 +168,13 @@ namespace DebuggerTests
 
 
 
+        //  The CPU keeps the record, so it holds with no observer installed:
+        //  a run with nothing to stop on never reports an instruction.
         TEST_METHOD (LBR_RecordsTheLastControlTransfer)
         {
             MachineRig  rig;
 
 
-
-            rig.session.SetInstructionObserver (&rig.handlers);
 
             // $0300: INX / JMP $0305 / NOP    $0305: INX / INX / BNE $0305
             rig.Load (0x0300, { 0xE8, 0x4C, 0x05, 0x03, 0xEA, 0xE8, 0xE8, 0xD0, 0xFC }, 0x0300);
@@ -186,8 +186,6 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0307, rig.LastStop().pc);
             Assert::AreEqual (std::string ("Last branch at $0301"), rig.RunOk ("LBR").text.at (0), L"the JMP, not its destination");
 
-            // Each step is its own run, so the record sees one instruction
-            // per run; a run of two shows the taken BNE.
             rig.RunOk ("T 2");
             Assert::AreEqual ((Word) 0x0306, rig.LastStop().pc);
             Assert::AreEqual (std::string ("Last branch at $0307"), rig.RunOk ("LBR").text.at (0), L"the taken BNE");

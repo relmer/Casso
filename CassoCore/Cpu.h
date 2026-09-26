@@ -79,7 +79,8 @@ public:
     void StepOne                  ();
     Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
     Byte GetLastPenalties         () const                   { return m_lastPenalties; }
-    Byte PeekByte                 (Word address) const       { return memory[address]; }
+    bool TryGetLastBranch         (Word & from) const        { from = m_lastBranchFrom; return m_hasLastBranch; }
+    Byte PeekByte              (Word address) const       { return memory[address]; }
     void PokeByte                 (Word address, Byte value) { memory[address] = value; }
     Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
     const Byte * GetMemory        () const                   { return memory.data (); }
@@ -216,6 +217,11 @@ protected:
     std::vector<Microcode> instructionSet {std::vector<Microcode> (256)};
     Byte                  m_lastCycles    = 0;
     Byte                  m_lastPenalties = 0;
+
+    // The address of the last instruction that sent PC somewhere other than
+    // the next instruction: a taken branch, a jump, a call, a return or BRK.
+    Word                  m_lastBranchFrom = 0;
+    bool                  m_hasLastBranch  = false;
 
 public:
     // The penalty kinds the last instruction paid, one bit each, each worth one
