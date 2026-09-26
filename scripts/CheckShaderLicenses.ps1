@@ -23,7 +23,10 @@
     line-comment so it can never apply mid-shader.
 
 .PARAMETER Path
-    Root directory to scan. Default: Casso/Shaders relative to repo root.
+    Root directories to scan. Default: the two that hold shaders,
+    CassoEmuCore/Shaders and Dxui/Render/Shaders, relative to the repo root.
+    A root that does not exist fails the check: the shaders moved once and
+    the check went on passing over an empty folder, scanning nothing.
 
 .OUTPUTS
     Exit code 0 on success; 1 on the first violation. Violations are
@@ -31,27 +34,32 @@
     them as clickable errors.
 #>
 param(
-    [string]$Path = ""
+    [string[]]$Path = @()
 )
 
 $ErrorActionPreference = 'Stop'
 
-# Default to <repo>/Casso/Shaders when no path was supplied so the script
+# Default to the repo's shader roots when no path was supplied so the script
 # is callable from anywhere (Build.ps1 pre-build, CI, manual invocation).
-if ([string]::IsNullOrEmpty($Path))
+if ($Path.Count -eq 0)
 {
     $repoRoot = Split-Path $PSScriptRoot -Parent
-    $Path     = Join-Path $repoRoot 'Casso/Shaders'
+    $Path     = @((Join-Path $repoRoot 'CassoEmuCore/Shaders'), (Join-Path $repoRoot 'Dxui/Render/Shaders'))
 }
 
-if (-not (Test-Path -LiteralPath $Path))
+$missing = @($Path | Where-Object { -not (Test-Path -LiteralPath $_) })
+
+if ($missing.Count -gt 0)
 {
-    Write-Host "CheckShaderLicenses: shader root '$Path' does not exist (skipping)."
-    exit 0
+    foreach ($m in $missing)
+    {
+        [Console]::Error.WriteLine("error CSL0002: shader root '$m' does not exist; point CheckShaderLicenses.ps1 at where the shaders are now")
+    }
+    exit 1
 }
 
 $badWords = @('GPL', 'GNU General Public', 'copyleft')
-$files    = Get-ChildItem -LiteralPath $Path -Recurse -File -Include *.hlsl, *.hlsli, *.h
+$files    = @($Path | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -File -Include *.hlsl, *.hlsli, *.h })
 
 $violations = @()
 
@@ -104,5 +112,5 @@ if ($violations.Count -gt 0)
     exit 1
 }
 
-Write-Host "CheckShaderLicenses: $($files.Count) file(s) scanned under '$Path' -- OK."
+Write-Host "CheckShaderLicenses: $($files.Count) file(s) scanned under $($Path.Count) root(s) -- OK."
 exit 0
