@@ -164,6 +164,21 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (U_ShowsAFloat_ToNineSignificantDigits)
+        {
+            CpuRig  rig;
+
+
+
+            // 0.1 in Applesoft's five-byte form, which no binary float holds exactly.
+            Store (rig, 0x0310, { 0x7D, 0x4C, 0xCC, 0xCC, 0xCD });
+            rig.RunOk ("DF 310");
+
+            Assert::AreEqual (std::string ("0310: 7D 4C CC CC CD F_0310 DF   0.1"), rig.RunOk ("U 310:314").text.at (0));
+        }
+
+
+
         TEST_METHOD (A_EntersAssembly_AtAddressOrPc)
         {
             CpuRig  rig;
