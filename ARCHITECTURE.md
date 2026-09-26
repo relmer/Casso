@@ -94,6 +94,8 @@ Four more long-lived threads each do one narrow job:
 - **Disk image watcher**: `Win32ImageWatcher` runs one thread per directory
   holding a mounted image, so Casso detects an external rewrite of the image.
 
+<p align="center"><img src="docs/threads.svg" alt="Swimlanes for the controller input, UI, CPU, audio render, disk image watcher and printer threads. Controller samples reach the UI thread by a posted WM_APP_GAMEPORT_FLUSH message; the UI thread sends the CPU thread commands through the command queue and input through atomics; the CPU thread returns frames through a mutex and ready event, posted WM_APP messages and the debug event rings; the CPU thread feeds the audio render thread through the sample queue and the printer thread through PrinterByteRing; the disk image watcher records pending changes that the CPU thread polls; and the printer thread publishes its raster to the UI preview under a mutex." width="100%" /></p>
+
 Short-lived threads come and go for the first-run downloads
 (`StartupDownloadDialog`) and for Print to PDF, which needs an MTA
 (`WindowCommandManager`).
