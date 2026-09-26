@@ -12,6 +12,7 @@
 #include "Debugger/MonitorParser.h"
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/SymbolDescriptions.h"
+#include "Debugger/Handlers/MemoryHandlers.h"
 
 
 
@@ -51,13 +52,14 @@ bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused,
 
 DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPaused) const
 {
-    DebuggerViewSnapshot  snapshot;
+    static constexpr uint32_t  kPaneDumpBytes = 64;
+    DebuggerViewSnapshot       snapshot;
     Reply                 registers   = session.ExecuteLine ("R",     CommandMode::AppleWin);
     Reply                 breakpoints = session.ExecuteLine ("BPL",   CommandMode::AppleWin);
     Reply                 stack       = session.ExecuteLine ("STACK", CommandMode::AppleWin);
     Reply                 watches     = session.ExecuteLine ("WL",    CommandMode::AppleWin);
     Reply                 calls       = session.ExecuteLine ("CALLS", CommandMode::AppleWin);
-    Reply                 memory;
+    MemoryData            memory;
 
 
 
@@ -111,38 +113,37 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     snapshot.code       = snapshot.codeViews[0];
     snapshot.followView = m_follow;
 
-    memory = session.ExecuteLine (std::format ("D {:04X}", m_memoryAddress), CommandMode::AppleWin);
+    //  The rows D would show, read without running D, so a bare D typed later
+    //  still continues from the user's own last dump.
+    memory = MemoryHandlers::MakeRows (session.GetTarget(), m_memoryAddress, (Word) std::min<uint32_t> ((uint32_t) m_memoryAddress + kPaneDumpBytes - 1, 0xFFFF));
 
-    if (const MemoryData * data = std::get_if<MemoryData> (&memory.data))
+    for (const MemoryRow & row : memory.rows)
     {
-        for (const MemoryRow & row : data->rows)
+        DebuggerViewSnapshot::MemoryLine  line;
+
+
+
+        line.address = row.address;
+        line.region  = GetRegionLabel (row.region);
+
+        for (const std::optional<Byte> & b : row.bytes)
         {
-            DebuggerViewSnapshot::MemoryLine  line;
+            //  An I/O byte is not read for display, because reading one can
+            //  change the machine; it shows as "--" rather than a guess.
+            line.bytes      += b.has_value() ? std::format ("{:02X} ", *b) : std::string ("-- ");
+            line.characters += (b.has_value() && (*b & 0x7F) >= 0x20 && (*b & 0x7F) < 0x7F) ? (char) (*b & 0x7F) : '.';
+        }
 
+        if (!line.bytes.empty())
+        {
+            line.bytes.pop_back();
+        }
 
+        snapshot.memory.push_back (std::move (line));
 
-            line.address = row.address;
-            line.region  = GetRegionLabel (row.region);
-
-            for (const std::optional<Byte> & b : row.bytes)
-            {
-                //  An I/O byte is not read for display, because reading one can
-                //  change the machine; it shows as "--" rather than a guess.
-                line.bytes      += b.has_value() ? std::format ("{:02X} ", *b) : std::string ("-- ");
-                line.characters += (b.has_value() && (*b & 0x7F) >= 0x20 && (*b & 0x7F) < 0x7F) ? (char) (*b & 0x7F) : '.';
-            }
-
-            if (!line.bytes.empty())
-            {
-                line.bytes.pop_back();
-            }
-
-            snapshot.memory.push_back (std::move (line));
-
-            if ((int) snapshot.memory.size() >= kMemoryRows)
-            {
-                break;
-            }
+        if ((int) snapshot.memory.size() >= kMemoryRows)
+        {
+            break;
         }
     }
 
@@ -567,10 +568,10 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
 //
 //  DebuggerViewState::ReadMemoryWindow
 //
-//  Through D, like the other panes, so a window shows exactly what the command
-//  would; each row's region is given to every byte in it, which is exact
-//  because rows start on eight-byte boundaries and no region changes inside
-//  one.
+//  The rows D would show, read without running D, so the user's bare D still
+//  continues from their own last dump; each row's region is given to every
+//  byte in it, which is exact because rows start on eight-byte boundaries and
+//  no region changes inside one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -579,20 +580,17 @@ DebuggerViewSnapshot::MemoryWindow DebuggerViewState::ReadMemoryWindow (DebugSes
     DebuggerViewSnapshot::MemoryWindow  window;
     Word                                first = (Word) (address & ~(kMemoryRowBytes - 1));
     Word                                last  = (Word) std::min<uint32_t> ((uint32_t) first + kMemoryWindowBytes - 1, 0xFFFF);
-    Reply                               reply = session.ExecuteLine (std::format ("D {:04X}:{:04X}", first, last), CommandMode::AppleWin);
+    MemoryData                          data  = MemoryHandlers::MakeRows (session.GetTarget(), first, last);
 
 
 
     window.id    = id;
     window.first = first;
 
-    if (const MemoryData * data = std::get_if<MemoryData> (&reply.data))
+    for (const MemoryRow & row : data.rows)
     {
-        for (const MemoryRow & row : data->rows)
-        {
-            window.bytes.insert (window.bytes.end(), row.bytes.begin(), row.bytes.end());
-            window.regions.insert (window.regions.end(), row.bytes.size(), row.region);
-        }
+        window.bytes.insert (window.bytes.end(), row.bytes.begin(), row.bytes.end());
+        window.regions.insert (window.regions.end(), row.bytes.size(), row.region);
     }
 
     return window;

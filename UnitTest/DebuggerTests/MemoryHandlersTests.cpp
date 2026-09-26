@@ -343,5 +343,61 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("Filled 1 byte at $0300-$0300."), rig.RunOk ("F 300:300 AA").text.at (0));
         }
+
+
+
+        TEST_METHOD (ReversedRange_FailsWithoutTouchingMemory)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("F 30F:300 AA",      "invalid arguments");
+            rig.RunFails ("M 500 30F:300",     "invalid arguments");
+            rig.RunFails ("MC 500 30F:300",    "invalid arguments");
+            rig.RunFails ("S 3FF:300 A9",      "invalid arguments");
+            rig.RunFails ("BSAVE f 30F:300",   "invalid arguments");
+            rig.RunFails ("D 300:200",         "invalid arguments");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x030F], L"F did not write the start byte");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0500], L"M did not write the destination");
+        }
+
+
+
+        TEST_METHOD (LengthPastFFFF_FailsRatherThanWrapping)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.RunFails ("D FFF0,20", "invalid arguments");
+            Assert::IsFalse  (reply.error.detail.empty(), L"the reply gives the reason");
+            rig.RunFails ("F FFF0,20 AA", "invalid arguments");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0xFFF0], L"F did not write one byte");
+            reply = rig.RunOk ("D FFF0,10");
+            Assert::AreEqual ((size_t) 2, reply.text.size(), L"a range ending at $FFFF is fine");
+        }
+
+
+
+        TEST_METHOD (MissingValues_ReportTheRule)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.RunFails ("ME 300", "invalid arguments");
+            Assert::AreEqual (std::string ("ME needs an address and one or more values."), reply.error.detail);
+            reply = rig.RunFails ("PATCH 300", "invalid arguments");
+            Assert::AreEqual (std::string ("PATCH needs an address and one or more values."), reply.error.detail);
+            reply = rig.RunFails ("F 300:30F", "invalid arguments");
+            Assert::AreEqual (std::string ("F needs a range and one or more values."), reply.error.detail);
+            reply = rig.RunFails ("OUT", "invalid arguments");
+            Assert::AreEqual (std::string ("OUT needs an address and one or more values."), reply.error.detail);
+            reply = rig.RunFails ("300:", "invalid arguments");
+            Assert::AreEqual (std::string ("A deposit needs one or more values after the colon."), reply.error.detail);
+        }
     };
 }

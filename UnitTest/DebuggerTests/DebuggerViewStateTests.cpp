@@ -1465,6 +1465,39 @@ namespace DebuggerViewStateTests
 
 
 
+        TEST_METHOD (BareDump_ContinuesFromTheUsersDumpAcrossARebuild)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            rig.Run ("D 300");
+            rig.view.Build (rig.controller.GetSession());
+            reply = rig.Run ("D");
+
+            Assert::IsTrue (reply.status == CommandStatus::Ok);
+            Assert::IsTrue (reply.text.at (0).starts_with ("0340:"), std::wstring (reply.text.at (0).begin(), reply.text.at (0).end()).c_str());
+        }
+
+
+
+        TEST_METHOD (MonitorMoveWithoutDestination_FailsAndLeavesZeroPage)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0000, 0x5A);
+            reply = rig.Run ("300.305M", CommandMode::Monitor);
+
+            Assert::IsTrue   (reply.status == CommandStatus::Error, L"no destination is an error");
+            Assert::AreEqual ((int) 0x5A, (int) rig.machine.GetMemoryBus().ReadByte (0x0000), L"zero page untouched");
+        }
+
+
+
         //  SC-006: the window and a channel client share one session. A breakpoint
         //  a client sets appears in the pane, and one set by clicking is in the
         //  client's `bpl`.

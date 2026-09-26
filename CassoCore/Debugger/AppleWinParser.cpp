@@ -180,6 +180,14 @@ bool AppleWinParser::TryParseShorthand (const std::string & first, const Argumen
         }
 
         result.command.verb = DebugVerb::EnterBytes;
+
+        if (values.empty())
+        {
+            result.status = ParseStatus::Invalid;
+            result.error  = "A deposit needs one or more values after the colon.";
+            return true;
+        }
+
         result.status       = TryEvaluate (first.substr (0, colon), *args.context, result.command.a1, result.error) &&
                               TryParseValues (values, 0, ValueWidth::BytesOrWords, *args.context, result.command, result.error)
                             ? ParseStatus::Ok : ParseStatus::Invalid;
@@ -347,7 +355,14 @@ bool AppleWinParser::TryParseRunArguments (const Arguments & args, DebugCommand 
 
     case DebugVerb::WriteIo:
         command.hasA1 = !args.tokens.empty();
-        return command.hasA1 && TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
+
+        if (!command.hasA1)
+        {
+            error = "OUT needs an address and one or more values.";
+            return false;
+        }
+
+        return TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
                TryParseValues (args.tokens, 1, ValueWidth::Bytes, *args.context, command, error);
 
     case DebugVerb::InjectKey:
@@ -794,8 +809,13 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
                    TryParseValues (args.tokens, valuesFrom, ValueWidth::Bytes, *args.context, command, error);
         }
 
-        return count >= 2 &&
-               TryParseRange (args.tokens[0], *args.context, command, error) &&
+        if (count < 2)
+        {
+            error = std::format ("{} needs a range and one or more values.", ToUpper (command.sourceName));
+            return false;
+        }
+
+        return TryParseRange (args.tokens[0], *args.context, command, error) &&
                TryParseValues (args.tokens, valuesFrom, ValueWidth::Bytes, *args.context, command, error);
 
     case DebugVerb::SearchMemory:
@@ -813,8 +833,14 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
     case DebugVerb::EnterWords:
     case DebugVerb::PatchBytes:
         command.hasA1 = count > 0;
-        return count >= 2 &&
-               TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
+
+        if (count < 2)
+        {
+            error = std::format ("{} needs an address and one or more values.", ToUpper (command.sourceName));
+            return false;
+        }
+
+        return TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
                TryParseValues (args.tokens, 1, command.verb == DebugVerb::EnterWords ? ValueWidth::Words : ValueWidth::BytesOrWords, *args.context, command, error);
 
     case DebugVerb::LoadBinary:
@@ -1565,7 +1591,8 @@ bool AppleWinParser::TryParseSourceLine (const std::string & text, const IDebugE
 //
 //  AppleWinParser::TryParseRange
 //
-//  `addr`, `addr,len` or `addr:last`, into a1 and a2.
+//  `addr`, `addr,len` or `addr:last`, into a1 and a2. A range that runs
+//  past $FFFF or ends before it starts is an error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1575,8 +1602,9 @@ bool AppleWinParser::TryParseRange (
     DebugCommand                   & command,
     std::string                    & error)
 {
-    size_t  separator = text.find_first_of (",:");
-    Word    second    = 0;
+    static constexpr uint32_t  kLastAddress = 0xFFFF;
+    size_t                     separator    = text.find_first_of (",:");
+    Word                       second       = 0;
 
 
 
@@ -1604,9 +1632,20 @@ bool AppleWinParser::TryParseRange (
         error = "A range length must be at least 1.";
         return false;
     }
+    else if ((uint32_t) command.a1 + second - 1 > kLastAddress)
+    {
+        error = std::format ("The range runs past $FFFF from ${:04X}.", command.a1);
+        return false;
+    }
     else
     {
         command.a2 = (Word) (command.a1 + second - 1);
+    }
+
+    if (command.a2 < command.a1)
+    {
+        error = std::format ("The range ends at ${:04X}, before its start at ${:04X}.", command.a2, command.a1);
+        return false;
     }
 
     return true;
