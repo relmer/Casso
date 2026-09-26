@@ -115,7 +115,13 @@ void RegisterHandlers::SetRegister (IDebugTarget & target, const DebugCommand & 
     else if (command.text == "Y")  { registers.y  = (Byte) value; }
     else if (command.text == "P")  { registers.p  = (Byte) value; }
     else if (command.text == "S")  { registers.sp = (Byte) value; }
-    else                           { registers.pc = value; }
+    else if (command.text == "PC") { registers.pc = value; }
+    else
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("{} is not a register. The registers are A, X, Y, P, S, and PC.", command.text));
+        return;
+    }
 
     target.SetRegisters (registers);
     reply.data = RegistersData { registers };

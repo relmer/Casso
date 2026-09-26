@@ -133,6 +133,12 @@ void MemoryHandlers::Enter (DebugSession & session, const DebugCommand & command
         return;
     }
 
+    if (command.a1 + command.values.size() - 1 > 0xFFFF)
+    {
+        reply.SetError (CommandStatus::Error, "value out of range", std::format ("The values run past $FFFF from ${:04X}.", command.a1));
+        return;
+    }
+
     if (TryPokeRange (session.GetTarget(), command.a1, command.values, reply))
     {
         reply.data = MakeRows (session.GetTarget(), command.a1, last);
@@ -163,6 +169,12 @@ void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command
     if (command.values.empty())
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "PATCH takes an address and one or more values.");
+        return;
+    }
+
+    if (command.a1 + command.values.size() - 1 > 0xFFFF)
+    {
+        reply.SetError (CommandStatus::Error, "value out of range", std::format ("The values run past $FFFF from ${:04X}.", command.a1));
         return;
     }
 
@@ -213,7 +225,7 @@ void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command,
 
     if (TryPokeRange (target, command.a3, bytes, reply))
     {
-        reply.data = MessageData { { std::format ("Moved {} bytes from ${:04X} to ${:04X}.", bytes.size(), command.a1, command.a3) } };
+        reply.data = MessageData { { std::format ("Moved {} byte{} from ${:04X} to ${:04X}.", bytes.size(), bytes.size() == 1 ? "" : "s", command.a1, command.a3) } };
     }
 }
 
@@ -289,7 +301,7 @@ void MemoryHandlers::Fill (DebugSession & session, const DebugCommand & command,
 
     if (TryPokeRange (session.GetTarget(), command.a1, bytes, reply))
     {
-        reply.data = MessageData { { std::format ("Filled {} bytes at ${:04X}-${:04X}.", bytes.size(), command.a1, last) } };
+        reply.data = MessageData { { std::format ("Filled {} byte{} at ${:04X}-${:04X}.", bytes.size(), bytes.size() == 1 ? "" : "s", command.a1, last) } };
     }
 }
 
@@ -623,7 +635,7 @@ void MemoryHandlers::WriteIo (DebugSession & session, const DebugCommand & comma
         session.GetTarget().WriteIo ((Word) (command.a1 + i), command.values[i]);
     }
 
-    reply.data = MessageData { { std::format ("Wrote {} bytes at ${:04X}.", command.values.size(), command.a1) } };
+    reply.data = MessageData { { std::format ("Wrote {} byte{} at ${:04X}.", command.values.size(), command.values.size() == 1 ? "" : "s", command.a1) } };
 }
 
 

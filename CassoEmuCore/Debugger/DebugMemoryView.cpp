@@ -119,9 +119,9 @@ bool DebugMemoryView::TryPoke (Word address, Byte value)
 //
 //  DebugMemoryView::TryPatch
 //
-//  What a memory window's edit does (FR-037): RAM and language-card RAM take
+//  What a memory window's edit does: RAM and language-card RAM take
 //  it as a poke, ROM takes it into the image the CPU reads from, and an I/O
-//  address refuses it, since writing one is a side effect only OUT may cause.
+//  address is not written, since writing one is a side effect only OUT may cause.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

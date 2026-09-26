@@ -319,5 +319,29 @@ namespace DebuggerTests
             rig.RunFails ("IN",       "invalid arguments");
             rig.RunFails ("OUT C030", "invalid arguments");
         }
+
+
+
+        TEST_METHOD (EnterAndPatch_PastFFFF_FailWithoutWrapping)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("ME FFFF 11 22",    "value out of range");
+            rig.RunFails ("PATCH FFFF 11 22", "value out of range");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0000], L"nothing wraps to $0000");
+        }
+
+
+
+        TEST_METHOD (OneByteReplies_SaySingularByte)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("Filled 1 byte at $0300-$0300."), rig.RunOk ("F 300:300 AA").text.at (0));
+        }
     };
 }
