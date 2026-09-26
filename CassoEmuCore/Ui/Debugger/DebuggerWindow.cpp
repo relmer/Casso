@@ -2025,6 +2025,7 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
     CommandMode                                   mode          = (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
     std::optional<DebuggerKeySchemes::Action>     consoleAction;
     bool                                          boxEmpty      = false;
+    bool                                          boxKeeps      = false;
 
 
 
@@ -2043,6 +2044,9 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
     boxEmpty = box != nullptr && box->GetText().empty() &&
                !(box == m_commandBox && DebuggerViewState::DoesConsoleKeepKey (mode, ev.vk, ev.ctrl, ev.alt));
 
+    boxKeeps = DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, boxEmpty,
+                                                   box != nullptr && box == m_commandBox && mode == CommandMode::Monitor);
+
     if (consoleAction.has_value())
     {
         OnMappedCommand ((int) *consoleAction);
@@ -2056,14 +2060,20 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
         handled        = decided;
         m_swallowSpace = false;
     }
-    else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) &&
-             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, boxEmpty,
-                                                 box != nullptr && box == m_commandBox && mode == CommandMode::Monitor) &&
-             RouteMappedKey (ev))
+    else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) && !boxKeeps && RouteMappedKey (ev))
     {
         m_swallowSpace = ev.vk == VK_SPACE;
         handled        = true;
         decided        = true;
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) && boxKeeps && ev.vk != VK_TAB &&
+             !(box != nullptr && ev.vk == VK_RETURN))
+    {
+        //  A key the box keeps stays with it even when the box does nothing
+        //  with the key-down, so it never reaches the scheme after all.
+        (void) GetFocused()->OnKey (ev);
+        handled = true;
+        decided = true;
     }
 
     return decided;
