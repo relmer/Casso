@@ -154,6 +154,7 @@
     <ClCompile Include="Ui\Debugger\StopChanges.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionEffect.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionTouches.cpp" />
+    <ClCompile Include="Ui\Debugger\BranchArrow.cpp" />
     <ClCompile Include="Ui\Debugger\ConsoleHistory.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerKeySchemes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\MemoryEditModel.cpp" />
@@ -538,6 +539,7 @@
     <ClInclude Include="Ui\Debugger\StopChanges.h" />
     <ClInclude Include="Ui\Debugger\InstructionEffect.h" />
     <ClInclude Include="Ui\Debugger\InstructionTouches.h" />
+    <ClInclude Include="Ui\Debugger\BranchArrow.h" />
     <ClInclude Include="Ui\Debugger\ConsoleHistory.h" />
     <ClInclude Include="Ui\Debugger\DebuggerKeySchemes.h" />
     <ClInclude Include="Ui\Debugger\Panes\MemoryEditModel.h" />

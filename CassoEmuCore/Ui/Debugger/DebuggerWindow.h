@@ -154,6 +154,8 @@ protected:
     bool     OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     HasTopLayer     () const override;
+    void     PaintBranchArrow (IDxuiPainter & painter, int view);
 
     //  Protected so a test can apply one as the keys do.
     void     ApplyTextZoom   (float zoom);

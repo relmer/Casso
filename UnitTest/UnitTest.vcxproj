@@ -231,6 +231,7 @@
     <ClCompile Include="DebuggerTests\SymbolDescriptionsTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsProviderTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsVisualsTests.cpp" />
+    <ClCompile Include="DebuggerTests\BranchArrowTests.cpp" />
     <ClCompile Include="DebuggerTests\ConsoleHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />

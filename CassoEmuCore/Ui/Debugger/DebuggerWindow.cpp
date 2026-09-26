@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -2399,9 +2400,143 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 
 void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    //  Under a slid-out pane, which lies over the disassembly.
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        PaintBranchArrow (painter, view);
+    }
+
     m_dockSite->PaintSlidUnder (painter, theme);
     DxuiWindow::PaintTopLayer  (painter, text, theme);
     m_dockSite->PaintSlidOver  (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HasTopLayer
+//
+//  A slid-out pane, or the PC on a branch with its arrow to draw. The top
+//  layer is a second flush of the frame, so it is asked for only then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::HasTopLayer() const
+{
+    if (DxuiWindow::HasTopLayer())
+    {
+        return true;
+    }
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
+        {
+            if (m_codeOpen[(size_t) view] && line.isCurrent && line.target.has_value())
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintBranchArrow
+//
+//  From the PC's branch, jump or call to the row it goes to, in the PC
+//  marker's color, drawn only while the PC's row is in view. A target off the
+//  rows runs the line to that edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
+{
+    static constexpr size_t                              s_kInstructionColumn = 5;
+    DxuiListView                                       * list                 = m_codeLists[(size_t) view];
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines                = GetCodeLines (view);
+    int                                                  current              = -1;
+    int                                                  target               = -1;
+    RECT                                                 bounds               = {};
+    RECT                                                 source               = {};
+    RECT                                                 goesTo               = {};
+    BranchArrow::Input                                   input;
+    BranchArrow::Result                                  arrow;
+    float                                                scale                = 1.0f;
+    float                                                top                  = 0.0f;
+    int                                                  shown                = 0;
+    int                                                  rowPx                = 0;
+
+
+
+    if (list == nullptr || !m_codeOpen[(size_t) view] || !list->IsVisible() || !IsRoutable (list))
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        current = lines[i].isCurrent ? (int) i : current;
+    }
+
+    if (current < 0 || !lines[(size_t) current].target.has_value() ||
+        !list->GetCellTextRectPx (current, s_kInstructionColumn, source))
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        target = (lines[i].address == *lines[(size_t) current].target) ? (int) i : target;
+    }
+
+    bounds = list->GetBounds();
+    rowPx  = source.bottom - source.top;
+    scale  = (float) rowPx / (float) (std::max) (1, list->GetRowHeightDip());
+    top    = (float) (bounds.top + source.top - (current - list->GetTopRow()) * rowPx);
+    shown  = (std::min) (list->GetVisibleRowCapacity(), list->GetRowCount() - list->GetTopRow());
+
+    input.mnemonicX     = (float) (bounds.left + source.left);
+    input.sourceY       = (float) (bounds.top + (source.top + source.bottom) / 2);
+    input.isTargetBelow = (target >= 0) ? target > current : *lines[(size_t) current].target > lines[(size_t) current].address;
+    input.edgeY         = input.isTargetBelow ? top + (float) (shown * rowPx) : top;
+    input.marginPx     *= scale;
+    input.stubPx       *= scale;
+    input.radiusPx     *= scale;
+    input.headPx       *= scale;
+
+    if (target >= 0 && list->GetCellTextRectPx (target, s_kInstructionColumn, goesTo))
+    {
+        input.targetY = (float) (bounds.top + (goesTo.top + goesTo.bottom) / 2);
+    }
+
+    //  Scrolled sideways past the mnemonics, there is no room for it.
+    if (input.mnemonicX - input.marginPx - input.stubPx < (float) bounds.left)
+    {
+        return;
+    }
+
+    arrow = BranchArrow::Build (input);
+
+    for (const BranchArrow::Segment & segment : arrow.segments)
+    {
+        painter.DrawLine (segment.x0, segment.y0, segment.x1, segment.y1, 1.5f * scale, GetPcMarkerArgb());
+    }
+
+    if (arrow.hasHead)
+    {
+        painter.FillConvexQuad (arrow.head[0], arrow.head[1], arrow.head[2], arrow.head[3],
+                                arrow.head[4], arrow.head[5], arrow.head[4], arrow.head[5], GetPcMarkerArgb());
+    }
 }
 
 
