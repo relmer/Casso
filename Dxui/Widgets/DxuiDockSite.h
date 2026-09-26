@@ -155,7 +155,7 @@ public:
     static constexpr int  kSashDip      = 6;
     static constexpr int  kSlideMinDip  = 240;
 
-    //  An edge tab's bar, along its edge nearest the panes, and how far it
+    //  An edge tab's bar, above its title as the title reads, and how far it
     //  stops short of each end so the bars of neighboring tabs stay apart.
     static constexpr int  kEdgeBarDip      = 3;
     static constexpr int  kEdgeBarInsetDip = 2;

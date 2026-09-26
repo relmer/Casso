@@ -159,7 +159,100 @@ public:
     }
 
 
+    //
+    //  The accent that marks what has focus. A blue accent on a blue-tinted
+    //  background reads as more of the same, not as a highlight, so where the
+    //  background carries a hue near the accent's this is the accent's
+    //  complement, at its saturation and brightness -- orange for blue. On a
+    //  gray background, or one tinted another way, it is the accent itself.
+    //
+    static uint32_t ComputeFocusAccent (uint32_t accent, uint32_t background)
+    {
+        constexpr float  s_kMinTintSat   = 0.15f;    // below this a background is gray
+        constexpr float  s_kSameHueDeg   = 60.0f;    // hues this close read as one color
+        constexpr float  s_kHalfTurnDeg  = 180.0f;
+        constexpr float  s_kFullTurnDeg  = 360.0f;
+
+        float  ah    = 0.0f;
+        float  as    = 0.0f;
+        float  av    = 0.0f;
+        float  bh    = 0.0f;
+        float  bs    = 0.0f;
+        float  bv    = 0.0f;
+        float  apart = 0.0f;
+
+        ToHsv (accent,     ah, as, av);
+        ToHsv (background, bh, bs, bv);
+
+        apart = std::fabs (ah - bh);
+        apart = (apart > s_kHalfTurnDeg) ? s_kFullTurnDeg - apart : apart;
+
+        if (bs < s_kMinTintSat || apart > s_kSameHueDeg)
+        {
+            return accent;
+        }
+
+        return FromHsv (std::fmod (ah + s_kHalfTurnDeg, s_kFullTurnDeg), as, av, accent & 0xFF000000u);
+    }
+
+
 private:
+    //  Hue in degrees, saturation and value 0..1.
+    static void ToHsv (uint32_t argb, float & h, float & s, float & v)
+    {
+        constexpr float  s_kSectorDeg = 60.0f;
+
+        float  r    = (float) ((argb >> 16) & 0xFFu) / 255.0f;
+        float  g    = (float) ((argb >>  8) & 0xFFu) / 255.0f;
+        float  b    = (float) ( argb        & 0xFFu) / 255.0f;
+        float  hi   = (std::max) ({ r, g, b });
+        float  lo   = (std::min) ({ r, g, b });
+        float  span = hi - lo;
+
+        v = hi;
+        s = (hi > 0.0f) ? span / hi : 0.0f;
+        h = 0.0f;
+
+        if (span <= 0.0f)
+        {
+            return;
+        }
+
+        if (hi == r)      { h = s_kSectorDeg * std::fmod ((g - b) / span, 6.0f); }
+        else if (hi == g) { h = s_kSectorDeg * ((b - r) / span + 2.0f); }
+        else              { h = s_kSectorDeg * ((r - g) / span + 4.0f); }
+
+        h = (h < 0.0f) ? h + 360.0f : h;
+    }
+
+
+    static uint32_t FromHsv (float h, float s, float v, uint32_t alpha)
+    {
+        constexpr float  s_kSectorDeg = 60.0f;
+
+        float  c      = v * s;
+        float  x      = c * (1.0f - std::fabs (std::fmod (h / s_kSectorDeg, 2.0f) - 1.0f));
+        float  m      = v - c;
+        float  r      = 0.0f;
+        float  g      = 0.0f;
+        float  b      = 0.0f;
+        int    sector = (int) (h / s_kSectorDeg) % 6;
+
+        switch (sector)
+        {
+        case 0:  r = c; g = x; break;
+        case 1:  r = x; g = c; break;
+        case 2:  g = c; b = x; break;
+        case 3:  g = x; b = c; break;
+        case 4:  r = x; b = c; break;
+        default: r = c; b = x; break;
+        }
+
+        return alpha | ((uint32_t) std::lround ((r + m) * 255.0f) << 16) | ((uint32_t) std::lround ((g + m) * 255.0f) << 8) | (uint32_t) std::lround ((b + m) * 255.0f);
+    }
+
+
+
     static float ChannelToLinear (uint32_t c8)
     {
         float  s = (float) (c8 & 0xFFu) / 255.0f;

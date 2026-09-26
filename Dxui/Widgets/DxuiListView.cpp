@@ -2960,11 +2960,13 @@ void DxuiListView::PaintHeader (
     // can see where each column ends (and where the resize handle
     // lives). The separators scroll with the columns, so CPU-clip any
     // that fall outside the content viewport (IDxuiPainter has no clip).
+    //  An untitled column -- a gutter, a marker -- has no heading to set off,
+    //  so it draws none, and the header does not show an empty box over it.
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
         float  sepX = 0.0f;
 
-        if (!m_columns[c].visible || colWPx[c] <= 0)
+        if (!m_columns[c].visible || colWPx[c] <= 0 || m_columns[c].title.empty())
         {
             continue;
         }

@@ -330,7 +330,6 @@ private:
     bool                                    m_swallowSpace       = false;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
-    int                                     m_codeLinesSent      = 0;
     std::optional<Word>                     m_navigatedTo;
     int                                     m_navigatedView      = 0;
     std::string                             m_menuState;

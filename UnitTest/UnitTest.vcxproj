@@ -580,6 +580,7 @@
     <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewCheckTests.cpp" />
+    <ClCompile Include="Dxui\DxuiColorTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTextSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrolledHitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />

@@ -660,9 +660,9 @@ void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
-    //  As Visual Studio draws them: no box, only the title and a bar along
-    //  the tab's edge nearest the panes, gray at rest and in the accent color
-    //  while the pointer is over the tab or its pane is out.
+    //  As Visual Studio draws them: no box, only the title and a bar above
+    //  it, gray at rest and in the focus accent while the pointer is over the
+    //  tab or its pane is out.
     for (const EdgeTab & tab : m_edgeTabs)
     {
         const RECT  & r        = tab.rect;
@@ -673,16 +673,19 @@ void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text,
         float         cy       = (float) (r.top + r.bottom) / 2;
         float         along    = (float) (sideways ? r.bottom - r.top : r.right - r.left);
         float         across   = (float) (sideways ? r.right - r.left : r.bottom - r.top);
-        uint32_t      barArgb  = lit ? theme.Accent() : theme.Border();
+        uint32_t      barArgb  = lit ? theme.FocusAccent() : theme.Border();
 
         painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top), theme.Background());
 
-        switch (tab.edge)
+        //  Above the title, as the title reads: a side tab's title is turned a
+        //  quarter clockwise, so above it is the tab's right side.
+        if (sideways)
         {
-        case DxuiDockSide::Left:   painter.FillRect ((float) r.right - bar, (float) r.top + inset, bar, along - 2 * inset, barArgb); break;
-        case DxuiDockSide::Right:  painter.FillRect ((float) r.left,        (float) r.top + inset, bar, along - 2 * inset, barArgb); break;
-        case DxuiDockSide::Top:    painter.FillRect ((float) r.left + inset, (float) r.bottom - bar, along - 2 * inset, bar, barArgb); break;
-        case DxuiDockSide::Bottom: painter.FillRect ((float) r.left + inset, (float) r.top,          along - 2 * inset, bar, barArgb); break;
+            painter.FillRect ((float) r.right - bar, (float) r.top + inset, bar, along - 2 * inset, barArgb);
+        }
+        else
+        {
+            painter.FillRect ((float) r.left + inset, (float) r.top, along - 2 * inset, bar, barArgb);
         }
 
         //  A side tab is laid out level about its center and turned a
@@ -760,7 +763,7 @@ void DxuiDockSite::PaintSlidOver (IDxuiPainter & painter, IDxuiTextRenderer & te
     m_slidGroup.Paint (painter, text, theme);
 
     painter.OutlineRect ((float) m_slidRect.left, (float) m_slidRect.top, (float) (m_slidRect.right - m_slidRect.left),
-                         (float) (m_slidRect.bottom - m_slidRect.top), line, theme.Accent());
+                         (float) (m_slidRect.bottom - m_slidRect.top), line, theme.FocusAccent());
 }
 
 

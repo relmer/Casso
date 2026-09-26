@@ -2091,9 +2091,10 @@ void DebuggerWindow::LayoutWidgets()
 //  DebuggerWindow::UpdateCodeLines
 //
 //  Each disassembly view holds as many lines as it has room for, so a pane is
-//  full whatever height it is dragged to. Only a change is sent: the count
-//  crosses to the CPU thread, which rebuilds the snapshot. A view opened in a
-//  tab of its own is measured here too, since no window resize follows it.
+//  full whatever height it is dragged to. Called every frame; only a change
+//  is sent, since the count crosses to the CPU thread, which rebuilds the
+//  snapshot. A view out of sight measures nothing and keeps its count until
+//  it is shown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3005,6 +3006,12 @@ void DebuggerWindow::RenderFrame()
     //  Focus moves by click, key and command alike, so the group the user is
     //  working in is found once a frame rather than at each of them.
     m_dockSite->SetFocusedPane (GetPaneOfFocus());
+
+    //  A disassembly view's height changes with a window resize, a sash drag,
+    //  a tab brought forward, a pane slid out or floated, a text-size change,
+    //  and each of those has been missed in turn. Measured once a frame, the
+    //  view fills whatever room it has; only a change is sent.
+    UpdateCodeLines();
 
     //  A drop-down slides open on ticks its host supplies. Without them the
     //  menu stayed at the first frame of its reveal, a sliver under the
@@ -4247,8 +4254,8 @@ void DebuggerWindow::ConfigureCodeList (int view)
                         { L"Bytes",       0, false, DxuiTextHAlign::Left },
                         { L"Label",       0, false, DxuiTextHAlign::Left },
                         { L"Instruction", 0, false, DxuiTextHAlign::Left },
-                        { L"",            0, false, DxuiTextHAlign::Left },
-                        { L"",            0, false, DxuiTextHAlign::Left } });
+                        { L"Operand",     0, false, DxuiTextHAlign::Left },
+                        { L"Result",      0, false, DxuiTextHAlign::Left } });
 
     //  A breakpoint is set from the gutter (see ClickGutter), as in an editor.
     //  The rest of the pane is TEXT (FR-076): a drag selects characters, a

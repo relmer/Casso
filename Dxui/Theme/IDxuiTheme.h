@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Theme/DxuiColor.h"
 
 
 
@@ -189,6 +190,11 @@ public:
     // Accent / focus / borders.
     virtual uint32_t  Accent              () const = 0;
     virtual uint32_t  FocusRing           () const = 0;
+
+    //  What marks the pane or tab the user is working in: the accent, or its
+    //  complement where the accent's hue is the background's own and would
+    //  not stand out from it.
+    virtual uint32_t  FocusAccent         () const { return DxuiColor::ComputeFocusAccent (Accent(), Background()); }
     virtual uint32_t  Border              () const = 0;
     virtual uint32_t  Divider             () const = 0;
 

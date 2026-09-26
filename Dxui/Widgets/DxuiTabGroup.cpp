@@ -764,7 +764,7 @@ void DxuiTabGroup::LayoutContent()
 
 void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t  frame = m_focusedLook ? theme.Accent() : theme.Border();
+    uint32_t  frame = m_focusedLook ? theme.FocusAccent() : theme.Border();
     RECT      strip = GetStripRect();
 
 
