@@ -1565,7 +1565,8 @@ bool AppleWinParser::TryParseSourceLine (const std::string & text, const IDebugE
 //
 //  AppleWinParser::TryParseRange
 //
-//  `addr`, `addr,len` or `addr:last`, into a1 and a2.
+//  `addr`, `addr,len` or `addr:last`, into a1 and a2. A length that would
+//  carry the range past $FFFF is an error rather than a wrap to $0000.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1575,8 +1576,9 @@ bool AppleWinParser::TryParseRange (
     DebugCommand                   & command,
     std::string                    & error)
 {
-    size_t  separator = text.find_first_of (",:");
-    Word    second    = 0;
+    static constexpr uint32_t  kLastAddress = 0xFFFF;
+    size_t                     separator    = text.find_first_of (",:");
+    Word                       second       = 0;
 
 
 
@@ -1602,6 +1604,11 @@ bool AppleWinParser::TryParseRange (
     else if (second == 0)
     {
         error = "A range length must be at least 1.";
+        return false;
+    }
+    else if ((uint32_t) command.a1 + second - 1 > kLastAddress)
+    {
+        error = "A range cannot run past $FFFF.";
         return false;
     }
     else
