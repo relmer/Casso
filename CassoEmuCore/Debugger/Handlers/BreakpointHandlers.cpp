@@ -519,7 +519,11 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
         return;
     }
 
-    if (selector != kAllSelector)
+    if (selector == kAllSelector)
+    {
+        firstLength = kBrkSelector;
+    }
+    else
     {
         firstLength = selector;
         lastLength  = selector;
@@ -535,6 +539,7 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
         else if (length == kBrkSelector && !*isOn)
         {
             session.GetBreakpoints().ClearKind (BreakpointKind::Brk);
+            RemoveBrkOpcodes (session);
         }
         else if (length != kBrkSelector && *isOn)
         {
@@ -662,6 +667,39 @@ void BreakpointHandlers::RemoveInvalidOpcodes (DebugSession & session, int lengt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHandlers::RemoveBrkOpcodes
+//
+//  Opcode entries on BRK stop exactly as the BRK entry does, so BRK 0 OFF
+//  clears them too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::RemoveBrkOpcodes (DebugSession & session)
+{
+    std::vector<int>  ids;
+
+
+
+    for (const Breakpoint & entry : session.GetBreakpoints().GetAll())
+    {
+        if (entry.kind == BreakpointKind::Opcode && entry.opcode == kBrkOpcode)
+        {
+            ids.push_back (entry.id);
+        }
+    }
+
+    for (int id : ids)
+    {
+        session.GetBreakpoints().TryClear (id);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHandlers::IsInvalidOfLength
 //
 //  An opcode the CPU's table does not define, whose length the disassembler
@@ -704,7 +742,7 @@ void BreakpointHandlers::ReportBrk (DebugSession & session, Reply & reply)
 
 
 
-    message.lines.push_back (std::string ("BRK opcode: ") + (session.GetBreakpoints().HasBrk() ? "on" : "off"));
+    message.lines.push_back (std::string ("BRK opcode: ") + (session.GetBreakpoints().HasBrk() || session.GetBreakpoints().HasOpcode (kBrkOpcode) ? "on" : "off"));
 
     for (int length = 1; length <= kMaxLength; ++length)
     {
@@ -896,7 +934,6 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
 {
     int                 id = (int) command.count;
     BreakpointListData  list;
-    BreakpointInfo      info;
 
 
 
@@ -925,8 +962,7 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
     }
 
     session.OnStopConditionsChanged();
-    TryFindInfo (session, id, info);
-    reply.data = BreakpointSetData { info };
+    reply.data = MessageData { { std::format ("Breakpoint #{} {}.", id, enabled ? "enabled" : "disabled") } };
 }
 
 
@@ -1175,7 +1211,7 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
     }
 
     ListAll (session, list);
-    reply.data = MessageData { { std::format ("Saved {} breakpoints to {}.", list.breakpoints.size(), command.text) } };
+    reply.data = MessageData { { std::format ("Saved {} breakpoint{} to {}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", command.text) } };
 }
 
 
