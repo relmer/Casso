@@ -229,6 +229,32 @@ namespace DebuggerTests
 
 
 
+        //  The quotes around a file name are not part of it, so the reply
+        //  gives the bare name. GSSquared's load and save always quote it.
+        TEST_METHOD (BLOAD_BSAVE_QuotedName_ReportsTheBareName)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            Assert::AreEqual (std::string ("prog.bin (raw): 3 of 3 bytes"), rig.RunOk ("BLOAD \"prog.bin\" 300").text.at (0));
+            Assert::AreEqual (std::string ("prog.bin (raw): 3 of 3 bytes"), rig.RunOk ("BLOAD \"prog.bin\",RAW 300").text.at (0));
+            Assert::AreEqual (std::string ("out.bin: 3 of 3 bytes"),         rig.RunOk ("BSAVE \"out.bin\" 300:302").text.at (0));
+
+            reply = rig.session.ExecuteLine ("save \"out.bin\" 300.302", CommandMode::GSSquared);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::AreEqual (std::string ("out.bin"), std::get<FileIoData> (reply.data).path);
+
+            reply = rig.session.ExecuteLine ("load \"prog.bin\" 300", CommandMode::GSSquared);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::AreEqual (std::string ("prog.bin (raw)"), std::get<FileIoData> (reply.data).path);
+        }
+
+
+
         TEST_METHOD (BLOAD_FormatsFromContentOrWord)
         {
             Rig    rig;
