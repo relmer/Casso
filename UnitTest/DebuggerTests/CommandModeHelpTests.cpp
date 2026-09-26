@@ -223,6 +223,20 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (HelpForTheMarkerFormHelpLists_DescribesTheCommand)
+        {
+            std::string  line;
+
+
+
+            Assert::IsTrue (CommandModeHelp::TryDescribe (CommandMode::WinDbg, "!bpm", line));
+            Assert::IsTrue (line.starts_with ("!BPM"), Widen (line).c_str());
+
+            Assert::IsTrue (CommandModeHelp::TryDescribe (CommandMode::Monitor, "/DISK", line));
+            Assert::IsTrue (line.starts_with ("/DISK"), Widen (line).c_str());
+        }
+
+
         TEST_METHOD (CassoMode_RunsEveryCommandByBareName_InAppleWinsFormat)
         {
             MockDebugTarget            target;
