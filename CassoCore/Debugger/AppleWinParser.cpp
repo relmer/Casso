@@ -844,9 +844,22 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
         {
             command.hasA1 = true;
             command.hasA2 = true;
-            return TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
-                   TryEvaluate (args.tokens[1], *args.context, command.a2, error) &&
-                   TryParseValues (args.tokens, valuesFrom, ValueWidth::Bytes, *args.context, command, error);
+
+            if (!TryEvaluate (args.tokens[0], *args.context, command.a1, error) ||
+                !TryEvaluate (args.tokens[1], *args.context, command.a2, error))
+            {
+                return false;
+            }
+
+            // An end before the start is a value in the end's place, as in
+            // `F 300 AA BB`, not a one-byte fill.
+            if (command.a2 < command.a1)
+            {
+                error = std::format ("{}'s end address ${:04X} is before its start ${:04X}.", ToUpper (command.sourceName), command.a2, command.a1);
+                return false;
+            }
+
+            return TryParseValues (args.tokens, valuesFrom, ValueWidth::Bytes, *args.context, command, error);
         }
 
         if (count < 2)

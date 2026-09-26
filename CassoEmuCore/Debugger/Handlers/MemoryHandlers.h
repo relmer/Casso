@@ -56,6 +56,7 @@ private:
     static void  Patch        (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
+    static bool  TryPeekByte  (IDebugTarget & target, Word address, Byte & value, Reply & reply);
     static bool  TryGetFiles  (DebugSession & session, Reply & reply, IFileSystem *& files);
     static Word  GetLast      (const DebugCommand & command);
     static Byte  Peek         (IDebugTarget & target, Word address);

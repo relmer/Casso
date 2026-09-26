@@ -102,6 +102,7 @@ public:
     // peek reads.
     void   SetWatchedPage     (int pageIndex, bool watched);
     void   SetWatchSink       (IWatchSink * sink)       { m_watchSink = sink; }
+    IWatchSink * GetWatchSink () const                  { return m_watchSink; }
     bool   IsPageWatched      (int pageIndex) const     { return pageIndex >= 0 && pageIndex < 0x100 && m_debugWatched[pageIndex]; }
     Byte * GetShadowReadPage  (Word address) const      { return m_shadowReadPage[address >> 8]; }
     Byte * GetShadowWritePage (Word address) const      { return m_shadowWritePage[address >> 8]; }

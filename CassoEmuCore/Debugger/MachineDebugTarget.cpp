@@ -151,20 +151,25 @@ MemoryRegion MachineDebugTarget::GetRegion (Word address) const
 //
 //  MachineDebugTarget::ReadIo
 //
-//  Real bus access, with its side effects, for IN. The trace marks it
-//  as the host's: the access is the debugger's, not the program's, and
-//  would otherwise attach to the last traced instruction.
+//  Real bus access, with its side effects, for IN. The access is the
+//  debugger's, not the program's: the trace marks it as the host's, so it
+//  does not attach to the last traced instruction, and the watch sink does
+//  not see it, so it records no watchpoint hit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte MachineDebugTarget::ReadIo (Word address)
 {
-    Byte  value = 0;
+    MemoryBus   & bus   = m_host.GetMemoryBus();
+    IWatchSink  * sink  = bus.GetWatchSink();
+    Byte          value = 0;
 
 
 
     m_trace.SetHostAccess (true);
-    value = m_host.GetMemoryBus().ReadByte (address);
+    bus.SetWatchSink (nullptr);
+    value = bus.ReadByte (address);
+    bus.SetWatchSink (sink);
     m_trace.SetHostAccess (false);
 
     return value;
@@ -178,14 +183,22 @@ Byte MachineDebugTarget::ReadIo (Word address)
 //
 //  MachineDebugTarget::WriteIo
 //
-//  Real bus access, for OUT, kept out of the trace as IN is.
+//  Real bus access, for OUT, kept out of the trace and the watchpoints as
+//  IN is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineDebugTarget::WriteIo (Word address, Byte value)
 {
+    MemoryBus   & bus  = m_host.GetMemoryBus();
+    IWatchSink  * sink = bus.GetWatchSink();
+
+
+
     m_trace.SetHostAccess (true);
-    m_host.GetMemoryBus().WriteByte (address, value);
+    bus.SetWatchSink (nullptr);
+    bus.WriteByte (address, value);
+    bus.SetWatchSink (sink);
     m_trace.SetHostAccess (false);
 }
 
