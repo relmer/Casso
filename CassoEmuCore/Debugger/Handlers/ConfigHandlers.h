@@ -32,9 +32,13 @@ public:
 
 private:
     static constexpr const char * kStartupScript = "DebuggerAutoRun.txt";
-    static constexpr int          kDiskSlot      = 6;
-    static constexpr int          kHexDigits     = 4;
-    static constexpr int          kBinaryDigits  = 8;
+    static constexpr int  kDiskSlot       = 6;
+    static constexpr int  kHexDigits      = 4;
+    static constexpr int  kBinaryDigits   = 8;
+    static constexpr int  kMaxScriptDepth = 16;
+
+    // Scripts running now, nested through RUN, LOAD and STARTUP.
+    static inline int             s_scriptDepth  = 0;
 
     static void  PrintDirectory  (DebugSession & session, Reply & reply);
     static void  ChangeDirectory (DebugSession & session, const DebugCommand & command, Reply & reply);

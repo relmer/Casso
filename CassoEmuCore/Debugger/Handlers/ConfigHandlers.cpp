@@ -195,7 +195,20 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
         return;
     }
 
+    if (s_scriptDepth >= kMaxScriptDepth)
+    {
+        reply.SetError (CommandStatus::Error, "scripts nested too deeply", std::format ("{} is nested more than {} scripts deep.", name, kMaxScriptDepth));
+        return;
+    }
+
+    if (content.starts_with ("\xEF\xBB\xBF"))
+    {
+        content.erase (0, 3);
+    }
+
+    s_scriptDepth++;
     RunScript (session, content, output);
+    s_scriptDepth--;
     reply.data = output;
 }
 
