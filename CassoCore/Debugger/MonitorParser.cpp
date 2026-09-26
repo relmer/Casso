@@ -60,8 +60,9 @@ static constexpr Word  s_kBytesPerLine     = 8;
 //
 //  Left to right, one character at a time. Hex digits accumulate; `.`, `<`,
 //  `+` and `-` move what has accumulated along; a command character spends
-//  it. `:`, `R` and `W` take the rest of the line, because what follows them
-//  is a byte list or a file name rather than more commands.
+//  it. `:` takes the byte list that follows it, up to the next command
+//  character. `R` and `W` take the rest of the line, because what follows
+//  them is a file name rather than more commands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,9 +98,12 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             return result;
         }
 
+        //  A typed address replaces A3 in the ROM, which is what spends the
+        //  arming `^E` left there.
         if (TryHexDigit (character, digit))
         {
-            scan.value = (Word) ((scan.value.value_or (0) << 4) | digit);
+            scan.value                = (Word) ((scan.value.value_or (0) << 4) | digit);
+            state.registerEditPending = false;
             continue;
         }
 
@@ -117,10 +121,16 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             scan.value.reset();
             continue;
 
+        //  A chained operator keeps the first operand, as the ROM keeps A1:
+        //  `1+2-3` is 1-3.
         case '+':
         case '-':
-            scan.first = scan.value.value_or (0);
-            scan.op    = character;
+            if (scan.op == 0)
+            {
+                scan.first = scan.value.value_or (0);
+            }
+
+            scan.op = character;
             scan.value.reset();
             continue;
 
@@ -131,21 +141,17 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
         case '\t':
         case '\r':
         case '\n':
-            FlushExamine (scan, state, result);
+            FlushPending (scan, state, result);
             continue;
 
-        //  Everything after the colon is the byte list.
+        //  The byte list runs to the next command character, which is what
+        //  ends store mode in the ROM: `300:A9 60 N 300G` stores two bytes,
+        //  then sets normal text, then runs.
         case ':':
         {
             std::vector<Byte>  values;
 
-            if (!TryParseBytes (line.substr (index), values))
-            {
-                result.error  = "A deposit takes hex bytes.";
-                result.status = ParseStatus::Invalid;
-                result.commands.clear();
-                return result;
-            }
+            ParseBytes (line, index, values);
 
             if (state.registerEditPending)
             {
@@ -164,7 +170,6 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
                 state.storeAddress = (Word) (command.a1 + values.size());
             }
 
-            index = line.size();
             break;
         }
 
@@ -302,25 +307,46 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
         scan = Scan();
     }
 
-    if (scan.op != 0)
-    {
-        DebugCommand  arithmetic = MakeCommand (DebugVerb::Arithmetic, scan.op);
-
-        arithmetic.a1    = scan.first.value_or (0);
-        arithmetic.a2    = scan.value.value_or (0);
-        arithmetic.hasA1 = true;
-        arithmetic.hasA2 = true;
-        arithmetic.text  = std::string (1, scan.op);
-
-        result.commands.push_back (arithmetic);
-    }
-    else
-    {
-        FlushExamine (scan, state, result);
-    }
+    FlushPending (scan, state, result);
 
     result.status = result.commands.empty() ? ParseStatus::Empty : ParseStatus::Ok;
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::FlushPending
+//
+//  What a space or the end of the line does to an unspent scan: a pending
+//  `+` or `-` prints its result, as the ROM's BL1 sends it to XAMPM, and
+//  anything else examines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MonitorParser::FlushPending (Scan & scan, MonitorState & state, MonitorParseResult & result)
+{
+    DebugCommand  arithmetic = MakeCommand (DebugVerb::Arithmetic, scan.op);
+
+
+
+    if (scan.op == 0)
+    {
+        FlushExamine (scan, state, result);
+        return;
+    }
+
+    arithmetic.a1    = scan.first.value_or (0);
+    arithmetic.a2    = scan.value.value_or (0);
+    arithmetic.hasA1 = true;
+    arithmetic.hasA2 = true;
+    arithmetic.text  = std::string (1, scan.op);
+
+    result.commands.push_back (arithmetic);
+    scan = Scan();
 }
 
 
@@ -477,45 +503,48 @@ bool MonitorParser::TryHexDigit (char character, int & digit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MonitorParser::TryParseBytes
+//  MonitorParser::ParseBytes
 //
-//  Whitespace-separated hex bytes. An empty list is allowed, which is how a
-//  bare `:` reads.
+//  Whitespace-separated hex values from index up to the first character that
+//  is neither, which is left for the scan. Each value stores its low byte,
+//  as the ROM's does. An empty list is allowed, which is how a bare `:`
+//  reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MonitorParser::TryParseBytes (const std::string & text, std::vector<Byte> & values)
+void MonitorParser::ParseBytes (const std::string & line, size_t & index, std::vector<Byte> & values)
 {
-    std::istringstream  stream (text);
-    std::string         token;
+    std::optional<Word>  value;
 
 
 
-    while (stream >> token)
+    for (; index < line.size(); ++index)
     {
-        Word  value = 0;
+        char  character = (char) toupper ((unsigned char) line[index]);
+        int   digit     = 0;
 
-        for (char character : token)
+        if (TryHexDigit (character, digit))
         {
-            int  digit = 0;
-
-            if (!TryHexDigit ((char) toupper ((unsigned char) character), digit))
-            {
-                return false;
-            }
-
-            value = (Word) ((value << 4) | digit);
+            value = (Word) ((value.value_or (0) << 4) | digit);
+            continue;
         }
 
-        if (token.size() > 2)
+        if (value.has_value())
         {
-            return false;
+            values.push_back ((Byte) (*value & 0xFF));
+            value.reset();
         }
 
-        values.push_back ((Byte) value);
+        if (!isspace ((unsigned char) character))
+        {
+            return;
+        }
     }
 
-    return true;
+    if (value.has_value())
+    {
+        values.push_back ((Byte) (*value & 0xFF));
+    }
 }
 
 

@@ -71,13 +71,69 @@ namespace DebuggerTests
             list = rig.RunOk ("ZPL").text;
             Assert::AreEqual ((size_t) 3, list.size());
             Assert::IsTrue   (list[1].starts_with ("#2"), L"listed by slot");
-            Assert::AreEqual (std::string ("#4 $0050 -> $0000"), rig.RunOk ("ZPA 50").text.at (0), L"the next id follows the highest slot");
+            Assert::AreEqual (std::string ("#1 $0050 -> $0000"), rig.RunOk ("ZPA 50").text.at (0), L"ZPA takes the lowest free slot");
 
             Assert::AreEqual (std::string ("#3 $0036 -> $FDF0 (disabled)"), rig.RunOk ("ZPD 3").text.at (0));
             rig.RunOk ("ZPE 3");
             Assert::AreEqual (std::string ("Zero-page pointer #3 cleared."), rig.RunOk ("ZPC 3").text.at (0));
             Assert::AreEqual (std::string ("No zero-page pointers."),        rig.RunOk ("ZPC *").text.at (0));
             rig.RunFails ("ZPC 9", "no such zero-page pointer");
+        }
+
+
+
+        //  ONLY ZP0-ZP7 ARE COMMANDS, so a pointer past slot 7 would save a
+        //  line that does not replay. ZP and ZPA fill the lowest free slot
+        //  and stop when all eight are in use.
+        TEST_METHOD (ZP_StaysInTheEightSlots)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("ZP7 10");
+            Assert::AreEqual (std::string ("#0 $0020 -> $0000"), rig.RunOk ("ZPA 20").text.at (0));
+
+            for (int slot = 1; slot < 7; ++slot)
+            {
+                rig.RunOk ("ZP 30");
+            }
+
+            rig.RunFails ("ZPA 40", "no free zero-page pointer");
+            Assert::AreEqual ((size_t) 8, rig.RunOk ("ZPL").text.size());
+        }
+
+
+
+        //  A WORD WITH AN UNREADABLE BYTE HAS NO VALUE, rather than reading
+        //  as $0000: I/O space answers nothing to a peek.
+        TEST_METHOD (W_OnUnreadableMemory_HasNoValue)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("#0 $C000"), rig.RunOk ("WA C000").text.at (0));
+            Assert::AreEqual (std::string ("#1 $BFFF"), rig.RunOk ("WA BFFF").text.at (0), L"the high byte is at $C000");
+            Assert::IsFalse  (std::get<WatchListData> (rig.Run ("WL").data).entries.at (0).value.has_value());
+        }
+
+
+
+        //  A ZERO-PAGE POINTER WRAPS WITHIN PAGE ZERO, as (zp) addressing
+        //  does: the pointer at $FF takes its high byte from $00.
+        TEST_METHOD (ZP_AtFF_WrapsToZero)
+        {
+            Rig  rig;
+
+
+
+            rig.target.memory[0x00FF] = 0x34;
+            rig.target.memory[0x0000] = 0x12;
+            rig.target.memory[0x0100] = 0x99;
+
+            Assert::AreEqual (std::string ("#0 $00FF -> $1234"), rig.RunOk ("ZP FF").text.at (0));
+            Assert::AreEqual (std::string ("#0 $00FF = $9934"),  rig.RunOk ("WA FF").text.at (0), L"a watch reads the plain word");
         }
 
 

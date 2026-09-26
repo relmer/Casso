@@ -118,7 +118,7 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 
         if (kind != WatchListKind::Bookmark)
         {
-            entry.value = PeekWord (session, item.address);
+            entry.value = PeekWord (session, item.address, kind);
         }
 
         data.entries.push_back (entry);
@@ -135,8 +135,10 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 //
 //  WatchHandlers::Add
 //
-//  ZP0-ZP7 and P0-P4 carry a slot in their name and fill it; the others
-//  take the next id. The reply lists the entry.
+//  ZP0-ZP7 and P0-P4 carry a slot in their name and fill it. ZP and ZPA
+//  take the lowest free slot, since only ZP0-ZP7 exist to replay a saved
+//  pointer; watches and bookmarks take the next id. The reply lists the
+//  entry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,8 +158,25 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
         return;
     }
 
-    id   = TryGetSlot (command.sourceName, slot) ? table.AddAt (slot, command.a1) : table.Add (command.a1);
-    list = MakeList (session, kind);
+    if (TryGetSlot (command.sourceName, slot))
+    {
+        id = table.AddAt (slot, command.a1);
+    }
+    else if (kind != WatchListKind::ZeroPage)
+    {
+        id = table.Add (command.a1);
+    }
+    else if (TryGetFreeSlot (table, slot))
+    {
+        id = table.AddAt (slot, command.a1);
+    }
+    else
+    {
+        reply.SetError (CommandStatus::Error, "no free zero-page pointer", "All eight zero-page pointers are in use.");
+        return;
+    }
+
+    list     = MakeList (session, kind);
     one.kind = kind;
 
     for (const WatchEntry & entry : list.entries)
@@ -416,20 +435,63 @@ bool WatchHandlers::TryGetSlot (const std::string & sourceName, int & slot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WatchHandlers::PeekWord
+//  WatchHandlers::TryGetFreeSlot
+//
+//  The lowest of the eight zero-page pointer slots that holds nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word WatchHandlers::PeekWord (DebugSession & session, Word address)
+bool WatchHandlers::TryGetFreeSlot (const WatchTable & table, int & slot)
+{
+    static constexpr int  kZeroPageSlots = 8;
+    WatchItem             item;
+
+
+
+    for (slot = 0; slot < kZeroPageSlots; ++slot)
+    {
+        if (!table.TryFind (slot, item))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::PeekWord
+//
+//  No value when either byte cannot be read. A zero-page pointer takes its
+//  high byte from within page zero, as (zp) addressing does, so the pointer
+//  at $FF reads $FF and $00.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> WatchHandlers::PeekWord (DebugSession & session, Word address, WatchListKind kind)
 {
     static constexpr int  kByteBits = 8;
     Byte                  low       = 0;
     Byte                  high      = 0;
+    Word                  next      = (Word) (address + 1);
 
 
 
-    session.TryPeek (address,              low);
-    session.TryPeek ((Word) (address + 1), high);
+    if (kind == WatchListKind::ZeroPage && address <= 0xFF)
+    {
+        next = (Word) (next & 0xFF);
+    }
+
+    if (!session.TryPeek (address, low) || !session.TryPeek (next, high))
+    {
+        return std::nullopt;
+    }
+
     return (Word) (low | (high << kByteBits));
 }
 

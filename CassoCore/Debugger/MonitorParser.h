@@ -88,9 +88,10 @@ private:
 
     static bool         TryReadCharacter (const std::string & line, size_t & index, char & character, std::string & error);
     static bool         TryHexDigit      (char character, int & digit);
-    static bool         TryParseBytes    (const std::string & text, std::vector<Byte> & values);
+    static void         ParseBytes       (const std::string & line, size_t & index, std::vector<Byte> & values);
     static void         ApplyRange       (const Scan & scan, DebugCommand & command);
-    static void         FlushExamine     (Scan & scan, MonitorState & state, MonitorParseResult & result);
+    static void         FlushPending     (Scan & scan, MonitorState & state, MonitorParseResult & result);
+    static void         FlushExamine    (Scan & scan, MonitorState & state, MonitorParseResult & result);
     static DebugCommand MakeCommand      (DebugVerb verb, char source);
     static std::string  Trim             (const std::string & text);
     static std::string  Unquote          (const std::string & text);
