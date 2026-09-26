@@ -269,6 +269,7 @@ bool GSSquaredParser::TryParseWord (Line & line)
     else if (word == "help")                        { ParseNoArguments     (line, "HELP"); }
     else if (word == "s")                           { ParseNoArguments     (line, "T"); }
     else if (word == "o")                           { ParseNoArguments     (line, "P"); }
+    else if (word == "r" && count > 1)              { ParseRegister        (line); }
     else if (word == "r")                           { ParseNoArguments     (line, "RTS"); }
     else                                            { ParseNoArguments     (line, "G"); }
 
@@ -659,6 +660,33 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
     {
         ParseAppleWin (line, std::format ("SYM {}", FormatHex (value)), std::string());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::ParseRegister
+//
+//  GSSquared's r takes nothing, so r with arguments is AppleWin's R: `r a 41`
+//  sets a register, as `bpd` with one argument is AppleWin's BPD.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::ParseRegister (Line & line)
+{
+    std::string  appleWin = "R";
+
+
+
+    for (size_t i = 1; i < line.tokens.size(); ++i)
+    {
+        appleWin += " " + line.tokens[i];
+    }
+
+    ParseAppleWin (line, appleWin, "r");
 }
 
 
