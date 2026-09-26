@@ -25,7 +25,9 @@
 //  Measured the same way on 2026-09-14.
 //
 //  In the list, a row under the pointer is #4D4D4D and a selected row #505050,
-//  outlined in #C3C3C3 while the list has focus. Measured on 2026-09-15.
+//  outlined in #C3C3C3 while the list has focus. Measured on 2026-09-15. A
+//  selected row in a pane without focus is #333333, and the other rows of a
+//  multiple selection #626262, outlined in the accent. Measured 2026-09-25.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +62,8 @@ DxuiDarkTheme::DxuiDarkTheme()
     contentHover             = 0xFF4D4D4D;
     contentSelection         = 0xFF505050;
     contentSelectionEdge     = 0xFFC3C3C3;
+    contentSelectionInactive = 0xFF333333;
+    contentSelectionMulti    = 0xFF626262;
     panelEdge                = 0xFF3A3A3A;
     buttonIdle               = 0xFF2D2D2D;
     buttonHover              = 0xFF323232;

@@ -493,6 +493,7 @@
     <ClCompile Include="Dxui\DxuiPopupMenuIconRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiRowLookTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />

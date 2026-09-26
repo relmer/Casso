@@ -265,6 +265,7 @@
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
     <ClInclude Include="Theme\DxuiColor.h" />
     <ClInclude Include="Theme\DxuiTheme.h" />
+    <ClInclude Include="Theme\DxuiRowLook.h" />
     <ClInclude Include="Theme\IDxuiTheme.h" />
     <ClInclude Include="Widgets\DxuiButton.h" />
     <ClInclude Include="Widgets\DxuiCheckbox.h" />

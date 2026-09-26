@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiRowLook.h"
 
 #include "DxuiTreeView.h"
 
@@ -866,10 +867,6 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 
 void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t         s_kRowIdle       = 0x00000000;
-    uint32_t         s_kRowHover      = theme.ContentHover();
-    uint32_t         s_kRowHighlight  = theme.ContentSelection();
-    uint32_t         s_kSelectionEdge = theme.ContentSelectionEdge();
     uint32_t         s_kBoxIdle       = theme.ButtonIdle();
     uint32_t         s_kBoxLocked     = DxuiColor::ComputeTintForContrast (theme.Background(), 1.6f);
     uint32_t         s_kCheckGlyph    = theme.ButtonText();
@@ -968,8 +965,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         uint32_t              boxColor    = 0;
         uint32_t              glyphCol    = 0;
         uint32_t              textCol     = 0;
-        uint32_t          rowFill   = (i == m_highlight) ? s_kRowHighlight
-                                       : (i == m_hoverRow ? s_kRowHover : s_kRowIdle);
+        DxuiRowLook           look        = DxuiRowLook::Resolve (theme, i == m_highlight, i == m_highlight, i == m_hoverRow, m_focused);
         hasChildren = (node != nullptr) && CanExpand (*node);
         bool              interactive = (node != nullptr)
                                           && node->capabilityFlag == DxuiTreeCapabilityFlag::Optional
@@ -992,20 +988,17 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             continue;
         }
 
-        if (rowFill != 0)
+        //  Square, as Explorer's are. The outline marks the row the keyboard
+        //  acts on; without it the tree looks the same focused or not.
+        if (look.fill != 0)
         {
-            painter.FillRoundedRect ((float) m_boundsDip.left, rowY, contentW, rowHeight,
-                                     m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), rowFill);
+            painter.FillRect ((float) m_boundsDip.left, rowY, contentW, rowHeight, look.fill);
         }
 
-        //  The highlighted row is outlined while the tree holds focus, as the
-        //  file list outlines its own. Without it the tree looks the same
-        //  focused or not, and nothing on screen says where the keys go.
-        if (m_focused && i == m_highlight && s_kSelectionEdge != 0)
+        if (look.edge != 0)
         {
-            painter.OutlineRoundedRect ((float) m_boundsDip.left, rowY, contentW, rowHeight,
-                                        m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
-                                        (std::max) (1.0f, m_scaler.ToPxf (1.0f)), s_kSelectionEdge);
+            painter.OutlineRect ((float) m_boundsDip.left, rowY, contentW, rowHeight,
+                                 (std::max) (1.0f, m_scaler.ToPxf (1.0f)), look.edge);
         }
 
         if (hasChildren)

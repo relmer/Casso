@@ -2080,6 +2080,13 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Explorer's tree drops its hover as the pointer leaves it.
+    if (m_tree->GetHoverRow() >= 0 && (ev.kind == DxuiMouseEventKind::Leave || !Contains (m_tree->GetBounds(), point)))
+    {
+        m_tree->SetHoverRow (-1);
+        Invalidate();
+    }
+
     if (Contains (m_tree->GetBounds(), point))
     {
         if (press)

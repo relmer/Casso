@@ -64,7 +64,7 @@ public:
 
         for (const RecordedPaintCall & call : painter.Calls())
         {
-            if (call.kind == RecordedPaintKind::OutlineRoundedRect && call.width == 200.0f)
+            if (call.kind == RecordedPaintKind::OutlineRect && call.width == 200.0f)
             {
                 outlines++;
             }

@@ -72,6 +72,8 @@ struct DxuiTheme : public IDxuiTheme
     //  The outline around a selected row while its list has focus. A zero value
     //  draws none.
     uint32_t  contentSelectionEdge     = 0;
+    uint32_t  contentSelectionInactive = 0;
+    uint32_t  contentSelectionMulti    = 0;
     uint32_t  buttonIdle               = 0;
     uint32_t  buttonHover              = 0;
     uint32_t  buttonPressed            = 0;
@@ -91,6 +93,8 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  ContentHover        () const override { return (contentHover != 0) ? contentHover : navHover; }
     uint32_t  ContentSelection    () const override { return (contentSelection != 0) ? contentSelection : navHover; }
     uint32_t  ContentSelectionEdge () const override { return contentSelectionEdge; }
+    uint32_t  ContentSelectionInactive () const override { return (contentSelectionInactive != 0) ? contentSelectionInactive : ContentSelection(); }
+    uint32_t  ContentSelectionMulti    () const override { return (contentSelectionMulti    != 0) ? contentSelectionMulti    : ContentSelection(); }
     uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
     uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }

@@ -155,6 +155,13 @@ public:
     // focus. Zero, the default, draws none.
     virtual uint32_t  ContentSelectionEdge () const { return 0; }
 
+    // A selected row while its pane does not have focus, and a selected row
+    // other than the one the keyboard is on in a multiple selection, with the
+    // outline that one takes. See DxuiRowLook.
+    virtual uint32_t  ContentSelectionInactive  () const { return ContentSelection(); }
+    virtual uint32_t  ContentSelectionMulti     () const { return ContentSelection(); }
+    virtual uint32_t  ContentSelectionMultiEdge () const { return Accent(); }
+
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 

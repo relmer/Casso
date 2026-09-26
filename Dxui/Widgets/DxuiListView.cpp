@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/DxuiClipboard.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiRowLook.h"
 #include "Theme/DxuiColor.h"
 
 #include "DxuiListView.h"
@@ -2882,23 +2883,25 @@ void DxuiListView::PaintDataRows (
         bool                       isHov = (r == m_hovered);
         bool                       isSel = ((m_listFocused || m_alwaysShowSelection) &&
                                             (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
+        DxuiRowLook                look  = DxuiRowLook::Resolve (*m_theme, isSel, r == m_selectedRow, isHov, m_listFocused);
 
-        if (isSel)
+        //  A text-like list (a hex dump) selects as text does: the text
+        //  selection color, no outline.
+        if (m_textSelectionColors)
         {
-            painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgSel);
-
-            //  Explorer outlines the selected row the keyboard is on while the
-            //  list has focus.
-            if (m_listFocused && r == m_selectedRow && pal.edgeSel != 0)
-            {
-                painter.OutlineRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
-                                            (std::max) (1.0f, m_scaler.ToPxf (1.0f)), pal.edgeSel);
-            }
+            look.fill = isSel ? pal.bgSel : (isHov ? pal.bgHover : 0u);
+            look.edge = 0;
         }
 
-        if (isHov && !isSel)
+        //  Square, as Explorer's are.
+        if (look.fill != 0)
         {
-            painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
+            painter.FillRect (x, ry, layoutW, rowH, look.fill);
+        }
+
+        if (look.edge != 0)
+        {
+            painter.OutlineRect (x, ry, layoutW, rowH, (std::max) (1.0f, m_scaler.ToPxf (1.0f)), look.edge);
         }
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
