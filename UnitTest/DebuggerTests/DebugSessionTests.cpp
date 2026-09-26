@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/IDebugNotificationSink.h"
 #include "Debugger/IInstructionObserver.h"
@@ -568,6 +569,53 @@ namespace DebuggerTests
             Assert::IsTrue   (session.ResolvePath ("").empty());
         }
 
+
+
+        //  A typed name arrives in the process code page, the way the window
+        //  converts it; widening each byte alone breaks every character
+        //  outside Latin-1, such as the euro sign.
+        TEST_METHOD (ResolvePath_NonAsciiName_ConvertsFromNarrowCodePage)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            std::wstring     name    = L"\u20AC\u00E9.bin";
+
+
+
+            session.SetCurrentDirectory (L"C:\\Work");
+
+            Assert::AreEqual (std::wstring (L"C:\\Work\\") + name, session.ResolvePath (TextEncoding::WideToNarrow (name)));
+        }
+
+
+
+        //  A Monitor G whose run never starts leaves nothing of the Monitor's
+        //  return behind: the stack, SP and PC are as they were, and a later
+        //  run through $FF69 does not stop there.
+        TEST_METHOD (MonitorGo_RunFails_ReturnAddressRolledBack)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            Reply            reply;
+
+
+
+            target.memory[0x01FF] = 0x12;
+            target.memory[0x01FE] = 0x34;
+            target.startRunResult = E_FAIL;
+
+            session.ExecuteLine ("mode monitor");
+            reply = session.ExecuteLine ("300G");
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual ((int) 0xFF,   (int) target.registers.sp);
+            Assert::AreEqual ((int) 0x0300, (int) target.registers.pc);
+            Assert::AreEqual ((int) 0x12,   (int) target.memory[0x01FF]);
+            Assert::AreEqual ((int) 0x34,   (int) target.memory[0x01FE]);
+            Assert::IsFalse  (target.hookInstalled, L"no Monitor return left armed");
+        }
 
 
         TEST_METHOD (SearchResults_ResolveAsAtN)
