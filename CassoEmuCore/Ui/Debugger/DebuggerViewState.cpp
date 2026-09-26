@@ -1349,7 +1349,7 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
         {
             if (first == std::string::npos || line[first] != '!')
             {
-                return ExecuteLine (session, line, mode);
+                return ExecuteSessionLine (session, line, mode);
             }
 
             text = line.substr (first + 1);
@@ -1365,7 +1365,7 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
             return ExecutePanelLine (session, text, line, mode);
         }
 
-        return ExecuteLine (session, line, mode);
+        return ExecuteSessionLine (session, line, mode);
     }
 
     //  In Monitor mode only a `/` line is an AppleWin line.
@@ -1373,7 +1373,7 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     {
         if (first == std::string::npos || line[first] != '/')
         {
-            return ExecuteLine (session, line, mode);
+            return ExecuteSessionLine (session, line, mode);
         }
 
         text = line.substr (first + 1);
@@ -1395,7 +1395,7 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
     if (entry == nullptr || entry->availability != CommandAvailability::WindowOnly)
     {
-        return ExecuteLine (session, line, mode);
+        return ExecuteSessionLine (session, line, mode);
     }
 
     reply.command = line;
@@ -1426,6 +1426,37 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     }
 
     session.FormatReply (reply, mode);
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ExecuteSessionLine
+//
+//  A line the session runs. A script it starts runs each of its lines back
+//  through this window, in the mode its command gives, so a script opens
+//  panels and moves panes as the same lines typed would.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebuggerViewState::ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode)
+{
+    DebugSession::ScriptLineRunner  previous = session.GetScriptLineRunner();
+    Reply                           reply;
+
+
+
+    session.SetScriptLineRunner ([this, &session] (const std::string & scriptLine, CommandMode scriptMode)
+    {
+        return ExecuteWindowLine (session, scriptLine, scriptMode);
+    });
+
+    reply = ExecuteLine (session, line, mode);
+    session.SetScriptLineRunner (std::move (previous));
     return reply;
 }
 

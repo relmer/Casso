@@ -266,5 +266,35 @@ namespace DebuggerTests
             reply = rig.Run ("BMG");
             Assert::AreEqual (std::string ("Give a bookmark id."), reply.error.detail);
         }
+
+
+
+        //  A plain ZP fills the lowest free slot, so a saved list replays with
+        //  every pointer's id and state, next to one set by its slot.
+        TEST_METHOD (ZPSAVE_PlainAndSlottedPointers_ReplayAsCommands)
+        {
+            Rig                       rig;
+            std::vector<std::string>  pointers;
+            std::string               script;
+
+
+
+            rig.RunOk ("ZP7 300");
+            rig.RunOk ("ZP 400");
+            rig.RunOk ("ZP 500");
+            rig.RunOk ("ZPD 1");
+            pointers = rig.RunOk ("ZPL").text;
+
+            rig.RunOk ("ZPSAVE z.txt");
+            script = rig.files.PeekContent (L"C:\\Work\\z.txt");
+            rig.RunOk ("ZPC *");
+
+            for (size_t start = 0, end = script.find ('\n'); end != std::string::npos; start = end + 1, end = script.find ('\n', start))
+            {
+                rig.RunOk (script.substr (start, end - start));
+            }
+
+            Assert::IsTrue (pointers == rig.RunOk ("ZPL").text, L"pointers 0 and 1 replay with their ids and states");
+        }
     };
 }

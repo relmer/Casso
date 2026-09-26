@@ -84,7 +84,6 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         std::string  line = content.substr (start, end == std::string::npos ? std::string::npos : end - start);
         size_t       firstNonBlank = line.find_first_not_of (" \t\r");
         bool         isBlank       = firstNonBlank == std::string::npos;
-        Reply        reply;
 
 
 
@@ -101,15 +100,7 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         //  A blank line only ends the line assembler, as in batch.
         if ((!isBlank || session.IsAssembling()) && (isBlank || line[firstNonBlank] != ';'))
         {
-            reply = mode.has_value() ? session.ExecuteLine (line, *mode) : session.ExecuteLine (line);
-            session.FormatReply (reply);
-            result.text.insert (result.text.end(), reply.text.begin(), reply.text.end());
-
-            if (result.status == CommandStatus::Ok)
-            {
-                result.status = reply.status;
-                result.error  = reply.error;
-            }
+            RunScriptLine (session, line, mode, result);
         }
 
         if (end == std::string::npos)
@@ -120,7 +111,53 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         start = end + 1;
     }
 
+    //  An A block the script leaves open ends with it, as a blank line
+    //  would end it, so the next line typed is a command again.
+    if (session.IsAssembling())
+    {
+        RunScriptLine (session, "", mode, result);
+    }
+
     result.data = MessageData { result.text };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::RunScriptLine
+//
+//  One script line, in the given mode or the session's. The first line that
+//  fails gives the script its status.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::RunScriptLine (DebugSession & session, const std::string & line, std::optional<CommandMode> mode, Reply & result)
+{
+    CommandMode  lineMode = mode.value_or (session.GetMode());
+    Reply        reply;
+
+
+
+    if (session.GetScriptLineRunner())
+    {
+        reply = session.GetScriptLineRunner() (line, lineMode);
+    }
+    else
+    {
+        reply = session.ExecuteLine (line, lineMode);
+        session.FormatReply (reply);
+    }
+
+    result.text.insert (result.text.end(), reply.text.begin(), reply.text.end());
+
+    if (result.status == CommandStatus::Ok)
+    {
+        result.status = reply.status;
+        result.error  = reply.error;
+    }
 }
 
 
