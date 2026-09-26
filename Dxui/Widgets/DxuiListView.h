@@ -129,6 +129,10 @@ public:
     //  Measuring needs the text renderer, which only the paint pass holds, so
     //  the fit is applied on the next paint rather than here.
     void  FitColumnToContent        (size_t idx);
+
+    //  Every shown column fitted to its content, as FitColumnToContent does
+    //  one.
+    void  FitAllColumnsToContent    ();
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
     int   GetTotalMeasuredWidthPx   () const;
@@ -718,15 +722,15 @@ private:
     //  A rubber band in an item view: where the press was, in content pixels
     //  so it stays put as the view scrolls, where the pointer is now, and the
     //  selection a Ctrl press began with, which the band adds to.
-    bool              m_bandActive     = false;
-    POINT             m_bandStart      = {};
-    POINT             m_bandEnd        = {};
-    std::vector<int>  m_bandBase;
-    int               m_lastClickRow   = -1;
-    int64_t           m_lastClickMs    = 0;
-    int               m_lastDividerCol = -1;
-    int64_t           m_lastDividerMs  = 0;
-    int               m_pendingFitCol  = -1;
+    bool                 m_bandActive     = false;
+    POINT                m_bandStart      = {};
+    POINT                m_bandEnd        = {};
+    std::vector<int>     m_bandBase;
+    int                  m_lastClickRow   = -1;
+    int64_t              m_lastClickMs    = 0;
+    int                  m_lastDividerCol = -1;
+    int64_t              m_lastDividerMs  = 0;
+    std::vector<size_t>  m_pendingFits;
 
     //  Characters typed toward a row, and when the last one arrived.
     std::wstring  m_typeAhead;

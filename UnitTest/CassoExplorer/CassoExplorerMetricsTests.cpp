@@ -97,6 +97,20 @@ public:
     }
 
 
+    TEST_METHOD (ListColumnShown_NameAlways_CatalogOnlyInsideAnImage)
+    {
+        using W = CassoExplorerWindow;
+        using C = CatalogModel::Column;
+
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Name,     false, false), L"Name shows even when unchecked");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Type,     true,  false), L"a chosen column shows");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Type,     false, false), L"an unchosen one does not");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Address,  true,  false), L"a catalog column hides in a host folder");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Locked,   true,  true),  L"and shows inside an image");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Locked,   false, true),  L"unless unchosen");
+    }
+
+
     TEST_METHOD (FitPanes_HiddenPreview_TakesNothing)
     {
         using W = CassoExplorerWindow;

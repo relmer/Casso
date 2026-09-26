@@ -207,6 +207,10 @@ public:
 
     static PaneWidths  FitPanes (int bodyDip, int treeDip, int previewDip);
 
+    //  Whether a list column shows: the user's choice from the header's menu,
+    //  and the catalog's two columns only inside a disk image.
+    static bool  IsListColumnShown (size_t column, bool chosen, bool insideImage);
+
     //  File Explorer's list row, measured at nine scales from 100% to 350%:
     //  twice 14 dip rounded up, and a pixel more at any scale that is not a
     //  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.
@@ -360,6 +364,7 @@ private:
     bool  IsChecked    (int id) const;
     void  ShowAbout();
 
+    void  ShowListHeaderMenu (int x, int y, int column);
     void  ShowListContextMenu (int x, int y);
     void  ShowHexContextMenu  (int x, int y);
     void  ShowTextContextMenu (int x, int y);
@@ -474,6 +479,9 @@ private:
     Win32ShellIcons                              m_listIcons;
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
+
+    //  The list columns the user has chosen to show, from the header's menu.
+    std::vector<bool>                            m_listColumnChosen;
     std::unique_ptr<FolderWatch>                 m_folderWatch;
     bool                                         m_refreshingTree    = false;
     bool                                         m_applyingTheme     = false;

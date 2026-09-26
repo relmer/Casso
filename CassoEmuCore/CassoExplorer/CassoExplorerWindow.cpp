@@ -435,6 +435,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_list->SetFontDip (kProseFontDip);
     m_list->SetRowHeightPxFn (&CassoExplorerWindow::GetListRowHeightPx);
     m_list->SetColumns (CassoExplorerBrowser::GetColumns());
+    m_listColumnChosen.assign (CassoExplorerBrowser::GetColumns().size(), true);
     m_list->SetPreciseAutoFit (true);
 
     //  Columns keep the widths they are given, and a pane too narrow for them
@@ -1123,8 +1124,10 @@ void CassoExplorerWindow::FillList()
 
     //  Address and Locked are a disk catalog's; a host folder has neither, so
     //  its list shows only Explorer's four columns.
-    m_list->SetColumnVisible ((size_t) CatalogModel::Column::Address, m_browser.IsImageLocation());
-    m_list->SetColumnVisible ((size_t) CatalogModel::Column::Locked,  m_browser.IsImageLocation());
+    for (size_t c = 0; c < m_listColumnChosen.size(); c++)
+    {
+        m_list->SetColumnVisible (c, IsListColumnShown (c, m_listColumnChosen[c], m_browser.IsImageLocation()));
+    }
 
     m_list->UpdateAutoFitFromRows();
 
@@ -2127,6 +2130,13 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         if (press)
         {
             SetFocusPane (Pane::List);
+        }
+
+        //  The header has a menu of its own, for its columns.
+        if (press && ev.button == DxuiMouseButton::Right && local.positionDip.y < m_list->GetHeaderHeightPx())
+        {
+            ShowListHeaderMenu (point.x, point.y, m_list->HitTestHeaderColumn (local.positionDip.x, local.positionDip.y));
+            return true;
         }
 
         if (press && ev.button == DxuiMouseButton::Right)
@@ -3637,6 +3647,89 @@ int CassoExplorerWindow::GetIconOrder (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Share:  return 4;
         default:                           return 5;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowListHeaderMenu
+//
+//  Explorer's header menu: fit the column under the pointer, fit them all,
+//  then every column with a check by those showing. Name always shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowListHeaderMenu (int x, int y, int column)
+{
+    std::vector<DxuiPopupMenuItem>     items;
+    std::vector<DxuiListView::Column>  columns = CassoExplorerBrowser::GetColumns();
+
+
+
+    m_menuCommands.clear();
+
+    if (column >= 0)
+    {
+        AddMenuCommand (items, L"Size column to &fit", [this, column]()
+        {
+            m_list->FitColumnToContent ((size_t) column);
+            Invalidate();
+        });
+    }
+
+    AddMenuCommand (items, L"Size &all columns to fit", [this]()
+    {
+        m_list->FitAllColumnsToContent();
+        Invalidate();
+    });
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    for (size_t c = 0; c < columns.size() && c < m_listColumnChosen.size(); c++)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->label     = columns[c].title;
+        command->isChecked = [this, c]() { return m_listColumnChosen[c]; };
+        command->isEnabled = [c]() { return c != (size_t) CatalogModel::Column::Name; };
+        command->dispatch  = [this, c]()
+        {
+            m_listColumnChosen[c] = !m_listColumnChosen[c];
+            FillList();
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsListColumnShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsListColumnShown (size_t column, bool chosen, bool insideImage)
+{
+    bool  catalog = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
+
+
+
+    if (column == (size_t) CatalogModel::Column::Name)
+    {
+        return true;
+    }
+
+    return chosen && (insideImage || !catalog);
 }
 
 

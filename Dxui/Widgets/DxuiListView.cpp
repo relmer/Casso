@@ -1180,8 +1180,30 @@ void DxuiListView::FitColumnToContent (size_t idx)
     //  The content has to be measured against the current rows, and only the
     //  paint pass holds a text renderer, so ask for a measurement and leave
     //  the width to ApplyPendingFit.
-    m_pendingFitCol = (int) idx;
-    m_measureDirty  = true;
+    if (std::find (m_pendingFits.begin(), m_pendingFits.end(), idx) == m_pendingFits.end())
+    {
+        m_pendingFits.push_back (idx);
+    }
+
+    m_measureDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FitAllColumnsToContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::FitAllColumnsToContent()
+{
+    for (size_t c = 0; c < m_columns.size(); c++)
+    {
+        FitColumnToContent (c);
+    }
 }
 
 
@@ -1198,32 +1220,31 @@ void DxuiListView::FitColumnToContent (size_t idx)
 
 void DxuiListView::ApplyPendingFit()
 {
-    int  minPx     = m_scaler.ToPx (s_kMinColWidthDip);
-    int  idx       = m_pendingFitCol;
-    int  contentPx = 0;
+    int                  minPx     = m_scaler.ToPx (s_kMinColWidthDip);
+    int                  contentPx = 0;
+    std::vector<size_t>  pending   = std::move (m_pendingFits);
 
 
 
-    if (idx < 0)
+    m_pendingFits.clear();
+
+    for (size_t idx : pending)
     {
-        return;
-    }
+        contentPx = GetColumnContentWidthPx (idx);
 
-    m_pendingFitCol = -1;
-    contentPx       = GetColumnContentWidthPx ((size_t) idx);
+        if (contentPx <= 0)
+        {
+            continue;
+        }
 
-    if (contentPx <= 0)
-    {
-        return;
-    }
+        SetColumnOverrideWidthPx (idx, (std::max) (minPx, contentPx));
 
-    SetColumnOverrideWidthPx ((size_t) idx, (std::max) (minPx, contentPx));
-
-    //  Reported here rather than at the double-click, since this is where the
-    //  width the host would store is finally known.
-    if (m_onColumnResized)
-    {
-        m_onColumnResized (idx, GetColumnOverrideWidthPx ((size_t) idx));
+        //  Reported here rather than at the double-click, since this is where
+        //  the width the host would store is finally known.
+        if (m_onColumnResized)
+        {
+            m_onColumnResized ((int) idx, GetColumnOverrideWidthPx (idx));
+        }
     }
 }
 
