@@ -392,6 +392,12 @@ bool AppleWinParser::TryParseRegisterArguments (const Arguments & args, DebugCom
     name  = ToUpper (joined.substr (0, split));
     value = (split == std::string::npos) ? std::string() : joined.substr (split);
 
+    if (name.empty())
+    {
+        error = "R takes a register and a value. The registers are A, X, Y, P, S, and PC.";
+        return false;
+    }
+
     if (std::find (std::begin (kRegisters), std::end (kRegisters), name) == std::end (kRegisters))
     {
         error = std::format ("{} is not a register. The registers are A, X, Y, P, S, and PC.", name);
@@ -1802,7 +1808,7 @@ bool AppleWinParser::TryParseSearchWord (
     command.values.push_back ((Byte) value);
     command.mask.push_back (kAllBits);
 
-    if (value > kAllBits || word.size() > kByteWidth)
+    if (value > kAllBits)
     {
         command.values.push_back ((Byte) (value >> 8));
         command.mask.push_back (kAllBits);

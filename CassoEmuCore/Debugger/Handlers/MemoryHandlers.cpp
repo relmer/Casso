@@ -389,7 +389,7 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
     std::optional<BinaryFormat>    format;
     std::optional<Word>            address;
     BinaryFormat                   chosen    = BinaryFormat::Raw;
-    size_t                         comma     = name.rfind (',');
+    size_t                         comma     = 0;
     std::string                    content;
     std::string                    error;
     BinaryImage                    image;
@@ -399,6 +399,20 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
     HRESULT                        hr        = S_OK;
 
 
+
+    // A name quoted whole may carry the format word inside the quotes.
+    if (name.size() >= 2 && name.front() == '"' && name.back() == '"')
+    {
+        name = name.substr (1, name.size() - 2);
+    }
+
+    comma = name.rfind (',');
+
+    if (command.hasA2 && command.a2 < command.a1)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "The range ends before it starts.");
+        return;
+    }
 
     if (comma != std::string::npos && BinaryImageReader::TryGetFormatName (name.substr (comma + 1), chosen))
     {
@@ -628,6 +642,20 @@ void MemoryHandlers::WriteIo (DebugSession & session, const DebugCommand & comma
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "OUT takes an address and one or more values.");
         return;
+    }
+
+    for (size_t i = 0; i < command.values.size(); ++i)
+    {
+        uint32_t  address = command.a1 + (uint32_t) i;
+
+
+
+        if (address > kAddressSpace || session.GetTarget().GetRegion ((Word) address) != MemoryRegion::Io)
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments",
+                            std::format ("${:04X} is not an I/O address. OUT writes $C000-$C0FF.", address));
+            return;
+        }
     }
 
     for (size_t i = 0; i < command.values.size(); ++i)

@@ -571,7 +571,7 @@ void AppleWinFormatter::FormatFileIo (const FileIoData & data, Lines & lines)
 
 void AppleWinFormatter::FormatCompare (const CompareData & data, Lines & lines)
 {
-    lines.push_back (std::format ("Compared {} bytes, {} differ.", data.compared, data.differences.size()));
+    lines.push_back (std::format ("Compared {} byte{}, {} differ.", data.compared, data.compared == 1 ? "" : "s", data.differences.size()));
 
     for (const CompareDifference & difference : data.differences)
     {

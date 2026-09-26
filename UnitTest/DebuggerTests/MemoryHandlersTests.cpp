@@ -342,6 +342,69 @@ namespace DebuggerTests
 
 
             Assert::AreEqual (std::string ("Filled 1 byte at $0300-$0300."), rig.RunOk ("F 300:300 AA").text.at (0));
+            Assert::IsTrue   (rig.RunOk ("MC 500 300:300").text.at (0).starts_with ("Compared 1 byte,"));
+        }
+
+
+
+        //  A format word after a GSSquared load's file name stays outside the
+        //  quotes GSSquared puts around the name, so it still picks the format.
+        TEST_METHOD (GSSquaredLoad_FormatWord_PicksFormat)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dos", std::string ("\x00\x07\x02\x00\xEA\x60", 6));
+
+            reply = rig.session.ExecuteLine ("load prog.dos,DOS 900", CommandMode::GSSquared);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::AreEqual ((Byte) 0xEA, rig.target.memory[0x0900], L"the header is not loaded as data");
+        }
+
+
+
+        TEST_METHOD (BLOAD_ReversedRange_Fails)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.RunFails ("BLOAD prog.bin 300:2FF", "invalid arguments");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0300]);
+        }
+
+
+
+        //  A search item's width comes from its value, as ME's does, not from
+        //  how many characters it was typed with.
+        TEST_METHOD (Search_ByteValueTypedLong_IsOneByte)
+        {
+            Rig  rig;
+
+
+
+            Store (rig, 0x0310, { 0x41, 0x42 });
+
+            Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF $41").text.at (0));
+            Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF #65").text.at (0));
+            Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF 041").text.at (0));
+        }
+
+
+
+        TEST_METHOD (OUT_OutsideIo_Fails)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("OUT 300 5A",      "invalid arguments");
+            rig.RunFails ("OUT C0FF 5A 5B",  "invalid arguments");
+            Assert::AreEqual ((size_t) 0, rig.target.ioWrites.size(), L"nothing is written when any address is not I/O");
         }
     };
 }
