@@ -120,6 +120,34 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (RUN_ScriptThatRunsItself_StopsAtTheNestingLimit)
+        {
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\self.txt", "RUN self.txt\n");
+
+            lines = rig.RunOk ("RUN self.txt").text;
+            Assert::IsFalse (lines.empty());
+            Assert::IsTrue  (lines.back().find ("nested") != std::string::npos);
+        }
+
+
+
+        TEST_METHOD (RUN_ScriptWithByteOrderMark_RunsTheFirstLine)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\bom.txt", "\xEF\xBB\xBF" "ECHO one\n");
+            Assert::AreEqual (std::string ("one"), rig.RunOk ("RUN bom.txt").text.at (0));
+        }
+
+
+
         TEST_METHOD (SAVE_WritesAllFourScripts_LoadReplays)
         {
             Rig                 rig;
