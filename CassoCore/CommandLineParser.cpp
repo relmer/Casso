@@ -4243,6 +4243,12 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
                           << FormatLongOption ("--machine", options.flagPrefix) << " cannot be used together\n";
         options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
     }
+    else if (debug.isAttach && !debug.output.empty())
+    {
+        Refusal (options) << "Error: " << FormatLongOption ("--attach", options.flagPrefix) << " and "
+                          << FormatLongOption ("--output", options.flagPrefix) << " cannot be used together\n";
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+    }
     else if (!debug.isAttach && debug.machine.empty())
     {
         Refusal (options) << "Error: required parameter " << FormatLongOption ("--machine", options.flagPrefix) << " <name> missing\n";

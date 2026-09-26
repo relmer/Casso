@@ -158,6 +158,20 @@ namespace DebugOptionsParseTests
 
 
 
+        //  An attached session renders in its own format, so --output has
+        //  nothing to change there.
+        TEST_METHOD (Attach_RefusesAnOutputFormat)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--attach", "5", "--output", "windbg", "--command", "r" });
+
+
+
+            Assert::IsTrue (IsRefused (options));
+            Assert::IsTrue (options.refusalMessage.find ("--output") != std::string::npos, Widen (options.refusalMessage).c_str());
+        }
+
+
+
         TEST_METHOD (Timeout_DefaultsToTwoMinutes)
         {
             CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--attach", "5", "--command", "r" });
