@@ -140,19 +140,31 @@ void ConfigHandlers::PrintDirectory (DebugSession & session, Reply & reply)
 //
 //  ConfigHandlers::ChangeDirectory
 //
-//  A relative path is taken from the current directory.
+//  A relative path is taken from the current directory; . and .. are
+//  resolved, so the directory prints as a plain path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
+    std::wstring  directory;
+
+
+
     if (command.text.empty())
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "CD takes a directory.");
         return;
     }
 
-    session.SetCurrentDirectory (session.ResolvePath (command.text));
+    directory = std::filesystem::path (session.ResolvePath (command.text)).lexically_normal().wstring();
+
+    if (directory.size() > 3 && directory.ends_with (L'\\'))
+    {
+        directory.pop_back();
+    }
+
+    session.SetCurrentDirectory (directory);
     PrintDirectory (session, reply);
 }
 
@@ -338,7 +350,15 @@ void ConfigHandlers::Disk (DebugSession & session, const DebugCommand & command,
 
     stream >> verb;
 
-    if (verb.empty() || verb == "INFO")
+    if ((verb.empty() || verb == "INFO") && info.disks.empty())
+    {
+        reply.data = MessageData { { "No disk drives." } };
+    }
+    else if (verb == "SLOT" && info.disks.empty())
+    {
+        reply.data = MessageData { { "No Disk II card." } };
+    }
+    else if (verb.empty() || verb == "INFO")
     {
         for (size_t drive = 0; drive < info.disks.size(); ++drive)
         {
@@ -379,9 +399,12 @@ void ConfigHandlers::Disk (DebugSession & session, const DebugCommand & command,
 void ConfigHandlers::Log (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     static constexpr const char * kNames[] = { "ERROR", "INFO", "ALL" };
-    std::string                   level    = ToUpper (command.text);
+    std::istringstream            stream   (ToUpper (command.text));
+    std::string                   level;
 
 
+
+    stream >> level;
 
     if      (level == "NONE" || level == "OFF" || level == "ERROR")                       { session.SetLogLevel (LogLevel::Error); }
     else if (level == "WARN" || level == "INFO" || level == "DEFAULT" || level == "ON")   { session.SetLogLevel (LogLevel::Info); }
@@ -568,20 +591,24 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    CommandMode  mode = session.GetMode();
-    std::string  text;
+    CommandMode         mode = session.GetMode();
+    std::istringstream  stream (command.text);
+    std::string         word;
+    std::string         text;
 
 
 
-    if (command.text.empty())
+    stream >> word;
+
+    if (word.empty())
     {
         reply.data = MessageData { CommandModeHelp::BuildHelp (mode) };
         return;
     }
 
-    if (!CommandModeHelp::TryDescribe (mode, command.text, text))
+    if (!CommandModeHelp::TryDescribe (mode, word, text))
     {
-        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (command.text)));
+        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (word)));
         return;
     }
 

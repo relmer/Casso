@@ -46,6 +46,35 @@ namespace DebuggerTests
 
 
 
+
+        TEST_METHOD (CD_DotDot_LeavesANormalDirectory)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("CD C:\\Work\\disks");
+            Assert::AreEqual (std::string ("C:\\Work"), rig.RunOk ("CD ..").text.at (0));
+            Assert::AreEqual (std::string ("C:\\Work"), rig.RunOk ("CD .").text.at (0));
+            Assert::AreEqual (std::string ("C:\\"),     rig.RunOk ("CD ..\\..").text.at (0));
+            Assert::AreEqual (std::wstring (L"C:\\"),   rig.session.GetCurrentDirectory());
+        }
+
+
+
+
+        TEST_METHOD (LOG_HELP_TakeTheFirstWord)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("Log: ALL"), rig.RunOk ("LOG ALL x").text.at (0));
+            Assert::IsTrue   (rig.RunOk ("HELP BP extra").text.at (0).starts_with ("BP"));
+        }
+
+
+
         TEST_METHOD (ECHO_PRINT_PRINTF_CALC)
         {
             Rig    rig;
@@ -286,6 +315,19 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Disk slot: 6"), rig.RunOk ("DISK SLOT").text.at (0));
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("DISK EJECT 1").status);
             rig.RunFails ("DISK FROB", "invalid arguments");
+        }
+
+
+
+
+        TEST_METHOD (DISK_MachineWithNoDiskCard_ListsNoDrives)
+        {
+            MachineHandlerRig<ConfigHandlers>  rig;
+
+
+
+            Assert::AreEqual (std::string ("No disk drives."),  rig.RunOk ("DISK").text.at (0));
+            Assert::AreEqual (std::string ("No Disk II card."), rig.RunOk ("DISK SLOT").text.at (0));
         }
 
 

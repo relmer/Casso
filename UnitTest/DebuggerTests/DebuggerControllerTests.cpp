@@ -43,7 +43,7 @@ namespace DebuggerControllerTests
 
 
             explicit Rig (bool paused = false) :
-                machine    (std::string ("Apple2e"), TestMachine::Slots::Empty),
+                machine    (std::string ("Apple2e"), TestMachine::Slots::DiskOnly),
                 controller (machine, InitCpu (cpuManager, paused), transport, files,
                             [] (ChannelHello & hello) { hello.title = "test"; hello.machine = "Apple2e"; },
                             4242)

@@ -492,7 +492,7 @@ const Microcode * MachineDebugTarget::GetInstructionSet() const
 //  MachineDebugTarget::GetMachineInfo
 //
 //  The machine's name and slot 6's two drives, with an empty entry for an
-//  empty drive.
+//  empty drive. A machine with no Disk II controller has no drives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -506,6 +506,11 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
 
 
     info.name = TextEncoding::WideToNarrow (name);
+
+    if (m_host.GetRefs().diskController == nullptr)
+    {
+        return info;
+    }
 
     for (int drive = 0; drive < DiskImageStore::kDriveCount; ++drive)
     {
