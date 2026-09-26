@@ -527,6 +527,21 @@ namespace DebuggerTests
 
 
 
+        //  A memory range that is reversed or wraps past $FFFF covers no
+        //  bytes, so every command taking one reports it.
+        TEST_METHOD (MemoryRange_ReversedOrWrappingIsAnError)
+        {
+            ParseFails ("D 310:300",           ParseStatus::Invalid);
+            ParseFails ("D FFF0,20",           ParseStatus::Invalid);
+            ParseFails ("U 310:300",           ParseStatus::Invalid);
+            ParseFails ("F 310:300 0",         ParseStatus::Invalid);
+            ParseFails ("S 310:300 41",        ParseStatus::Invalid);
+            ParseFails ("BSAVE f.bin 310:300", ParseStatus::Invalid);
+            Assert::AreEqual ((Word) 0xFFFF, ParseOk ("D FFF0,10").command.a2);
+            Assert::AreEqual ((Word) 0x0300, ParseOk ("D 300:300").command.a2);
+        }
+
+
         //  A reversed range, or a length that runs past $FFFF, could never
         //  match an access, so it is an error rather than a dead entry.
         TEST_METHOD (BreakpointRange_ReversedOrWrappingIsAnError)

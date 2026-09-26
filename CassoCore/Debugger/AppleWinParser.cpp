@@ -1609,6 +1609,13 @@ bool AppleWinParser::TryParseRange (
         command.a2 = (Word) (command.a1 + second - 1);
     }
 
+    //  A reversed range, or a length past $FFFF that wraps, covers no bytes.
+    if (command.a2 < command.a1)
+    {
+        error = std::format ("{} ends before it begins or runs past $FFFF.", text);
+        return false;
+    }
+
     return true;
 }
 
