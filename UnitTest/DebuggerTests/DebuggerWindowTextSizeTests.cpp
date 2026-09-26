@@ -29,7 +29,7 @@ namespace DebuggerTests
     class QuietDebuggerHost : public IDebuggerWindowHost
     {
     public:
-        void  RunDebuggerCommand      (const std::string &)                      override {}
+        void  RunDebuggerCommand      (const std::string & line)                 override { commands.push_back (line); }
         void  PauseDebugger           ()                                         override {}
         void  SetDebuggerCodeLines    (int, int)                                 override {}
         void  SetDebuggerCodeAddress  (std::optional<Word>, int)                 override {}
@@ -58,6 +58,7 @@ namespace DebuggerTests
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
         std::vector<std::string>  goTos;
+        std::vector<std::string>  commands;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -94,6 +95,36 @@ namespace DebuggerTests
         using DebuggerWindow::GetTextZoom;
         using DebuggerWindow::SubmitMemoryBox;
         using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::OnMappedCommand;
+        using DebuggerWindow::RouteMappedKey;
+        using DebuggerWindow::ApplyKeyScheme;
+        using DebuggerWindow::AppendConsole;
+        using DebuggerWindow::IsFindOpen;
+        using DebuggerWindow::GetConsoleView;
+        using DebuggerWindow::GetFindBox;
+        using DebuggerWindow::GetFindCaseBox;
+        using DebuggerWindow::GetFindStatus;
+
+        //  A key as the window's message handling delivers it: to the window
+        //  first, then to the key scheme if nothing took it.
+        bool  Press (WPARAM vk, bool ctrl = false, bool shift = false)
+        {
+            DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, shift, ctrl, false };
+
+            return OnKey (ev) || RouteMappedKey (ev);
+        }
+
+        void  Type (const std::wstring & text)
+        {
+            for (wchar_t ch : text)
+            {
+                DxuiKeyEvent  down  = { DxuiKeyEventKind::Down, (WPARAM) (ch == L' ' ? VK_SPACE : towupper (ch)), false, false, false, false };
+                DxuiKeyEvent  typed = { DxuiKeyEventKind::Char, (WPARAM) ch, false, false, false, false };
+
+                (void) (OnKey (down) || RouteMappedKey (down));
+                (void) OnKey (typed);
+            }
+        }
     };
 
 
@@ -300,6 +331,163 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 1, host.goTos.size(), L"A is the register, resolved against the machine");
             Assert::AreEqual (std::string ("a"), host.goTos[0]);
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerWindowFindTests
+    //
+    //  Find in the console, driven by the keys as the window receives them: the
+    //  window first, then the key scheme. Typing a search goes to the find box
+    //  and never to the scheme, even in one that steps on Space or a letter.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerWindowFindTests)
+    {
+    public:
+
+        static void  Build (TextSizeWindow & window, DebuggerKeyScheme scheme)
+        {
+            DxuiDpiScaler  scaler;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.ApplyKeyScheme (scheme);
+            window.AppendConsole ({ "LDA #$00", "STA $C030", "sta $0300", "ORA #$01" });
+        }
+
+
+        TEST_METHOD (CtrlFOpensTheBarAndTypingStaysInIt)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window, DebuggerKeyScheme::AppleWin);
+
+            Assert::IsFalse  (window.IsFindOpen());
+            Assert::IsTrue   (window.Press ('F', true), L"Ctrl+F");
+            Assert::IsTrue   (window.IsFindOpen());
+            Assert::IsTrue   (window.GetFindBox()->IsFocused(), L"the keys go to the find box");
+
+            window.Type (L"sta ");
+
+            Assert::AreEqual (std::wstring (L"sta "), window.GetFindBox()->GetText());
+            Assert::AreEqual ((size_t) 0, host.commands.size(), L"AppleWin steps on Space, but not from the find box");
+
+            Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
+            Assert::AreEqual (std::wstring (L"STA "), window.GetConsoleView()->GetSelectionText(), L"case does not matter by default");
+            Assert::AreEqual ((size_t) 0, host.commands.size(), L"and Enter runs nothing");
+        }
+
+
+        TEST_METHOD (F3AndShiftF3StepThroughTheMatchesAndGoRound)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window, DebuggerKeyScheme::VisualStudio);
+
+            window.Press ('F', true);
+            window.Type  (L"sta");
+
+            Assert::IsTrue   (window.Press (VK_F3), L"F3 from the find box");
+            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText());
+
+            Assert::IsTrue   (window.Press (VK_F3));
+            Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"the next one, on the last line");
+            Assert::AreEqual (std::wstring(),        window.GetFindStatus());
+
+            Assert::IsTrue   (window.Press (VK_F3));
+            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText(), L"round to the first again");
+            Assert::AreEqual (std::wstring (L"Continued from the top"), window.GetFindStatus());
+
+            Assert::IsTrue   (window.Press (VK_F3, false, true), L"Shift+F3");
+            Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"back round to the last");
+            Assert::AreEqual (std::wstring (L"Continued from the bottom"), window.GetFindStatus());
+        }
+
+
+        TEST_METHOD (MatchCaseSkipsTheOtherCase)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window, DebuggerKeyScheme::GSSquared);
+
+            window.Press ('F', true);
+            window.Type  (L"sta");
+            window.GetFindCaseBox()->SetChecked (true);
+
+            Assert::IsTrue   (window.Press (VK_RETURN));
+            Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"only the lowercase line");
+
+            Assert::IsTrue   (window.Press (VK_RETURN));
+            Assert::AreEqual (std::wstring (L"Continued from the top"), window.GetFindStatus(), L"the only match, found again by going round");
+
+            window.GetFindBox()->SetText (L"");
+            window.Type  (L"ora");
+
+            Assert::AreEqual (std::wstring (L"ora"), window.GetFindBox()->GetText());
+            Assert::IsTrue   (window.Press (VK_RETURN));
+            Assert::AreEqual (std::wstring (L"No matches"), window.GetFindStatus(), L"only ORA, in capitals");
+            Assert::AreEqual ((size_t) 0, host.commands.size(), L"GSSquared steps on O and R, but not from the find box");
+        }
+
+
+        TEST_METHOD (NoMatchSaysSoAndEscapeCloses)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window, DebuggerKeyScheme::VisualStudio);
+
+            window.OnMappedCommand (DebuggerCommands::kFind);
+            Assert::IsTrue   (window.IsFindOpen(), L"the command bar's Find opens the bar as Ctrl+F does");
+
+            window.Type  (L"jmp");
+
+            Assert::IsTrue   (window.Press (VK_RETURN));
+            Assert::AreEqual (std::wstring (L"No matches"), window.GetFindStatus());
+            Assert::IsFalse  (window.GetConsoleView()->HasSelection());
+
+            Assert::IsTrue   (window.Press (VK_ESCAPE));
+            Assert::IsFalse  (window.IsFindOpen());
+            Assert::IsFalse  (window.GetFindBox()->IsVisible(), L"the bar is hidden");
+            Assert::IsFalse  (window.GetFindBox()->IsFocused(), L"and the keys go back to the command line");
+        }
+
+
+        TEST_METHOD (F3WithNothingToFindOpensTheBar)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window, DebuggerKeyScheme::AppleWin);
+
+            Assert::IsTrue   (window.Press (VK_F3));
+            Assert::IsTrue   (window.IsFindOpen());
+            Assert::IsTrue   (window.GetFindBox()->IsFocused());
         }
     };
 }

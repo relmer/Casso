@@ -96,6 +96,27 @@ public:
     std::wstring  GetSelectionText () const;
     void          CopySelection    () const;
 
+    //  How a search ended: no match, a match, or a match reached only by
+    //  going round past the end of the text (the start, searching backward).
+    enum class FindResult { NotFound, Found, Wrapped };
+
+    //  Selects the next match after the selection, or the one before it, and
+    //  scrolls it into view. A match is always searched for all the way round.
+    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool forward);
+
+    //  The search itself, over each row's text with its cells joined by tabs.
+    //  A forward search takes the first match starting at or after `from`, a
+    //  backward one the last match starting before it.
+    static FindResult  FindInRows (const std::vector<std::wstring> & rows,
+                                   const std::wstring              & needle,
+                                   bool                              matchCase,
+                                   bool                              forward,
+                                   Position                          from,
+                                   Position                        & outStart);
+
+    //  Scrolls as little as it takes to show the line a position is drawn on.
+    void  ScrollToPosition (Position pos);
+
     bool  IsInteracting      () const { return m_dragging || m_vertScroll.IsDragging(); }
     bool  IsScrollbarVisible () const { return (int) m_lines.size() > GetLineCap(); }
 
@@ -142,6 +163,11 @@ private:
     void          EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void          SelectWordAt      (Position pos);
     void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const;
+    int           GetLineOfPosition (Position pos) const;
+    static bool   TryFindOnce       (const std::vector<std::wstring> & rows, const std::wstring & needle, bool forward, Position from, Position & outStart);
+
+    //  A copy in lower case, one character for one.
+    static std::wstring  GetLowered (const std::wstring & text);
 
     //  Word characters, spaces and tabs are three kinds; a run of one kind is
     //  what a double-click selects.

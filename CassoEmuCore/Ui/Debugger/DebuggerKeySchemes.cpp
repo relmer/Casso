@@ -17,6 +17,9 @@ static constexpr DxuiKeyChord  s_kVisualStudioKeys[] =
     { VK_F11, false, false, true,  (int) Action::StepOut          },
     { VK_F9,  false, false, false, (int) Action::ToggleBreakpoint },
     { VK_F10, true,  false, false, (int) Action::RunToCursor      },
+    { 'F',    true,  false, false, (int) Action::Find             },
+    { VK_F3,  false, false, false, (int) Action::FindNext         },
+    { VK_F3,  false, false, true,  (int) Action::FindPrevious     },
 };
 
 static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
@@ -28,6 +31,9 @@ static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
     { VK_SPACE,  false, false, true,  (int) Action::StepOut          },
     { VK_F9,     false, false, false, (int) Action::ToggleBreakpoint },
     { VK_DOWN,   true,  false, false, (int) Action::RunToCursor      },
+    { 'F',       true,  false, false, (int) Action::Find             },
+    { VK_F3,     false, false, false, (int) Action::FindNext         },
+    { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
 };
 
 static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
@@ -39,6 +45,9 @@ static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
     { 'R',       false, false, false, (int) Action::StepOut          },
     { VK_F9,     false, false, false, (int) Action::ToggleBreakpoint },
     { VK_F10,    true,  false, false, (int) Action::RunToCursor      },
+    { 'F',       true,  false, false, (int) Action::Find             },
+    { VK_F3,     false, false, false, (int) Action::FindNext         },
+    { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
 };
 
 

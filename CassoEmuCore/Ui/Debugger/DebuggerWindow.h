@@ -4,6 +4,7 @@
 #include "Window/DxuiDockedWindow.h"
 #include "Core/DxuiFocusManager.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Ui/Debugger/DebuggerCommands.h"
@@ -166,6 +167,21 @@ protected:
     void             SubmitMemoryBox ();
     DxuiTextInput  * GetMemoryBox    () const { return m_memoryBox; }
 
+    //  Protected so a test can write to the console as the host's lines do,
+    //  and search it as the find bar does.
+    void             AppendConsole   (const std::vector<std::string> & lines);
+    void             OpenFind        ();
+    void             CloseFind       ();
+    void             FindInConsole   (bool forward);
+    bool             IsFindOpen      () const { return m_findOpen; }
+    DxuiTextView   * GetConsoleView  () const { return m_consoleView; }
+    DxuiTextInput  * GetFindBox      () const { return m_findBox; }
+    DxuiCheckbox   * GetFindCaseBox  () const { return m_findCaseBox; }
+    std::wstring     GetFindStatus   () const { return m_findStatusText; }
+
+    //  Protected so a test can choose a scheme as the Keys menu does.
+    void             ApplyKeyScheme  (DebuggerKeyScheme scheme);
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -229,12 +245,16 @@ private:
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
-    void     AppendConsole    (const std::vector<std::string> & lines);
     void     RunCommand       (const std::string & line);
-    void     ApplyKeyScheme   (DebuggerKeyScheme scheme);
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     void     CycleKeyScheme   ();
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
+    bool     RouteFindKey     (const DxuiKeyEvent & ev, bool & handled);
+    void     ConfigureFindBar ();
+    void     PlaceFindBar     ();
+    void     SetFindBarVisible (bool shown);
+    std::vector<IDxuiControl *>  GetFindControls () const;
+    static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, bool forward);
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
     void     SetCommandBarMenus  ();
@@ -437,6 +457,15 @@ private:
     std::string                                                                      m_machine;
     DxuiTextView                                                                   * m_consoleView        = nullptr;
     DxuiTextInput                                                                  * m_commandBox         = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_findBar;
+    bool                                                                             m_findOpen           = false;
+    std::wstring                                                                     m_findStatusText;
+    DxuiTextInput                                                                  * m_findBox            = nullptr;
+    DxuiCheckbox                                                                   * m_findCaseBox        = nullptr;
+    DxuiButton                                                                     * m_findPrevButton     = nullptr;
+    DxuiButton                                                                     * m_findNextButton     = nullptr;
+    DxuiButton                                                                     * m_findCloseButton    = nullptr;
+    DxuiLabel                                                                      * m_findStatus         = nullptr;
     DxuiTextInput                                                                  * m_memoryBox          = nullptr;
     DxuiTextInput                                                                  * m_pokeBox            = nullptr;
     DxuiButton                                                                     * m_pokeButton         = nullptr;
