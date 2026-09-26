@@ -270,4 +270,8 @@ struct DebugCommand
     std::optional<uint64_t>  first;        // HISTORY: the window's first entry
     CommandMode              mode     = CommandMode::AppleWin;
     OutputFormat             output   = OutputFormat::AppleWin;
+
+    //  The debugger window reading for its panes: the listing cursors a bare
+    //  U or D continues from stay where the user's last listing put them.
+    bool                     isPaneRead = false;
 };

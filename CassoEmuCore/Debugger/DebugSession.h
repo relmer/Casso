@@ -92,6 +92,11 @@ public:
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
 
+    // An AppleWin line the debugger window runs to read the machine for its
+    // panes. It runs while a line assembly is open, and leaves the cursors a
+    // bare U or D continues from where the user's last listing put them.
+    Reply  ExecutePaneLine       (const std::string & line);
+
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;

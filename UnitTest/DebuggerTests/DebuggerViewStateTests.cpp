@@ -1755,12 +1755,129 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (RunInWindow (rig, "MD1 1000").status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x1000, rig.view.GetMemoryAddress());
 
-            Assert::IsTrue   (RunInWindow (rig, "/MT2 $2000", CommandMode::Monitor).status == CommandStatus::Ok);
+            Assert::IsTrue   (RunInWindow (rig, "/MT1 $2000", CommandMode::Monitor).status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a / line in Monitor mode");
 
             Assert::IsTrue   (RunInWindow (rig, "MA1").status == CommandStatus::Error, L"no address");
             Assert::IsTrue   (RunInWindow (rig, "MA1 XYZ").status == CommandStatus::Error, L"not hex");
             Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a bad address leaves the pane");
+        }
+
+
+
+        //  The 2 forms move the second memory window, as DATA2 numbers it.
+        TEST_METHOD (MiniMemoryTwoFormsMoveTheSecondMemoryWindow)
+        {
+            MachineRig  rig;
+
+
+
+            for (const char * line : { "MD2 2000", "MA2 2000", "MT2 2000", "M2 2000" })
+            {
+                rig.view.CloseMemoryWindow (2);
+                rig.view.SetMemoryAddress (0x0000);
+
+                Assert::IsTrue   (RunInWindow (rig, line).status == CommandStatus::Ok);
+                Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryWindowAddress (2).value_or (0), L"the second window moves");
+                Assert::AreEqual ((Word) 0x0000, rig.view.GetMemoryAddress(), L"the first stays");
+            }
+        }
+
+
+
+        //  `.` returns the pane to the PC as the Follow PC control does, a
+        //  pending scroll included.
+        TEST_METHOD (DotFollowsThePcAsTheFollowControlDoes)
+        {
+            MachineRig            rig;
+            DebuggerViewState     other;
+            DebuggerViewSnapshot  dot;
+            DebuggerViewSnapshot  follow;
+
+
+
+            rig.view.SetCodeLines (20, 0);
+            other.SetCodeLines (20, 0);
+
+            rig.view.ScrollCode (5);
+            RunInWindow (rig, ".");
+            dot = rig.view.Build (rig.controller.GetSession());
+
+            other.ShowPcIn (0);
+            follow = other.Build (rig.controller.GetSession());
+
+            Assert::IsFalse  (dot.code.empty());
+            Assert::AreEqual (follow.code.front().address, dot.code.front().address);
+        }
+
+
+
+        //  The rig's Run is the console's path, so window-only names answer
+        //  as the window does.
+        TEST_METHOD (RigRunTakesTheConsolePath)
+        {
+            MachineRig  rig;
+            Reply       reply = rig.Run ("WIN");
+
+
+
+            Assert::IsTrue   (reply.status == CommandStatus::Ok);
+            Assert::AreEqual (std::string ("This window shows every pane at once."), reply.text.at (0));
+        }
+
+
+
+        //  Line assembly takes the lines typed, not the panes' own reads.
+        TEST_METHOD (PanesReadTheMachineWhileAssembling)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.SetCodeLines (20, 0);
+            rig.Run ("A 300");
+            Assert::IsTrue   (rig.controller.GetSession().IsAssembling());
+
+            snapshot = rig.view.Build (rig.controller.GetSession(), true);
+
+            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"still assembling");
+            Assert::AreEqual ((Word) 0x0300, snapshot.pc);
+            Assert::IsFalse  (snapshot.registers.empty());
+            Assert::IsFalse  (snapshot.memory.empty());
+            Assert::AreEqual ((Word) 0x0300, LineAt (snapshot, 0x0300).address, L"the code pane shows the PC");
+        }
+
+
+
+        //  A bare U or D continues from the user's last listing, not from
+        //  where the panes last read.
+        TEST_METHOD (PaneReadsLeaveBareUAndDContinuing)
+        {
+            MachineRig  rig;
+            Reply       reply;
+
+
+
+            rig.view.SetCodeLines (20, 0);
+            rig.view.SetMemoryAddress (0x2000);
+
+            reply = rig.Run ("D 1000");
+            Assert::IsTrue   (std::holds_alternative<MemoryData> (reply.data));
+            reply = rig.Run ("U 300");
+            Assert::IsTrue   (std::holds_alternative<DisassemblyData> (reply.data));
+
+            Word  next = (Word) (std::get<DisassemblyData> (reply.data).lines.back().instruction.address
+                               + std::get<DisassemblyData> (reply.data).lines.back().instruction.bytes.size());
+
+            (void) rig.view.Build (rig.controller.GetSession(), true);
+            RunInWindow (rig, "V");
+
+            reply = rig.Run ("U");
+            Assert::AreEqual (next, std::get<DisassemblyData> (reply.data).lines.front().instruction.address, L"U continues");
+
+            reply = rig.Run ("D");
+            Assert::AreEqual ((Word) 0x1040, std::get<MemoryData> (reply.data).rows.front().address, L"D continues");
         }
 
 

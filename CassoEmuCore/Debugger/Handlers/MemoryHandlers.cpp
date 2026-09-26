@@ -104,7 +104,11 @@ void MemoryHandlers::Dump (DebugSession & session, const DebugCommand & command,
 
 
     reply.data = MakeRows (session.GetTarget(), first, last);
-    m_nextDump = (Word) (last + 1);
+
+    if (!command.isPaneRead)
+    {
+        m_nextDump = (Word) (last + 1);
+    }
 }
 
 

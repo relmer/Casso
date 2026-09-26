@@ -371,6 +371,37 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::ExecutePaneLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecutePaneLine (const std::string & line)
+{
+    AppleWinParseResult  parsed = AppleWinParser::Parse (Trim (line), *this);
+    Reply                reply;
+
+
+
+    if (parsed.status != ParseStatus::Ok)
+    {
+        SetError (reply, CommandStatus::Error, "invalid arguments", parsed.error);
+        reply.command = line;
+        return reply;
+    }
+
+    parsed.command.isPaneRead = true;
+
+    reply         = Execute (parsed.command);
+    reply.command = line;
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ExecuteAppleWinLine
 //
 ////////////////////////////////////////////////////////////////////////////////
