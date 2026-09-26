@@ -631,8 +631,9 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 //  GSSquaredParser::ParseSymbols
 //
 //  `sload "file"`, `slookup addr` and `sclear`, as SYM LOAD, SYM addr and
-//  SYM CLEAR against the main table. These keep SYM as the command's name,
-//  because the name is what selects the symbol table.
+//  SYM CLEAR against the User table, so sclear clears what sload loaded and
+//  the ROM symbols stay. These keep SYM as the command's name, because the
+//  name is what selects the symbol table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

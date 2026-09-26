@@ -381,6 +381,15 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Symbols_AddOrRemoveWithoutAName_SaysWhy)
+        {
+            ParseFails ("SYM = 300", ParseStatus::Invalid);
+            ParseFails ("SYM !",     ParseStatus::Invalid);
+            ParseFails ("SYM ~",     ParseStatus::Invalid);
+        }
+
+
+
         TEST_METHOD (Engine_History)
         {
             AppleWinParseResult  bare   = ParseOk ("HISTORY");

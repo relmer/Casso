@@ -12,7 +12,7 @@
 //  SymbolFileReader::Detect
 //
 //  A cc65 debug file is known by its version record, and a Merlin listing by
-//  its symbol table heading. Otherwise the
+//  its symbol table heading on a line that is not a comment. Otherwise the
 //  first line that fits one of the line forms decides: NAME=$ADDR is a Casso
 //  debug file, `al` leads a VICE label, and an address first is AppleWin's.
 //
@@ -91,6 +91,12 @@ HRESULT SymbolFileReader::Read (const std::string & content, std::vector<SymbolF
     }
 
     hasSymbols = !symbols.empty();
+
+    if (!hasSymbols && error.empty())
+    {
+        error = "The file holds no symbols.";
+    }
+
     CBREx (hasSymbols, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -229,6 +235,12 @@ bool SymbolFileReader::HasMerlinHeading (const std::string & line)
     for (char & ch : upper)
     {
         ch = (char) toupper ((unsigned char) ch);
+    }
+
+    //  A comment in another format may mention a symbol table.
+    if (upper.empty() || upper[0] == ';' || upper[0] == '#')
+    {
+        return false;
     }
 
     return upper.find ("SYMBOL TABLE") != std::string::npos;

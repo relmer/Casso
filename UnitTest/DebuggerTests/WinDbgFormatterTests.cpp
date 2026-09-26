@@ -124,6 +124,25 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("0300 a941    lda #$41"), lines[1]);
         }
 
+        TEST_METHOD (U_TextDataKeepsItsCase)
+        {
+            DisassemblyData           data;
+            DisassemblyLine           line;
+            std::vector<std::string>  lines;
+
+
+
+            line.instruction.address  = 0x0300;
+            line.instruction.bytes    = { 0xC8, 0xC9, 0xAE };
+            line.instruction.mnemonic = "ASC";
+            line.instruction.operand  = "\"HI.\"";
+            data.lines.push_back (line);
+
+            lines = Render ("u 300", data);
+
+            Assert::AreEqual (std::string ("0300 c8c9ae  asc \"HI.\""), lines[0]);
+        }
+
         TEST_METHOD (Bl_OneLineABreakpoint)
         {
             BreakpointListData        data;
