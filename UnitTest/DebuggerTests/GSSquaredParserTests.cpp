@@ -150,6 +150,13 @@ namespace DebuggerTests
             AssertRange (0x300, 0x30F, command, "300.30F");
         }
 
+        //  A range with no first address quotes what was typed.
+        TEST_METHOD (Range_WithNoFirstAddressIsNotARange)
+        {
+            Assert::AreEqual (std::string (". is not a range. A range is first.last in hex."),    Refused (".",    ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string (".30F is not a range. A range is first.last in hex."), Refused (".30F", ParseStatus::Invalid).error);
+        }
+
         TEST_METHOD (Deposit_ColonAndSet_WriteTheSameBytes)
         {
             for (const char * line : { "300: A9 41", "300:A9 41", "set 300 A9 41", "SET 300 a9 41" })

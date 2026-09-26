@@ -2173,7 +2173,7 @@ void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string 
 
     if (name == ".")
     {
-        v.address  = std::nullopt;
+        ShowPcIn (m_follow);
         reply.data = MessageData { { "The code pane follows the PC." } };
         return;
     }
@@ -2220,8 +2220,9 @@ void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string 
 //
 //  DebuggerViewState::MoveMemoryPane
 //
-//  This window has one memory pane, which shows bytes and characters
-//  together, so MD, MA and MT and both of their panes all move it.
+//  Each memory window shows bytes and characters together, so MD, MA, MT and
+//  M all move one: the 1 forms the first window, the 2 forms the second, as
+//  DATA2 numbers it, opening it when it is not open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2229,6 +2230,7 @@ void DebuggerViewState::MoveMemoryPane (const std::string & name, const std::str
 {
     std::string_view  digits  = argument;
     unsigned          address = 0;
+    int               window  = 1;
 
 
 
@@ -2245,8 +2247,10 @@ void DebuggerViewState::MoveMemoryPane (const std::string & name, const std::str
         return;
     }
 
-    GoToMemory (1, (Word) address);
-    reply.data = MessageData { { std::format ("The memory pane is at ${:04X}.", address) } };
+    window = name.ends_with ('2') ? 2 : 1;
+
+    GoToMemory (window, (Word) address);
+    reply.data = MessageData { { std::format ("Memory window {} is at ${:04X}.", window, address) } };
 }
 
 

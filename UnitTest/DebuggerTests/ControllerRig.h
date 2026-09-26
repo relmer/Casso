@@ -63,9 +63,10 @@ public:
 
 
 
-    //  A line typed into the console in the given dialect.
+    //  A line typed into the console in the given dialect, run as the console
+    //  runs it, so the window's own names answer as they do there.
     Reply Run (const std::string & line, CommandMode mode = CommandMode::AppleWin)
     {
-        return DebuggerViewState::ExecuteLine (controller.GetSession(), line, mode);
+        return view.ExecuteWindowLine (controller.GetSession(), line, mode);
     }
 };
