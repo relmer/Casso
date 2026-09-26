@@ -272,5 +272,36 @@ namespace DebuggerTests
             hr = SymbolFileReader::Read ("", symbols, format, error);
             Assert::IsTrue   (FAILED (hr), L"an empty file is not a symbol file");
         }
+
+
+
+        TEST_METHOD (CommentMentioningSymbolTable_IsNotAMerlinListing)
+        {
+            static constexpr const char * kFile =
+                "; symbol table for the demo\n"
+                "0300 START\n"
+                "0308 LOOP\n";
+
+            std::vector<SymbolFileEntry>  symbols = ReadOk (kFile, SymbolFileFormat::AppleWinSym);
+
+
+
+            Assert::AreEqual ((Word) 0x0308, Find (symbols, "LOOP"));
+        }
+
+
+
+        TEST_METHOD (RecognizedFormatWithNoSymbols_GivesAnError)
+        {
+            std::vector<SymbolFileEntry>  symbols;
+            SymbolFileFormat              format = SymbolFileFormat::Unknown;
+            std::string                   error;
+            HRESULT                       hr     = SymbolFileReader::Read ("Symbol table - alphabetical order:\n", symbols, format, error);
+
+
+
+            Assert::IsTrue  (FAILED (hr));
+            Assert::IsFalse (error.empty(), L"a recognized file with no symbols says why");
+        }
     };
 }
