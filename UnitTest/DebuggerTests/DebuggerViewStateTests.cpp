@@ -1671,6 +1671,32 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  Focusing the source or disassembly pane sends SRC in the words of
+        //  the session's mode; the bare AppleWin line is unknown elsewhere.
+        TEST_METHOD (TheSourceStepLineRunsInEveryMode)
+        {
+            for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+            {
+                MachineRig  rig;
+
+
+
+                for (const char * line : { "SRC ON", "SRC OFF" })
+                {
+                    Reply  reply = RunInWindow (rig, DebuggerViewState::GetModeLine (line, mode), mode);
+
+                    Assert::IsTrue (reply.status != CommandStatus::Unknown, L"the mode reads the line");
+                }
+            }
+
+            {
+                MachineRig  rig;
+
+                Assert::IsTrue (RunInWindow (rig, "SRC ON", CommandMode::WinDbg).status == CommandStatus::Unknown, L"not a WinDbg line");
+            }
+        }
+
+
         TEST_METHOD (CursorCommandsMoveTheCodePane)
         {
             MachineRig  rig;
@@ -2386,6 +2412,36 @@ namespace DebuggerViewStateTests
             Assert::IsTrue  (DebuggerViewState::IsBuildDue (false, false, false, DebuggerViewState::kBuildIntervalMs, 0), L"a frame later while running");
             Assert::IsFalse (DebuggerViewState::IsBuildDue (false, false, false, DebuggerViewState::kBuildIntervalMs - 1, 0));
             Assert::IsTrue  (DebuggerViewState::IsBuildDue (false, true,  false, 1, 0), L"at once on stop");
+        }
+
+
+        //  The panel controls send their line in the session's words, and
+        //  PANEL still reaches the window from WinDbg and GSSquared modes.
+        TEST_METHOD (ThePanelCommandReachesTheWindowFromEveryMode)
+        {
+            for (CommandMode mode : { CommandMode::WinDbg, CommandMode::GSSquared, CommandMode::Monitor })
+            {
+                PanelRig  rig;
+                Reply     reply;
+
+
+
+                reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), mode), mode);
+                Assert::IsTrue (reply.status == CommandStatus::Ok, L"the control opens the panel");
+                Assert::IsTrue (rig.view.IsPanelOpen ("fake"));
+
+                reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), mode), mode);
+                Assert::IsTrue  (reply.status == CommandStatus::Ok, L"the control closes the panel");
+                Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+            }
+
+            {
+                PanelRig  rig;
+                Reply     reply = rig.Run ("!panel fake", CommandMode::WinDbg);
+
+                Assert::IsTrue (reply.status == CommandStatus::Ok, L"typed in WinDbg's words");
+                Assert::IsTrue (rig.view.IsPanelOpen ("fake"));
+            }
         }
 
 
