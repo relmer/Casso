@@ -994,6 +994,11 @@ void DebugSession::OnUserPaused()
 
 void DebugSession::OnUserResumed()
 {
+    if (m_state == RunState::FreeRunning)
+    {
+        return;
+    }
+
     m_state = RunState::FreeRunning;
     UpdateHookInstalled();
     m_sink.OnResumed();

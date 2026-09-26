@@ -462,6 +462,15 @@ namespace DebuggerTests
         //  exception out of the parser: nothing above it would catch one.
         //  A skip range of one address is that address alone; a range whose
         //  end is below its start is an error.
+        //  The names are in capitals; the "and" joining them is not.
+        TEST_METHOD (ModeAndOutput_ListTheNamesOnAnError)
+        {
+            Assert::AreEqual (std::string ("The modes are APPLEWIN, MONITOR, GSSQUARED, WINDBG, and CASSO."),
+                              ParseFails ("MODE FROB", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("The output formats are APPLEWIN, MONITOR, GSSQUARED, WINDBG, and CASSO."),
+                              ParseFails ("OUTPUT FROB", ParseStatus::Invalid).error);
+        }
+
         TEST_METHOD (Go_SkipRangeOfOneAddress)
         {
             DebugCommand  command = ParseOk ("G FFFF 300").command;

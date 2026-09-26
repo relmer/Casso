@@ -32,5 +32,7 @@ public:
     static OutputFormat  GetOutputFormat (CommandMode mode);
 
     //  "applewin, monitor, and gssquared", for an error that lists them.
-    static std::string   GetList         ();
+    //  The names in a sentence: "applewin, ..., and casso", or with each name
+    //  in capitals as a command line types it.
+    static std::string   GetList         (bool isUpper = false);
 };

@@ -733,6 +733,25 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  A resume is announced once, when the machine actually starts again.
+        TEST_METHOD (AResumeIsAnnouncedOnlyFromAStop)
+        {
+            Rig  rig;
+
+
+
+            rig.session.OnUserResumed();
+            Assert::AreEqual (0, rig.sink.resumed, L"already running: nothing to announce");
+
+            (void) rig.session.ExecuteLine ("PAUSE");
+            rig.session.OnUserResumed();
+            rig.session.OnUserResumed();
+            Assert::AreEqual (1, rig.sink.resumed);
+            Assert::IsTrue   (rig.session.GetRunState() == RunState::FreeRunning);
+        }
+
+
+
         //  JSR changes the stack and the PC, so a running machine is left alone.
         TEST_METHOD (JsrWhileFreeRunningChangesNothing)
         {

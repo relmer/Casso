@@ -1051,7 +1051,7 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
     {
         if (!CommandModeNames::TryParse (args.tokens[0], command.mode))
         {
-            error = std::format ("The modes are {}.", ToUpper (CommandModeNames::GetList()));
+            error = std::format ("The modes are {}.", CommandModeNames::GetList (true));
             return false;
         }
 
@@ -1063,7 +1063,7 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
     {
         if (!CommandModeNames::TryParse (args.tokens[0], command.output))
         {
-            error = std::format ("The output formats are {}.", ToUpper (CommandModeNames::GetList()));
+            error = std::format ("The output formats are {}.", CommandModeNames::GetList (true));
             return false;
         }
 

@@ -210,9 +210,10 @@ OutputFormat CommandModeNames::GetOutputFormat (CommandMode mode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommandModeNames::GetList()
+std::string CommandModeNames::GetList (bool isUpper)
 {
     std::string  list;
+    std::string  name;
 
 
 
@@ -223,7 +224,14 @@ std::string CommandModeNames::GetList()
             list += (i + 1 == std::size (s_kModes)) ? ", and " : ", ";
         }
 
-        list += s_kModes[i].name;
+        name = s_kModes[i].name;
+
+        if (isUpper)
+        {
+            std::ranges::transform (name, name.begin(), [] (char c) { return (char) toupper ((unsigned char) c); });
+        }
+
+        list += name;
     }
 
     return list;
