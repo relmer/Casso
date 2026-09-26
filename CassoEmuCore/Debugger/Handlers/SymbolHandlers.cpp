@@ -377,6 +377,7 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 
     lines = file.lines.size();
     session.SetDebugFile (std::move (file), session.ResolvePath (name), Sha1::ComputeTextHex (content));
+    session.SetDebugFileTable (table);
 
     hr = session.GetSymbols().LoadFrom (table, content, offset, loaded, error);
 
@@ -440,6 +441,12 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
         return;
     }
 
+    if (HasOffset (command.text))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "SAVE takes no offset; only LOAD moves the symbols.");
+        return;
+    }
+
     if (files == nullptr)
     {
         reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
@@ -475,6 +482,12 @@ void SymbolHandlers::Clear (DebugSession & session, const DebugCommand & command
 
     TryGetTable (command, table);
     session.GetSymbols().Clear (table);
+
+    if (session.GetDebugFileTable() == table)
+    {
+        session.ClearDebugFile();
+    }
+
     reply.data = MessageData { { std::format ("Cleared {}.", ReplyJson::GetSymbolTableName (table)) } };
 }
 
@@ -603,6 +616,28 @@ bool SymbolHandlers::TryParseHex (const std::string & text, Word & value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SymbolHandlers::HasOffset
+//
+//  A comma after the file name, outside any quotes around it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolHandlers::HasOffset (const std::string & text)
+{
+    size_t  comma     = text.rfind (',');
+    size_t  lastQuote = text.find_last_of ("\"'");
+
+
+
+    return comma != std::string::npos && (lastQuote == std::string::npos || comma > lastQuote);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolHandlers::TryGetFileName
 //
 //  "file" or file, then an optional ,offset in hex.
@@ -611,16 +646,15 @@ bool SymbolHandlers::TryParseHex (const std::string & text, Word & value)
 
 bool SymbolHandlers::TryGetFileName (const std::string & text, std::string & name, int & offset, std::string & error)
 {
-    std::string  trimmed   = Trim (text);
-    size_t       comma     = trimmed.rfind (',');
-    size_t       lastQuote = trimmed.find_last_of ("\"'");
-    Word         value     = 0;
+    std::string  trimmed = Trim (text);
+    size_t       comma   = trimmed.rfind (',');
+    Word         value   = 0;
 
 
 
     offset = 0;
 
-    if (comma != std::string::npos && (lastQuote == std::string::npos || comma > lastQuote))
+    if (HasOffset (trimmed))
     {
         if (!TryParseHex (Trim (trimmed.substr (comma + 1)), value))
         {

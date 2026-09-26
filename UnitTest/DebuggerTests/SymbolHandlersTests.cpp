@@ -187,5 +187,46 @@ namespace DebuggerTests
             rig.RunFails ("SYMLIST bogus",            "invalid arguments");
             Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("SYMUSER LOAD").status);
         }
+
+
+
+        TEST_METHOD (SYM_Save_OffsetIsAnError)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("SYM START = 300");
+
+            rig.RunFails ("SYMUSER SAVE out.sym,1000", "invalid arguments");
+            Assert::IsFalse (rig.files.Exists (L"C:\\Work\\out.sym"), L"nothing written");
+        }
+
+
+
+        TEST_METHOD (SYM_Clear_OfTheDebugFilesTable_DropsItsLines)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg",
+                "version\tmajor=2,minor=0\n"
+                "file\tid=0,name=\"prog.a65\",size=10,mtime=0,mod=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
+                "span\tid=0,seg=0,start=0,size=3\n"
+                "line\tid=0,file=0,line=4,span=0\n"
+                "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "scope\tid=0,name=\"\",mod=0\n");
+
+            rig.RunOk ("SYMSRC LOAD \"prog.dbg\"");
+
+            rig.RunOk ("SYMUSER CLEAR");
+            Assert::IsTrue (rig.session.HasDebugFile(), L"another table's clear leaves the file");
+
+            rig.RunOk ("SYMSRC CLEAR");
+            Assert::IsFalse (rig.session.HasDebugFile());
+            Assert::IsTrue  (rig.session.GetLineTable().GetPositionsAt (0x0302).empty());
+        }
     };
 }

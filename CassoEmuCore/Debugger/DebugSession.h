@@ -145,6 +145,11 @@ public:
     const std::string   & GetDebugFileKey  () const { return m_debugFileKey; }
     const LineTable     & GetLineTable   () const { return m_lineTable; }
 
+    // The symbol table the debug file's symbols went into. Clearing that
+    // table unloads the file as well.
+    void                  SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; }
+    std::optional<SymbolTableId>  GetDebugFileTable () const { return m_debugFileTable; }
+
     // Whether T, P and RTS, and every dialect's step commands, step by source
     // line. Only while a debug file is loaded; otherwise by instruction.
     void                  SetStepBySource (bool bySource) { m_stepBySource = bySource; }
@@ -276,6 +281,7 @@ private:
     DebugFile                             m_debugFile;
     std::wstring                          m_debugFilePath;
     std::string                           m_debugFileKey;
+    std::optional<SymbolTableId>          m_debugFileTable;
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
     StepFilter                            m_stepFilter;

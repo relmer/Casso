@@ -99,6 +99,7 @@ void DebugSession::SetDebugFile (DebugFile file, const std::wstring & path, cons
     m_debugFile     = std::move (file);
     m_debugFilePath = path;
     m_debugFileKey  = key;
+    m_debugFileTable.reset();
     m_lineTable.Build (m_debugFile);
 }
 
@@ -154,6 +155,7 @@ void DebugSession::ClearDebugFile()
     m_debugFile = DebugFile();
     m_debugFilePath.clear();
     m_debugFileKey.clear();
+    m_debugFileTable.reset();
     m_lineTable.Clear();
 }
 
