@@ -220,6 +220,13 @@ public:
     // The caller owns it and must detach before destroying it.
     void SetDebugRunDriver (CpuManagerRunDriver * driver) { m_debugRunDriver = driver; }
 
+    // Attaches the session machine events and the main window's step go to,
+    // or detaches it with null. The caller owns it, as with the driver.
+    void SetDebugSession   (DebugSession * session)        { m_debugSession = session; }
+
+    // The CPU thread's handling of one command drained from the queue.
+    void DispatchCpuCommand (const EmulatorCommand & cmd);
+
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_machine.GetMemoryBus(); }
 
@@ -403,7 +410,6 @@ private:
     // driven off the guest clock: Double would then repeat twice as fast and
     // Maximum, which is uncapped, faster than anyone can type against.
     void TickKeyboardAutoRepeat();
-    void DispatchCpuCommand (const EmulatorCommand & cmd);
 
     // ICpuCommandTarget: the outcomes a queued command can ask for, each one
     // call into the machine, the disk manager or a mixer. SwitchMachine,
@@ -468,11 +474,10 @@ private:
     void NotifyDebugReset          (bool isPowerCycle);
     void NotifyDebugMachineChanged (const std::string & machineName);
 
-    // Where debugger commands and machine events go. Both are owned by the
-    // caller, which detaches them with null before destroying them.
+    // Where debugger commands go. The session machine events go to is set
+    // with SetDebugSession.
     using DebugCommandHandler = std::function<void (uint32_t clientId, const std::string & line)>;
 
-    void SetDebugSession        (DebugSession * session)          { m_debugSession = session; }
     void SetDebugCommandHandler (DebugCommandHandler handler)      { m_debugCommandHandler = std::move (handler); }
 
 
@@ -858,12 +863,6 @@ public:
     // wrapper over the CpuManager queue.
 public:
     void PostCommand (WORD id, const string & payload = "");
-
-    // Single-step the CPU from the UI thread. Only safe when the
-    // CPU thread is paused (provably idle on pauseCV.wait); the
-    // caller must enforce that precondition. Bypasses PostCommand
-    // because the CPU thread can't drain its queue while paused.
-    void StepInstructionWhilePaused ();
 
     // The failure-path counterpart of FlushPendingNotifications. Only
     // CreateEmulatorWindow drains the queue, and a startup that fails before

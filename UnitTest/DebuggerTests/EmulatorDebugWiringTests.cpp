@@ -4,7 +4,9 @@
 #include "Debugger/MachineDebugTarget.h"
 #include "Debugger/IRunObserver.h"
 #include "Shell/CpuManager.h"
+#include "Shell/EmulatorShell.h"
 #include "EmuTests/TestMachine.h"
+#include "resource.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
@@ -951,6 +953,135 @@ namespace EmulatorDebugWiringTests
             RunFrames (rig, 50);
 
             Assert::AreEqual ((Word) 0x0303, target.GetRegisters().pc, L"after the routine returned");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MainWindowStepTests
+    //
+    //  The main window's Step with the debugger attached. The debugger is put
+    //  together as OpenDebugger puts it together, over the shell's own CPU
+    //  manager, and the machine runs slice by slice as the CPU thread runs it.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MainWindowStepTests)
+    {
+    public:
+
+        class Rig
+        {
+        public:
+            TestMachine                     machine;
+            std::unique_ptr<EmulatorShell>  shell;
+            InMemoryPipeTransport           transport;
+            InMemoryFileSystem              files;
+            DebuggerController              controller;
+
+
+
+            //  $0300: LDA #$41 / STA $0400 / RTS, with the PC on the LDA.
+            Rig() :
+                machine    (std::string ("Apple2e"), TestMachine::Slots::Empty),
+                shell      (std::make_unique<EmulatorShell>()),
+                controller (machine, ControllerRig::Paused (shell->GetCpuManager()), transport, files, nullptr, 1)
+            {
+                Cpu6502Registers  r = {};
+
+
+
+                (void) GetTarget().TryPoke (0x0300, 0xA9);
+                (void) GetTarget().TryPoke (0x0301, 0x41);
+                (void) GetTarget().TryPoke (0x0302, 0x8D);
+                (void) GetTarget().TryPoke (0x0303, 0x00);
+                (void) GetTarget().TryPoke (0x0304, 0x04);
+                (void) GetTarget().TryPoke (0x0305, 0x60);
+
+                r    = GetTarget().GetRegisters();
+                r.pc = 0x0300;
+                r.a  = 0x00;
+                GetTarget().SetRegisters (r);
+
+                shell->SetDebugRunDriver (&controller.GetRunDriver());
+                shell->SetDebugSession   (&controller.GetSession());
+            }
+
+
+
+            ~Rig()
+            {
+                shell->SetDebugRunDriver (nullptr);
+                shell->SetDebugSession   (nullptr);
+            }
+
+
+
+            IDebugTarget & GetTarget() { return controller.GetSession().GetTarget(); }
+
+
+
+            //  The CPU thread's frame: slices while the machine is not paused,
+            //  until a slice comes back short.
+            void RunFrames (int slices)
+            {
+                for (int i = 0; i < slices && !shell->GetCpuManager().IsPaused(); i++)
+                {
+                    uint32_t  actual = (uint32_t) machine.RunCycles (1000);
+
+
+
+                    if (controller.GetRunDriver().OnSliceExecuted (actual) || actual == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+        };
+
+
+
+        //  The UI thread runs nothing: the step goes to the CPU thread's queue.
+        TEST_METHOD (StepIsPostedToTheCpuThread)
+        {
+            Rig  rig;
+
+
+
+            rig.shell->HandleCommand (IDM_MACHINE_STEP);
+
+            Assert::IsTrue   (rig.shell->GetCpuManager().HasPendingCommands(),              L"the step waits for the CPU thread");
+            Assert::AreEqual ((Word) 0x0300, rig.GetTarget().GetRegisters().pc,              L"nothing ran on the UI thread");
+            Assert::IsTrue   (rig.controller.GetSession().GetRunState() == RunState::Paused, L"and the session saw nothing");
+        }
+
+
+
+        //  On the CPU thread the step is the debugger's own step into, so the
+        //  session starts it, the frame loop runs it, and it stops after one
+        //  instruction.
+        TEST_METHOD (StepWithTheDebuggerAttachedIsTheSessionsStepInto)
+        {
+            Rig               rig;
+            EmulatorCommand   step;
+
+
+
+            step.id = IDM_MACHINE_STEP;
+            rig.shell->DispatchCpuCommand (step);
+
+            Assert::IsTrue (rig.controller.GetSession().GetRunState() == RunState::Stepping, L"the session started the step");
+
+            rig.RunFrames (50);
+
+            Assert::AreEqual ((Word) 0x0302, rig.GetTarget().GetRegisters().pc,              L"one instruction ran");
+            Assert::AreEqual ((Byte) 0x41,   rig.GetTarget().GetRegisters().a,               L"and it was the LDA");
+            Assert::IsTrue   (rig.shell->GetCpuManager().IsPaused(),                        L"the machine is paused again");
+            Assert::IsTrue   (rig.controller.GetSession().GetRunState() == RunState::Paused, L"and the session knows the step ended");
         }
     };
 }
