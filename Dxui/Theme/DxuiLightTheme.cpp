@@ -21,6 +21,12 @@
 //  #D6D6D6 line above and below the command bar. A row under the pointer is
 //  #E5F3FF.
 //
+//  Measured again at 120 and 192 dpi on 2026-09-25: a selected row is #CCE8FF
+//  outlined in #000000 while its pane has focus, and #D9D9D9 outlined in
+//  #949494 while it does not; the lines between the list's column titles are
+//  #E5E5E5; and a #DADADA line runs under the tab strip, broken under the
+//  selected tab.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiLightTheme::DxuiLightTheme()
@@ -45,10 +51,12 @@ DxuiLightTheme::DxuiLightTheme()
     link                     = 0xFF005FB8;
     linkHover                = 0xFF003E92;
 
-    //  The outline on a selected row while its list or tree holds focus. The
-    //  dark theme has had one since it shipped; without it here, focus is
-    //  invisible in the light theme for every widget that draws one.
-    contentSelectionEdge     = 0xFF5D5D5D;
+    contentSelection             = 0xFFCCE8FF;
+    contentSelectionEdge         = 0xFF000000;
+    contentSelectionInactive     = 0xFFD9D9D9;
+    contentSelectionInactiveEdge = 0xFF949494;
+    contentHeaderDivider         = 0xFFE5E5E5;
+    tabStripEdge                 = 0xFFDADADA;
     panelBg                  = 0xFFFBFBFB;
     panelEdge                = 0xFFD6D6D6;
     contentBg                = 0xFFFFFFFF;

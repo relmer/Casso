@@ -1184,6 +1184,27 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                    theme.Divider(),
                    theme.Foreground(),
                    theme.FocusRing());
+
+    //  Explorer's light theme lines the strip's bottom, except under the
+    //  selected tab, which joins the row below.
+    if (theme.TabStripEdge() != 0 && HasBounds())
+    {
+        float  line   = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
+        float  bottom = (float) m_boundsDip.bottom - line;
+        float  left   = (float) m_boundsDip.left;
+        float  right  = (float) m_boundsDip.right;
+        RECT   tab    = (m_selected >= 0 && m_selected < (int) m_tabs.size()) ? GetTabScreenRect (m_selected) : RECT {};
+
+        if (tab.right > tab.left)
+        {
+            painter.FillRect (left, bottom, (std::max) (0.0f, (float) tab.left - left), line, theme.TabStripEdge());
+            painter.FillRect ((float) tab.right, bottom, (std::max) (0.0f, right - (float) tab.right), line, theme.TabStripEdge());
+        }
+        else
+        {
+            painter.FillRect (left, bottom, right - left, line, theme.TabStripEdge());
+        }
+    }
 }
 
 

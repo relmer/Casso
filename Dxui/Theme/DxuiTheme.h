@@ -74,14 +74,21 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  contentSelectionEdge     = 0;
     uint32_t  contentSelectionInactive = 0;
     uint32_t  contentSelectionMulti    = 0;
-    uint32_t  buttonIdle               = 0;
-    uint32_t  buttonHover              = 0;
-    uint32_t  buttonPressed            = 0;
-    uint32_t  buttonBorder             = 0;
-    uint32_t  tooltipBg                = 0;
-    uint32_t  tooltipBorder            = 0;
-    uint32_t  tooltipText              = 0;
-    uint32_t  errorText                = 0;
+
+    //  The outline on a selected row in a pane without focus, the lines
+    //  between a list header's columns, and the line under a tab strip. Zero
+    //  draws no outline and no strip line; a zero divider takes contentEdge.
+    uint32_t  contentSelectionInactiveEdge = 0;
+    uint32_t  contentHeaderDivider         = 0;
+    uint32_t  tabStripEdge                 = 0;
+    uint32_t  buttonIdle                   = 0;
+    uint32_t  buttonHover                  = 0;
+    uint32_t  buttonPressed                = 0;
+    uint32_t  buttonBorder                 = 0;
+    uint32_t  tooltipBg                    = 0;
+    uint32_t  tooltipBorder                = 0;
+    uint32_t  tooltipText                  = 0;
+    uint32_t  errorText                    = 0;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
@@ -95,6 +102,9 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  ContentSelectionEdge () const override { return contentSelectionEdge; }
     uint32_t  ContentSelectionInactive () const override { return (contentSelectionInactive != 0) ? contentSelectionInactive : ContentSelection(); }
     uint32_t  ContentSelectionMulti    () const override { return (contentSelectionMulti    != 0) ? contentSelectionMulti    : ContentSelection(); }
+    uint32_t  ContentSelectionInactiveEdge () const override { return contentSelectionInactiveEdge; }
+    uint32_t  ContentHeaderDivider () const override { return (contentHeaderDivider != 0) ? contentHeaderDivider : ContentEdge(); }
+    uint32_t  TabStripEdge         () const override { return tabStripEdge; }
     uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
     uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }

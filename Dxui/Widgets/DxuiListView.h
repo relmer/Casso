@@ -350,6 +350,12 @@ public:
     //  One item's cell in dips (a zero width spans the list), its icon's size,
     //  whether items run down columns rather than along rows, whether the
     //  name sits under the icon, and how many text lines it has.
+    //  A row's highlight, as Explorer's: this much shorter than the row at top
+    //  and bottom, and ending this far short of the last column's right edge.
+    //  Measured at 120 and 192 dpi.
+    static constexpr int    s_kRowBoxInsetYDip   = 2;
+    static constexpr int    s_kRowBoxEndInsetDip = 4;
+
     //  How opaque a ghosted icon is: Explorer's hidden items, measured.
     static constexpr float  s_kGhostedIconAlpha = 0.5f;
 

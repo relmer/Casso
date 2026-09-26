@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
 #include "Theme/DxuiRowLook.h"
 
@@ -31,6 +33,62 @@ public:
         uint32_t  ContentSelectionMulti() const override { return 0xFF626262u; }
         uint32_t  ContentSelectionMultiEdge() const override { return 0xFF60CDFFu; }
     };
+
+
+    //  The light theme's pane-without-focus outline, which the dark theme has
+    //  none of.
+    struct LightTheme : public Theme
+    {
+        uint32_t  ContentSelectionInactiveEdge() const override { return 0xFF949494u; }
+    };
+
+
+    TEST_METHOD (SelectedRow_PaneNotFocused_TakesTheInactiveOutline)
+    {
+        LightTheme   light;
+        Theme        dark;
+
+        Assert::AreEqual (0xFF949494u, DxuiRowLook::Resolve (light, true, true, false, false).edge);
+        Assert::AreEqual (0u,          DxuiRowLook::Resolve (dark,  true, true, false, false).edge);
+    }
+
+
+    //  A list row's highlight is Explorer's box: 2 dip shorter than the row at
+    //  top and bottom, ending 4 dip short of the last column's right edge
+    //  rather than running across the empty width past it.
+    TEST_METHOD (ListRowHighlight_EndsShortOfTheLastColumn)
+    {
+        DxuiListView                                   list;
+        MockDxuiPainter                                painter;
+        MockDxuiTextRenderer                           text;
+        MockDxuiTheme                                  theme;
+        DxuiDpiScaler                                  scaler;
+        std::vector<std::vector<DxuiListView::Cell>>   rows (3, std::vector<DxuiListView::Cell> { { L"a", false }, { L"b", false } });
+        bool                                           found = false;
+
+        scaler.SetDpi (96);
+        list.SetColumns     ({ DxuiListView::Column { L"A", 100 }, DxuiListView::Column { L"B", 60 } });
+        list.SetShowHeader  (false);
+        list.Layout         (RECT { 0, 0, 400, 300 }, scaler);
+        list.SetRows        (std::move (rows));
+        list.SetListFocused (true);
+        list.SetSelectedRow (0);
+
+        static_cast<IDxuiControl &> (list).Paint (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::FillRect && call.argb == theme.ContentSelection())
+            {
+                found = true;
+                Assert::AreEqual (156.0f, call.width,  L"to the last column's edge, less 4 dip");
+                Assert::AreEqual (26.0f,  call.height, L"2 dip in at top and bottom of a 30 dip row");
+                Assert::AreEqual (2.0f,   call.y);
+            }
+        }
+
+        Assert::IsTrue (found, L"the selected row is filled");
+    }
 
 
     TEST_METHOD (SelectedKeyboardRow_FocusedPane_SelectionAndOutline)

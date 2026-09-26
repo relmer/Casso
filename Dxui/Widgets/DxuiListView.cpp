@@ -2654,7 +2654,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
     pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
-    pal.border   = m_theme->ContentEdge();
+    pal.border   = m_theme->ContentHeaderDivider();
     pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
 
     return pal;
@@ -2923,16 +2923,34 @@ void DxuiListView::PaintDataRows (
     const std::vector<int> & colXPx,
     const std::vector<int> & colWPx) const
 {
-    HRESULT  hr       = S_OK;
-    float    rowH     = (float) GetRowHeightPx();
-    float    headerH  = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0);
-    float    hdrGap   = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0);
-    float    cellPadL = (float) m_scaler.ToPx (s_kCellPadLeftDip);
-    float    cellPadR = (float) m_scaler.ToPx (s_kCellPadRightDip);
-    float    fontPx   = (float) m_scaler.ToPxf (m_fontDip);
-    float    colOff   = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
+    HRESULT  hr        = S_OK;
+    float    rowH      = (float) GetRowHeightPx();
+    float    headerH   = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0);
+    float    hdrGap    = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0);
+    float    cellPadL  = (float) m_scaler.ToPx (s_kCellPadLeftDip);
+    float    cellPadR  = (float) m_scaler.ToPx (s_kCellPadRightDip);
+    float    fontPx    = (float) m_scaler.ToPxf (m_fontDip);
+    float    colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
+    float    boxInsetY = m_textSelectionColors ? 0.0f : (float) m_scaler.ToPx (s_kRowBoxInsetYDip);
+    float    boxW      = layoutW;
+    float    lastRight = 0.0f;
 
 
+
+    //  A row's highlight ends where its columns do, less Explorer's margin,
+    //  rather than running on across the empty width past them.
+    for (size_t c = 0; c < m_columns.size() && c < colXPx.size() && c < colWPx.size(); ++c)
+    {
+        if (m_columns[c].visible && colWPx[c] > 0)
+        {
+            lastRight = (std::max) (lastRight, colOff + (float) (colXPx[c] + colWPx[c]));
+        }
+    }
+
+    if (!m_textSelectionColors && lastRight > 0.0f)
+    {
+        boxW = std::clamp (lastRight - (float) m_scaler.ToPx (s_kRowBoxEndInsetDip), 0.0f, layoutW);
+    }
 
     // Clamp the visible span to the real row range up front, so the loop
     // body needs no per-row range guard and can bind the row's cells at
@@ -2954,15 +2972,16 @@ void DxuiListView::PaintDataRows (
             look.edge = 0;
         }
 
-        //  Square, as Explorer's are.
+        //  Square, as Explorer's are, and like Explorer's a little shorter
+        //  than the row and ending short of the last column's edge.
         if (look.fill != 0)
         {
-            painter.FillRect (x, ry, layoutW, rowH, look.fill);
+            painter.FillRect (x, ry + boxInsetY, boxW, rowH - boxInsetY * 2.0f, look.fill);
         }
 
         if (look.edge != 0)
         {
-            painter.OutlineRect (x, ry, layoutW, rowH, (std::max) (1.0f, m_scaler.ToPxf (1.0f)), look.edge);
+            painter.OutlineRect (x, ry + boxInsetY, boxW, rowH - boxInsetY * 2.0f, (std::max) (1.0f, m_scaler.ToPxf (1.0f)), look.edge);
         }
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)

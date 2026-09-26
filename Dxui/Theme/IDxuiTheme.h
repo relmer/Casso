@@ -162,6 +162,17 @@ public:
     virtual uint32_t  ContentSelectionMulti     () const { return ContentSelection(); }
     virtual uint32_t  ContentSelectionMultiEdge () const { return Accent(); }
 
+    // The outline on a selected row whose pane does not have focus; none by
+    // default.
+    virtual uint32_t  ContentSelectionInactiveEdge () const { return 0; }
+
+    // The lines between a list header's columns.
+    virtual uint32_t  ContentHeaderDivider () const { return ContentEdge(); }
+
+    // The line along the bottom of a tab strip, broken under the selected tab
+    // where it joins the row below; none by default.
+    virtual uint32_t  TabStripEdge () const { return 0; }
+
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 
