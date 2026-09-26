@@ -500,6 +500,19 @@ namespace DebuggerTests
             Assert::AreNotEqual ((int) ParseStatus::Ok, (int) AppleWinParser::Parse ("BP main.s:99999999999", context).status, L"a source line past 32 bits");
         }
 
+        //  A command missing its arguments says what it takes.
+        TEST_METHOD (MissingArguments_SayWhatTheCommandTakes)
+        {
+            Assert::AreEqual (std::string ("ME takes an address and one or more values."),    ParseFails ("ME 300",    ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("MEB takes an address and one or more values."),   ParseFails ("MEB",       ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("MEW takes an address and one or more values."),   ParseFails ("mew 300",   ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("PATCH takes an address and one or more values."), ParseFails ("PATCH 300", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("F takes a range and one or more values."),        ParseFails ("F 300:310", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("OUT takes an address and one or more values."),   ParseFails ("OUT",       ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("SYM = takes a name before the =."),               ParseFails ("SYM = 300", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("SYM ! takes the name of a symbol."),              ParseFails ("SYM !",     ParseStatus::Invalid).error);
+        }
+
         TEST_METHOD (UnknownWindowOnlyAndNotAvailable)
         {
             MockExpressionContext  context;

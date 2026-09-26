@@ -347,7 +347,14 @@ bool AppleWinParser::TryParseRunArguments (const Arguments & args, DebugCommand 
 
     case DebugVerb::WriteIo:
         command.hasA1 = !args.tokens.empty();
-        return command.hasA1 && TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
+
+        if (!command.hasA1)
+        {
+            error = "OUT takes an address and one or more values.";
+            return false;
+        }
+
+        return TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
                TryParseValues (args.tokens, 1, ValueWidth::Bytes, *args.context, command, error);
 
     case DebugVerb::InjectKey:
@@ -794,8 +801,13 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
                    TryParseValues (args.tokens, valuesFrom, ValueWidth::Bytes, *args.context, command, error);
         }
 
-        return count >= 2 &&
-               TryParseRange (args.tokens[0], *args.context, command, error) &&
+        if (count < 2)
+        {
+            error = "F takes a range and one or more values.";
+            return false;
+        }
+
+        return TryParseRange (args.tokens[0], *args.context, command, error) &&
                TryParseValues (args.tokens, valuesFrom, ValueWidth::Bytes, *args.context, command, error);
 
     case DebugVerb::SearchMemory:
@@ -813,8 +825,14 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
     case DebugVerb::EnterWords:
     case DebugVerb::PatchBytes:
         command.hasA1 = count > 0;
-        return count >= 2 &&
-               TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
+
+        if (count < 2)
+        {
+            error = std::format ("{} takes an address and one or more values.", ToUpper (command.sourceName));
+            return false;
+        }
+
+        return TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
                TryParseValues (args.tokens, 1, command.verb == DebugVerb::EnterWords ? ValueWidth::Words : ValueWidth::BytesOrWords, *args.context, command, error);
 
     case DebugVerb::LoadBinary:
@@ -1025,14 +1043,28 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
         command.verb  = DebugVerb::AddSymbol;
         command.text  = Split (args.rest.substr (0, equals)).empty() ? std::string() : Split (args.rest.substr (0, equals))[0];
         command.hasA1 = true;
-        return !command.text.empty() && TryEvaluate (args.rest.substr (equals + 1), *args.context, command.a1, error);
+
+        if (command.text.empty())
+        {
+            error = "SYM = takes a name before the =.";
+            return false;
+        }
+
+        return TryEvaluate (args.rest.substr (equals + 1), *args.context, command.a1, error);
     }
 
     if (first == "!" || first == "~")
     {
         command.verb = DebugVerb::RemoveSymbol;
         command.text = args.tokens.size() > 1 ? args.tokens[1] : std::string();
-        return !command.text.empty();
+
+        if (command.text.empty())
+        {
+            error = std::format ("SYM {} takes the name of a symbol.", first);
+            return false;
+        }
+
+        return true;
     }
 
     command.text = args.rest;
