@@ -44,6 +44,40 @@ and block reads and writes need the folder picker or a drag), §3 and §5
 (they need Casso running with a disk and its menus), §4 (drags), the
 Ctrl shortcuts of §6 other than through the command message, and §7.
 
+### Release x64, 2026-09-25, commit `1cbee0e2`
+
+Driven with posted clicks and the posted command message on copies of
+`UnitTest/Fixtures/CassoExplorer/dos33.dsk` and `prodos.po`, a folder of 200
+copies of `prodos.po`, and a 26-byte text file named `broken.dsk`. Timings are
+the round trip of a sent command message, which returns once the list is
+refilled.
+
+| Check | Result |
+|---|---|
+| §2 Refresh on the folder of 200 images, five times | 29 to 67 ms; the list is full each time, well inside one second |
+| §2 Refresh on each image, which reads its catalog again, three times each | ProDOS 51 to 66 ms, DOS 3.3 57 to 67 ms, inside 200 ms |
+| §2 The DOS 3.3 image against `disk list` | The same seven entries and types; 379 free sectors shown as 94.7 KB free |
+| §2 The ProDOS image against `disk list` | The same entries; 214 free blocks shown as 107 KB free |
+| §2 A tab at `broken.dsk` | The size error in the list area, 0 items |
+| §2 The preview toggle, then close | `previewVisible` saved as changed |
+| §6 Two tabs, a different row selected in each, switched away and back | Each keeps its own selection and status |
+| §6 The Theme drop-down | Light theme, Dark theme, Follow system, Casso Skeuomorphic (colors only), Casso Dark Modern, Casso Retro Terminal |
+| §2 Rename by the command | The edit box opens over the name with it selected |
+
+Found on this pass:
+
+- Keys posted to a window that is not in the foreground do not reach it, so
+  F2 and typing into the rename box did nothing; rename needs the keyboard.
+- With the location deep in the folder tree, the tree reveals its row but
+  every label lies past the pane's right edge, with no horizontal scroll to
+  bring them back.
+
+Still to check by a person: §1 beyond delete (get, put, create, init,
+sector and block reads and writes need the folder picker or a drag); §2
+rename on each image with a colliding name, and the broken image's tooltip
+in the tree; §3 and §5, which need Casso running with its menus; §4, the
+drags; §6 with the mouse disconnected and with Windows dark mode toggled.
+
 ### Shipping, 2026-09-22
 
 Run on the renamed tree with a Release x64 build.
