@@ -1054,15 +1054,21 @@ std::wstring CassoExplorerBrowser::FormatSizeColumn (uint64_t bytes)
 //  CassoExplorerBrowser::FormatModified
 //
 //  A host file's instant in local time, as Explorer shows it; a catalog's
-//  wall-clock time as it was recorded.
+//  wall-clock time as it was recorded. Either way in the user's own short
+//  date and short time, as Explorer's Date modified column writes them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring CassoExplorerBrowser::FormatModified (int64_t unixSeconds, bool wallClock)
 {
-    __time64_t  seconds = (__time64_t) unixSeconds;
-    tm          local   = {};
-    errno_t     err     = wallClock ? _gmtime64_s (&local, &seconds) : _localtime64_s (&local, &seconds);
+    __time64_t  seconds  = (__time64_t) unixSeconds;
+    tm          local    = {};
+    errno_t     err      = wallClock ? _gmtime64_s (&local, &seconds) : _localtime64_s (&local, &seconds);
+    SYSTEMTIME  st       = {};
+    wchar_t     date[80] = {};
+    wchar_t     time[80] = {};
+    int         dateLen  = 0;
+    int         timeLen  = 0;
 
 
 
@@ -1071,8 +1077,22 @@ std::wstring CassoExplorerBrowser::FormatModified (int64_t unixSeconds, bool wal
         return std::wstring();
     }
 
-    return std::format (L"{:04}-{:02}-{:02} {:02}:{:02}", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
-                        local.tm_hour, local.tm_min);
+    st.wYear   = (WORD) (local.tm_year + 1900);
+    st.wMonth  = (WORD) (local.tm_mon + 1);
+    st.wDay    = (WORD) local.tm_mday;
+    st.wHour   = (WORD) local.tm_hour;
+    st.wMinute = (WORD) local.tm_min;
+    st.wSecond = (WORD) local.tm_sec;
+
+    dateLen = GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, date, (int) std::size (date), nullptr);
+    timeLen = GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, time, (int) std::size (time));
+
+    if (dateLen == 0 || timeLen == 0)
+    {
+        return std::format (L"{:04}-{:02}-{:02} {:02}:{:02}", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute);
+    }
+
+    return std::wstring (date) + L" " + time;
 }
 
 

@@ -582,6 +582,16 @@ public:
         Assert::AreEqual (std::wstring (L"7 items, 3 selected"), CassoExplorerBrowser::FormatSelection (3, 7));
 
         //  1984-08-17 12:34, as the scratch ProDOS volume records it.
-        Assert::AreEqual (std::wstring (L"1984-08-17 12:34"), CassoExplorerBrowser::FormatModified (461594040, true));
+        //  In the user's own short date and time, whatever they are set to.
+        {
+            SYSTEMTIME  st       = { 1984, 8, 0, 17, 12, 34, 0, 0 };
+            wchar_t     date[80] = {};
+            wchar_t     time[80] = {};
+            int         dateLen  = GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, date, 80, nullptr);
+            int         timeLen  = GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, time, 80);
+
+            Assert::IsTrue   (dateLen > 0 && timeLen > 0);
+            Assert::AreEqual (std::wstring (date) + L" " + time, CassoExplorerBrowser::FormatModified (461594040, true));
+        }
     }
 };
