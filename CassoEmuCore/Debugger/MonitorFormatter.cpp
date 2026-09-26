@@ -39,16 +39,25 @@ void MonitorFormatter::Format (Reply & reply)
 //
 //  MonitorFormatter::TryFormatData
 //
+//  A value that fits a byte prints as the Monitor's two digits, as its
+//  arithmetic does; CALC's wider values keep all four.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MonitorFormatter::TryFormatData (const ReplyData & data, Lines & lines)
 {
+    static constexpr Word  kByteMax    = 0xFF;
+    static constexpr int   kByteDigits = 2;
+    static constexpr int   kWordDigits = 4;
+
+
+
     if      (auto * v = std::get_if<MemoryData>      (&data)) { FormatMemory      (*v, lines); }
     else if (auto * v = std::get_if<DisassemblyData> (&data)) { FormatDisassembly (*v, lines); }
     else if (auto * v = std::get_if<CompareData>     (&data)) { FormatCompare     (*v, lines); }
     else if (auto * v = std::get_if<SearchHitsData>  (&data)) { FormatSearchHits  (*v, lines); }
     else if (auto * v = std::get_if<RegistersData>   (&data)) { lines.push_back (FormatRegisters (v->registers)); }
-    else if (auto * v = std::get_if<CalcData>        (&data)) { lines.push_back (std::format ("={:02X}", v->value & 0xFF)); }
+    else if (auto * v = std::get_if<CalcData>        (&data)) { lines.push_back (std::format ("={:0{}X}", v->value, v->value > kByteMax ? kWordDigits : kByteDigits)); }
     else
     {
         return false;
