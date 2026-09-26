@@ -142,6 +142,49 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (BRK_All_CoversTheBrkOpcode)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BRK ALL ON");
+            Assert::AreEqual (std::string ("BRK opcode: on"), rig.RunOk ("BRK").text.at (0));
+            Assert::IsTrue   (rig.session.ShouldStopBefore (0x0300), L"memory holds $00, a BRK");
+
+            rig.RunOk ("BRK ALL OFF");
+            Assert::AreEqual (std::string ("BRK opcode: off"), rig.RunOk ("BRK").text.at (0));
+            Assert::IsFalse  (rig.session.ShouldStopBefore (0x0300));
+        }
+
+
+
+        TEST_METHOD (BRK_ReportAndOff_CoverAnOpcodeEntryOnBrk)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BRKOP 00");
+            Assert::AreEqual (std::string ("BRK opcode: on"),  rig.RunOk ("BRK").text.at (0));
+            Assert::AreEqual (std::string ("BRK opcode: off"), rig.RunOk ("BRK 0 OFF").text.at (0));
+            Assert::IsFalse  (rig.session.ShouldStopBefore (0x0300), L"the opcode entry on BRK is cleared too");
+        }
+
+
+
+        TEST_METHOD (BPSAVE_OneEntry_IsSingular)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 300");
+            Assert::AreEqual (std::string ("Saved 1 breakpoint to bp.txt."), rig.RunOk ("BPSAVE bp.txt").text.at (0));
+        }
+
+
+
         TEST_METHOD (Manage_ClearDisableEnable)
         {
             Rig  rig;
@@ -151,11 +194,11 @@ namespace DebuggerTests
             rig.RunOk ("BP 300");
             rig.RunOk ("BPM 400");
 
-            Assert::AreEqual (std::string ("Breakpoint #1 set on read or write of $0400"), rig.RunOk ("BPD 1").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint #1 disabled."), rig.RunOk ("BPD 1").text.at (0));
             Assert::AreEqual (std::string ("#1 disabled on read or write of $0400, hits 0"), List (rig).at (1));
             Assert::IsFalse  (rig.target.watchedPages[0x04], L"a disabled watch leaves the mask");
 
-            rig.RunOk ("BPE 1");
+            Assert::AreEqual (std::string ("Breakpoint #1 enabled."), rig.RunOk ("BPE 1").text.at (0));
             Assert::IsTrue   (rig.target.watchedPages[0x04]);
 
             Assert::AreEqual (std::string ("Breakpoint #0 cleared."), rig.RunOk ("BPC 0").text.at (0));
