@@ -412,6 +412,79 @@ namespace DebuggerTests
 
 
 
+        //  A TYPED ADDRESS DISARMS `^E`, as it replaces A3 in the ROM: an
+        //  address before the colon stores there, and an address on a later
+        //  line spends the arming.
+        TEST_METHOD (TypedAddress_DisarmsTheRegisterEdit)
+        {
+            Rig           rig;
+            DebugCommand  deposit;
+
+
+
+            rig.One ("^E");
+            deposit = rig.One ("300: 41");
+            AssertVerb (DebugVerb::Deposit, deposit, "300: 41");
+            Assert::AreEqual ((int) 0x300, (int) deposit.a1);
+            Assert::IsFalse  (rig.state.registerEditPending, L"the address spent the arming");
+
+            rig.One ("^E");
+            rig.One ("300");
+            AssertVerb (DebugVerb::Deposit, rig.One (": 41"), ": 41");
+        }
+
+
+
+        //  STORE MODE ENDS AT THE FIRST COMMAND CHARACTER, which is what makes
+        //  the classic one-line idiom work: the bytes, then `N`, then a run.
+        //  A value of three or more digits stores its low byte.
+        TEST_METHOD (Deposit_EndsAtACommand_AndKeepsTheLowByte)
+        {
+            Rig                 rig;
+            MonitorParseResult  result = rig.Parse ("300:A9 C1 20 ED FD 60 N 300G");
+            DebugCommand        wide;
+
+
+
+            Assert::IsTrue   (result.status == ParseStatus::Ok, Widen (result.error).c_str());
+            Assert::AreEqual (size_t (3), result.commands.size());
+            AssertVerb (DebugVerb::Deposit,   result.commands[0], "300:");
+            Assert::AreEqual (size_t (6), result.commands[0].values.size());
+            Assert::AreEqual ((int) 0x60, (int) result.commands[0].values[5]);
+            AssertVerb (DebugVerb::SetNormal, result.commands[1], "N");
+            AssertVerb (DebugVerb::Go,        result.commands[2], "300G");
+            Assert::AreEqual ((int) 0x300, (int) result.commands[2].a3);
+
+            wide = rig.One ("300: 1234");
+            Assert::AreEqual ((int) 0x34, (int) wide.values.at (0));
+        }
+
+
+
+        //  A SPACE ENDS ARITHMETIC THE WAY RETURN DOES, and a chained
+        //  operator keeps the first operand: `1+2-3` is 1-3.
+        TEST_METHOD (Arithmetic_BeforeASpace_AndChained)
+        {
+            Rig                 rig;
+            MonitorParseResult  spaced = rig.Parse ("1+2 300");
+            DebugCommand        chained;
+
+
+
+            Assert::AreEqual (size_t (2), spaced.commands.size());
+            AssertVerb (DebugVerb::Arithmetic, spaced.commands[0], "1+2");
+            Assert::AreEqual ((int) 1, (int) spaced.commands[0].a1);
+            Assert::AreEqual ((int) 2, (int) spaced.commands[0].a2);
+            AssertVerb (DebugVerb::Examine, spaced.commands[1], "300");
+
+            chained = rig.One ("1+2-3");
+            Assert::AreEqual ((int) 1, (int) chained.a1);
+            Assert::AreEqual ((int) 3, (int) chained.a2);
+            Assert::AreEqual (std::string ("-"), chained.text);
+        }
+
+
+
         ////////////////////////////////////////////////////////////////////////
         //
         //  The assembler and host files
