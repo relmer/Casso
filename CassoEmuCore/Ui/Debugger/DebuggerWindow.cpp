@@ -3524,14 +3524,19 @@ void DebuggerWindow::ApplySnapshot()
 
     for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
     {
+        DxuiListView::Cell  name  = { std::format (L"#{} ${:04X}", watch.id, watch.address) };
         DxuiListView::Cell  value = { Widen (watch.value) };
+
+        //  A disabled watch is dimmed, as a disabled breakpoint is.
+        name.dim  = !watch.enabled;
+        value.dim = !watch.enabled;
 
         if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
         {
             value.argb = GetChangedArgb();
         }
 
-        rows.push_back ({ { std::format (L"#{} ${:04X}", watch.id, watch.address) }, value });
+        rows.push_back ({ name, value });
         m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
     }
 

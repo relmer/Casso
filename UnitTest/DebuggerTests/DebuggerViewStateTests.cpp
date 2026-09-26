@@ -1136,6 +1136,27 @@ namespace DebuggerViewStateTests
 
             Assert::IsFalse  (snapshot.stack.empty(), L"the stack pane shows the page above SP");
         }
+
+
+
+        //  WD shows in the Watches pane: the line carries whether it is on.
+        TEST_METHOD (DisabledWatch_IsMarkedOff)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.Run ("W 0400");
+            rig.Run ("W 0402");
+            rig.Run ("WD 1");
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((size_t) 2, snapshot.watches.size());
+            Assert::IsTrue   (snapshot.watches[0].enabled);
+            Assert::IsFalse  (snapshot.watches[1].enabled);
+        }
     };
 
 
