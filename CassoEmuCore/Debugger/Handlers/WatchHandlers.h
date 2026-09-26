@@ -46,5 +46,5 @@ private:
     static const char  * GetPlural  (WatchListKind kind);
     static bool          TryGetSlot (const std::string & sourceName, int & slot);
     static Word          PeekWord   (DebugSession & session, Word address);
-    static void          SetNoSuch  (Reply & reply, WatchListKind kind, int id);
+    static void          SetNoSuch  (Reply & reply, WatchListKind kind, uint32_t id);
 };

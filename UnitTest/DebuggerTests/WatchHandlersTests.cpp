@@ -154,5 +154,61 @@ namespace DebuggerTests
             Assert::IsTrue (pointers == rig.RunOk ("ZPL").text, L"the replayed pointers keep their slots");
             rig.RunFails ("WSAVE", "invalid arguments");
         }
+
+
+
+        //  An id past the tables' range is reported as typed, not wrapped to
+        //  a negative number.
+        TEST_METHOD (WC_HugeId_IsReportedAsTyped)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.Run ("WC 4294967295");
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual (std::string ("There is no watch #4294967295."), reply.error.detail);
+        }
+
+
+
+        //  W with no address lists the watches, so GSSquared's layout shows
+        //  the list rather than a "set" line for every existing watch.
+        TEST_METHOD (W_Alone_InGSSquared_ListsTheWatches)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.RunOk ("W 36");
+
+            reply = rig.session.ExecuteLine ("W", CommandMode::GSSquared);
+            rig.session.FormatReply (reply, CommandMode::GSSquared);
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::AreEqual (std::string ("Current memory watches:"), reply.text.at (0));
+        }
+
+
+
+        //  BMG goes to one bookmark; * is not an id for it.
+        TEST_METHOD (BMG_Star_IsNotAnId)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.RunOk ("BMA 400");
+
+            reply = rig.Run ("BMG *");
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual (std::string ("Give a bookmark id."), reply.error.detail);
+
+            reply = rig.Run ("BMG");
+            Assert::AreEqual (std::string ("Give a bookmark id."), reply.error.detail);
+        }
     };
 }

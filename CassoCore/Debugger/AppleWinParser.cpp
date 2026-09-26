@@ -950,7 +950,15 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
     case DebugVerb::DisableZeroPagePointer:
     case DebugVerb::EnableZeroPagePointer:
     case DebugVerb::ClearBookmark:
+        return TryParseIdOrAll (args.tokens, command, error);
+
     case DebugVerb::GoToBookmark:
+        if (args.tokens.empty() || args.tokens[0] == "*")
+        {
+            error = "Give a bookmark id.";
+            return false;
+        }
+
         return TryParseIdOrAll (args.tokens, command, error);
 
     default:
