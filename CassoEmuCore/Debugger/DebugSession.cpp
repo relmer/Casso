@@ -912,10 +912,63 @@ void DebugSession::OnInstruction (Word pc)
 
     m_watchpoints.SetAccessPc (pc);
 
+    if (m_watchpoints.HasEnabled())
+    {
+        NoteCpuOwnReads (pc);
+    }
+
     if (isDebuggerRun && m_instructionObserver != nullptr)
     {
         m_instructionObserver->OnInstruction (*this, pc);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::NoteCpuOwnReads
+//
+//  The reads the instruction at pc makes that are not the program reading
+//  memory: the fetch of its own bytes, and the read an indexed store makes of
+//  its target before writing it. A read watchpoint passes over them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::NoteCpuOwnReads (Word pc)
+{
+    const Microcode      * set         = m_target.GetInstructionSet();
+    const Microcode      * microcode   = nullptr;
+    Byte                   opcode      = 0;
+    Word                   length      = 0;
+    std::optional<Word>    storeTarget;
+    AccessPrediction       prediction;
+    HRESULT                hr          = S_OK;
+
+
+
+    if (set == nullptr || !m_target.TryPeek (pc, opcode))
+    {
+        m_watchpoints.SetCpuOwnReads (pc, 0, std::nullopt);
+        return;
+    }
+
+    microcode = &set[opcode];
+    length    = microcode->isLegal ? (Word) (1 + OpcodeTable::GetOperandSize (microcode->globalAddressingMode)) : (Word) 1;
+
+    if (microcode->isLegal && EffectiveAddress::ClassifyOperand (*microcode) == PredictedAccess::Write)
+    {
+        hr = EffectiveAddress::Predict (set, pc, m_target.GetRegisters(), *this, prediction);
+
+        if (SUCCEEDED (hr) && !prediction.touches.empty() && prediction.touches.back().access == PredictedAccess::Write)
+        {
+            storeTarget = prediction.touches.back().address;
+        }
+    }
+
+    m_watchpoints.SetCpuOwnReads (pc, length, storeTarget);
 }
 
 
@@ -1130,6 +1183,60 @@ bool DebugSession::ShouldStopBefore (Word pc)
     }
 
     return m_watchpoints.HasEnabledBefore() && TryMatchBeforeWatchpoint (pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ShouldStopAtRunStart
+//
+//  The instruction a run begins on stops only for a before-mode watchpoint,
+//  and not when that watchpoint's own stop left the PC here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::ShouldStopAtRunStart (Word pc)
+{
+    m_watchpoints.SetAccessPc (pc);
+
+    if (m_watchpoints.IsSuppressingAfterStopAt (pc))
+    {
+        return false;
+    }
+
+    return TryMatchBeforeWatchpoint (pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ShouldStopAfterInterrupt
+//
+//  pc is the first instruction of the handler of an interrupt just taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::ShouldStopAfterInterrupt (Word pc)
+{
+    int  hitId = -1;
+
+
+
+    m_watchpoints.SetAccessPc (pc);
+
+    if (!m_breakpoints.TryMatchInterrupt (hitId))
+    {
+        return false;
+    }
+
+    m_lastBreakpointId = hitId;
+    return true;
 }
 
 
@@ -1800,6 +1907,10 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         m_stepsLeft       = request.count - 1;
         request.count     = 1;
     }
+
+    //  A watch hit raised while the machine was paused, by IN or OUT, belongs
+    //  to no run, and would otherwise stop this one before it began.
+    m_watchpoints.ClearPending();
 
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;
     UpdateHookInstalled();

@@ -105,6 +105,10 @@ public:
                             int                           & hitId,
                             std::optional<int32_t>        & conditionValue);
 
+    //  True when an enabled Interrupt entry stops, the CPU having just taken
+    //  an interrupt. Counts hits as TryMatchBeforeInstruction does.
+    bool  TryMatchInterrupt (int & hitId);
+
     //  The IF expression's value from the last stop TryMatchBeforeInstruction
     //  reported, when the entry had one.
     const std::optional<int32_t> &  GetLastConditionValue () const { return m_lastConditionValue; }

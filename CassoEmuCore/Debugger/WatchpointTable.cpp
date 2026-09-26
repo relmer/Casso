@@ -457,6 +457,8 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 //  reports it; a write is then offered to the value breakpoints, which stop
 //  as a watchpoint does, after it. The suppression that follows a
 //  before-mode stop covers the watchpoints only, not the value breakpoints.
+//  The CPU's fetch of the instruction's own bytes, and an indexed store's read
+//  of its target, are not reported at all (see SetCpuOwnReads).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -474,6 +476,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     if (m_stackWriteSink != nullptr && access == BusAccess::Write && (address >> kPageShift) == kStackPage)
     {
         m_stackWriteSink (address, value, previous);
+    }
+
+    if (access == BusAccess::Read && TryConsumeCpuOwnRead (address))
+    {
+        return;
     }
 
     for (Watchpoint & entry : m_entries)
@@ -506,6 +513,65 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     {
         RecordHit (WatchHit { hitId, address, value, replaced, watched, m_accessPc, WatchMode::After, conditionValue }, access);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::SetCpuOwnReads
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SetCpuOwnReads (Word pc, Word length, std::optional<Word> storeTarget)
+{
+    m_fetchPc     = pc;
+    m_fetchesLeft = (Byte) ((1u << length) - 1);
+    m_storeTarget = storeTarget;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TryConsumeCpuOwnRead
+//
+//  Each instruction byte is fetched once, and the store's own read happens
+//  once, so a later read of the same address in the same instruction is the
+//  program's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TryConsumeCpuOwnRead (Word address)
+{
+    static constexpr Word  kMaxLength = 8;
+    Word                   offset     = (Word) (address - m_fetchPc);
+    Byte                   bit        = 0;
+
+
+
+    if (offset < kMaxLength)
+    {
+        bit = (Byte) (1u << offset);
+    }
+
+    if ((m_fetchesLeft & bit) != 0)
+    {
+        m_fetchesLeft = (Byte) (m_fetchesLeft & ~bit);
+        return true;
+    }
+
+    if (m_storeTarget == address)
+    {
+        m_storeTarget.reset();
+        return true;
+    }
+
+    return false;
 }
 
 
