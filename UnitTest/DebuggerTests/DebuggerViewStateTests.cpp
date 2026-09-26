@@ -4,6 +4,7 @@
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/MonitorParser.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "EmuTests/TestMachine.h"
 #include "FakeDiagnosticsProvider.h"
 #include "ControllerRig.h"
@@ -913,7 +914,7 @@ namespace DebuggerViewStateTests
 
             for (const auto & [type, address, value, condition, expected] : cases)
             {
-                std::string  definition = BreakpointDialog::MakeDefinition (type, address, value, condition);
+                std::string  definition = BreakpointDialog::MakeDefinition ({ type, WatchMode::After, address, value, condition });
                 Reply        reply      = rig.Run (std::format ("BPEDIT {} {}", id, definition));
 
                 Assert::AreEqual (std::string (expected), definition);
@@ -921,6 +922,72 @@ namespace DebuggerViewStateTests
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (why.begin(), why.end()).c_str());
             }
+        }
+
+
+        //  Each entry is set as a person would set it, filled into the dialog's
+        //  fields and written straight back with OK. The entry BPEDIT leaves
+        //  must be the one it started from.
+        TEST_METHOD (EveryBreakpointKindRoundTripsThroughTheEditDialog)
+        {
+            const std::pair<BreakpointKind, const char *>  setters[] =
+            {
+                { BreakpointKind::Address,     "BP 0300:0302 IF A == 1"           },
+                { BreakpointKind::Opcode,      "BRKOP EA"                         },
+                { BreakpointKind::Register,    "BPR A = 41"                       },
+                { BreakpointKind::Memory,      "BPMR 0400:040F BEFORE IF A == 1"  },
+                { BreakpointKind::Memory,      "BPMW 0400 BEFORE"                 },
+                { BreakpointKind::Memory,      "BPM 0400 IF A == 1"               },
+                { BreakpointKind::Brk,         "BRK ON"                           },
+                { BreakpointKind::Interrupt,   "BRKINT ON"                        },
+                { BreakpointKind::MemoryValue, "BPMV 0400 41 IF A == 1"           },
+            };
+
+            //  I/O is the one kind left out: no command makes one, and it is
+            //  written back as the memory watchpoint it behaves as.
+            for (int kind = 0; kind <= (int) BreakpointKind::MemoryValue; ++kind)
+            {
+                bool  isCovered = std::any_of (std::begin (setters), std::end (setters), [kind] (const auto & each) { return (int) each.first == kind; });
+
+                Assert::IsTrue (isCovered || kind == (int) BreakpointKind::Io, std::format (L"kind {} has no case", kind).c_str());
+            }
+
+            for (const auto & [kind, setter] : setters)
+            {
+                MachineRig      rig;
+                Reply           set    = rig.Run (setter);
+                BreakpointInfo  before = GetOnlyBreakpoint (rig);
+                std::string     line   = std::format ("BPEDIT {} {}", before.id, BreakpointDialog::MakeDefinition (BreakpointDialog::GetFields (before)));
+                Reply           edit   = rig.Run (line);
+                BreakpointInfo  after  = GetOnlyBreakpoint (rig);
+                std::wstring    why    = SourcePathList::Utf8ToWide (std::string (setter) + " -> " + line + ": " + edit.error.detail);
+
+
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) set.status,  SourcePathList::Utf8ToWide (setter).c_str());
+                Assert::AreEqual ((int) kind,              (int) before.kind, SourcePathList::Utf8ToWide (setter).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) edit.status, why.c_str());
+                Assert::AreEqual (before.id,               after.id,          why.c_str());
+                Assert::AreEqual ((int) before.kind,       (int) after.kind,  why.c_str());
+                Assert::AreEqual (before.address,          after.address,     why.c_str());
+                Assert::AreEqual (before.last,             after.last,        why.c_str());
+                Assert::AreEqual (before.opcode,           after.opcode,      why.c_str());
+                Assert::AreEqual (before.condition,        after.condition,   why.c_str());
+                Assert::AreEqual ((int) before.access,     (int) after.access, why.c_str());
+                Assert::AreEqual ((int) before.mode,       (int) after.mode,  why.c_str());
+                Assert::IsTrue   (before.value == after.value,                why.c_str());
+            }
+        }
+
+
+        static BreakpointInfo GetOnlyBreakpoint (MachineRig & rig)
+        {
+            Reply  list = rig.Run ("BPL");
+
+
+
+            Assert::AreEqual ((size_t) 1, std::get<BreakpointListData> (list.data).breakpoints.size(), L"one entry in the table");
+            return std::get<BreakpointListData> (list.data).breakpoints[0];
         }
 
 
