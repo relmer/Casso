@@ -251,6 +251,7 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
     Tokens                     tokens;
     const WinDbgExclusion    * exclusion = nullptr;
     AppleWinParseResult        parsed;
+    std::string                described;
 
 
 
@@ -267,10 +268,21 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
         return false;
     }
 
+    //  A Casso command WinDbg does not reach is answered as .help answers it,
+    //  with the same status AppleWin mode gives it.
     if (!CommandModeHelp::IsCassoCommandReachable (CommandMode::WinDbg, tokens[0]))
     {
-        result.status = ParseStatus::Unknown;
-        result.error  = std::format ("!{} does not run in WinDbg mode. Use .help {} to see where it runs.", tokens[0], tokens[0]);
+        if (CommandModeHelp::TryDescribe (CommandMode::WinDbg, tokens[0], described))
+        {
+            result.status = ParseStatus::NotAvailable;
+            result.error  = described;
+        }
+        else
+        {
+            result.status = ParseStatus::Unknown;
+            result.error  = std::format ("!{} is not a command.", tokens[0]);
+        }
+
         return true;
     }
 

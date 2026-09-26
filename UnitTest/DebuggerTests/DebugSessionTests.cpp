@@ -551,6 +551,39 @@ namespace DebuggerTests
 
 
 
+        //  A Casso command a mode does not reach gets the status AppleWin mode
+        //  gives it, and the line the mode's help gives, in every dialect.
+        TEST_METHOD (ExecuteLine_UnreachedCassoCommand_SameStatusInEveryDialect)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            Reply            reply;
+
+
+
+            for (const char * name : { "SHR", "HGR", "WIN" })
+            {
+                reply = session.ExecuteLine (name, CommandMode::AppleWin);
+                Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, L"AppleWin");
+
+                reply = session.ExecuteLine (std::string ("!") + name, CommandMode::WinDbg);
+                Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, L"WinDbg");
+            }
+
+            reply = session.ExecuteLine ("!benchmark", CommandMode::WinDbg);
+            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, L"!benchmark");
+
+            reply = session.ExecuteLine ("hgr", CommandMode::GSSquared);
+            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, L"GSSquared hgr");
+            Assert::IsTrue   (reply.error.detail.starts_with ("HGR:"), L"the line help gives");
+
+            reply = session.ExecuteLine ("frob", CommandMode::GSSquared);
+            Assert::AreEqual ((int) CommandStatus::Unknown, (int) reply.status, L"no command at all");
+        }
+
+
+
         TEST_METHOD (ResolvePath_RelativeFromCurrentDirectory_QuotesDropped)
         {
             MockDebugTarget  target;

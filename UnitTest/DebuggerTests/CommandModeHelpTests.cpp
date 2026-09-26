@@ -223,6 +223,20 @@ namespace DebuggerTests
         }
 
 
+        //  GSSquared's own addr and first.last forms are D, so its help for D
+        //  gives those forms rather than saying D does not run there.
+        TEST_METHOD (HelpForACommandTheModeWritesItsOwnWay_GivesTheModesForms)
+        {
+            std::string  line;
+
+
+
+            Assert::IsTrue (CommandModeHelp::TryDescribe (CommandMode::GSSquared, "d", line));
+            Assert::IsTrue (line.find ("does not run") == std::string::npos, Widen (line).c_str());
+            Assert::IsTrue (line.find ("first.last")   != std::string::npos, Widen (line).c_str());
+        }
+
+
         TEST_METHOD (CassoMode_RunsEveryCommandByBareName_InAppleWinsFormat)
         {
             MockDebugTarget            target;

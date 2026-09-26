@@ -71,6 +71,7 @@ GSSquaredParseResult GSSquaredParser::Parse (const std::string & line, const IDe
 {
     GSSquaredParseResult  result;
     Line                  current = { Split (line), result, context };
+    std::string           described;
 
 
 
@@ -85,8 +86,18 @@ GSSquaredParseResult GSSquaredParser::Parse (const std::string & line, const IDe
     }
     else if (!TryParseForm (current) && !TryParseWord (current))
     {
-        result.status = ParseStatus::Unknown;
-        result.error  = std::format ("{} is not a command.", current.tokens[0]);
+        //  A Casso command GSSquared does not reach is answered as help
+        //  answers it, with the same status AppleWin mode gives it.
+        if (CommandModeHelp::TryDescribe (CommandMode::GSSquared, current.tokens[0], described))
+        {
+            result.status = ParseStatus::NotAvailable;
+            result.error  = described;
+        }
+        else
+        {
+            result.status = ParseStatus::Unknown;
+            result.error  = std::format ("{} is not a command.", current.tokens[0]);
+        }
     }
 
     if (result.status != ParseStatus::Ok)

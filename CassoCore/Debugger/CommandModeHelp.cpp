@@ -417,6 +417,13 @@ bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, s
         return true;
     }
 
+    //  The mode has forms of its own that stand for the command.
+    if (IsCoveredByMode (mode, word))
+    {
+        line = std::format ("{} is written {} in {} mode.", upper, GetCoveringForms (mode, word), GetTitle (mode));
+        return true;
+    }
+
     line = std::format ("{} does not run in {} mode. It runs in {}.", upper, GetTitle (mode), GetModesThatRun (word));
     return true;
 }
@@ -450,6 +457,54 @@ bool CommandModeHelp::IsCoveredByMode (CommandMode mode, const std::string & cas
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::GetCoveringForms
+//
+//  The syntax of each of the mode's own commands that stands for the Casso
+//  command, as a list: "addr or first.last".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandModeHelp::GetCoveringForms (CommandMode mode, const std::string & cassoName)
+{
+    std::vector<std::string>  forms;
+    std::string               text;
+
+
+
+    for (const Entry & entry : GetEntries (mode))
+    {
+        std::istringstream  names (entry.casso);
+        std::string         each;
+
+        while (names >> each)
+        {
+            if (_stricmp (each.c_str(), cassoName.c_str()) == 0)
+            {
+                forms.push_back (entry.syntax);
+                break;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < forms.size(); ++i)
+    {
+        if (i > 0)
+        {
+            text += (i + 1 == forms.size()) ? " or " : ", ";
+        }
+
+        text += forms[i];
+    }
+
+    return text;
 }
 
 
