@@ -187,5 +187,83 @@ namespace DebuggerTests
             rig.RunFails ("SYMLIST bogus",            "invalid arguments");
             Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("SYMUSER LOAD").status);
         }
+
+
+
+        TEST_METHOD (SYM_Load_Cc65DebugFile_SegmentPast64KIsDropped)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\far.dbg",
+                "version\tmajor=2,minor=0\n"
+                "file\tid=0,name=\"far.a65\",size=10,mtime=0,mod=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
+                "seg\tid=1,name=\"FAR\",start=0x010300,size=3,addrsize=far,type=rw\n"
+                "span\tid=0,seg=0,start=0,size=3\n"
+                "span\tid=1,seg=1,start=0,size=3\n"
+                "line\tid=0,file=0,line=4,span=0\n"
+                "line\tid=1,file=0,line=9,span=1\n"
+                "scope\tid=0,name=\"\",mod=0\n");
+
+            rig.RunOk ("SYMUSER LOAD \"far.dbg\"");
+            Assert::AreEqual ((size_t) 1, rig.session.GetLineTable().GetPositionsAt (0x0300).size(), L"the far segment does not fold into bank 0");
+
+            rig.RunOk ("SYMUSER LOAD \"far.dbg\",1000");
+            Assert::AreEqual ((size_t) 1, rig.session.GetLineTable().GetPositionsAt (0x1300).size());
+        }
+
+
+
+        TEST_METHOD (SYM_Load_Offset_LeavesConstantsAlone)
+        {
+            Rig   rig;
+            Word  address = 0;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg",
+                "version\tmajor=2,minor=0\n"
+                "file\tid=0,name=\"prog.a65\",size=10,mtime=0,mod=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
+                "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "sym\tid=1,name=\"count\",addrsize=zeropage,scope=0,val=0x0003,type=equ\n"
+                "scope\tid=0,name=\"\",mod=0\n");
+
+            rig.RunOk ("SYMUSER LOAD \"prog.dbg\",1000");
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("start", address));
+            Assert::AreEqual ((Word) 0x1300, address, L"a label moves");
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("count", address));
+            Assert::AreEqual ((Word) 0x0003, address, L"a constant does not");
+        }
+
+
+
+        TEST_METHOD (SYM_AssignToAKeyword_AddsTheSymbol)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("$0300 CLEAR (user)"), rig.RunOk ("SYM CLEAR = 300").text.at (0));
+            Assert::AreEqual (std::string ("$0301 ON (user)"),    rig.RunOk ("SYM ON = 301").text.at (0));
+            Assert::AreEqual (std::string ("$0302 LOAD (user)"),  rig.RunOk ("SYM LOAD = 302").text.at (0));
+            Assert::AreEqual ((size_t) 3, rig.session.GetSymbols().GetCount (SymbolTableId::User));
+        }
+
+
+
+        TEST_METHOD (SYM_LoadAndSave_QuotedNameKeepsItsSpacing)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\my  labels.sym", "0300 START\n");
+            rig.RunOk ("SYMUSER LOAD \"my  labels.sym\"");
+            rig.RunOk ("SYMUSER SAVE \"out\ttab.sym\"");
+            Assert::IsTrue (rig.files.Exists (L"C:\\Work\\out\ttab.sym"), L"a tab stays a tab");
+        }
     };
 }

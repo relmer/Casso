@@ -25,7 +25,8 @@ enum class SymbolFileFormat
 struct SymbolFileEntry
 {
     std::string  name;
-    Word         address = 0;
+    Word         address       = 0;
+    bool         isRelocatable = true;    // false for a constant, which a load offset leaves alone
 };
 
 
@@ -59,7 +60,7 @@ private:
     static bool  IsViceLine        (const std::string & line);
     static bool  HasMerlinHeading  (const std::string & line);
     static bool  TryParseHex       (const std::string & text, Word & value);
-    static void  AddUnique         (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address);
+    static void  AddUnique         (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isRelocatable = true);
     static void  ReadCasso         (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
     static void  ReadCc65          (const DebugFile & file, std::vector<SymbolFileEntry> & symbols);
     static void  ReadMerlinListing (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);

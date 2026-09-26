@@ -370,7 +370,8 @@ bool SymbolTable::TryFindNameIn (SymbolTableId table, Word address, std::string 
 //
 //  SymbolTable::LoadFrom
 //
-//  The table is replaced by the file's symbols.
+//  The table is replaced by the file's symbols. The offset moves each address,
+//  but not a constant.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,7 +392,7 @@ HRESULT SymbolTable::LoadFrom (SymbolTableId table, const std::string & content,
 
     for (const SymbolFileEntry & symbol : symbols)
     {
-        Add (table, symbol.name, (Word) (symbol.address + offset));
+        Add (table, symbol.name, symbol.isRelocatable ? (Word) (symbol.address + offset) : symbol.address);
     }
 
     loaded = symbols.size();

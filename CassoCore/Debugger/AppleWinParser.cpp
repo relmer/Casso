@@ -993,6 +993,16 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
         return true;
     }
 
+    // An '=' is an assignment, even to a keyword, unless it falls in the file
+    // name after LOAD or SAVE.
+    if (equals != std::string::npos && !((first == "LOAD" || first == "SAVE") && Split (args.rest.substr (0, equals)).size() > 1))
+    {
+        command.verb  = DebugVerb::AddSymbol;
+        command.text  = Split (args.rest.substr (0, equals)).empty() ? std::string() : Split (args.rest.substr (0, equals))[0];
+        command.hasA1 = true;
+        return !command.text.empty() && TryEvaluate (args.rest.substr (equals + 1), *args.context, command.a1, error);
+    }
+
     if (first == "CLEAR")
     {
         command.verb = DebugVerb::ClearSymbols;
@@ -1009,7 +1019,9 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
     if (first == "LOAD" || first == "SAVE")
     {
         command.verb = (first == "LOAD") ? DebugVerb::LoadSymbols : DebugVerb::SaveSymbols;
-        command.text = Join (args.tokens, 1);
+        // The rest of the line as typed, so a quoted name keeps its spacing.
+        command.text = args.rest.substr (args.tokens[0].size());
+        command.text = command.text.substr (std::min (command.text.size(), command.text.find_first_not_of (" \t")));
 
         if (command.text.empty())
         {
@@ -1018,14 +1030,6 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
         }
 
         return true;
-    }
-
-    if (equals != std::string::npos)
-    {
-        command.verb  = DebugVerb::AddSymbol;
-        command.text  = Split (args.rest.substr (0, equals)).empty() ? std::string() : Split (args.rest.substr (0, equals))[0];
-        command.hasA1 = true;
-        return !command.text.empty() && TryEvaluate (args.rest.substr (equals + 1), *args.context, command.a1, error);
     }
 
     if (first == "!" || first == "~")
@@ -1231,7 +1235,9 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
     if (first == "SAVE")
     {
         command.verb = DebugVerb::SaveHistory;
-        command.text = Join (args.tokens, 1);
+        // The rest of the line as typed, so a quoted name keeps its spacing.
+        command.text = args.rest.substr (args.tokens[0].size());
+        command.text = command.text.substr (std::min (command.text.size(), command.text.find_first_not_of (" \t")));
 
         if (command.text.empty())
         {

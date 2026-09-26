@@ -372,7 +372,11 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 
     for (DebugSegment & segment : file.segments)
     {
-        segment.start = (uint32_t) (Word) (segment.start + offset);
+        // A segment past 64K keeps its start, so the line table drops its spans.
+        if (segment.start <= 0xFFFF)
+        {
+            segment.start = (uint32_t) (Word) (segment.start + offset);
+        }
     }
 
     lines = file.lines.size();

@@ -271,7 +271,7 @@ bool SymbolFileReader::TryParseHex (const std::string & text, Word & value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address)
+void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isRelocatable)
 {
     for (const SymbolFileEntry & existing : symbols)
     {
@@ -281,7 +281,7 @@ void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const 
         }
     }
 
-    symbols.push_back ({ name, address });
+    symbols.push_back ({ name, address, isRelocatable });
 }
 
 
@@ -343,7 +343,7 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
     {
         if (symbol.type != "imp" && (symbol.scope < 0 || topLevel.contains (symbol.scope)))
         {
-            AddUnique (symbols, symbol.name, (Word) symbol.value);
+            AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.segment >= 0);
         }
     }
 }
