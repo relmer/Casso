@@ -492,6 +492,41 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (TF_OffWithNothingRecorded_KeepsTheExistingFile)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("G");
+            rig.RunOk ("TF");
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("TF");
+            Assert::AreEqual ((size_t) 2, SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt")).size());
+        }
+
+
+
+        TEST_METHOD (CYCLES_PART_AfterTheCountRestarts_CountsFromTheRestart)
+        {
+            Rig  rig;
+
+
+
+            rig.target.cycleCount = 1000;
+            rig.RunOk ("RCC");
+            rig.target.cycleCount = 300;
+            Assert::AreEqual (std::string ("Cycles: 300"), rig.RunOk ("CYCLES PART").text.at (0));
+        }
+
+
+
         TEST_METHOD (CYCLES_RCC_VIDEOINFO_BPV_BENCHMARK)
         {
             Rig        rig;
