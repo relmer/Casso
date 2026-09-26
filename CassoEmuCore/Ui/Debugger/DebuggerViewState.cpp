@@ -550,6 +550,11 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
     {
+        if (bp.info.kind != BreakpointKind::Address)
+        {
+            continue;
+        }
+
         for (const SourcePosition & position : table.GetPositionsAt (bp.address))
         {
             state.breakpointLines.emplace_back (position.file, position.line, bp.id);
@@ -811,13 +816,32 @@ std::string DebuggerViewState::GetToggleBreakpointLine (const DebuggerViewSnapsh
 {
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
     {
-        if (bp.address == address)
+        if (IsCodeBreakpointAt (bp, address))
         {
             return std::format ("BPC {}", bp.id);
         }
     }
 
     return std::format ("BP {:04X}", address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::IsCodeBreakpointAt
+//
+//  An execution breakpoint listed at the address. Watchpoints and the entries
+//  that stop on an opcode, a register, BRK or an interrupt list an address
+//  too, but none of them stops before the instruction there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsCodeBreakpointAt (const DebuggerViewSnapshot::BreakpointLine & bp, Word address)
+{
+    return bp.info.kind == BreakpointKind::Address && bp.address == address;
 }
 
 
@@ -1620,7 +1644,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 
             for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
             {
-                if (bp.address == row.address)
+                if (IsCodeBreakpointAt (bp, row.address))
                 {
                     row.isEnabled     = row.hasBreakpoint ? (row.isEnabled || bp.enabled) : bp.enabled;
                     row.hasBreakpoint = true;

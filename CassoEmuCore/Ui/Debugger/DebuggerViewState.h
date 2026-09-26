@@ -338,6 +338,7 @@ public:
     //  The command a control stands for.
     static std::string  GetToggleBreakpointLine (const DebuggerViewSnapshot & snapshot, Word address);
     static std::string  GetPokeLine             (Word address, Byte value);
+    static bool         IsCodeBreakpointAt      (const DebuggerViewSnapshot::BreakpointLine & bp, Word address);
 
     //  The commands a finished watch edit sends (FR-096). `watchId` picks a
     //  manual watch and `autoIndex` an automatic one; exactly one is set.

@@ -1386,6 +1386,25 @@ namespace DebuggerViewStateTests
 
 
 
+        //  A watchpoint on a code line is not an execution breakpoint there: the
+        //  line shows no mark, and a click sets one rather than clearing the
+        //  watchpoint.
+        TEST_METHOD (ClickingALineWithAWatchpointSetsABreakpoint)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.Run ("BPMW 300");
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse   (LineAt (snapshot, 0x0300).hasBreakpoint, L"no mark");
+            Assert::AreEqual  (std::string ("BP 0300"), DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300));
+        }
+
+
+
         TEST_METHOD (EditingAByteWritesIt)
         {
             MachineRig  rig;
