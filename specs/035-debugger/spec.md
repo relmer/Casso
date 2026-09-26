@@ -105,6 +105,7 @@ competitors in the parts a user sees first would waste the launch.
 
 - Q: How does an auto-hidden pane open? -> A: Its edge tab is a button: a click slides the pane out over the others, which do not move, and a second click slides it back; a hover does nothing.
 - Q: What does the selected tab look like? -> A: As Visual Studio's: it opens into its pane with no line between them, flared into the pane's border and rounded at the far corners; the pane's border runs on round it, in the accent color while the group has focus.
+- Q: Which commands does help list? -> A: Only what can be typed in the dialect in force, written as it is typed. Each dialect lists its own commands, then the Casso commands it has no equivalent for, all of which run from it -- DISK among them in GSSquared. A new Casso dialect holds Casso's complete native set. Every help uses one layout: by category, alphabetical within each, syntax then description.
 - Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete all, Enable all, Disable all, Undo, Redo, Go to source code, Go to disassembly, Show columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -604,6 +605,13 @@ with the same command in AppleWin mode.
    only bank 00 exists on this machine and nothing changes.
 7. **Given** GSSquared mode, **When** the user enters `map` or `video`,
    **Then** the reply says the command needs a IIgs and nothing changes.
+8. **Given** GSSquared mode, **When** the user asks for help, **Then**
+   GSSquared's commands are listed by category, alphabetical within each,
+   followed by the Casso commands GSSquared has no equivalent for; `DISK` is
+   among them and runs when typed, and AppleWin's `R` is not listed.
+9. **Given** the Dialect picker, **When** the user chooses Casso, **Then**
+   every command Casso implements runs by bare name, and help lists all of
+   them in the same layout.
 
 ---
 
@@ -1027,9 +1035,12 @@ confirm it disables without being removed.
 
 **Command modes**
 
-- **FR-011**: The debugger MUST provide four command modes, AppleWin, Apple
-  II Monitor, GSSquared and WinDbg, selected by the user; AppleWin MUST be the
-  default.
+- **FR-011**: The debugger MUST provide five command modes, AppleWin, Apple
+  II Monitor, GSSquared, WinDbg and Casso, selected by the user; AppleWin MUST
+  be the default. Casso mode is Casso's complete native command set: every
+  command Casso implements -- AppleWin's names and Casso's own engine
+  commands (FR-014) -- by bare name. Its output format is AppleWin's, the
+  form Casso's native replies take.
 - **FR-012**: All modes MUST operate on the same session state: a breakpoint,
   watch or register change made in one mode MUST be visible in the others.
 - **FR-013**: The debugger MUST have an output format, AppleWin, Monitor,
@@ -1038,12 +1049,29 @@ confirm it disables without being removed.
   the output format alone, from any way in, and every reply MUST be written
   in the current output format.
 - **FR-014**: Every engine command Casso adds beyond the dialects (`MODE`,
-  `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`, and any added later)
-  MUST be reachable in every mode through that mode's own marker: `/` in
-  Monitor mode (which also reaches any AppleWin command with no Monitor
-  equivalent), bare names in AppleWin and GSSquared modes, and `!` in WinDbg
-  mode. The documentation MUST describe each engine command once and list the
+  `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH`, `SRC`, `SKIP`, `CALLS`,
+  `HISTORY`, `PANEL`, `OUTPUT`, `PROFILE`, and any added later), and every
+  other Casso command the mode has no equivalent for (`DISK` in GSSquared
+  mode, for one), MUST be reachable in every mode through that mode's own
+  marker: `/` in Monitor mode, bare names in AppleWin, GSSquared and Casso
+  modes, and `!` in WinDbg mode. A command whose name the mode already uses
+  for something else (GSSquared's `R`, `S`, `G`, `L`) is not reached that way.
+  The documentation MUST describe each engine command once and list the
   marker per mode.
+- **FR-122**: Help in each mode MUST list only commands that can be typed in
+  it, each written exactly as it is typed there. In AppleWin, Monitor,
+  GSSquared and WinDbg modes, help MUST list the mode's own commands first and
+  then a "Casso commands" section holding the Casso commands reachable under
+  FR-014 that the mode has no equivalent for; in Casso mode it MUST list every
+  command. Every command help lists MUST run as listed.
+- **FR-123**: Every mode's help, and the Casso section in each, MUST use one
+  layout: commands grouped by category -- running and stepping, breakpoints,
+  registers and flags, memory, disassembly and data, symbols and source,
+  disks, display and panels, session and settings -- alphabetical within each
+  category, one line per command with its syntax on the left and a short
+  description on the right. AppleWin's commands MUST have descriptions.
+- **FR-124**: Asking help for a command the mode cannot run MUST say which
+  mode has it, and MUST NOT describe it as if it ran.
 
 **AppleWin mode**
 
@@ -1761,6 +1789,9 @@ confirm it disables without being removed.
   documents open at close all reopen, each at its line.
 - **SC-028**: Every pane's tab title is shown in full or reachable by the
   strip's arrows, at any group width down to the pane's minimum.
+- **SC-031**: In every mode, every command its help lists runs when typed as
+  listed -- 100% of them -- and no command a mode can run is missing from its
+  help.
 - **SC-029**: Every breakpoint the console can set can also be set, enabled,
   disabled, deleted and found from the breakpoints pane alone, with no command
   typed.
@@ -1774,7 +1805,11 @@ confirm it disables without being removed.
   as an AppleWin-mode command line, `/bpl`; Ctrl-Y is the machine's own user
   command and `!` its mini-assembler), AppleWin bare names, GSSquared bare
   names (`/` is its bank separator), WinDbg `!` (its extension-command
-  prefix).
+  prefix), Casso bare names (it has no dialect of its own to step around).
+- **Casso commands and equivalents**: which Casso commands a dialect has an
+  equivalent for is decided command by command from each dialect's published
+  command set; a Casso command stands in the Casso section of a dialect's
+  help exactly when it does not.
 - **AppleWin command coverage**, by name from AppleWin's command table:
   - **Phase 1 (headless)**:
     - Assembler: `A`.
