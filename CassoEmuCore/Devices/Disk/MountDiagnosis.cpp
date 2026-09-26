@@ -15,13 +15,14 @@
 //
 //  The refusal in the user's terms, as a clause that follows the file's name.
 //
-//  EVERY CLAUSE SAYS WHAT TO DO OR WHAT IS TRUE OF THE FILE, never just that
-//  something went wrong. "Not a valid disk image" tells a person nothing they
-//  did not already know from the refusal itself; "is 4,096 bytes, but a .dsk
-//  image must be exactly 143,360 bytes" tells them their download stopped
-//  early. The size is the whole point of carrying it this far.
+//  EVERY CLAUSE STATES WHAT IS TRUE OF THE FILE, never just that something
+//  went wrong. "Not a valid disk image" gives a person nothing they did not
+//  already know; "is 4,096 bytes, but a .dsk image is 143,360 bytes" shows
+//  them their download stopped early. The size is the whole point of carrying
+//  it this far. Each clause is short: it is read in a dialog, a pane and a
+//  console, and the file's own name comes before it.
 //
-//  A diagnosis nobody filled in gets a clause that says so rather than the
+//  A diagnosis nobody filled in gets a clause of its own rather than the
 //  generic refusal, because a reason that was never recorded and a reason that
 //  was recorded as "unrecognized" are different bugs and must not read alike.
 //
@@ -42,17 +43,17 @@ string MountDiagnosis::Describe() const
         case MountFailure::UnknownExtension:
             //  The list is read off the container table rather than typed out:
             //  typed out, it named four kinds for a release that read five.
-            text = "is not a kind of file Casso reads as a disk image. Casso reads "
+            text = "is not a disk image Casso can read. Casso reads "
                  + DiskCommandRunner::FormatContainerWordList (".", "and") + " images";
             break;
 
         case MountFailure::FileUnreadable:
-            text = "cannot be read. It may have been moved or deleted since it was "
-                   "chosen, or another program may be holding it open";
+            text = "cannot be read. It may have been moved or deleted, or another "
+                   "program may have it open";
             break;
 
         case MountFailure::EmptyFile:
-            text = "is empty. There is nothing in it to read as a disk";
+            text = "is empty";
             break;
 
         case MountFailure::WrongSizeForFormat:
@@ -63,30 +64,26 @@ string MountDiagnosis::Describe() const
             //  140K one, so it is refused as unsupported, not as the wrong size.
             if (fileByteSize == 800u * 1024u)
             {
-                snprintf (note, sizeof (note), "is an 800K 3.5-inch disk image, and 800K images aren't supported yet");
+                snprintf (note, sizeof (note), "is an 800K 3.5-inch disk image, and 800K images are not supported yet");
             }
             else
             {
                 snprintf (note, sizeof (note),
-                          "is %s, but a %s image must be exactly %s -- 35 tracks of 16 "
-                          "sectors of 256 bytes. A file of any other size was either "
-                          "truncated on its way here or was never a disk image",
-                          observed.c_str(), GetPrimaryExtension (format), required.c_str());
+                          "is %s but should be %s, so it is not a valid %s image",
+                          observed.c_str(), required.c_str(), GetPrimaryExtension (format));
             }
 
             text = note;
             break;
 
         case MountFailure::NotAWozFile:
-            text = "is named .woz, but it does not begin with a WOZ file header, so "
-                   "its contents are not a WOZ image. It was most likely renamed "
-                   "from some other kind of file";
+            text = "has a .woz extension but no WOZ file header, so it is not a "
+                   "WOZ image. It was probably renamed from another kind of file";
             break;
 
         case MountFailure::MalformedWoz:
-            text = "begins with a WOZ file header, but the chunks behind it do not "
-                   "hold together -- Casso could not find the INFO, TMAP and TRKS "
-                   "data every WOZ image carries. The file is damaged or incomplete";
+            text = "has a WOZ header, but its INFO, TMAP or TRKS data is missing. "
+                   "The file is damaged or incomplete";
             break;
 
         case MountFailure::WrongSizeForNibble:
@@ -95,20 +92,16 @@ string MountDiagnosis::Describe() const
             second   = FormatByteCount (NibbleImageCodec::kNb2ImageSize);
 
             snprintf (note, sizeof (note),
-                      "is %s, but a nibble image must be exactly %s -- 35 tracks "
-                      "of 6,656 bytes -- or exactly %s, which is 35 tracks of "
-                      "6,384. Both sizes are in circulation and either can carry "
-                      "either name, so the length is what decides",
+                      "is %s but should be %s or %s, so it is not a valid nibble "
+                      "image",
                       observed.c_str(), required.c_str(), second.c_str());
 
             text = note;
             break;
 
         case MountFailure::NotANibbleStream:
-            text = "is the right size for a nibble image, but no part of it reads "
-                   "as one -- not one byte anywhere has the high bit that every "
-                   "nibble carries. It was most likely renamed from some other "
-                   "kind of file";
+            text = "is the size of a nibble image, but it holds no disk nibbles, so "
+                   "it is not a disk image";
             break;
 
         case MountFailure::AlreadyMounted:
@@ -118,24 +111,21 @@ string MountDiagnosis::Describe() const
             //  overwrites whatever the other saved, and one external change
             //  raises the conflict twice.
             snprintf (note, sizeof (note),
-                      "is already in drive %d. A disk image can only be in one "
-                      "drive at a time -- the two drives would hold separate "
-                      "copies of it, and each would overwrite the other's "
-                      "changes",
+                      "is already in drive %d. A disk image can be in only one "
+                      "drive at a time",
                       occupiedDrive + 1);
 
             text = note;
             break;
 
         case MountFailure::Unrecognized:
-            text = "could not be read as a disk image. Its contents are not a "
-                   "layout this loader accepts";
+            text = "is not in a disk image format Casso can read";
             break;
 
         case MountFailure::None:
         default:
-            text = "could not be opened as a disk image, and Casso did not record "
-                   "why. That is a defect in Casso rather than a fault in the file";
+            text = "could not be opened for an unknown reason. Please report this "
+                   "as a Casso bug";
             break;
     }
 

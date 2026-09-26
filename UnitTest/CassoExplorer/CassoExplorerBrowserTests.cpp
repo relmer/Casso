@@ -367,7 +367,17 @@ public:
         host.browser.SelectTreeNode (host.FindChildId (folder, L"bad.dsk"));
 
         Assert::IsTrue  (host.browser.GetRows().empty());
-        Assert::IsFalse (host.browser.GetListError().empty());
+        Assert::AreEqual (std::wstring (L"bad.dsk is 10 bytes but should be 143,360 bytes, so it is not a valid .dsk image."),
+                          host.browser.GetListError(), L"The file by its name, and why; the path is in the address bar");
+    }
+
+
+    TEST_METHOD (ImageError_NamesTheFileNotItsPath)
+    {
+        Assert::AreEqual (std::wstring (L"a.po is empty."),
+                          CassoExplorerBrowser::FormatImageError (L"C:\\Disks\\a.po", "C:\\Disks\\a.po: is empty\n"));
+        Assert::AreEqual (std::wstring (L"Something else."),
+                          CassoExplorerBrowser::FormatImageError (L"C:\\Disks\\a.po", "Something else"), L"A message of another form is kept");
     }
 
 

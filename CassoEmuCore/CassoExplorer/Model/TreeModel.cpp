@@ -450,6 +450,8 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     std::vector<Byte>      fileBytes;
     std::vector<Byte>      sectors;
     SectorDecodeReport     report;
+    MountDiagnosis         diagnosis;
+    bool                   loaded     = false;
     VolumeKind             kind       = VolumeKind::Unknown;
     std::vector<TreeNode>  children;
     std::string            narrowPath = TextEncoding::WideToNarrow (path);
@@ -465,7 +467,8 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     {
         fileBytes.assign (content.begin(), content.end());
 
-        hr = VolumeImage::Load (fileBytes, narrowPath, sectors, report);
+        hr     = VolumeImage::Load (fileBytes, narrowPath, sectors, report, diagnosis);
+        loaded = SUCCEEDED (hr);
     }
 
     if (SUCCEEDED (hr))
@@ -480,8 +483,11 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
 
     if (FAILED (hr))
     {
-        inOutNode.loadError = GetLeaf (path) + L" " + std::wstring (DiskImageSession::kNoFilesystemText,
-                                                                    DiskImageSession::kNoFilesystemText + strlen (DiskImageSession::kNoFilesystemText));
+        //  A file the loader refused says why, as the list does; one that
+        //  loaded holds no file system this browser reads.
+        inOutNode.loadError = GetLeaf (path) + L" "
+                            + TextEncoding::NarrowToWide (loaded ? std::string (DiskImageSession::kNoFilesystemText) : diagnosis.Describe())
+                            + L".";
         m_children[inOutNode.id] = children;
 
         return S_OK;

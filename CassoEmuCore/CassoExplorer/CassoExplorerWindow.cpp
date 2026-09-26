@@ -874,18 +874,18 @@ void CassoExplorerWindow::RecomputeLayout()
         }
 
         m_list->Layout           (listRect,    m_scaler);
-        m_listMessage->Layout    (listRect,    m_scaler);
+        m_listMessage->Layout    (GetMessageRect (listRect),    m_scaler);
         m_previewList->Layout    (previewRect, m_scaler);
         m_textView->Layout       (previewRect, m_scaler);
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
-        m_previewMessage->Layout (previewRect, m_scaler);
+        m_previewMessage->Layout (GetMessageRect (previewRect), m_scaler);
     }
     else
     {
         m_previewToolbar->SetVisible (false);
         m_list->Layout        (right, m_scaler);
-        m_listMessage->Layout (right, m_scaler);
+        m_listMessage->Layout (GetMessageRect (right), m_scaler);
     }
 
     LayoutStatusFields();
@@ -2921,6 +2921,32 @@ std::vector<std::wstring> CassoExplorerWindow::SplitLineNumber (const std::wstri
     }
 
     return { line.substr (0, end), line.substr (text) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetMessageRect
+//
+//  A pane's message wraps at a reading width, centered in the pane, rather
+//  than running the whole width of a wide window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoExplorerWindow::GetMessageRect (const RECT & pane) const
+{
+    int   width = (std::min) ((int) (pane.right - pane.left), m_scaler.ToPx (kMessageWidthDip));
+    RECT  rect  = pane;
+
+
+
+    rect.left  = pane.left + ((pane.right - pane.left) - width) / 2;
+    rect.right = rect.left + width;
+
+    return rect;
 }
 
 

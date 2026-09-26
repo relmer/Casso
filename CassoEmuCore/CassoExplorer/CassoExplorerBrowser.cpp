@@ -438,7 +438,7 @@ HRESULT CassoExplorerBrowser::LoadImage (const std::wstring & path, const std::s
 
         if (!result.Succeeded())
         {
-            m_listError = TextEncoding::NarrowToWide (result.message);
+            m_listError = FormatImageError (path, result.message);
             return result.hr;
         }
 
@@ -1116,6 +1116,45 @@ uint32_t CassoExplorerBrowser::GetNameArgb (const CatalogRow & row, const Folder
     }
 
     return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::FormatImageError
+//
+//  The command line's refusal, "path: reason", as a sentence about the file
+//  by its own name: the address bar and the tree already show where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::FormatImageError (const std::wstring & imagePath, const std::string & message)
+{
+    std::wstring  text   = TextEncoding::NarrowToWide (message);
+    std::wstring  prefix = imagePath + L": ";
+    size_t        slash  = imagePath.find_last_of (L"\\/");
+
+
+
+    while (!text.empty() && (text.back() == L'\n' || text.back() == L'\r' || text.back() == L' '))
+    {
+        text.pop_back();
+    }
+
+    if (text.compare (0, prefix.size(), prefix) == 0)
+    {
+        text = imagePath.substr ((slash == std::wstring::npos) ? 0 : slash + 1) + L" " + text.substr (prefix.size());
+    }
+
+    if (!text.empty() && text.back() != L'.')
+    {
+        text += L'.';
+    }
+
+    return text;
 }
 
 

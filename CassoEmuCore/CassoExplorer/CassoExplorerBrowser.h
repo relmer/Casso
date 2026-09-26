@@ -227,6 +227,9 @@ public:
     //  then two spaces and the files' total size when any file is selected.
     static std::wstring  FormatSelected  (size_t selected, uint64_t bytes, bool anyFile);
 
+    //  An image's refusal as the list shows it: the file's name, then why.
+    static std::wstring  FormatImageError (const std::wstring & imagePath, const std::string & message);
+
     static std::wstring  FormatSize      (uint64_t bytes);
     static std::wstring  FormatSizeColumn (uint64_t bytes);
     static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);

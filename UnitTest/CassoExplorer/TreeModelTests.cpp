@@ -140,9 +140,10 @@ public:
         Assert::IsFalse (nodes[1].canExpand);
         Assert::IsTrue  (nodes[1].loadError.empty());
 
-        //  Not a disk: no affordance, an error to show.
+        //  Not a disk: no affordance, and the loader's reason to show.
         Assert::IsFalse (nodes[2].canExpand);
-        Assert::IsFalse (nodes[2].loadError.empty());
+        Assert::IsTrue  (nodes[2].loadError.starts_with (L"notadisk.dsk is "));
+        Assert::IsTrue  (nodes[2].loadError.find (L"143,360 bytes") != std::wstring::npos, L"The size a .dsk image has, as the list gives it");
 
         //  ProDOS: the subdirectory is a child.
         Assert::IsTrue  (nodes[3].canExpand);

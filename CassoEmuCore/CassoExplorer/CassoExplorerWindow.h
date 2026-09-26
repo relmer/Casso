@@ -155,6 +155,9 @@ public:
     //  Each zoom step, in percent of the theme's text size.
     static constexpr int    kPreviewZoomStep     = 10;
 
+    //  The widest a pane's message runs before it wraps.
+    static constexpr int     kMessageWidthDip = 400;
+
     //  The status bar's fields, left to right: Explorer's item count and
     //  selection, flowing from the left; the space between; then free space,
     //  the preview's detail and its zoom.
@@ -453,6 +456,9 @@ private:
     void  ClearDropTarget        ();
     void  OnDrop                 (IDataObject * data, int tag, POINT screen);
     void  RefreshAfterHostChange ();
+
+    //  The part of a pane a message wraps within.
+    RECT  GetMessageRect (const RECT & pane) const;
 
     //  Explorer's folder options read again; true when one changed.
     bool  ReadFolderOptions ();
