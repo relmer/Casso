@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugSession.h"
 
+#include "Core/TextEncoding.h"
 #include "OpcodeTable.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
@@ -351,6 +352,27 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
         reply.command = line;
         return reply;
     }
+
+    return ExecuteCommandLine (line, mode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteCommandLine
+//
+//  One line as a command in a given mode, whether or not an A block is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteCommandLine (const std::string & line, CommandMode mode)
+{
+    Reply        reply;
+    std::string  text = Trim (line);
+
 
 
     switch (mode)
@@ -720,7 +742,7 @@ std::wstring DebugSession::ResolvePath (const std::string & path) const
         bare = bare.substr (1, bare.size() - 2);
     }
 
-    wide.assign (bare.begin(), bare.end());
+    wide     = TextEncoding::NarrowToWide (bare);
     isRooted = wide.starts_with (L'\\') || wide.starts_with (L'/') || (wide.size() > 1 && wide[1] == L':');
 
     if (isRooted || m_currentDirectory.empty() || wide.empty())

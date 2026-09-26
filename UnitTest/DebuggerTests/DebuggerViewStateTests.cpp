@@ -139,6 +139,28 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  The panes' own reads are not lines for the mini-assembler, so an
+        //  A block in progress leaves them filled.
+        TEST_METHOD (ThePanesStayFilledWhileTheAssemblerIsActive)
+        {
+            MachineRig            rig;
+            DebugSession        & session  = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) session.ExecuteLine ("WA 400", CommandMode::AppleWin).status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) session.ExecuteLine ("A 310",  CommandMode::AppleWin).status);
+
+            snapshot = rig.view.Build (session);
+
+            Assert::AreEqual ((size_t) 1,    snapshot.watches.size(), L"the watch is still listed");
+            Assert::AreEqual ((Word) 0x0300, LineAt (snapshot, 0x0300).address, L"and the code pane still shows the PC");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) session.ExecuteLine ("NOP", CommandMode::AppleWin).status, L"the block is still open");
+            Assert::AreEqual ((Byte) 0xEA,   rig.machine.GetMemoryBus().ReadByte (0x0310), L"and assembles where it was");
+        }
+
+
         TEST_METHOD (GoToResolvesRegistersAndEveryAddressingForm)
         {
             Cpu6502Registers              r;

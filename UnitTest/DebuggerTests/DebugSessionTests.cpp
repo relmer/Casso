@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/IDebugNotificationSink.h"
 #include "Debugger/IInstructionObserver.h"
@@ -566,6 +567,22 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"D:\\x\\y.bin"),       session.ResolvePath ("D:\\x\\y.bin"));
             Assert::AreEqual (std::wstring (L"\\\\server\\s\\f"),   session.ResolvePath ("\\\\server\\s\\f"));
             Assert::IsTrue   (session.ResolvePath ("").empty());
+        }
+
+
+
+        //  A name the window's picker handed over through WideToNarrow comes
+        //  back as the same wide name, accented letters included.
+        TEST_METHOD (ResolvePath_NonAsciiNameRoundTrips)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            std::wstring     name = L"C:\\Caf\u00E9\\r\u00E9sum\u00E9.bin";
+
+
+
+            Assert::AreEqual (name, session.ResolvePath (TextEncoding::WideToNarrow (name)));
         }
 
 

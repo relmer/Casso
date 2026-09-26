@@ -92,6 +92,10 @@ public:
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode);
 
+    // A command line even while an A block is open, for a reader such as a
+    // window pane whose lines are never meant for the mini-assembler.
+    Reply  ExecuteCommandLine    (const std::string & line, CommandMode mode);
+
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;
