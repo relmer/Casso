@@ -2032,7 +2032,7 @@ namespace DebuggerViewStateTests
     {
     public:
 
-        static void LoadDebugFile (MachineRig & rig)
+        static void LoadDebugFile (MachineRig & rig, Word start = 0x0300)
         {
             DebugFile  file;
 
@@ -2040,7 +2040,7 @@ namespace DebuggerViewStateTests
 
             file.major = 2;
             file.files = { { 0, "main.a65", 45, 0, "", 0 }, { 1, "macros.inc", 30, 0, "", 0 } };
-            file.segments.push_back ({ 0, "CODE", 0x0300, 6 });
+            file.segments.push_back ({ 0, "CODE", start, 6 });
             file.spans = { { 0, 0, 0, 2 }, { 1, 0, 2, 3 }, { 2, 0, 5, 1 } };
             file.lines = { { 0, 0, 2, DebugLineType::Asm,   0, { 0 } },
                            { 1, 0, 3, DebugLineType::Asm,   0, { 1 } },
@@ -2128,6 +2128,23 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((Word) 0x0302, snapshot.source->lineAddresses->at ({ 1, 5 }));
             Assert::AreEqual ((Word) 0x0305, snapshot.source->lineAddresses->at ({ 0, 4 }));
             Assert::IsTrue   (snapshot.source->lineAddresses == again.source->lineAddresses, L"built once per load");
+        }
+
+
+        //  The same file loaded again at another offset moves every line.
+        TEST_METHOD (ReloadingAtAnotherOffsetMovesTheLines)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            LoadDebugFile (rig);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            LoadDebugFile (rig, 0x1300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((Word) 0x1305, snapshot.source->lineAddresses->at ({ 0, 4 }));
         }
 
 

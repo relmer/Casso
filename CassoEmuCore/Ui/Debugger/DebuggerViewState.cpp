@@ -481,7 +481,8 @@ std::optional<Word> DebuggerViewState::GetMemoryWindowAddress (int id) const
 //  The source pane's share of the snapshot, when a debug file is loaded: the
 //  line at PC at both ends of any macro nesting, the source line of each code
 //  row, the breakpoints that sit on lines, and the map from lines to
-//  addresses, which is rebuilt only when another debug file is loaded.
+//  addresses, which is rebuilt only when another debug file is loaded or the
+//  same one is loaded at another offset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -500,7 +501,14 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
         return;
     }
 
+    //  The same file loaded at another offset has the same text, so the key
+    //  holds where each segment was placed too.
     key = session.GetDebugFileKey() + SourcePathList::WideToUtf8 (session.GetDebugFilePath());
+
+    for (const DebugSegment & segment : file.segments)
+    {
+        key += std::format (":{:X}", segment.start);
+    }
 
     if (m_lineAddresses == nullptr || key != m_lineAddressesKey)
     {
