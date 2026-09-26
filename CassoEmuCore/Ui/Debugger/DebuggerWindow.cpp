@@ -785,6 +785,32 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::StepTextZoom
+//
+//  Each size is a whole power of 1.1, so a step past either end is lost
+//  rather than stored as a clamped fraction, and the same number of steps
+//  back always returns to the size they left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::StepTextZoom (int steps)
+{
+    static constexpr int  kSmallest = -5;
+    static constexpr int  kLargest  = 9;
+    int                   step      = (int) std::lround (std::log (m_textZoom) / std::log (1.1f));
+
+
+
+    step = std::clamp (step + steps, kSmallest, kLargest);
+    ApplyTextZoom (std::pow (1.1f, (float) step));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyTextZoom
 //
 //  A size change, not a zoom of the window: every content pane's text and
@@ -4140,11 +4166,29 @@ Error:
 
 void DebuggerWindow::SubmitMemoryBox()
 {
-    Word  address = 0;
+    const std::wstring &  text     = m_memoryBox->GetText();
+    Word                  address  = 0;
+    bool                  isBlank  = std::all_of (text.begin(), text.end(), [] (wchar_t ch) { return iswspace (ch) != 0; });
+    std::wstring          upper;
 
 
 
-    if (TryParseHexWord (m_memoryBox->GetText(), address))
+    //  A register's own letter is also a hex digit, so the resolver sees the
+    //  register names before the text is read as an address.
+    for (wchar_t ch : text)
+    {
+        if (!iswspace (ch))
+        {
+            upper += (wchar_t) towupper (ch);
+        }
+    }
+
+    if (isBlank)
+    {
+        return;
+    }
+
+    if (upper != L"A" && TryParseHexWord (text, address))
     {
         GetActiveMemoryPane()->GoTo (address);
     }
@@ -5049,7 +5093,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  any pane, before a view that would take the wheel for itself.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
     {
-        ApplyTextZoom (ev.wheelDelta > 0.0f ? m_textZoom * 1.1f : m_textZoom / 1.1f);
+        StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
         return true;
     }
 
@@ -6258,8 +6302,8 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     {
         switch (ev.vk)
         {
-        case VK_OEM_PLUS:  case VK_ADD:       ApplyTextZoom (m_textZoom * 1.1f); return true;
-        case VK_OEM_MINUS: case VK_SUBTRACT:  ApplyTextZoom (m_textZoom / 1.1f); return true;
+        case VK_OEM_PLUS:  case VK_ADD:       StepTextZoom (+1);                 return true;
+        case VK_OEM_MINUS: case VK_SUBTRACT:  StepTextZoom (-1);                 return true;
         case '0':          case VK_NUMPAD0:   ApplyTextZoom (1.0f);              return true;
         default:                                                                 break;
         }
