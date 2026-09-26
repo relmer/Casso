@@ -1877,6 +1877,31 @@ namespace DebuggerViewStateTests
             }
         }
 
+        //  The breakpoint checkbox, the register edits and auto-watch send
+        //  AppleWin lines whose names are also GSSquared words; each still
+        //  does what the control meant.
+        TEST_METHOD (GSSquaredMode_DisableAndRegisterLines_Run)
+        {
+            MachineRig  rig;
+
+
+
+            rig.controller.GetSession().ExecuteLine ("MODE GSSQUARED");
+
+            for (const char * line : { "BP 0300", "BPD 0", "BPE 0", "R A 41", "R P 30", "R S F0" })
+            {
+                Reply  reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
+                                                               DebuggerViewState::GetModeLine (line, CommandMode::GSSquared),
+                                                               CommandMode::GSSquared);
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status,
+                                  std::wstring (line, line + strlen (line)).append (L": ").append (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            }
+
+            Assert::AreEqual ((int) 0x41, (int) rig.controller.GetSession().GetTarget().GetRegisters().a);
+            Assert::AreEqual ((int) 0xF0, (int) rig.controller.GetSession().GetTarget().GetRegisters().sp);
+        }
+
         //  The Dialect menu sends MODE through the marker of whatever dialect
         //  is in force (FR-014), and every dialect has to take it that way, or
         //  one of them is a trap.
@@ -3309,6 +3334,29 @@ namespace DebuggerViewStateTests
             (void) rig.view.ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\asm.txt\"", CommandMode::AppleWin);
 
             Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the script's end ended the block");
+        }
+
+
+        //  The menu's PANEL lines, in each dialect's words, open the panel
+        //  in every dialect.
+        TEST_METHOD (PanelLinesWorkInEveryDialect)
+        {
+            for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+            {
+                MachineRig            rig;
+                Reply                 reply;
+                DebuggerViewSnapshot  snapshot;
+                std::string           line = DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", true), mode);
+
+
+
+                rig.controller.GetSession().ExecuteLine ("MODE " + CommandModeNames::GetUpperName (mode));
+                reply    = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
+                snapshot = rig.view.Build (rig.controller.GetSession());
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line.begin(), line.end()).c_str());
+                Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size(), std::wstring (line.begin(), line.end()).c_str());
+            }
         }
 
 
