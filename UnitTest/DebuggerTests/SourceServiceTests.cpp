@@ -320,6 +320,8 @@ namespace DebuggerTests
 
             Assert::IsTrue   (rig.service.MatchDropped (file.files, L"C:\\Elsewhere\\main.a65", s_kProgram, index).match == SourceMatch::Mismatch);
             Assert::AreEqual (0, index);
+            Assert::IsTrue   (rig.paths.GetProgramFolders (s_kProgram).empty(), L"a mismatch is not remembered as found");
+            Assert::IsTrue   (rig.paths.GetGlobalFolders().empty());
         }
 
 
