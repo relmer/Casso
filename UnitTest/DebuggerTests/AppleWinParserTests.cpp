@@ -579,5 +579,26 @@ namespace DebuggerTests
             ParseFails ("BPR A=C0 IF X=1",  ParseStatus::Invalid);
             ParseFails ("BPR A = C0 X",     ParseStatus::Invalid);
         }
+
+
+        //  NOP acts on the instruction at PC and takes no address, so an
+        //  argument is an error rather than a write somewhere else.
+        TEST_METHOD (Nop_ArgumentIsAnError)
+        {
+            ParseFails ("NOP 300", ParseStatus::Invalid);
+            ParseFails ("ZAP 300", ParseStatus::Invalid);
+            Assert::AreEqual ((int) DebugVerb::WriteNop, (int) ParseOk ("NOP").command.verb);
+        }
+
+
+        //  The value quoted in an out-of-range message is the value as typed,
+        //  without the separator before it, and R with no register says so.
+        TEST_METHOD (RegisterAndSymbolValues_ErrorQuotesTheValueAlone)
+        {
+            Assert::AreEqual (std::string ("10000 is outside $0000-$FFFF."), ParseFails ("R PC 10000",   ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("10000 is outside $0000-$FFFF."), ParseFails ("R PC = 10000", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("10000 is outside $0000-$FFFF."), ParseFails ("SYM X = 10000", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("R needs a register. The registers are A, X, Y, P, S, and PC."), ParseFails ("R =41", ParseStatus::Invalid).error);
+        }
     };
 }
