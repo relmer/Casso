@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Debugger/WatchpointTable.h"
+#include "Debugger/BreakpointTable.h"
 #include "MockDebugTarget.h"
+#include "MockExpressionContext.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -213,6 +215,52 @@ namespace DebuggerTests
             table.OnWatchedAccess (0x0410, 0x42, BusAccess::Write, (Byte) 0x41);
             Assert::IsTrue   (table.HasPendingStop());
             Assert::AreEqual ((Word) 0x0303, table.GetPendingHit()->accessPc);
+        }
+
+
+
+        TEST_METHOD (CountsOnlyWatchpoint_DoesNotHideALaterOne)
+        {
+            int              nextId  = 0;
+            WatchpointTable  table (nextId);
+            int              counter = table.Add (WatchAccess::Write, 0x0400, 0x0400);
+            int              stopper = table.Add (WatchAccess::Write, 0x0400, 0x0400);
+
+
+
+            table.TrySetFlags (counter, false, false);
+            table.SetAccessPc (0x0300);
+            table.OnWatchedAccess (0x0400, 0x01, BusAccess::Write, (Byte) 0x00);
+
+            Assert::IsTrue   (table.HasPendingStop());
+            Assert::AreEqual (stopper, table.GetPendingHit()->id);
+            Assert::AreEqual ((uint32_t) 1, table.GetAll()[0].hits);
+            Assert::AreEqual ((uint32_t) 1, table.GetAll()[1].hits);
+        }
+
+
+
+        TEST_METHOD (SuppressedBeforeStop_StillOffersTheWriteToValueBreakpoints)
+        {
+            int                    nextId = 0;
+            WatchpointTable        table (nextId);
+            BreakpointTable        values (nextId);
+            MockExpressionContext  context;
+            int                    value  = 0;
+
+
+
+            table.Add (WatchAccess::Write, 0x0400, 0x0400, WatchMode::Before);
+            value = values.AddMemoryValue (0x0400, 0x41);
+            table.SetValueBreakpoints (&values);
+            table.SetContext (&context);
+
+            table.SetAccessPc (0x0300);
+            table.SuppressAfterStopFor (0x0300, 0x0400, 0x0400);
+            table.OnWatchedAccess (0x0400, 0x41, BusAccess::Write, (Byte) 0x00);
+
+            Assert::IsTrue   (table.HasPendingStop());
+            Assert::AreEqual (value, table.GetPendingHit()->id);
         }
 
 

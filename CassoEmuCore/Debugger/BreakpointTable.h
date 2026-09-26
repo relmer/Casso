@@ -85,19 +85,20 @@ public:
     bool  IsAddressHit     (Word pc) const { return m_addressBits[pc]; }
 
     //  True when an enabled entry stops before the instruction at pc, whose
-    //  opcode is given. hitId receives the entry's id, and its hit count is
-    //  incremented. Address entries are checked first, then opcode and BRK
-    //  entries, then register conditions. An entry that does not stop only
-    //  counts the hit.
+    //  opcode is given, or absent when it cannot be read (no opcode or BRK
+    //  entry then matches). hitId receives the id of the first entry that
+    //  stops. Address entries are checked first, then opcode and BRK
+    //  entries, then register conditions. Every matching entry counts the
+    //  hit, whether or not it stops and whether or not an earlier one did.
     bool  TryMatchBeforeInstruction (Word                            pc,
-                                     Byte                            opcode,
+                                     std::optional<Byte>             opcode,
                                      const IDebugExpressionContext & context,
                                      int                           & hitId);
 
     //  True when an enabled MemoryValue entry at address stops on a write
     //  of value, its IF expression, if any, being true. Counts hits as
-    //  TryMatchBeforeInstruction does; conditionValue receives the
-    //  expression's value.
+    //  TryMatchBeforeInstruction does; conditionValue receives the first
+    //  stopping entry's expression value.
     bool  TryMatchWrite    (Word                            address,
                             Byte                            value,
                             const IDebugExpressionContext & context,
@@ -114,7 +115,7 @@ private:
 
     int   Add              (Breakpoint entry);
     void  RebuildAddressBits ();
-    bool  TryMatchEntry    (const Breakpoint & entry, Word pc, Byte opcode, const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
+    bool  TryMatchEntry    (const Breakpoint & entry, Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
 
     int                     & m_nextId;
     std::vector<Breakpoint>   m_entries;

@@ -452,9 +452,11 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 //  WatchpointTable::OnWatchedAccess
 //
 //  The first matching hit since the last ClearPending is kept, except that a
-//  write to the pending hit's address replaces it (see ShouldReplace). The
-//  first watchpoint that matches takes the access; a write is then offered
-//  to the value breakpoints, which stop as a watchpoint does, after it.
+//  write to the pending hit's address replaces it (see ShouldReplace). Every
+//  watchpoint that matches counts the access, and the first that stops
+//  reports it; a write is then offered to the value breakpoints, which stop
+//  as a watchpoint does, after it. The suppression that follows a
+//  before-mode stop covers the watchpoints only, not the value breakpoints.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -464,6 +466,8 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     std::optional<Byte>     replaced       = (access == BusAccess::Write) ? previous : std::nullopt;
     std::optional<int32_t>  conditionValue;
     int                     hitId          = 0;
+    bool                    isHit          = false;
+    bool                    isSuppressed   = IsSuppressed (address);
 
 
 
@@ -472,14 +476,9 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
         m_stackWriteSink (address, value, previous);
     }
 
-    if (IsSuppressed (address))
-    {
-        return;
-    }
-
     for (Watchpoint & entry : m_entries)
     {
-        if (!entry.enabled || entry.mode != WatchMode::After || address < entry.first || address > entry.last || !IsAccessMatch (entry.access, access))
+        if (isSuppressed || !entry.enabled || entry.mode != WatchMode::After || address < entry.first || address > entry.last || !IsAccessMatch (entry.access, access))
         {
             continue;
         }
@@ -491,12 +490,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
 
         ++entry.hits;
 
-        if (entry.stops)
+        if (entry.stops && !isHit)
         {
             RecordHit (WatchHit { entry.id, address, value, replaced, watched, m_accessPc, WatchMode::After, conditionValue }, access);
+            isHit = true;
         }
-
-        break;
     }
 
     if (access != BusAccess::Write || m_valueBreakpoints == nullptr || m_context == nullptr)
