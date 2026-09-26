@@ -53,7 +53,6 @@ private:
     static bool  TryUnquote      (const std::string & item, std::string & text);
     static bool  TryEvaluate     (DebugSession & session, const std::string & text, Word & value, std::string & error);
     static std::string  ToUpper  (const std::string & text);
-    static const char * GetFamilyName (int family);
 
     // DISASM settings, kept for the disassembly views that read them.
     std::map<std::string, bool>  m_disassembly =

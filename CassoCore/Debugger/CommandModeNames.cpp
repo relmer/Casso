@@ -28,6 +28,9 @@ static constexpr CommandModeNames::Entry  s_kModes[] =
     { "monitor",   CommandMode::Monitor,   OutputFormat::Monitor   },
     { "gssquared", CommandMode::GSSquared, OutputFormat::GSSquared },
     { "windbg",    CommandMode::WinDbg,    OutputFormat::WinDbg    },
+
+    //  Casso's native replies are in AppleWin's form, so its format is that.
+    { "casso",     CommandMode::Casso,     OutputFormat::AppleWin  },
 };
 
 

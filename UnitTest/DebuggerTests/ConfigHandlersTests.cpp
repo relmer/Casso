@@ -159,20 +159,21 @@ namespace DebuggerTests
         {
             Rig                       rig;
             std::vector<std::string>  lines = rig.RunOk ("HELP").text;
-            bool                      hasCpu = false;
+            bool                      hasGo = false;
 
 
 
             for (const std::string & line : lines)
             {
-                hasCpu |= line.starts_with ("Cpu: ") && line.find (" GG ") != std::string::npos;
+                hasGo |= line.starts_with ("    GG ");
             }
 
-            Assert::IsTrue   (lines.size() > 10, L"one line per family");
-            Assert::IsTrue   (hasCpu);
-            Assert::AreEqual (std::string ("BPM (Breakpoints)"),             rig.RunOk ("HELP bpm").text.at (0));
-            Assert::AreEqual (std::string ("BPIO (Breakpoints): alias of BPM"), rig.RunOk ("? BPIO").text.at (0));
-            Assert::AreEqual (std::string ("HGR (Views): needs the debugger window"), rig.RunOk ("HELP HGR").text.at (0));
+            Assert::AreEqual (std::string ("AppleWin commands:"), lines.at (0));
+            Assert::IsTrue   (lines.size() > 10, L"one line per command");
+            Assert::IsTrue   (hasGo);
+            Assert::IsTrue   (rig.RunOk ("HELP bpm").text.at (0).starts_with ("BPM, BPIO "), L"a command's line carries its aliases");
+            Assert::IsTrue   (rig.RunOk ("? BPIO").text.at (0).starts_with ("BPM, BPIO "), L"an alias answers with its command's line");
+            Assert::AreEqual (std::string ("HGR: not available in Casso"), rig.RunOk ("HELP HGR").text.at (0));
             Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("HELP FROB").status);
             Assert::AreEqual (std::string ("Casso " VERSION_STRING), rig.RunOk ("VERSION").text.at (0));
             Assert::IsFalse  (rig.RunOk ("MOTD").text.at (0).empty());
@@ -181,11 +182,12 @@ namespace DebuggerTests
 
         TEST_METHOD (HELP_ListsTheModesOwnCommandsFirst)
         {
+            //  The Casso section's commands are written as each mode types them.
             const std::tuple<const char *, const char *, const char *, const char *>  modes[] =
             {
-                { "WINDBG",    ".help", "WinDbg commands:",    "Casso commands, after !" },
-                { "MONITOR",   "/HELP", "Monitor commands:",   "Casso commands, after /" },
-                { "GSSQUARED", "help",  "GSSquared commands:", "Casso commands, by name" },
+                { "WINDBG",    ".help", "WinDbg commands:",    "    !DISK" },
+                { "MONITOR",   "/HELP", "Monitor commands:",   "    /DISK" },
+                { "GSSQUARED", "help",  "GSSquared commands:", "    DISK"  },
             };
 
 
@@ -207,7 +209,8 @@ namespace DebuggerTests
                 }
 
                 Assert::AreEqual (std::string (heading), lines.at (0));
-                Assert::IsTrue   (hasEngine, L"the engine commands follow, with the way the mode reaches them");
+                Assert::IsTrue   (std::find (lines.begin(), lines.end(), std::string ("Casso commands:")) != lines.end());
+                Assert::IsTrue   (hasEngine, L"the Casso commands follow, written as the mode types them");
             }
 
             {
@@ -217,7 +220,7 @@ namespace DebuggerTests
 
                 (void) rig.session.ExecuteLine ("MODE WINDBG", CommandMode::AppleWin);
                 Assert::AreEqual (std::string ("ba r1|w1|e1 addr: Break on a read, write or execution of addr"), rig.RunOk (".help ba").text.at (0));
-                Assert::AreEqual (std::string ("BPM (Breakpoints)"), rig.RunOk (".help bpm").text.at (0), L"an engine command still answers");
+                Assert::IsTrue   (rig.RunOk (".help bpm").text.at (0).starts_with ("!BPM"), L"a Casso command answers as WinDbg types it");
             }
         }
 

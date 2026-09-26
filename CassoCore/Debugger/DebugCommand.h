@@ -18,6 +18,7 @@ enum class CommandMode
     Monitor,
     GSSquared,
     WinDbg,
+    Casso,      // Casso's complete native set: AppleWin's names and Casso's own
 };
 
 

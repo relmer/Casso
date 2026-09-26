@@ -162,7 +162,9 @@ namespace DebuggerTests
             Assert::AreEqual ((int) DebugVerb::ShowSource,        (int) ParseOk ("lsa").command.verb);
         }
 
-        //  `!` reaches the engine table; anything else after it is unknown.
+        //  `!` reaches Casso's commands, WinDbg's own forms among them, so a
+        //  control or script can send one line in any mode; a name Casso
+        //  lacks is unknown.
         TEST_METHOD (Bang_ReachesTheEngineCommands)
         {
             WinDbgParseResult  mode = ParseOk ("!mode applewin");
@@ -174,7 +176,8 @@ namespace DebuggerTests
             Assert::AreEqual ((int) CommandMode::WinDbg,     (int) ParseOk ("!MODE WINDBG").command.mode);
             Assert::AreEqual ((int) DebugVerb::ShowSwitches, (int) ParseOk ("!switches").command.verb);
             Assert::AreEqual ((int) DebugVerb::ListStepFilter, (int) ParseOk ("!skip").command.verb);
-            ParseFails ("!bp 300", ParseStatus::Unknown);
+            Assert::AreEqual ((int) DebugVerb::SetBreakpoint, (int) ParseOk ("!bp 300").command.verb);
+            Assert::AreEqual ((int) DebugVerb::DiskCommand,   (int) ParseOk ("!disk").command.verb);
             ParseFails ("!frob",   ParseStatus::Unknown);
         }
 

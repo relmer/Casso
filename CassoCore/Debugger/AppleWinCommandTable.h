@@ -88,8 +88,8 @@ public:
     static std::span<const AppleWinCommand> GetAll ();
 
     //  Whether the name is one of Casso's engine commands, the Engine family:
-    //  the commands every mode reaches through its own marker. A parser hands
-    //  such a line, marker stripped, to AppleWinParser, so a command added to
-    //  the family is reachable in every mode with no parser change.
+    //  Casso's own additions to AppleWin's set, which every mode reaches
+    //  through its marker whatever words the mode uses. Which other commands
+    //  a mode reaches is CommandModeHelp's to say.
     static bool                           IsEngineCommand (const std::string & name);
 };

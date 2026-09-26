@@ -3,6 +3,7 @@
 #include "Debugger/WinDbgParser.h"
 
 #include "Debugger/AppleWinCommandTable.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDebugExpressionContext.h"
 
@@ -238,10 +239,9 @@ std::span<const WinDbgExclusion> WinDbgParser::GetExclusions()
 //
 //  WinDbgParser::TryParseEngine
 //
-//  `!name ...` for an engine command, parsed as AppleWin mode parses the
-//  same line without the `!`, so every command in the Engine family is
-//  reachable here with no change to this parser. An excluded `!` command is left to Parse,
-//  which reports its family.
+//  `!name ...` for a Casso command WinDbg reaches (CommandModeHelp), parsed
+//  as AppleWin mode parses the same line without the `!`. An excluded `!`
+//  command is left to Parse, which reports its family.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,10 +267,10 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
         return false;
     }
 
-    if (!AppleWinCommandTable::IsEngineCommand (tokens[0]))
+    if (!CommandModeHelp::IsCassoCommandReachable (CommandMode::WinDbg, tokens[0]))
     {
         result.status = ParseStatus::Unknown;
-        result.error  = std::format ("!{} is not an engine command.", tokens[0]);
+        result.error  = std::format ("!{} does not run in WinDbg mode; .help {} says where it runs.", tokens[0], tokens[0]);
         return true;
     }
 

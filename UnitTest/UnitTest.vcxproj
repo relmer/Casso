@@ -183,6 +183,8 @@
     <ClCompile Include="DebuggerTests\DebugSessionTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinParserTests.cpp" />
+    <ClCompile Include="DebuggerTests\CassoCommandReferenceTests.cpp" />
+    <ClCompile Include="DebuggerTests\CommandModeHelpTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinFormatterTests.cpp" />
     <ClCompile Include="DebuggerTests\ReplyJsonTests.cpp" />
     <ClCompile Include="DebuggerTests\EffectiveAddressTests.cpp" />

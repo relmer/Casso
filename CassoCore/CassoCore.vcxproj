@@ -165,6 +165,7 @@
     <ClCompile Include="Debugger\DebugExpressionEvaluator.cpp" />
     <ClCompile Include="Debugger\AppleWinCommandTable.cpp" />
     <ClCompile Include="Debugger\AppleWinParser.cpp" />
+    <ClCompile Include="Debugger\CassoCommandReference.cpp" />
     <ClCompile Include="Debugger\DebugCommandPayload.cpp" />
     <ClCompile Include="Debugger\MonitorParser.cpp" />
     <ClCompile Include="Debugger\GSSquaredParser.cpp" />
@@ -241,6 +242,7 @@
     <ClInclude Include="Debugger\DebugCommand.h" />
     <ClInclude Include="Debugger\AppleWinCommandTable.h" />
     <ClInclude Include="Debugger\AppleWinParser.h" />
+    <ClInclude Include="Debugger\CassoCommandReference.h" />
     <ClInclude Include="Debugger\DebugCommandPayload.h" />
     <ClInclude Include="Debugger\MonitorParser.h" />
     <ClInclude Include="Debugger\GSSquaredParser.h" />

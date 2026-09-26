@@ -547,81 +547,30 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 //
 //  ConfigHandlers::Help
 //
-//  HELP alone lists the names by family; HELP name describes one.
+//  HELP alone lists what can be typed in the session's mode; HELP name
+//  describes one command, or says which modes run a Casso command this one
+//  cannot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::string                     name    = ToUpper (command.text);
-    CommandMode                     mode    = session.GetMode();
-    const AppleWinCommand         * entry   = nullptr;
-    const CommandModeHelp::Entry  * word    = CommandModeHelp::Find (mode, command.text);
-    std::map<int, std::string>      families;
-    MessageData                     message;
-    std::string                     text;
-    size_t                          width   = 0;
+    CommandMode  mode = session.GetMode();
+    std::string  text;
 
 
 
-    if (name.empty())
+    if (command.text.empty())
     {
-        //  Another mode's help leads with its own commands, as its user types
-        //  them, then the engine commands the mode reaches through its marker.
-        for (const CommandModeHelp::Entry & form : CommandModeHelp::GetEntries (mode))
-        {
-            width = (std::max) (width, strlen (form.syntax));
-        }
-
-        if (width > 0)
-        {
-            message.lines.push_back (std::string (CommandModeHelp::GetTitle (mode)) + " commands:");
-
-            for (const CommandModeHelp::Entry & form : CommandModeHelp::GetEntries (mode))
-            {
-                message.lines.push_back (std::format ("  {:<{}}  {}", form.syntax, width, form.description));
-            }
-
-            message.lines.push_back ("");
-            message.lines.push_back (std::format ("Casso commands, {}:", CommandModeHelp::GetEngineRoute (mode)));
-        }
-
-        for (const AppleWinCommand & candidate : AppleWinCommandTable::GetAll())
-        {
-            if (candidate.availability == CommandAvailability::Headless)
-            {
-                families[(int) candidate.family] += std::string (families[(int) candidate.family].empty() ? "" : " ") + candidate.name;
-            }
-        }
-
-        for (const auto & [family, names] : families)
-        {
-            message.lines.push_back (std::string (width > 0 ? "  " : "") + GetFamilyName (family) + ": " + names);
-        }
-
-        reply.data = message;
+        reply.data = MessageData { CommandModeHelp::BuildHelp (mode) };
         return;
     }
 
-    if (word != nullptr)
+    if (!CommandModeHelp::TryDescribe (mode, command.text, text))
     {
-        reply.data = MessageData { { std::format ("{}: {}", word->syntax, word->description) } };
+        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (command.text)));
         return;
     }
-
-    entry = AppleWinCommandTable::Find (name);
-
-    if (entry == nullptr)
-    {
-        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", name));
-        return;
-    }
-
-    text = std::format ("{} ({})", entry->name, GetFamilyName ((int) entry->family));
-
-    if      (entry->aliasOf != nullptr)                                  { text += std::string (": alias of ") + entry->aliasOf; }
-    else if (entry->availability == CommandAvailability::WindowOnly)     { text += ": needs the debugger window"; }
-    else if (entry->availability == CommandAvailability::NotAvailable)   { text += std::string (": ") + entry->reason; }
 
     reply.data = MessageData { { text } };
 }
@@ -749,30 +698,6 @@ std::string ConfigHandlers::ToUpper (const std::string & text)
     }
 
     return upper;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ConfigHandlers::GetFamilyName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const char * ConfigHandlers::GetFamilyName (int family)
-{
-    static constexpr const char * kNames[] =
-    {
-        "Assembler", "Cpu", "Bookmarks", "Breakpoints", "Config", "Cycles", "Data", "Disk", "Flags", "Help", "Memory",
-        "Output", "Symbols", "Watch", "ZeroPage", "Startup", "Video", "Engine", "Cursor", "Window", "MiniMemory",
-        "Views", "Appearance", "Unsupported",
-    };
-
-
-
-    return kNames[family];
 }
 
 

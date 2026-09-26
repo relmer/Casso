@@ -3,6 +3,7 @@
 #include "Debugger/GSSquaredParser.h"
 
 #include "Debugger/AppleWinCommandTable.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/IDebugExpressionContext.h"
 
 
@@ -59,7 +60,8 @@ static constexpr GSSquaredCommand  s_kCommands[] =
 //
 //  GSSquaredParser::Parse
 //
-//  An engine command goes to AppleWinParser as it stands. Otherwise the first
+//  A Casso command GSSquared reaches goes to AppleWinParser as it stands.
+//  Otherwise the first
 //  token's form decides -- an address, a range, a deposit, or `addrl` -- and
 //  failing that its word.
 //
@@ -77,7 +79,7 @@ GSSquaredParseResult GSSquaredParser::Parse (const std::string & line, const IDe
         return result;
     }
 
-    if (AppleWinCommandTable::IsEngineCommand (current.tokens[0]))
+    if (CommandModeHelp::IsCassoCommandReachable (CommandMode::GSSquared, current.tokens[0]))
     {
         ParseAppleWin (current, line, current.tokens[0]);
     }

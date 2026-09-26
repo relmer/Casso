@@ -531,7 +531,8 @@ void DebuggerWindow::SetCommandBarMenus()
     for (const auto & [mode, label] : { std::pair { CommandMode::AppleWin,  L"AppleWin"  },
                                         std::pair { CommandMode::Monitor,   L"Monitor"   },
                                         std::pair { CommandMode::GSSquared, L"GSSquared" },
-                                        std::pair { CommandMode::WinDbg,    L"WinDbg"    } })
+                                        std::pair { CommandMode::WinDbg,    L"WinDbg"    },
+                                        std::pair { CommandMode::Casso,     L"Casso"     } })
     {
         bool  current = (m_snapshot != nullptr) && m_snapshot->mode == mode;
 
@@ -717,6 +718,7 @@ std::wstring DebuggerWindow::GetPromptText (CommandMode mode)
     case CommandMode::Monitor:   return L"Monitor>";
     case CommandMode::GSSquared: return L"GSSquared>";
     case CommandMode::WinDbg:    return L"WinDbg>";
+    case CommandMode::Casso:     return L"Casso>";
     default:                     return L"AppleWin>";
     }
 }

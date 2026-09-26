@@ -169,7 +169,8 @@ namespace DebuggerTests
             Assert::AreEqual (0x300, (int) command.a1);
             AssertVerb (DebugVerb::Disassemble, One ("300L"), "300L");
 
-            Assert::IsTrue (Refused ("bpl", ParseStatus::Unknown).error.starts_with ("bpl"));
+            //  bpl is Casso's BPL, which GSSquared reaches by name, not bp and l.
+            AssertVerb (DebugVerb::ListBreakpoints, One ("bpl"), "bpl");
         }
 
         TEST_METHOD (Bp_ListsSetsAndTakesARange)
