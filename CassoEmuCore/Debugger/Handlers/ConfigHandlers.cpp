@@ -527,6 +527,14 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
             continue;
         }
 
+        spec = (char) toupper ((unsigned char) spec);
+
+        if (spec != 'X' && spec != 'D' && spec != 'Z' && spec != 'C')
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", "PRINTF conversions are %x, %d, %z, %c and %%.");
+            return;
+        }
+
         if (next >= items.size() || !TryEvaluate (session, items[next], value, error))
         {
             reply.SetError (CommandStatus::Error, "invalid arguments",
@@ -536,15 +544,12 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 
         ++next;
 
-        switch (toupper ((unsigned char) spec))
+        switch (spec)
         {
         case 'X': line += std::format ("{:04X}", value);        break;
         case 'D': line += std::format ("{}", value);            break;
         case 'Z': line += std::format ("{:08b}", (Byte) value); break;
-        case 'C': line += (char) value;                         break;
-        default:
-            reply.SetError (CommandStatus::Error, "invalid arguments", "PRINTF conversions are %x, %d, %z, %c and %%.");
-            return;
+        default:  line += (char) value;                         break;
         }
     }
 
@@ -680,13 +685,25 @@ bool ConfigHandlers::TryUnquote (const std::string & item, std::string & text)
 
 bool ConfigHandlers::TryEvaluate (DebugSession & session, const std::string & text, Word & value, std::string & error)
 {
-    int32_t  result = 0;
-    HRESULT  hr     = DebugExpressionEvaluator::ParseAndEvaluate (text, session, result, error);
+    constexpr int32_t  kMaxWord = 0xFFFF;
+    int32_t            result   = 0;
+    HRESULT            hr       = DebugExpressionEvaluator::ParseAndEvaluate (text, session, result, error);
 
 
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    if (result < 0 || result > kMaxWord)
+    {
+        error = std::format ("{} is outside $0000-$FFFF.", text);
+        return false;
+    }
 
     value = (Word) result;
-    return SUCCEEDED (hr);
+    return true;
 }
 
 
