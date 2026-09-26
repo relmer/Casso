@@ -201,7 +201,7 @@ void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    reply.data = MessageData { { std::format ("{} #{} cleared.", GetNoun (kind), id) } };
+    reply.data = MessageData { { std::format ("{}{} #{} cleared.", (char) toupper ((unsigned char) GetNoun (kind)[0]), GetNoun (kind) + 1, id) } };
 }
 
 
@@ -297,6 +297,7 @@ void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, 
 {
     IFileSystem  * files = session.GetFileSystem();
     HRESULT        hr    = S_OK;
+    size_t         count = 0;
 
 
 
@@ -320,7 +321,8 @@ void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, 
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved {} {} to {}.", GetTable (session, kind).GetAll().size(), GetPlural (kind), command.text) } };
+    count      = GetTable (session, kind).GetAll().size();
+    reply.data = MessageData { { std::format ("Saved {} {} to {}.", count, count == 1 ? GetNoun (kind) : GetPlural (kind), command.text) } };
 }
 
 
