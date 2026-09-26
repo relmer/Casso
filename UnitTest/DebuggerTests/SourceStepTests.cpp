@@ -202,6 +202,26 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (UserPauseCarriesTheSourceLine)
+        {
+            Rig               rig;
+            Program           program   = Load (rig);
+            Cpu6502Registers  registers = rig.target.GetRegisters();
+
+
+
+            registers.pc = 0x0302;
+            rig.target.SetRegisters (registers);
+
+            rig.session.OnUserResumed();
+            rig.session.OnUserPaused();
+
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Pause);
+            Assert::AreEqual (7,                        rig.LastStop().sourceLine);
+            Assert::AreEqual (std::string ("prog.a65"), rig.LastStop().sourceFile);
+        }
+
+
         TEST_METHOD (SourceStepIntoEntersAMacroBodyLineByLine)
         {
             Rig      rig;
