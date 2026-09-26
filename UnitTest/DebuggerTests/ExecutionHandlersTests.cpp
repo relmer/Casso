@@ -612,7 +612,7 @@ namespace DebuggerTests
             rig.target.videoPosition = { 42, 17 };
             Assert::AreEqual (std::string ("Scanline 42, cycle 17"), rig.RunOk ("VIDEOINFO").text.at (0));
 
-            rig.RunOk ("BPV A0");
+            Assert::AreEqual (std::string ("Breakpoint set on video scanlines $A0-$A0. It clears after it fires."), rig.RunOk ("BPV A0").text.at (0));
             Assert::IsTrue   (rig.target.hookInstalled);
             Assert::IsFalse  (rig.session.ShouldStopBefore (0x0300));
             rig.target.videoPosition.scanline = 160;

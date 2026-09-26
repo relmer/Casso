@@ -273,7 +273,7 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
 
 
     session.SetVideoBreak (command.a1, last);
-    reply.data = MessageData { { std::format ("Breakpoint set on video scanlines {}-{}. It clears after it fires.", command.a1, last) } };
+    reply.data = MessageData { { std::format ("Breakpoint set on video scanlines ${:X}-${:X}. It clears after it fires.", command.a1, last) } };
 }
 
 
