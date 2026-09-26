@@ -974,7 +974,7 @@ void DebuggerWindow::ApplyMemoryWindows()
         }
         else
         {
-            AppendConsole ({ std::format ("Go to: \"{}\" is not an address, a register or a 6502 operand this can resolve.", goTo.text) });
+            AppendConsole ({ std::format ("Go to: \"{}\" is not an address, a register or a 6502 operand.", goTo.text) });
         }
     }
 

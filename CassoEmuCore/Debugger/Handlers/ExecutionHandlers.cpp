@@ -222,7 +222,7 @@ void ExecutionHandlers::QueueKeys (DebugSession & session, const DebugCommand & 
 
     m_keys.insert (m_keys.end(), command.values.begin(), command.values.end());
     FeedKeys (session);
-    reply.data = MessageData { { std::format ("Queued {} keys; {} waiting.", command.values.size(), m_keys.size()) } };
+    reply.data = MessageData { { std::format ("Queued {} keys. Keys waiting: {}.", command.values.size(), m_keys.size()) } };
 }
 
 
@@ -263,7 +263,7 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
 
 
     session.SetVideoBreak (command.a1, last);
-    reply.data = MessageData { { std::format ("Break when the video scanline is {}-{}; the break clears when it fires.", command.a1, last) } };
+    reply.data = MessageData { { std::format ("Breakpoint set on video scanlines {}-{}. It clears after it fires.", command.a1, last) } };
 }
 
 
@@ -745,7 +745,7 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 void ExecutionHandlers::ResetCycles (DebugSession & session, Reply & reply)
 {
     m_cycleMarker = session.GetTarget().GetCycleCount();
-    reply.data    = MessageData { { "Cycle counter reset; CYCLES PART counts from here." } };
+    reply.data    = MessageData { { "Cycle counter reset. CYCLES PART now counts from here." } };
 }
 
 
@@ -761,7 +761,7 @@ void ExecutionHandlers::ResetCycles (DebugSession & session, Reply & reply)
 void ExecutionHandlers::Benchmark (const DebugCommand & command, Reply & reply)
 {
     reply.SetError (CommandStatus::NotAvailable, "command not available",
-                    std::format ("{} needs a host clock, which this session does not have.", command.sourceName));
+                    std::format ("{} is not available in this session.", command.sourceName));
 }
 
 

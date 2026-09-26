@@ -150,7 +150,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("Queued 2 keys; 1 waiting."), rig.RunOk ("KEY 41 42").text.at (0));
+            Assert::AreEqual (std::string ("Queued 2 keys. Keys waiting: 1."), rig.RunOk ("KEY 41 42").text.at (0));
             Assert::AreEqual ((size_t) 1, rig.target.injectedKeys.size(), L"the first key goes at once");
             Assert::AreEqual ((Byte) 0x41, rig.target.injectedKeys[0]);
 

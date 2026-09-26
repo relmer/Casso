@@ -310,7 +310,7 @@ $trapPut = Invoke-Step -Name 'trap-put' -Exe $cli -ExpectedExit 0 -Arguments @(
 $trapBoot = Invoke-Step -Name 'trap-boot-a-binary' -Exe $cli -ExpectedExit 1 -Arguments @(
     'disk', 'boot', $trapImage, 'PROG')
 
-$namedTheReason = [bool]([string]$trapBoot.Stderr -match 'RUNs its greeting')
+$namedTheReason = [bool]([string]$trapBoot.Stderr -match 'Its greeting is RUN')
 
 Assert-That $namedTheReason `
     "naming a binary as the boot program is refused with the reason, not silently accepted"
