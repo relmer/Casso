@@ -164,6 +164,19 @@ namespace DebuggerTests
         }
 
 
+        //  The filtered call is one step, however many instructions it runs.
+        TEST_METHOD (StepIntoCountsAFilteredCallAsOneStep)
+        {
+            Rig      rig;
+            Program  program = Load (rig);
+
+
+
+            rig.RunOk ("SKIP INC2");
+
+            Assert::AreEqual ((Word) (program.Symbol ("after") + 1), Step (rig, "T 2"), L"the call, then the NOP after it");
+        }
+
         TEST_METHOD (StepIntoAFilteredAddressStepsOver)
         {
             Rig      rig;

@@ -236,6 +236,48 @@ namespace DebuggerTests
         }
 
 
+        //  A pull inside the line raises the stack above where the step began
+        //  without leaving the routine: the step still runs the whole line.
+        TEST_METHOD (SourceStepOverALineThatPullsRunsTheWholeLine)
+        {
+            static const char * const  kSource =
+                "        .org $0300\n"     //  1
+                "pullx   macro\n"          //  2
+                "        pla\n"            //  3
+                "        tax\n"            //  4
+                "        endm\n"           //  5
+                "start   lda #5\n"         //  6
+                "        pha\n"            //  7
+                "        pullx\n"          //  8
+                "last    nop\n"            //  9
+                "done    jmp done\n";      // 10
+
+            Rig             rig;
+            TestCpu         cpu;
+            AssemblyResult  result = Assembler (cpu.GetInstructionSet(), AssemblerOptions()).Assemble (kSource);
+            Word            at     = 0x0300;
+
+
+
+            Assert::IsTrue (result.success);
+
+            for (Byte b : result.bytes)
+            {
+                rig.target.TryPoke (at++, b);
+            }
+
+            rig.Load (0x0300, {}, 0x0300);
+            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "pull.a65", 0 } } }), L"C:\\Work\\pull.dbg");
+            rig.RunOk ("SRC ON");
+
+            Step (rig, "P");
+            Step (rig, "P");
+
+            Assert::AreEqual (result.symbols.at ("last"), Step (rig, "P"), L"the pull does not end the step");
+            Assert::AreEqual (9,                          rig.LastStop().sourceLine);
+            Assert::AreEqual ((Byte) 5,                   rig.LastStop().registers.x);
+        }
+
         TEST_METHOD (SourceStepOverLeavesTheRoutineAtItsEnd)
         {
             Rig      rig;
