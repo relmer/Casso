@@ -160,6 +160,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("0400: A9 41    LDA  #$41"), reply.text[0]);
 
             rig.RunFails ("BMG 7", "no such bookmark");
+            Assert::AreEqual (std::string ("BMG takes one id, not *."), rig.RunFails ("BMG *", "invalid arguments").error.detail);
             Assert::AreEqual (std::string ("Bookmark #1 cleared."), rig.RunOk ("BMC 1").text.at (0));
             Assert::AreEqual (std::string ("No bookmarks."),        rig.RunOk ("BMC *").text.at (0));
         }
@@ -261,7 +262,7 @@ namespace DebuggerTests
 
             reply = rig.Run ("BMG *");
             Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
-            Assert::AreEqual (std::string ("Give a bookmark id."), reply.error.detail);
+            Assert::AreEqual (std::string ("BMG takes one id, not *."), reply.error.detail);
 
             reply = rig.Run ("BMG");
             Assert::AreEqual (std::string ("Give a bookmark id."), reply.error.detail);

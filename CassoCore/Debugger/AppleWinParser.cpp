@@ -857,6 +857,26 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
             return false;
         }
 
+        // A quoted file name may hold spaces; the range follows the quote.
+        if (args.tokens[0][0] == '"')
+        {
+            size_t  open  = args.rest.find ('"');
+            size_t  close = args.rest.find ('"', open + 1);
+            Tokens  after;
+
+
+
+            if (close == std::string::npos)
+            {
+                error = "The file name needs a closing quote.";
+                return false;
+            }
+
+            command.text = args.rest.substr (open + 1, close - open - 1);
+            after        = Split (args.rest.substr (close + 1));
+            return after.empty() || TryParseRange (after[0], *args.context, command, error);
+        }
+
         command.text = args.tokens[0];
         return count < 2 || TryParseRange (args.tokens[1], *args.context, command, error);
 
@@ -1046,9 +1066,15 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
         return TryParseIdOrAll (args.tokens, command, error);
 
     case DebugVerb::GoToBookmark:
-        if (args.tokens.empty() || args.tokens[0] == "*")
+        if (args.tokens.empty())
         {
             error = "Give a bookmark id.";
+            return false;
+        }
+
+        if (args.tokens[0] == "*")
+        {
+            error = std::format ("{} takes one id, not *.", ToUpper (command.sourceName));
             return false;
         }
 
