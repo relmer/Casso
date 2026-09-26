@@ -878,6 +878,37 @@ namespace EmulatorDebugWiringTests
             Assert::IsTrue   (rig.sink.stops.back().reason == StopReason::Breakpoint, L"a breakpoint stop");
             Assert::IsFalse  (rig.sink.stops.back().watch.has_value(),                 L"with no watchpoint on it");
         }
+
+
+
+        //  A Monitor G stopped at a breakpoint, the breakpoint cleared, and the
+        //  machine resumed from the main window: nothing else is armed, and the
+        //  final RTS still stops at the Monitor's return.
+        TEST_METHOD (AFreeRunResumedAfterAMonitorGoStopsAtTheMonitorsReturn)
+        {
+            Rig  rig;
+
+
+
+            // $0300: INX / INX / RTS
+            (void) rig.target.TryPoke (0x0301, 0xE8);
+            (void) rig.target.TryPoke (0x0302, 0x60);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 301").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("300G", CommandMode::Monitor).status);
+
+            rig.RunFrames (50);
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"at the breakpoint");
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPC *").status);
+            rig.cpuManager.SetPaused (false);
+            rig.session.OnUserResumed();
+            rig.RunFrames (50);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused(),                             L"stopped, not running on in the Monitor");
+            Assert::AreEqual ((Word) 0xFF69, rig.target.GetRegisters().pc,           L"at the Monitor's return");
+            Assert::IsTrue   (rig.sink.stops.back().reason == StopReason::RunTo,     L"as a run to");
+        }
     };
 
 
