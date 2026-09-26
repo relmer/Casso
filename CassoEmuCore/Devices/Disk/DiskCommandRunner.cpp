@@ -440,7 +440,7 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
           "is not a program this volume's boot path launches. On ProDOS that "
           "requires a file of type SYS, not the kernel itself" },
     };
-    const char *  sentence = "was refused by the filesystem on this volume";
+    const char *  sentence = "could not be written to this volume";
 
 
 
@@ -812,7 +812,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
 
     CBRFEx (permitted, HRESULT_FROM_WIN32 (ERROR_DIR_NOT_EMPTY),
             result.Fail (options.disk.imagePath, options.disk.path,
-                  ApplyPrefix ("holds entries, which --recurse removes with it")));
+                  ApplyPrefix ("is not empty. Use --recurse to remove it and everything in it")));
 
     if (holdsThings)
     {
@@ -830,7 +830,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     }
 
     confirmed = options.disk.yes;
-    declined  = "was not removed: nobody was there to answer, and --yes answers in advance";
+    declined  = "was not removed because it could not be confirmed. Use --yes to confirm in advance";
 
     if (!confirmed && m_confirm)
     {

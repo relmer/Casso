@@ -2137,9 +2137,9 @@ void ProDosVolume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     if (!inOutOutcome.catalogFullyParsed)
     {
         inOutOutcome.warnings.push_back (
-            "the directory did not parse completely, so an entry that could not be"
-            " read claims nothing this pass can see, and a block it shares with the"
-            " deleted file may have been freed while that entry still uses it");
+            "the directory did not parse completely, so a block that an unreadable entry"
+            " shares with the deleted file may have been freed while that entry still"
+            " uses it");
     }
 }
 

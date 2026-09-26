@@ -378,9 +378,9 @@ ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, in
     prompt.title = L"Error saving to disk";
 
     prompt.message = (cause == SaveFailureCause::FileLost)
-                         ? (file + L" is gone. We tried to save your changes to")
+                         ? (file + L" is gone. Your changes could not be saved to")
                          : (L"Another program modified " + file
-                            + L". We tried to save your changes to");
+                            + L". Your changes could not be saved to");
 
     prompt.message += L"\n\n" + full + L"\n\nError: " + DescribeError (reason) + L"\n\n";
 

@@ -3740,7 +3740,7 @@ namespace MerlinDirectiveTests
         {
             AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DSK\n");
 
-            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "names no output file"),
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "has no output file"),
                             MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
         }
     };

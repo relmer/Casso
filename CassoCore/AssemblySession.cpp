@@ -4834,7 +4834,7 @@ HRESULT AssemblySession::HandlePass1SaveObject (const PendingLine & current, Lin
     //  improvement.
     if (!hasArg)
     {
-        RecordError (current.sourceLineNumber, info.parsed.directive + " names no output file");
+        RecordError (current.sourceLineNumber, info.parsed.directive + " has no output file");
     }
 
     //  THE TWO OUTPUT DIRECTIVES ARE MUTUALLY EXCLUSIVE, which was measured and
@@ -4890,7 +4890,7 @@ HRESULT AssemblySession::HandlePass1FileType (const PendingLine & current, LineI
     //  line sits at rather than for the whole assembly.
     if (!hasArg)
     {
-        RecordError (current.sourceLineNumber, info.parsed.directive + " names no file type");
+        RecordError (current.sourceLineNumber, info.parsed.directive + " has no file type");
     }
 
     return hr;
@@ -4992,7 +4992,7 @@ HRESULT AssemblySession::HandlePass1ObjectFile (const PendingLine & current, Lin
 
     if (!hasName)
     {
-        RecordError (current.sourceLineNumber, info.parsed.directive + " names no output file");
+        RecordError (current.sourceLineNumber, info.parsed.directive + " has no output file");
     }
 
     BAIL_OUT_IF (!hasName, S_OK);
@@ -8343,7 +8343,7 @@ void AssemblySession::CloseSpan (const std::string & name)
     if (hasBytes && !named && !isFirst)
     {
         RecordWarning (m_lastSourceLine,
-                       "bytes were assembled after the last save and no output names them, so they were not written");
+                       "bytes were assembled after the last save and no output includes them, so they were not written");
     }
 
     if (hasBytes && (named || isFirst))

@@ -716,7 +716,7 @@ HRESULT ApplesoftTokenizer::EmitProgram (
             outError.sourceLineIndex = lines[i].index;
             outError.lineNumber      = lines[i].number;
             outError.hasLineNumber   = true;
-            outError.reason          = "shares its number with another line, so which one the program keeps is unsayable";
+            outError.reason          = "shares its number with another line";
         }
     }
 
@@ -750,7 +750,7 @@ HRESULT ApplesoftTokenizer::EmitProgram (
             outError.sourceLineIndex = lines[i].index;
             outError.lineNumber      = lines[i].number;
             outError.hasLineNumber   = true;
-            outError.reason          = "is past the point where the program stops fitting in the memory Applesoft has for it";
+            outError.reason          = "does not fit in the memory Applesoft has for the program";
 
             break;
         }

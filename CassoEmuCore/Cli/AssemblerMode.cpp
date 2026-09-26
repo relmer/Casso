@@ -295,7 +295,7 @@ HRESULT AssemblerMode::RefuseUnusableOutputRequest (const CommandLineOptions & o
     if (typedHere && options.imagePath.empty())
     {
         CliOutput::PrintLine (stderr,
-                              "Error: the source sets a filesystem file type and no image was named");
+                              "Error: the source sets a filesystem file type, and no disk image was given");
         CliOutput::PrintLine (stderr,
                               "       add {}{}disk <image>, or remove the directive",
                               options.flagPrefix, options.flagPrefix == '/' ? "" : "-");

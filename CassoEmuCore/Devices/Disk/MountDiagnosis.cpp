@@ -78,7 +78,7 @@ string MountDiagnosis::Describe() const
             break;
 
         case MountFailure::NotAWozFile:
-            text = "is named .woz, but it does not begin with a WOZ file header, so "
+            text = "has a .woz extension, but it does not begin with a WOZ file header, so "
                    "its contents are not a WOZ image. It was most likely renamed "
                    "from some other kind of file";
             break;

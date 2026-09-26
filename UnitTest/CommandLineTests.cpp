@@ -3044,7 +3044,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                 L"giving both numberings is a contradiction, not a preference");
 
-            Assert::IsTrue (opts.refusalMessage.find ("one choice") != std::string::npos,
+            Assert::IsTrue (opts.refusalMessage.find ("cannot be used together") != std::string::npos,
                 L"and the refusal states that rather than reporting an unknown flag");
         }
 

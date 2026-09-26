@@ -306,7 +306,7 @@ void Dos33Volume::CollectEntries (
         if (track >= NibblizationLayer::kTrackCount
          || sector >= NibblizationLayer::kSectorsPerTrack)
         {
-            outDamage.push_back ("the catalog chain names a sector outside the volume");
+            outDamage.push_back ("the catalog chain points to a sector outside the volume");
             outFullyParsed = false;
             break;
         }
@@ -1576,9 +1576,9 @@ void Dos33Volume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     if (!inOutOutcome.catalogFullyParsed)
     {
         inOutOutcome.warnings.push_back (
-            "the catalog did not parse completely, so an entry that could not be"
-            " read claims nothing this pass can see, and a sector it shares with the"
-            " deleted file may have been freed while that entry still uses it");
+            "the catalog did not parse completely, so a sector that an unreadable entry"
+            " shares with the deleted file may have been freed while that entry still"
+            " uses it");
     }
 }
 
