@@ -96,7 +96,8 @@ private:
     static bool  TryFindExclusion      (const std::string & name, const WinDbgExclusion *& exclusion);
     static bool  TryParseEngine        (const std::string & line, const IDebugExpressionContext & context, WinDbgParseResult & result);
     static bool  TryRewrite            (const std::string & name, const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Rewrite & rewrite);
-    static bool  TryRewriteDump        (const std::string & name, const Tokens & args, const IDebugExpressionContext & context, Rewrite & rewrite);    static bool  TryRewriteAccess      (const Tokens & args, Rewrite & rewrite);
+    static bool  TryRewriteDump        (const std::string & name, const Tokens & args, const IDebugExpressionContext & context, Rewrite & rewrite);
+    static bool  TryRewriteAccess      (const Tokens & args, Rewrite & rewrite);
     static bool  TryRewriteBreakpoint  (const Tokens & args, const std::string & rest, Rewrite & rewrite);
     static bool  TryRewriteRegister    (const std::string & rest, Rewrite & rewrite);
     static bool  TryRewriteText        (const Tokens & args, const std::string & rest, Rewrite & rewrite);

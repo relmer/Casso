@@ -476,7 +476,7 @@ bool WinDbgParser::TryRewriteDump (
             return false;
         }
 
-        last = address + count * unit - 1;
+        last = (uint32_t) std::min<uint64_t> ((uint64_t) address + (uint64_t) count * unit - 1, kLastAddress);
     }
     else if (args.size() > 1)
     {
@@ -486,6 +486,12 @@ bool WinDbgParser::TryRewriteDump (
         }
 
         next = 2;
+    }
+
+    if (last < address)
+    {
+        rewrite.error = std::format ("{} needs an end at or after its start.", name);
+        return false;
     }
 
     if (next < args.size())
@@ -717,7 +723,7 @@ bool WinDbgParser::TrySplitLength (const Tokens & args, size_t first, std::strin
 
     if (token.size() > 1 && token[0] == 'l')
     {
-        length = args[first].substr (1);
+        length = NormalizeNumbers (args[first].substr (1));
         next   = first + 1;
         return true;
     }
@@ -786,7 +792,7 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
 {
     std::string  result;
     size_t       i        = 0;
-    bool         inQuotes = false;
+    char         quote    = 0;
     bool         isStart  = false;
     char         prefix   = 0;
 
@@ -794,11 +800,19 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
 
     while (i < text.size())
     {
-        inQuotes = (text[i] == '"') ? !inQuotes : inQuotes;
+        if (quote == 0 && (text[i] == '"' || text[i] == '\''))
+        {
+            quote = text[i];
+        }
+        else if (text[i] == quote)
+        {
+            quote = 0;
+        }
+
         isStart  = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$');
         prefix   = (i + 1 < text.size()) ? (char) tolower ((unsigned char) text[i + 1]) : 0;
 
-        if (!inQuotes && isStart && text[i] == '0' && i + 2 < text.size() &&
+        if (quote == 0 && isStart && text[i] == '0' && i + 2 < text.size() &&
             ((prefix == 'x' && isxdigit ((unsigned char) text[i + 2])) || (prefix == 'n' && isdigit ((unsigned char) text[i + 2]))))
         {
             result += (prefix == 'x') ? '$' : '#';

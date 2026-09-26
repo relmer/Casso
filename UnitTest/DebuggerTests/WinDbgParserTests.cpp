@@ -214,6 +214,31 @@ namespace DebuggerTests
             Assert::IsTrue (ParseFails ("lsa main.s:3", ParseStatus::NotAvailable).label.empty());
         }
 
+        TEST_METHOD (PrefixedLengths_AreNumbers)
+        {
+            Assert::AreEqual ((Word) 0x201F, ParseOk ("db 2000 l0x20").command.a2);
+            Assert::AreEqual ((Word) 0x201F, ParseOk ("db 2000 l0n32").command.a2);
+            Assert::AreEqual ((Word) 0x201F, ParseOk ("db 2000 L0X20").command.a2);
+            ParseOk ("f 300 l0x20 00");
+            ParseOk ("s 300 l0x20 00");
+        }
+
+        TEST_METHOD (DumpRanges_EndAtOrAfterTheirStart)
+        {
+            ParseFails ("db 2010 2000", ParseStatus::Invalid);
+            Assert::AreEqual ((Word) 0xFFFF, ParseOk ("dd ffff l40000000").command.a2);
+        }
+
+        TEST_METHOD (SingleQuotedText_KeepsItsCharacters)
+        {
+            WinDbgParseResult  result = ParseOk ("s 300 l100 '0x41'");
+
+
+
+            Assert::AreEqual ((size_t) 4, result.command.values.size());
+            Assert::AreEqual ((Byte) ('0' | 0x80), result.command.values[0]);
+        }
+
         TEST_METHOD (Malformed_ProducesAnErrorAndNoCommand)
         {
             Assert::AreEqual ((int) DebugVerb::None, (int) ParseFails ("db zzz_nope",  ParseStatus::Invalid).command.verb);
