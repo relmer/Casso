@@ -701,7 +701,7 @@ void ExecutionHandlers::FlushTrace (DebugSession & session)
 
 
 
-    if (m_trace.isOn && session.GetFileSystem() != nullptr)
+    if (m_trace.isOn && !m_trace.lines.empty() && session.GetFileSystem() != nullptr)
     {
         hr = session.GetFileSystem()->WriteAllText (m_trace.path, m_trace.lines);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -735,7 +735,7 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 
     if      (which.empty() || which == "ABS") { reply.data = CyclesData { total }; }
     else if (which == "REL")                  { reply.data = CyclesData { m_lastRunCycles }; }
-    else if (which == "PART")                 { reply.data = CyclesData { total - m_cycleMarker }; }
+    else if (which == "PART")                 { reply.data = CyclesData { total >= m_cycleMarker ? total - m_cycleMarker : total }; }
     else
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "CYCLES takes ABS, REL or PART.");
