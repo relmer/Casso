@@ -1902,9 +1902,9 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (DebuggerViewState::GetRunLine(),      *DebuggerViewState::GetActionLine (Action::Run,      &snapshot, -1));
-            Assert::AreEqual (DebuggerViewState::GetStepLine(),     *DebuggerViewState::GetActionLine (Action::StepInto, &snapshot, -1));
-            Assert::AreEqual (DebuggerViewState::GetStepOverLine(), *DebuggerViewState::GetActionLine (Action::StepOver, &snapshot, -1));
+            Assert::AreEqual (std::string ("G"),                    *DebuggerViewState::GetActionLine (Action::Run,      &snapshot, -1));
+            Assert::AreEqual (std::string ("T"),                    *DebuggerViewState::GetActionLine (Action::StepInto, &snapshot, -1));
+            Assert::AreEqual (std::string ("P"),                    *DebuggerViewState::GetActionLine (Action::StepOver, &snapshot, -1));
             Assert::AreEqual (std::string ("RTS"),                  *DebuggerViewState::GetActionLine (Action::StepOut,  &snapshot, -1));
         }
 
@@ -1925,9 +1925,9 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (DebuggerViewState::GetRunToCursorLine (0x0302),
+            Assert::AreEqual (std::string ("G 0302"),
                               *DebuggerViewState::GetActionLine (Action::RunToCursor, &snapshot, 1));
-            Assert::AreEqual (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0302),
+            Assert::AreEqual (std::string ("BP 0302"),
                               *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, 1));
         }
 
@@ -1938,7 +1938,7 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300),
+            Assert::AreEqual (std::string ("BP 0300"),
                               *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, -1));
         }
 
@@ -2353,7 +2353,7 @@ namespace DebuggerViewStateTests
 
             Assert::AreEqual ((size_t) 1, snapshot.panels.size());
             Assert::AreEqual (std::string ("fake"), snapshot.panels[0].id);
-            Assert::AreEqual (std::string ("Fake"), snapshot.panels[0].title);
+            Assert::AreEqual (std::string ("Disk widget"), snapshot.panels[0].title);
             Assert::IsFalse  (snapshot.panels[0].open);
             Assert::IsTrue   (snapshot.diagnostics.empty());
             Assert::AreEqual (0, rig.provider.calls, L"a closed panel costs the device nothing");
@@ -2377,7 +2377,7 @@ namespace DebuggerViewStateTests
             second             = rig.view.Build (rig.session);
 
             Assert::AreEqual ((size_t) 1, second.diagnostics.size());
-            Assert::AreEqual (std::string ("Fake"),  second.diagnostics[0].device);
+            Assert::AreEqual (std::string ("Disk widget"), second.diagnostics[0].device);
             Assert::AreEqual (std::string ("$80"),   first.diagnostics[0].groups[0].rows[0].value);
             Assert::AreEqual (std::string ("$01"),   second.diagnostics[0].groups[0].rows[0].value, L"the new state, one build later");
             Assert::AreEqual (2, rig.provider.calls, L"once per build");
@@ -2405,9 +2405,14 @@ namespace DebuggerViewStateTests
             Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"by id, either case");
             Assert::IsTrue (Join (rig.Run ("PANEL").text).find ("(open)") != std::string::npos, L"PANEL alone lists");
 
-            reply = rig.Run ("PANEL CLOSE Fake");
+            reply = rig.Run ("PANEL CLOSE Disk widget");
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"by title");
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"by a title that holds a space");
+
+            reply = rig.Run ("PANEL disk WIDGET");
+            Assert::IsTrue  (reply.status == CommandStatus::Ok);
+            Assert::IsTrue  (rig.view.IsPanelOpen ("fake"), L"by title, either case");
+            (void) rig.Run ("PANEL CLOSE fake");
 
             (void) rig.Run ("/PANEL fake", CommandMode::Monitor);
             Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"as an AppleWin line from Monitor mode");
