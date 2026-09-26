@@ -115,6 +115,8 @@ namespace DebuggerTests
         using DebuggerWindow::BeginWatchEdit;
         using DebuggerWindow::EndWatchEdit;
         using DebuggerWindow::GetFocused;
+        using DebuggerWindow::GetWatchList;
+        using DebuggerWindow::GetPokeBox;
 
         //  A key as the window's message handling delivers it: to the window
         //  first, then to the key scheme if nothing took it.
@@ -627,6 +629,12 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring (L"or"), window.GetMemoryBox()->GetText());
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"o and r step only outside a box");
+        }
+    };
+
+
+
+
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  DebuggerWindowKeyTests
@@ -770,6 +778,160 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"one line runs");
             Assert::AreEqual (std::string ("R A 42"), host.commands.front(), L"the value goes to A, where the edit began");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerWindowFocusTests
+    //
+    //  Where the keys go: to the control the window's focus is on, and to no
+    //  control that is hidden or belongs to another window.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerWindowFocusTests)
+    {
+    public:
+
+        static void  Build (TextSizeWindow & window)
+        {
+            DxuiDpiScaler  scaler;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.ApplyKeyScheme (DebuggerKeyScheme::VisualStudio);
+        }
+
+
+        static std::shared_ptr<const DebuggerViewSnapshot> MakeSnapshot (const std::string & machine, bool memoryOpen)
+        {
+            auto  snapshot = std::make_shared<DebuggerViewSnapshot>();
+
+            snapshot->machine  = machine;
+            snapshot->isPaused = true;
+            snapshot->watches  = { { 1, 0x0300, "12" } };
+
+            if (memoryOpen)
+            {
+                DebuggerViewSnapshot::MemoryWindow  window;
+
+                window.id = 1;
+                snapshot->memoryWindows.push_back (window);
+            }
+
+            return snapshot;
+        }
+
+
+        static void  EditWatch (TextSizeWindow & window)
+        {
+            window.FocusControl (window.GetWatchList());
+            window.GetWatchList()->ClickRow (0, false, false);
+            window.Press (VK_F2);
+            window.Type  (L"34");
+            window.Press (VK_RETURN);
+        }
+
+
+        TEST_METHOD (WatchUndoIsDroppedWithTheMachine)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            size_t              sent   = 0;
+
+
+
+            Build (window);
+            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+
+            EditWatch (window);
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"the edit writes the watch");
+
+            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+            window.FocusControl (window.GetWatchList());
+            Assert::IsTrue   (window.Press ('Z', true));
+            Assert::AreEqual ((size_t) 2, host.commands.size(), L"on the same machine Ctrl+Z puts it back");
+
+            EditWatch (window);
+            sent = host.commands.size();
+
+            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2Plus", true));
+            window.FocusControl (window.GetWatchList());
+            window.Press ('Z', true);
+            Assert::AreEqual (sent, host.commands.size(), L"another machine's value is not written into this one");
+        }
+
+
+        TEST_METHOD (CtrlASelectsAllOfAFocusedTextView)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window);
+            window.AppendConsole ({ "LDA #$00", "STA $C030" });
+            window.FocusControl  (window.GetConsoleView());
+
+            Assert::IsTrue   (window.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Down, 'A', false, false, true, false }), L"Ctrl+A");
+            Assert::IsTrue   (window.GetConsoleView()->HasSelection(), L"the whole text is selected, as its Edit menu does");
+        }
+
+
+        TEST_METHOD (TypingGoesOnlyToTheFocusedBox)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window);
+            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+
+            //  The Go to box is focused in a floating window, as SetFocusedControl
+            //  leaves it, and a click then focuses a list in the main window.
+            window.FocusControl (window.GetWatchList());
+            window.GetMemoryBox()->OnFocusChanged (true);
+
+            window.Type (L"12");
+
+            Assert::AreEqual (std::wstring(), window.GetMemoryBox()->GetText(), L"the keys go to the focused list, not the box");
+        }
+
+
+        TEST_METHOD (AHiddenMemoryBarGivesUpTheFocus)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+
+
+
+            Build (window);
+            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+            scaler.SetDpi (96);
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            window.FocusControl (window.GetPokeBox());
+            Assert::IsTrue   (window.GetPokeBox()->IsVisible(), L"the poke box shows in the memory window's bar");
+
+            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", false));
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            Assert::IsFalse  (window.GetPokeBox()->IsVisible(), L"no memory window, no bar");
+            Assert::IsTrue   (window.GetFocused() == window.GetCommandBox(), L"the keys go back to the command line");
+
+            window.Type (L"12");
+            Assert::AreEqual (std::wstring(), window.GetPokeBox()->GetText(), L"and nothing is typed into the hidden box");
         }
     };
 }

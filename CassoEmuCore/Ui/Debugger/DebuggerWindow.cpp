@@ -1023,10 +1023,14 @@ void DebuggerWindow::ApplyMemoryWindows()
     {
         m_machine = m_snapshot->machine;
 
+        //  Every undo record holds the old machine's values and addresses,
+        //  the watch pane's as much as the memory windows'.
         for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
         {
             pane->ClearHistory();
         }
+
+        m_watchUndo.clear();
     }
 
     for (const DebuggerViewSnapshot::MemoryWindow & window : m_snapshot->memoryWindows)
@@ -2559,14 +2563,26 @@ void DebuggerWindow::PlaceMemoryBar()
         }
     }
 
+    //  A hidden box keeps no focus, or it would go on taking the keys; they
+    //  go back to the command line, as they do when the find bar closes.
     for (IDxuiControl * control : { (IDxuiControl *) m_memoryBox, (IDxuiControl *) m_pokeBox })
     {
         control->SetVisible (bar != nullptr);
+
+        if (bar == nullptr && m_focusMgr.GetFocusedControl() == control)
+        {
+            m_focusMgr.SetFocused (m_commandBox);
+        }
     }
 
     for (DxuiButton * button : GetMemoryButtons())
     {
         button->SetVisible (bar != nullptr);
+
+        if (bar == nullptr && m_focusMgr.GetFocusedControl() == button)
+        {
+            m_focusMgr.SetFocused (m_commandBox);
+        }
     }
 
     if (bar == nullptr)
@@ -6740,9 +6756,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return focused != nullptr && focused->OnKey (ev);
     }
 
+    //  Only the box this window's focus is on types. A box focused in a
+    //  floating window keeps its own focused flag after a click back here.
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return m_commandBox->OnKey (ev) || m_memoryBox->OnKey (ev) || m_pokeBox->OnKey (ev);
+        return (focused == m_commandBox || focused == m_memoryBox || focused == m_pokeBox) && focused->OnKey (ev);
     }
 
     //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text (FR-083).
@@ -6767,6 +6785,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down)
     {
         handled = (focused != nullptr) && focused->OnKey (ev);
+
+        //  Ctrl+C and Ctrl+A copy and select in a pane whose own keys do not
+        //  take them, as its Edit menu does.
+        if (!handled && focused != nullptr && ev.ctrl && !ev.alt && !ev.shift && (ev.vk == 'C' || ev.vk == 'A'))
+        {
+            handled = focused->InvokeCommand (ev.vk == 'C' ? DxuiStandardCommand::Copy : DxuiStandardCommand::SelectAll);
+        }
 
         if (!handled && ev.vk == VK_TAB && m_routingPane.empty())
         {

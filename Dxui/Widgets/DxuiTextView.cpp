@@ -1348,7 +1348,8 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiTextView::OnKey (const DxuiKeyEvent & ev)
 {
-    bool  handled = ev.kind == DxuiKeyEventKind::Down;
+    //  With Ctrl or Alt down the key is a shortcut, left to the host.
+    bool  handled = ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt;
 
 
 

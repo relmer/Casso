@@ -199,6 +199,8 @@ protected:
     void            BeginWatchEdit     (int row, int column);
     void            EndWatchEdit       (bool commit);
     IDxuiControl  * GetFocused         () const;
+    DxuiListView  * GetWatchList       () const { return m_watchList; }
+    DxuiTextInput * GetPokeBox         () const { return m_pokeBox; }
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.

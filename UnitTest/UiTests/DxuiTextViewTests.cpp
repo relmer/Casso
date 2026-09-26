@@ -141,6 +141,31 @@ public:
     }
 
 
+    TEST_METHOD (Keys_ScrollOnlyWithoutCtrlOrAlt)
+    {
+        DxuiTextView                    view;
+        std::vector<DxuiTextView::Row>  rows;
+        DxuiKeyEvent                    down     = { DxuiKeyEventKind::Down, VK_DOWN, false, false, false, false };
+        DxuiKeyEvent                    ctrlDown = { DxuiKeyEventKind::Down, VK_DOWN, false, false, true,  false };
+        DxuiKeyEvent                    altEnd   = { DxuiKeyEventKind::Down, VK_END,  false, false, false, true  };
+
+        for (int i = 0; i < 100; i++)
+        {
+            rows.push_back (MakeRow ({ std::to_wstring (i) }));
+        }
+
+        LayOut (view, 400, 12 + 16 * 10);
+        view.SetRows (std::move (rows));
+
+        Assert::IsFalse  (view.OnKey (ctrlDown), L"Ctrl+Down is a shortcut, left to the host");
+        Assert::IsFalse  (view.OnKey (altEnd),   L"Alt+End is a shortcut, left to the host");
+        Assert::AreEqual (0, view.GetTopLine(),  L"and neither scrolls");
+
+        Assert::IsTrue   (view.OnKey (down));
+        Assert::AreEqual (1, view.GetTopLine(),  L"Down alone scrolls a line");
+    }
+
+
     TEST_METHOD (WarningRow_StartsItsTextAfterTheMark)
     {
         DxuiTextView  view;
