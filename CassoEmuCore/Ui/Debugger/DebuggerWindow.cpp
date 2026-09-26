@@ -1654,8 +1654,8 @@ bool DebuggerWindow::RouteConsoleMouse (const DxuiMouseEvent & ev)
 //  DebuggerWindow::NoteViewFocus
 //
 //  Steps follow the view: the source pane steps by source line, the
-//  disassembly by instruction (FR-056). Sent only when it changes, so a click
-//  does not fill the console.
+//  disassembly by instruction, in the words of the session's mode. Sent only
+//  when it changes, so a click does not fill the console.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
