@@ -122,6 +122,20 @@ namespace DebuggerTests
 
 
 
+        //  The Monitor's arithmetic is eight-bit; CALC keeps its whole value.
+        TEST_METHOD (Calc_KeepsTheHighByte_ArithmeticDoesNot)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("=1234"), rig.Line ("/CALC 1234", 0));
+            Assert::AreEqual (std::string ("=34"),   rig.Line ("/CALC 34",   0));
+            Assert::AreEqual (std::string ("=FE"),   rig.Line ("FF+FF",      0));
+        }
+
+
+
         //  Rows break on eight-byte boundaries, so a range that starts mid-row
         //  prints a short row first.
         TEST_METHOD (Examine_BreaksRowsOnEightByteBoundaries)
