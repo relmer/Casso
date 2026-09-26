@@ -884,6 +884,7 @@ void DebugSession::ClearAllBreakpoints()
 {
     m_breakpoints.ClearAll();
     m_watchpoints.ClearAll();
+    m_videoBreak.reset();
     m_nextId = 0;
     UpdateHookInstalled();
 }
@@ -958,6 +959,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_breakpoints.ClearAll();
     m_watchpoints.ClearAll();
     m_watchpoints.ClearPending();
+    m_videoBreak.reset();
+    m_videoBreakHit = false;
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
     m_monitorReturn.reset();

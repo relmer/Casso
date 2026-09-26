@@ -624,5 +624,27 @@ namespace DebuggerTests
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("BENCHMARK").status);
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("EXITBENCH").status);
         }
+
+
+
+        //  A video break is a stop condition like any breakpoint, so BPC *,
+        //  which clears every breakpoint, and a machine change remove it.
+        TEST_METHOD (BPV_ClearedByClearAllAndMachineChange)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BPV A0");
+            Assert::IsTrue  (rig.session.HasVideoBreak());
+            rig.session.ClearAllBreakpoints();
+            Assert::IsFalse (rig.session.HasVideoBreak(), L"clearing every breakpoint clears the video break");
+            Assert::IsFalse (rig.target.hookInstalled);
+
+            rig.RunOk ("BPV A0");
+            rig.session.OnMachineChanged ("Apple //e", true);
+            Assert::IsFalse (rig.session.HasVideoBreak(), L"a machine change clears the video break");
+            Assert::IsFalse (rig.target.hookInstalled);
+        }
     };
 }
