@@ -477,6 +477,28 @@ namespace DebuggerTests
 
 
 
+        //  I/O cannot be read without side effects, so a range that covers it
+        //  fails rather than reading it as zeros.
+        TEST_METHOD (UnreadableSource_FailsRatherThanReadingZeros)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.target.memory[0x0300] = 0x55;
+
+            reply = rig.RunFails ("M 300 C000:C00F", "unreadable memory");
+            Assert::AreEqual (std::string ("$C000 cannot be read."), reply.error.detail);
+            Assert::AreEqual ((Byte) 0x55, rig.target.memory[0x0300], L"M wrote nothing");
+
+            rig.RunFails ("MC 300 C000:C00F",      "unreadable memory");
+            rig.RunFails ("MC C000 300:30F",       "unreadable memory");
+            rig.RunFails ("BSAVE f BFF0:C00F",     "unreadable memory");
+            Assert::IsFalse (rig.files.Exists (L"C:\\Work\\f"), L"BSAVE wrote no file");
+        }
+
+
         TEST_METHOD (ReversedRange_FailsWithoutTouchingMemory)
         {
             Rig  rig;

@@ -231,7 +231,16 @@ void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command,
 
     for (uint32_t address = command.a1; address <= last; ++address)
     {
-        bytes.push_back (Peek (target, (Word) address));
+        Byte  value = 0;
+
+
+
+        if (!TryPeekByte (target, (Word) address, value, reply))
+        {
+            return;
+        }
+
+        bytes.push_back (value);
     }
 
     if (TryPokeRange (target, command.a3, bytes, reply))
@@ -264,10 +273,15 @@ void MemoryHandlers::Compare (DebugSession & session, const DebugCommand & comma
     for (uint32_t address = command.a1; address <= last; ++address)
     {
         Word  other      = (Word) (command.a3 + (address - command.a1));
-        Byte  value      = Peek (target, (Word) address);
-        Byte  otherValue = Peek (target, other);
+        Byte  value      = 0;
+        Byte  otherValue = 0;
 
 
+
+        if (!TryPeekByte (target, (Word) address, value, reply) || !TryPeekByte (target, other, otherValue, reply))
+        {
+            return;
+        }
 
         ++data.compared;
 
@@ -525,7 +539,16 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
 
     for (uint32_t address = command.a1; address <= last; ++address)
     {
-        content.push_back ((char) Peek (session.GetTarget(), (Word) address));
+        Byte  value = 0;
+
+
+
+        if (!TryPeekByte (session.GetTarget(), (Word) address, value, reply))
+        {
+            return;
+        }
+
+        content.push_back ((char) value);
     }
 
     hr = files->WriteAllText (session.ResolvePath (command.text), content);
@@ -727,6 +750,30 @@ bool MemoryHandlers::TryPokeRange (IDebugTarget & target, Word first, std::span<
                             std::format ("${:04X} cannot be written. {} of {} bytes were written.", address, i, bytes.size()));
             return false;
         }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::TryPeekByte
+//
+//  A byte a command copies, compares or saves. I/O cannot be read without
+//  side effects, so it fails rather than reading as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::TryPeekByte (IDebugTarget & target, Word address, Byte & value, Reply & reply)
+{
+    if (!target.TryPeek (address, value))
+    {
+        reply.SetError (CommandStatus::Error, "unreadable memory", std::format ("${:04X} cannot be read.", address));
+        return false;
     }
 
     return true;
