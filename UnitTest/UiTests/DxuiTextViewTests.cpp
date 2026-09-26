@@ -156,7 +156,7 @@ public:
     static DxuiTextView::FindResult  Find (const std::vector<std::wstring> & rows, const std::wstring & needle, bool matchCase, bool forward,
                                            DxuiTextView::Position from, DxuiTextView::Position & outStart)
     {
-        return DxuiTextView::FindInRows (rows, needle, matchCase, forward, from, outStart);
+        return DxuiTextView::FindInRows (rows, needle, matchCase, false, forward, from, outStart);
     }
 
 
@@ -232,6 +232,98 @@ public:
     }
 
 
+    static DxuiTextView::FindResult  FindWord (const std::vector<std::wstring> & rows, const std::wstring & needle, bool matchCase, bool forward,
+                                               DxuiTextView::Position from, DxuiTextView::Position & outStart)
+    {
+        return DxuiTextView::FindInRows (rows, needle, matchCase, true, forward, from, outStart);
+    }
+
+
+    TEST_METHOD (FindWord_SkipsAMatchInsideALongerWord)
+    {
+        std::vector<std::wstring>  rows  = { L"STAX STA_1 XSTA 2STA STA" };
+        DxuiTextView::Position     start;
+
+        Assert::IsTrue   (Find (rows, L"STA", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (0, start.offset, L"without whole words, the start of STAX matches");
+
+        Assert::IsTrue   (FindWord (rows, L"STA", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (21, start.offset, L"a letter, an underscore or a digit on either side is part of the word");
+
+        Assert::IsTrue   (FindWord (rows, L"STA", true, false, { 0, 21 }, start) == DxuiTextView::FindResult::Wrapped,
+                          L"backward, every earlier one is inside a word, so the search goes round");
+        Assert::AreEqual (21, start.offset);
+
+        Assert::IsTrue   (FindWord ({ L"STAX", L"LDSTA" }, L"STA", true, true, {}, start) == DxuiTextView::FindResult::NotFound);
+    }
+
+
+    TEST_METHOD (FindWord_MatchesAtTheLineStartAndEnd)
+    {
+        std::vector<std::wstring>  rows  = { L"BRK", L"NOP BRK", L"BRK NOP" };
+        DxuiTextView::Position     start;
+
+        Assert::IsTrue   (FindWord (rows, L"BRK", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (0, start.row,    L"the whole line");
+        Assert::AreEqual (0, start.offset);
+
+        Assert::IsTrue   (FindWord (rows, L"BRK", true, true, { 0, 1 }, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (1, start.row,    L"at the line's end");
+        Assert::AreEqual (4, start.offset);
+
+        Assert::IsTrue   (FindWord (rows, L"BRK", true, true, { 1, 5 }, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (2, start.row,    L"at the line's start");
+        Assert::AreEqual (0, start.offset);
+
+        Assert::IsTrue   (FindWord (rows, L"BRK", true, false, { 2, 0 }, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (1, start.row,    L"backward, at the line's end");
+        Assert::AreEqual (4, start.offset);
+    }
+
+
+    TEST_METHOD (FindWord_PunctuationAndTabsEndAWord)
+    {
+        std::vector<std::wstring>  rows  = { L"$C030,X", L"(ptr),Y", L"1000:\tLDA" };
+        DxuiTextView::Position     start;
+
+        Assert::IsTrue   (FindWord (rows, L"C030", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (0, start.row);
+        Assert::AreEqual (1, start.offset, L"between a dollar sign and a comma");
+
+        Assert::IsTrue   (FindWord (rows, L"ptr", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (1, start.row);
+        Assert::AreEqual (1, start.offset, L"between parentheses");
+
+        Assert::IsTrue   (FindWord (rows, L"1000", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (2, start.row,    L"before a colon");
+
+        Assert::IsTrue   (FindWord (rows, L"LDA", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (6, start.offset, L"after the tab between cells");
+
+        Assert::IsTrue   (FindWord (rows, L"C03", true, true, {}, start) == DxuiTextView::FindResult::NotFound,
+                          L"a digit after it is still part of the word");
+    }
+
+
+    TEST_METHOD (FindWord_WorksWithAndWithoutMatchingCase)
+    {
+        std::vector<std::wstring>  rows  = { L"ldax lda", L"LDA" };
+        DxuiTextView::Position     start;
+
+        Assert::IsTrue   (FindWord (rows, L"LDA", false, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (0, start.row,    L"ignoring case, the lowercase whole word");
+        Assert::AreEqual (5, start.offset, L"not the start of ldax");
+
+        Assert::IsTrue   (FindWord (rows, L"LDA", true, true, {}, start) == DxuiTextView::FindResult::Found);
+        Assert::AreEqual (1, start.row,    L"matching case, only the capitals");
+        Assert::AreEqual (0, start.offset);
+
+        Assert::IsTrue   (FindWord (rows, L"LDA", false, false, { 0, 5 }, start) == DxuiTextView::FindResult::Wrapped,
+                          L"backward from the lowercase one, ldax is skipped and the search goes round");
+        Assert::AreEqual (1, start.row);
+    }
+
+
     TEST_METHOD (SelectMatch_SelectsEachMatchInTurnAndScrollsItIntoView)
     {
         DxuiTextView                    view;
@@ -245,21 +337,21 @@ public:
         LayOut (view, 400, 12 + 16 * 10);
         view.SetRows (std::move (rows));
 
-        Assert::IsTrue   (view.SelectMatch (L"sta", false, true) == DxuiTextView::FindResult::Found);
+        Assert::IsTrue   (view.SelectMatch (L"sta", false, false, true) == DxuiTextView::FindResult::Found);
         Assert::AreEqual (std::wstring (L"STA"), view.GetSelectionText(), L"the match is selected");
         Assert::AreEqual (0, view.GetTopLine(), L"row 5 is already in view");
 
-        Assert::IsTrue   (view.SelectMatch (L"sta", false, true) == DxuiTextView::FindResult::Found);
+        Assert::IsTrue   (view.SelectMatch (L"sta", false, false, true) == DxuiTextView::FindResult::Found);
         Assert::AreEqual (std::wstring (L"STA"), view.GetSelectionText());
         Assert::AreEqual (80 - 10 + 1, view.GetTopLine(), L"row 80 is scrolled to the bottom of the view");
 
-        Assert::IsTrue   (view.SelectMatch (L"sta", false, true) == DxuiTextView::FindResult::Wrapped);
+        Assert::IsTrue   (view.SelectMatch (L"sta", false, false, true) == DxuiTextView::FindResult::Wrapped);
         Assert::AreEqual (5, view.GetTopLine(), L"round to row 5, scrolled back up to it");
 
-        Assert::IsTrue   (view.SelectMatch (L"sta", false, false) == DxuiTextView::FindResult::Wrapped);
+        Assert::IsTrue   (view.SelectMatch (L"sta", false, false, false) == DxuiTextView::FindResult::Wrapped);
         Assert::AreEqual (80 - 10 + 1, view.GetTopLine(), L"backward from row 5 goes round to row 80");
 
-        Assert::IsTrue   (view.SelectMatch (L"LDA", false, true) == DxuiTextView::FindResult::NotFound);
+        Assert::IsTrue   (view.SelectMatch (L"LDA", false, false, true) == DxuiTextView::FindResult::NotFound);
         Assert::AreEqual (std::wstring (L"STA"), view.GetSelectionText(), L"a failed search keeps the selection");
     }
 
@@ -282,7 +374,7 @@ public:
 
         Assert::IsTrue   (view.GetLineCount() - view.GetFirstLineOfRow (20) > 4, L"the row wraps over more lines than the view shows");
 
-        Assert::IsTrue   (view.SelectMatch (L"JUMP", true, true) == DxuiTextView::FindResult::Found);
+        Assert::IsTrue   (view.SelectMatch (L"JUMP", true, false, true) == DxuiTextView::FindResult::Found);
         Assert::AreEqual (view.GetLineCount() - 4, view.GetTopLine(), L"the match's line shows, at the bottom of the view, not the row's first");
     }
 };

@@ -102,14 +102,17 @@ public:
 
     //  Selects the next match after the selection, or the one before it, and
     //  scrolls it into view. A match is always searched for all the way round.
-    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool forward);
+    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool forward);
 
     //  The search itself, over each row's text with its cells joined by tabs.
     //  A forward search takes the first match starting at or after `from`, a
-    //  backward one the last match starting before it.
+    //  backward one the last match starting before it. A whole-word search
+    //  takes only a match with no word character -- a letter, a digit or an
+    //  underscore -- on either side of it.
     static FindResult  FindInRows (const std::vector<std::wstring> & rows,
                                    const std::wstring              & needle,
                                    bool                              matchCase,
+                                   bool                              wholeWord,
                                    bool                              forward,
                                    Position                          from,
                                    Position                        & outStart);
@@ -164,7 +167,9 @@ private:
     void          SelectWordAt      (Position pos);
     void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const;
     int           GetLineOfPosition (Position pos) const;
-    static bool   TryFindOnce       (const std::vector<std::wstring> & rows, const std::wstring & needle, bool forward, Position from, Position & outStart);
+    static bool   TryFindOnce       (const std::vector<std::wstring> & rows, const std::wstring & needle, bool wholeWord, bool forward, Position from, Position & outStart);
+    static bool   IsWordChar        (wchar_t ch) { return iswalnum (ch) || ch == L'_'; }
+    static bool   IsWholeWordAt     (const std::wstring & text, size_t at, size_t length);
 
     //  A copy in lower case, one character for one.
     static std::wstring  GetLowered (const std::wstring & text);

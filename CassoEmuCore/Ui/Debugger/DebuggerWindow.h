@@ -179,6 +179,7 @@ protected:
     DxuiTextView   * GetConsoleView  () const { return m_consoleView; }
     DxuiTextInput  * GetFindBox      () const { return m_findBox; }
     DxuiCheckbox   * GetFindCaseBox  () const { return m_findCaseBox; }
+    DxuiCheckbox   * GetFindWordBox  () const { return m_findWordBox; }
     std::wstring     GetFindStatus   () const { return m_findStatusText; }
 
     //  Protected so a test can choose a scheme as the Keys menu does.
@@ -470,6 +471,7 @@ private:
     std::wstring                                                                     m_findStatusText;
     DxuiTextInput                                                                  * m_findBox            = nullptr;
     DxuiCheckbox                                                                   * m_findCaseBox        = nullptr;
+    DxuiCheckbox                                                                   * m_findWordBox        = nullptr;
     DxuiButton                                                                     * m_findPrevButton     = nullptr;
     DxuiButton                                                                     * m_findNextButton     = nullptr;
     DxuiButton                                                                     * m_findCloseButton    = nullptr;

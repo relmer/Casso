@@ -107,6 +107,7 @@ namespace DebuggerTests
         using DebuggerWindow::GetConsoleView;
         using DebuggerWindow::GetFindBox;
         using DebuggerWindow::GetFindCaseBox;
+        using DebuggerWindow::GetFindWordBox;
         using DebuggerWindow::GetFindStatus;
 
         //  A key as the window's message handling delivers it: to the window
@@ -496,6 +497,35 @@ namespace DebuggerTests
             Assert::IsTrue   (window.Press (VK_RETURN));
             Assert::AreEqual (std::wstring (L"No matches"), window.GetFindStatus(), L"only ORA, in capitals");
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"GSSquared steps on O and R, but not from the find box");
+        }
+
+
+        TEST_METHOD (MatchWholeWordSkipsPartOfALongerWord)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window, DebuggerKeyScheme::VisualStudio);
+
+            window.Press ('F', true);
+            window.Type  (L"c03");
+
+            Assert::IsTrue   (window.Press (VK_RETURN));
+            Assert::AreEqual (std::wstring (L"C03"), window.GetConsoleView()->GetSelectionText(), L"part of C030, while whole words are off");
+
+            Assert::IsTrue   (window.GetFindWordBox()->IsVisible(), L"the whole-word box shows with the bar");
+            window.GetFindWordBox()->SetChecked (true);
+
+            Assert::IsTrue   (window.Press (VK_RETURN));
+            Assert::AreEqual (std::wstring (L"No matches"), window.GetFindStatus(), L"C030 goes on past C03");
+
+            window.Type  (L"0");
+
+            Assert::IsTrue   (window.Press (VK_RETURN));
+            Assert::AreEqual (std::wstring (L"C030"), window.GetConsoleView()->GetSelectionText(), L"the whole word, between $ and the line's end");
         }
 
 

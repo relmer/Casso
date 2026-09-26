@@ -201,6 +201,7 @@ void DebuggerWindow::OnCreate()
     m_removeMemoryButton = CreateChild<DxuiButton>   (L"- Memory");
     m_findBox           = CreateChild<DxuiTextInput> ();
     m_findCaseBox       = CreateChild<DxuiCheckbox>  (L"Match case");
+    m_findWordBox       = CreateChild<DxuiCheckbox>  (L"Match whole word");
     m_findPrevButton    = CreateChild<DxuiButton>    (L"Previous");
     m_findNextButton    = CreateChild<DxuiButton>    (L"Next");
     m_findCloseButton   = CreateChild<DxuiButton>    (L"Close");
@@ -2144,8 +2145,9 @@ bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
 //
 //  DebuggerWindow::ConfigureFindBar
 //
-//  A box for the text, whether case matters, a button each way, and a line
-//  saying what the last search found. Hidden until find opens.
+//  A box for the text, whether case matters, whether only whole words count,
+//  a button each way, and a line saying what the last search found. Hidden
+//  until find opens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2156,6 +2158,7 @@ void DebuggerWindow::ConfigureFindBar()
     m_findBox->SetPlaceholder (L"Find in the console");
 
     m_findCaseBox->SetSingleLineLabel (true);
+    m_findWordBox->SetSingleLineLabel (true);
 
     //  A button press takes the keys, so each gives them back to the box
     //  and the next Enter searches again.
@@ -2181,7 +2184,7 @@ void DebuggerWindow::ConfigureFindBar()
 
 std::vector<IDxuiControl *> DebuggerWindow::GetFindControls() const
 {
-    return { m_findBox, m_findCaseBox, m_findPrevButton, m_findNextButton, m_findCloseButton };
+    return { m_findBox, m_findCaseBox, m_findWordBox, m_findPrevButton, m_findNextButton, m_findCloseButton };
 }
 
 
@@ -2201,6 +2204,7 @@ void DebuggerWindow::SetFindBarVisible (bool shown)
 {
     m_findBox->SetVisible     (shown);
     m_findCaseBox->SetVisible (shown);
+    m_findWordBox->SetVisible (shown);
     m_findStatus->SetVisible  (shown);
 
     for (DxuiButton * button : { m_findPrevButton, m_findNextButton, m_findCloseButton })
@@ -2252,6 +2256,7 @@ void DebuggerWindow::PlaceFindBar()
 
     m_findBox->Layout         (RECT { x, slot.top, x + px (200), slot.bottom }, m_scaler);  x += px (200) + pad;
     m_findCaseBox->Layout     (RECT { x, slot.top, x + px (110), slot.bottom }, m_scaler);  x += px (110) + pad;
+    m_findWordBox->Layout     (RECT { x, slot.top, x + px (150), slot.bottom }, m_scaler);  x += px (150) + pad;
     m_findPrevButton->Layout  (RECT { x, slot.top, x + px (80),  slot.bottom }, m_scaler);  x += px (80)  + pad;
     m_findNextButton->Layout  (RECT { x, slot.top, x + px (64),  slot.bottom }, m_scaler);  x += px (64)  + pad;
     m_findStatus->Layout      (RECT { x, slot.top, (std::max) (x, right - pad), slot.bottom }, m_scaler);
@@ -2371,7 +2376,7 @@ void DebuggerWindow::FindInConsole (bool forward)
         return;
     }
 
-    result           = m_consoleView->SelectMatch (needle, m_findCaseBox->IsChecked(), forward);
+    result           = m_consoleView->SelectMatch (needle, m_findCaseBox->IsChecked(), m_findWordBox->IsChecked(), forward);
     m_findStatusText = GetFindStatusText (result, forward);
     m_findStatus->SetText (m_findStatusText);
 
@@ -5606,6 +5611,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         {
             m_findBox->SetMouseHover     (x, y);
             m_findCaseBox->SetMouseHover (x, y);
+            m_findWordBox->SetMouseHover (x, y);
 
             for (DxuiButton * button : { m_findPrevButton, m_findNextButton, m_findCloseButton })
             {
@@ -5742,7 +5748,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     }
 
     if (GetSourceSlotOf (pane) >= 0)          { return { m_sourceDocs[(size_t) GetSourceSlotOf (pane)].banner, m_sourceDocs[(size_t) GetSourceSlotOf (pane)].view }; }
-    if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseBox, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
+    if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseBox, m_findWordBox, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList };                  }

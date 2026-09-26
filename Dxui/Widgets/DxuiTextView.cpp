@@ -591,7 +591,7 @@ void DxuiTextView::CopySelection() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle, bool matchCase, bool forward)
+DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool forward)
 {
     std::vector<std::wstring>  texts;
     Position                   from   = forward ? (std::max) (m_anchor, m_caret) : (std::min) (m_anchor, m_caret);
@@ -607,7 +607,7 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
         texts.push_back (GetRowText (row));
     }
 
-    result = FindInRows (texts, needle, matchCase, forward, from, start);
+    result = FindInRows (texts, needle, matchCase, wholeWord, forward, from, start);
 
     if (result != FindResult::NotFound)
     {
@@ -630,7 +630,8 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
 //
 //  Without a match past the starting point the search goes round: forward
 //  from the top, backward from the bottom. Without matching case, both sides
-//  are lowered first, which keeps every offset where it was.
+//  are lowered first, which keeps every offset where it was, and lowering
+//  leaves a word character a word character.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -638,6 +639,7 @@ DxuiTextView::FindResult DxuiTextView::FindInRows (
     const std::vector<std::wstring> & rows,
     const std::wstring              & needle,
     bool                              matchCase,
+    bool                              wholeWord,
     bool                              forward,
     Position                          from,
     Position                        & outStart)
@@ -665,12 +667,12 @@ DxuiTextView::FindResult DxuiTextView::FindInRows (
         haystack = &folded;
     }
 
-    if (TryFindOnce (*haystack, key, forward, from, outStart))
+    if (TryFindOnce (*haystack, key, wholeWord, forward, from, outStart))
     {
         return FindResult::Found;
     }
 
-    if (TryFindOnce (*haystack, key, forward, around, outStart))
+    if (TryFindOnce (*haystack, key, wholeWord, forward, around, outStart))
     {
         return FindResult::Wrapped;
     }
@@ -714,13 +716,15 @@ std::wstring DxuiTextView::GetLowered (const std::wstring & text)
 //  DxuiTextView::TryFindOnce
 //
 //  One pass, with no going round: forward, the first match starting at or
-//  after `from`; backward, the last match starting before it.
+//  after `from`; backward, the last match starting before it. A match that is
+//  part of a longer word is passed over when only whole words count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextView::TryFindOnce (
     const std::vector<std::wstring> & rows,
     const std::wstring              & needle,
+    bool                              wholeWord,
     bool                              forward,
     Position                          from,
     Position                        & outStart)
@@ -734,9 +738,15 @@ bool DxuiTextView::TryFindOnce (
     {
         for (int r = (std::max) (from.row, 0); r < count; r++)
         {
-            size_t  start = (r == from.row) ? (size_t) (std::max) (from.offset, 0) : 0;
+            const std::wstring &  text  = rows[(size_t) r];
+            size_t                start = (r == from.row) ? (size_t) (std::max) (from.offset, 0) : 0;
 
-            at = (start <= rows[(size_t) r].size()) ? rows[(size_t) r].find (needle, start) : std::wstring::npos;
+            at = (start <= text.size()) ? text.find (needle, start) : std::wstring::npos;
+
+            while (wholeWord && at != std::wstring::npos && !IsWholeWordAt (text, at, needle.size()))
+            {
+                at = text.find (needle, at + 1);
+            }
 
             if (at != std::wstring::npos)
             {
@@ -750,12 +760,19 @@ bool DxuiTextView::TryFindOnce (
 
     for (int r = (std::min) (from.row, count - 1); r >= 0; r--)
     {
+        const std::wstring &  text = rows[(size_t) r];
+
         if (r == from.row && from.offset <= 0)
         {
             continue;
         }
 
-        at = rows[(size_t) r].rfind (needle, (r == from.row) ? (size_t) (from.offset - 1) : std::wstring::npos);
+        at = text.rfind (needle, (r == from.row) ? (size_t) (from.offset - 1) : std::wstring::npos);
+
+        while (wholeWord && at != std::wstring::npos && !IsWholeWordAt (text, at, needle.size()))
+        {
+            at = (at == 0) ? std::wstring::npos : text.rfind (needle, at - 1);
+        }
 
         if (at != std::wstring::npos)
         {
@@ -765,6 +782,33 @@ bool DxuiTextView::TryFindOnce (
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::IsWholeWordAt
+//
+//  Whether the run of text at `at` has a line end or a character that is not
+//  part of a word on each side of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::IsWholeWordAt (const std::wstring & text, size_t at, size_t length)
+{
+    size_t  end = at + length;
+
+
+
+    if (at > 0 && IsWordChar (text[at - 1]))
+    {
+        return false;
+    }
+
+    return end >= text.size() || !IsWordChar (text[end]);
 }
 
 
