@@ -65,6 +65,7 @@ namespace DebuggerTests
             rig.RunFails ("R X 100", "value out of range");
             Assert::AreEqual ((uint8_t) 10, rig.target.registers.x, L"a rejected value changes nothing");
             rig.RunFails ("R Q 1",   "invalid arguments");
+            Assert::AreEqual (std::string ("S takes a byte, $00-$FF, or a stack address $0100-$01FF."), rig.RunFails ("R S 200", "value out of range").error.detail);
         }
 
 

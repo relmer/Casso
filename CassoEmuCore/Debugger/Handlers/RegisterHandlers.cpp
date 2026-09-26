@@ -106,7 +106,8 @@ void RegisterHandlers::SetRegister (IDebugTarget & target, const DebugCommand & 
     if (isByte && value > kMaxByte && !isStackAddress)
     {
         reply.SetError (CommandStatus::Error, "value out of range",
-                        std::format ("{} takes a byte, $00-$FF.", command.text));
+                        isStack ? std::string ("S takes a byte, $00-$FF, or a stack address $0100-$01FF.")
+                                : std::format ("{} takes a byte, $00-$FF.", command.text));
         return;
     }
 
