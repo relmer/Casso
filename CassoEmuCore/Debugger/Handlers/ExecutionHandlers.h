@@ -5,6 +5,7 @@
 #include "Debugger/ProfileTable.h"
 
 class IDebugTarget;
+class IFileSystem;
 
 
 
@@ -19,9 +20,10 @@ class IDebugTarget;
 //  GG, T, TL, P, RTS) are the session's own.
 //
 //  The family is also the session's instruction observer: the profile
-//  counters (while PROFILE ON), the trace file and the key queue are fed from
-//  each instruction a debugger-driven run executes, and never from a machine
-//  running freely. The branch record is the CPU's own, kept on every path.
+//  counters (while PROFILE ON) and the trace file are fed from each
+//  instruction a debugger-driven run executes, and never from a machine
+//  running freely. The key queue is fed during a run and after each slice of
+//  a free run. The branch record is the CPU's own, kept on every path.
 //
 //  BENCHMARK, BENCH and EXITBENCH report not available in every session: no
 //  benchmark runner exists.
@@ -32,9 +34,11 @@ class ExecutionHandlers : public IDebugCommandHandler,
                           public IInstructionObserver
 {
 public:
-    bool  TryExecute    (DebugSession & session, const DebugCommand & command, Reply & reply) override;
-    void  OnInstruction (DebugSession & session, Word pc) override;
-    void  OnRunStopped  (DebugSession & session, const StopEvent & stop) override;
+    bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
+    void  OnInstruction    (DebugSession & session, Word pc) override;
+    void  OnInterrupt      (DebugSession & session) override;
+    void  OnFreeRunSlice   (DebugSession & session) override;
+    void  OnRunStopped     (DebugSession & session, const StopEvent & stop) override;
     void  OnMachineChanged (DebugSession & session) override;
 
 private:
@@ -50,6 +54,7 @@ private:
     {
         bool          isOn      = false;
         bool          withVideo = false;
+        bool          hasFailed = false;
         std::wstring  path;
         std::string   name;
         std::string   lines;
@@ -82,7 +87,8 @@ private:
     void         BuildProfile      (DebugSession & session, bool isByAddress, ProfileData & data) const;
     void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
     void         RecordTrace       (DebugSession & session, Word pc);
-    void         FlushTrace        (DebugSession & session);
+    HRESULT      FlushTrace        (DebugSession & session);
+    static HRESULT  ProbeWritable  (IFileSystem & files, const std::wstring & path);
     void         FeedKeys          (DebugSession & session);
     static Byte  Peek              (IDebugTarget & target, Word address);
     static std::string  TrimSpaces (const std::string & text);
