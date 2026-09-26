@@ -376,13 +376,13 @@ bool LineAssembler::TryEncodeOperand (
 
     if (mode == GlobalAddressingMode::Relative)
     {
-        offset    = (int) operand.value - (address + kBranchLength);
+        offset    = (int16_t) (Word) (operand.value - (address + kBranchLength));
         isInRange = offset >= kMinBranchOffset && offset <= kMaxBranchOffset;
         outBytes.push_back ((Byte) offset);
     }
     else if (mode == GlobalAddressingMode::ZeroPageRelative)
     {
-        offset    = (int) operand.target - (address + kBitBranchLength);
+        offset    = (int16_t) (Word) (operand.target - (address + kBitBranchLength));
         isInRange = offset >= kMinBranchOffset && offset <= kMaxBranchOffset;
         outBytes.push_back ((Byte) operand.value);
         outBytes.push_back ((Byte) offset);
