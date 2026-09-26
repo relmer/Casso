@@ -455,6 +455,13 @@ namespace DebuggerTests
     TEST_CLASS (MonitorRunTests)
     {
     public:
+        static std::wstring Widen (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+
+
+
         struct MachineRig
         {
             TestMachine                machine;
@@ -510,6 +517,90 @@ namespace DebuggerTests
                 return reply;
             }
         };
+
+
+
+        //  The `!` assembler takes `addr:MNE operand`, continues with a bare
+        //  instruction, and runs a Monitor command given as `$cmd`.
+        TEST_METHOD (Assembler_TakesAnAddressPrefixAndDollarCommands)
+        {
+            MachineRig  rig;
+            Reply       reply;
+            Byte        value = 0;
+
+
+
+            rig.Run ("!");
+
+            reply = rig.Run ("300:LDA #41");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+
+            reply = rig.Run ("RTS");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+
+            rig.target.TryPeek (0x0300, value);
+            Assert::AreEqual ((int) 0xA9, (int) value);
+            rig.target.TryPeek (0x0301, value);
+            Assert::AreEqual ((int) 0x41, (int) value);
+            rig.target.TryPeek (0x0302, value);
+            Assert::AreEqual ((int) 0x60, (int) value);
+
+            reply = rig.Run ("$310: 42");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+            rig.target.TryPeek (0x0310, value);
+            Assert::AreEqual ((int) 0x42, (int) value);
+            Assert::IsTrue   (rig.session.IsAssembling(), L"a $ command leaves the assembler active");
+
+            rig.Run ("");
+            Assert::IsFalse (rig.session.IsAssembling());
+        }
+
+
+
+        //  An assembly line writes memory, so it needs a paused machine.
+        TEST_METHOD (Assembler_LineWhileRunning_IsAnError)
+        {
+            MachineRig  rig;
+            Reply       reply;
+            Byte        value = 0;
+
+
+
+            rig.Run ("300: EA");
+            rig.Run ("!");
+            rig.session.OnUserResumed();
+
+            reply = rig.Run ("300:LDA #41");
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+
+            rig.target.TryPeek (0x0300, value);
+            Assert::AreEqual ((int) 0xEA, (int) value);
+        }
+
+
+
+        //  An instruction that does not fit in writable memory writes none of
+        //  its bytes, and the error gives the byte that could not be written.
+        TEST_METHOD (Assembler_UnwritableByte_WritesNothingAndGivesItsAddress)
+        {
+            MachineRig  rig;
+            Reply       reply;
+            Byte        value = 0;
+
+
+
+            rig.Run ("BFFF: EA");
+            rig.Run ("!");
+
+            reply = rig.Run ("BFFF:JMP 1234");
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual (std::string ("memory not writable"), reply.error.label);
+            Assert::IsTrue   (reply.error.detail.find ("$C000") != std::string::npos, Widen (reply.error.detail).c_str());
+
+            rig.target.TryPeek (0xBFFF, value);
+            Assert::AreEqual ((int) 0xEA, (int) value);
+        }
 
 
 
