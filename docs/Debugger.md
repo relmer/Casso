@@ -406,8 +406,9 @@ below the code.
 
 AppleWin's window commands work in the command box: `.` returns to the PC,
 `RET` goes to the return address on the stack, `^` and `V` move one
-instruction, `PAGEUP` and `PAGEDN` a pane, and `MD1 addr` (or `MA1`, `MT1`,
-and the `2` forms) moves the memory pane. The window shows every pane at once,
+instruction, `PAGEUP` and `PAGEDN` a pane, and `MD1 addr` (or `MA1`, `MT1`)
+moves the first memory window and `MD2`, `MA2` and `MT2` the second; the
+address is an expression. The window shows every pane at once,
 so the layout commands (`CODE`, `DATA`, `WIN`) change nothing. The screen
 views (`TEXT`, `HGR` and their forms) and the appearance commands (`BW`,
 `COLOR`, `FONT`) are not available; the emulator window shows the screen.

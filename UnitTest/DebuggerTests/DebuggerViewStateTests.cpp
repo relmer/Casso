@@ -1755,11 +1755,19 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (RunInWindow (rig, "MD1 1000").status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x1000, rig.view.GetMemoryAddress());
 
-            Assert::IsTrue   (RunInWindow (rig, "/MT2 $2000", CommandMode::Monitor).status == CommandStatus::Ok);
+            Assert::IsTrue   (RunInWindow (rig, "/MT1 $2000", CommandMode::Monitor).status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a / line in Monitor mode");
 
+            Assert::IsTrue   (RunInWindow (rig, "MD1 PC+2").status == CommandStatus::Ok, L"an expression");
+            Assert::AreEqual ((Word) (rig.controller.GetSession().GetTarget().GetRegisters().pc + 2), rig.view.GetMemoryAddress());
+
+            Assert::IsTrue   (RunInWindow (rig, "MD2 3000").status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x3000, rig.view.GetMemoryWindowAddress (2).value_or (0), L"the 2 forms move the second window");
+            Assert::AreNotEqual ((Word) 0x3000, rig.view.GetMemoryAddress(), L"and leave the first");
+
+            Assert::IsTrue   (RunInWindow (rig, "MD1 2000").status == CommandStatus::Ok);
             Assert::IsTrue   (RunInWindow (rig, "MA1").status == CommandStatus::Error, L"no address");
-            Assert::IsTrue   (RunInWindow (rig, "MA1 XYZ").status == CommandStatus::Error, L"not hex");
+            Assert::IsTrue   (RunInWindow (rig, "MA1 XYZ").status == CommandStatus::Error, L"not an expression");
             Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a bad address leaves the pane");
         }
 

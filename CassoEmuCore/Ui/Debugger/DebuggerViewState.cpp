@@ -1285,7 +1285,7 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
         break;
 
     case AppleWinCommandFamily::MiniMemory:
-        MoveMemoryPane (entry->name, argument, reply);
+        MoveMemoryPane (session, entry->name, argument, reply);
         break;
 
     case AppleWinCommandFamily::Window:
@@ -2022,33 +2022,34 @@ void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string 
 //
 //  DebuggerViewState::MoveMemoryPane
 //
-//  This window has one memory pane, which shows bytes and characters
-//  together, so MD, MA and MT and both of their panes all move it.
+//  The memory panes show bytes and characters together, so MD, MA and MT
+//  all move one: the 1 forms the first memory window, the 2 forms the
+//  second, which opens when it is not. The address is an expression.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerViewState::MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply)
+void DebuggerViewState::MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply)
 {
-    std::string_view  digits  = argument;
-    unsigned          address = 0;
+    int          id      = name.ends_with ('2') ? 2 : 1;
+    Word         address = 0;
+    std::string  error;
 
 
 
-    if (digits.starts_with ('$'))
+    if (argument.empty())
     {
-        digits.remove_prefix (1);
-    }
-
-    auto [end, error] = std::from_chars (digits.data(), digits.data() + digits.size(), address, 16);
-
-    if (digits.empty() || error != std::errc() || end != digits.data() + digits.size() || address > 0xFFFF)
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a hex address.", name));
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs an address.", name));
         return;
     }
 
-    m_memoryAddress = (Word) address;
-    reply.data      = MessageData { { std::format ("The memory pane is at ${:04X}.", address) } };
+    if (!AppleWinParser::TryEvaluate (argument, session, address, error))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", error);
+        return;
+    }
+
+    OpenMemoryWindow (id, address);
+    reply.data = MessageData { { std::format ("Memory window {} is at ${:04X}.", id, address) } };
 }
 
 
