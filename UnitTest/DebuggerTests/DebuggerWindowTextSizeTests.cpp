@@ -38,7 +38,7 @@ namespace DebuggerTests
         void  CloseDebuggerCodeView   (int)                                      override {}
         void  SetDebuggerMemoryWindow (int, std::optional<Word>)                 override {}
         void  SetDebuggerTraceTop     (std::optional<uint64_t>)                  override {}
-        void  GoToDebuggerMemory      (int, const std::string &)                 override {}
+        void  GoToDebuggerMemory      (int, const std::string & text)            override { goTos.push_back (text); }
         void  ScrollDebuggerCode      (int, int)                                 override {}
         void  OnDebuggerWindowClosed  ()                                         override {}
         void  SetDebuggerKeyScheme    (const std::string &)                      override {}
@@ -56,6 +56,8 @@ namespace DebuggerTests
 
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
+
+        std::vector<std::string>  goTos;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -87,6 +89,10 @@ namespace DebuggerTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyTextZoom;
+        using DebuggerWindow::StepTextZoom;
+        using DebuggerWindow::GetTextZoom;
+        using DebuggerWindow::SubmitMemoryBox;
+        using DebuggerWindow::GetMemoryBox;
     };
 
 
@@ -172,6 +178,60 @@ namespace DebuggerTests
 
             Assert::IsTrue (lists > 10,                                L"the code views, the panes and the device panels are all lists");
             Assert::IsTrue (EqualRect (&barRect, &barAfter) != FALSE, L"the command bar keeps its size");
+        }
+
+
+
+
+
+        TEST_METHOD (StepsBackFromALimitLandOnTheUsualSizes)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            for (int i = 0; i < 20; i++) { window.StepTextZoom (+1); }
+            for (int i = 0; i < 9;  i++) { window.StepTextZoom (-1); }
+
+            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"up past the largest size and back down");
+
+            for (int i = 0; i < 20; i++) { window.StepTextZoom (-1); }
+            for (int i = 0; i < 5;  i++) { window.StepTextZoom (+1); }
+
+            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"down past the smallest size and back up");
+        }
+
+
+
+
+
+        TEST_METHOD (GoToSendsRegisterAForResolutionAndIgnoresABlankBox)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            window.OnCreate();
+
+            window.GetMemoryBox()->SetText (L"  ");
+            window.SubmitMemoryBox();
+
+            Assert::AreEqual ((size_t) 0, host.goTos.size(), L"a blank box goes nowhere");
+
+            window.GetMemoryBox()->SetText (L"a");
+            window.SubmitMemoryBox();
+
+            Assert::AreEqual ((size_t) 1, host.goTos.size(), L"A is the register, resolved against the machine");
+            Assert::AreEqual (std::string ("a"), host.goTos[0]);
         }
     };
 }

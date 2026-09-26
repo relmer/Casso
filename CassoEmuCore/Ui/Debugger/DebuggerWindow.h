@@ -159,6 +159,12 @@ protected:
 
     //  Protected so a test can apply one as the keys do.
     void     ApplyTextZoom   (float zoom);
+    void     StepTextZoom    (int steps);
+    float    GetTextZoom     () const { return m_textZoom; }
+
+    //  Protected so a test can submit the Go to box as Enter does.
+    void             SubmitMemoryBox ();
+    DxuiTextInput  * GetMemoryBox    () const { return m_memoryBox; }
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
@@ -217,7 +223,6 @@ private:
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     SubmitPokeBox    ();
-    void     SubmitMemoryBox  ();
     void     AppendConsole    (const std::vector<std::string> & lines);
     void     RunCommand       (const std::string & line);
     void     ApplyKeyScheme   (DebuggerKeyScheme scheme);
