@@ -875,7 +875,6 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     uint32_t         s_kTextIdle      = theme.Foreground();
     uint32_t         s_kTextDisabled  = theme.ForegroundDisabled();
     constexpr float  s_kCheckInset    = 3.0f;
-    constexpr float  s_kFontDip       = 13.0f;
     constexpr float  s_kTwistyHeight  = 8.0f;
 
 
@@ -887,7 +886,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     float    contentW     = 0.0f;
     size_t   n            = m_flatRows.size();
     float    checkInset   = m_scaler.ToPxf (s_kCheckInset);
-    float    fontDip      = m_scaler.ToPxf (s_kFontDip);
+    float    fontDip      = m_scaler.ToPxf (m_fontDip);
     float    twistyHt     = m_scaler.ToPxf (s_kTwistyHeight);
     float    textGap      = m_scaler.ToPxf (4.0f);
     float    twistyPad    = m_scaler.ToPxf (4.0f);

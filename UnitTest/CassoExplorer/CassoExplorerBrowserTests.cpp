@@ -313,8 +313,8 @@ public:
         cells = CassoExplorerBrowser::ToCells (row);
 
         Assert::AreEqual (CassoExplorerBrowser::GetColumns().size(), cells.size());
-        Assert::IsTrue   (cells[2].text.empty());
-        Assert::IsTrue   (cells[5].text.empty());
+        Assert::IsTrue   (cells[(size_t) CatalogModel::Column::Size].text.empty(),     L"a folder has no size");
+        Assert::IsTrue   (cells[(size_t) CatalogModel::Column::Modified].text.empty(), L"and no date was recorded");
     }
 
 

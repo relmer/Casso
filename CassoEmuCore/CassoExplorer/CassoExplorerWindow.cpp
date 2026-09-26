@@ -398,6 +398,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     }
 
     m_tree->SetShowCheckboxes (false);
+    m_tree->SetFontDip (kProseFontDip);
     m_tree->SetHorizontalScrollEnabled (false);
     m_tree->SetNodes (std::move (roots));
     m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_browser.GetTreeChildren (id); });
@@ -431,6 +432,7 @@ void CassoExplorerWindow::ConfigureWidgets()
 
 
     m_list->SetShowHeader (true);
+    m_list->SetFontDip (kProseFontDip);
     m_list->SetRowHeightPxFn (&CassoExplorerWindow::GetListRowHeightPx);
     m_list->SetColumns (CassoExplorerBrowser::GetColumns());
     m_list->SetPreciseAutoFit (true);
@@ -1118,6 +1120,11 @@ void CassoExplorerWindow::FillList()
         RevealLocationInTree();
         UpdateWatchedFolders();
     }
+
+    //  Address and Locked are a disk catalog's; a host folder has neither, so
+    //  its list shows only Explorer's four columns.
+    m_list->SetColumnVisible ((size_t) CatalogModel::Column::Address, m_browser.IsImageLocation());
+    m_list->SetColumnVisible ((size_t) CatalogModel::Column::Locked,  m_browser.IsImageLocation());
 
     m_list->UpdateAutoFitFromRows();
 

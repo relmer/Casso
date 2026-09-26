@@ -65,9 +65,10 @@ struct CassoExplorerPrefs
     //  The address bar's typed path history, newest first.
     std::vector<std::wstring>  typedPaths;
 
-    //  The file list's column widths, in order, or empty for the widths the
-    //  columns fit for themselves. A column left at its fitted width stores
-    //  nothing, so only what was dragged or fitted comes back.
+    //  The file list's column widths, in order, or empty for File Explorer's
+    //  defaults. A column left at its default stores nothing, so only what was
+    //  dragged or fitted comes back. Stored as listColumnWidths: the older
+    //  columnWidths key held another column order and is not read.
     std::vector<int>           columnWidthsDip;
 
     //  Absent file: defaults, with the theme seeded from the emulator's

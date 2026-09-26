@@ -257,7 +257,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
-    root.emplace_back ("columnWidths",   JsonValue (std::move (widthValues)));
+    root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
 
     return JsonValue (std::move (root));
 }
@@ -380,7 +380,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         }
     }
 
-    if (root.HasArray ("columnWidths", widthArray))
+    if (root.HasArray ("listColumnWidths", widthArray))
     {
         columnWidthsDip.clear();
 

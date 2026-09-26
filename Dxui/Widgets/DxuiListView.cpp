@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/DxuiClipboard.h"
 #include "Theme/DxuiTheme.h"
+#include "Core/DxuiTextElide.h"
 #include "Theme/DxuiRowLook.h"
 #include "Theme/DxuiColor.h"
 
@@ -508,7 +509,7 @@ int DxuiListView::GetTotalMeasuredWidthPx() const
 void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 {
     HRESULT  hr      = S_OK;
-    float    fontDip = (float) m_scaler.ToPxf (s_kFontDip);
+    float    fontDip = (float) m_scaler.ToPxf (m_fontDip);
     float    hdrDip  = (float) m_scaler.ToPxf (s_kHeaderFontDip);
     int      padPx   = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
     float    w       = 0.0f;
@@ -1083,7 +1084,7 @@ int DxuiListView::GetColumnNaturalWidthPx (size_t c) const
 {
     int  wpx       = 0;
     int  padPx     = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
-    int  perCharPx = (int) std::ceil (m_scaler.ToPxf (s_kFontDip) * s_kAutoCharWidthEm);
+    int  perCharPx = (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm);
 
 
 
@@ -1135,7 +1136,7 @@ int DxuiListView::GetColumnNaturalWidthPx (size_t c) const
 int DxuiListView::GetColumnContentWidthPx (size_t c) const
 {
     int  padPx      = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
-    int  perCharPx  = (int) std::ceil (m_scaler.ToPxf (s_kFontDip) * s_kAutoCharWidthEm);
+    int  perCharPx  = (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm);
     int  measuredPx = 0;
     int  autoFitPx  = 0;
 
@@ -2866,7 +2867,7 @@ void DxuiListView::PaintDataRows (
     float    hdrGap   = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0);
     float    cellPadL = (float) m_scaler.ToPx (s_kCellPadLeftDip);
     float    cellPadR = (float) m_scaler.ToPx (s_kCellPadRightDip);
-    float    fontPx   = (float) m_scaler.ToPxf (s_kFontDip);
+    float    fontPx   = (float) m_scaler.ToPxf (m_fontDip);
     float    colOff   = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
 
 
@@ -2904,8 +2905,9 @@ void DxuiListView::PaintDataRows (
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {
-            uint32_t  argb      = cells[c].dim ? pal.fgDim : pal.fg;
-            float     iconShift = 0.0f;
+            uint32_t      argb      = cells[c].dim ? pal.fgDim : pal.fg;
+            float         iconShift = 0.0f;
+            std::wstring  shown;
 
             if (!m_columns[c].visible || colWPx[c] <= 0)
             {
@@ -3023,7 +3025,12 @@ void DxuiListView::PaintDataRows (
                 continue;
             }
 
-            hr = text.DrawString (cells[c].text.c_str(),
+            //  Text wider than its column ends in an ellipsis, as Explorer's does,
+            //  rather than being cut through a letter.
+            shown = DxuiTextElide::ToWidth (text, cells[c].text, fontPx, GetBodyFace(),
+                                            (float) colWPx[c] - cellPadL - cellPadR - iconShift, DxuiElide::Tail);
+
+            hr = text.DrawString (shown.c_str(),
                                   x + colOff + (float) colXPx[c] + cellPadL + iconShift,
                                   ry,
                                   (float) colWPx[c] - cellPadL - cellPadR - iconShift,

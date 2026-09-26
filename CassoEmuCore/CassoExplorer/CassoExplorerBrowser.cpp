@@ -455,7 +455,7 @@ void CassoExplorerBrowser::SortByColumn (int column)
 
 
 
-    if (!m_model.HasTabs() || column < 0 || column > (int) CatalogModel::Column::Modified)
+    if (!m_model.HasTabs() || column < 0 || column > (int) CatalogModel::Column::Locked)
     {
         return;
     }
@@ -902,12 +902,14 @@ std::vector<DxuiListView::Column> CassoExplorerBrowser::GetColumns()
 
 
 
-    columns.push_back (DxuiListView::Column { L"Name",     200, true,  DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Type",     0,   false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Size",     0,   false, DxuiTextHAlign::Right });
-    columns.push_back (DxuiListView::Column { L"Address",  0,   false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Locked",   0,   false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Modified", 0,   false, DxuiTextHAlign::Left  });
+    //  File Explorer's order and its default widths, measured at 100%: each a
+    //  fixed width, none stretching to fill the pane.
+    columns.push_back (DxuiListView::Column { L"Name",          kNameColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Date modified", kModifiedColumnDip, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Type",          kTypeColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Size",          kSizeColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Address",       kAddressColumnDip,  false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Locked",        kLockedColumnDip,   false, DxuiTextHAlign::Left  });
 
     return columns;
 }
@@ -988,11 +990,11 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
     name.text = CatalogModel::GetDisplayName (row.name, name.dimRanges);
 
     cells.push_back (name);
+    cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { row.typeText, false });
     cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
-    cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });
 
     if (icons != nullptr && !cells.empty())
     {

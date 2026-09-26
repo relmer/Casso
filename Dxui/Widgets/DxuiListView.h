@@ -284,6 +284,9 @@ public:
     void  SetMonospace                 (bool b)                { m_monospace = b; }
     bool  IsMonospace                  () const                { return m_monospace; }
     void  SetRowHeightDip              (int dip)               { m_rowHeightDip = (dip > 0) ? dip : s_kRowHeightDip; }
+
+    //  The cells' font size; zero restores the default.
+    void  SetFontDip                   (float dip)             { m_fontDip = (dip > 0.0f) ? dip : s_kFontDip; }
     int   GetRowHeightDip              () const                { return m_rowHeightDip; }
 
     //  A row height in pixels for a DPI, for a list that has to match one
@@ -635,6 +638,7 @@ private:
 
     bool                      m_monospace    = false;
     int                       m_rowHeightDip = s_kRowHeightDip;
+    float                     m_fontDip      = s_kFontDip;
     std::function<int (UINT)> m_rowHeightPxFn;
     mutable std::vector<int>  m_measuredWPx;
     std::vector<int>          m_overrideWPx;

@@ -197,6 +197,15 @@ public:
 
     static DxuiTreeNode  ToTreeNode (const TreeNode & node, IShellIcons * icons = nullptr);
 
+    //  File Explorer's default column widths at 100%, and the two catalog
+    //  columns sized for what they hold.
+    static constexpr int  kNameColumnDip     = 250;
+    static constexpr int  kModifiedColumnDip = 144;
+    static constexpr int  kTypeColumnDip     = 120;
+    static constexpr int  kSizeColumnDip     = 80;
+    static constexpr int  kAddressColumnDip  = 72;
+    static constexpr int  kLockedColumnDip   = 64;
+
     static std::wstring  FormatSize      (uint64_t bytes);
     static std::wstring  FormatSizeColumn (uint64_t bytes);
     static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);

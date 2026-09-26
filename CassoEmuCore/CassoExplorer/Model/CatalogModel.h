@@ -66,7 +66,9 @@ struct CatalogRow
 class CatalogModel
 {
 public:
-    enum class Column { Name, Type, Size, Address, Locked, Modified };
+    //  In File Explorer's order: Name, Date modified, Type, Size, then the
+    //  two only a disk catalog has.
+    enum class Column { Name, Modified, Type, Size, Address, Locked };
 
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);

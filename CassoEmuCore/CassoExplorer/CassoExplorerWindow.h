@@ -116,6 +116,9 @@ public:
     static constexpr float     kCommandBarIconDip    = 20.0f;
     static constexpr float     kCommandBarPadDip     = 12.0f;
     static constexpr float     kCommandBarLabelDip   = 12.0f;
+
+    //  Explorer's tree and list text: 9 points, 12 dip.
+    static constexpr float     kProseFontDip         = 12.0f;
     static constexpr int       kCommandBarGroupGapDp = 8;
 
     //  Explorer's two strips, measured at 100, 125, 150 and 200%: the command

@@ -258,11 +258,11 @@ private:
         { kViewFirst + 6,     Menu::Count, L"&Tiles",              nullptr,     true  },
         { kViewFirst + 7,     Menu::Count, L"&Content",            nullptr,     true  },
         { kSortByColumn + 0,  Menu::Count, L"&Name",               nullptr,     true  },
-        { kSortByColumn + 1,  Menu::Count, L"&Type",               nullptr,     true  },
-        { kSortByColumn + 2,  Menu::Count, L"&Size",               nullptr,     true  },
-        { kSortByColumn + 3,  Menu::Count, L"A&ddress",            nullptr,     true  },
-        { kSortByColumn + 4,  Menu::Count, L"&Locked",             nullptr,     true  },
-        { kSortByColumn + 5,  Menu::Count, L"&Modified",           nullptr,     true  },
+        { kSortByColumn + 1,  Menu::Count, L"&Date modified",      nullptr,     true  },
+        { kSortByColumn + 2,  Menu::Count, L"&Type",               nullptr,     true  },
+        { kSortByColumn + 3,  Menu::Count, L"&Size",               nullptr,     true  },
+        { kSortByColumn + 4,  Menu::Count, L"&Address",            nullptr,     true  },
+        { kSortByColumn + 5,  Menu::Count, L"&Locked",             nullptr,     true  },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.

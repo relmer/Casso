@@ -87,6 +87,9 @@ public:
     //  row is cut off at the tree's edge instead.
     void  SetHorizontalScrollEnabled (bool enabled) { m_hScrollEnabled = enabled; }
 
+    //  The rows' font size; zero restores the default.
+    void  SetFontDip (float dip) { m_fontDip = (dip > 0.0f) ? dip : s_kDefaultFontDip; }
+
     bool  IsShowingCheckboxes () const { return m_showCheckboxes; }
 
     //  Whether a row can open: it has children, or has not been asked yet.
@@ -125,9 +128,10 @@ public:
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
 
     //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.
-    static constexpr int  s_kRowHeightDip = 32;
-    static constexpr int  s_kIconDip      = 16;
-    static constexpr int  s_kIconGapDip   = 6;
+    static constexpr int    s_kRowHeightDip   = 32;
+    static constexpr float  s_kDefaultFontDip = 13.0f;
+    static constexpr int    s_kIconDip        = 16;
+    static constexpr int    s_kIconGapDip     = 6;
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }
@@ -240,6 +244,7 @@ private:
 
     bool                       m_showCheckboxes = true;
     bool                       m_hScrollEnabled = true;
+    float                      m_fontDip        = s_kDefaultFontDip;
     ChildProviderFn            m_childProvider;
     SelectFn                   m_onSelect;
     ExpandFn                   m_onExpand;
