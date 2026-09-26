@@ -1300,20 +1300,23 @@ bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value)
 //
 //  AppleWinParser::TryParseDecimal
 //
+//  Digits, with or without the # that marks a decimal number elsewhere.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value)
 {
     static constexpr size_t  kMaxDigits = 18;
+    std::string              digits     = text.starts_with ('#') ? text.substr (1) : text;
 
 
 
-    if (text.empty() || text.size() > kMaxDigits || text.find_first_not_of ("0123456789") != std::string::npos)
+    if (digits.empty() || digits.size() > kMaxDigits || digits.find_first_not_of ("0123456789") != std::string::npos)
     {
         return false;
     }
 
-    value = std::stoull (text);
+    value = std::stoull (digits);
     return true;
 }
 

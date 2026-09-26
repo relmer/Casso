@@ -784,8 +784,9 @@ bool WinDbgParser::TryEvaluate (
 //  WinDbgParser::NormalizeNumbers
 //
 //  WinDbg's `0x` hex and `0n` decimal prefixes as AppleWin's `$` and `#`,
-//  where the prefix starts a number rather than sitting inside a name. A
-//  bare number is hex in both, so it needs nothing.
+//  where the prefix starts a number rather than sitting inside a name, and
+//  the number stands alone rather than starting a file name such as
+//  0x1.txt. A bare number is hex in both, so it needs nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -813,8 +814,7 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
         isStart  = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$');
         prefix   = (i + 1 < text.size()) ? (char) tolower ((unsigned char) text[i + 1]) : 0;
 
-        if (quote == 0 && isStart && text[i] == '0' && i + 2 < text.size() &&
-            ((prefix == 'x' && isxdigit ((unsigned char) text[i + 2])) || (prefix == 'n' && isdigit ((unsigned char) text[i + 2]))))
+        if (quote == 0 && isStart && text[i] == '0' && IsWholeNumber (text, i + 2, prefix))
         {
             result += (prefix == 'x') ? '$' : '#';
             i      += 2;
@@ -826,6 +826,43 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::IsWholeNumber
+//
+//  At least one digit of the prefix's base from first, ended by the text's
+//  end or by a character no name or number holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::IsWholeNumber (const std::string & text, size_t first, char prefix)
+{
+    size_t  end = first;
+
+
+
+    if (prefix != 'x' && prefix != 'n')
+    {
+        return false;
+    }
+
+    while (end < text.size() && (prefix == 'x' ? isxdigit ((unsigned char) text[end]) : isdigit ((unsigned char) text[end])))
+    {
+        end++;
+    }
+
+    if (end == first)
+    {
+        return false;
+    }
+
+    return end == text.size() || !(isalnum ((unsigned char) text[end]) || text[end] == '_' || text[end] == '.');
 }
 
 

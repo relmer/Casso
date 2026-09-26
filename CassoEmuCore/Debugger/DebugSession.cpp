@@ -946,10 +946,10 @@ void DebugSession::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
 //  DebugSession::OnMachineChanged
 //
 //  A different machine makes every address meaningless, so breakpoints,
-//  watchpoints and the trace go and the call record starts over. Watches and
-//  bookmarks are only labels and stay. An A block ends, since its opcodes
-//  were the old CPU's, and so does what is left of a counted step. The new
-//  machine is paused or running as the caller says.
+//  watchpoints, the trace and the profile go and the call record starts
+//  over. Watches and bookmarks are only labels and stay. An A block ends,
+//  since its opcodes were the old CPU's, and so does what is left of a
+//  counted step. The new machine is paused or running as the caller says.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -981,6 +981,11 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     {
         m_callRecorder.End();
         SetCallRecording (true);
+    }
+
+    if (m_instructionObserver != nullptr)
+    {
+        m_instructionObserver->OnMachineChanged (*this);
     }
 
     UpdateHookInstalled();
