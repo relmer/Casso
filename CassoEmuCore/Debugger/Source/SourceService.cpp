@@ -228,7 +228,8 @@ SourceLookup SourceService::MatchDropped (const std::vector<DebugSourceFile> & f
         }
     }
 
-    if (recordIndex >= 0)
+    //  A mismatch is shown but not remembered, as in Find.
+    if (recordIndex >= 0 && result.match != SourceMatch::Mismatch)
     {
         m_paths.AddFound (programKey, GetFolder (droppedPath));
     }

@@ -397,7 +397,8 @@ void DataDirectiveHandlers::MakeDataLine (IDebugTarget & target, const DataBlock
 //
 //  Bytes as $xx, words and addresses as $xxxx low byte first, text in
 //  quotes with the high bit dropped and a control character as a period,
-//  and a float as its decimal value. A trailing partial item shows as bytes.
+//  and a float as its decimal value to Applesoft's nine significant digits.
+//  A trailing partial item shows as bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -427,7 +428,7 @@ std::string DataDirectiveHandlers::FormatItems (const DataBlockEntry & block, st
 
     if (block.kind == DataBlockKind::Float && bytes.size() == kFloatBytes)
     {
-        return std::format ("{}", DecodeFloat (bytes));
+        return std::format ("{:.9g}", DecodeFloat (bytes));
     }
 
     for (i = 0; i < bytes.size(); ++i)
