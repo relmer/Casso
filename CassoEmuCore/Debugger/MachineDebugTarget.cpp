@@ -151,13 +151,25 @@ MemoryRegion MachineDebugTarget::GetRegion (Word address) const
 //
 //  MachineDebugTarget::ReadIo
 //
-//  Real bus access, with its side effects, for IN.
+//  Real bus access, with its side effects, for IN. The trace sink is
+//  detached for it: the access is the debugger's, not the program's, and
+//  would otherwise attach to the last traced instruction.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte MachineDebugTarget::ReadIo (Word address)
 {
-    return m_host.GetMemoryBus().ReadByte (address);
+    MemoryBus   & bus   = m_host.GetMemoryBus();
+    IWatchSink  * trace = bus.GetTraceSink();
+    Byte          value = 0;
+
+
+
+    bus.SetTraceSink (nullptr);
+    value = bus.ReadByte (address);
+    bus.SetTraceSink (trace);
+
+    return value;
 }
 
 
@@ -168,13 +180,20 @@ Byte MachineDebugTarget::ReadIo (Word address)
 //
 //  MachineDebugTarget::WriteIo
 //
-//  Real bus access, for OUT.
+//  Real bus access, for OUT, kept out of the trace as IN is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineDebugTarget::WriteIo (Word address, Byte value)
 {
-    m_host.GetMemoryBus().WriteByte (address, value);
+    MemoryBus   & bus   = m_host.GetMemoryBus();
+    IWatchSink  * trace = bus.GetTraceSink();
+
+
+
+    bus.SetTraceSink (nullptr);
+    bus.WriteByte (address, value);
+    bus.SetTraceSink (trace);
 }
 
 
