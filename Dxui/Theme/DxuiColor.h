@@ -163,8 +163,9 @@ public:
     //  The accent that marks what has focus. A blue accent on a blue-tinted
     //  background reads as more of the same, not as a highlight, so where the
     //  background carries a hue near the accent's this is the accent's
-    //  complement, at its saturation and brightness -- orange for blue. On a
-    //  gray background, or one tinted another way, it is the accent itself.
+    //  complement -- orange for blue -- made vivid, since a pale accent's
+    //  complement is a pastel that a one-pixel line loses. On a gray
+    //  background, or one tinted another way, it is the accent itself.
     //
     static uint32_t ComputeFocusAccent (uint32_t accent, uint32_t background)
     {
@@ -172,6 +173,8 @@ public:
         constexpr float  s_kSameHueDeg   = 60.0f;    // hues this close read as one color
         constexpr float  s_kHalfTurnDeg  = 180.0f;
         constexpr float  s_kFullTurnDeg  = 360.0f;
+        constexpr float  s_kVividSat     = 0.8f;     // the least saturation of a complement
+        constexpr float  s_kVividValue   = 0.95f;    // and the least brightness
 
         float  ah    = 0.0f;
         float  as    = 0.0f;
@@ -192,7 +195,7 @@ public:
             return accent;
         }
 
-        return FromHsv (std::fmod (ah + s_kHalfTurnDeg, s_kFullTurnDeg), as, av, accent & 0xFF000000u);
+        return FromHsv (std::fmod (ah + s_kHalfTurnDeg, s_kFullTurnDeg), (std::max) (as, s_kVividSat), (std::max) (av, s_kVividValue), accent & 0xFF000000u);
     }
 
 

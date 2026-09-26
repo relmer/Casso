@@ -35,6 +35,17 @@ public:
     }
 
 
+    //  Retro's pale phosphor green on its green panels: the complement is a
+    //  vivid magenta, not the pastel pink a pale accent's complement would be.
+    TEST_METHOD (APaleAccentsComplementIsVivid)
+    {
+        uint32_t  focus = DxuiColor::ComputeFocusAccent (0xFF8AFF8Au, 0xFF0E2612u);
+
+        Assert::IsTrue (Red (focus) >= 0xF0 && Blue (focus) >= 0xF0, L"magenta");
+        Assert::IsTrue (Green (focus) <= 0x40, L"saturated, not pastel");
+    }
+
+
     TEST_METHOD (AnAccentOnAGrayBackgroundIsKept)
     {
         Assert::AreEqual (0xFF4EA8FFu, DxuiColor::ComputeFocusAccent (0xFF4EA8FFu, 0xFF1F1F1Fu));

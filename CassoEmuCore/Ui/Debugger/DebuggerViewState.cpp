@@ -2135,6 +2135,8 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
     std::string  registerText;
     std::string  addressText;
     std::string  flagText;
+    std::string  about;
+    bool         isIo  = false;
     Byte         value = 0;
 
 
@@ -2180,7 +2182,9 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
             continue;
         }
 
-        if (session.GetTarget().GetRegion (item.address) == MemoryRegion::Io)
+        isIo = session.GetTarget().GetRegion (item.address) == MemoryRegion::Io;
+
+        if (isIo)
         {
             std::string  action = SymbolDescriptions::GetAction (line.operandSymbol);
 
@@ -2201,6 +2205,21 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
     while (!text.empty() && text.back() == ' ')
     {
         text.pop_back();
+    }
+
+    //  A named location in memory says what it is after its byte, so
+    //  INC RNDL reads $004E=96; random seed, low byte .... An I/O
+    //  address already said it in place of the byte.
+    about = isIo ? std::string() : SymbolDescriptions::GetAction (line.operandSymbol);
+
+    if (!about.empty())
+    {
+        if (about.size() > 1 && isupper ((unsigned char) about[0]) && islower ((unsigned char) about[1]))
+        {
+            about[0] = (char) tolower ((unsigned char) about[0]);
+        }
+
+        text += (text.empty() ? "" : "; ") + about;
     }
 
     return text;

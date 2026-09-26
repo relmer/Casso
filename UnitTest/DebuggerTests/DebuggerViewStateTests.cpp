@@ -363,6 +363,9 @@ namespace DebuggerViewStateTests
             (void) target.TryPoke (0x0303, 0x8D);
             (void) target.TryPoke (0x0304, 0x30);
             (void) target.TryPoke (0x0305, 0xC0);
+            (void) target.TryPoke (0x0306, 0xE6);
+            (void) target.TryPoke (0x0307, 0x4E);
+            (void) target.TryPoke (0x004E, 0x96);
 
             r.pc = 0x0303;
             target.SetRegisters (r);
@@ -377,6 +380,8 @@ namespace DebuggerViewStateTests
                               lineAt (snapshot, 0x0300).annotation, L"a read of KBD says what KBD is");
             Assert::AreEqual (std::string ("A=00 Toggle the speaker (each access is a click)"),
                               lineAt (snapshot, 0x0303).annotation, L"a write to SPKR says what it does, and STA reads A");
+            Assert::AreEqual (std::string ("$004E=96; random seed, low byte (counts while waiting for a key)"),
+                              lineAt (snapshot, 0x0306).annotation, L"a named location in memory says what it is after its byte");
 
             //  And the result of running it is the action, not a store.
             Assert::AreEqual (std::string ("Toggle the speaker (each access is a click)"),
