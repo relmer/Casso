@@ -65,6 +65,8 @@ namespace DebuggerTests
             rig.RunFails ("R X 100", "value out of range");
             Assert::AreEqual ((uint8_t) 10, rig.target.registers.x, L"a rejected value changes nothing");
             rig.RunFails ("R Q 1",   "invalid arguments");
+
+            Assert::IsTrue (rig.RunFails ("R =41", "invalid arguments").error.detail.starts_with ("R takes"), L"no empty register name in the message");
         }
 
 
