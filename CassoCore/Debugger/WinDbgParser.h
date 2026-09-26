@@ -92,6 +92,7 @@ private:
     static std::string  Join                     (const Tokens & tokens, size_t first);
     static std::string  GetTail                  (const std::string & text, size_t first);
     static std::string  NormalizeNumbers         (const std::string & text);
+    static std::string  RewriteRegisters         (const std::string & text);
     static std::string  StripBackquotes          (const std::string & text);
     static std::string  NormalizeEngineArguments (const std::string & text, const Tokens & tokens);
     static std::string  ShortenSearchBytes       (const std::string & text);

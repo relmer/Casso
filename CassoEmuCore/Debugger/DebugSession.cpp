@@ -404,6 +404,7 @@ Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
 
     m_lineMode    = outerLineMode;
     reply.command = line;
+    reply.mode    = mode;
     return reply;
 }
 
