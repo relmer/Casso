@@ -279,6 +279,28 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (SourceStepOverDuringAnNmiRunsTheHandlerThrough)
+        {
+            static constexpr Word  kNmiUserVector = 0x03FB;
+            static constexpr Byte  kJmp           = 0x4C;
+            Rig                    rig;
+            Program                program        = Load (rig);
+            Word                   handler        = program.Symbol ("irqh");
+
+
+
+            rig.target.TryPoke (kNmiUserVector,     kJmp);
+            rig.target.TryPoke (kNmiUserVector + 1, (Byte) (handler & 0xFF));
+            rig.target.TryPoke (kNmiUserVector + 2, (Byte) (handler >> 8));
+            rig.RunOk ("SRC ON");
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, true);
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, false);
+
+            Assert::AreEqual ((Word) 0x0302, Step (rig, "P"), L"the handler's line is not where the step stops");
+            Assert::AreEqual (7,             rig.LastStop().sourceLine);
+        }
+
+
         TEST_METHOD (SrcOffStepsByInstruction)
         {
             Rig      rig;

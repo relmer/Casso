@@ -36,6 +36,12 @@ class MachineHost;
 //  instruction step out. An instruction with no line never ends a source
 //  step, so code without source runs through.
 //
+//  An interrupt taken during a step over or a step out, by instruction or by
+//  source line, runs to the end of its handler without ending the step, as a
+//  call does, and the step then goes on from the instruction the interrupt
+//  was taken in place of. Only a breakpoint or a watchpoint stops it in the
+//  handler. A step into stops on the handler's first instruction.
+//
 //  A step into, by instruction or by source line, whose JSR reaches a routine
 //  in the request's step filter runs that call as a step over would.
 //
@@ -83,6 +89,8 @@ private:
     static bool IsTransfer       (Byte opcode);
     Byte        PeekOpcode       (Word pc) const;
     bool        IsInterruptDue   () const;
+    bool        IsRunThroughInterrupts () const;
+    bool        HasLeftInterrupt (Byte sp) const;
 
     //  The line at an address that a source step compares: the innermost for
     //  a step into, the outermost otherwise. Absent where no line produced
@@ -105,6 +113,11 @@ private:
     //  The stack pointer before the outermost call the step is inside, while
     //  it is inside one, and the line the step began on.
     std::optional<Byte>                  m_callSp;
+
+    //  The stack pointer before, and the PC of the instruction in place of,
+    //  the interrupt a step over or out is running through, while it is.
+    std::optional<Byte>                  m_interruptSp;
+    Word                                 m_interruptPc  = 0;
 
     //  Where the last stop left the PC. The instruction there runs on the
     //  next resume without being asked about again.
