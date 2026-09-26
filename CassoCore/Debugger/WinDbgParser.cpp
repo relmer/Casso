@@ -392,7 +392,7 @@ bool WinDbgParser::TryRewrite (
     else if (name == ".formats") { line = "CALC " + rest; }
     else if (name == "l+s")      { line = "SRC ON"; }
     else if (name == "l-s")      { line = "SRC OFF"; }
-    else if (name == ".help")    { line = "HELP " + (rest.starts_with ('!') ? rest.substr (1) : rest); }
+    else if (name == ".help")    { line = "HELP " + rest; }
     else if (name == "bp")       { return TryRewriteBreakpoint (args, rest, rewrite); }
     else if (name == "ba")       { return TryRewriteAccess     (args, rewrite); }
     else if (name == "r")        { return TryRewriteRegister   (rest, rewrite); }

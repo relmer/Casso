@@ -348,8 +348,8 @@ namespace DebuggerTests
 
         TEST_METHOD (Help_TakesACassoCommandWithItsMarker)
         {
-            Assert::AreEqual (std::string ("mode"), ParseOk (".help !mode").command.text);
-            Assert::AreEqual (std::string ("bp"),   ParseOk (".help bp").command.text);
+            Assert::AreEqual (std::string ("!mode"), ParseOk (".help !mode").command.text);
+            Assert::AreEqual (std::string ("bp"),    ParseOk (".help bp").command.text);
         }
 
         //  s searches for bytes, so a prefixed number that fits a byte is
