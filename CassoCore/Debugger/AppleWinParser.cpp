@@ -457,11 +457,41 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
                                                        command.verb == DebugVerb::SetWriteWatchpoint  ||
                                                        command.verb == DebugVerb::SetValueBreakpoint  ||
                                                        (command.verb == DebugVerb::SetBreakpoint && !isConditional);
+    bool                               takesOne      = command.verb == DebugVerb::SetBreakpointAndWatchpoint ||
+                                                       command.verb == DebugVerb::ClearBreakpoint            ||
+                                                       command.verb == DebugVerb::DisableBreakpoint          ||
+                                                       command.verb == DebugVerb::EnableBreakpoint           ||
+                                                       (command.verb == DebugVerb::SetBreakpoint && !isConditional);
+    auto                               isIf          = [] (const std::string & token) { return ToUpper (token) == "IF"; };
+    auto                               isLive        = [&] ()
+    {
+        if (command.hasA2 && command.a2 < command.a1)
+        {
+            error = "The range ends before it starts or runs past $FFFF, so nothing could ever match it.";
+            return false;
+        }
+
+        return true;
+    };
 
 
 
     if (takesIf && !TryParseIfClause (args.tokens, command, error))
     {
+        return false;
+    }
+
+    // A comparison is the whole condition; IF would be read as part of its value.
+    if (!takesIf && (isConditional || command.verb == DebugVerb::SetRegisterBreakpoint) &&
+        std::find_if (args.tokens.begin(), args.tokens.end(), isIf) != args.tokens.end())
+    {
+        error = std::format ("{} with a comparison does not take IF.", ToUpper (command.sourceName));
+        return false;
+    }
+
+    if (takesOne && args.tokens.size() > 1)
+    {
+        error = std::format ("{} takes one argument, not {}.", ToUpper (command.sourceName), args.tokens.size());
         return false;
     }
 
@@ -489,12 +519,12 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
             return true;
         }
 
-        return TryParseRange (args.tokens[0], *args.context, command, error);
+        return TryParseRange (args.tokens[0], *args.context, command, error) && isLive();
 
     case DebugVerb::SetMemoryWatchpoint:
     case DebugVerb::SetReadWatchpoint:
     case DebugVerb::SetWriteWatchpoint:
-        return TryParseWatchpointArguments (args, command, error);
+        return TryParseWatchpointArguments (args, command, error) && isLive();
 
     case DebugVerb::SetValueBreakpoint:
         return TryParseValueBreakpoint (args, command, error);
@@ -515,6 +545,12 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
     case DebugVerb::ChangeBreakpoint:
     case DebugVerb::EditBreakpoint:
         command.text = Join (args.tokens, 1);
+
+        if (!args.tokens.empty() && args.tokens[0] == "*")
+        {
+            error = std::format ("{} takes one id, not *.", ToUpper (command.sourceName));
+            return false;
+        }
 
         if (!TryParseIdOrAll (args.tokens, command, error))
         {
@@ -641,6 +677,7 @@ bool AppleWinParser::TryParseValueBreakpoint (const Arguments & args, DebugComma
 
 bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error)
 {
+    static constexpr const char * kRegisters[] = { "A", "X", "Y", "P", "S", "PC" };
     std::string  joined = Join (tokens, 0);
     size_t       op     = joined.find_first_of ("<>=!");
     Tokens       name   = (op == std::string::npos) ? Tokens (tokens.begin(), tokens.begin() + std::min<size_t> (tokens.size(), 1))
@@ -655,6 +692,12 @@ bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugComm
     }
 
     command.text = ToUpper (name[0]);
+
+    if (std::find (std::begin (kRegisters), std::end (kRegisters), command.text) == std::end (kRegisters))
+    {
+        error = std::format ("{} is not a register. BPR takes A, X, Y, P, S or PC.", name[0]);
+        return false;
+    }
 
     if (op == std::string::npos)
     {
@@ -1831,10 +1874,7 @@ bool AppleWinParser::TryParseCondition (
 
 
 
-    for (size_t i = first; i < tokens.size(); ++i)
-    {
-        rest += tokens[i];
-    }
+    rest = Join (tokens, first);
 
     for (const char * candidate : kOperators)
     {
@@ -1842,6 +1882,7 @@ bool AppleWinParser::TryParseCondition (
         {
             op   = (std::string (candidate) == "!") ? "!=" : candidate;
             rest = rest.substr (strlen (candidate));
+            rest = rest.substr (std::min (rest.size(), rest.find_first_not_of (' ')));
             break;
         }
     }

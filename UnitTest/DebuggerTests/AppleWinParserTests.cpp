@@ -524,5 +524,60 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Bp.txt"),        ParseOk ("BPSAVE Bp.txt").command.text);
             Assert::AreEqual (std::string ("ALL ON"),        ParseOk ("BRK all on").command.text);
         }
+
+
+
+        //  A reversed range, or a length that runs past $FFFF, could never
+        //  match an access, so it is an error rather than a dead entry.
+        TEST_METHOD (BreakpointRange_ReversedOrWrappingIsAnError)
+        {
+            ParseFails ("BP 400:300",   ParseStatus::Invalid);
+            ParseFails ("BP FFF0,20",   ParseStatus::Invalid);
+            ParseFails ("BPM 400:300",  ParseStatus::Invalid);
+            ParseFails ("BPMW FFF0,20", ParseStatus::Invalid);
+            Assert::AreEqual ((Word) 0xFFFF, ParseOk ("BP FFF0,10").command.a2);
+        }
+
+
+        //  Arguments past the ones a command reads are an error, not dropped.
+        TEST_METHOD (BreakpointCommands_ExtraArgumentsAreAnError)
+        {
+            ParseFails ("BP 300 400",      ParseStatus::Invalid);
+            ParseFails ("BPA 300 IF A=1",  ParseStatus::Invalid);
+            ParseFails ("BPA 300 BEFORE",  ParseStatus::Invalid);
+            ParseFails ("BPC 1 2",         ParseStatus::Invalid);
+            ParseFails ("BPD 1 2",         ParseStatus::Invalid);
+            ParseFails ("BPE 1 2",         ParseStatus::Invalid);
+            ParseOk    ("BP 300 IF A=1");
+            ParseOk    ("BPA 300");
+        }
+
+
+        //  BPEDIT and BPCHANGE act on one entry; * would lose the definition.
+        TEST_METHOD (EditAndChange_StarIsAnError)
+        {
+            ParseFails ("BPEDIT * BP 300", ParseStatus::Invalid);
+            ParseFails ("BPCHANGE * e",    ParseStatus::Invalid);
+            Assert::AreEqual (std::string ("BP 300"), ParseOk ("BPEDIT 1 BP 300").command.text);
+        }
+
+
+        //  BPR takes a register; any other word is an error.
+        TEST_METHOD (RegisterBreakpoint_UnknownRegisterIsAnError)
+        {
+            ParseFails ("BPR Q=1", ParseStatus::Invalid);
+            ParseFails ("BPR Q 1", ParseStatus::Invalid);
+            Assert::AreEqual (std::string ("PC"), ParseOk ("BPR pc=300").command.text);
+        }
+
+
+        //  A comparison form reads its value to the end of the line, so IF is
+        //  an error there, and the value's tokens keep their spaces.
+        TEST_METHOD (ComparisonBreakpoints_IfIsAnErrorAndValueKeepsSpaces)
+        {
+            ParseFails ("BP < FA62 IF A=1", ParseStatus::Invalid);
+            ParseFails ("BPR A=C0 IF X=1",  ParseStatus::Invalid);
+            ParseFails ("BPR A = C0 X",     ParseStatus::Invalid);
+        }
     };
 }
