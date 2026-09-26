@@ -845,9 +845,9 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
 //
 //  AppleWinParser::TryParseDataArguments
 //
-//  The data directives take `[name] [addr | range]` or `name = addr`. A
-//  first argument that evaluates is the address; otherwise it is the block's
-//  name and the address follows. B takes nothing; X takes a range.
+//  The data directives take `[name] [addr | range]` or `name = addr`. A lone
+//  argument that evaluates is the address; otherwise the first argument is
+//  the block's name and the address follows. B takes nothing; X takes a range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -869,7 +869,9 @@ bool AppleWinParser::TryParseDataArguments (const Arguments & args, DebugCommand
         return TryParseRange (args.tokens[0], *args.context, command, error);
     }
 
-    if (!TryParseRange (args.tokens[0], *args.context, command, discarded))
+    //  With an address after it, the first argument is the name even when it
+    //  would evaluate: BEEF, ADD and a register letter are names there.
+    if (count > 1 || !TryParseRange (args.tokens[0], *args.context, command, discarded))
     {
         command.text  = args.tokens[0];
         command.hasA1 = false;
@@ -1769,6 +1771,7 @@ bool AppleWinParser::TryParseSearchWord (
     static constexpr int     kNibble    = 4;
     static constexpr size_t  kByteWidth = 2;
     Word                     value      = 0;
+    std::string_view         digits     = (word[0] == '$') ? std::string_view (word).substr (1) : std::string_view (word);
     bool                     isHexish   = word.size() <= kByteWidth && word.find_first_not_of ("0123456789ABCDEFabcdef?") == std::string::npos;
 
 
@@ -1802,7 +1805,9 @@ bool AppleWinParser::TryParseSearchWord (
     command.values.push_back ((Byte) value);
     command.mask.push_back (kAllBits);
 
-    if (value > kAllBits || word.size() > kByteWidth)
+    //  A literal wider than two hex digits is a word even when its value fits
+    //  a byte; the $ prefix is not a digit, and a # decimal goes by its value.
+    if (value > kAllBits || (word[0] != '#' && digits.size() > kByteWidth))
     {
         command.values.push_back ((Byte) (value >> 8));
         command.mask.push_back (kAllBits);

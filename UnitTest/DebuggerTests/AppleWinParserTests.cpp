@@ -293,6 +293,34 @@ namespace DebuggerTests
 
 
 
+        //  A block name made of hex digits is still a name when an address
+        //  follows it.
+        TEST_METHOD (DataDirectives_HexDigitNameBeforeAnAddress)
+        {
+            AppleWinParseResult  eq    = ParseOk ("ASC ADD = 800:80B");
+            AppleWinParseResult  named = ParseOk ("DW BEEF 3F0");
+
+
+
+            Assert::AreEqual (std::string ("ADD"),  eq.command.text);
+            Assert::AreEqual ((Word) 0x0800,        eq.command.a1);
+            Assert::AreEqual ((Word) 0x080B,        eq.command.a2);
+            Assert::AreEqual (std::string ("BEEF"), named.command.text);
+            Assert::AreEqual ((Word) 0x03F0,        named.command.a1);
+        }
+
+
+
+        //  A $ or # prefix is not a digit: $41 and #65 search for one byte.
+        TEST_METHOD (Search_PrefixedByteIsOneByte)
+        {
+            Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 $41").command.values);
+            Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 #65").command.values);
+            Assert::IsTrue (std::vector<Byte> ({ 0x41, 0x00 }) == ParseOk ("S 300,100 $0041").command.values);
+        }
+
+
+
         TEST_METHOD (Symbols_TableSubcommands)
         {
             AppleWinParseResult  load = ParseOk ("SYMUSER LOAD \"game.sym\",800");
@@ -548,6 +576,8 @@ namespace DebuggerTests
             ParseFails ("BPC 1 2",         ParseStatus::Invalid);
             ParseFails ("BPD 1 2",         ParseStatus::Invalid);
             ParseFails ("BPE 1 2",         ParseStatus::Invalid);
+            ParseFails ("BP 300 IF(A=41)", ParseStatus::Invalid);
+            ParseFails ("BP 300 IFA=41",   ParseStatus::Invalid);
             ParseOk    ("BP 300 IF A=1");
             ParseOk    ("BPA 300");
         }
