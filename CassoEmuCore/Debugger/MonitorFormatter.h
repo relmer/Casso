@@ -55,6 +55,8 @@ private:
     static void  FormatCompare     (const CompareData     & data, Lines & lines);
     static void  FormatSearchHits  (const SearchHitsData  & data, Lines & lines);
 
+    static std::string  FormatCalc (const CalcData & data);
+
     //  Examine rows arrive already broken on eight-byte boundaries, so
     //  `303.30F` is five bytes against $0303 and eight against $0308. The
     //  Monitor labels a row with the address that starts it rather than with

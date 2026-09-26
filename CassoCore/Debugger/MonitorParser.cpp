@@ -63,12 +63,16 @@ static constexpr Word  s_kBytesPerLine     = 8;
 //  it. `:`, `R` and `W` take the rest of the line, because what follows them
 //  is a byte list or a file name rather than more commands.
 //
+//  The scan works on a copy of the state and keeps it only when the line
+//  parses, so a line that fails arms nothing and moves nothing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState & state)
+MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState & committed)
 {
     MonitorParseResult  result;
     Scan                scan;
+    MonitorState        state    = committed;
     size_t              index    = 0;
     size_t              opening  = line.find_first_not_of (" \t");
 
@@ -319,6 +323,7 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
         FlushExamine (scan, state, result);
     }
 
+    committed     = state;
     result.status = result.commands.empty() ? ParseStatus::Empty : ParseStatus::Ok;
     return result;
 }

@@ -473,12 +473,18 @@ Reply DebugSession::ExecuteWinDbgLine (const std::string & text)
 //  with the whole line's text, which is the honest report of what a line
 //  like `300.30F 400.40F` did.
 //
+//  A write turned away because the machine is running leaves the Monitor's
+//  state as the line found it: the store address does not move and a
+//  register edit stays armed, as though the line had not been typed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Reply DebugSession::ExecuteMonitorLine (const std::string & text)
 {
-    MonitorParseResult  parsed = MonitorParser::Parse (text, m_monitorState);
+    MonitorState        before   = m_monitorState;
+    MonitorParseResult  parsed   = MonitorParser::Parse (text, m_monitorState);
     Reply               merged;
+    bool                rejected = false;
 
 
 
@@ -496,12 +502,29 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
 
     if (parsed.commands.size() == 1)
     {
-        return Execute (parsed.commands.front());
+        rejected = IsMachineWrite (parsed.commands.front().verb) && m_state != RunState::Paused;
+        merged   = Execute (parsed.commands.front());
+
+        if (rejected)
+        {
+            m_monitorState = before;
+        }
+
+        return merged;
     }
 
     for (const DebugCommand & command : parsed.commands)
     {
-        Reply  one = Execute (command);
+        Reply  one;
+
+
+
+        if (IsMachineWrite (command.verb) && m_state != RunState::Paused)
+        {
+            rejected = true;
+        }
+
+        one = Execute (command);
 
         MonitorFormatter::Format (one);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
@@ -512,6 +535,11 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
             merged.status = one.status;
             merged.error  = one.error;
         }
+    }
+
+    if (rejected)
+    {
+        m_monitorState = before;
     }
 
     return merged;

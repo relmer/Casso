@@ -48,7 +48,7 @@ bool MonitorFormatter::TryFormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<CompareData>     (&data)) { FormatCompare     (*v, lines); }
     else if (auto * v = std::get_if<SearchHitsData>  (&data)) { FormatSearchHits  (*v, lines); }
     else if (auto * v = std::get_if<RegistersData>   (&data)) { lines.push_back (FormatRegisters (v->registers)); }
-    else if (auto * v = std::get_if<CalcData>        (&data)) { lines.push_back (std::format ("={:02X}", v->value & 0xFF)); }
+    else if (auto * v = std::get_if<CalcData>        (&data)) { lines.push_back (FormatCalc (*v)); }
     else
     {
         return false;
@@ -199,6 +199,29 @@ std::string MonitorFormatter::FormatRegisters (const Cpu6502Registers & register
 {
     return std::format ("A={:02X} X={:02X} Y={:02X} P={:02X} S={:02X}",
                         registers.a, registers.x, registers.y, registers.p, registers.sp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorFormatter::FormatCalc
+//
+//  `=FE`. Monitor arithmetic is eight-bit, so its result always fits two
+//  digits; AppleWin's CALC, reached with `/`, is sixteen-bit and a value past
+//  $FF prints all four.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MonitorFormatter::FormatCalc (const CalcData & data)
+{
+    static constexpr Word  kLargestByte = 0xFF;
+
+
+
+    return (data.value > kLargestByte) ? std::format ("={:04X}", data.value) : std::format ("={:02X}", data.value);
 }
 
 

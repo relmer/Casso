@@ -398,6 +398,20 @@ namespace DebuggerTests
 
 
 
+        //  AppleWin's CALC is sixteen-bit, and the Monitor's layout keeps
+        //  every digit of it.
+        TEST_METHOD (SlashCalc_PrintsAllSixteenBits)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("=1234"), rig.Line ("/CALC 1234", 0));
+            Assert::AreEqual (std::string ("=41"),   rig.Line ("/CALC 41",   0));
+        }
+
+
+
         TEST_METHOD (Verify_ReportsOnlyTheDifferences)
         {
             Rig    rig;
@@ -437,6 +451,82 @@ namespace DebuggerTests
             Assert::AreEqual (size_t (2), reply.text.size());
             Assert::AreEqual (std::string ("0300- 41"), reply.text[0]);
             Assert::AreEqual (std::string ("0400- 42"), reply.text[1]);
+        }
+
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  A line that fails leaves the Monitor's state alone
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (AFailedLine_DoesNotArmTheRegisterEdit)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("^EZ").status);
+
+            rig.RunOk ("300: 01");
+            Assert::AreEqual (std::string ("0300- 01"), rig.Line ("300", 0), L"the colon deposits rather than editing registers");
+        }
+
+
+
+        TEST_METHOD (AFailedLine_DoesNotMoveTheExamine)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("200");
+            Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("300 ZZ").status);
+
+            Assert::AreEqual (std::string ("0201-"), rig.Line ("", 0).substr (0, 5));
+        }
+
+
+
+        TEST_METHOD (ARejectedDeposit_DoesNotMoveTheStoreAddress)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.RunOk ("300: 01");
+
+            rig.session.OnUserResumed();
+            reply = rig.Run ("310: 05");
+            rig.session.OnUserPaused();
+
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+
+            rig.RunOk (": 07");
+            Assert::AreEqual (std::string ("0301- 07"), rig.Line ("301", 0));
+        }
+
+
+
+        TEST_METHOD (ARejectedRegisterEdit_StaysArmed)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.RunOk ("^E");
+
+            rig.session.OnUserResumed();
+            reply = rig.Run (": 41");
+            rig.session.OnUserPaused();
+
+            Assert::AreEqual (std::string ("machine running"), reply.error.label);
+
+            rig.RunOk (": 42");
+            Assert::AreEqual ((int) 0x42, (int) rig.target.GetRegisters().a);
         }
     };
 
