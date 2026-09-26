@@ -64,10 +64,11 @@ private:
 
     static constexpr Word  kSlotBase      = 0xC000;
     static constexpr Word  kSlotStride    = 0x0100;
-    static constexpr int   kLastSlot      = 7;
+    static constexpr int   kSlotMask      = 0x0F;
     static constexpr int   kListLines     = 20;
     static constexpr int   kBytesPerRow   = 8;
     static constexpr Byte  kLowByte       = 0xFF;
+    static constexpr Word  kLastAddress   = 0xFFFF;
 
     void         List           (DebugSession & session, const DebugCommand & command, Reply & reply);
 
@@ -92,6 +93,6 @@ private:
     static Byte  Peek           (IDebugTarget & target, Word address);
     static void  PokeWord       (IDebugTarget & target, Word address, Word value);
 
-    //  Where L with no address goes on from: the end of the last listing.
+    //  Where a bare L continues: the address after the last listing.
     Word  m_nextList = 0;
 };
