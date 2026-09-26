@@ -816,7 +816,7 @@ void BreakpointHandlers::ReportBrk (DebugSession & session, Reply & reply)
 //  BreakpointHandlers::SetOpcode
 //
 //  BRKOP with opcodes adds an entry for each; alone, it lists the opcode
-//  entries.
+//  entries, or reports that there are none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -843,6 +843,12 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
             {
                 list.breakpoints.push_back (MakeInfo (existing));
             }
+        }
+
+        if (list.breakpoints.empty())
+        {
+            reply.data = MessageData { { "No opcode breakpoints." } };
+            return;
         }
     }
 

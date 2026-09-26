@@ -202,6 +202,42 @@ namespace DebuggerTests
             AssertMatchesFixture (reply, "breakpoints.txt");
         }
 
+        //  What GSSquared's own list has no column for follows the entry, so a
+        //  disabled or conditional entry does not list like a plain one.
+        TEST_METHOD (BreakpointList_ShowsStateHitsAndCondition)
+        {
+            Reply               reply;
+            BreakpointListData  data;
+            BreakpointInfo      exec;
+            BreakpointInfo      before;
+
+
+
+            exec.id          = 0;
+            exec.address     = 0x300;
+            exec.last        = 0x300;
+            exec.condition   = "A=1";
+            exec.enabled     = false;
+            exec.hits        = 2;
+
+            before.id        = 1;
+            before.kind      = BreakpointKind::Memory;
+            before.address   = 0x400;
+            before.last      = 0x400;
+            before.access    = WatchAccess::Write;
+            before.mode      = WatchMode::Before;
+            before.temporary = true;
+
+            data.breakpoints = { exec, before };
+            reply.verb       = DebugVerb::ListBreakpoints;
+            reply.data       = data;
+            GSSquaredFormatter::Format (reply);
+
+            Assert::AreEqual ((size_t) 3, reply.text.size());
+            Assert::AreEqual (std::string ("[0] exec 00/0300 if A=1 (disabled, hits 2)"),  reply.text[1]);
+            Assert::AreEqual (std::string ("[1] data 00/0400 w before (temporary)"),      reply.text[2]);
+        }
+
         TEST_METHOD (BreakpointSet_ById)
         {
             Reply              reply;
