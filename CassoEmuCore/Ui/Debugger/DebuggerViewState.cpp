@@ -1358,8 +1358,10 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
 
     //  GSSquared and WinDbg have no layout commands, and their words are not
-    //  AppleWin's. Only PANEL, bare in GSSquared and behind WinDbg's `!`,
-    //  is the window's.
+    //  AppleWin's. PANEL, which they reach the way they reach any Casso
+    //  command -- by its bare name, or after WinDbg's `!` -- is still the
+    //  window's, or the panels saved with the window could not reopen in
+    //  those modes.
     if (mode == CommandMode::GSSquared || mode == CommandMode::WinDbg)
     {
         if (mode == CommandMode::WinDbg)

@@ -42,7 +42,7 @@ enum class HelpCategory
 //  a name that is another's alias (AppleWinCommand::aliasOf) has no entry of
 //  its own and is shown on its command's line. Names that are only accepted
 //  and reported -- not available, like BENCHMARK and SOURCE1, or of no effect
-//  in a window that shows every pane at once, like CODE and WIN -- have none
+//  in a window that shows every pane at once, like WIN -- have none
 //  either, since help lists only what runs.
 //
 ////////////////////////////////////////////////////////////////////////////////

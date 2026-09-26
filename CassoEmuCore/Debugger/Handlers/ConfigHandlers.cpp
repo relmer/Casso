@@ -195,17 +195,18 @@ void ConfigHandlers::PrintDirectory (DebugSession & session, Reply & reply)
 
 void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::wstring  directory;
+    std::wstring  directory = session.ResolvePath (command.text);
 
 
 
-    if (command.text.empty())
+    //  A quoted empty name resolves to nothing, as no name does.
+    if (directory.empty())
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "CD takes a directory.");
         return;
     }
 
-    directory = std::filesystem::path (session.ResolvePath (command.text)).lexically_normal().wstring();
+    directory = std::filesystem::path (directory).lexically_normal().wstring();
 
     if (directory.size() > 3 && directory.ends_with (L'\\'))
     {
