@@ -31,6 +31,10 @@
 
 
 
+struct DxuiVectorIcon;
+
+
+
 struct DxuiCommand
 {
     int                            id           = 0;
@@ -43,6 +47,10 @@ struct DxuiCommand
     std::function<bool()>          isChecked;
     std::function<bool()>          isEnabled;
     std::function<std::wstring()>  labelText;
+
+    //  Drawn beside the label in a menu, as Explorer's View menu draws each
+    //  view's icon. Absent for most rows, and then no column is kept for it.
+    const DxuiVectorIcon         * vectorIcon   = nullptr;
 
     //  Absent means never checked.
     bool          IsChecked    () const { return isChecked ? isChecked() : false; }

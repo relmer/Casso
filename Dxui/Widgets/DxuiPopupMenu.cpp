@@ -9,6 +9,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Render/DxuiStroke.h"
+#include "Render/DxuiVectorIcon.h"
 
 
 
@@ -1254,6 +1255,7 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 
 
     m_hasGutter = false;
+    m_hasIcons  = false;
 
     for (const DxuiPopupMenuItem & row : m_rows)
     {
@@ -1261,10 +1263,16 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
         {
             m_hasGutter = true;
         }
+
+        if (row.command != nullptr && row.command->vectorIcon != nullptr)
+        {
+            m_hasIcons = true;
+        }
     }
 
     m_labelLeftPx = m_metrics.leftPadPx + m_metrics.gutterGapPx
-                        + (m_hasGutter ? m_metrics.checkGutterPx : 0);
+                        + (m_hasGutter ? m_metrics.checkGutterPx : 0)
+                        + (m_hasIcons  ? m_scaler.ToPx (s_kRowIconDip) + m_metrics.gutterGapPx : 0);
 
     for (const DxuiPopupMenuItem & row : m_rows)
     {
@@ -2293,6 +2301,15 @@ void DxuiPopupMenu::PaintRow (
                               DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Top);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (row.command->vectorIcon != nullptr)
+    {
+        float  iconDip  = (float) m_scaler.ToPx (s_kRowIconDip);
+        float  iconLeft = left + (float) (pad + (m_hasGutter ? gutter : 0) + m_metrics.gutterGapPx);
+
+        hr = text.FillVectorIcon (*row.command->vectorIcon, iconLeft, y + ((float) rowH - iconDip) * 0.5f, iconDip, labelArgb, labelArgb);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 

@@ -230,6 +230,39 @@ public:
 
 
     //
+    //  A row with its own icon opens an icon column after the check gutter,
+    //  and the labels move right by the icon and one more gap.
+    //
+    TEST_METHOD (Width_RowWithIcon_OpensTheIconColumn)
+    {
+        static constexpr DxuiVectorIconLayer  kLayers[] = { { 0x1u, false, 0.0f, 0.0f } };
+        static constexpr DxuiVectorIcon       kIcon     = { L"M0 0H20V20H0Z", 20.0f, kLayers, std::size (kLayers) };
+
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        int                   bare     = 0;
+        int                   withIcon = 0;
+        uint64_t              now      = 0;
+
+
+        menu.SetClock ([&] () { return now; });
+        menu.SetDpi (96);
+
+        menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        bare = menu.GetRect().right - menu.GetRect().left;
+
+        f.gamma->vectorIcon = &kIcon;
+        menu.Hide();
+        now += 1000;
+        menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        withIcon = menu.GetRect().right - menu.GetRect().left;
+
+        Assert::AreEqual (bare + DxuiPopupMenu::s_kRowIconDip + menu.GetMetrics().gutterGapPx, withIcon);
+    }
+
+
+    //
     //  The defect the two-column measurement exists for: sizing the menu to
     //  the widest label-plus-accelerator row leaves an accelerator-less row
     //  with a LONGER label free to run under the accelerators above it.

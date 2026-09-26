@@ -34,6 +34,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         command->id          = row.id;
         command->label       = row.label;
         command->accelerator = (row.accelerator != nullptr) ? row.accelerator : L"";
+        command->vectorIcon  = GetMenuIcon (row.id);
 
         command->dispatch = [this, id]()
         {
@@ -330,6 +331,34 @@ const DxuiVectorIcon * CassoExplorerCommands::GetCommandBarIcon (int id)
         case kTogglePreview: return &CassoExplorerIcons::s_kPreview;
         case kTheme:         return &CassoExplorerIcons::s_kTheme;
         default:             return nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCommands::GetMenuIcon
+//
+//  The View drop-down's rows have the icons Explorer's own View menu has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiVectorIcon * CassoExplorerCommands::GetMenuIcon (int id)
+{
+    switch (id - kViewFirst)
+    {
+        case (int) DxuiListView::View::Details:              return &CassoExplorerIcons::s_kViewDetails;
+        case (int) DxuiListView::View::ExtraLargeIcons:      return &CassoExplorerIcons::s_kViewExtraLargeIcons;
+        case (int) DxuiListView::View::LargeIcons:           return &CassoExplorerIcons::s_kViewLargeIcons;
+        case (int) DxuiListView::View::MediumIcons:          return &CassoExplorerIcons::s_kViewMediumIcons;
+        case (int) DxuiListView::View::SmallIcons:           return &CassoExplorerIcons::s_kViewSmallIcons;
+        case (int) DxuiListView::View::List:                 return &CassoExplorerIcons::s_kViewList;
+        case (int) DxuiListView::View::Tiles:                return &CassoExplorerIcons::s_kViewTiles;
+        case (int) DxuiListView::View::Content:              return &CassoExplorerIcons::s_kViewContent;
+        default:                                             return nullptr;
     }
 }
 

@@ -126,6 +126,10 @@ public:
     using ClosedFn = std::function<void (bool committed)>;
     using ClockFn  = std::function<uint64_t ()>;
 
+    //  A command row's own icon, between the check and the label. Its box is
+    //  a Fluent icon's 20 units, whose ink is Explorer's 16.
+    static constexpr int  s_kRowIconDip = 20;
+
     DxuiPopupMenu  ();
     ~DxuiPopupMenu () override;
 
@@ -303,7 +307,6 @@ private:
     static constexpr int       s_kIconRowScalePct      = 150;
     static constexpr float     s_kIconGlyphDip         = 16.0f;
     static constexpr const wchar_t *  s_kIconFace      = L"Segoe Fluent Icons";
-
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded
     //  corners reads as a stripe painted across the popup.
@@ -416,6 +419,7 @@ private:
     bool                 m_visible          = false;
     bool                 m_revealSuppressed = false;
     bool                 m_hasGutter        = false;
+    bool                 m_hasIcons         = false;
     int                  m_labelLeftPx      = 0;
     int                  m_accelLeftPx      = 0;
     int                  m_accelWidthPx     = 0;
