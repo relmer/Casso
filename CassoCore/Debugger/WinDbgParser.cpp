@@ -83,6 +83,13 @@ static constexpr WinDbgExclusion s_kExclusions[] =
     { ".thread",     s_kpszThreads    },
     { ".attach",     s_kpszThreads    },
     { ".kill",       s_kpszThreads    },
+    { "!peb",        s_kpszThreads    },
+    { "!teb",        s_kpszThreads    },
+    { "!process",    s_kpszThreads    },
+    { "!thread",     s_kpszThreads    },
+    { "!handle",     s_kpszThreads    },
+    { "!heap",       s_kpszThreads    },
+    { "!address",    s_kpszThreads    },
     { "lm",          s_kpszModules    },
     { ".reload",     s_kpszModules    },
     { ".sympath",    s_kpszModules    },
@@ -93,6 +100,7 @@ static constexpr WinDbgExclusion s_kExclusions[] =
     { "sxd",         s_kpszExceptions },
     { ".lastevent",  s_kpszExceptions },
     { "!analyze",    s_kpszExceptions },
+    { "!gle",        s_kpszExceptions },
     { "!pte",        s_kpszKernel     },
     { "!pool",       s_kpszKernel     },
     { "!irql",       s_kpszKernel     },
@@ -105,6 +113,11 @@ static constexpr WinDbgExclusion s_kExclusions[] =
     { "??",          s_kpszTypes      },
     { "dq",          s_kpszTypes      },
     { "dp",          s_kpszTypes      },
+    { "dps",         s_kpszTypes      },
+    { "dds",         s_kpszTypes      },
+    { "dqs",         s_kpszTypes      },
+    { "dpa",         s_kpszTypes      },
+    { "dpu",         s_kpszTypes      },
     { ".frame",      s_kpszTypes      },
     { ".load",       s_kpszScripting  },
     { ".chain",      s_kpszScripting  },
@@ -141,6 +154,7 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
     std::string                rest;
     size_t                     first     = line.find_first_not_of (" \t");
     size_t                     restFrom  = 0;
+    size_t                     bangName  = (first == std::string::npos) ? std::string::npos : line.find_first_not_of (" \t", first + 1);
     const WinDbgExclusion    * exclusion = nullptr;
 
 
@@ -148,6 +162,12 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
     if (first == std::string::npos)
     {
         return result;
+    }
+
+    //  WinDbg reads `! analyze` as `!analyze`.
+    if (line[first] == '!' && bangName != std::string::npos && bangName > first + 1)
+    {
+        return Parse ("!" + line.substr (bangName), context);
     }
 
     if (TryParseEngine (line.substr (first), context, result))
@@ -609,6 +629,12 @@ bool WinDbgParser::TryRewriteRegister (const std::string & rest, Rewrite & rewri
 
     for (const auto & [windbg, applewin] : kNames)
     {
+        if (name == windbg && (split == std::string::npos || joined.find_first_not_of (" \t", split) == std::string::npos))
+        {
+            rewrite.error = std::format ("r {} needs a value, as in r {}=41. Use r alone to show the registers.", name, name);
+            return false;
+        }
+
         if (name == windbg)
         {
             rewrite.appleWinLine = std::format ("R {} {}", applewin, split == std::string::npos ? std::string() : joined.substr (split));
