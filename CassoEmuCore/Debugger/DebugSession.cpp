@@ -756,8 +756,10 @@ void DebugSession::BeginAssembly (Word address)
 //  DebugSession::ExecuteAssemblyLine
 //
 //  A blank line ends the mode. Anything else is one instruction, assembled at
-//  the current address, written, and shown as the disassembler reads it back.
-//  A line that does not assemble leaves the address and the mode as they are.
+//  the current address, or at the address before a colon, written, and shown
+//  as the disassembler reads it back. A line starting with `$` is a Monitor
+//  command. A line that does not assemble leaves the address and the mode as
+//  they are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -768,10 +770,13 @@ void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
     DisassemblyData          data;
     DisassemblyLine          shown;
     std::vector<Byte>        bytes;
+    std::vector<Byte>        originals;
     std::string              error;
-    LineAssemblyStatus       status  = LineAssemblyStatus::Ok;
-    Word                     address = *m_assemblyAddress;
-    HRESULT                  hr      = S_OK;
+    std::string              source    = line;
+    LineAssemblyStatus       status    = LineAssemblyStatus::Ok;
+    Word                     address   = *m_assemblyAddress;
+    size_t                   prefixEnd = 0;
+    HRESULT                  hr        = S_OK;
 
 
 
@@ -783,7 +788,32 @@ void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
         return;
     }
 
-    status = assembler.TryAssemble (address, line, bytes, error);
+    //  `$cmd` runs a Monitor command and leaves the assembler active.
+    if (line[0] == '$')
+    {
+        reply = ExecuteMonitorLine (Trim (line.substr (1)));
+        return;
+    }
+
+    if (m_state != RunState::Paused)
+    {
+        SetError (reply, CommandStatus::Error, "machine running", "Assembly changes memory. Pause the machine first.");
+        return;
+    }
+
+    //  `addr:MNE operand` moves the assembly address first.
+    while (prefixEnd < line.size() && prefixEnd < 4 && std::isxdigit ((unsigned char) line[prefixEnd]))
+    {
+        ++prefixEnd;
+    }
+
+    if (prefixEnd > 0 && prefixEnd < line.size() && line[prefixEnd] == ':')
+    {
+        address = (Word) std::stoul (line.substr (0, prefixEnd), nullptr, 16);
+        source  = Trim (line.substr (prefixEnd + 1));
+    }
+
+    status = assembler.TryAssemble (address, source, bytes, error);
 
     if (status != LineAssemblyStatus::Ok)
     {
@@ -791,11 +821,24 @@ void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
         return;
     }
 
+    //  All of the instruction is written or none of it: the old bytes are
+    //  read first, and put back when a later byte cannot be written.
     for (size_t i = 0; i < bytes.size(); ++i)
     {
+        Byte  original = 0;
+
+        m_target.TryPeek ((Word) (address + i), original);
+        originals.push_back (original);
+
         if (!m_target.TryPoke ((Word) (address + i), bytes[i]))
         {
-            SetError (reply, CommandStatus::Error, "memory not writable", std::format ("${:04X} cannot be written.", address));
+            for (size_t j = 0; j < i; ++j)
+            {
+                m_target.TryPoke ((Word) (address + j), originals[j]);
+            }
+
+            SetError (reply, CommandStatus::Error, "memory not writable",
+                      std::format ("${:04X} cannot be written.", (Word) (address + i)));
             return;
         }
     }
