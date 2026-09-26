@@ -80,7 +80,7 @@ namespace DebuggerTests
 
         TEST_METHOD (AccessBreakpoints_ReadWriteExecute)
         {
-            Assert::AreEqual ((int) DebugVerb::SetReadWatchpoint,  (int) ParseOk ("ba r1 c000").command.verb);
+            Assert::AreEqual ((int) DebugVerb::SetMemoryWatchpoint, (int) ParseOk ("ba r1 c000").command.verb);
             Assert::AreEqual ((int) DebugVerb::SetWriteWatchpoint, (int) ParseOk ("ba w1 400").command.verb);
             Assert::AreEqual ((int) DebugVerb::SetBreakpoint,      (int) ParseOk ("ba e1 300").command.verb);
             Assert::AreEqual ((Word) 0x0403,                        ParseOk ("ba w4 400").command.a2);

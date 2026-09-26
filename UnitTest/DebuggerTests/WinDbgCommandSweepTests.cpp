@@ -81,7 +81,7 @@ namespace DebuggerTests
                 { "bc *",              "BPC *"        },
                 { "bd 1",              "BPD 1"        },
                 { "be 1",              "BPE 1"        },
-                { "ba r1 c000",        "BPMR C000"    },
+                { "ba r1 c000",        "BPM C000"     },
                 { "ba w1 400",         "BPMW 400"     },
                 { "ba e1 300",         "BP 300"       },
                 { "db 2000 l20",       "D 2000,20"    },

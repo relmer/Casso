@@ -506,8 +506,9 @@ bool WinDbgParser::TryRewriteDump (
 //
 //  WinDbgParser::TryRewriteAccess
 //
-//  `ba r1|w1|e1 addr [IF expr]`: a read or write watchpoint, or for execute
-//  a breakpoint. A size above one covers that many bytes.
+//  `ba r1|w1|e1 addr [IF expr]`: a watchpoint on reads and writes (WinDbg's
+//  r covers both) or on writes, or for execute a breakpoint. A size above
+//  one covers that many bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -530,7 +531,7 @@ bool WinDbgParser::TryRewriteAccess (const Tokens & args, Rewrite & rewrite)
 
     switch (access[0])
     {
-    case 'r': rewrite.appleWinLine = "BPMR "; break;
+    case 'r': rewrite.appleWinLine = "BPM ";  break;
     case 'w': rewrite.appleWinLine = "BPMW "; break;
     case 'e': rewrite.appleWinLine = "BP ";   break;
     default:  return false;
