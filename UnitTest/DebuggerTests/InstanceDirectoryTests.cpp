@@ -286,6 +286,47 @@ namespace InstanceDirectoryTests
 
 
 
+        //  A MODE line switches the lines after it, as in batch: they are
+        //  sent in that mode and echoed behind its prompt.
+        TEST_METHOD (AModeLineSwitchesTheLinesAfterIt)
+        {
+            ScriptedClient     client;
+            DebugAttachResult  result;
+
+
+
+            client.answers.push_back ({ R"({"type":"reply","id":1,"status":"ok","command":"mode monitor","text":[],"data":{"kind":"mode","mode":"monitor"}})" });
+            client.answers.push_back ({ R"({"type":"reply","id":2,"status":"ok","command":"300","text":[]})" });
+
+            DebugAttachRunner::Run (client, Options ({ "mode monitor", "300" }), "", result);
+
+            Assert::AreEqual ((size_t) 2, client.sent.size());
+            Assert::IsTrue   (client.sent[1].find ("\"mode\":\"monitor\"") != std::string::npos, L"the next line went in Monitor mode");
+            Assert::IsTrue   (result.output.find ("*300") != std::string::npos, L"behind the Monitor's prompt");
+        }
+
+
+
+        //  A blank line in a script is sent, so an A block can end.
+        TEST_METHOD (ABlankLineIsSent)
+        {
+            ScriptedClient     client;
+            DebugAttachResult  result;
+
+
+
+            for (int id = 1; id <= 3; id++)
+            {
+                client.answers.push_back ({ std::format (R"({{"type":"reply","id":{},"status":"ok","command":"","text":[]}})", id) });
+            }
+
+            DebugAttachRunner::Run (client, Options ({}), "a 300\nlda #1\n\n", result);
+
+            Assert::AreEqual ((size_t) 3, client.sent.size(), L"the blank line was the third line sent");
+        }
+
+
+
         //  A reply marked running is followed by the stop it names before the
         //  next line is sent, so a script's lines act on a stopped machine.
         TEST_METHOD (ARunIsWaitedForBeforeTheNextLine)

@@ -66,6 +66,7 @@ void DebugAttachRunner::Run (IChannelClient                         & client,
     DWORD                     timeoutMs   = (DWORD) std::min<uint64_t> ((uint64_t) options.timeoutSeconds * 1000, UINT32_MAX - 1);
     bool                      anyFailed   = false;
     bool                      budgetStop  = false;
+    std::string               mode        = options.mode;
 
 
 
@@ -82,12 +83,14 @@ void DebugAttachRunner::Run (IChannelClient                         & client,
     {
         std::string  line  = each;
         int64_t      id    = nextId++;
-        JsonValue    reply;
-        JsonValue    stop;
-        Wait         wait      = Wait::Received;
-        std::string  status;
-        std::string  reason;
-        bool         isRunning = false;
+        JsonValue          reply;
+        JsonValue          stop;
+        Wait               wait      = Wait::Received;
+        std::string        status;
+        std::string        reason;
+        bool               isRunning = false;
+        const JsonValue  * data      = nullptr;
+        std::string        kind;
 
 
 
@@ -101,17 +104,19 @@ void DebugAttachRunner::Run (IChannelClient                         & client,
             line.erase (0, 1);
         }
 
-        if (line.empty() || line.starts_with (';'))
+        //  A blank line is sent: inside an A block it ends the block, and
+        //  elsewhere the session takes it as nothing.
+        if (line.starts_with (';'))
         {
             continue;
         }
 
-        if (!options.json)
+        if (!options.json && !line.empty())
         {
-            result.output += (options.mode == "monitor" ? "*" : options.mode == "windbg" ? "0:000> " : ">") + line + "\n";
+            result.output += (mode == "monitor" ? "*" : mode == "windbg" ? "0:000> " : ">") + line + "\n";
         }
 
-        if (!client.WriteLine (BuildCommand (id, line, options.mode, options.maxCycles)))
+        if (!client.WriteLine (BuildCommand (id, line, mode, options.maxCycles)))
         {
             result.diagnostics += "Error: the debug channel closed.\n";
             result.exitStatus   = kChannelClosed;
@@ -138,6 +143,12 @@ void DebugAttachRunner::Run (IChannelClient                         & client,
         if (reply.HasString ("status", status) && (status == "error" || status == "unknown"))
         {
             anyFailed = true;
+        }
+
+        //  A MODE line switches the lines after it, as it does in batch.
+        if (reply.HasObject ("data", data) && data->HasString ("kind", kind) && kind == "mode")
+        {
+            (void) data->HasString ("mode", mode);
         }
 
         if (!reply.HasBool ("running", isRunning) || !isRunning)

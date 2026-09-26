@@ -138,6 +138,14 @@ Reply DebuggerController::RunLine (const std::string          & line,
 
 
 
+    //  A blank line matters only inside an A block, where it ends the block.
+    //  Elsewhere it is nothing, as it is in a batch script.
+    if (line.find_first_not_of (" \t\r") == std::string::npos && !m_session.IsAssembling())
+    {
+        reply.command = line;
+        return reply;
+    }
+
     if (budget.has_value())
     {
         m_session.SetBudget (*budget == 0 ? std::optional<uint64_t>() : budget);
@@ -146,7 +154,9 @@ Reply DebuggerController::RunLine (const std::string          & line,
     reply = m_session.ExecuteLine (line, lineMode);
     m_session.FormatReply (reply, lineMode);
 
-    if (budget.has_value())
+    //  The request's budget is for this line alone, unless the line set a
+    //  budget of its own, which then stands.
+    if (budget.has_value() && m_session.GetBudget() == (*budget == 0 ? std::optional<uint64_t>() : budget))
     {
         m_session.SetBudget (previousBudget);
     }

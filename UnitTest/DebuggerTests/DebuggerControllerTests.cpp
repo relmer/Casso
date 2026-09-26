@@ -242,6 +242,42 @@ namespace DebuggerControllerTests
 
 
 
+        //  A line that sets a budget of its own keeps it, though the request
+        //  carried one for the line.
+        TEST_METHOD (ABudgetLineKeepsItsBudget)
+        {
+            Rig  rig (true);
+
+
+
+            (void) rig.controller.RunLine ("BUDGET 777", {}, 123);
+
+            Assert::IsTrue   (rig.controller.GetSession().GetBudget().has_value());
+            Assert::AreEqual ((uint64_t) 777, *rig.controller.GetSession().GetBudget());
+        }
+
+
+
+        //  A blank line ends an A block and is otherwise nothing.
+        TEST_METHOD (ABlankLineEndsAnAssemblyBlockAndIsOtherwiseNothing)
+        {
+            Rig    rig (true);
+            Reply  reply = rig.controller.RunLine ("", {}, {});
+
+
+
+            Assert::IsTrue (reply.status == CommandStatus::Ok, L"outside a block, nothing");
+
+            (void) rig.controller.RunLine ("A 300", {}, {});
+            (void) rig.controller.RunLine ("LDA #$41", {}, {});
+            Assert::IsTrue  (rig.controller.GetSession().IsAssembling());
+
+            (void) rig.controller.RunLine ("", {}, {});
+            Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the blank line ended the block");
+        }
+
+
+
         TEST_METHOD (APauseWithNoRunStopsTheMachineAndSaysSo)
         {
             Rig  rig (false);
