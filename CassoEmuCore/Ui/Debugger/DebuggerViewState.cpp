@@ -62,6 +62,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 
 
     snapshot.isPaused       = isPaused;
+    snapshot.isAssembling   = session.IsAssembling();
     snapshot.mode           = session.GetMode();
     snapshot.goTo           = m_goTo;
     snapshot.showPane       = m_showPane;
@@ -2351,7 +2352,8 @@ std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session
 //
 //  ReadFile or WriteFile when a Monitor line holds an R or W with no file
 //  name, which the window asks for before the line runs. Batch and the pipe
-//  have no one to ask, so there the handler reports the error instead.
+//  have no one to ask, so there the handler reports the error instead. A line
+//  typed while the session is assembling is an instruction, not a command.
 //
 //  The line is parsed against a scratch state: a range comes from the line
 //  itself, and the session's own state must not move for a line that has not
@@ -2359,14 +2361,14 @@ std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<DebugVerb> DebuggerViewState::GetMissingFileVerb (const std::string & line, CommandMode mode)
+std::optional<DebugVerb> DebuggerViewState::GetMissingFileVerb (const std::string & line, CommandMode mode, bool isAssembling)
 {
     MonitorState        scratch;
     MonitorParseResult  parsed;
 
 
 
-    if (mode != CommandMode::Monitor)
+    if (mode != CommandMode::Monitor || isAssembling)
     {
         return std::nullopt;
     }

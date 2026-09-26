@@ -159,6 +159,8 @@ struct DebuggerViewSnapshot
     //  Whether the machine was stopped when this was built. The command bar
     //  gates on it: stepping a running machine is not a command it can take.
     bool                         isPaused      = false;
+    //  Whether the session was taking assembly lines, which read no command.
+    bool                         isAssembling  = false;
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
     std::vector<CodeLine>        code;
@@ -431,7 +433,7 @@ public:
 
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.
-    static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode);
+    static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode, bool isAssembling);
     static std::string               GetLineWithFileName (const std::string & line, const std::string & path);
 
     static std::string  GetRegionLabel (MemoryRegion region);

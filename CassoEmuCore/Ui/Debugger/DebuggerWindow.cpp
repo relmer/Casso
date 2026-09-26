@@ -4125,7 +4125,9 @@ void DebuggerWindow::SubmitCommandBox()
 
     //  The mode comes from the last snapshot; one built before a mode change
     //  can only miss a prompt, and the handler then reports the missing name.
-    fileVerb = DebuggerViewState::GetMissingFileVerb (line, m_snapshot != nullptr ? m_snapshot->mode : CommandMode::AppleWin);
+    fileVerb = DebuggerViewState::GetMissingFileVerb (line,
+                                                      m_snapshot != nullptr ? m_snapshot->mode : CommandMode::AppleWin,
+                                                      m_snapshot != nullptr && m_snapshot->isAssembling);
 
     if (fileVerb.has_value())
     {
