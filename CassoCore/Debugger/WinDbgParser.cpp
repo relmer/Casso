@@ -198,6 +198,14 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
     result.status  = parsed.status;
     result.command = parsed.command;
     result.error   = parsed.error;
+
+    //  x only looks up: its words are never SYM's subcommands.
+    if (name == "x" && !rest.empty() && result.status == ParseStatus::Ok)
+    {
+        result.command.verb = DebugVerb::LookupSymbol;
+        result.command.text = rest;
+    }
+
     return result;
 }
 
@@ -361,12 +369,12 @@ bool WinDbgParser::TryRewrite (
     else if (name == "be")       { line = "BPE " + rest; }
     else if (name == "eb")       { line = "MEB " + rest; }
     else if (name == "ew")       { line = "MEW " + rest; }
-    else if (name == "x")        { line = "SYM " + rest; }
+    else if (name == "x")        { line = "SYM"; }
     else if (name == "?")        { line = "CALC " + rest; }
     else if (name == ".formats") { line = "CALC " + rest; }
     else if (name == "l+s")      { line = "SRC ON"; }
     else if (name == "l-s")      { line = "SRC OFF"; }
-    else if (name == ".help")    { line = "HELP " + rest; }
+    else if (name == ".help")    { line = "HELP " + (rest.starts_with ('!') ? rest.substr (1) : rest); }
     else if (name == "bp")       { return TryRewriteBreakpoint (args, rest, rewrite); }
     else if (name == "ba")       { return TryRewriteAccess     (args, rewrite); }
     else if (name == "r")        { return TryRewriteRegister   (rest, rewrite); }
@@ -377,7 +385,7 @@ bool WinDbgParser::TryRewrite (
     }
     else if (name == "f" || name == "s" || name == "m")
     {
-        return TryRewriteRange (name, args, rewrite);
+        return TryRewriteRange (name, args, rest, rewrite);
     }
     else if (name == "pa" || name == "ta")
     {
@@ -580,7 +588,8 @@ bool WinDbgParser::TryRewriteBreakpoint (const Tokens & args, const std::string 
 //
 //  WinDbgParser::TryRewriteRegister
 //
-//  `r` shows the registers; `r a=41` sets one. WinDbg's names for the stack
+//  `r` shows the registers; `r a` shows one, as its value; `r a=41` sets
+//  one. WinDbg's names for the stack
 //  pointer and the flags are sp and fl.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,9 +618,15 @@ bool WinDbgParser::TryRewriteRegister (const std::string & rest, Rewrite & rewri
 
     for (const auto & [windbg, applewin] : kNames)
     {
+        if (name == windbg && (split == std::string::npos || joined.find_first_not_of (" \t", split) == std::string::npos))
+        {
+            rewrite.appleWinLine = std::format ("CALC {}", applewin);
+            return true;
+        }
+
         if (name == windbg)
         {
-            rewrite.appleWinLine = std::format ("R {} {}", applewin, split == std::string::npos ? std::string() : joined.substr (split));
+            rewrite.appleWinLine = std::format ("R {} {}", applewin, joined.substr (split));
             return true;
         }
     }
@@ -668,7 +683,7 @@ bool WinDbgParser::TryRewriteText (const Tokens & args, const std::string & rest
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WinDbgParser::TryRewriteRange (const std::string & name, const Tokens & args, Rewrite & rewrite)
+bool WinDbgParser::TryRewriteRange (const std::string & name, const Tokens & args, const std::string & rest, Rewrite & rewrite)
 {
     std::string  length;
     size_t       next   = 0;
@@ -699,7 +714,7 @@ bool WinDbgParser::TryRewriteRange (const std::string & name, const Tokens & arg
         return next + 1 == args.size();
     }
 
-    rewrite.appleWinLine = std::format ("{} {} {}", name == "f" ? "F" : "S", range, Join (args, next));
+    rewrite.appleWinLine = std::format ("{} {} {}", name == "f" ? "F" : "S", range, GetTail (rest, next));
     return true;
 }
 
@@ -932,3 +947,27 @@ std::string WinDbgParser::Join (const Tokens & tokens, size_t first)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::GetTail
+//
+//  The text from its token at index first to the end, as typed, so the
+//  spaces inside quoted text are kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::GetTail (const std::string & text, size_t first)
+{
+    size_t  at = text.find_first_not_of (" \t");
+
+
+
+    for (size_t i = 0; i < first && at != std::string::npos; i++)
+    {
+        at = text.find_first_of (" \t", at);
+        at = (at == std::string::npos) ? at : text.find_first_not_of (" \t", at);
+    }
+
+    return (at == std::string::npos) ? std::string() : text.substr (at);
+}

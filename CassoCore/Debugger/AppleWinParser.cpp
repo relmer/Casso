@@ -813,8 +813,14 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
     case DebugVerb::EnterWords:
     case DebugVerb::PatchBytes:
         command.hasA1 = count > 0;
-        return count >= 2 &&
-               TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
+
+        if (count < 2)
+        {
+            error = std::format ("{} needs an address and at least one value.", ToUpper (command.sourceName));
+            return false;
+        }
+
+        return TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
                TryParseValues (args.tokens, 1, command.verb == DebugVerb::EnterWords ? ValueWidth::Words : ValueWidth::BytesOrWords, *args.context, command, error);
 
     case DebugVerb::LoadBinary:

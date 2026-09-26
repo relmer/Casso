@@ -115,6 +115,7 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "r",        C::RegistersAndFlags,  "r [reg[=value]]",   "Show or change the registers",                "R"             },
     { "db",       C::Memory,             "db addr [l n]",     "Show bytes",                                  "D"             },
     { "dw",       C::Memory,             "dw addr [l n]",     "Show words",                                  "D"             },
+    { "dd",       C::Memory,             "dd addr [l n]",     "Show four-byte values",                       "D"             },
     { "da",       C::Memory,             "da addr [l n]",     "Show text",                                   "D"             },
     { "eb",       C::Memory,             "eb addr bb bb ...", "Store bytes",                                 "ME MEB"        },
     { "ew",       C::Memory,             "ew addr ww ...",    "Store words",                                 "MEW"           },
@@ -127,7 +128,8 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "x",        C::SymbolsAndSource,   "x name",            "Look up a symbol",                            "SYM"           },
     { "?",        C::SessionAndSettings, "? expr",            "Evaluate an expression",                      "CALC"          },
     { ".formats", C::SessionAndSettings, ".formats expr",     "Show a value in every base",                  "CALC"          },
-    { "l+s",      C::SymbolsAndSource,   "l+s, l-s",          "Show or hide source lines",                   "SRC"           },
+    { "l+s",      C::SymbolsAndSource,   "l+s",               "Show or hide source lines",                   "SRC"           },
+    { "l-s",      C::SymbolsAndSource,   "l-s",               "Show or hide source lines",                   "SRC"           },
     { "lsa",      C::SymbolsAndSource,   "lsa",               "Show the source line at the PC",              "SRC"           },
     { ".help",    C::SessionAndSettings, ".help [word]",      "This list, or one command",                   "HELP ?"        },
 };

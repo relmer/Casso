@@ -113,6 +113,16 @@ namespace DebuggerTests
         }
 
 
+        //  Every WinDbg-mode command has its own help entry, found by its name.
+        TEST_METHOD (EveryWinDbgCommand_HasItsOwnHelpEntry)
+        {
+            for (const WinDbgCommand & command : WinDbgParser::GetCommands())
+            {
+                Assert::IsNotNull (CommandModeHelp::Find (CommandMode::WinDbg, command.name), Widen (command.name).c_str());
+            }
+        }
+
+
         //  SC-031: every Casso command a mode's help lists runs as listed.
         TEST_METHOD (EveryListedCassoCommand_RunsThroughTheModesParser)
         {

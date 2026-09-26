@@ -90,6 +90,7 @@ private:
     static Tokens       Split             (const std::string & text);
     static std::string  ToLower           (const std::string & text);
     static std::string  Join              (const Tokens & tokens, size_t first);
+    static std::string  GetTail           (const std::string & text, size_t first);
     static std::string  NormalizeNumbers  (const std::string & text);
     static std::string  StripBackquotes   (const std::string & text);
 
@@ -101,7 +102,7 @@ private:
     static bool  TryRewriteBreakpoint  (const Tokens & args, const std::string & rest, Rewrite & rewrite);
     static bool  TryRewriteRegister    (const std::string & rest, Rewrite & rewrite);
     static bool  TryRewriteText        (const Tokens & args, const std::string & rest, Rewrite & rewrite);
-    static bool  TryRewriteRange       (const std::string & name, const Tokens & args, Rewrite & rewrite);
+    static bool  TryRewriteRange       (const std::string & name, const Tokens & args, const std::string & rest, Rewrite & rewrite);
     static bool  TrySplitLength        (const Tokens & args, size_t first, std::string & length, size_t & next);
     static bool  TryEvaluate           (const std::string & text, const IDebugExpressionContext & context, uint32_t & value, std::string & error);
 };
