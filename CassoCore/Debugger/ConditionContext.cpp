@@ -72,6 +72,11 @@ bool ConditionContext::IsMet (
 //
 //  ConditionContext::Validate
 //
+//  Evaluated against the machine as it is now, with ACCESS and VALUE 0, to
+//  find an unknown name or an I/O read. A division by zero is not an error
+//  here: the divisor is whatever the machine holds when the condition is
+//  tested.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ConditionContext::Validate (
@@ -90,7 +95,7 @@ HRESULT ConditionContext::Validate (
 
 
 
-    hr       = DebugExpressionEvaluator::Evaluate (condition, context, result, error);
+    hr       = DebugExpressionEvaluator::Evaluate (condition, context, result, error, EvaluationMode::Check);
     isIoRead = context.m_ioRead.has_value();
 
     CBRFEx (!isIoRead, E_INVALIDARG,

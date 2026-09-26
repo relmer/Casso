@@ -334,15 +334,24 @@ std::optional<int> BreakpointHandlers::FindSourceFile (const DebugFile & file, c
 //
 //  BreakpointHandlers::SetCondition
 //
+//  BPR and BP with a leading operator: the whole condition is the
+//  expression, checked as it is set as an IF clause is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointHandlers::SetCondition (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    int         id = session.GetBreakpoints().AddCondition (command.expression);
+    int         id = 0;
     Breakpoint  entry;
 
 
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
+    id = session.GetBreakpoints().AddCondition (command.expression);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
@@ -1055,7 +1064,7 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
 
     isValueKind = breakpoint.kind == BreakpointKind::MemoryValue;
     isValid     = isWatchpoint ? TryValidateCondition (session, watchpoint.condition, true, watchpoint.mode == WatchMode::After, reply)
-                               : breakpoint.kind == BreakpointKind::Register || TryValidateCondition (session, breakpoint.condition, isValueKind, isValueKind, reply);
+                               : TryValidateCondition (session, breakpoint.condition, isValueKind, isValueKind, reply);
 
     if (!isValid)
     {

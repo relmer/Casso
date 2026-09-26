@@ -28,9 +28,12 @@ enum class ExpressionOperator
     GreaterOrEqual,
     Equal,
     NotEqual,
+    LogicalAnd,
+    LogicalOr,
     Negate,
     Identity,
-    Not,
+    LogicalNot,
+    Complement,
     LowByte,
     HighByte,
     Dereference,
@@ -89,6 +92,26 @@ struct Expression
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EvaluationMode
+//
+//  Check evaluates an expression to find what it reads, not for its value: a
+//  division by zero gives 0 there, since the divisor comes from a machine that
+//  will have changed by the time the expression is used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class EvaluationMode
+{
+    Evaluate,
+    Check,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugExpressionEvaluator
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +123,8 @@ public:
     static HRESULT  Evaluate         (const Expression              & expression,
                                       const IDebugExpressionContext & context,
                                       int32_t                       & value,
-                                      std::string                   & error);
+                                      std::string                   & error,
+                                      EvaluationMode                  mode = EvaluationMode::Evaluate);
     static HRESULT  ParseAndEvaluate (const std::string             & text,
                                       const IDebugExpressionContext & context,
                                       int32_t                       & value,
@@ -116,8 +140,8 @@ private:
 
     using OperatorStack = std::vector<ExpressionOperator>;
 
-    static const OperatorSpelling  s_kBinaryOperators[16];
-    static const OperatorSpelling  s_kUnaryOperators[6];
+    static const OperatorSpelling  s_kBinaryOperators[18];
+    static const OperatorSpelling  s_kUnaryOperators[7];
 
     static bool  TryParseOperandPosition  (const std::string & text, size_t & pos, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
     static bool  TryParseOperatorPosition (const std::string & text, size_t & pos, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
@@ -128,8 +152,8 @@ private:
     static bool  IsUnary                  (ExpressionOperator op);
     static int   GetPrecedence            (ExpressionOperator op);
     static void  EmitOperator             (ExpressionOperator op, Expression & expression);
-    static bool  TryApplyToken            (const ExpressionToken & token, const IDebugExpressionContext & context, std::vector<int32_t> & values, std::string & error);
+    static bool  TryApplyToken            (const ExpressionToken & token, const IDebugExpressionContext & context, EvaluationMode mode, std::vector<int32_t> & values, std::string & error);
     static bool  TryResolveOperand        (const ExpressionToken & token, const IDebugExpressionContext & context, int32_t & value, std::string & error);
     static bool  TryApplyUnary            (ExpressionOperator op, int32_t operand, const IDebugExpressionContext & context, int32_t & result, std::string & error);
-    static bool  TryApplyBinary           (ExpressionOperator op, int32_t lhs, int32_t rhs, int32_t & result, std::string & error);
+    static bool  TryApplyBinary           (ExpressionOperator op, int32_t lhs, int32_t rhs, EvaluationMode mode, int32_t & result, std::string & error);
 };

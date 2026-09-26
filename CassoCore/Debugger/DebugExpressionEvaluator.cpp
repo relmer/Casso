@@ -18,34 +18,37 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kBinaryOperators[16] =
+const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kBinaryOperators[18] =
 {
-    { "//", ExpressionOperator::Divide,         7 },
-    { "<=", ExpressionOperator::LessOrEqual,    5 },
-    { ">=", ExpressionOperator::GreaterOrEqual, 5 },
-    { "==", ExpressionOperator::Equal,          4 },
-    { "!=", ExpressionOperator::NotEqual,       4 },
-    { "*",  ExpressionOperator::Multiply,       7 },
-    { "/",  ExpressionOperator::Divide,         7 },
-    { "%",  ExpressionOperator::Modulo,         7 },
-    { "+",  ExpressionOperator::Add,            6 },
-    { "-",  ExpressionOperator::Subtract,       6 },
-    { "<",  ExpressionOperator::Less,           5 },
-    { ">",  ExpressionOperator::Greater,        5 },
-    { "=",  ExpressionOperator::Equal,          4 },
-    { "&",  ExpressionOperator::And,            3 },
-    { "^",  ExpressionOperator::Xor,            2 },
-    { "|",  ExpressionOperator::Or,             1 },
+    { "//", ExpressionOperator::Divide,         9 },
+    { "<=", ExpressionOperator::LessOrEqual,    7 },
+    { ">=", ExpressionOperator::GreaterOrEqual, 7 },
+    { "==", ExpressionOperator::Equal,          6 },
+    { "!=", ExpressionOperator::NotEqual,       6 },
+    { "&&", ExpressionOperator::LogicalAnd,     2 },
+    { "||", ExpressionOperator::LogicalOr,      1 },
+    { "*",  ExpressionOperator::Multiply,       9 },
+    { "/",  ExpressionOperator::Divide,         9 },
+    { "%",  ExpressionOperator::Modulo,         9 },
+    { "+",  ExpressionOperator::Add,            8 },
+    { "-",  ExpressionOperator::Subtract,       8 },
+    { "<",  ExpressionOperator::Less,           7 },
+    { ">",  ExpressionOperator::Greater,        7 },
+    { "=",  ExpressionOperator::Equal,          6 },
+    { "&",  ExpressionOperator::And,            5 },
+    { "^",  ExpressionOperator::Xor,            4 },
+    { "|",  ExpressionOperator::Or,             3 },
 };
 
-const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUnaryOperators[6] =
+const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUnaryOperators[7] =
 {
-    { "-",  ExpressionOperator::Negate,         8 },
-    { "+",  ExpressionOperator::Identity,       8 },
-    { "!",  ExpressionOperator::Not,            8 },
-    { "<",  ExpressionOperator::LowByte,        8 },
-    { ">",  ExpressionOperator::HighByte,       8 },
-    { "*",  ExpressionOperator::Dereference,    8 },
+    { "-",  ExpressionOperator::Negate,         10 },
+    { "+",  ExpressionOperator::Identity,       10 },
+    { "!",  ExpressionOperator::LogicalNot,     10 },
+    { "~",  ExpressionOperator::Complement,     10 },
+    { "<",  ExpressionOperator::LowByte,        10 },
+    { ">",  ExpressionOperator::HighByte,       10 },
+    { "*",  ExpressionOperator::Dereference,    10 },
 };
 
 
@@ -128,7 +131,8 @@ HRESULT DebugExpressionEvaluator::Evaluate (
     const Expression               & expression,
     const IDebugExpressionContext  & context,
     int32_t                        & value,
-    std::string                    & error)
+    std::string                    & error,
+    EvaluationMode                   mode)
 {
     HRESULT               hr        = S_OK;
     std::vector<int32_t>  values;
@@ -142,7 +146,7 @@ HRESULT DebugExpressionEvaluator::Evaluate (
 
     for (const ExpressionToken & token : expression.postfix)
     {
-        isApplied = TryApplyToken (token, context, values, error);
+        isApplied = TryApplyToken (token, context, mode, values, error);
         CBR (isApplied);
     }
 
@@ -595,6 +599,7 @@ void DebugExpressionEvaluator::EmitOperator (ExpressionOperator op, Expression &
 bool DebugExpressionEvaluator::TryApplyToken (
     const ExpressionToken          & token,
     const IDebugExpressionContext  & context,
+    EvaluationMode                   mode,
     std::vector<int32_t>           & values,
     std::string                    & error)
 {
@@ -631,7 +636,7 @@ bool DebugExpressionEvaluator::TryApplyToken (
         {
             lhs = values.back();
             values.pop_back();
-            isDone = TryApplyBinary (token.op, lhs, rhs, result, error);
+            isDone = TryApplyBinary (token.op, lhs, rhs, mode, result, error);
         }
     }
 
@@ -697,7 +702,8 @@ bool DebugExpressionEvaluator::TryResolveOperand (
 //
 //  DebugExpressionEvaluator::TryApplyUnary
 //
-//  ! complements within 16 bits, since values are addresses and bytes.
+//  ~ complements within 16 bits, since values are addresses and bytes, and
+//  ! is logical: 1 for zero, 0 for anything else.
 //  < and > take the low and high byte. * reads one byte through the context.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -719,10 +725,11 @@ bool DebugExpressionEvaluator::TryApplyUnary (
 
     switch (op)
     {
-    case ExpressionOperator::Negate:   result = -operand;                            break;
-    case ExpressionOperator::Not:      result = ~operand & kWordMask;                break;
-    case ExpressionOperator::LowByte:  result = operand & kByteMask;                 break;
-    case ExpressionOperator::HighByte: result = (operand >> kByteBits) & kByteMask;  break;
+    case ExpressionOperator::Negate:     result = -operand;                            break;
+    case ExpressionOperator::Complement: result = ~operand & kWordMask;                break;
+    case ExpressionOperator::LogicalNot: result = operand == 0;                        break;
+    case ExpressionOperator::LowByte:    result = operand & kByteMask;                 break;
+    case ExpressionOperator::HighByte:   result = (operand >> kByteBits) & kByteMask;  break;
 
     case ExpressionOperator::Dereference:
         isRead = context.TryPeek ((Word) operand, byte);
@@ -750,7 +757,8 @@ bool DebugExpressionEvaluator::TryApplyUnary (
 //
 //  DebugExpressionEvaluator::TryApplyBinary
 //
-//  Comparisons produce 1 or 0.
+//  Comparisons and the logical operators produce 1 or 0. Both sides of && and
+//  || are always evaluated.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -758,12 +766,19 @@ bool DebugExpressionEvaluator::TryApplyBinary (
     ExpressionOperator   op,
     int32_t              lhs,
     int32_t              rhs,
+    EvaluationMode       mode,
     int32_t            & result,
     std::string        & error)
 {
     bool  isDivision = op == ExpressionOperator::Divide || op == ExpressionOperator::Modulo;
 
 
+
+    if (isDivision && rhs == 0 && mode == EvaluationMode::Check)
+    {
+        result = 0;
+        return true;
+    }
 
     if (isDivision && rhs == 0)
     {
@@ -787,6 +802,8 @@ bool DebugExpressionEvaluator::TryApplyBinary (
     case ExpressionOperator::GreaterOrEqual: result = lhs >= rhs;  break;
     case ExpressionOperator::Equal:          result = lhs == rhs;  break;
     case ExpressionOperator::NotEqual:       result = lhs != rhs;  break;
+    case ExpressionOperator::LogicalAnd:     result = lhs && rhs;  break;
+    case ExpressionOperator::LogicalOr:      result = lhs || rhs;  break;
     default:                                 result = 0;           break;
     }
 

@@ -536,7 +536,7 @@ AppleWin's code.
 decimal, `+ - * % // & | ^`, unary `!`, register names and bare symbol names,
 but not precedence or dereference. Casso fills the gaps as follows:
 
-- Conventional precedence, loosest first: `|`, `^`, `&`, `= == !=`,
+- Conventional precedence, loosest first: `||`, `&&`, `|`, `^`, `&`, `= == !=`,
   `< > <= >=`, `+ -`, `* / // %`, then all unary operators. Parentheses group.
 - `/` is accepted as a synonym for `//`.
 - Unary `<` and `>` take the low and high byte, and unary `*` reads one byte
@@ -544,7 +544,10 @@ but not precedence or dereference. Casso fills the gaps as follows:
 - A bare `A`, `X`, `Y`, `P`, `S` or `PC` is the register, so hex `A` is
   written `$A` or `0A`. A name made only of hex digits is a number, and any
   other name is a symbol. `$` forces hex.
-- `!` complements within 16 bits; comparisons produce 1 or 0.
+- `~` complements within 16 bits. `!`, `&&` and `||` are logical, so a
+  breakpoint condition can negate and combine comparisons; they and the
+  comparisons produce 1 or 0. AppleWin's `!` is a bitwise complement; Casso
+  gives that to `~`.
 
 **Argument forms the help pages do not document** were read from AppleWin's
 source (the owner authorized reading it for behavior; no code was copied), and
