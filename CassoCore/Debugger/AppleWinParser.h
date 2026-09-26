@@ -95,6 +95,7 @@ private:
     static bool    TryParseCallsArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseHistoryArguments  (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseDecimal           (const std::string & text, uint64_t & value);
+    static bool    TryParseCount             (const std::string & text, uint32_t & value);
     static bool    TryParsePanelArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseSkipRange  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryEvaluate        (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);

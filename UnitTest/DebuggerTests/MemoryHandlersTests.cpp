@@ -186,6 +186,12 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Not found."),     rig.RunOk ("S 300:3FF 'AB'").text.at (0), L"quoted with the high bit set");
             Assert::AreEqual (std::string ("Not found."),     rig.RunOk ("@").text.at (0), L"the results are the last search's");
             rig.RunFails ("S 300:3FF", "invalid arguments");
+
+            //  @n reaches a result by its number; one past 32 bits is an error
+            //  reply, never an exception.
+            (void) rig.RunOk ("S 300:3FF AD ? C0");
+            Assert::IsTrue (rig.RunOk ("D @2").text.at (0).starts_with ("0310"), L"@2 is the second result");
+            Assert::AreNotEqual ((int) CommandStatus::Ok, (int) rig.Run ("D @99999999999999999999").status);
         }
 
 

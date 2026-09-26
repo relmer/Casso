@@ -8,6 +8,7 @@
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/ExecutionHandlers.h"
 #include "HandlerTestRig.h"
 
 
@@ -574,6 +575,7 @@ namespace EmulatorDebugWiringTests
             RecordingNotificationSink  sink;
             DebugSession               session;
             BreakpointHandlers         breakpoints;
+            ExecutionHandlers          execution;
 
 
 
@@ -590,6 +592,7 @@ namespace EmulatorDebugWiringTests
 
                 target.SetRunDriver (&driver);
                 session.AddHandler  (&breakpoints);
+                session.AddHandler  (&execution);
 
                 (void) target.TryPoke (0x0300, 0xE8);
                 (void) target.TryPoke (0x0301, 0x4C);
@@ -666,6 +669,28 @@ namespace EmulatorDebugWiringTests
             Assert::AreEqual ((Word) 0x0301,   rig.target.GetRegisters().pc);
             Assert::AreEqual ((Byte) (x + 1),  rig.target.GetRegisters().x, L"the loop ran once more");
             Assert::AreEqual ((size_t) 2,      rig.sink.stops.size());
+        }
+
+
+
+        //  PAUSE typed while the machine runs freely stops the machine and the
+        //  session both, so commands that need a stopped machine then work.
+        TEST_METHOD (PauseTypedWhileFreeRunningPausesTheSession)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFrames (5);
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+            Assert::IsTrue   (rig.cpuManager.IsPaused(),                      L"the machine stops");
+            Assert::IsTrue   (rig.session.GetRunState() == RunState::Paused, L"the session knows");
+            Assert::AreEqual ((size_t) 1, rig.sink.stops.size(),              L"clients hear one stop");
+            Assert::IsTrue   (rig.sink.stops[0].reason == StopReason::Pause);
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("= 300").status, L"setting the PC is not refused as running");
+            Assert::AreEqual ((Word) 0x0300, rig.target.GetRegisters().pc);
         }
     };
 }

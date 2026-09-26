@@ -1081,13 +1081,11 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
 
     if (command.verb == DebugVerb::SetBudget)
     {
-        if (args.tokens.empty() || args.tokens[0].find_first_not_of ("0123456789") != std::string::npos)
+        if (args.tokens.empty() || !TryParseCount (args.tokens[0], command.count))
         {
-            error = "BUDGET takes a number of cycles in decimal. Use BUDGET 0 to remove the budget.";
+            error = "BUDGET takes a number of cycles in decimal, up to 4294967295. Use BUDGET 0 to remove the budget.";
             return false;
         }
-
-        command.count = (uint32_t) std::stoul (args.tokens[0]);
     }
 
     return true;
@@ -1213,6 +1211,34 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
         command.count = (uint32_t) value;
     }
 
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseCount
+//
+//  A decimal count or id that fits the command's 32-bit field. A larger
+//  number is a parse error, not an exception out of the parser.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value)
+{
+    uint64_t  wide = 0;
+
+
+
+    if (!TryParseDecimal (text, wide) || wide > UINT32_MAX)
+    {
+        return false;
+    }
+
+    value = (uint32_t) wide;
     return true;
 }
 
@@ -1471,14 +1497,13 @@ bool AppleWinParser::TryParseSourceLine (const std::string & text, const IDebugE
     file = text.substr (0, colon);
     line = text.substr (colon + 1);
 
-    if (line.find_first_not_of ("0123456789") != std::string::npos || TryEvaluate (file, context, unused, error))
+    if (!TryParseCount (line, command.count) || TryEvaluate (file, context, unused, error))
     {
         return false;
     }
 
     command.verb  = DebugVerb::SetSourceBreakpoint;
     command.text  = file;
-    command.count = (uint32_t) std::stoul (line);
     return true;
 }
 
@@ -1763,13 +1788,12 @@ bool AppleWinParser::TryParseIdOrAll (const Tokens & tokens, DebugCommand & comm
         return true;
     }
 
-    if (tokens[0].find_first_not_of ("0123456789") != std::string::npos)
+    if (!TryParseCount (tokens[0], command.count))
     {
         error = std::format ("{} is not an id.", tokens[0]);
         return false;
     }
 
-    command.count = (uint32_t) std::stoul (tokens[0]);
     return true;
 }
 

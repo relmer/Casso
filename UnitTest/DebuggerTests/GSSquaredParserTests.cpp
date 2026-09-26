@@ -85,6 +85,15 @@ namespace DebuggerTests
 
 
 
+        //  An id is at most four decimal digits, as an address is at most four
+        //  hex ones; a longer number is an error reply, never an exception.
+        TEST_METHOD (Nobp_AnIdTooLongIsAnError)
+        {
+            Assert::AreEqual ((uint32_t) 9999, One ("nobp 9999").count);
+            Refused ("nobp 99999",                ParseStatus::Invalid);
+            Refused ("nobp 99999999999999999999", ParseStatus::Invalid);
+        }
+
         TEST_METHOD (Address_ExaminesOneByte)
         {
             DebugCommand  command = One ("300");

@@ -1376,9 +1376,9 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
         return m_symbols.TryResolve (name, address, table);
     }
 
-    index = (size_t) std::stoul (name.substr (1));
+    auto [end, error] = std::from_chars (name.data() + 1, name.data() + name.size(), index);
 
-    if (index == 0 || index > m_searchResults.size())
+    if (error != std::errc() || index == 0 || index > m_searchResults.size())
     {
         return false;
     }
@@ -1425,6 +1425,15 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
 
     case DebugVerb::Pause:
         m_target.RequestPause();
+
+        //  A run ends through its driver, which reports the stop. A machine
+        //  running freely has no run to end: it is stopped where it is, and
+        //  that is announced here, as a pause from the main window is.
+        if (m_state == RunState::FreeRunning)
+        {
+            OnUserPaused();
+        }
+
         return true;
 
     case DebugVerb::ShowSource:

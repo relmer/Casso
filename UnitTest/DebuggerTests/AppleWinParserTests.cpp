@@ -458,6 +458,24 @@ namespace DebuggerTests
 
 
 
+        //  A number too large for its field is an error reply, never an
+        //  exception out of the parser: nothing above it would catch one.
+        TEST_METHOD (NumbersTooLargeForTheirField_AreErrors)
+        {
+            MockExpressionContext  context;
+
+
+
+            Assert::AreEqual ((uint32_t) 4294967295, ParseOk ("BUDGET 4294967295").command.count, L"the largest budget");
+            ParseFails ("BUDGET 4294967296",         ParseStatus::Invalid);
+            ParseFails ("BUDGET 99999999999999999999", ParseStatus::Invalid);
+            Assert::AreEqual ((uint32_t) 4294967295, ParseOk ("BPC 4294967295").command.count, L"the largest id");
+            ParseFails ("BPC 4294967296",             ParseStatus::Invalid);
+            ParseFails ("BPD 99999999999999999999",   ParseStatus::Invalid);
+            Assert::AreEqual ((uint32_t) 12, ParseOk ("BP main.s:12").command.count);
+            Assert::AreNotEqual ((int) ParseStatus::Ok, (int) AppleWinParser::Parse ("BP main.s:99999999999", context).status, L"a source line past 32 bits");
+        }
+
         TEST_METHOD (UnknownWindowOnlyAndNotAvailable)
         {
             MockExpressionContext  context;
