@@ -593,7 +593,6 @@ void EmulatorShell::OpenDebugChannel()
 
     SetDebugCommandHandler ([this] (uint32_t clientId, const std::string & line)
     {
-        Reply                     reply;
         std::vector<std::string>  lines;
 
 
@@ -603,11 +602,7 @@ void EmulatorShell::OpenDebugChannel()
             return;
         }
 
-        reply = m_debugViewState.ExecuteWindowLine (m_debugger->GetSession(), line,
-                                                    m_debugger->GetSession().GetMode());
-
-        lines.push_back (DebugSession::GetPrompt (m_debugger->GetSession().GetMode()) + line);
-        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        lines = m_debugViewState.ExecuteConsoleLine (m_debugger->GetSession(), line);
 
         {
             std::lock_guard<std::mutex>  held (m_debugViewMutex);

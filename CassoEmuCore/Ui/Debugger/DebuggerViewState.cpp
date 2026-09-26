@@ -1189,6 +1189,35 @@ Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::ExecuteConsoleLine
+//
+//  The echo takes the prompt of the mode the line was typed in, as batch
+//  writes it, not the mode a MODE line leaves in force.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (DebugSession & session, const std::string & line)
+{
+    CommandMode               mode  = session.GetMode();
+    std::vector<std::string>  lines;
+    Reply                     reply;
+
+
+
+    reply = ExecuteWindowLine (session, line, mode);
+
+    lines.push_back (DebugSession::GetPrompt (mode) + line);
+    lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::ExecuteWindowLine
 //
 //  THIS WINDOW SHOWS EVERY PANE AT ONCE, so AppleWin's commands that pick a

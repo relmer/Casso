@@ -1652,6 +1652,25 @@ namespace DebuggerViewStateTests
 
 
 
+        TEST_METHOD (ConsoleEchoTakesThePromptOfTheModeTheLineWasTypedIn)
+        {
+            MachineRig                rig;
+            std::vector<std::string>  lines;
+
+
+
+            lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(), "MODE MONITOR");
+
+            Assert::IsFalse  (lines.empty());
+            Assert::AreEqual (std::string (">MODE MONITOR"), lines[0], L"typed in AppleWin mode");
+
+            lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(), "/MODE APPLEWIN");
+
+            Assert::IsFalse  (lines.empty());
+            Assert::AreEqual (std::string ("*/MODE APPLEWIN"), lines[0], L"typed in Monitor mode");
+        }
+
+
         TEST_METHOD (CursorCommandsMoveTheCodePane)
         {
             MachineRig  rig;

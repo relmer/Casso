@@ -425,6 +425,10 @@ public:
     //  needing the window are carried out on the panes here. CPU thread only.
     Reply  ExecuteWindowLine (DebugSession & session, const std::string & line, CommandMode mode);
 
+    //  The lines the window's console shows for a line: the line behind the
+    //  prompt of the mode it was typed in, then the reply. CPU thread only.
+    std::vector<std::string>  ExecuteConsoleLine (DebugSession & session, const std::string & line);
+
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.
     static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode);
