@@ -11,6 +11,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/Handlers/MemoryHandlers.h"
 #include "ControllerRig.h"
 #include "HandlerTestRig.h"
 
@@ -599,6 +600,7 @@ namespace EmulatorDebugWiringTests
             DebugSession               session;
             BreakpointHandlers         breakpoints;
             ExecutionHandlers          execution;
+            MemoryHandlers             memory;
 
 
 
@@ -616,6 +618,7 @@ namespace EmulatorDebugWiringTests
                 target.SetRunDriver (&driver);
                 session.AddHandler  (&breakpoints);
                 session.AddHandler  (&execution);
+                session.AddHandler  (&memory);
 
                 (void) target.TryPoke (0x0300, 0xE8);
                 (void) target.TryPoke (0x0301, 0x4C);
@@ -904,6 +907,46 @@ namespace EmulatorDebugWiringTests
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("= 300").status);
         }
 
+
+
+        //  IN is a bus read with side effects, so it waits for the machine to
+        //  stop, as OUT does.
+        TEST_METHOD (InWaitsForTheMachineToStop)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("machine running"), rig.session.ExecuteLine ("IN C030").error.label);
+
+            (void) rig.session.ExecuteLine ("PAUSE");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("IN C030").status);
+        }
+
+
+
+        //  IN's read is the debugger's, not the program's, so a watchpoint on
+        //  its address does not stop the next step.
+        TEST_METHOD (InDoesNotHitAWatchpoint)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFrames (5);
+            (void) rig.session.ExecuteLine ("PAUSE");
+            rig.target.SetRegisters ([&] { Cpu6502Registers r = rig.target.GetRegisters(); r.pc = 0x0300; return r; } ());
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPMR C030").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("IN C030").status);
+            Assert::IsFalse  (rig.session.HasPendingStop(), L"nothing pending from IN");
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("T").status);
+            rig.RunFrames (50);
+
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"the INX ran");
+            Assert::IsTrue   (rig.sink.stops.back().reason == StopReason::Step);
+        }
 
 
         //  An after-mode watchpoint hit while running freely is delivered and

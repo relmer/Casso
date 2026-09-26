@@ -270,6 +270,7 @@ bool DebugSession::IsMachineWrite (DebugVerb verb)
     case DebugVerb::MoveMemory:
     case DebugVerb::FillMemory:
     case DebugVerb::LoadBinary:
+    case DebugVerb::ReadIo:
     case DebugVerb::WriteIo:
     case DebugVerb::Deposit:
     case DebugVerb::EditRegisters:
