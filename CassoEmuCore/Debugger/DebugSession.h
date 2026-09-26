@@ -119,6 +119,7 @@ public:
 
     RunState                GetRunState    () const { return m_state; }
     CommandMode             GetMode        () const { return m_mode; }
+    CommandMode             GetLineMode    () const { return m_lineMode; }
     OutputFormat            GetOutputFormat () const { return m_outputFormat; }
     void                    SetOutputFormat (OutputFormat format) { m_outputFormat = format; }
     std::optional<uint64_t> GetBudget      () const { return m_budget; }
@@ -286,6 +287,7 @@ private:
 
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;
+    CommandMode                           m_lineMode      = CommandMode::AppleWin;
     OutputFormat                          m_outputFormat  = OutputFormat::AppleWin;
     LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;

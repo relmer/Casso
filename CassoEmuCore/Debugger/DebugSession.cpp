@@ -341,7 +341,8 @@ Reply DebugSession::ExecuteLine (const std::string & line)
 Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 {
     Reply        reply;
-    std::string  text = Trim (line);
+    std::string  text          = Trim (line);
+    CommandMode  outerLineMode = m_lineMode;
 
 
 
@@ -352,6 +353,9 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
         return reply;
     }
 
+    //  A handler that answers in the line's dialect, as HELP does, reads it
+    //  here; a script line run from inside this one sets its own.
+    m_lineMode = mode;
 
     switch (mode)
     {
@@ -361,6 +365,7 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
     default:                      reply = ExecuteAppleWinLine  (text); break;
     }
 
+    m_lineMode    = outerLineMode;
     reply.command = line;
     return reply;
 }

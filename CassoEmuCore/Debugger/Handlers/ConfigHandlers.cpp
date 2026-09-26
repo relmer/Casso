@@ -29,9 +29,9 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     {
     case DebugVerb::PrintDirectory:       PrintDirectory  (session, reply);          return true;
     case DebugVerb::ChangeDirectory:      ChangeDirectory (session, command, reply); return true;
-    case DebugVerb::RunScript:
-    case DebugVerb::LoadConfig:           RunFile         (session, command.text, reply);  return true;
-    case DebugVerb::RunStartup:           RunFile         (session, kStartupScript, reply); return true;
+    case DebugVerb::RunScript:            RunFile         (session, command.text, std::nullopt, reply);        return true;
+    case DebugVerb::LoadConfig:           RunFile         (session, command.text, CommandMode::AppleWin, reply); return true;
+    case DebugVerb::RunStartup:           RunFile         (session, kStartupScript, std::nullopt, reply);      return true;
     case DebugVerb::SaveConfig:           SaveAll         (session, command, reply); return true;
     case DebugVerb::ConfigureDisassembly: Disassembly     (command, reply);          return true;
     case DebugVerb::DiskCommand:          Disk            (session, command, reply); return true;
@@ -72,17 +72,20 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, MessageData & output)
+void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, std::optional<CommandMode> mode, Reply & result)
 {
     size_t  start = 0;
 
 
+
+    result.isFormatted = true;
 
     while (start <= content.size())
     {
         size_t       end  = content.find ('\n', start);
         std::string  line = content.substr (start, end == std::string::npos ? std::string::npos : end - start);
         size_t       firstNonBlank = line.find_first_not_of (" \t\r");
+        bool         isBlank       = firstNonBlank == std::string::npos;
         Reply        reply;
 
 
@@ -97,11 +100,18 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
             break;
         }
 
-        if (firstNonBlank == std::string::npos || line[firstNonBlank] != ';')
+        //  A blank line only ends the line assembler, as in batch.
+        if ((!isBlank || session.IsAssembling()) && (isBlank || line[firstNonBlank] != ';'))
         {
-            reply = session.ExecuteLine (line);
+            reply = mode.has_value() ? session.ExecuteLine (line, *mode) : session.ExecuteLine (line);
             session.FormatReply (reply);
-            output.lines.insert (output.lines.end(), reply.text.begin(), reply.text.end());
+            result.text.insert (result.text.end(), reply.text.begin(), reply.text.end());
+
+            if (result.status == CommandStatus::Ok)
+            {
+                result.status = reply.status;
+                result.error  = reply.error;
+            }
         }
 
         if (end == std::string::npos)
@@ -111,6 +121,8 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
 
         start = end + 1;
     }
+
+    result.data = MessageData { result.text };
 }
 
 
@@ -164,13 +176,16 @@ void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand
 //
 //  ConfigHandlers::RunFile
 //
+//  LOAD runs its lines as AppleWin lines, which is what SAVE writes; RUN
+//  and STARTUP run theirs in the session's mode. The reply carries the
+//  first failing line's status.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, Reply & reply)
+void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, std::optional<CommandMode> mode, Reply & reply)
 {
     IFileSystem  * files = session.GetFileSystem();
     std::string    content;
-    MessageData    output;
     HRESULT        hr    = S_OK;
 
 
@@ -207,9 +222,8 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
     }
 
     s_scriptDepth++;
-    RunScript (session, content, output);
+    RunScript (session, content, mode, reply);
     s_scriptDepth--;
-    reply.data = output;
 }
 
 
@@ -568,7 +582,7 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    CommandMode  mode = session.GetMode();
+    CommandMode  mode = session.GetLineMode();
     std::string  text;
 
 

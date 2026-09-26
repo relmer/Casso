@@ -103,13 +103,13 @@ namespace DebuggerTests
 
             rig.files.WriteAllText (L"C:\\Work\\script.txt", "ECHO one\r\n; a comment\nCALC 2\nFROB\n");
 
-            lines = rig.RunOk ("RUN script.txt").text;
+            lines = rig.Run ("RUN script.txt").text;
             Assert::AreEqual ((size_t) 4, lines.size(), L"a comment prints nothing; an unknown command prints its error");
             Assert::AreEqual (std::string ("one"),                          lines[0]);
             Assert::AreEqual (std::string ("$0002  0z00000010      2  ' ' (Ctrl)"), lines[1]);
             Assert::AreEqual (std::string ("Error: unknown command"),       lines[2]);
 
-            Assert::AreEqual ((size_t) 4, rig.RunOk ("LOAD \"script.txt\"").text.size());
+            Assert::AreEqual ((size_t) 4, rig.Run ("LOAD \"script.txt\"").text.size());
             rig.RunFails ("RUN missing.txt", "file not found");
             rig.RunFails ("RUN",             "invalid arguments");
             rig.RunFails ("STARTUP",         "file not found");
@@ -129,9 +129,101 @@ namespace DebuggerTests
 
             rig.files.WriteAllText (L"C:\\Work\\self.txt", "RUN self.txt\n");
 
-            lines = rig.RunOk ("RUN self.txt").text;
+            lines = rig.RunFails ("RUN self.txt", "scripts nested too deeply").text;
             Assert::IsFalse (lines.empty());
             Assert::IsTrue  (lines.back().find ("nested") != std::string::npos);
+        }
+
+
+
+        //  A script whose lines fail fails, so a batch run of it exits
+        //  nonzero; the first failure is the one reported.
+        TEST_METHOD (RUN_ScriptWithAFailingLine_Fails)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\bad.txt", "ECHO one\nFROB\nCD\n");
+            reply = rig.Run ("RUN bad.txt");
+
+            Assert::AreEqual ((int) CommandStatus::Unknown, (int) reply.status);
+            Assert::AreEqual (std::string ("unknown command"), reply.error.label);
+            Assert::AreEqual (std::string ("one"),             reply.text.at (0), L"the lines before it still ran");
+
+            rig.files.WriteAllText (L"C:\\Work\\good.txt", "ECHO one\n");
+            rig.RunOk ("RUN good.txt");
+        }
+
+
+
+        //  Batch skips blank lines; a script does too, so the Monitor's Return
+        //  does not print a row for each.
+        TEST_METHOD (RUN_BlankLines_AreSkipped)
+        {
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\blank.txt", "/ECHO one\n\n   \r\n\t\n/ECHO two\n");
+            (void) rig.session.ExecuteLine ("MODE MONITOR", CommandMode::AppleWin);
+            lines = rig.RunOk ("/RUN blank.txt").text;
+
+            Assert::AreEqual ((size_t) 2, lines.size());
+            Assert::AreEqual (std::string ("two"), lines[1]);
+        }
+
+
+
+        //  SAVE writes AppleWin lines, so LOAD replays them as AppleWin lines
+        //  whatever the session's mode.
+        TEST_METHOD (LOAD_InAnotherMode_ReplaysAppleWinLines)
+        {
+            for (const char * mode : { "MONITOR", "WINDBG", "GSSQUARED" })
+            {
+                Rig                 rig;
+                BreakpointHandlers  breakpoints;
+                WatchHandlers       watches;
+                std::wstring        where (mode, mode + strlen (mode));
+                Reply               reply;
+
+
+
+                rig.session.AddHandler (&breakpoints);
+                rig.session.AddHandler (&watches);
+                rig.RunOk ("BP 300");
+                rig.RunOk ("BP 302");
+                rig.RunOk ("BPD 1");
+                rig.RunOk ("SAVE all.txt");
+                rig.RunOk ("BPC *");
+
+                (void) rig.session.ExecuteLine (std::string ("MODE ") + mode, CommandMode::AppleWin);
+                reply = rig.session.ExecuteLine ("LOAD all.txt", CommandMode::AppleWin);
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                (void) rig.session.ExecuteLine ("MODE APPLEWIN", CommandMode::AppleWin);
+
+                Assert::AreEqual (std::string ("#0 enabled  at $0300, hits 0"), rig.RunOk ("BPL").text.at (0), where.c_str());
+                Assert::IsTrue   (rig.RunOk ("BPL").text.at (1).find ("disabled") != std::string::npos, where.c_str());
+            }
+        }
+
+
+
+        //  HELP answers in the dialect the line ran in, which a channel
+        //  request chooses for one line.
+        TEST_METHOD (HELP_InALineMode_ListsThatModesCommands)
+        {
+            Rig    rig;
+            Reply  reply = rig.session.ExecuteLine (".help", CommandMode::WinDbg);
+
+
+
+            rig.session.FormatReply (reply, CommandMode::WinDbg);
+            Assert::AreEqual ((int) CommandMode::AppleWin, (int) rig.session.GetMode());
+            Assert::AreEqual (std::string ("WinDbg commands:"),   reply.text.at (0));
+            Assert::AreEqual (std::string ("AppleWin commands:"), rig.RunOk ("HELP").text.at (0), L"the session's own mode after");
         }
 
 
