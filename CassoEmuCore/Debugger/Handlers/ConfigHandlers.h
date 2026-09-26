@@ -27,8 +27,10 @@ class ConfigHandlers : public IDebugCommandHandler
 public:
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
-    // Each line executed in turn; a line beginning with ; is a comment.
-    static void  RunScript (DebugSession & session, const std::string & content, MessageData & output);
+    // Each line executed in turn, in the given mode or the session's; a line
+    // beginning with ; is a comment, and a blank line is skipped unless the
+    // line assembler is running.
+    static void  RunScript (DebugSession & session, const std::string & content, std::optional<CommandMode> mode, Reply & result);
 
 private:
     static constexpr const char * kStartupScript = "DebuggerAutoRun.txt";
@@ -42,7 +44,7 @@ private:
 
     static void  PrintDirectory  (DebugSession & session, Reply & reply);
     static void  ChangeDirectory (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  RunFile         (DebugSession & session, const std::string & name, Reply & reply);
+    static void  RunFile         (DebugSession & session, const std::string & name, std::optional<CommandMode> mode, Reply & reply);
     static void  SaveAll         (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         Disassembly     (const DebugCommand & command, Reply & reply);
     static void  Disk            (DebugSession & session, const DebugCommand & command, Reply & reply);
