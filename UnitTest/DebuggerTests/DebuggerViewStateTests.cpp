@@ -2414,6 +2414,33 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  The Panels menu sends PANEL through GetModeLine, so each dialect's
+        //  form of it opens and closes a panel in the window.
+        TEST_METHOD (ThePanelCommandRunsInEveryDialect)
+        {
+            PanelRig  rig;
+            Reply     reply;
+
+
+
+            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), CommandMode::GSSquared), CommandMode::GSSquared);
+            Assert::IsTrue (reply.status == CommandStatus::Ok);
+            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"GSSquared");
+
+            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), CommandMode::GSSquared), CommandMode::GSSquared);
+            Assert::IsTrue  (reply.status == CommandStatus::Ok);
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"GSSquared close");
+
+            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), CommandMode::WinDbg), CommandMode::WinDbg);
+            Assert::IsTrue (reply.status == CommandStatus::Ok);
+            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"WinDbg");
+
+            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), CommandMode::WinDbg), CommandMode::WinDbg);
+            Assert::IsTrue  (reply.status == CommandStatus::Ok);
+            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"WinDbg close");
+        }
+
+
         TEST_METHOD (APanelTheMachineLacksIsAnError)
         {
             PanelRig  rig;
