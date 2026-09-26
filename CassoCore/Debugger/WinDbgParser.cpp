@@ -194,10 +194,11 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
         return result;
     }
 
-    parsed         = AppleWinParser::Parse (rewrite.appleWinLine, context);
-    result.status  = parsed.status;
-    result.command = parsed.command;
-    result.error   = parsed.error;
+    parsed                    = AppleWinParser::Parse (rewrite.appleWinLine, context);
+    result.status             = parsed.status;
+    result.command            = parsed.command;
+    result.command.sourceName = name;
+    result.error              = parsed.error;
     return result;
 }
 
@@ -274,10 +275,11 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
         return true;
     }
 
-    parsed         = AppleWinParser::Parse (NormalizeNumbers (text), context);
-    result.status  = parsed.status;
-    result.command = parsed.command;
-    result.error   = parsed.error;
+    parsed                    = AppleWinParser::Parse (NormalizeEngineArguments (text, tokens), context);
+    result.status             = parsed.status;
+    result.command            = parsed.command;
+    result.command.sourceName = "!" + tokens[0];
+    result.error              = parsed.error;
     return true;
 }
 
@@ -699,7 +701,7 @@ bool WinDbgParser::TryRewriteRange (const std::string & name, const Tokens & arg
         return next + 1 == args.size();
     }
 
-    rewrite.appleWinLine = std::format ("{} {} {}", name == "f" ? "F" : "S", range, Join (args, next));
+    rewrite.appleWinLine = std::format ("{} {} {}", name == "f" ? "F" : "S", range, Join (name == "s" ? ShortenSearchBytes (args) : args, next));
     return true;
 }
 
@@ -796,6 +798,7 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
     char         quote    = 0;
     bool         isStart  = false;
     char         prefix   = 0;
+    size_t       end      = 0;
 
 
 
@@ -808,6 +811,15 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
         else if (text[i] == quote)
         {
             quote = 0;
+        }
+
+        if (quote == 0 && (i == 0 || isspace ((unsigned char) text[i - 1])) && IsPath (text.substr (i, text.find_first_of (" \t", i) - i)))
+        {
+            end     = text.find_first_of (" \t", i);
+            end     = (end == std::string::npos) ? text.size() : end;
+            result += text.substr (i, end - i);
+            i       = end;
+            continue;
         }
 
         isStart  = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$');
@@ -823,6 +835,145 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
 
         result += text[i];
         i++;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::IsPath
+//
+//  A token with a directory separator or a file extension is a file path,
+//  whose digits are part of the file's name rather than a number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::IsPath (const std::string & token)
+{
+    size_t  dot = token.rfind ('.');
+
+
+
+    if (token.find_first_of ("/\\") != std::string::npos)
+    {
+        return true;
+    }
+
+    return dot != std::string::npos && dot + 1 < token.size() && isalpha ((unsigned char) token[dot + 1]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryReadNumber
+//
+//  One whole token that is a prefixed number: `0x` or `$` hex, `0n` or `#`
+//  decimal, up to 32 bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryReadNumber (const std::string & token, uint64_t & value)
+{
+    static constexpr uint64_t  kLimit     = 0xFFFFFFFF;
+    static constexpr size_t    kMaxDigits = 10;
+    std::string                lower      = ToLower (token);
+    std::string                digits;
+    int                        radix      = 0;
+
+
+
+    if      (lower.starts_with ("0x")) { digits = lower.substr (2); radix = 16; }
+    else if (lower.starts_with ("0n")) { digits = lower.substr (2); radix = 10; }
+    else if (lower.starts_with ("$"))  { digits = lower.substr (1); radix = 16; }
+    else if (lower.starts_with ("#"))  { digits = lower.substr (1); radix = 10; }
+
+    if (radix == 0 || digits.empty() || digits.size() > kMaxDigits ||
+        digits.find_first_not_of (radix == 16 ? "0123456789abcdef" : "0123456789") != std::string::npos)
+    {
+        return false;
+    }
+
+    value = std::stoull (digits, nullptr, radix);
+    return value <= kLimit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::NormalizeEngineArguments
+//
+//  A `!` line for AppleWinParser. ECHO's text is printed as typed. BUDGET
+//  and HISTORY take decimal numbers, so a prefixed number becomes its
+//  decimal digits. The rest have their numbers normalized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::NormalizeEngineArguments (const std::string & text, const Tokens & tokens)
+{
+    std::string  name   = ToLower (tokens[0]);
+    std::string  result = tokens[0];
+    uint64_t     value  = 0;
+
+
+
+    if (name == "echo")
+    {
+        return text;
+    }
+
+    if (name != "budget" && name != "history")
+    {
+        return NormalizeNumbers (text);
+    }
+
+    for (size_t i = 1; i < tokens.size(); i++)
+    {
+        result += ' ';
+        result += TryReadNumber (tokens[i], value) ? std::to_string (value) : tokens[i];
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::ShortenSearchBytes
+//
+//  s searches for bytes, but AppleWin's S reads any item wider than two
+//  characters as a word. A prefixed number that fits a byte is written as
+//  its two hex digits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WinDbgParser::Tokens WinDbgParser::ShortenSearchBytes (const Tokens & args)
+{
+    static constexpr uint64_t  kMaxByte = 0xFF;
+    Tokens                     result   = args;
+    uint64_t                   value    = 0;
+
+
+
+    for (std::string & token : result)
+    {
+        if (TryReadNumber (token, value) && value <= kMaxByte)
+        {
+            token = std::format ("{:02X}", value);
+        }
     }
 
     return result;

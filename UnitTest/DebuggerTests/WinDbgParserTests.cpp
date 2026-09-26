@@ -239,6 +239,43 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) ('0' | 0x80), result.command.values[0]);
         }
 
+        //  s searches for bytes, so a prefixed number that fits a byte is
+        //  one byte, not a word with a zero high byte.
+        TEST_METHOD (Search_PrefixedByteIsOneByte)
+        {
+            for (const char * line : { "s 300 l100 0x41", "s 300 l100 0n65" })
+            {
+                WinDbgParseResult  result = ParseOk (line);
+
+
+
+                Assert::AreEqual ((size_t) 1,  result.command.values.size(), Widen (line).c_str());
+                Assert::AreEqual ((Byte) 0x41, result.command.values[0],     Widen (line).c_str());
+            }
+        }
+
+        //  A `!` line keeps text and file paths as typed, and a decimal
+        //  argument takes WinDbg's prefixes as their values.
+        TEST_METHOD (Bang_KeepsTextAndPaths_AndReadsDecimalPrefixes)
+        {
+            Assert::AreEqual (std::string ("0x41"),          ParseOk ("!echo 0x41").command.text);
+            Assert::AreEqual (std::string ("C:/t/0x10.bin"), ParseOk ("!bsave C:/t/0x10.bin 0x300:30f").command.text);
+            Assert::AreEqual ((Word) 0x0300,                 ParseOk ("!bsave C:/t/0x10.bin 0x300:30f").command.a1);
+            Assert::AreEqual (std::string ("0x10.bin"),      ParseOk ("!bload 0x10.bin 300").command.text);
+            Assert::AreEqual ((uint32_t) 1000,               ParseOk ("!budget 0n1000").command.count);
+            Assert::AreEqual ((uint32_t) 256,                ParseOk ("!budget 0x100").command.count);
+            Assert::AreEqual ((uint32_t) 1000,               ParseOk ("!budget 1000").command.count);
+        }
+
+        //  A reply quotes the command as it was typed in WinDbg mode, not
+        //  the AppleWin command it was rewritten to.
+        TEST_METHOD (SourceName_IsTheWinDbgName)
+        {
+            Assert::AreEqual (std::string ("eb"),      ParseOk ("eb 300 41").command.sourceName);
+            Assert::AreEqual (std::string ("r"),       ParseOk ("r a=41").command.sourceName);
+            Assert::AreEqual (std::string ("!budget"), ParseOk ("!budget 5").command.sourceName);
+        }
+
         TEST_METHOD (Malformed_ProducesAnErrorAndNoCommand)
         {
             Assert::AreEqual ((int) DebugVerb::None, (int) ParseFails ("db zzz_nope",  ParseStatus::Invalid).command.verb);

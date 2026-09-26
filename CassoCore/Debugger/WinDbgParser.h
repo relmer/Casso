@@ -92,6 +92,10 @@ private:
     static std::string  Join              (const Tokens & tokens, size_t first);
     static std::string  NormalizeNumbers  (const std::string & text);
     static std::string  StripBackquotes   (const std::string & text);
+    static std::string  NormalizeEngineArguments (const std::string & text, const Tokens & tokens);
+    static Tokens       ShortenSearchBytes (const Tokens & args);
+    static bool         IsPath            (const std::string & token);
+    static bool         TryReadNumber     (const std::string & token, uint64_t & value);
 
     static bool  TryFindExclusion      (const std::string & name, const WinDbgExclusion *& exclusion);
     static bool  TryParseEngine        (const std::string & line, const IDebugExpressionContext & context, WinDbgParseResult & result);
