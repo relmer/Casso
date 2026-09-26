@@ -272,7 +272,7 @@ void MonitorHandlers::SetHook (DebugSession & session, const DebugCommand & comm
     if (slot < 0 || slot > kLastSlot)
     {
         reply.SetError (CommandStatus::Error, "invalid arguments",
-                        std::format ("There is no slot {}; the slots are 0 to {}.", slot, kLastSlot));
+                        std::format ("There is no slot {}. The slots are 0 to {}.", slot, kLastSlot));
         return;
     }
 
@@ -364,7 +364,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
 
     if (command.text.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "R takes a file name here; only the debugger window can ask for one.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "R takes a file name here. Only the debugger window can prompt for one.");
         return;
     }
 
@@ -417,7 +417,7 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
 
     if (command.text.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "W takes a file name here; only the debugger window can ask for one.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "W takes a file name here. Only the debugger window can prompt for one.");
         return;
     }
 

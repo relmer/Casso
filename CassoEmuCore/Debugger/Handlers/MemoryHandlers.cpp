@@ -176,8 +176,8 @@ void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command
         {
             reply.SetError (CommandStatus::Error, "memory not writable",
                             target.GetRegion (address) == MemoryRegion::Io
-                                ? std::format ("${:04X} is I/O, which an edit does not write; use OUT.", address)
-                                : std::format ("${:04X} cannot be written; {} of {} bytes were.", address, i, command.values.size()));
+                                ? std::format ("${:04X} is I/O. Use OUT to write it.", address)
+                                : std::format ("${:04X} cannot be written. {} of {} bytes were written.", address, i, command.values.size()));
             return;
         }
     }
@@ -669,7 +669,7 @@ bool MemoryHandlers::TryPokeRange (IDebugTarget & target, Word first, std::span<
         if (!target.TryPoke (address, bytes[i]))
         {
             reply.SetError (CommandStatus::Error, "memory not writable",
-                            std::format ("${:04X} cannot be written; {} of {} bytes were.", address, i, bytes.size()));
+                            std::format ("${:04X} cannot be written. {} of {} bytes were written.", address, i, bytes.size()));
             return false;
         }
     }

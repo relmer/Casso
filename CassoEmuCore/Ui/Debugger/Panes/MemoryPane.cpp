@@ -237,7 +237,7 @@ void MemoryPane::NoteRefusal (uint64_t offset) const
 
     if (region == MemoryRegion::Io)
     {
-        m_note (std::format ("${:04X} is I/O, which an edit does not write; use OUT.", address));
+        m_note (std::format ("${:04X} is I/O. Use OUT to write it.", address));
     }
     else
     {

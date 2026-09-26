@@ -82,7 +82,7 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0300,   *image.entry);
 
             ReadFails (Bytes (":03030000A94160B1\n"), BinaryFormat::IntelHex, std::nullopt, "checksum");
-            ReadFails (Bytes (kFile), std::nullopt, (Word) 0x0300, "carries its own addresses");
+            ReadFails (Bytes (kFile), std::nullopt, (Word) 0x0300, "holds its own addresses");
             Assert::AreEqual ((int) BinaryFormat::Raw, (int) ReadOk (Bytes (":03030000A94160B1\n"), std::nullopt, (Word) 0x0300).format,
                               L"a record whose checksum fails is not taken for Intel HEX");
         }
@@ -138,7 +138,7 @@ namespace DebuggerTests
 
             file.hasProDosInfo = false;
             AppleSingleCodec::Encode (file, bytes);
-            ReadFails (bytes, std::nullopt, std::nullopt, "no ProDOS file info");
+            ReadFails (bytes, std::nullopt, std::nullopt, "AppleSingle file has no load address");
             Assert::AreEqual ((Word) 0x0400, ReadOk (bytes, std::nullopt, (Word) 0x0400).segments.at (0).address);
         }
 
@@ -163,7 +163,7 @@ namespace DebuggerTests
             Assert::AreEqual ((int) BinaryFormat::Raw, (int) image.format, L"a header is never guessed");
             Assert::AreEqual ((size_t) 7,    image.segments.at (0).bytes.size());
 
-            ReadFails (dos, std::nullopt, std::nullopt, "give the address");
+            ReadFails (dos, std::nullopt, std::nullopt, "Give the address");
             ReadFails (std::vector<Byte> { 0x00, 0x03, 0x10, 0x00, 0xA9 }, BinaryFormat::Dos33Binary, std::nullopt, "header says");
             ReadFails (std::vector<Byte>(), std::nullopt, (Word) 0x0300, "empty");
         }

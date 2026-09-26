@@ -1070,7 +1070,7 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
 
         if (mode != "ON" && mode != "OFF")
         {
-            error = "SRC ON steps by source line, SRC OFF by instruction; SRC alone shows the line at PC.";
+            error = "Use SRC ON for source mode, SRC OFF for disassembly mode, or SRC alone to show the line at PC.";
             return false;
         }
 
@@ -1083,7 +1083,7 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
     {
         if (args.tokens.empty() || args.tokens[0].find_first_not_of ("0123456789") != std::string::npos)
         {
-            error = "BUDGET takes a number of cycles in decimal. BUDGET 0 removes the budget.";
+            error = "BUDGET takes a number of cycles in decimal. Use BUDGET 0 to remove the budget.";
             return false;
         }
 
@@ -1120,7 +1120,7 @@ bool AppleWinParser::TryParseCallsArguments (const Arguments & args, DebugComman
 
     if (ToUpper (args.tokens[0]) != "MODE" || args.tokens.size() > 2)
     {
-        error = "CALLS shows the call stack; CALLS MODE RECORDED|WALK|HYBRID chooses how it is found.";
+        error = "Use CALLS to show the call stack, or CALLS MODE RECORDED|WALK|HYBRID to choose how it is found.";
         return false;
     }
 
@@ -1270,7 +1270,7 @@ bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugComman
 
     if ((close && args.tokens.size() != 2) || (!close && args.tokens.size() != 1))
     {
-        error = "PANEL LIST lists the device panels, PANEL name opens one, and PANEL CLOSE name closes it.";
+        error = "Use PANEL LIST to list the device panels, PANEL name to open one, or PANEL CLOSE name to close one.";
         return false;
     }
 

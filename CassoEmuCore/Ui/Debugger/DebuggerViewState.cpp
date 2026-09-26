@@ -1403,7 +1403,7 @@ void DebuggerViewState::RunPanelCommand (DebugSession & session, const DebugComm
     if (provider == nullptr)
     {
         reply.SetError (CommandStatus::Error, "no such panel",
-                        std::format ("This machine has no {} panel. PANEL LIST lists the ones it has.", command.text));
+                        std::format ("This machine has no {} panel. Use PANEL LIST to list the ones it has.", command.text));
         return;
     }
 

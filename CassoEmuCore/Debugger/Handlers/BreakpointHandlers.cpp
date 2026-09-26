@@ -239,7 +239,7 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
 
     if (!session.HasDebugFile())
     {
-        reply.SetError (CommandStatus::Error, "no debug file", "A source breakpoint needs a debug file; SYM LOAD reads one.");
+        reply.SetError (CommandStatus::Error, "no debug file", "A source breakpoint needs a debug file. Use SYM LOAD to load one.");
         return;
     }
 
@@ -275,7 +275,7 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
 
     if (*target != line)
     {
-        message.lines.push_back (std::format ("Line {} produced no code; the breakpoint is on line {}.", line, *target));
+        message.lines.push_back (std::format ("Line {} produced no code. The breakpoint is on line {}.", line, *target));
     }
 
     session.OnStopConditionsChanged();
@@ -1269,7 +1269,7 @@ bool BreakpointHandlers::TryFindInfo (DebugSession & session, int id, Breakpoint
 
 void BreakpointHandlers::SetNoSuch (Reply & reply, int id)
 {
-    reply.SetError (CommandStatus::Error, "no such breakpoint", std::format ("There is no breakpoint #{}. BPL lists them.", id));
+    reply.SetError (CommandStatus::Error, "no such breakpoint", std::format ("There is no breakpoint #{}. Use BPL to list them.", id));
 }
 
 

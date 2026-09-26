@@ -106,7 +106,7 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
 
         if (!TryGetMode (mode, chosen))
         {
-            SetError (error, "unknown mode", std::format ("{} is not a mode; the modes are {}.", mode, CommandModeNames::GetList()));
+            SetError (error, "unknown mode", std::format ("{} is not a mode. The modes are {}.", mode, CommandModeNames::GetList()));
             return false;
         }
 

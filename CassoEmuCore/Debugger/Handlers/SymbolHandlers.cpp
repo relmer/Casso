@@ -624,7 +624,7 @@ bool SymbolHandlers::TryGetFileName (const std::string & text, std::string & nam
     {
         if (!TryParseHex (Trim (trimmed.substr (comma + 1)), value))
         {
-            error = "The offset after the file name is hex.";
+            error = "The offset after the file name must be hex.";
             return false;
         }
 

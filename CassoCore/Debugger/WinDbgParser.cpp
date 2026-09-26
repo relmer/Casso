@@ -270,7 +270,7 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
     if (!CommandModeHelp::IsCassoCommandReachable (CommandMode::WinDbg, tokens[0]))
     {
         result.status = ParseStatus::Unknown;
-        result.error  = std::format ("!{} does not run in WinDbg mode; .help {} says where it runs.", tokens[0], tokens[0]);
+        result.error  = std::format ("!{} does not run in WinDbg mode. Use .help {} to see where it runs.", tokens[0], tokens[0]);
         return true;
     }
 
@@ -393,21 +393,21 @@ bool WinDbgParser::TryRewrite (
     }
     else if (name == "k")
     {
-        rewrite.error = "k takes no arguments; !calls mode chooses how the chain is found.";
+        rewrite.error = "k takes no arguments. Use !calls mode to choose how the chain is found.";
         line          = "CALLS";
         return args.empty();
     }
     else if (name == "lsa")
     {
         rewrite.isDeferred = !args.empty();
-        rewrite.error      = "lsa with a line is not available yet; lsa alone shows the source line at PC.";
+        rewrite.error      = "lsa with a line is not available yet. Use lsa alone to show the source line at PC.";
         line               = "SRC";
         return args.empty();
     }
     else if (name == "wt")
     {
         rewrite.isDeferred = true;
-        rewrite.error      = "wt is not available yet; !history and !profile record what a run executes.";
+        rewrite.error      = "wt is not available yet. Use !history or !profile to record what a run executes.";
         return false;
     }
     else
@@ -672,7 +672,7 @@ bool WinDbgParser::TryRewriteRange (const std::string & name, const Tokens & arg
     if (name == "s" && !args.empty() && args[0].starts_with ('-'))
     {
         rewrite.isDeferred = true;
-        rewrite.error      = std::format ("s {} is not available yet; s addr l n bytes searches for bytes.", args[0]);
+        rewrite.error      = std::format ("s {} is not available yet. Use s addr l n bytes to search for bytes.", args[0]);
         return false;
     }
 

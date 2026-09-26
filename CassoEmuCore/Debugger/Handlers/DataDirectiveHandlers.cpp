@@ -193,7 +193,7 @@ void DataDirectiveHandlers::Remove (DebugSession & session, const DebugCommand &
 
     if (!command.hasA1)
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "X takes the address or range to make code again.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "X takes the address or range to mark as code again.");
         return;
     }
 
@@ -274,7 +274,7 @@ void DataDirectiveHandlers::EnterAssembler (DebugSession & session, const DebugC
 
 
     session.BeginAssembly (address);
-    reply.data = MessageData { { std::format ("Assembling at ${:04X}; a blank line ends it.", address) } };
+    reply.data = MessageData { { std::format ("Assembling at ${:04X}. Enter a blank line to stop.", address) } };
 }
 
 

@@ -181,7 +181,7 @@ Error:
     if (client == nullptr)
     {
         std::cerr << "Error: no Casso with a debug channel open is running as process " << options.debug.attachPid << "\n"
-                  << "       start it with --debugger, and list the running ones with CassoCli debug --list\n";
+                  << "       Start Casso with --debugger. Use CassoCli debug --list to list the running ones.\n";
     }
 
     return hr;

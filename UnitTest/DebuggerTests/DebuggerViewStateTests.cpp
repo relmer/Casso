@@ -2125,7 +2125,7 @@ namespace DebuggerViewStateTests
 
             //  Two things to say go on two lines, not run together.
             Assert::AreEqual (std::wstring (L"a.s is not the file that was assembled, so lines may not match.\n"
-                                            L"Stopped inside a macro; its body line is a.s line 5."),
+                                            L"Stopped inside a macro. Its body line is a.s line 5."),
                               SourcePane::GetBannerText (SourceMatch::Mismatch, "a.s", true, 1, false, "a.s", 5));
         }
 

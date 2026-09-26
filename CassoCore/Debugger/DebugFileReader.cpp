@@ -582,8 +582,8 @@ Error:
     if (FAILED (hr))
     {
         error = (file.major == 0)               ? std::string ("This is not a cc65 debug file: it has no version record.")
-              : (file.major != kSupportedMajor) ? std::format ("This debug file is version {}; only version 2 is read.", file.major)
-              :                                   std::string ("This debug file names a file, span or segment it does not hold.");
+              : (file.major != kSupportedMajor) ? std::format ("This debug file is version {}. Only version 2 is supported.", file.major)
+              :                                   std::string ("This debug file refers to a file, span or segment it does not hold.");
     }
 
     return hr;

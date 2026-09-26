@@ -167,7 +167,7 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
 
 
     CBRF (files != nullptr, reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files."));
-    CBRF (total != 0,       reply.SetError (CommandStatus::Error, "no trace", "The trace holds no entries. HISTORY ON starts one."));
+    CBRF (total != 0,       reply.SetError (CommandStatus::Error, "no trace", "The trace is empty. Use HISTORY ON to start one."));
 
     target.GetTraceWindow (0, total, entries);
     Describe (session, entries);

@@ -217,7 +217,7 @@ Reply DebugSession::Execute (const DebugCommand & command)
     if (IsMachineWrite (command.verb) && (m_state == RunState::FreeRunning || m_state == RunState::DebugRun))
     {
         SetError (reply, CommandStatus::Error, "machine running",
-                  std::format ("{} changes registers or memory; pause the machine first.", command.sourceName));
+                  std::format ("{} changes registers or memory. Pause the machine first.", command.sourceName));
         return reply;
     }
 
@@ -1482,7 +1482,7 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
 
     if (!hasSource)
     {
-        message.lines.push_back ("No debug file is loaded; SYM LOAD reads one.");
+        message.lines.push_back ("No debug file is loaded. Use SYM LOAD to load one.");
     }
     else if (TryGetSourceLine (pc, file, line))
     {
@@ -1493,9 +1493,9 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
         message.lines.push_back (std::format ("No source line produced ${:04X}.", pc));
     }
 
-    message.lines.push_back ((m_stepBySource && hasSource) ? "Steps go by source line."
-                             : m_stepBySource              ? "Steps go by instruction until a debug file is loaded."
-                             :                               "Steps go by instruction.");
+    message.lines.push_back ((m_stepBySource && hasSource) ? "Source mode."
+                             : m_stepBySource              ? "Source mode. Until a debug file is loaded, steps go by instruction."
+                             :                               "Disassembly mode.");
     reply.data = message;
 }
 
@@ -1532,7 +1532,7 @@ void DebugSession::ExecuteStepFilter (const DebugCommand & command, Reply & repl
         if (!m_stepFilter.TryRemove (command.text, range))
         {
             SetError (reply, CommandStatus::Error, "not in the step filter",
-                      std::format ("{} is not in the step filter. SKIP lists it.", command.text));
+                      std::format ("{} is not in the step filter. Use SKIP to list the filter.", command.text));
             return;
         }
 
@@ -1575,7 +1575,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     if (m_state == RunState::DebugRun || m_state == RunState::Stepping)
     {
         SetError (reply, CommandStatus::Error, "already running",
-                  "A run is in progress. PAUSE stops it.");
+                  "A run is in progress. Use PAUSE to stop it.");
         return;
     }
 
