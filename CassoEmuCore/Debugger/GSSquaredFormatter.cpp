@@ -53,7 +53,7 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
         return true;
     }
 
-    if      (auto * v = std::get_if<MemoryData>         (&data)) { FormatMemory         (*v, lines); }
+    if      (auto * v = std::get_if<MemoryData>         (&data)) { FormatMemory         (*v, reply.command.find ('.') == std::string::npos, lines); }
     else if (auto * v = std::get_if<DisassemblyData>    (&data)) { FormatDisassembly    (*v, lines); }
     else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpointList (*v, lines); }
     else if (auto * v = std::get_if<SymbolData>         (&data)) { FormatSymbols        (*v, lines); }
@@ -86,7 +86,8 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 //
 //  GSSquaredFormatter::FormatMemory
 //
-//  One byte is GSSquared's examine, `00/0300: A9`. More is its dump: sixteen
+//  One byte from a bare address is GSSquared's examine, `00/0300: A9`; a
+//  command with a `first.last` range is always a dump. The dump is sixteen
 //  bytes a line from the first address, each byte followed by a space, then
 //  a space and the characters with the high bit dropped and anything outside
 //  printable ASCII as a period, then a blank line. A short last line is
@@ -94,7 +95,7 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GSSquaredFormatter::FormatMemory (const MemoryData & data, Lines & lines)
+void GSSquaredFormatter::FormatMemory (const MemoryData & data, bool isExamine, Lines & lines)
 {
     static constexpr Byte             kLowBits    = 0x7F;
     static constexpr Byte             kFirstPrint = 0x20;
@@ -109,7 +110,7 @@ void GSSquaredFormatter::FormatMemory (const MemoryData & data, Lines & lines)
         bytes.insert (bytes.end(), row.bytes.begin(), row.bytes.end());
     }
 
-    if (bytes.size() == 1)
+    if (bytes.size() == 1 && isExamine)
     {
         lines.push_back (FormatAddress (first) + (bytes[0].has_value() ? std::format (": {:02X}", *bytes[0]) : std::string (": ??")));
         return;

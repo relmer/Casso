@@ -41,7 +41,7 @@ private:
     //  the AppleWin formatter instead.
     static bool  TryFormatData        (const Reply & reply, Lines & lines);
 
-    static void  FormatMemory         (const MemoryData         & data, Lines & lines);
+    static void  FormatMemory         (const MemoryData         & data, bool isExamine, Lines & lines);
     static void  FormatDisassembly    (const DisassemblyData    & data, Lines & lines);
     static void  FormatBreakpointList (const BreakpointListData & data, Lines & lines);
     static void  FormatWatchList      (const WatchListData      & data, bool isAdd, Lines & lines);
