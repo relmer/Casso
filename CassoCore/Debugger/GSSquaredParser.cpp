@@ -651,6 +651,10 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
     {
         SetInvalid (line, word == "sload" ? "SLOAD takes a file name." : "SLOOKUP takes an address.");
     }
+    else if (word == "sload" && line.tokens[1].find (',', line.tokens[1].rfind ('"') + 1) != std::string::npos)
+    {
+        SetInvalid (line, "SLOAD takes a file name and no offset.");
+    }
     else if (word == "sload")
     {
         ParseAppleWin (line, std::format ("SYM LOAD \"{}\"", Unquote (line.tokens[1])), std::string());

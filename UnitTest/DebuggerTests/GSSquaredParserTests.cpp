@@ -395,6 +395,13 @@ namespace DebuggerTests
             AssertVerb (DebugVerb::LoadSymbols,   One ("SLOAD x"),  "SLOAD");
         }
 
+        TEST_METHOD (Sload_TakesNoOffset)
+        {
+            Refused ("sload f,1000",   ParseStatus::Invalid);
+            Refused ("sload \"f\",1000", ParseStatus::Invalid);
+            AssertVerb (DebugVerb::LoadSymbols, One ("sload \"a,b.sym\""), "a comma inside the quotes is part of the name");
+        }
+
         //  R-037: engine commands are bare names here; `/` is GSSquared's bank
         //  separator and never a marker.
         TEST_METHOD (EngineCommands_AreBareNames_AndSlashIsNoMarker)

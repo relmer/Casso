@@ -333,6 +333,8 @@ namespace DebuggerTests
             Assert::IsTrue   (lines.at (0).ends_with (" at $0307, prog.a65 line 3."), L"a macro body line, where its expansion put it");
 
             rig.RunFails ("BP other.a65:3", "no such file");
+            Assert::IsTrue   (rig.RunFails ("BP prog.a65:3000000000", "no code").error.detail.find ("3000000000") != std::string::npos,
+                              L"a line past the last one has no code, whatever its size");
             Assert::IsTrue   (rig.RunOk ("BP 300:302").text.at (0).find ("$0300") != std::string::npos, L"an address range still parses as one");
         }
     };

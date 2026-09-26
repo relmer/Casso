@@ -256,11 +256,14 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
         return;
     }
 
-    target = session.GetLineTable().GetNextLineWithCode (*fileId, line);
+    if (command.count <= (uint32_t) INT_MAX)
+    {
+        target = session.GetLineTable().GetNextLineWithCode (*fileId, line);
+    }
 
     if (!target.has_value())
     {
-        reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} produced code.", line, command.text));
+        reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} produced code.", command.count, command.text));
         return;
     }
 
