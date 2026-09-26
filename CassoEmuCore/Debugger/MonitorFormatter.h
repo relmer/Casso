@@ -34,7 +34,7 @@ class MonitorFormatter
 public:
     static void         Format          (Reply & reply);
 
-    //  The line a stop prints. With the instruction line a step's reply
+    //  The line a stop prints. With the instruction line an `S` step's reply
     //  carries, this is the original ]['s step display: the instruction,
     //  then the registers.
     static std::string  FormatStop      (const StopEvent & stop);

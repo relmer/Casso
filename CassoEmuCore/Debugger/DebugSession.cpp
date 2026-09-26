@@ -218,10 +218,13 @@ Reply DebugSession::Execute (const DebugCommand & command)
     //  Registers and memory are changed only with the machine stopped: a
     //  running program would overwrite the change, or be changed under the
     //  code using it. A step in the emulator is still running until it stops.
+    //  A Monitor deposit's source is only a colon, which does not start a
+    //  sentence, so the error says "This command" for it.
     if (IsMachineWrite (command.verb) && m_state != RunState::Paused)
     {
         SetError (reply, CommandStatus::Error, "machine running",
-                  std::format ("{} changes registers or memory. Pause the machine first.", command.sourceName));
+                  std::format ("{} changes registers or memory. Pause the machine first.",
+                               command.sourceName == ":" ? std::string ("This command") : command.sourceName));
         return reply;
     }
 
@@ -348,14 +351,19 @@ Reply DebugSession::ExecuteLine (const std::string & line)
 
 Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 {
-    Reply  reply;
+    Reply                       reply;
+    std::optional<CommandMode>  previous = m_lineMode;
 
 
 
+    //  A handler that depends on the mode, such as HELP, reads the line's
+    //  mode: a pipe request carries its own, whatever the session's is.
     if (m_assemblyAddress.has_value())
     {
+        m_lineMode = mode;
         ExecuteAssemblyLine (Trim (line), reply);
         reply.command = line;
+        m_lineMode    = previous;
         return reply;
     }
 
@@ -376,9 +384,9 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 
 Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
 {
-    Reply        reply;
-    std::string  text          = Trim (line);
-    CommandMode  outerLineMode = m_lineMode;
+    Reply                       reply;
+    std::string                 text          = Trim (line);
+    std::optional<CommandMode>  outerLineMode = m_lineMode;
 
 
 
@@ -1896,6 +1904,30 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         registers    = m_target.GetRegisters();
         registers.pc = command.a1;
         m_target.SetRegisters (registers);
+    }
+
+    //  The original ]['s step display is the instruction the step runs,
+    //  carried here, and then the registers, which the stop prints.
+    if (command.mode == CommandMode::Monitor && request.kind == RunKind::StepInto)
+    {
+        Disassembler     disassembler (m_target.GetInstructionSet());
+        DisassemblyData  data;
+        DisassemblyLine  shown;
+        Byte             bytes[Disassembler::kMaxInstructionBytes] = {};
+        Word             pc                                        = m_target.GetRegisters().pc;
+
+
+
+        for (size_t i = 0; i < std::size (bytes); ++i)
+        {
+            m_target.TryPeek ((Word) (pc + i), bytes[i]);
+        }
+
+        hr = disassembler.DisassembleOne (pc, bytes, shown.instruction);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        data.lines.push_back (shown);
+        reply.data = data;
     }
 
     request.fullSpeed  = command.verb == DebugVerb::GoFullSpeed;

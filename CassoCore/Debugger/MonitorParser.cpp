@@ -115,8 +115,16 @@ MonitorParseResult MonitorParser::ScanLine (const std::string & line, MonitorSta
     //  A `/` line was never the Monitor's.
     if (opening != std::string::npos && line[opening] == '/')
     {
-        result.status       = ParseStatus::Ok;
         result.appleWinLine = Trim (line.substr (opening + 1));
+
+        if (result.appleWinLine.empty())
+        {
+            result.error  = "A / takes an AppleWin command after it.";
+            result.status = ParseStatus::Invalid;
+            return result;
+        }
+
+        result.status = ParseStatus::Ok;
         return result;
     }
 
@@ -319,7 +327,9 @@ MonitorParseResult MonitorParser::ScanLine (const std::string & line, MonitorSta
             break;
 
         case '!':
-            command = MakeCommand (DebugVerb::EnterAssembler, '!');
+            command       = MakeCommand (DebugVerb::EnterAssembler, '!');
+            command.a1    = scan.value.value_or (0);
+            command.hasA1 = scan.value.has_value();
             break;
 
         case 0x0B:
