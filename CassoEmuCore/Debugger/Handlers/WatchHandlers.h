@@ -47,5 +47,5 @@ private:
     static bool                  TryGetSlot     (const std::string & sourceName, int & slot);
     static bool                  TryGetFreeSlot (const WatchTable & table, int & slot);
     static std::optional<Word>   PeekWord       (DebugSession & session, Word address, WatchListKind kind);
-    static void                  SetNoSuch      (Reply & reply, WatchListKind kind, int id);
+    static void                  SetNoSuch      (Reply & reply, WatchListKind kind, uint32_t id);
 };

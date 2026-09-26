@@ -104,6 +104,7 @@ struct DebuggerViewSnapshot
         int          id      = 0;
         Word         address = 0;
         std::string  value;
+        bool         enabled = true;
     };
 
     //  One thing the instruction at the PC, or the one just executed, reads or

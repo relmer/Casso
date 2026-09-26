@@ -154,6 +154,7 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
 
     if (!command.hasA1)
     {
+        reply.verb = DebugVerb::ListWatches;
         reply.data = list;
         return;
     }
@@ -214,9 +215,9 @@ void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    if (!table.TryClear (id))
+    if (command.count > INT_MAX || !table.TryClear (id))
     {
-        SetNoSuch (reply, kind, id);
+        SetNoSuch (reply, kind, command.count);
         return;
     }
 
@@ -253,9 +254,9 @@ void WatchHandlers::Enable (DebugSession & session, const DebugCommand & command
         return;
     }
 
-    if (!table.TrySetEnabled (id, enabled))
+    if (command.count > INT_MAX || !table.TrySetEnabled (id, enabled))
     {
-        SetNoSuch (reply, kind, id);
+        SetNoSuch (reply, kind, command.count);
         return;
     }
 
@@ -292,9 +293,9 @@ void WatchHandlers::GoTo (DebugSession & session, const DebugCommand & command, 
 
 
 
-    if (command.text == "*" || !session.GetBookmarks().TryFind ((int) command.count, item))
+    if (command.count > INT_MAX || !session.GetBookmarks().TryFind ((int) command.count, item))
     {
-        SetNoSuch (reply, WatchListKind::Bookmark, (int) command.count);
+        SetNoSuch (reply, WatchListKind::Bookmark, command.count);
         return;
     }
 
@@ -505,7 +506,7 @@ std::optional<Word> WatchHandlers::PeekWord (DebugSession & session, Word addres
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WatchHandlers::SetNoSuch (Reply & reply, WatchListKind kind, int id)
+void WatchHandlers::SetNoSuch (Reply & reply, WatchListKind kind, uint32_t id)
 {
     reply.SetError (CommandStatus::Error, std::string ("no such ") + GetNoun (kind),
                     std::format ("There is no {} #{}.", GetNoun (kind), id));

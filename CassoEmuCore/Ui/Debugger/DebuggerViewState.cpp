@@ -176,7 +176,8 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
         for (const WatchEntry & entry : data->entries)
         {
             snapshot.watches.push_back ({ entry.id, entry.address,
-                                          entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--") });
+                                          entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
+                                          entry.enabled });
         }
     }
 
