@@ -2705,8 +2705,6 @@ void DxuiListView::PaintHeader (
         }
     }
 
-    painter.FillRect (x, y + headerH - 1.0f, layoutW, 1.0f, pal.border);
-
     // Faint vertical separators between header columns so the user
     // can see where each column ends (and where the resize handle
     // lives). The separators scroll with the columns, so CPU-clip any
