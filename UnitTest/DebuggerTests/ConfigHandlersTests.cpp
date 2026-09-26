@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Version.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ConfigHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
@@ -73,6 +74,57 @@ namespace DebuggerTests
             rig.RunFails ("PRINTF \"%d %d\",1", "invalid arguments");
             rig.RunFails ("PRINT NOSUCH",       "invalid arguments");
             rig.RunFails ("CALC",               "invalid arguments");
+        }
+
+
+
+        TEST_METHOD (PRINT_PRINTF_ValueOutsideAWord_Fails)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.RunFails ("PRINT 10000", "invalid arguments");
+            Assert::AreEqual (std::string ("10000 is outside $0000-$FFFF."), reply.error.detail);
+
+            reply = rig.RunFails ("PRINT 0-1", "invalid arguments");
+            Assert::AreEqual (std::string ("0-1 is outside $0000-$FFFF."), reply.error.detail);
+
+            rig.RunFails ("PRINTF \"%x\",10000", "invalid arguments");
+            Assert::AreEqual (std::string ("FFFF"), rig.RunOk ("PRINT FFFF").text.at (0));
+        }
+
+
+
+        TEST_METHOD (PRINTF_UnknownConversion_ReportsTheConversions)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.RunFails ("PRINTF \"%q\"", "invalid arguments");
+            Assert::AreEqual (std::string ("PRINTF conversions are %x, %d, %z, %c and %%."), reply.error.detail);
+
+            reply = rig.RunFails ("PRINTF \"a %\"", "invalid arguments");
+            Assert::AreEqual (std::string ("PRINTF conversions are %x, %d, %z, %c and %%."), reply.error.detail);
+        }
+
+
+
+        TEST_METHOD (CD_PWD_RUN_KeepANonAsciiName)
+        {
+            Rig          rig;
+            std::string  directory = "C:\\Caf\x80";
+
+
+
+            Assert::AreEqual (directory, rig.RunOk ("CD " + directory).text.at (0));
+            Assert::AreEqual (directory, rig.RunOk ("PWD").text.at (0));
+
+            rig.files.WriteAllText (TextEncoding::NarrowToWide (directory + "\\\x80.txt"), "ECHO hi\n");
+            Assert::AreEqual (std::string ("hi"), rig.RunOk ("RUN \x80.txt").text.at (0));
         }
 
 

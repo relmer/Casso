@@ -374,16 +374,19 @@ std::vector<std::string> CommandModeHelp::BuildHelp (CommandMode mode)
 //
 //  The mode's own word first, then a Casso command it runs. A Casso command
 //  it cannot run is answered with the modes that can, never described as if
-//  it ran here.
+//  it ran here. The Casso command may carry the mode's marker, as help lists
+//  it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, std::string & line)
 {
     const Entry                          * own       = Find (mode, word);
-    const CassoCommandReference::Entry   * reference = CassoCommandReference::Find (word);
-    const AppleWinCommand                * command   = AppleWinCommandTable::Find (word);
-    std::string                            upper     = ToUpper (word);
+    const CassoCommandReference::Entry   * reference = nullptr;
+    const AppleWinCommand                * command   = nullptr;
+    std::string                            marker    = GetMarker (mode);
+    std::string                            name      = word;
+    std::string                            upper;
 
 
 
@@ -393,12 +396,21 @@ bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, s
         return true;
     }
 
+    if (!marker.empty() && word.size() > marker.size() && word.starts_with (marker))
+    {
+        name = word.substr (marker.size());
+    }
+
+    reference = CassoCommandReference::Find (name);
+    command   = AppleWinCommandTable::Find (name);
+    upper     = ToUpper (name);
+
     if (command == nullptr)
     {
         return false;
     }
 
-    if (reference != nullptr && IsCassoCommandReachable (mode, word))
+    if (reference != nullptr && IsCassoCommandReachable (mode, name))
     {
         line = std::format ("{}: {}", GetShownSyntax (mode, *reference), reference->description);
         return true;
@@ -417,7 +429,7 @@ bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, s
         return true;
     }
 
-    line = std::format ("{} does not run in {} mode. It runs in {}.", upper, GetTitle (mode), GetModesThatRun (word));
+    line = std::format ("{} does not run in {} mode. It runs in {}.", upper, GetTitle (mode), GetModesThatRun (name));
     return true;
 }
 
