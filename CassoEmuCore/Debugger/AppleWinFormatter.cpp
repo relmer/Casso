@@ -45,7 +45,7 @@ void AppleWinFormatter::Format (Reply & reply)
 
 std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 {
-    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Run to", "Budget", "Pause", "BRK", "Invalid opcode", "Reset" };
+    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset" };
     std::string                   text;
 
 
@@ -116,7 +116,16 @@ std::string AppleWinFormatter::FormatCondition (const StopEvent & stop)
         return std::string();
     }
 
-    return std::format (", IF {} is ${:X}", stop.condition, (uint32_t) *stop.conditionValue);
+    int32_t  value = *stop.conditionValue;
+
+
+
+    if (value < 0)
+    {
+        return std::format (", IF {} is -${:X}", stop.condition, (uint32_t) -(int64_t) value);
+    }
+
+    return std::format (", IF {} is ${:X}", stop.condition, (uint32_t) value);
 }
 
 

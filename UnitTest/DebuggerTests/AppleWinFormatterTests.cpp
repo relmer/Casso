@@ -255,6 +255,28 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Stops_RunToAndNegativeCondition)
+        {
+            StopEvent  runTo;
+            StopEvent  negative;
+
+
+
+            runTo.reason = StopReason::RunTo;
+            runTo.pc     = 0x0310;
+
+            negative.reason         = StopReason::Breakpoint;
+            negative.pc             = 0x0300;
+            negative.breakpointId   = 1;
+            negative.condition      = "A-42";
+            negative.conditionValue = -1;
+
+            Assert::AreEqual (std::string ("Stopped at $0310"),                   AppleWinFormatter::FormatStop (runTo));
+            Assert::AreEqual (std::string ("Breakpoint #1 at $0300, IF A-42 is -$1"), AppleWinFormatter::FormatStop (negative));
+        }
+
+
+
         TEST_METHOD (Errors_TwoLines)
         {
             Reply  unavailable;
