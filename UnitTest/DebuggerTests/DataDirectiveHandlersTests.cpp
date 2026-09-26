@@ -71,6 +71,22 @@ namespace DebuggerTests
 
 
 
+        //  Only a token that could be a name is taken for one; anything else
+        //  that does not evaluate is an error, not a block list.
+        TEST_METHOD (Directives_BadAddress_IsAnError)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("A range length must be at least 1."), rig.RunFails ("DB 300,0", "invalid arguments").error.detail);
+            rig.RunFails ("DB 10000",   "invalid arguments");
+            rig.RunFails ("DB 30G",     "invalid arguments");
+            rig.RunFails ("DB 300:ZZZ", "invalid arguments");
+
+            Assert::AreEqual (std::string ("No data blocks."), rig.RunOk ("B").text.at (0), L"nothing defined");
+        }
+
         TEST_METHOD (X_RemovesTrimsAndSplits)
         {
             Rig                       rig;

@@ -847,15 +847,15 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
 //
 //  The data directives take `[name] [addr | range]` or `name = addr`. A
 //  first argument that evaluates is the address; otherwise it is the block's
-//  name and the address follows. B takes nothing; X takes a range.
+//  name and the address follows. B takes nothing; X takes a range. A first
+//  argument that neither evaluates nor could be a name is an error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseDataArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    size_t       count     = args.tokens.size();
-    size_t       rangeAt   = 0;
-    std::string  discarded;
+    size_t  count   = args.tokens.size();
+    size_t  rangeAt = 0;
 
 
 
@@ -869,8 +869,14 @@ bool AppleWinParser::TryParseDataArguments (const Arguments & args, DebugCommand
         return TryParseRange (args.tokens[0], *args.context, command, error);
     }
 
-    if (!TryParseRange (args.tokens[0], *args.context, command, discarded))
+    if (!TryParseRange (args.tokens[0], *args.context, command, error))
     {
+        if (!IsBlockName (args.tokens[0]))
+        {
+            return false;
+        }
+
+        error.clear();
         command.text  = args.tokens[0];
         command.hasA1 = false;
         command.hasA2 = false;
@@ -878,6 +884,32 @@ bool AppleWinParser::TryParseDataArguments (const Arguments & args, DebugCommand
     }
 
     return rangeAt == 0 || rangeAt >= count || TryParseRange (args.tokens[rangeAt], *args.context, command, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::IsBlockName
+//
+//  A letter or underscore, then letters, digits and underscores.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::IsBlockName (const std::string & text)
+{
+    bool  isName = !text.empty() && (isalpha ((unsigned char) text[0]) || text[0] == '_');
+
+
+
+    for (size_t i = 1; isName && i < text.size(); ++i)
+    {
+        isName = isalnum ((unsigned char) text[i]) || text[i] == '_';
+    }
+
+    return isName;
 }
 
 
