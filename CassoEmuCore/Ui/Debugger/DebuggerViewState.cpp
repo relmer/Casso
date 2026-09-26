@@ -1240,9 +1240,30 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
 
     //  GSSquared and WinDbg have no layout commands, and their words are not
-    //  AppleWin's.
+    //  AppleWin's. PANEL is the one window command they reach: GSSquared as
+    //  typed, WinDbg after its `!` engine marker.
     if (mode == CommandMode::GSSquared || mode == CommandMode::WinDbg)
     {
+        if (mode == CommandMode::WinDbg)
+        {
+            if (first == std::string::npos || line[first] != '!')
+            {
+                return ExecuteLine (session, line, mode);
+            }
+
+            text = line.substr (first + 1);
+        }
+
+        stream.str (text);
+        stream >> name;
+
+        entry = session.IsAssembling() ? nullptr : AppleWinCommandTable::Find (name);
+
+        if (entry != nullptr && entry->verb == DebugVerb::ListPanels)
+        {
+            return ExecutePanelLine (session, text, line, mode);
+        }
+
         return ExecuteLine (session, line, mode);
     }
 

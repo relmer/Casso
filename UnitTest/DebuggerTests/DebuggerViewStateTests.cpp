@@ -2489,6 +2489,25 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  The Device menu's line opens its panel in every command mode.
+        TEST_METHOD (ThePanelMenuLineOpensInEveryMode)
+        {
+            for (CommandMode mode : { CommandMode::GSSquared, CommandMode::WinDbg, CommandMode::Monitor })
+            {
+                MachineRig  rig;
+                std::string line = DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", true), mode);
+                Reply       reply;
+
+
+
+                reply = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
+
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line.begin(), line.end()).c_str());
+                Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
+            }
+        }
+
+
         //  The rows a panel draws: the group's title on a row of its own, each
         //  row under it, and a bit's name dimmed while the bit is clear.
         TEST_METHOD (APanelRendersASyntheticSnapshot)
