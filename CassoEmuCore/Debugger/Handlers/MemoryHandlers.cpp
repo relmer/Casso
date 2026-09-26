@@ -218,6 +218,12 @@ void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command,
 
 
 
+    if (!command.hasA3)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a destination and a source range.", command.sourceName));
+        return;
+    }
+
     for (uint32_t address = command.a1; address <= last; ++address)
     {
         bytes.push_back (Peek (target, (Word) address));
