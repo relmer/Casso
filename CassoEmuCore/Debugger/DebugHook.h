@@ -49,6 +49,10 @@ struct DebugHookFilter
 //  during the instruction that just ran, such as a watchpoint hit, which takes
 //  effect at the next instruction boundary. OnInstruction is told of each
 //  instruction that is about to execute, after the stop test let it through.
+//  ShouldStopAtRunStart is asked instead of ShouldStopBefore about the
+//  instruction a run or a resume begins on, which a breakpoint there must not
+//  stop again. ShouldStopAfterInterrupt is asked before the first instruction
+//  of an interrupt handler, with the handler's address.
 //
 //  A hook that sets no filter is asked about every instruction.
 //
@@ -59,9 +63,11 @@ class DebugHook
 public:
     virtual ~DebugHook() = default;
 
-    virtual bool  ShouldStopBefore (Word pc)  = 0;
-    virtual bool  HasPendingStop   () const   = 0;
-    virtual void  OnInstruction    (Word)     {}
+    virtual bool  ShouldStopBefore         (Word pc)  = 0;
+    virtual bool  HasPendingStop           () const   = 0;
+    virtual void  OnInstruction            (Word)     {}
+    virtual bool  ShouldStopAtRunStart     (Word)     { return false; }
+    virtual bool  ShouldStopAfterInterrupt (Word)     { return false; }
 
     const DebugHookFilter &  GetFilter () const { return *m_filter; }
 

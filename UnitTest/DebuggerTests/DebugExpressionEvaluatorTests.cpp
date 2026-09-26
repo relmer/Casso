@@ -99,7 +99,7 @@ namespace DebuggerTests
             Expect (context, "F0&3C",     0x30);
             Expect (context, "F0|0F",     0xFF);
             Expect (context, "FF^0F",     0xF0);
-            Expect (context, "!0",        0xFFFF);
+            Expect (context, "~0",        0xFFFF);
             Expect (context, "-1",        -1);
             Expect (context, "<1234",     0x34);
             Expect (context, ">1234",     0x12);
@@ -109,6 +109,28 @@ namespace DebuggerTests
             Expect (context, "5=5",       1);
             Expect (context, "5==6",      0);
             Expect (context, "5!=6",      1);
+        }
+
+
+
+        TEST_METHOD (LogicalOperators)
+        {
+            MockExpressionContext context;
+
+
+
+            Expect (context, "!0",            1);
+            Expect (context, "!5",            0);
+            Expect (context, "!(A == 41)",    0);
+            Expect (context, "!(A == 42)",    1);
+            Expect (context, "1 && 2",        1);
+            Expect (context, "1 && 0",        0);
+            Expect (context, "0 || 3",        1);
+            Expect (context, "0 || 0",        0);
+            Expect (context, "1 | 2 && 0",    0);
+            Expect (context, "1 == 1 || 0 && 0", 1);
+            Expect (context, "~~5",           5);
+            Expect (context, "!!5",           1);
         }
 
 

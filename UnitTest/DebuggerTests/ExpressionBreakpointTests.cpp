@@ -208,6 +208,48 @@ namespace DebuggerTests
 
 
 
+        //  BPR and the leading-operator BP are conditions in their own
+        //  right, and are checked as they are set just as an IF is.
+        TEST_METHOD (BPR_AndLeadingOperatorBP_AreValidatedWhenSet)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("BPR A = NOSUCH", "invalid condition");
+            rig.RunFails ("BPR A = *C000",  "invalid condition");
+            rig.RunFails ("BP < NOSUCH",    "invalid condition");
+            Assert::IsTrue (rig.session.GetBreakpoints().GetAll().empty());
+
+            rig.RunOk    ("BP 300");
+            rig.RunFails ("BPEDIT 0 BPR A = NOSUCH", "invalid condition");
+            Assert::AreEqual (std::string ("BP 0300"), BreakpointHandlers::MakeDefinition (BreakpointHandlers::MakeInfo (rig.session.GetBreakpoints().GetAll().at (0))));
+        }
+
+
+
+        //  A condition is checked against the machine as it is when set, where
+        //  a register or VALUE can be zero; dividing by one is not an error
+        //  until the condition is tested at a hit.
+        TEST_METHOD (If_DividingByAValueThatIsZeroNow_IsAccepted)
+        {
+            Rig  rig;
+
+
+
+            rig.target.registers.x = 0;
+            rig.RunOk ("BP 300 IF 10 / X = 2");
+            rig.RunOk ("BPMW 400 IF 10 / VALUE = 2");
+            rig.RunOk ("BPMV 6 7 IF 10 % VALUE = 3");
+
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0300), L"X is still zero");
+
+            rig.target.registers.x = 8;
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0300));
+        }
+
+
+
         TEST_METHOD (IfWithoutAnExpression_IsAnError)
         {
             Rig  rig;

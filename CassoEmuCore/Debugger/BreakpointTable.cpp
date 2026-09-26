@@ -168,7 +168,7 @@ int BreakpointTable::AddBrk()
 //  BreakpointTable::AddInterrupt
 //
 //  An interrupt is dispatched inside the CPU step, so this entry is matched
-//  by the session when the run driver reports one, not here.
+//  by TryMatchInterrupt, before the first instruction of the handler.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -441,6 +441,44 @@ bool BreakpointTable::TryMatchBeforeInstruction (
                 isHit                = true;
             }
         }
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryMatchInterrupt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMatchInterrupt (int & hitId)
+{
+    bool  isHit = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (!entry.enabled || entry.kind != BreakpointKind::Interrupt)
+        {
+            continue;
+        }
+
+        ++entry.hits;
+
+        if (!entry.stops || isHit)
+        {
+            continue;
+        }
+
+        hitId = entry.id;
+        isHit = true;
+        m_lastConditionValue.reset();
     }
 
     return isHit;

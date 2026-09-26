@@ -45,8 +45,12 @@ class MachineHost;
 //  A step into, by instruction or by source line, whose JSR reaches a routine
 //  in the request's step filter runs that call as a step over would.
 //
-//  The first instruction of a run always executes, so resuming from a
-//  breakpoint does not stop on the same breakpoint again.
+//  The first instruction of a run executes without asking the breakpoints, so
+//  resuming from a breakpoint does not stop on the same breakpoint again. A
+//  before-mode watchpoint can still stop it, once.
+//
+//  An interrupt breakpoint stops before the first instruction of the handler
+//  of an interrupt the CPU took in place of the last instruction asked about.
 //
 //  A run in progress asks about every instruction. Between runs the hook asks
 //  about the instructions its conditions hook asks about, and none without
@@ -91,6 +95,7 @@ private:
     bool        IsInterruptDue   () const;
     bool        IsRunThroughInterrupts () const;
     bool        HasLeftInterrupt (Byte sp) const;
+    bool        IsBreakpointHit  (Word pc, bool isInterrupted);
 
     //  The line at an address that a source step compares: the innermost for
     //  a step into, the outermost otherwise. Absent where no line produced
@@ -109,6 +114,11 @@ private:
     Byte                     m_startSp      = 0;
     Byte                     m_lastOpcode   = 0;
     bool                     m_overCall     = false;
+
+    //  An interrupt was due when the last instruction was asked about, so the
+    //  CPU took it instead, and the next instruction asked about begins its
+    //  handler.
+    bool                     m_isInterruptTaken = false;
 
     //  The stack pointer before the outermost call the step is inside, while
     //  it is inside one, and the line the step began on.

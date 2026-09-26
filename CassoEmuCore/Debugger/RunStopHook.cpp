@@ -90,6 +90,7 @@ void RunStopHook::Begin (const RunRequest & request)
     m_resumePc.reset();
     m_startLine    = GetStepLine (pc);
 
+    m_isInterruptTaken = false;
     SetFilter (&s_kEveryInstruction);
 }
 
@@ -128,6 +129,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     bool  isFirst       = m_active && m_instructions == 0;
     bool  isInInterrupt = false;
     bool  isResumed     = false;
+    bool  isInterrupted = m_isInterruptTaken;
 
 
 
@@ -135,6 +137,8 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     {
         return true;
     }
+
+    m_isInterruptTaken = false;
 
     //  The instruction a stop left the PC on runs when the machine resumes,
     //  though no run begins: a resume from the main window would otherwise
@@ -172,35 +176,40 @@ bool RunStopHook::ShouldStopBefore (Word pc)
         m_stopped = true;
         m_reason  = (m_request.kind == RunKind::RunTo || m_request.kind == RunKind::Go) ? StopReason::RunTo : StopReason::Step;
 
-        if (m_conditions != nullptr && m_conditions->ShouldStopBefore (pc))
+        if (IsBreakpointHit (pc, isInterrupted))
         {
             m_reason = StopReason::Breakpoint;
         }
     }
-    else if (m_conditions != nullptr && !isFirst && !isResumed && m_conditions->ShouldStopBefore (pc))
+    else if (!isFirst && !isResumed && IsBreakpointHit (pc, isInterrupted))
     {
+        m_stopped = true;
+        m_reason  = StopReason::Breakpoint;
+    }
+    else if (isFirst && m_conditions != nullptr && m_conditions->ShouldStopAtRunStart (pc))
+    {
+        //  The instruction a run begins on is asked only whether a before-mode
+        //  watchpoint stops it, which a breakpoint there must not do again.
         m_stopped = true;
         m_reason  = StopReason::Breakpoint;
     }
 
     if (!m_stopped)
     {
+        //  An interrupt taken in place of the instruction at the PC is not
+        //  that instruction: its push is not a JSR's, and whatever runs next
+        //  is the handler.
+        m_isInterruptTaken = IsInterruptDue();
+
         if (m_active)
         {
-            //  An interrupt taken in place of the instruction at the PC is not
-            //  that instruction: its push is not a JSR's, and whatever runs
-            //  next is the handler.
-            bool  isInterruptDue = IsInterruptDue();
-
-
-
-            if (isInterruptDue && !m_interruptSp.has_value() && IsRunThroughInterrupts())
+            if (m_isInterruptTaken && !m_interruptSp.has_value() && IsRunThroughInterrupts())
             {
                 m_interruptSp = sp;
                 m_interruptPc = pc;
             }
 
-            m_lastOpcode = isInterruptDue ? kNoOpcode : PeekOpcode (pc);
+            m_lastOpcode = m_isInterruptTaken ? kNoOpcode : PeekOpcode (pc);
 
             //  A call the step runs over is one instruction, its JSR: what
             //  runs inside it does not count toward a step's count.
@@ -217,6 +226,35 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     }
 
     return m_stopped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::IsBreakpointHit
+//
+//  The conditions hook's stop before the instruction at pc: the interrupt
+//  breakpoint first, when pc begins the handler of an interrupt just taken,
+//  then the breakpoints and watchpoints.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RunStopHook::IsBreakpointHit (Word pc, bool isInterrupted)
+{
+    if (m_conditions == nullptr)
+    {
+        return false;
+    }
+
+    if (isInterrupted && m_conditions->ShouldStopAfterInterrupt (pc))
+    {
+        return true;
+    }
+
+    return m_conditions->ShouldStopBefore (pc);
 }
 
 

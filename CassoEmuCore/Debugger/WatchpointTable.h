@@ -46,10 +46,12 @@ struct Watchpoint
 //  enabled range with a matching access records the hit and raises a pending
 //  stop, which takes effect at the next instruction boundary.
 //
-//  One instruction can touch the same byte more than once: the CPU's indexed
-//  fetches read a store's target before writing it. Within one instruction a
-//  write replaces a pending read of the same address, and a later write
-//  replaces an earlier one, so the stop reports the write and its value.
+//  One instruction can touch the same byte more than once: a read-modify-write
+//  reads its target before writing it. Within one instruction a write replaces
+//  a pending read of the same address, and a later write replaces an earlier
+//  one, so the stop reports the write and its value. The CPU's fetches of the
+//  instruction's own bytes, and an indexed store's read of its target, are
+//  not the program reading memory, and no watchpoint sees them.
 //
 //  Before-mode watchpoints put no page in the mask; the session predicts them
 //  from the instruction about to execute.
@@ -115,6 +117,15 @@ public:
     //  starts.
     void   SuppressAfterStopFor (Word pc, Word first, Word last);
 
+    //  Whether a before-mode stop on the instruction at pc is suppressing its
+    //  accesses, which is to say the stop left the PC there.
+    bool   IsSuppressingAfterStopAt (Word pc) const { return m_suppression.has_value() && m_suppression->pc == pc; }
+
+    //  The reads the instruction at pc makes on its own account, which no
+    //  watchpoint sees: each of its length bytes, fetched once, and a read of
+    //  storeTarget, the target an indexed store reads before writing.
+    void   SetCpuOwnReads   (Word pc, Word length, std::optional<Word> storeTarget);
+
     void   OnWatchedAccess  (Word address, Byte value, BusAccess access, std::optional<Byte> previous) override;
 
 private:
@@ -131,6 +142,7 @@ private:
     static bool  IsAccessMatch  (WatchAccess watched, BusAccess actual);
     static bool  IsTouchMatch   (WatchAccess watched, PredictedAccess predicted);
     bool         IsSuppressed   (Word address) const;
+    bool         TryConsumeCpuOwnRead (Word address);
     bool         ShouldReplace  (Word address, BusAccess access) const;
     bool         IsConditionMet (const Expression & condition, Word address, std::optional<Byte> value, std::optional<int32_t> & conditionValue) const;
     void         RecordHit      (const WatchHit & hit, BusAccess access);
@@ -145,4 +157,7 @@ private:
     std::optional<WatchHit>            m_pendingHit;
     std::optional<Suppression>         m_suppression;
     StackWriteSink                     m_stackWriteSink;
+    Word                               m_fetchPc          = 0;
+    Byte                               m_fetchesLeft      = 0;       // bit n: the byte at m_fetchPc + n
+    std::optional<Word>                m_storeTarget;
 };

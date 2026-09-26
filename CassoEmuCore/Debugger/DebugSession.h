@@ -231,9 +231,11 @@ public:
     bool   HasVideoBreak         () const { return m_videoBreak.has_value(); }
 
     // DebugHook: the stop conditions consulted before each instruction.
-    bool   ShouldStopBefore      (Word pc) override;
-    bool   HasPendingStop        () const override;
-    void   OnInstruction         (Word pc) override;
+    bool   ShouldStopBefore         (Word pc) override;
+    bool   HasPendingStop           () const override;
+    void   OnInstruction            (Word pc) override;
+    bool   ShouldStopAtRunStart     (Word pc) override;
+    bool   ShouldStopAfterInterrupt (Word pc) override;
 
     // IRunObserver
     void   OnStopped             (const StopEvent & stop) override;
@@ -279,6 +281,7 @@ private:
     Word   FindStoreInProgress   () const;
     bool   HasStopConditions     () const;
     bool   TryMatchBeforeWatchpoint (Word pc);
+    void   NoteCpuOwnReads       (Word pc);
     bool   IsVideoBreakHit       () const;
     void   ClearTemporary        (const StopEvent & stop);
     void   AttachCondition       (StopEvent & event) const;
