@@ -70,9 +70,12 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //
 //  ConfigHandlers::RunScript
 //
+//  Each line's text is rendered as it runs and kept in order; the first line
+//  that fails sets the script's status, and the lines after it still run.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, MessageData & output)
+void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, Reply & reply)
 {
     size_t  start = 0;
 
@@ -83,7 +86,7 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         size_t       end  = content.find ('\n', start);
         std::string  line = content.substr (start, end == std::string::npos ? std::string::npos : end - start);
         size_t       firstNonBlank = line.find_first_not_of (" \t\r");
-        Reply        reply;
+        Reply        one;
 
 
 
@@ -99,9 +102,15 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
 
         if (firstNonBlank == std::string::npos || line[firstNonBlank] != ';')
         {
-            reply = session.ExecuteLine (line);
-            session.FormatReply (reply);
-            output.lines.insert (output.lines.end(), reply.text.begin(), reply.text.end());
+            one = session.ExecuteLine (line);
+            session.FormatReply (one);
+            reply.text.insert (reply.text.end(), one.text.begin(), one.text.end());
+
+            if (reply.status == CommandStatus::Ok)
+            {
+                reply.status = one.status;
+                reply.error  = one.error;
+            }
         }
 
         if (end == std::string::npos)
@@ -170,7 +179,6 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
 {
     IFileSystem  * files = session.GetFileSystem();
     std::string    content;
-    MessageData    output;
     HRESULT        hr    = S_OK;
 
 
@@ -207,9 +215,9 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
     }
 
     s_scriptDepth++;
-    RunScript (session, content, output);
+    RunScript (session, content, reply);
     s_scriptDepth--;
-    reply.data = output;
+    reply.isFormatted = true;
 }
 
 
@@ -560,15 +568,15 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 //
 //  ConfigHandlers::Help
 //
-//  HELP alone lists what can be typed in the session's mode; HELP name
-//  describes one command, or says which modes run a Casso command this one
-//  cannot.
+//  HELP alone lists what can be typed in the mode the line was run in; HELP
+//  name describes one command, or says which modes run a Casso command this
+//  one cannot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    CommandMode  mode = session.GetMode();
+    CommandMode  mode = session.GetLineMode();
     std::string  text;
 
 
@@ -581,7 +589,7 @@ void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command,
 
     if (!CommandModeHelp::TryDescribe (mode, command.text, text))
     {
-        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (command.text)));
+        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", command.text));
         return;
     }
 

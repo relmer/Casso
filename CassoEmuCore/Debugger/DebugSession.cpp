@@ -340,8 +340,9 @@ Reply DebugSession::ExecuteLine (const std::string & line)
 
 Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
 {
-    Reply        reply;
-    std::string  text = Trim (line);
+    Reply                       reply;
+    std::string                 text          = Trim (line);
+    std::optional<CommandMode>  outerLineMode = m_lineMode;
 
 
 
@@ -352,6 +353,9 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
         return reply;
     }
 
+    //  Kept for the line, and put back after it, so a script the line runs
+    //  does not change what the rest of the line sees.
+    m_lineMode = mode;
 
     switch (mode)
     {
@@ -361,6 +365,7 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
     default:                      reply = ExecuteAppleWinLine  (text); break;
     }
 
+    m_lineMode    = outerLineMode;
     reply.command = line;
     return reply;
 }
@@ -884,7 +889,9 @@ void DebugSession::ClearAllBreakpoints()
 {
     m_breakpoints.ClearAll();
     m_watchpoints.ClearAll();
-    m_nextId = 0;
+    m_videoBreak.reset();
+    m_videoBreakHit = false;
+    m_nextId        = 0;
     UpdateHookInstalled();
 }
 
@@ -962,6 +969,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_beforeHit.reset();
     m_monitorReturn.reset();
     m_monitorReturned = false;
+    m_videoBreak.reset();
+    m_videoBreakHit   = false;
     m_assemblyAddress.reset();
     m_assemblyOpcodes.reset();
     m_nextStep.reset();

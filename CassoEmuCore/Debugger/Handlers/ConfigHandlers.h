@@ -28,7 +28,7 @@ public:
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
     // Each line executed in turn; a line beginning with ; is a comment.
-    static void  RunScript (DebugSession & session, const std::string & content, MessageData & output);
+    static void  RunScript (DebugSession & session, const std::string & content, Reply & reply);
 
 private:
     static constexpr const char * kStartupScript = "DebuggerAutoRun.txt";

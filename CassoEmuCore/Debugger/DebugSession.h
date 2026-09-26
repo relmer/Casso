@@ -119,6 +119,9 @@ public:
 
     RunState                GetRunState    () const { return m_state; }
     CommandMode             GetMode        () const { return m_mode; }
+
+    // The mode of the line being run, which a channel request can set apart from the session's.
+    CommandMode             GetLineMode    () const { return m_lineMode.value_or (m_mode); }
     OutputFormat            GetOutputFormat () const { return m_outputFormat; }
     void                    SetOutputFormat (OutputFormat format) { m_outputFormat = format; }
     std::optional<uint64_t> GetBudget      () const { return m_budget; }
@@ -286,6 +289,7 @@ private:
 
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;
+    std::optional<CommandMode>            m_lineMode;
     OutputFormat                          m_outputFormat  = OutputFormat::AppleWin;
     LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;

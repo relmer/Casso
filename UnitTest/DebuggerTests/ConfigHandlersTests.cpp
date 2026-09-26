@@ -101,15 +101,14 @@ namespace DebuggerTests
 
 
 
-            rig.files.WriteAllText (L"C:\\Work\\script.txt", "ECHO one\r\n; a comment\nCALC 2\nFROB\n");
+            rig.files.WriteAllText (L"C:\\Work\\script.txt", "ECHO one\r\n; a comment\nCALC 2\n");
 
             lines = rig.RunOk ("RUN script.txt").text;
-            Assert::AreEqual ((size_t) 4, lines.size(), L"a comment prints nothing; an unknown command prints its error");
+            Assert::AreEqual ((size_t) 2, lines.size(), L"a comment prints nothing");
             Assert::AreEqual (std::string ("one"),                          lines[0]);
             Assert::AreEqual (std::string ("$0002  0z00000010      2  ' ' (Ctrl)"), lines[1]);
-            Assert::AreEqual (std::string ("Error: unknown command"),       lines[2]);
 
-            Assert::AreEqual ((size_t) 4, rig.RunOk ("LOAD \"script.txt\"").text.size());
+            Assert::AreEqual ((size_t) 2, rig.RunOk ("LOAD \"script.txt\"").text.size());
             rig.RunFails ("RUN missing.txt", "file not found");
             rig.RunFails ("RUN",             "invalid arguments");
             rig.RunFails ("STARTUP",         "file not found");
@@ -129,9 +128,30 @@ namespace DebuggerTests
 
             rig.files.WriteAllText (L"C:\\Work\\self.txt", "RUN self.txt\n");
 
-            lines = rig.RunOk ("RUN self.txt").text;
+            lines = rig.Run ("RUN self.txt").text;
             Assert::IsFalse (lines.empty());
             Assert::IsTrue  (lines.back().find ("nested") != std::string::npos);
+        }
+
+
+
+        //  A line that fails inside a script fails the script, so a batch run
+        //  exits with an error, and the lines after it still run and print.
+        TEST_METHOD (RUN_FailingLine_FailsTheScript)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\script.txt", "ECHO one\nFROB\nECHO two\n");
+
+            reply = rig.Run ("RUN script.txt");
+            Assert::AreEqual ((int) CommandStatus::Unknown,           (int) reply.status);
+            Assert::AreEqual ((size_t) 4,                             reply.text.size());
+            Assert::AreEqual (std::string ("one"),                    reply.text[0]);
+            Assert::AreEqual (std::string ("Error: unknown command"), reply.text[1]);
+            Assert::AreEqual (std::string ("two"),                    reply.text[3]);
         }
 
 
@@ -205,6 +225,26 @@ namespace DebuggerTests
             Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("HELP FROB").status);
             Assert::AreEqual (std::string ("Casso " VERSION_STRING), rig.RunOk ("VERSION").text.at (0));
             Assert::IsFalse  (rig.RunOk ("MOTD").text.at (0).empty());
+        }
+
+
+        //  A line run in another mode, as a channel request can, gets that
+        //  mode's help, and an unknown name is quoted as typed.
+        TEST_METHOD (HELP_UsesTheLinesMode)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.session.ExecuteLine (".help", CommandMode::WinDbg);
+            rig.session.FormatReply (reply, CommandMode::WinDbg);
+            Assert::AreEqual (std::string ("WinDbg commands:"), reply.text.at (0));
+
+            reply = rig.session.ExecuteLine (".help ba", CommandMode::WinDbg);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+
+            Assert::AreEqual (std::string ("frob is not a command."), rig.Run ("HELP frob").error.detail);
         }
 
 

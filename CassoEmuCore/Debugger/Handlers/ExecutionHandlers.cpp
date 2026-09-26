@@ -6,6 +6,7 @@
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/DebugSession.h"
 #include "Disassembler.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
@@ -262,7 +263,8 @@ void ExecutionHandlers::FeedKeys (DebugSession & session)
 //
 //  ExecutionHandlers::BreakOnVideoLine
 //
-//  BPV vpos[,len] stops when the scanline enters the range, once.
+//  BPV vpos[,len] stops when the scanline enters the range, once. A range
+//  that starts past the frame's last scanline could never stop.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,6 +273,13 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
     Word  last = command.hasA2 ? command.a2 : command.a1;
 
 
+
+    if (command.a1 >= VideoTiming::kScanlinesPerFrame)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("Scanline {:X} is past the frame. Scanlines run from 0 to {:X}.", command.a1, VideoTiming::kScanlinesPerFrame - 1));
+        return;
+    }
 
     session.SetVideoBreak (command.a1, last);
     reply.data = MessageData { { std::format ("Breakpoint set on video scanlines {}-{}. It clears after it fires.", command.a1, last) } };

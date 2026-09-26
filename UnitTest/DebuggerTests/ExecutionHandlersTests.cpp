@@ -624,5 +624,33 @@ namespace DebuggerTests
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("BENCHMARK").status);
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("EXITBENCH").status);
         }
+
+
+
+        //  A scanline past the frame's last can never be reached, so BPV
+        //  there is an error; clearing every breakpoint or changing the
+        //  machine removes a video break with the rest.
+        TEST_METHOD (BPV_UnreachableIsAnError_ClearedWithTheRest)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("BPV 200",   "invalid arguments");
+            rig.RunFails ("BPV FFFF",  "invalid arguments");
+            rig.RunFails ("BPV A0:10", "invalid arguments");
+            Assert::IsFalse (rig.session.HasVideoBreak());
+
+            rig.RunOk ("BPV 105");
+            Assert::IsTrue  (rig.session.HasVideoBreak(), L"scanline 261 is the frame's last");
+            rig.session.ClearAllBreakpoints();
+            Assert::IsFalse (rig.session.HasVideoBreak(), L"clearing all breakpoints clears the video break");
+            Assert::IsFalse (rig.target.hookInstalled);
+
+            rig.RunOk ("BPV A0");
+            rig.session.OnMachineChanged ("Apple //e");
+            Assert::IsFalse (rig.session.HasVideoBreak(), L"a machine change clears the video break");
+            Assert::IsFalse (rig.target.hookInstalled);
+        }
     };
 }
