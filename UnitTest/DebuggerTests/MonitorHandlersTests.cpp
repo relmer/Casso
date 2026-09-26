@@ -379,6 +379,20 @@ namespace DebuggerTests
 
 
 
+        //  The slot is typed in hex, so the error quotes it in hex.
+        TEST_METHOD (AnUnknownSlot_IsQuotedInHex)
+        {
+            Rig    rig;
+            Reply  reply = rig.Run ("10^P");
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::AreEqual (std::string ("There is no slot 10. The slots are 0 to 7."), reply.error.detail);
+        }
+
+
+
         ////////////////////////////////////////////////////////////////////////
         //
         //  Arithmetic and verify
@@ -600,6 +614,36 @@ namespace DebuggerTests
 
             rig.target.TryPeek (0xBFFF, value);
             Assert::AreEqual ((int) 0xEA, (int) value);
+        }
+
+
+
+        //  A deposit that runs past $FFFF wraps to $0000, and its reply shows
+        //  both bytes it wrote. Two reads of $C083 make the language card's
+        //  RAM writable, as a guest does, so $FFFF takes a byte.
+        TEST_METHOD (Deposit_ThatWrapsPastFFFF_ShowsEveryByte)
+        {
+            static constexpr Word  kLcBank2RamWrite = 0xC083;
+            MachineRig             rig;
+            Reply                  reply;
+            Byte                   value            = 0;
+
+
+
+            rig.machine.GetMemoryBus().ReadByte (kLcBank2RamWrite);
+            rig.machine.GetMemoryBus().ReadByte (kLcBank2RamWrite);
+
+            reply = rig.Run ("FFFF: 01 02");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
+
+            rig.target.TryPeek (0xFFFF, value);
+            Assert::AreEqual ((int) 0x01, (int) value);
+            rig.target.TryPeek (0x0000, value);
+            Assert::AreEqual ((int) 0x02, (int) value);
+
+            Assert::AreEqual (size_t (2), reply.text.size());
+            Assert::AreEqual (std::string ("FFFF- 01"), reply.text[0]);
+            Assert::AreEqual (std::string ("0000- 02"), reply.text[1]);
         }
 
 

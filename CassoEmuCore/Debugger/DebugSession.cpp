@@ -1743,8 +1743,10 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 
     if (m_state == RunState::DebugRun || m_state == RunState::Stepping)
     {
+        // Monitor mode reaches PAUSE only through the `/` escape.
         SetError (reply, CommandStatus::Error, "already running",
-                  "A run is in progress. Use PAUSE to stop it.");
+                  command.mode == CommandMode::Monitor ? "A run is in progress. Use /PAUSE to stop it."
+                                                       : "A run is in progress. Use PAUSE to stop it.");
         return;
     }
 

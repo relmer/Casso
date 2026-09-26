@@ -293,6 +293,26 @@ namespace DebuggerTests
             Assert::IsTrue (reply.text.empty());
         }
 
+        //  GSSquared's nobp and nowatch print nothing when they clear one.
+        TEST_METHOD (ClearingOneBreakpointOrWatch_PrintsNothing)
+        {
+            Reply  breakpoint;
+            Reply  watch;
+
+
+
+            breakpoint.verb = DebugVerb::ClearBreakpoint;
+            breakpoint.data = MessageData { { "Breakpoint #0 cleared." } };
+            watch.verb      = DebugVerb::ClearWatch;
+            watch.data      = MessageData { { "Watch #0 cleared." } };
+
+            GSSquaredFormatter::Format (breakpoint);
+            GSSquaredFormatter::Format (watch);
+
+            Assert::IsTrue (breakpoint.text.empty());
+            Assert::IsTrue (watch.text.empty());
+        }
+
         //  A reply kind GSSquared has no layout for keeps the AppleWin text,
         //  as the Monitor formatter does; errors too.
         TEST_METHOD (NoGSSquaredLayout_KeepsTheAppleWinText)

@@ -164,6 +164,15 @@ namespace DebuggerTests
             }
         }
 
+        //  A form with nothing before its `.` or `:` quotes what was typed,
+        //  never an empty token.
+        TEST_METHOD (AMissingAddress_IsQuotedAsTyped)
+        {
+            Assert::AreEqual (std::string (".300 is not a range. A range is first.last in hex."), Refused (".300", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string (".l is not a range. A range is first.last in hex."),   Refused (".l",   ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("An address is missing. An address is one to four hex digits."), Refused (": 41", ParseStatus::Invalid).error);
+        }
+
         TEST_METHOD (Deposit_TakesBytesOnly)
         {
             Refused ("300: 100",  ParseStatus::Invalid);

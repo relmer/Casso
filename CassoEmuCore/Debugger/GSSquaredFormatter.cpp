@@ -37,8 +37,8 @@ void GSSquaredFormatter::Format (Reply & reply)
 //  GSSquaredFormatter::TryFormatData
 //
 //  A deposit prints nothing, as GSSquared's does, though the reply carries
-//  the rows written. A watch that was just set is reported by its id, and a
-//  list by its entries.
+//  the rows written. Clearing one breakpoint or watch prints nothing too. A
+//  watch that was just set is reported by its id, and a list by its entries.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +49,11 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 
 
     if (reply.verb == DebugVerb::EnterBytes)
+    {
+        return true;
+    }
+
+    if ((reply.verb == DebugVerb::ClearBreakpoint || reply.verb == DebugVerb::ClearWatch) && std::holds_alternative<MessageData> (data))
     {
         return true;
     }
