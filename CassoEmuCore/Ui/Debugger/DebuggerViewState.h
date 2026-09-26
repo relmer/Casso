@@ -367,10 +367,19 @@ public:
         //  edit made is the one not among them.
         std::optional<Word>       restoreAddress;
         std::vector<int>          movedFromIds;
+
+        //  The watch the move made, once a snapshot shows it.
+        std::optional<int>        movedToId;
     };
 
     static std::optional<WatchUndo>  GetWatchUndo (const DebuggerViewSnapshot & before,
                                                    std::optional<int> watchId, std::optional<int> autoIndex, int column);
+
+    //  Notes the watch a move made from a snapshot taken after it ran, and
+    //  gives the lines that put the edit back: none yet while no snapshot
+    //  shows the moved watch, and empty once it has been removed.
+    static void                                     NoteMovedWatch    (const DebuggerViewSnapshot & now, WatchUndo & undo);
+    static std::optional<std::vector<std::string>>  GetWatchUndoLines (const DebuggerViewSnapshot & now, WatchUndo & undo);
 
     //  Which optional views are open, as the text the preferences keep, so a
     //  restart brings them back: `code2=E000 follow=2 memory3=0300 panel=mmu`.

@@ -652,6 +652,44 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (AMovedWatchsUndoFindsTheWatchTheMoveMadeAndNoOther)
+        {
+            DebuggerViewSnapshot                          before;
+            DebuggerViewSnapshot                          moved;
+            DebuggerViewSnapshot                          later;
+            std::optional<DebuggerViewState::WatchUndo>   undo;
+            std::optional<std::vector<std::string>>       lines;
+
+
+
+            before.watches = { { 3, 0x0400, "1234" }, { 5, 0x0500, "5678" } };
+            moved.watches  = { { 5, 0x0500, "5678" }, { 6, 0x0600, "0000" } };
+            later.watches  = { { 5, 0x0500, "5678" }, { 7, 0x0700, "0000" } };
+
+            undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 0);
+            Assert::IsTrue (undo.has_value());
+
+            //  Undone before any snapshot shows the move: nothing yet, and
+            //  the undo is still there to try again.
+            lines = DebuggerViewState::GetWatchUndoLines (before, *undo);
+            Assert::IsFalse (lines.has_value(), L"no snapshot shows the moved watch yet");
+
+            //  The snapshot after the move shows watch 6; that one was moved.
+            DebuggerViewState::NoteMovedWatch (moved, *undo);
+
+            lines = DebuggerViewState::GetWatchUndoLines (moved, *undo);
+            Assert::IsTrue   (lines.has_value());
+            Assert::AreEqual ((size_t) 2, lines->size());
+            Assert::AreEqual (std::string ("WC 6"),   lines->at (0));
+            Assert::AreEqual (std::string ("W 0400"), lines->at (1));
+
+            //  Watch 6 removed and watch 7 added since: 7 is not the moved
+            //  watch, and nothing is removed.
+            lines = DebuggerViewState::GetWatchUndoLines (later, *undo);
+            Assert::IsTrue (lines.has_value());
+            Assert::IsTrue (lines->empty(), L"an unrelated watch is left alone");
+        }
+
         TEST_METHOD (TheAutomaticWatchesAreTheCurrentAndTheJustExecutedInstructions)
         {
             MachineRig            rig;

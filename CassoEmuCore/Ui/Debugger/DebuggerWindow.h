@@ -186,21 +186,29 @@ protected:
     DxuiCheckbox   * GetFindWordBox  () const { return m_findWordBox; }
     std::wstring     GetFindStatus   () const { return m_findStatusText; }
 
-    //  Protected so a test can choose a scheme as the Keys menu does.
+    //  Protected so a test can choose a scheme as the Keys menu does, and
+    //  read the drop-down rows it leaves.
     void             ApplyKeyScheme  (DebuggerKeyScheme scheme);
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () const { return m_menuCommands; }
+
+    //  Protected so a test can hand the window a snapshot as a frame does.
+    void             TakeSnapshot    (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
+
+    //  Protected so a test can see which pane the watch editor goes with.
+    std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
+    DxuiTextInput  * GetWatchEditor   () const { return m_watchEditor; }
 
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
 
-    //  Protected so a test can apply a whole snapshot as a frame does, edit a
-    //  watch as F2 and Enter do, and see where the keys go.
-    void            ApplyFrameSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); ApplySnapshot(); }
-    void            BeginWatchEdit     (int row, int column);
-    void            EndWatchEdit       (bool commit);
-    IDxuiControl  * GetFocused         () const;
-    DxuiListView  * GetWatchList       () const { return m_watchList; }
-    DxuiTextInput * GetPokeBox         () const { return m_pokeBox; }
+    //  Protected so a test can edit a watch as F2 and Enter do, and see where
+    //  the keys go.
+    void            BeginWatchEdit (int row, int column);
+    void            EndWatchEdit   (bool commit);
+    IDxuiControl  * GetFocused     () const;
+    DxuiListView  * GetWatchList   () const { return m_watchList; }
+    DxuiTextInput * GetPokeBox     () const { return m_pokeBox; }
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
@@ -301,7 +309,6 @@ private:
     std::vector<IDxuiControl *>  GetPaneControls   (const std::wstring & pane) const;
     IDxuiControl *               GetPaneContent    (const std::wstring & pane) const;
     std::wstring                 GetPaneTitle      (const std::wstring & pane) const;
-    std::wstring                 GetPaneOfControl  (const IDxuiControl * control) const;
     bool                         IsRoutable        (const IDxuiControl * control) const;
     void                         SetFocusedControl (IDxuiControl * control);
     HWND                         GetRoutingHwnd    () const;

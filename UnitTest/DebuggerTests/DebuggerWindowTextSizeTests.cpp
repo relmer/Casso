@@ -2,6 +2,7 @@
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Widgets/DxuiHexView.h"
 #include "Widgets/DxuiListView.h"
@@ -111,12 +112,15 @@ namespace DebuggerTests
         using DebuggerWindow::GetFindCaseBox;
         using DebuggerWindow::GetFindWordBox;
         using DebuggerWindow::GetFindStatus;
-        using DebuggerWindow::ApplyFrameSnapshot;
         using DebuggerWindow::BeginWatchEdit;
         using DebuggerWindow::EndWatchEdit;
         using DebuggerWindow::GetFocused;
         using DebuggerWindow::GetWatchList;
         using DebuggerWindow::GetPokeBox;
+        using DebuggerWindow::GetMenuCommands;
+        using DebuggerWindow::TakeSnapshot;
+        using DebuggerWindow::GetPaneOfControl;
+        using DebuggerWindow::GetWatchEditor;
 
         //  A key as the window's message handling delivers it: to the window
         //  first, then to the key scheme if nothing took it.
@@ -768,11 +772,11 @@ namespace DebuggerTests
             after->autoWatches  = { mem, reg };
 
             Build (window);
-            window.ApplyFrameSnapshot (before);
+            window.TakeSnapshot (before);
 
             //  Row 0 is the heading; row 1 is register A.
             window.BeginWatchEdit (1, 1);
-            window.ApplyFrameSnapshot (after);
+            window.TakeSnapshot (after);
             window.Type (L"42");
             window.EndWatchEdit (true);
 
@@ -848,12 +852,12 @@ namespace DebuggerTests
 
 
             Build (window);
-            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+            window.TakeSnapshot (MakeSnapshot ("Apple2e", true));
 
             EditWatch (window);
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"the edit writes the watch");
 
-            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+            window.TakeSnapshot (MakeSnapshot ("Apple2e", true));
             window.FocusControl (window.GetWatchList());
             Assert::IsTrue   (window.Press ('Z', true));
             Assert::AreEqual ((size_t) 2, host.commands.size(), L"on the same machine Ctrl+Z puts it back");
@@ -861,7 +865,7 @@ namespace DebuggerTests
             EditWatch (window);
             sent = host.commands.size();
 
-            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2Plus", true));
+            window.TakeSnapshot (MakeSnapshot ("Apple2Plus", true));
             window.FocusControl (window.GetWatchList());
             window.Press ('Z', true);
             Assert::AreEqual (sent, host.commands.size(), L"another machine's value is not written into this one");
@@ -894,7 +898,7 @@ namespace DebuggerTests
 
 
             Build (window);
-            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+            window.TakeSnapshot (MakeSnapshot ("Apple2e", true));
 
             //  The Go to box is focused in a floating window, as SetFocusedControl
             //  leaves it, and a click then focuses a list in the main window.
@@ -917,14 +921,14 @@ namespace DebuggerTests
 
 
             Build (window);
-            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", true));
+            window.TakeSnapshot (MakeSnapshot ("Apple2e", true));
             scaler.SetDpi (96);
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
 
             window.FocusControl (window.GetPokeBox());
             Assert::IsTrue   (window.GetPokeBox()->IsVisible(), L"the poke box shows in the memory window's bar");
 
-            window.ApplyFrameSnapshot (MakeSnapshot ("Apple2e", false));
+            window.TakeSnapshot (MakeSnapshot ("Apple2e", false));
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
 
             Assert::IsFalse  (window.GetPokeBox()->IsVisible(), L"no memory window, no bar");
@@ -932,6 +936,123 @@ namespace DebuggerTests
 
             window.Type (L"12");
             Assert::AreEqual (std::wstring(), window.GetPokeBox()->GetText(), L"and nothing is typed into the hidden box");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerWindowStateTests
+    //
+    //  What the window keeps across a scheme change, a closed view and a
+    //  floated pane.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerWindowStateTests)
+    {
+    public:
+
+        TEST_METHOD (TheKeysDropDownChecksTheSchemeInForceFromTheStart)
+        {
+            CassoTheme          theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window  (theme, host);
+            std::wstring        appleWin = DebuggerKeySchemes::GetMap (DebuggerKeyScheme::AppleWin).GetName();
+            std::wstring        vs       = DebuggerKeySchemes::GetMap (DebuggerKeyScheme::VisualStudio).GetName();
+            std::optional<bool> appleWinChecked;
+            std::optional<bool> vsChecked;
+
+
+
+            //  As Create does: the controls first, then the saved scheme.
+            window.OnCreate();
+            window.ApplyKeyScheme (DebuggerKeyScheme::AppleWin);
+
+            //  The Keys rows come after the dialect rows, which share the
+            //  AppleWin and GSSquared labels, so the last row of each wins.
+            for (const std::shared_ptr<DxuiCommand> & command : window.GetMenuCommands())
+            {
+                if (command->label == appleWin)
+                {
+                    appleWinChecked = command->IsChecked();
+                }
+                else if (command->label == vs)
+                {
+                    vsChecked = command->IsChecked();
+                }
+            }
+
+            Assert::IsTrue  (appleWinChecked.has_value() && vsChecked.has_value());
+            Assert::IsTrue  (*appleWinChecked, L"the saved scheme is the checked one");
+            Assert::IsFalse (*vsChecked,       L"the default is not checked when another is in force");
+        }
+
+
+        TEST_METHOD (F9AfterASecondViewClosesActsOnTheFirstView)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+            auto                both   = std::make_shared<DebuggerViewSnapshot>();
+            auto                first  = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            both->pc = 0x0500;
+
+            for (Word i = 0; i < 10; i++)
+            {
+                DebuggerViewSnapshot::CodeLine  line;
+
+                line.address = (Word) (0x0300 + i);
+                both->codeViews[0].push_back (line);
+
+                line.address = (Word) (0x0400 + i);
+                both->codeViews[1].push_back (line);
+            }
+
+            both->codeOpen[0] = true;
+            both->codeOpen[1] = true;
+
+            *first             = *both;
+            first->codeOpen[1] = false;
+            first->codeViews[1].clear();
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.ApplyKeyScheme (DebuggerKeyScheme::VisualStudio);
+
+            window.TakeSnapshot (both);
+            window.GetCodeList (0)->ClickRow (3, false, false);
+            window.GetCodeList (1)->ClickRow (2, false, false);
+
+            window.TakeSnapshot (first);
+            host.commands.clear();
+
+            Assert::IsTrue   (window.Press (VK_F9));
+            Assert::AreEqual ((size_t) 1, host.commands.size());
+            Assert::IsTrue   (host.commands[0].find ("0303") != std::string::npos, L"the first view's selected row, not the PC");
+        }
+
+
+        TEST_METHOD (TheWatchEditorGoesWithTheWatchPane)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            window.OnCreate();
+
+            //  A floated pane takes its controls with it; the editor opens
+            //  over the watch list, so it has to be one of them.
+            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfControl (window.GetWatchEditor()));
         }
     };
 }
