@@ -399,7 +399,17 @@ public:
     // Lets a host that owns a persisted column model (e.g. the debug
     // panels) record the user's width without re-implementing the drag.
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive; }
+    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive || m_headerPressCol >= 0; }
+
+    //  The order the columns are shown in, left to right, as indexes into the
+    //  columns; SetColumns starts it in their own order. A header dragged along
+    //  the strip moves its column, as in Explorer, and reports the new order.
+    const std::vector<size_t> &  GetColumnOrder () const { return m_columnOrder; }
+    void                         SetColumnOrder (const std::vector<size_t> & order);
+    void                         SetOnColumnsReordered (std::function<void (const std::vector<size_t> &)> cb) { m_onColumnsReordered = std::move (cb); }
+
+    //  Where a column dropped at this point goes, as a position in the order.
+    int   GetColumnDropPosition (int xPx) const;
 
     //  The rubber band an item view draws while the pointer drags from empty
     //  space, in the list's pixels; empty when none is being drawn.
@@ -441,6 +451,7 @@ private:
     static constexpr int    s_kRowHeightDip      = 30;
     static constexpr int    s_kHeaderHeightDip   = 32;
     static constexpr int    s_kHeaderGapDip      = 2;
+    static constexpr int    s_kHeaderDragDip     = 5;    // how far a header moves before it is a drag
     static constexpr int    s_kCellPadLeftDip    = 12;
     static constexpr int    s_kCellPadRightDip   = 16;
     static constexpr int    s_kSortGlyphWidthDip = 10;
@@ -576,6 +587,7 @@ private:
     bool    DispatchMouseUp        (int lx, int ly, bool inside);
     bool    DispatchMouseWheel     (const DxuiMouseEvent & ev, bool inside);
 
+    void    EndHeaderPress          (int lx, int ly);
     void    PaintHeader             (IDxuiPainter           & painter,
                                      IDxuiTextRenderer    & text,
                                      const Palette          & pal,
@@ -713,6 +725,15 @@ private:
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int)>         m_onSortColumn;
     std::function<void (int, int)>    m_onColumnResized;
+    std::function<void (const std::vector<size_t> &)>  m_onColumnsReordered;
+
+    //  A header press: sorts on release in place, or moves its column once
+    //  the pointer has travelled far enough to be a drag.
+    std::vector<size_t>  m_columnOrder;
+    int                  m_headerPressCol     = -1;
+    int                  m_headerPressXPx     = 0;
+    int                  m_headerDragXPx      = 0;
+    bool                 m_headerDragging     = false;
 
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;

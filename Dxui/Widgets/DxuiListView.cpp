@@ -64,6 +64,16 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
     m_measuredWPx.clear();
     m_overrideWPx.assign (m_columns.size(), -1);
 
+    if (m_columnOrder.size() != m_columns.size())
+    {
+        m_columnOrder.resize (m_columns.size());
+
+        for (size_t c = 0; c < m_columnOrder.size(); c++)
+        {
+            m_columnOrder[c] = c;
+        }
+    }
+
     // NOTE: deliberately does NOT ResetAutoFit. Consumers re-issue
     // SetColumns on width / visibility changes (and per mouse-move
     // during a column-resize drag); resetting here would collapse the
@@ -510,7 +520,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 {
     HRESULT  hr      = S_OK;
     float    fontDip = (float) m_scaler.ToPxf (m_fontDip);
-    float    hdrDip  = (float) m_scaler.ToPxf (s_kHeaderFontDip);
+    float    hdrDip  = (float) m_scaler.ToPxf (m_fontDip);
     int      padPx   = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
     float    w       = 0.0f;
     float    h       = 0.0f;
@@ -656,8 +666,10 @@ int DxuiListView::GetNthVisibleColumnIndex (int n) const
 
 
 
-    for (size_t c = 0; c < m_columns.size(); ++c)
+    for (size_t i = 0; i < m_columns.size(); ++i)
     {
+        size_t  c = (i < m_columnOrder.size()) ? m_columnOrder[i] : i;
+
         if (!m_columns[c].visible)
         {
             continue;
@@ -2675,7 +2687,7 @@ void DxuiListView::PaintHeader (
     float    headerH   = (float) m_scaler.ToPx (s_kHeaderHeightDip);
     float    cellPadL  = (float) m_scaler.ToPx (s_kCellPadLeftDip);
     float    cellPadR  = (float) m_scaler.ToPx (s_kCellPadRightDip);
-    float    hdrFontPx = (float) m_scaler.ToPxf (s_kHeaderFontDip);
+    float    hdrFontPx = (float) m_scaler.ToPxf (m_fontDip);
     float    colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
 
 
@@ -2748,6 +2760,35 @@ void DxuiListView::PaintHeader (
         }
 
         painter.FillRect (sepX, y + 2.0f, 1.0f, headerH - 4.0f, pal.border);
+    }
+
+    //  A dragged header shows where its column will land: a bar in the accent
+    //  at the drop point.
+    if (m_headerDragging && m_theme != nullptr)
+    {
+        int     pos   = GetColumnDropPosition (m_headerDragXPx);
+        float   barX  = 0.0f;
+        float   barW  = (std::max) (2.0f, std::floor (m_scaler.ToPxf (2.0f)));
+        size_t  shown = 0;
+
+        if (pos < (int) m_columnOrder.size())
+        {
+            barX = x + colOff + (float) colXPx[m_columnOrder[(size_t) pos]];
+        }
+        else
+        {
+            for (size_t c = 0; c < m_columns.size(); ++c)
+            {
+                if (m_columns[c].visible && colWPx[c] > 0)
+                {
+                    shown = (std::max) (shown, (size_t) (colXPx[c] + colWPx[c]));
+                }
+            }
+
+            barX = x + colOff + (float) shown;
+        }
+
+        painter.FillRect (barX - barW * 0.5f, y, barW, headerH, m_theme->Accent());
     }
 }
 
@@ -3147,6 +3188,146 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetColumnOrder
+//
+//  Taken only when it names every column once, so a stored order from a
+//  build with other columns falls back to their own order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetColumnOrder (const std::vector<size_t> & order)
+{
+    std::vector<bool>  seen (m_columns.size(), false);
+
+
+
+    if (order.size() != m_columns.size())
+    {
+        return;
+    }
+
+    for (size_t c : order)
+    {
+        if (c >= seen.size() || seen[c])
+        {
+            return;
+        }
+
+        seen[c] = true;
+    }
+
+    m_columnOrder = order;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetColumnDropPosition
+//
+//  The position in the order before the first shown column whose middle is
+//  right of the point, or the end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetColumnDropPosition (int xPx) const
+{
+    int               cap     = GetVisibleRowCapacity();
+    bool              needBar = (GetRowCount() > cap) && (cap > 0);
+    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    for (size_t n = 0; n < m_columnOrder.size(); n++)
+    {
+        size_t  c = m_columnOrder[n];
+
+        if (m_columns[c].visible && colWPx[c] > 0 && xAdj < colXPx[c] + colWPx[c] / 2)
+        {
+            return (int) n;
+        }
+    }
+
+    return (int) m_columnOrder.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndHeaderPress
+//
+//  A release on the header pressed sorts by it; a release after a drag
+//  moves the pressed column to where it was dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::EndHeaderPress (int lx, int ly)
+{
+    int     pressed = m_headerPressCol;
+    bool    dragged = m_headerDragging;
+    int     target  = 0;
+    size_t  from    = 0;
+
+
+
+    m_headerPressCol = -1;
+    m_headerDragging = false;
+
+    if (!dragged)
+    {
+        if (HitTestHeaderColumn (lx, ly) == pressed && m_onSortColumn)
+        {
+            m_onSortColumn (pressed);
+        }
+
+        return;
+    }
+
+    target = GetColumnDropPosition (lx);
+    from   = (size_t) (std::find (m_columnOrder.begin(), m_columnOrder.end(), (size_t) pressed) - m_columnOrder.begin());
+
+    if (from >= m_columnOrder.size())
+    {
+        return;
+    }
+
+    //  Dropped on either side of itself, it stays where it is.
+    if ((size_t) target == from || (size_t) target == from + 1)
+    {
+        return;
+    }
+
+    m_columnOrder.erase (m_columnOrder.begin() + (ptrdiff_t) from);
+
+    if ((size_t) target > from)
+    {
+        target--;
+    }
+
+    m_columnOrder.insert (m_columnOrder.begin() + target, (size_t) pressed);
+
+    if (m_onColumnsReordered)
+    {
+        m_onColumnsReordered (m_columnOrder);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ComputeColumnLayout
 //
 //  Assigns each column an x-offset and width for the given content
@@ -3208,8 +3389,11 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
         ws[(size_t) stretchIdx] = (std::max) (rem, floorPx);
     }
 
-    for (size_t c = 0; c < m_columns.size(); ++c)
+    //  Left to right in the shown order, which a header drag changes.
+    for (size_t n = 0; n < m_columns.size(); ++n)
     {
+        size_t  c = (n < m_columnOrder.size()) ? m_columnOrder[n] : n;
+
         xs[c]  = x;
         x     += ws[c];
     }
@@ -3431,14 +3615,15 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
 
     headerCol = HitTestHeaderColumn (lx, ly);
 
+    //  Sorted on the release rather than here, since the press may instead
+    //  start a drag that moves the column.
     if (headerCol >= 0)
     {
-        if (m_onSortColumn)
-        {
-            m_onSortColumn (headerCol);
-        }
-
-        handled = true;
+        m_headerPressCol = headerCol;
+        m_headerPressXPx = lx;
+        m_headerDragXPx  = lx;
+        m_headerDragging = false;
+        handled          = true;
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -3534,6 +3719,11 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
     {
         newColW = std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx));
         SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newColW);
+    }
+    else if (m_headerPressCol >= 0)
+    {
+        m_headerDragXPx  = lx;
+        m_headerDragging = m_headerDragging || std::abs (lx - m_headerPressXPx) >= m_scaler.ToPx (s_kHeaderDragDip);
     }
     else if (m_vertDragging)
     {
@@ -3649,6 +3839,10 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     else if (m_scrollRepeat != ScrollRepeat::None)
     {
         m_scrollRepeat = ScrollRepeat::None;
+    }
+    else if (m_headerPressCol >= 0)
+    {
+        EndHeaderPress (lx, ly);
     }
     else if (m_resizeColumn >= 0)
     {

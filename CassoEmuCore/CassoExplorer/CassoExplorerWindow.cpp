@@ -436,6 +436,31 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_list->SetRowHeightPxFn (&CassoExplorerWindow::GetListRowHeightPx);
     m_list->SetColumns (CassoExplorerBrowser::GetColumns());
     m_listColumnChosen.assign (CassoExplorerBrowser::GetColumns().size(), true);
+
+    //  A header dragged into a new place stays there for the next run.
+    if (!m_prefs.columnOrder.empty())
+    {
+        std::vector<size_t>  order;
+
+        for (int column : m_prefs.columnOrder)
+        {
+            order.push_back ((column >= 0) ? (size_t) column : SIZE_MAX);
+        }
+
+        m_list->SetColumnOrder (order);
+    }
+
+    m_list->SetOnColumnsReordered ([this] (const std::vector<size_t> & order)
+    {
+        m_prefs.columnOrder.clear();
+
+        for (size_t column : order)
+        {
+            m_prefs.columnOrder.push_back ((int) column);
+        }
+
+        Invalidate();
+    });
     m_list->SetPreciseAutoFit (true);
 
     //  Columns keep the widths they are given, and a pane too narrow for them

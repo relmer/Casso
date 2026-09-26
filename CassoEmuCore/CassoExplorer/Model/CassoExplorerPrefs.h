@@ -71,6 +71,10 @@ struct CassoExplorerPrefs
     //  columnWidths key held another column order and is not read.
     std::vector<int>           columnWidthsDip;
 
+    //  The order the list's columns were dragged into, left to right, as
+    //  column indexes; empty for their own order.
+    std::vector<int>           columnOrder;
+
     //  Absent file: defaults, with the theme seeded from the emulator's
     //  preferences when they can be read. Reports the read's own result for
     //  a file that exists and will not parse.

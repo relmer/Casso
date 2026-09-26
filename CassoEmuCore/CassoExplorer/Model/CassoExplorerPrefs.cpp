@@ -215,6 +215,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
     std::vector<JsonValue>                          widthValues;
+    std::vector<JsonValue>                          orderValues;
 
 
 
@@ -226,6 +227,11 @@ JsonValue CassoExplorerPrefs::ToJson() const
     for (int width : columnWidthsDip)
     {
         widthValues.push_back (JsonValue ((double) width));
+    }
+
+    for (int column : columnOrder)
+    {
+        orderValues.push_back (JsonValue ((double) column));
     }
 
     placementFields.emplace_back ("x",         JsonValue ((double) placement.x));
@@ -258,6 +264,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
+    root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
 
     return JsonValue (std::move (root));
 }
@@ -284,6 +291,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * tabArray   = nullptr;
     const JsonValue  * typedArray = nullptr;
     const JsonValue  * widthArray = nullptr;
+    const JsonValue  * orderArray = nullptr;
     std::string        text;
     size_t             i          = 0;
     int                grouping   = kDefaultHexGrouping;
@@ -391,6 +399,20 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
             //  A hand-edited width of zero or less means the column fits
             //  itself, which is what an absent entry means too.
             columnWidthsDip.push_back ((value.GetType() == JsonType::Number) ? (int) value.GetNumber() : 0);
+        }
+    }
+
+    //  Checked by the list when applied: an order that does not name every
+    //  column once is ignored there.
+    if (root.HasArray ("listColumnOrder", orderArray))
+    {
+        columnOrder.clear();
+
+        for (i = 0; i < orderArray->GetArraySize(); i++)
+        {
+            const JsonValue &  value = orderArray->GetArrayElement (i);
+
+            columnOrder.push_back ((value.GetType() == JsonType::Number) ? (int) value.GetNumber() : -1);
         }
     }
 
