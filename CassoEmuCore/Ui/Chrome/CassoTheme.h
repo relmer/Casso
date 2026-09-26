@@ -90,6 +90,7 @@ struct CassoTheme : public DxuiTheme
         theme.link                = 0xFF6FB8FF;
         theme.linkHover           = 0xFFB7DFFF;
         theme.panelBg             = 0xFF1A2230;
+        theme.statusBg            = 0xFF1D2533;   // a step above the panels, as Explorer's
         theme.panelEdge           = 0xFF334050;
         theme.buttonIdle          = 0xFF2D3F58;
         theme.buttonHover         = 0xFF3D547A;
@@ -137,6 +138,7 @@ struct CassoTheme : public DxuiTheme
         theme.link                      = 0xFF6FB8FF;
         theme.linkHover                 = 0xFFA8D2FF;
         theme.panelBg                   = 0xFF1E2024;
+        theme.statusBg                  = 0xFF212327;   // a step above the panels, as Explorer's
         theme.panelEdge                 = 0xFF3A3D42;
         theme.buttonIdle                = 0xFF323539;
         theme.buttonHover               = 0xFF45494F;
@@ -184,6 +186,7 @@ struct CassoTheme : public DxuiTheme
         theme.link                      = 0xFF8AFF8A;
         theme.linkHover                 = 0xFFB7FCB9;
         theme.panelBg                   = 0xFF0E2612;
+        theme.statusBg                  = 0xFF112915;   // a step above the panels, as Explorer's
         theme.panelEdge                 = 0xFF2A5C30;
         theme.buttonIdle                = 0xFF1A3F22;
         theme.buttonHover               = 0xFF286036;
