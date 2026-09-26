@@ -1,6 +1,6 @@
 {"type":"reply","status":"ok","command":"MEB 300 A2 00 BD FF 10 E8 E0 04 D0 F8 EA","data":{"kind":"memory","rows":[{"address":768,"bytes":[162,0,189,255,16,232,224,4],"region":"mainRam"},{"address":776,"bytes":[208,248,234],"region":"mainRam"}]},"text":["0300: A2 00 BD FF 10 E8 E0 04  \".=..h`.","0308: D0 F8 EA                 Pxj"]}
 {"type":"reply","status":"ok","command":"R PC 300","data":{"kind":"registers","a":0,"x":0,"y":0,"p":36,"s":253,"pc":768,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I.."]}
-{"type":"reply","status":"ok","command":"SYM LOOP = 302","data":{"kind":"symbols","symbols":[{"name":"LOOP","address":770,"table":"user"}]},"text":["$0302 LOOP (user)"]}
+{"type":"reply","status":"ok","command":"SYM LOOP = 302","data":{"kind":"symbols","symbols":[{"name":"LOOP","address":770,"table":"user","constant":false}]},"text":["$0302 LOOP (user)"]}
 {"type":"reply","status":"ok","command":"BP 30A","data":{"kind":"breakpointSet","breakpoint":{"id":0,"kind":"address","address":778,"last":778,"enabled":true,"temporary":false,"stops":true,"hits":0}},"text":["Breakpoint #0 set at $030A"]}
 {"type":"reply","status":"ok","command":"PROFILE ON","data":{"kind":"message"},"text":["Profiling on."]}
 {"type":"reply","status":"ok","command":"G","data":{"kind":"message"},"text":[]}

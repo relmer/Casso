@@ -275,7 +275,8 @@ void GSSquaredFormatter::FormatWatchList (const WatchListData & data, bool isAdd
 //
 //  GSSquaredFormatter::FormatSymbols
 //
-//  `slookup`: `00/0300: NAME`, one line per name at the address.
+//  `slookup`: `00/0300: NAME`, one line per name at the address, with
+//  `(constant)` after the name of an equate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -283,7 +284,7 @@ void GSSquaredFormatter::FormatSymbols (const SymbolData & data, Lines & lines)
 {
     for (const SymbolInfo & symbol : data.symbols)
     {
-        lines.push_back (std::format ("{}: {}", FormatAddress (symbol.address), symbol.name));
+        lines.push_back (std::format ("{}: {}{}", FormatAddress (symbol.address), symbol.name, symbol.isConstant ? " (constant)" : ""));
     }
 }
 

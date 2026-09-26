@@ -1085,9 +1085,10 @@ JsonValue ReplyJson::MakeSymbols (const SymbolData & data)
 
     for (const SymbolInfo & symbol : data.symbols)
     {
-        symbols.push_back (JsonValue (Members { { "name",    MakeString (symbol.name) },
-                                                { "address", MakeNumber (symbol.address) },
-                                                { "table",   MakeString (GetSymbolTableName (symbol.table)) } }));
+        symbols.push_back (JsonValue (Members { { "name",     MakeString (symbol.name) },
+                                                { "address",  MakeNumber (symbol.address) },
+                                                { "table",    MakeString (GetSymbolTableName (symbol.table)) },
+                                                { "constant", JsonValue (symbol.isConstant) } }));
     }
 
     return JsonValue (Members { { "kind", MakeString ("symbols") }, { "symbols", JsonValue (std::move (symbols)) } });

@@ -271,7 +271,7 @@ bool SymbolFileReader::TryParseHex (const std::string & text, Word & value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address)
+void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant)
 {
     for (const SymbolFileEntry & existing : symbols)
     {
@@ -281,7 +281,7 @@ void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const 
         }
     }
 
-    symbols.push_back ({ name, address });
+    symbols.push_back ({ name, address, isConstant });
 }
 
 
@@ -292,10 +292,17 @@ void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const 
 //
 //  SymbolFileReader::ReadCasso
 //
+//  The lines after a `; constants` heading are constants, up to the next
+//  comment line; every other entry is a label.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SymbolFileReader::ReadCasso (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols)
 {
+    bool  isInConstants = false;
+
+
+
     for (const std::string & line : lines)
     {
         size_t  equals = line.find ('=');
@@ -303,9 +310,15 @@ void SymbolFileReader::ReadCasso (const std::vector<std::string> & lines, std::v
 
 
 
+        if (line.starts_with (';'))
+        {
+            isInConstants = _stricmp (Trim (line.substr (1)).c_str(), kConstantsHeading) == 0;
+            continue;
+        }
+
         if (IsCassoLine (line) && TryParseHex (Trim (line.substr (equals + 1)), value))
         {
-            AddUnique (symbols, Trim (line.substr (0, equals)), value);
+            AddUnique (symbols, Trim (line.substr (0, equals)), value, isInConstants);
         }
     }
 }
@@ -321,13 +334,15 @@ void SymbolFileReader::ReadCasso (const std::vector<std::string> & lines, std::v
 //  The symbols in a scope with no parent, which is the module's own; a
 //  symbol with no scope at all is taken too. Local labels and the labels
 //  macro expansions made sit in scopes below it. An import carries no
-//  value; its export elsewhere supplies the address.
+//  value; its export elsewhere supplies the address. An equate is a
+//  constant.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileEntry> & symbols)
 {
-    std::set<int>  topLevel;
+    static constexpr const char  * kEquate = "equ";
+    std::set<int>                  topLevel;
 
 
 
@@ -343,7 +358,7 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
     {
         if (symbol.type != "imp" && (symbol.scope < 0 || topLevel.contains (symbol.scope)))
         {
-            AddUnique (symbols, symbol.name, (Word) symbol.value);
+            AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.type == kEquate);
         }
     }
 }

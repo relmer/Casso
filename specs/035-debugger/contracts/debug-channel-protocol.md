@@ -113,7 +113,7 @@ Clients format them.
 | `searchHits` | `addresses`: `[int]` |
 | `stack` | `sp`, `entries`: `[{"address":int,"value":int}]` |
 | `softSwitches` | `switches`: `[{"name":str,"value":bool}]` |
-| `symbols` | `symbols`: `[{"name","address","table"}]` |
+| `symbols` | `symbols`: `[{"name","address","table","constant"}]`, where `constant` is true for an equate, a value that is not an address |
 | `cycles` | `count` |
 | `mode` | `mode` |
 | `fileIo` | `path`, `requested`, `transferred`, `mismatch`: bool |

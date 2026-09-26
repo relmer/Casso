@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/SymbolHandlers.h"
+#include "Debugger/ReplyJson.h"
 #include "HandlerTestRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -186,6 +187,84 @@ namespace DebuggerTests
             rig.RunFails ("SYMUSER LOAD prog.dbg,zz", "invalid arguments");
             rig.RunFails ("SYMLIST bogus",            "invalid arguments");
             Assert::AreEqual ((int) CommandStatus::Error, (int) rig.Run ("SYMUSER LOAD").status);
+        }
+
+
+
+        //  A cc65 debug file with one label and one equate. WIDTH is 40, the
+        //  width of the text screen, and never an address.
+        static constexpr const char * kEquateDebugFile =
+            "version\tmajor=2,minor=0\n"
+            "file\tid=0,name=\"prog.a65\",size=10,mtime=0,mod=0\n"
+            "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
+            "span\tid=0,seg=0,start=0,size=3\n"
+            "line\tid=0,file=0,line=4,span=0\n"
+            "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+            "sym\tid=1,name=\"WIDTH\",addrsize=zeropage,scope=0,val=0x0028,type=equ\n"
+            "scope\tid=0,name=\"\",mod=0\n";
+
+
+
+        TEST_METHOD (SYM_Load_Cc65Equates_AreConstants)
+        {
+            Rig                       rig;
+            std::vector<std::string>  lines;
+            Word                      value = 0;
+            std::string               json;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg", kEquateDebugFile);
+            rig.RunOk ("SYMUSER LOAD \"prog.dbg\"");
+
+            Assert::AreEqual (std::string ("$0028 WIDTH (user, constant)"), rig.RunOk ("SYM WIDTH").text.at (0), L"marked as a constant");
+            Assert::AreEqual (std::string ("$0300 start (user)"),           rig.RunOk ("SYM start").text.at (0), L"a label is not");
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("width", value), L"a constant resolves in expressions");
+            Assert::AreEqual ((Word) 0x0028, value);
+            rig.RunFails     ("SYMUSER 28", "symbol not found");
+
+            json = ReplyJson::WriteReply (rig.RunOk ("SYM WIDTH"), std::nullopt);
+            Assert::IsTrue   (json.find ("\"constant\":true") != std::string::npos, L"the channel marks it too");
+            json = ReplyJson::WriteReply (rig.RunOk ("SYM start"), std::nullopt);
+            Assert::IsTrue   (json.find ("\"constant\":false") != std::string::npos);
+
+            lines = rig.RunOk ("SYMLIST user").text;
+            Assert::AreEqual ((size_t) 2, lines.size());
+            Assert::AreEqual (std::string ("$0028 WIDTH (user, constant)"), lines[0]);
+            Assert::AreEqual (std::string ("$0300 start (user)"),           lines[1]);
+        }
+
+
+
+        TEST_METHOD (SYM_Load_Offset_MovesLabelsButNotConstants)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg", kEquateDebugFile);
+            rig.RunOk ("SYMUSER LOAD \"prog.dbg\",1000");
+
+            Assert::AreEqual (std::string ("$1300 start (user)"),           rig.RunOk ("SYM start").text.at (0), L"a label moves");
+            Assert::AreEqual (std::string ("$0028 WIDTH (user, constant)"), rig.RunOk ("SYM WIDTH").text.at (0), L"a constant does not");
+        }
+
+
+
+        TEST_METHOD (SYM_SaveAndLoad_KeepsConstants)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg", kEquateDebugFile);
+            rig.RunOk ("SYMUSER LOAD \"prog.dbg\"");
+            rig.RunOk ("SYMUSER SAVE out.sym");
+            Assert::AreEqual (std::string ("; by address\nstart=$0300\n; constants\nWIDTH=$0028\n"), rig.files.PeekContent (L"C:\\Work\\out.sym"));
+
+            rig.RunOk ("SYMUSER2 LOAD out.sym,1000");
+            Assert::AreEqual (std::string ("$1300 start (user2)"),           rig.RunOk ("SYMUSER2 start").text.at (0));
+            Assert::AreEqual (std::string ("$0028 WIDTH (user2, constant)"), rig.RunOk ("SYMUSER2 WIDTH").text.at (0), L"still a constant, and still not moved");
         }
     };
 }

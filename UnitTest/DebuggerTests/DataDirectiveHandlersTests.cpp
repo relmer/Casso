@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
+#include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "TestHelpers.h"
 
@@ -116,6 +117,49 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 2, lines.size());
             Assert::AreEqual (std::string ("0300: 91 06    LOOP STA  (PTR),Y"), lines[0]);
             Assert::AreEqual (std::string ("0302: D0 FC         BNE  LOOP"),    lines[1]);
+        }
+
+
+
+        //  A constant is a number, not an address: LDA #$28 with WIDTH = 40
+        //  loaded stays LDA #$28, and so does every other operand or line
+        //  whose value happens to match one.
+        TEST_METHOD (U_ConstantsLabelNoOperandOrAddress)
+        {
+            struct SymbolCpuRig : CpuRig
+            {
+                SymbolHandlers  symbolHandlers;
+
+                SymbolCpuRig()
+                {
+                    session.AddHandler (&symbolHandlers);
+                }
+            };
+
+            SymbolCpuRig              rig;
+            std::vector<std::string>  lines;
+
+
+
+            //  $0300: LDA #$28 / LDA $28 / STA $0400 / RTS
+            Store (rig, 0x0300, { 0xA9, 0x28, 0xA5, 0x28, 0x8D, 0x00, 0x04, 0x60 });
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg",
+                "version\tmajor=2,minor=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=8,addrsize=absolute,type=rw\n"
+                "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "sym\tid=1,name=\"WIDTH\",addrsize=zeropage,scope=0,val=0x0028,type=equ\n"
+                "sym\tid=2,name=\"SCREEN\",addrsize=absolute,scope=0,val=0x0400,type=equ\n"
+                "sym\tid=3,name=\"HERE\",addrsize=absolute,scope=0,val=0x0302,type=equ\n"
+                "scope\tid=0,name=\"\",mod=0\n");
+            rig.RunOk ("SYMUSER LOAD \"prog.dbg\"");
+            rig.RunOk ("SYMMAIN OFF");
+            rig.RunOk ("SYMBASIC OFF");
+
+            lines = rig.RunOk ("U 300:307").text;
+            Assert::AreEqual ((size_t) 4, lines.size());
+            Assert::AreEqual (std::string ("0300: A9 28    start LDA  #$28"), lines[0], L"a label still labels its line");
+            Assert::AreEqual (std::string ("0302: A5 28          LDA  $28"),  lines[1], L"no constant for the operand or the line");
+            Assert::AreEqual (std::string ("0304: 8D 00 04       STA  $0400"), lines[2]);
         }
 
 

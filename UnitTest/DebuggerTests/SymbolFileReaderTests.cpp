@@ -38,18 +38,23 @@ namespace DebuggerTests
             return symbols;
         }
 
-        static Word Find (const std::vector<SymbolFileEntry> & symbols, const std::string & name)
+        static SymbolFileEntry FindEntry (const std::vector<SymbolFileEntry> & symbols, const std::string & name)
         {
             for (const SymbolFileEntry & symbol : symbols)
             {
                 if (symbol.name == name)
                 {
-                    return symbol.address;
+                    return symbol;
                 }
             }
 
             Assert::Fail ((L"missing " + std::wstring (name.begin(), name.end())).c_str());
-            return 0;
+            return {};
+        }
+
+        static Word Find (const std::vector<SymbolFileEntry> & symbols, const std::string & name)
+        {
+            return FindEntry (symbols, name).address;
         }
 
 
@@ -98,6 +103,30 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 2,    symbols.size(), L"the local label stays out");
             Assert::AreEqual ((Word) 0x0300, Find (symbols, "start"));
             Assert::AreEqual ((Word) 0x0007, Find (symbols, "limit"));
+            Assert::IsTrue   (FindEntry (symbols, "limit").isConstant, L"type=equ is a constant");
+            Assert::IsFalse  (FindEntry (symbols, "start").isConstant, L"type=lab is an address");
+        }
+
+
+
+        TEST_METHOD (CassoDebug_ConstantsSection)
+        {
+            static constexpr const char * kFile =
+                "; by address\n"
+                "start=$0300\n"
+                "; constants\n"
+                "WIDTH=$0028\n"
+                "; by symbol\n"
+                "later=$0310\n";
+
+            std::vector<SymbolFileEntry>  symbols = ReadOk (kFile, SymbolFileFormat::CassoDebug);
+
+
+
+            Assert::AreEqual ((size_t) 3, symbols.size());
+            Assert::IsFalse  (FindEntry (symbols, "start").isConstant);
+            Assert::IsTrue   (FindEntry (symbols, "WIDTH").isConstant, L"under the constants heading");
+            Assert::IsFalse  (FindEntry (symbols, "later").isConstant, L"the next heading ends the section");
         }
 
 

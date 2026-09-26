@@ -206,8 +206,9 @@ struct SoftSwitchData
 struct SymbolInfo
 {
     std::string    name;
-    Word           address = 0;
-    SymbolTableId  table   = SymbolTableId::Main;
+    Word           address    = 0;
+    SymbolTableId  table      = SymbolTableId::Main;
+    bool           isConstant = false;   // an equate: a value, not an address
 };
 
 struct SymbolData
