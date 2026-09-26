@@ -216,6 +216,22 @@ namespace DebuggerTests
         }
 
 
+        //  A quoted file name keeps its spaces, and the range still follows it.
+        TEST_METHOD (Memory_QuotedFileNameWithSpaces)
+        {
+            AppleWinParseResult  load = ParseOk ("BLOAD \"my file.bin\" 300");
+            AppleWinParseResult  save = ParseOk ("BSAVE \"my file.bin\" 300,10");
+
+
+
+            Assert::AreEqual (std::string ("my file.bin"), load.command.text);
+            Assert::AreEqual ((Word) 0x0300, load.command.a1);
+            Assert::AreEqual (std::string ("my file.bin"), save.command.text);
+            Assert::AreEqual ((Word) 0x030F, save.command.a2);
+            ParseFails ("BLOAD \"my file.bin 300", ParseStatus::Invalid);
+        }
+
+
 
         TEST_METHOD (CorrectedForms_FromAppleWinSource)
         {
