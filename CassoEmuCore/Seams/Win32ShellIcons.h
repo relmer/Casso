@@ -29,6 +29,7 @@ public:
 
     std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) override;
     std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) override;
+    std::wstring                          GetTypeName (const std::wstring & path, bool isDirectory) override;
 
     static constexpr int  kDefaultSizePx = 16;
 
@@ -48,4 +49,5 @@ private:
 
     int                                                                      m_sizePx = kDefaultSizePx;
     std::unordered_map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_cache;
+    std::unordered_map<std::wstring, std::wstring>                          m_typeNames;
 };

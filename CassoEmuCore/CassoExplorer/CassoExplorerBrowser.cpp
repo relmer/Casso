@@ -313,6 +313,17 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
         bool                     isImage = !entry.isFolder && TreeModel::IsSupportedImage (entry.name);
 
         m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
+
+        //  The shell's own type name, as Explorer's Type column shows.
+        if (m_shellIcons != nullptr)
+        {
+            std::wstring  typeName = m_shellIcons->GetTypeName (JoinPath (path, entry.name), entry.isFolder);
+
+            if (!typeName.empty())
+            {
+                m_rows.back().typeText = std::move (typeName);
+            }
+        }
     }
 
     return hr;

@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Seams/IShellIcons.h"
+#include "Seams/Win32ShellIcons.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -79,6 +80,21 @@ public:
         {
             Assert::IsFalse ((bool) cells[c].icon, L"and no other column does");
         }
+    }
+
+
+    TEST_METHOD (TypeName_IsTheShellsForTheExtension)
+    {
+        Win32ShellIcons  icons;
+        std::wstring     text   = icons.GetTypeName (L"C:\\nowhere\\a.txt", false);
+        std::wstring     upper  = icons.GetTypeName (L"C:\\elsewhere\\B.TXT", false);
+        std::wstring     folder = icons.GetTypeName (L"C:\\nowhere\\sub", true);
+
+        //  From the extension and attributes alone, so neither path need exist.
+        Assert::IsFalse  (text.empty(),   L"a text file has a type");
+        Assert::AreEqual (text, upper,    L"whatever its folder or its extension's case");
+        Assert::IsFalse  (folder.empty(), L"and a folder has one");
+        Assert::AreNotEqual (text, folder, L"that differs from a file's");
     }
 
 

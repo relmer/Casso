@@ -312,3 +312,52 @@ HICON Win32ShellIcons::LoadForKind (Kind kind, UINT sizeFlag)
 
     return (result != 0) ? info.hIcon : nullptr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::GetTypeName
+//
+//  From the file's attributes and extension alone, so no file is opened: every
+//  file of one extension has one type name, which is also why the names are
+//  cached by extension.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ShellIcons::GetTypeName (const std::wstring & path, bool isDirectory)
+{
+    SHFILEINFOW   info  = {};
+    size_t        slash = path.find_last_of (L"\\/");
+    size_t        dot   = path.rfind (L'.');
+    std::wstring  key   = isDirectory ? std::wstring (L"<folder>") : std::wstring (L".");
+    DWORD_PTR     found = 0;
+
+
+
+    if (!isDirectory && dot != std::wstring::npos && (slash == std::wstring::npos || dot > slash))
+    {
+        key = path.substr (dot);
+
+        for (wchar_t & c : key)
+        {
+            c = (wchar_t) towlower (c);
+        }
+    }
+
+    auto  cached = m_typeNames.find (key);
+
+    if (cached != m_typeNames.end())
+    {
+        return cached->second;
+    }
+
+    found = SHGetFileInfoW (path.c_str(), isDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
+                            &info, sizeof (info), SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES);
+
+    m_typeNames[key] = (found != 0) ? std::wstring (info.szTypeName) : std::wstring();
+
+    return m_typeNames[key];
+}

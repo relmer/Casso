@@ -38,4 +38,9 @@ public:
     //  instead costs a call for each row of a listing.
     virtual std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) = 0;
+
+    //  The type Explorer's Type column shows for a real file or folder, such
+    //  as "Text Document" or "File folder". Empty, the default, when the
+    //  implementation has no type name for it, and the caller keeps its own.
+    virtual std::wstring  GetTypeName (const std::wstring & path, bool isDirectory) { (void) path; (void) isDirectory; return std::wstring(); }
 };
