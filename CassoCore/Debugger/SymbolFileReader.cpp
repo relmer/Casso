@@ -403,7 +403,7 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
     {
         if (symbol.type != "imp" && (symbol.scope < 0 || topLevel.contains (symbol.scope)))
         {
-            AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.type == kEquate);
+            AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.type == kEquate || symbol.segment < 0);
         }
     }
 }
