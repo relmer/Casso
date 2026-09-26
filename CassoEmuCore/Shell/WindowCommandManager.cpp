@@ -1526,7 +1526,7 @@ void WindowCommandManager::OpenCassque()
     }
     else if (outcome == LaunchCommand::Outcome::Failed)
     {
-        message = L"Cassque could not be started\nWindows refused to start "
+        message = L"Cassque could not be started\nWindows could not start "
                 + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassqueExe) + L".";
         EhmNotifyUser (message.c_str());
     }

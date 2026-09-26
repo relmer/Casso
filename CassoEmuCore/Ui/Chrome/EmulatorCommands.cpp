@@ -55,7 +55,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
     { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
     { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
-    { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
+    { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ debug...",       L"Ctrl+Shift+D"  },
     { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input debug...",         L"Ctrl+Shift+I"  },
     { IDM_VIEW_DEBUGGER,            MainMenuId::Debug,   L"Debugger...",            L""              },
     { IDM_DEBUG_RESTART,            MainMenuId::Debug,   L"&Restart under debugger", L""              },

@@ -62,7 +62,7 @@ constexpr LPCWSTR  s_kpszPair1Label  = L"View PADDL2-PADDL3 as";
 constexpr LPCWSTR  s_kpszPair0Items[2] = { L"Joystick 0", L"Paddles 0, 1" };
 constexpr LPCWSTR  s_kpszPair1Items[2] = { L"Joystick 1", L"Paddles 2, 3" };
 
-constexpr LPCWSTR  s_kpszAllTip      = L"DxuiToggle every emulator-input lane at once";
+constexpr LPCWSTR  s_kpszAllTip      = L"Toggle every emulator-input lane at once";
 constexpr LPCWSTR  s_kpszEmuKbdTip   = L"Show guest keyboard soft-switch reads ($C000/$C010)";
 constexpr LPCWSTR  s_kpszJoystickTip = L"Show game-port reads for pairs viewed as a joystick";
 constexpr LPCWSTR  s_kpszPaddleTip   = L"Show game-port reads for pairs viewed as paddles";
@@ -665,7 +665,7 @@ void InputDebugPanel::FormatInputEvent (
             button  = GetButtonAnnotation (address, mouseButtonAtC063);
             out.address = std::format (L"${:04X}", address);
             out.value   = std::format (L"${:02X}", value);
-            out.meaning = std::format (L"DxuiButton read {} -> {}  pressed={}",
+            out.meaning = std::format (L"Button read {} -> {}  pressed={}",
                                        out.address,
                                        out.value,
                                        pressed ? 1 : 0);

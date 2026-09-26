@@ -132,7 +132,7 @@ static void ShowCommandLineDialog (const CommandLineOptions::EmulatorOptions & p
 {
     GlobalUserPrefs  prefs;
     Win32FileSystem  fsPrefs;
-    std::wstring     title   = std::wstring (L"Casso ") + s_kchEmDash + L" Command Line";
+    std::wstring     title   = std::wstring (L"Casso ") + s_kchEmDash + L" Command line";
     std::wstring     body;
     std::string      usage   = CommandLineHelp::BuildEmulatorHelp (parsed.flagPrefix);
     HRESULT          hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(),

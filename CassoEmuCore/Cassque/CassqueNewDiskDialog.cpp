@@ -642,7 +642,7 @@ CassqueNewDiskDialog::Outcome CassqueNewDiskDialog::Ask (HWND owner, const IDxui
     dialog.m_formatMode = formatMode;
     dialog.m_exists     = exists;
 
-    params.title                    = formatMode ? L"Format Disk Image" : L"New Disk Image";
+    params.title                    = formatMode ? L"Format disk image" : L"New disk image";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { 460, 130 + rows * (CassqueNewDiskPanel::kRowHeightDip + CassqueNewDiskPanel::kRowGapDip) };
