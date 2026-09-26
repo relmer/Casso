@@ -70,7 +70,12 @@ struct DialogTextRun
 {
     std::wstring  text;
     bool          isHyperlink   = false;
-    std::wstring  hyperlinkUrl;   // ignored unless isHyperlink == true
+    std::wstring  hyperlinkUrl;   // the link's target, for isHyperlink or linkText
+
+    // When set, the run is one line of prose with this part of `text` linked
+    // to hyperlinkUrl, the rest of the line plain around it. The line does not
+    // wrap.
+    std::wstring  linkText;
 
     // When set, the run is an aligned three-column row rather than a line of
     // prose: `text`, an arrow, then `rightText`. Every column row in one body

@@ -52,7 +52,7 @@ public:
     {
         for (const DialogTextRun & run : runs)
         {
-            if (run.isHyperlink && run.hyperlinkUrl == url)
+            if ((run.isHyperlink || !run.linkText.empty()) && run.hyperlinkUrl == url)
             {
                 return true;
             }
@@ -87,6 +87,26 @@ public:
 
         Assert::IsTrue (Mentions (runs, L"CC BY-NC-SA 3.0"), L"the license is readable, not only clickable");
         Assert::IsTrue (Mentions (runs, L"CC BY 4.0"),       L"the same for the other");
+    }
+
+
+    TEST_METHOD (Body_LinksEachWorksNounInItsTitleLine)
+    {
+        std::vector<DialogTextRun>  runs  = AttributionsText::BuildBody();
+        int                         found = 0;
+
+        for (const DialogTextRun & run : runs)
+        {
+            Assert::IsTrue (run.text.rfind (L"The ", 0) != 0 || !run.isHyperlink, L"no separate \"The ...\" link");
+
+            if (!run.linkText.empty())
+            {
+                Assert::IsTrue (run.text.find (run.linkText) != std::wstring::npos, L"the linked noun is in its own line");
+                found++;
+            }
+        }
+
+        Assert::AreEqual (3, found, L"the photograph, the sounds and the icons");
     }
 
 

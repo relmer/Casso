@@ -26,6 +26,9 @@ class AttributionsText
 public:
     static std::vector<DialogTextRun>  BuildBody ();
 
+    //  A work's title line, `noun` linked to where the work came from.
+    static DialogTextRun  MakeTitle (const wchar_t * line, const wchar_t * noun, const wchar_t * url);
+
     static constexpr const wchar_t *  kPhotoUrl   = L"https://bunyipco.blogspot.com/2015/04/cassowary-update.html";
     static constexpr const wchar_t *  kPhotoLicense = L"https://creativecommons.org/licenses/by-nc-sa/3.0/";
     static constexpr const wchar_t *  kSoundsUrl  = L"https://github.com/BleuLlama/ImageWriterIISimulator";
