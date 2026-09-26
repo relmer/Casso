@@ -114,6 +114,7 @@ public:
     // is the pages that take the watched path now.
     void   SetTraceAllPages   (bool on);
     void   SetTraceSink       (IWatchSink * sink)       { m_traceSink = sink; }
+    IWatchSink * GetTraceSink () const                  { return m_traceSink; }
     bool   IsTracingAllPages  () const                  { return m_traceAllPages; }
     int    GetWatchedPageCount () const;
 

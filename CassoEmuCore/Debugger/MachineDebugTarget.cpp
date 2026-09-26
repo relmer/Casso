@@ -151,7 +151,9 @@ MemoryRegion MachineDebugTarget::GetRegion (Word address) const
 //
 //  MachineDebugTarget::ReadIo
 //
-//  Real bus access, with its side effects, for IN.
+//  Real bus access, with its side effects, for IN. The trace marks it
+//  as the host's: the access is the debugger's, not the program's, and
+//  would otherwise attach to the last traced instruction.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,7 +178,7 @@ Byte MachineDebugTarget::ReadIo (Word address)
 //
 //  MachineDebugTarget::WriteIo
 //
-//  Real bus access, for OUT.
+//  Real bus access, for OUT, kept out of the trace as IN is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

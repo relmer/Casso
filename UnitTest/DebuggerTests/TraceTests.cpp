@@ -169,6 +169,28 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (InAndOut_AddNoAccessToTheLastEntry)
+        {
+            Rig                       rig;
+            std::vector<TraceRecord>  entries;
+
+
+
+            LoadProgram (rig);
+            rig.RunOk ("HISTORY ON");
+            rig.RunOk ("T");
+
+            rig.target.ReadIo  (0xC000);
+            rig.target.WriteIo (0xC010, 0x00);
+
+            entries = GetAll (rig);
+
+            Assert::AreEqual ((size_t) 1, entries.size());
+            Assert::IsFalse  (entries[0].hasAccess, L"the debugger's own IN and OUT are not the program's accesses");
+        }
+
+
+
         TEST_METHOD (MachineSwitch_ClearsTheTrace)
         {
             Rig  rig;

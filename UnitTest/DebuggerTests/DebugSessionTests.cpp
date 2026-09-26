@@ -590,6 +590,22 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (ResolvePath_NonAsciiNameWidensFromTheNarrowCodePage)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            std::string      name    = TextEncoding::WideToNarrow (L"caf\u00E9.bin");
+
+
+
+            session.SetCurrentDirectory (L"C:\\Work");
+
+            Assert::AreEqual (std::wstring (L"C:\\Work\\caf\u00E9.bin"), session.ResolvePath (name));
+        }
+
+
+
         //  A Monitor G whose run never starts leaves nothing of the Monitor's
         //  return behind: the stack, SP and PC are as they were, and a later
         //  run through $FF69 does not stop there.
