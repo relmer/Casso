@@ -6,6 +6,7 @@
 
 #include "Debugger/DebugSession.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Debugger/AppleWinCommandTable.h"
@@ -537,14 +538,18 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
         state.depth      = atPc.back().depth;
     }
 
-    for (DebuggerViewSnapshot::CodeLine & row : snapshot.code)
+    //  Every view's rows, as the window paints them, and the copy in `code`.
+    for (int view = -1; view < kMaxCodeViews; view++)
     {
-        const std::vector<SourcePosition> & at = table.GetPositionsAt (row.address);
-
-        if (!at.empty())
+        for (DebuggerViewSnapshot::CodeLine & row : view < 0 ? snapshot.code : snapshot.codeViews[(size_t) view])
         {
-            row.sourceFileId = at.front().file;
-            row.sourceLine   = at.front().line;
+            const std::vector<SourcePosition> & at = table.GetPositionsAt (row.address);
+
+            if (!at.empty())
+            {
+                row.sourceFileId = at.front().file;
+                row.sourceLine   = at.front().line;
+            }
         }
     }
 
@@ -1285,7 +1290,7 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
         break;
 
     case AppleWinCommandFamily::MiniMemory:
-        MoveMemoryPane (entry->name, argument, reply);
+        MoveMemoryPane (session, entry->name, argument, reply);
         break;
 
     case AppleWinCommandFamily::Window:
@@ -1555,86 +1560,103 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 {
     CodeView                                     & v         = m_code[(size_t) view];
     std::vector<DebuggerViewSnapshot::CodeLine>    lines;
+    std::vector<DisassemblyLine>                   listed;
     Reply                                          code;
-    Word                                           codeStart = 0;
+    uint32_t                                       next      = 0;
     Word                                           codeEnd   = 0;
 
 
 
-    codeStart = ChooseCodeStart (session, snapshot.pc, view);
-    codeEnd   = (Word) (std::min) (0xFFFF, codeStart + v.lines * 3);
-    //  A range, so the count is ours rather than the command's default: the
-    //  pane holds as many lines as it has room for, and three bytes an
-    //  instruction covers the longest the 6502 has. The range stops at $FFFF:
-    //  one that ran past it wrapped to below its own start and listed nothing,
-    //  which emptied any view within a screenful of the vectors.
-    code = session.ExecuteLine (std::format ("U {:04X}:{:04X}", codeStart, codeEnd), CommandMode::AppleWin);
+    next = ChooseCodeStart (session, snapshot.pc, view);
+
+    //  Ranges, so the count is ours rather than the command's default: the
+    //  pane holds as many lines as it has room for. Three bytes a line covers
+    //  the longest instruction, but a data block's line is longer, so the
+    //  listing goes on from where the last range ended until the pane is
+    //  full. A range stops at $FFFF: one that ran past it wrapped to below
+    //  its own start and listed nothing, which emptied any view within a
+    //  screenful of the vectors.
+    while ((int) listed.size() < v.lines && next <= 0xFFFF)
+    {
+        const DisassemblyData * data = nullptr;
+
+
+
+        codeEnd = (Word) (std::min) (0xFFFFu, next + (uint32_t) (v.lines - (int) listed.size()) * 3);
+        code    = session.ExecuteLine (std::format ("U {:04X}:{:04X}", next, codeEnd), CommandMode::AppleWin);
+        data    = std::get_if<DisassemblyData> (&code.data);
+
+        if (data == nullptr || data->lines.empty())
+        {
+            break;
+        }
+
+        listed.insert (listed.end(), data->lines.begin(), data->lines.end());
+        next = (uint32_t) data->lines.back().instruction.address + (uint32_t) (std::max) ((size_t) 1, data->lines.back().instruction.bytes.size());
+    }
 
     v.shown.clear();
 
-    if (const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data))
+    for (const DisassemblyLine & line : listed)
     {
-        for (const DisassemblyLine & line : data->lines)
+        DebuggerViewSnapshot::CodeLine  row;
+        std::string                     bytes;
+
+
+
+        for (Byte b : line.instruction.bytes)
         {
-            DebuggerViewSnapshot::CodeLine  row;
-            std::string                     bytes;
+            bytes += std::format ("{:02X} ", b);
+        }
 
+        row.address       = line.instruction.address;
+        row.bytes         = bytes.empty() ? bytes : bytes.substr (0, bytes.size() - 1);
+        row.instruction   = line.instruction.operand.empty() ? line.instruction.mnemonic
+                                                             : line.instruction.mnemonic + " " + line.GetShownOperand();
+        row.label         = line.label;
+        row.isCurrent     = row.address == snapshot.pc;
+        row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
+        //  Only while the machine is paused (FR-110): a running machine
+        //  is somewhere else by the time these are drawn.
+        //
+        //  ONE RUN ANSWERS BOTH COLUMNS. What the instruction reads is
+        //  the left annotation and what it leaves is the right one, and
+        //  both come from the same trip through the core.
+        if (snapshot.isPaused)
+        {
+            const Cpu6502Registers    & now     = session.GetTarget().GetRegisters();
+            InstructionTouches::Result  touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(),
+                                                                            now, line.instruction.address,
+                                                                            (Word) line.instruction.bytes.size());
 
+            row.annotation = GetAnnotation (session, line, now, touches);
+            row.effect     = row.isCurrent ? GetEffect (session, now, touches,
+                                                        (Word) (line.instruction.address + line.instruction.bytes.size()))
+                                           : std::string();
+        }
 
-            for (Byte b : line.instruction.bytes)
+        if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))
+        {
+            row.memoryOperand = line.instruction.operand;
+            row.shownOperand  = line.GetShownOperand();
+        }
+
+        for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+        {
+            if (bp.address == row.address)
             {
-                bytes += std::format ("{:02X} ", b);
+                row.isEnabled     = row.hasBreakpoint ? (row.isEnabled || bp.enabled) : bp.enabled;
+                row.hasBreakpoint = true;
             }
+        }
 
-            row.address       = line.instruction.address;
-            row.bytes         = bytes.empty() ? bytes : bytes.substr (0, bytes.size() - 1);
-            row.instruction   = line.instruction.operand.empty() ? line.instruction.mnemonic
-                                                                 : line.instruction.mnemonic + " " + line.GetShownOperand();
-            row.label         = line.label;
-            row.isCurrent     = row.address == snapshot.pc;
-            row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
-            //  Only while the machine is paused (FR-110): a running machine
-            //  is somewhere else by the time these are drawn.
-            //
-            //  ONE RUN ANSWERS BOTH COLUMNS. What the instruction reads is
-            //  the left annotation and what it leaves is the right one, and
-            //  both come from the same trip through the core.
-            if (snapshot.isPaused)
-            {
-                const Cpu6502Registers    & now     = session.GetTarget().GetRegisters();
-                InstructionTouches::Result  touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(),
-                                                                                now, line.instruction.address,
-                                                                                (Word) line.instruction.bytes.size());
+        lines.push_back (row);
 
-                row.annotation = GetAnnotation (session, line, now, touches);
-                row.effect     = row.isCurrent ? GetEffect (session, now, touches,
-                                                            (Word) (line.instruction.address + line.instruction.bytes.size()))
-                                               : std::string();
-            }
+        v.shown.push_back (row.address);
 
-            if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))
-            {
-                row.memoryOperand = line.instruction.operand;
-                row.shownOperand  = line.GetShownOperand();
-            }
-
-            for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
-            {
-                if (bp.address == row.address)
-                {
-                    row.isEnabled     = row.hasBreakpoint ? (row.isEnabled || bp.enabled) : bp.enabled;
-                    row.hasBreakpoint = true;
-                }
-            }
-
-            lines.push_back (row);
-
-            v.shown.push_back (row.address);
-
-            if ((int) lines.size() >= v.lines)
-            {
-                break;
-            }
+        if ((int) lines.size() >= v.lines)
+        {
+            break;
         }
     }
 
@@ -1976,7 +1998,9 @@ void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string 
 
     if (name == ".")
     {
-        m_code[(size_t) m_follow].address = std::nullopt;
+        //  Through SetCodeAddress, so a scroll or navigation queued ahead of
+        //  the line is dropped and does not land on top of it.
+        SetCodeAddress (std::nullopt, m_follow);
         reply.data    = MessageData { { "The code pane follows the PC." } };
         return;
     }
@@ -2010,7 +2034,7 @@ void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string 
     else if (name == "PAGEDOWN256") { *target = (Word) (start + 0x0100); }
     else if (name == "PAGEDOWN4K")  { *target = (Word) (start + 0x1000); }
 
-    m_code[(size_t) m_follow].address = target;
+    SetCodeAddress (target, m_follow);
     reply.data    = MessageData { { std::format ("The code pane is at ${:04X}.", *target) } };
 }
 
@@ -2023,27 +2047,27 @@ void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string 
 //  DebuggerViewState::MoveMemoryPane
 //
 //  This window has one memory pane, which shows bytes and characters
-//  together, so MD, MA and MT and both of their panes all move it.
+//  together, so MD, MA and MT and both of their panes all move it. The
+//  address is an expression, as every other AppleWin address is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerViewState::MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply)
+void DebuggerViewState::MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply)
 {
-    std::string_view  digits  = argument;
-    unsigned          address = 0;
+    int32_t      address = 0;
+    std::string  error;
+    HRESULT      hr      = E_INVALIDARG;
 
 
 
-    if (digits.starts_with ('$'))
+    if (!argument.empty())
     {
-        digits.remove_prefix (1);
+        hr = DebugExpressionEvaluator::ParseAndEvaluate (argument, session, address, error);
     }
 
-    auto [end, error] = std::from_chars (digits.data(), digits.data() + digits.size(), address, 16);
-
-    if (digits.empty() || error != std::errc() || end != digits.data() + digits.size() || address > 0xFFFF)
+    if (FAILED (hr) || address < 0 || address > 0xFFFF)
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a hex address.", name));
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs an address.", name));
         return;
     }
 
@@ -2086,12 +2110,25 @@ Word DebuggerViewState::GetInstructionLength (DebugSession & session, Word addre
 //
 //  Code cannot be disassembled backward with certainty, so this takes the
 //  longest instruction that ends exactly where the given one starts, and one
-//  byte back when none does.
+//  byte back when none does. A data block's lines are known: they run from
+//  the block's start, each as long as its first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Word DebuggerViewState::GetPreviousInstruction (DebugSession & session, Word address)
 {
+    Word            before = (Word) (address - 1);
+    DataBlockEntry  block;
+    Word            length = 0;
+
+
+
+    if (session.GetDataBlocks().TryFindAt (before, block))
+    {
+        length = GetInstructionLength (session, block.first);
+        return (Word) (block.first + (before - block.first) / length * length);
+    }
+
     for (Word back = 3; back >= 1; back--)
     {
         if (GetInstructionLength (session, (Word) (address - back)) == back)

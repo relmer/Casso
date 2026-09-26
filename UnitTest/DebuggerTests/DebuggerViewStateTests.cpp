@@ -1764,6 +1764,73 @@ namespace DebuggerViewStateTests
         }
 
 
+        TEST_METHOD (MiniMemoryCommandsTakeAddressExpressions)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::IsTrue   (RunInWindow (rig, "MD1 300+10").status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x0310, rig.view.GetMemoryAddress(), L"an expression");
+
+            Assert::IsTrue   (RunInWindow (rig, "MA1 PC").status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x0300, rig.view.GetMemoryAddress(), L"a register");
+        }
+
+
+        TEST_METHOD (ACursorCommandDropsAPendingScrollOrCenter)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.ScrollCode (5);
+            Assert::IsTrue (RunInWindow (rig, "V").status == CommandStatus::Ok);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual ((Word) 0x0302, snapshot.codeViews[0].front().address, L"a queued wheel scroll");
+
+            rig.view.CenterCodeOn (0x1000);
+            RunInWindow (rig, "V");
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual ((Word) 0x0305, snapshot.codeViews[0].front().address, L"a queued navigation");
+        }
+
+
+        TEST_METHOD (APaneOnADataBlockFillsItsLines)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            Assert::IsTrue   (rig.Run ("DB 1000:10FF").status == CommandStatus::Ok);
+            rig.view.SetCodeAddress (0x1000);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((size_t) DebuggerViewState::kCodeLines, snapshot.codeViews[0].size());
+            Assert::AreEqual ((Word) 0x1008, snapshot.codeViews[0][1].address, L"eight bytes a line");
+        }
+
+
+        TEST_METHOD (UpStepsBackOneDataLine)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::IsTrue   (rig.Run ("DB 1000:10FF").status == CommandStatus::Ok);
+
+            rig.view.SetCodeAddress (0x1010);
+            RunInWindow (rig, "^");
+            Assert::AreEqual ((Word) 0x1008, rig.view.GetCodeAddress().value_or (0), L"one DB line back");
+
+            rig.view.SetCodeAddress (0x1100);
+            RunInWindow (rig, "^");
+            Assert::AreEqual ((Word) 0x10F8, rig.view.GetCodeAddress().value_or (0), L"onto the block's last line");
+        }
+
+
 
         //  CODE, DATA and CONSOLE bring a pane forward; the second disassembly
         //  and memory window open when they are not.
@@ -2090,6 +2157,32 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (2, LineAt (snapshot, 0x0300).sourceLine);
             Assert::AreEqual (3, LineAt (snapshot, 0x0302).sourceLine, L"the outermost line: the invocation, not the body");
             Assert::AreEqual (std::wstring (L"C:\\Work\\main.dbg"), snapshot.source->debugFilePath);
+        }
+
+
+        TEST_METHOD (ThePaintedCodeViewsCarryTheirSourceLines)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            bool                  found = false;
+
+
+
+            LoadDebugFile (rig);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            //  The window reads each view's rows, not the copy in `code`.
+            for (const DebuggerViewSnapshot::CodeLine & row : snapshot.codeViews[0])
+            {
+                if (row.address == 0x0302)
+                {
+                    Assert::AreEqual (0, row.sourceFileId);
+                    Assert::AreEqual (3, row.sourceLine);
+                    found = true;
+                }
+            }
+
+            Assert::IsTrue (found);
         }
 
 
