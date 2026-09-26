@@ -549,6 +549,18 @@ public:
     }
 
 
+    TEST_METHOD (RestoreTabs_NothingSaved_OpensOneHomeTab)
+    {
+        Host  host;
+
+        host.browser.RestoreTabs ({});
+
+        Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount(), L"a first run has a tab");
+        Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::None, L"at Home");
+        Assert::IsFalse  (host.browser.GetStatus().selection.empty(), L"and gives the item count");
+    }
+
+
     TEST_METHOD (LocationLabels)
     {
         Assert::AreEqual (std::wstring (L"C:\\"),    CassoExplorerBrowser::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));

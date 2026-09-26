@@ -1893,8 +1893,17 @@ void CassoExplorerBrowser::RestoreTabs (const std::vector<Location> & locations)
 
 
 
+    //  Nothing saved -- a first run -- opens one tab at Home, as Explorer
+    //  opens one, rather than leaving the strip empty.
     if (locations.empty())
     {
+        if (m_model.GetTabCount() == 0)
+        {
+            m_model.OpenTab (Location());
+            switched = SwitchTab (0);
+            IGNORE_RETURN_VALUE (switched, true);
+        }
+
         return;
     }
 
