@@ -108,6 +108,28 @@ namespace DebuggerTests
             ParseFails ("r q=1", ParseStatus::Invalid);
         }
 
+        TEST_METHOD (Registers_ANameAloneShowsThem)
+        {
+            Assert::AreEqual ((int) DebugVerb::ShowRegisters, (int) ParseOk ("r a").command.verb);
+            Assert::AreEqual ((int) DebugVerb::ShowRegisters, (int) ParseOk ("r fl").command.verb);
+            ParseFails ("r q", ParseStatus::Invalid);
+        }
+
+        TEST_METHOD (Eb_TakesBytesOnly)
+        {
+            WinDbgParseResult  result = ParseFails ("eb 300 1234", ParseStatus::Invalid);
+
+
+
+            Assert::IsTrue   (result.error.find ("1234") != std::string::npos, Widen (result.error).c_str());
+            Assert::AreEqual ((size_t) 2, ParseOk ("eb 300 ff 0").command.values.size());
+        }
+
+        TEST_METHOD (HugeLengths_StopAtTheEndOfMemory)
+        {
+            Assert::AreEqual ((Word) 0xFFFF, ParseOk ("dd 300 l40000000").command.a2);
+        }
+
         TEST_METHOD (SourceLines_WithAndWithoutBackquotes)
         {
             for (const char * line : { "bp main.s:12", "bp `main.s:12`" })
