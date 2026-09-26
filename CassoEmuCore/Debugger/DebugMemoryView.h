@@ -38,6 +38,7 @@ private:
 
     bool          TryPeekRomDevice (Word address, Byte & value) const;
     bool          TryPatchRom      (Word address, Byte value);
+    bool          TryPokeShown     (Word address, Byte value);
     bool          IsAuxPage        (const Byte * page) const;
 
     MachineHost & m_host;

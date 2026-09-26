@@ -159,6 +159,38 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (Ram_PatchLandsInTheBankTheWindowShows)
+        {
+            static constexpr Word  kRamRdOff = 0xC002;
+            static constexpr Word  kRamRdOn  = 0xC003;
+
+            TestMachine      machine (std::string ("Apple2e"), TestMachine::Slots::Empty);
+            DebugMemoryView  view    (machine);
+            Byte             main    = 0;
+            Byte             patch   = 0;
+            Byte             peeked  = 0;
+
+
+
+            //  Reads from aux, writes to main. The switch is thrown both ways
+            //  first so main RAM is read through the MMU's own mapping.
+            machine.GetMemoryBus().WriteByte (kRamRdOn,  0);
+            machine.GetMemoryBus().WriteByte (kRamRdOff, 0);
+            main = machine.GetMemoryBus().ReadByte (kRamAddress);
+            machine.GetMemoryBus().WriteByte (kRamRdOn, 0);
+            patch = Different (view, kRamAddress);
+
+            Assert::IsTrue   (view.GetRegion (kRamAddress) == MemoryRegion::AuxRam);
+            Assert::IsTrue   (view.TryPatch (kRamAddress, patch));
+            Assert::IsTrue   (view.TryPeek  (kRamAddress, peeked));
+            Assert::AreEqual (patch, peeked, L"the window shows the byte it was given");
+            Assert::AreEqual (patch, machine.GetMemoryBus().ReadByte (kRamAddress), L"and the CPU reads it");
+
+            machine.GetMemoryBus().WriteByte (kRamRdOff, 0);
+            Assert::AreEqual (main, machine.GetMemoryBus().ReadByte (kRamAddress), L"main RAM is untouched");
+        }
+
+
         TEST_METHOD (Io_IsRefused)
         {
             TestMachine      machine (std::string ("Apple2e"), TestMachine::Slots::Empty);
