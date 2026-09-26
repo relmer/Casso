@@ -345,7 +345,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 //
 //  A cc65 debug file gives the session its source lines as well as its
 //  symbols. The offset moves every segment, and so every line, with the
-//  symbols. A file with lines and no top-level symbols still loads. A Merlin
+//  symbols, and the file's own labels. A file with lines and no top-level symbols still loads. A Merlin
 //  listing is read the same way, with the listing as its one source file.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,6 +373,16 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     for (DebugSegment & segment : file.segments)
     {
         segment.start = (uint32_t) (Word) (segment.start + offset);
+    }
+
+    //  The labels move with the code they mark; the call stack reads them
+    //  from the file as routine entries.
+    for (DebugSymbol & symbol : file.symbols)
+    {
+        if (symbol.type == "lab")
+        {
+            symbol.value = (uint32_t) (Word) (symbol.value + offset);
+        }
     }
 
     lines = file.lines.size();

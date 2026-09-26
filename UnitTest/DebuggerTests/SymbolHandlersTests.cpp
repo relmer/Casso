@@ -117,6 +117,8 @@ namespace DebuggerTests
             rig.RunOk ("SYMUSER LOAD \"prog.dbg\",1000");
             Assert::AreEqual (4, rig.session.GetLineTable().GetPositionsAt (0x1302).at (0).line, L"the offset moves the lines too");
             Assert::IsTrue   (rig.session.GetLineTable().GetPositionsAt (0x0302).empty());
+            Assert::AreEqual ((uint32_t) 0x1300, rig.session.GetDebugFile().symbols.at (0).value,
+                              L"the offset moves the file's labels, which the call stack reads, too");
         }
 
 
