@@ -1419,11 +1419,14 @@ int EmulatorShell::RunMessageLoop()
             // Suppress the emulator's accelerators while the settings sheet is
             // the active window, so keystrokes meant for it (the color-picker
             // hex field, Ctrl chords) never leak into emulator menu commands.
+            // The debugger window and its floating panes have keys of their
+            // own, so they are left alone too.
             bool  settingsActive = (m_settingsSheet != nullptr &&
                                     m_settingsSheet->GetHwnd() == GetActiveWindow());
 
             if (settingsActive ||
                 m_accelTable == nullptr ||
+                IsDebuggerMessage (msg) ||
                 !TranslateAccelerator (m_hwnd, m_accelTable, &msg))
             {
                 TranslateMessage (&msg);

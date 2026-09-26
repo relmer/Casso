@@ -493,6 +493,9 @@ private:
     // debug channel. UI thread.
     void    OpenDebuggerWindow ();
 
+    // True when a message went to the debugger window or a floating pane.
+    bool    IsDebuggerMessage  (const MSG & msg) const;
+
     // The window's requests, carried out on the CPU thread (ICpuCommandTarget).
     void    OpenDebugChannel   ();
     void    CloseDebugChannel  ();
@@ -871,6 +874,10 @@ public:
     // box is the only surface left. Static because it runs after the shell
     // has given up.
     static void  ShowPendingNotificationsWithoutWindow ();
+
+    // True when a message's top-level window is the debugger window or one
+    // of its floating panes, whose keys the emulator's accelerators leave alone.
+    static bool  IsDebuggerMessageRoot (HWND root, HWND rootOwner, HWND debugger);
 
 private:
     // Machine switching delegated to MachineManager. Kept as a

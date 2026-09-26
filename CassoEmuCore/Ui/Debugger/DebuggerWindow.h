@@ -169,6 +169,10 @@ protected:
     void             SubmitMemoryBox ();
     DxuiTextInput  * GetMemoryBox    () const { return m_memoryBox; }
 
+    //  Protected so a test can focus a control as a click does.
+    DxuiTextInput  * GetCommandBox   () const { return m_commandBox; }
+    void             FocusControl    (IDxuiControl * control) { SetFocusedControl (control); }
+
     //  Protected so a test can write to the console as the host's lines do,
     //  and search it as the find bar does.
     void             AppendConsole   (const std::vector<std::string> & lines);

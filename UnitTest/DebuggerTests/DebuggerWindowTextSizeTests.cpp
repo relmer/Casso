@@ -97,6 +97,8 @@ namespace DebuggerTests
         using DebuggerWindow::GetTextZoom;
         using DebuggerWindow::SubmitMemoryBox;
         using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::FocusControl;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::OnMappedCommand;
@@ -538,6 +540,59 @@ namespace DebuggerTests
             Assert::IsTrue   (window.Press (VK_F3));
             Assert::IsTrue   (window.IsFindOpen());
             Assert::IsTrue   (window.GetFindBox()->IsFocused());
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerWindowBoxKeyTests
+    //
+    //  A key a text box keeps goes to the box and never to the key scheme,
+    //  even when the box does nothing with the key-down itself.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerWindowBoxKeyTests)
+    {
+    public:
+
+        TEST_METHOD (SpaceInANonEmptyCommandLineTypesAndDoesNotStep)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::AppleWin);
+            window.FocusControl (window.GetCommandBox());
+
+            window.Type (L"a b");
+
+            Assert::AreEqual (std::wstring (L"a b"), window.GetCommandBox()->GetText());
+            Assert::AreEqual ((size_t) 0, host.commands.size(), L"AppleWin steps on Space only from an empty line");
+        }
+
+
+        TEST_METHOD (GSSquaredLettersTypedIntoABoxDoNotStep)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::GSSquared);
+            window.FocusControl (window.GetMemoryBox());
+
+            window.Type (L"or");
+
+            Assert::AreEqual (std::wstring (L"or"), window.GetMemoryBox()->GetText());
+            Assert::AreEqual ((size_t) 0, host.commands.size(), L"o and r step only outside a box");
         }
     };
 }

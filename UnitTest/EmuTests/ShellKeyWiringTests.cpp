@@ -192,3 +192,36 @@ public:
         Assert::AreEqual (1, viewport.keys, L"and a guest keydown goes through");
     }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerAcceleratorTests
+//
+//  The emulator's accelerators leave alone every key sent to the debugger
+//  window or to one of its floating panes, which are owned by it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DebuggerAcceleratorTests)
+{
+public:
+
+    TEST_METHOD (TheDebuggerAndItsFloatsKeepTheirKeys)
+    {
+        HWND  emulator = reinterpret_cast<HWND> (0x100);
+        HWND  debugger = reinterpret_cast<HWND> (0x200);
+        HWND  floating = reinterpret_cast<HWND> (0x300);
+
+
+
+        Assert::IsTrue  (EmulatorShell::IsDebuggerMessageRoot (debugger, emulator, debugger), L"the debugger window");
+        Assert::IsTrue  (EmulatorShell::IsDebuggerMessageRoot (floating, debugger, debugger), L"a floating pane");
+        Assert::IsFalse (EmulatorShell::IsDebuggerMessageRoot (emulator, nullptr,  debugger), L"the emulator window");
+        Assert::IsFalse (EmulatorShell::IsDebuggerMessageRoot (emulator, nullptr,  nullptr),  L"no debugger open");
+        Assert::IsFalse (EmulatorShell::IsDebuggerMessageRoot (nullptr,  nullptr,  nullptr),  L"no window at all");
+    }
+};

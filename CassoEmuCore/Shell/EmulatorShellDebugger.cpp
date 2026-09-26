@@ -71,6 +71,45 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsDebuggerMessageRoot
+//
+//  A floating pane is a top-level window of its own, owned by the debugger
+//  window, so either the root itself or its owner can be the debugger.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDebuggerMessageRoot (HWND root, HWND rootOwner, HWND debugger)
+{
+    return debugger != nullptr && (root == debugger || rootOwner == debugger);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDebuggerMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDebuggerMessage (const MSG & msg) const
+{
+    HWND  debugger = (m_debuggerWindow != nullptr) ? m_debuggerWindow->GetHwnd() : nullptr;
+    HWND  root     = (msg.hwnd != nullptr) ? GetAncestor (msg.hwnd, GA_ROOT) : nullptr;
+    HWND  owner    = (root != nullptr) ? GetWindow (root, GW_OWNER) : nullptr;
+
+
+
+    return IsDebuggerMessageRoot (root, owner, debugger);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDebuggerWindowClosed
 //
 //  Closing the window closes the debugger: the channel closes and every client
