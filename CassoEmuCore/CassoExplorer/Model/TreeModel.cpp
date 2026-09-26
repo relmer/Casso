@@ -320,17 +320,44 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
     casso.id        = kCassoRootId;
     casso.kind      = TreeNode::Kind::CassoRoot;
-    casso.label     = L"Casso";
+    casso.label     = GetRootLabel (kCassoRootId);
+    casso.location  = Location::MakeRoot (kCassoRootId);
     casso.canExpand = true;
 
     pc.id        = kThisPcRootId;
     pc.kind      = TreeNode::Kind::ThisPcRoot;
-    pc.label     = L"This PC";
+    pc.label     = GetRootLabel (kThisPcRootId);
+    pc.location  = Location::MakeRoot (kThisPcRootId);
     pc.canExpand = true;
 
     outNodes.clear();
     outNodes.push_back (casso);
     outNodes.push_back (pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetRootLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::GetRootLabel (const std::wstring & id)
+{
+    if (id == kCassoRootId)
+    {
+        return L"Casso";
+    }
+
+    if (id == kThisPcRootId)
+    {
+        return L"This PC";
+    }
+
+    return std::wstring();
 }
 
 

@@ -417,6 +417,40 @@ public:
     }
 
 
+    TEST_METHOD (ARoot_IsALocationUnderItsOwnLabel)
+    {
+        Host                                      host;
+        std::vector<DxuiTreeNode>                 roots;
+        std::vector<BrowserModel::AddressSegment> segments;
+
+        host.browser.GetTreeRoots (roots);
+
+        AssertSucceeded (host.browser.SelectTreeNode (TreeModel::kThisPcRootId));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kThisPcRootId));
+        Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), host.browser.GetRootId());
+        Assert::AreEqual (std::wstring (L"This PC"), host.browser.GetTabLabel (0), L"The tab shows the root's label, not Home");
+        Assert::AreEqual (std::wstring (L"This PC"), BrowserModel::FormatAddress (host.browser.GetLocation()));
+
+        segments = BrowserModel::GetAddressSegments (host.browser.GetLocation());
+        Assert::AreEqual ((size_t) 1, segments.size());
+        Assert::AreEqual (std::wstring (L"This PC"), segments[0].label);
+
+        //  The root is in the history like any other location.
+        AssertSucceeded (host.browser.SelectTreeNode (TreeModel::kCassoRootId));
+        Assert::AreEqual (std::wstring (L"Casso"), host.browser.GetTabLabel (0));
+        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+
+        Assert::IsTrue   (host.browser.GoBack());
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kThisPcRootId));
+        Assert::IsFalse  (host.browser.CanGoUp());
+
+        //  And its label, typed, goes there.
+        Assert::IsTrue   (host.browser.NavigateToAddress (L"casso"));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
+        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+    }
+
+
     TEST_METHOD (OpenRow_EntersImagesAndRefusesPlainFiles)
     {
         Host  host;

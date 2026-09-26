@@ -158,8 +158,8 @@ public:
     VolumeKind                       GetVolumeKind () const { return m_kind; }
     bool                             IsImageLocation () const { return m_isImage; }
 
-    //  The root being listed, or empty when the list is a location's.
-    const std::wstring &             GetRootId () const { return m_rootId; }
+    //  The root being listed, or empty when the list is another location's.
+    std::wstring                     GetRootId () const;
 
     //  Whether the image shown is write-protected, read once when it loads:
     //  the commands that would write to it ask on every repaint, which is too
@@ -266,7 +266,6 @@ private:
     std::vector<FileSystemEntry>        m_hostEntries;
     FolderOptions                       m_folderOptions;
     std::vector<TreeNode>               m_rootChildren;
-    std::wstring                        m_rootId;
     VolumeListing                       m_listing;
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;

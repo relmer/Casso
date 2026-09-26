@@ -988,6 +988,19 @@ void CassoExplorerWindow::RevealLocationInTree()
 
 
 
+    //  A root is a node of its own.
+    if (location.kind == Location::Kind::Root)
+    {
+        row = m_tree->FindRowById (location.path);
+
+        if (row >= 0 && current != location.path)
+        {
+            m_tree->HighlightRow (row);
+        }
+
+        return;
+    }
+
     if (location.kind == Location::Kind::None || path.size() < 2 || path[1] != L':')
     {
         return;
@@ -4272,7 +4285,8 @@ bool CassoExplorerWindow::TryGetDropLocation (int tag, POINT screen, Location & 
         row  = m_tree->HitTestRow (client.x, client.y);
         node = (row >= 0) ? m_tree->GetNodeAt (row) : nullptr;
 
-        if (node == nullptr || !m_browser.TryGetNodeLocation (node->id, outLocation))
+        //  A root holds drives and known folders, not files, so it takes no drop.
+        if (node == nullptr || !m_browser.TryGetNodeLocation (node->id, outLocation) || outLocation.kind == Location::Kind::Root)
         {
             return false;
         }
@@ -4747,12 +4761,15 @@ std::wstring CassoExplorerWindow::GetFolderViewKey (FolderViews::FolderType * ou
     switch (location.kind)
     {
         case Location::Kind::None:
+            return std::wstring();
+
+        case Location::Kind::Root:
             if (outType != nullptr)
             {
-                *outType = (m_browser.GetRootId() == TreeModel::kThisPcRootId) ? FolderViews::FolderType::Drives : type;
+                *outType = (location.path == TreeModel::kThisPcRootId) ? FolderViews::FolderType::Drives : type;
             }
 
-            return m_browser.GetRootId();
+            return location.path;
 
         case Location::Kind::HostFolder:
             if (outType != nullptr)
@@ -5364,7 +5381,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         AddMenuCommand (items, L"&Add to Casso", [this, folder]() { ChangeKnownFolder (folder, true); });
     }
 
-    if (hasLocation)
+    if (hasLocation && location.kind != Location::Kind::Root)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
         AddMenuCommand (items, L"Copy as &path", [this, location]()
@@ -5603,7 +5620,7 @@ void CassoExplorerWindow::ShowRowProperties (int row)
         return;
     }
 
-    if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::None)
+    if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::Root)
     {
         ShowHostProperties (path);
         return;
@@ -5635,6 +5652,12 @@ void CassoExplorerWindow::ShowRowProperties (int row)
 
 void CassoExplorerWindow::ShowLocationProperties (const Location & location)
 {
+    //  Home and the roots have no host path to show properties for.
+    if (location.kind == Location::Kind::None || location.kind == Location::Kind::Root)
+    {
+        return;
+    }
+
     if (location.kind == Location::Kind::DiskDirectory)
     {
         ShowMessage (BrowserModel::FormatAddress (location), MB_ICONINFORMATION);
@@ -6426,6 +6449,7 @@ void CassoExplorerWindow::FillTabs()
         switch (location.kind)
         {
             case Location::Kind::None:          tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
+            case Location::Kind::Root:          tab.icon = m_shellIcons.GetForKind ((location.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : IShellIcons::Kind::ThisPc); break;
             case Location::Kind::DiskDirectory: tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
             case Location::Kind::DiskImage:     tab.icon = m_shellIcons.GetForPath (location.path, false);     break;
             default:                            tab.icon = m_shellIcons.GetForPath (location.path, true);      break;

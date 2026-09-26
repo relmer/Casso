@@ -479,6 +479,10 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
             segments.push_back (AddressSegment { location.path.substr (slash + 1), Location::MakeDiskImage (location.path) });
             break;
 
+        case Location::Kind::Root:
+            segments.push_back (AddressSegment { TreeModel::GetRootLabel (location.path), location });
+            break;
+
         default:
             segments.push_back (AddressSegment { L"Home", Location() });
             break;
@@ -589,6 +593,12 @@ std::wstring BrowserModel::FormatAddress (const Location & location)
 
 
 
+    //  A root's address is its label, as Explorer's This PC is "This PC".
+    if (location.kind == Location::Kind::Root)
+    {
+        return TreeModel::GetRootLabel (location.path);
+    }
+
     if (location.kind != Location::Kind::None)
     {
         text = location.path;
@@ -642,6 +652,16 @@ bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Lo
     while (path.size() > 3 && path.back() == L'\\')
     {
         path.pop_back();
+    }
+
+    //  A root's label goes to the root.
+    for (const wchar_t * id : { TreeModel::kCassoRootId, TreeModel::kThisPcRootId })
+    {
+        if (_wcsicmp (path.c_str(), TreeModel::GetRootLabel (id).c_str()) == 0)
+        {
+            outLocation = Location::MakeRoot (id);
+            return true;
+        }
     }
 
     if (path.size() == 2 && path[1] == L':')

@@ -176,6 +176,25 @@ Location CassoExplorerBrowser::GetLocation() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::GetRootId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::GetRootId() const
+{
+    Location  location = GetLocation();
+
+
+
+    return (location.kind == Location::Kind::Root) ? location.path : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::SelectTreeNode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,9 +210,6 @@ HRESULT CassoExplorerBrowser::SelectTreeNode (const std::wstring & id)
     {
         location = found->second.location;
     }
-
-    //  A root has no location of its own; it lists what it holds.
-    m_rootId = (location.kind == Location::Kind::None && found != m_nodes.end()) ? id : std::wstring();
 
     if (!m_model.HasTabs())
     {
@@ -259,12 +275,11 @@ HRESULT CassoExplorerBrowser::Refresh()
             hr = LoadImage (location.path, (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string());
             break;
 
-        default:
-            if (!m_rootId.empty())
-            {
-                hr = LoadRoot (m_rootId);
-            }
+        case Location::Kind::Root:
+            hr = LoadRoot (location.path);
+            break;
 
+        default:
             break;
     }
 
@@ -1342,11 +1357,6 @@ bool CassoExplorerBrowser::OpenRow (int row)
         return false;
     }
 
-    if (!m_rootChildren.empty())
-    {
-        m_rootId.clear();
-    }
-
     m_model.NavigateTo (target);
     ReloadAfterNavigation();
 
@@ -1835,6 +1845,9 @@ std::wstring CassoExplorerBrowser::GetLocationLabel (const Location & location)
         case Location::Kind::None:
             return L"Home";
 
+        case Location::Kind::Root:
+            return TreeModel::GetRootLabel (location.path);
+
         case Location::Kind::DiskDirectory:
             slash = inner.find_last_of ("/:");
             return TextEncoding::NarrowToWide ((slash == std::string::npos) ? inner : inner.substr (slash + 1));
@@ -1896,7 +1909,6 @@ size_t CassoExplorerBrowser::NewTab()
 
 
 
-    m_rootId.clear();
     ReloadAfterNavigation();
 
     return index;
@@ -1924,7 +1936,6 @@ bool CassoExplorerBrowser::SwitchTab (size_t index)
     }
 
     names = m_model.GetActiveTab().selection;
-    m_rootId.clear();
     ReloadAfterNavigation();
     SelectRowsByKeys (names);
 
@@ -1967,7 +1978,6 @@ size_t CassoExplorerBrowser::OpenInNewTab (const Location & location)
 
 
 
-    m_rootId.clear();
     ReloadAfterNavigation();
 
     return index;
@@ -2135,7 +2145,7 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
     }
 
     //  A root's rows are its known folders and drives, with their own icons.
-    if (at.kind == Location::Kind::None && !row.hostPath.empty())
+    if (at.kind == Location::Kind::Root && !row.hostPath.empty())
     {
         return icons.GetForPath (row.hostPath, true);
     }
@@ -2179,8 +2189,6 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const Tr
 
 void CassoExplorerBrowser::NavigateToLocation (const Location & location)
 {
-    m_rootId.clear();
-
     if (!m_model.HasTabs())
     {
         m_model.OpenTab (location);

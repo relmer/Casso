@@ -11,6 +11,7 @@
 static constexpr const char *  s_kpszKindHostFolder    = "hostFolder";
 static constexpr const char *  s_kpszKindDiskImage     = "diskImage";
 static constexpr const char *  s_kpszKindDiskDirectory = "diskDirectory";
+static constexpr const char *  s_kpszKindRoot          = "root";
 
 
 
@@ -149,6 +150,7 @@ JsonValue CassoExplorerPrefs::LocationToJson (const Location & location)
     {
         case Location::Kind::DiskImage:     kind = s_kpszKindDiskImage;     break;
         case Location::Kind::DiskDirectory: kind = s_kpszKindDiskDirectory; break;
+        case Location::Kind::Root:          kind = s_kpszKindRoot;          break;
         default:                            break;
     }
 
@@ -192,6 +194,7 @@ bool CassoExplorerPrefs::TryLocationFromJson (const JsonValue & value, Location 
     if (kind == s_kpszKindDiskImage)          { outLocation.kind = Location::Kind::DiskImage; }
     else if (kind == s_kpszKindDiskDirectory) { outLocation.kind = Location::Kind::DiskDirectory; }
     else if (kind == s_kpszKindHostFolder)    { outLocation.kind = Location::Kind::HostFolder; }
+    else if (kind == s_kpszKindRoot)          { outLocation.kind = Location::Kind::Root; }
     else                                      { return false; }
 
     return true;

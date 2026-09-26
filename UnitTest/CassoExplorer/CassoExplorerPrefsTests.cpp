@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoExplorer/Model/TreeModel.h"
 #include "Config/GlobalUserPrefs.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -73,6 +74,7 @@ public:
         saved.columnWidthsDip = { 240, 0, 90 };
         saved.tabs.push_back (Location::MakeHostFolder (L"C:\\Disks"));
         saved.tabs.push_back (Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
+        saved.tabs.push_back (Location::MakeRoot (TreeModel::kThisPcRootId));
 
         AssertSucceeded (saved.Save (kBase, fs));
         AssertSucceeded (loaded.Load (kBase, fs));
@@ -87,8 +89,9 @@ public:
         Assert::IsTrue   (loaded.placement.valid);
         Assert::AreEqual (300, loaded.treeWidthDip);
         Assert::AreEqual (400, loaded.previewWidthDip);
-        Assert::AreEqual ((size_t) 2, loaded.tabs.size());
+        Assert::AreEqual ((size_t) 3, loaded.tabs.size());
         Assert::IsTrue   (loaded.tabs[1] == Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
+        Assert::IsTrue   (loaded.tabs[2] == Location::MakeRoot (TreeModel::kThisPcRootId), L"A root's tab comes back");
         Assert::AreEqual ((size_t) 3, loaded.columnWidthsDip.size());
         Assert::AreEqual (240, loaded.columnWidthsDip[0]);
         Assert::AreEqual (0,   loaded.columnWidthsDip[1], L"A column that fits itself stores nothing");

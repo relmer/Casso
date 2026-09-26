@@ -92,6 +92,10 @@ public:
     static constexpr const wchar_t *  kCassoRootId  = L"casso:";
     static constexpr const wchar_t *  kThisPcRootId = L"pc:";
 
+    //  A root's label in the tree, the tab and the address bar, or empty for
+    //  an id that is no root.
+    static std::wstring  GetRootLabel (const std::wstring & id);
+
 private:
     static constexpr const wchar_t *  kImagePrefix     = L"img:";
     static constexpr const wchar_t *  kDirectoryPrefix = L"dir:";
