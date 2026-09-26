@@ -167,17 +167,27 @@ void ExecutionHandlers::WriteNop (DebugSession & session, Reply & reply)
 {
     IDebugTarget    & target = session.GetTarget();
     Disassembler      disassembler (target.GetInstructionSet());
-    Word              pc     = target.GetRegisters().pc;
-    size_t            length = disassembler.GetLength (Peek (target, pc));
-    DisassemblyData   data;
-    HRESULT           hr     = S_OK;
+    Word             pc                             = target.GetRegisters().pc;
+    size_t           length                         = disassembler.GetLength (Peek (target, pc));
+    DisassemblyData  data;
+    HRESULT          hr                             = S_OK;
+    Byte             original[kMaxInstructionBytes] = {};
 
 
 
+    //  All of it or none of it: the bytes already written go back when one
+    //  cannot be, so no instruction is left half replaced.
     for (size_t i = 0; i < length; ++i)
     {
+        original[i] = Peek (target, (Word) (pc + i));
+
         if (!target.TryPoke ((Word) (pc + i), kNop))
         {
+            for (size_t j = 0; j < i; ++j)
+            {
+                (void) target.TryPoke ((Word) (pc + j), original[j]);
+            }
+
             reply.SetError (CommandStatus::Error, "memory not writable", std::format ("${:04X} cannot be written.", (Word) (pc + i)));
             return;
         }

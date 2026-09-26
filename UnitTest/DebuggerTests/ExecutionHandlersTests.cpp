@@ -120,6 +120,43 @@ namespace DebuggerTests
 
 
 
+        //  A long counted step runs its steps one after another, never one
+        //  inside another: a count in the thousands does not grow the stack.
+        TEST_METHOD (ALongCountedStepOver_RunsEveryStep)
+        {
+            MachineRig  rig;
+
+
+
+            // $0300: INX / JMP $0300
+            rig.Load (0x0300, { 0xE8, 0x4C, 0x00, 0x03 }, 0x0300);
+
+            rig.RunOk ("P 1388");   // counts are hex: 5,000 steps
+            Assert::AreEqual ((Word) 0x0300,           rig.LastStop().pc);
+            Assert::AreEqual ((uint8_t) (2500 & 0xFF), rig.LastStop().registers.x, L"2,500 INX in 5,000 steps");
+        }
+
+
+
+        //  The Monitor's T traces until something stops it.
+        TEST_METHOD (MonitorTrace_RunsUntilAStop)
+        {
+            MachineRig  rig;
+
+
+
+            // $0300: INX / INX / INX / NOP
+            rig.Load (0x0300, { 0xE8, 0xE8, 0xE8, 0xEA }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            (void) rig.session.ExecuteLine ("T", CommandMode::Monitor);
+            Assert::AreEqual ((Word) 0x0303, rig.LastStop().pc, L"three instructions, to the breakpoint");
+            Assert::AreEqual ((uint8_t) 3,   rig.LastStop().registers.x);
+        }
+
+
+
         //  A breakpoint partway through a counted step ends it there.
         TEST_METHOD (CountedStep_EndsAtABreakpoint)
         {
@@ -239,6 +276,16 @@ namespace DebuggerTests
             rig.RunOk ("zap");
             Assert::IsTrue (rig.RunOk ("T").status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x0303, rig.LastStop().pc, L"the RTS is gone");
+
+            //  An instruction running into memory that cannot be written is
+            //  left whole: none of it becomes a NOP.
+            rig.Load (0xBFFF, { 0x4C }, 0xBFFF);
+            rig.RunFails ("NOP", "memory not writable");
+
+            Byte  first = 0;
+
+            Assert::IsTrue   (rig.target.TryPeek (0xBFFF, first));
+            Assert::AreEqual ((Byte) 0x4C, first, L"the byte that could be written was put back");
         }
 
 

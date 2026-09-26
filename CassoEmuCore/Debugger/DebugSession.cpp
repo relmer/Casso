@@ -1191,27 +1191,37 @@ bool DebugSession::HasPendingStop() const
 void DebugSession::OnStopped (const StopEvent & stop)
 {
     StopEvent  event = stop;
-    Reply      next;
 
 
 
+    //  One step of a counted step has ended. The next begins here, or, when
+    //  the run that ended was started from ExecuteRun and has not returned
+    //  yet, from there, so a long count does not nest a call per step.
     if (event.reason == StopReason::Step && m_stepsLeft > 0 && m_nextStep.has_value())
     {
         --m_stepsLeft;
         m_stepCycles += event.cycles;
         m_state       = RunState::Paused;
+        m_heldStop    = event;
 
         if (m_nextStep->budget.has_value())
         {
             m_nextStep->budget = (*m_nextStep->budget > event.cycles) ? *m_nextStep->budget - event.cycles : 1;
         }
 
-        ExecuteRun (DebugCommand (*m_nextStep), next);
+        if (m_isStartingRun)
+        {
+            m_isStepPending = true;
+            return;
+        }
 
-        if (next.status == CommandStatus::Ok)
+        if (TryStartNextStep())
         {
             return;
         }
+
+        event.cycles = 0;
+        m_stepsLeft  = 0;
     }
 
     event.cycles += m_stepCycles;
@@ -1629,6 +1639,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     Cpu6502Registers  registers = {};
     HRESULT           hr        = S_OK;
     bool              isStep    = false;
+    bool              isOuter   = false;
 
 
 
@@ -1681,7 +1692,8 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     request.hasSkip    = command.hasA2 && command.hasA3 && !isStep;
     request.skipFirst  = command.a2;
     request.skipLast   = command.a3;
-    request.count      = (command.count == 0) ? 1 : command.count;
+    //  The Monitor's T traces until a stop or the budget: no count is no end.
+    request.count      = (command.count != 0) ? command.count : (request.kind == RunKind::Trace) ? UINT32_MAX : 1;
     request.budget     = command.budget.has_value() ? command.budget : m_budget;
     request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty()) ? &m_lineTable : nullptr;
     request.stepFilter = (isStep && !m_stepFilter.IsEmpty()) ? &m_stepFilter : nullptr;
@@ -1706,7 +1718,32 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;
     UpdateHookInstalled();
 
+    isOuter         = !m_isStartingRun;
+    m_isStartingRun = true;
+
     hr = m_target.StartRun (request);
+
+    //  A driver that runs to the stop before returning leaves each further
+    //  step of a counted step pending here, and they run in turn.
+    while (isOuter && SUCCEEDED (hr) && m_isStepPending)
+    {
+        m_isStepPending = false;
+
+        if (!TryStartNextStep())
+        {
+            StopEvent  held = m_heldStop;
+
+            held.cycles     = 0;
+            m_stepsLeft     = 0;
+            m_isStartingRun = false;
+            OnStopped (held);
+        }
+    }
+
+    if (isOuter)
+    {
+        m_isStartingRun = false;
+    }
 
     if (FAILED (hr))
     {
@@ -1714,6 +1751,26 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         UpdateHookInstalled();
         SetError (reply, CommandStatus::Error, "run failed", "The machine could not start the run.");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TryStartNextStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryStartNextStep()
+{
+    Reply  next;
+
+
+
+    ExecuteRun (DebugCommand (*m_nextStep), next);
+    return next.status == CommandStatus::Ok;
 }
 
 

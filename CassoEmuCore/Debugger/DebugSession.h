@@ -232,6 +232,7 @@ private:
 
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
+    bool   TryStartNextStep      ();
     void   SetStepOutFrame       (RunRequest & request);
     void   ExecuteSource         (const DebugCommand & command, Reply & reply);
     void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
@@ -308,4 +309,7 @@ private:
     std::optional<DebugCommand>           m_nextStep;
     uint32_t                              m_stepsLeft     = 0;
     uint64_t                              m_stepCycles    = 0;
+    StopEvent                             m_heldStop;
+    bool                                  m_isStartingRun = false;
+    bool                                  m_isStepPending = false;
 };

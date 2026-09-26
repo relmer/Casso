@@ -37,8 +37,9 @@ public:
     void  OnRunStopped  (DebugSession & session, const StopEvent & stop) override;
 
 private:
-    static constexpr Byte          kNop            = 0xEA;
-    static constexpr Word          kStackPage      = 0x0100;
+    static constexpr Byte    kNop                 = 0xEA;
+    static constexpr size_t  kMaxInstructionBytes = 3;
+    static constexpr Word    kStackPage           = 0x0100;
     static constexpr const char  * kDefaultTrace   = "Trace.txt";
     static constexpr const char  * kDefaultProfile = "Profile.txt";
     static constexpr size_t    kHotAddresses    = 20;
