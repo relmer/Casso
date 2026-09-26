@@ -580,6 +580,34 @@ namespace DebuggerTests
 
 
 
+        //  I, N, ^K and ^P write zero page, so they need a paused machine.
+        TEST_METHOD (ZeroPageSettersWhileRunning_AreErrors)
+        {
+            MachineRig  rig;
+            Byte        value = 0;
+
+
+
+            rig.target.TryPoke (0x0032, 0xFF);
+            rig.target.TryPoke (0x0036, 0x12);
+            rig.target.TryPoke (0x0038, 0x34);
+            rig.session.OnUserResumed();
+
+            for (const char * line : { "I", "N", "6^K", "6^P" })
+            {
+                Assert::AreEqual (std::string ("machine running"), rig.Run (line).error.label);
+            }
+
+            rig.target.TryPeek (0x0032, value);
+            Assert::AreEqual ((int) 0xFF, (int) value);
+            rig.target.TryPeek (0x0036, value);
+            Assert::AreEqual ((int) 0x12, (int) value);
+            rig.target.TryPeek (0x0038, value);
+            Assert::AreEqual ((int) 0x34, (int) value);
+        }
+
+
+
         //  An instruction that does not fit in writable memory writes none of
         //  its bytes, and the error gives the byte that could not be written.
         TEST_METHOD (Assembler_UnwritableByte_WritesNothingAndGivesItsAddress)

@@ -268,6 +268,10 @@ bool DebugSession::IsMachineWrite (DebugVerb verb)
     case DebugVerb::EditRegisters:
     case DebugVerb::ReadFile:
     case DebugVerb::EnterAssembler:
+    case DebugVerb::SetInverse:
+    case DebugVerb::SetNormal:
+    case DebugVerb::SetInputSlot:
+    case DebugVerb::SetOutputSlot:
         return true;
 
     default:
