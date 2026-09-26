@@ -845,21 +845,24 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
 //
 //  AppleWinParser::TryParseDataArguments
 //
-//  The data directives take `[name] [addr | range]` or `name = addr`. A
-//  first argument that evaluates is the address; otherwise it is the block's
-//  name and the address follows. B takes nothing; X takes a range.
+//  The data directives take `[name] [addr | range]` or `name = addr`, with
+//  or without spaces around the `=`. With two arguments the first is the
+//  block's name, even one that would also evaluate, such as a register or a
+//  hex word. A lone argument that evaluates is the address; otherwise it is
+//  the name. B takes nothing; X takes a range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseDataArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    size_t       count     = args.tokens.size();
-    size_t       rangeAt   = 0;
+    std::string  spaced;
+    Tokens       tokens;
+    size_t       count     = 0;
     std::string  discarded;
 
 
 
-    if (command.verb == DebugVerb::ListData || count == 0)
+    if (command.verb == DebugVerb::ListData || args.tokens.empty())
     {
         return true;
     }
@@ -869,15 +872,36 @@ bool AppleWinParser::TryParseDataArguments (const Arguments & args, DebugCommand
         return TryParseRange (args.tokens[0], *args.context, command, error);
     }
 
-    if (!TryParseRange (args.tokens[0], *args.context, command, discarded))
+    for (char ch : args.rest)
     {
-        command.text  = args.tokens[0];
-        command.hasA1 = false;
-        command.hasA2 = false;
-        rangeAt       = (count > 1 && args.tokens[1] == "=") ? 2 : 1;
+        spaced += (ch == '=') ? std::string (" = ") : std::string (1, ch);
     }
 
-    return rangeAt == 0 || rangeAt >= count || TryParseRange (args.tokens[rangeAt], *args.context, command, error);
+    tokens = Split (spaced);
+    count  = tokens.size();
+
+    if (count == 3 && tokens[1] == "=")
+    {
+        tokens.erase (tokens.begin() + 1);
+        count = 2;
+    }
+
+    if (count > 2 || tokens[0] == "=" || (count == 2 && tokens[1] == "="))
+    {
+        error = std::format ("{} takes [name] [addr | range] or name = addr.", ToUpper (command.sourceName));
+        return false;
+    }
+
+    if (count == 1 && TryParseRange (tokens[0], *args.context, command, discarded))
+    {
+        return true;
+    }
+
+    command.text  = tokens[0];
+    command.hasA1 = false;
+    command.hasA2 = false;
+
+    return count == 1 || TryParseRange (tokens[1], *args.context, command, error);
 }
 
 
