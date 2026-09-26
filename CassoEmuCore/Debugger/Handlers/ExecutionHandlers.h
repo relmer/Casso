@@ -18,10 +18,10 @@ class IDebugTarget;
 //  RCC, and BENCHMARK, BENCH and EXITBENCH. The run commands themselves (G,
 //  GG, T, TL, P, RTS) are the session's own.
 //
-//  The family is also the session's instruction observer: the branch record,
-//  the profile counters (while PROFILE ON), the trace file and the key queue are fed from each
-//  instruction a debugger-driven run executes, and never from a machine
-//  running freely.
+//  The family is also the session's instruction observer: the profile
+//  counters (while PROFILE ON), the trace file and the key queue are fed from
+//  each instruction a debugger-driven run executes, and never from a machine
+//  running freely. The branch record is the CPU's own, kept on every path.
 //
 //  BENCHMARK needs a host clock, which batch mode does not have; without a
 //  benchmark runner it reports not available.
