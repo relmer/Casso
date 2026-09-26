@@ -150,6 +150,41 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("1 d c010 w1 0001 (0001)"), lines[1]);
         }
 
+        TEST_METHOD (Bl_ShowsWhatANonAddressBreakpointStopsOn)
+        {
+            BreakpointListData        data;
+            BreakpointInfo            opcode;
+            BreakpointInfo            reg;
+            BreakpointInfo            value;
+            BreakpointInfo            brk;
+            std::vector<std::string>  lines;
+
+
+
+            opcode.id        = 0;
+            opcode.kind      = BreakpointKind::Opcode;
+            opcode.opcode    = 0xEA;
+            reg.id           = 1;
+            reg.kind         = BreakpointKind::Register;
+            reg.condition    = "A=41";
+            value.id         = 2;
+            value.kind       = BreakpointKind::MemoryValue;
+            value.address    = 0x0006;
+            value.last       = 0x0006;
+            value.value      = (Byte) 0x07;
+            brk.id           = 3;
+            brk.kind         = BreakpointKind::Brk;
+            data.breakpoints = { opcode, reg, value, brk };
+
+            lines = Render ("bl", data);
+
+            Assert::AreEqual ((size_t) 4,                                          lines.size());
+            Assert::AreEqual (std::string ("0 e opcode ea 0001 (0001)"),           lines[0]);
+            Assert::AreEqual (std::string ("1 e register A=41 0001 (0001)"),       lines[1]);
+            Assert::AreEqual (std::string ("2 e 0006 value 07 0001 (0001)"),       lines[2]);
+            Assert::AreEqual (std::string ("3 e brk 0001 (0001)"),                 lines[3]);
+        }
+
         TEST_METHOD (K_HeaderFramesAndBreaks)
         {
             CallStackData             data;

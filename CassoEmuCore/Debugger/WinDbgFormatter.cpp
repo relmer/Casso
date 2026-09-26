@@ -353,7 +353,8 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
 //
 //  bl: id, e or d, the address, an access watchpoint's kind and size, and
 //  WinDbg's pass count, which is always one: a Casso breakpoint stops on
-//  its first hit. A condition follows.
+//  its first hit. A condition follows. A breakpoint on an opcode, a register,
+//  BRK or an interrupt has no address, so what it stops on takes that place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,19 +378,48 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
                               :                                           "rw",
                                 breakpoint.last - breakpoint.address + 1);
         }
+        else if (breakpoint.kind == BreakpointKind::MemoryValue)
+        {
+            kind = std::format ("value {:02x} ", breakpoint.value.value_or (0));
+        }
         else if (breakpoint.kind != BreakpointKind::Address)
         {
-            kind = std::string (ReplyJson::GetBreakpointKindName (breakpoint.kind)) + " ";
+            address = DescribeTarget (breakpoint);
         }
 
         text = std::format ("{} {} {} {}0001 (0001)", breakpoint.id, breakpoint.enabled ? "e" : "d", address, kind);
 
-        if (!breakpoint.condition.empty())
+        if (!breakpoint.condition.empty() && breakpoint.kind != BreakpointKind::Register)
         {
             text += "  IF " + breakpoint.condition;
         }
 
         lines.push_back (text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgFormatter::DescribeTarget
+//
+//  What a breakpoint with no address stops on: `opcode ea`, `register A=41`,
+//  `brk` or `interrupt`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::DescribeTarget (const BreakpointInfo & breakpoint)
+{
+    switch (breakpoint.kind)
+    {
+    case BreakpointKind::Opcode:    return std::format ("opcode {:02x}", breakpoint.opcode);
+    case BreakpointKind::Register:  return "register " + breakpoint.condition;
+    case BreakpointKind::Brk:       return "brk";
+    case BreakpointKind::Interrupt: return "interrupt";
+    default:                        return std::format ("{:04x}", breakpoint.address);
     }
 }
 

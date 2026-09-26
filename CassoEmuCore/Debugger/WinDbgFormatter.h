@@ -39,6 +39,7 @@ private:
     static void         FormatString        (const MemoryData         & data, Lines & lines);
     static void         FormatDisassembly   (const DisassemblyData    & data, Lines & lines);
     static void         FormatBreakpoints   (const BreakpointListData & data, Lines & lines);
+    static std::string  DescribeTarget      (const BreakpointInfo & breakpoint);
     static void         FormatCallStack     (const CallStackData      & data, Lines & lines);
     static void         FormatEvaluation    (const CalcData           & data, Lines & lines);
     static void         FormatFormats       (const CalcData           & data, Lines & lines);

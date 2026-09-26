@@ -229,6 +229,23 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0xFFFF, ParseOk ("dd ffff l40000000").command.a2);
         }
 
+        TEST_METHOD (LengthRanges_StopAtTheTopOfMemory)
+        {
+            Assert::AreEqual ((Word) 0xFFFF, ParseOk ("f fff0 l10 00").command.a2);
+            ParseFails ("f fff0 l20 00",   ParseStatus::Invalid);
+            ParseFails ("s fff0 l20 00",   ParseStatus::Invalid);
+            ParseFails ("m fff0 l20 2000", ParseStatus::Invalid);
+            ParseFails ("ba w4 fffe",      ParseStatus::Invalid);
+        }
+
+        //  The engine stops a run at one address; a second would be taken as
+        //  AppleWin's skip range and end the run after one instruction.
+        TEST_METHOD (Go_TakesOneAddress)
+        {
+            Assert::AreEqual ((Word) 0x0300, ParseOk ("g 300").command.a1);
+            ParseFails ("g 300 310", ParseStatus::Invalid);
+        }
+
         TEST_METHOD (SingleQuotedText_KeepsItsCharacters)
         {
             WinDbgParseResult  result = ParseOk ("s 300 l100 '0x41'");
