@@ -257,7 +257,9 @@ HRESULT Win32FileSystem::EnumerateFiles (
 
     outFilenames.clear();
 
-    pattern = directory + L"\\*";
+    // An empty directory is the current one, as a relative path read from it
+    // is; "\*" alone would list the root of the current drive.
+    pattern = directory.empty() ? std::wstring (L"*") : directory + L"\\*";
 
     hFind = FindFirstFileW (pattern.c_str(), &findData);
 
@@ -325,7 +327,9 @@ HRESULT Win32FileSystem::EnumerateDirectories (
 
     outDirNames.clear();
 
-    pattern = directory + L"\\*";
+    // An empty directory is the current one, as a relative path read from it
+    // is; "\*" alone would list the root of the current drive.
+    pattern = directory.empty() ? std::wstring (L"*") : directory + L"\\*";
 
     hFind = FindFirstFileW (pattern.c_str(), &findData);
 
@@ -403,7 +407,9 @@ HRESULT Win32FileSystem::EnumerateEntries (
 
     outEntries.clear();
 
-    pattern = directory + L"\\*";
+    // An empty directory is the current one, as a relative path read from it
+    // is; "\*" alone would list the root of the current drive.
+    pattern = directory.empty() ? std::wstring (L"*") : directory + L"\\*";
 
     hFind = FindFirstFileW (pattern.c_str(), &findData);
 

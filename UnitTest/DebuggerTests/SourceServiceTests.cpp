@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Config/GlobalUserPrefs.h"
+#include "Config/Win32FileSystem.h"
 #include "Debugger/Source/SourceService.h"
 #include "Sha1.h"
 #include "UiTests/InMemoryFileSystem.h"
@@ -327,6 +328,37 @@ namespace DebuggerTests
         {
             Assert::AreEqual (std::wstring (L"C:\\Work\\src\\a.s"), SourceService::Combine (L"C:\\Work\\bin", L"../src/a.s"));
             Assert::AreEqual (std::wstring (L"D:\\x\\a.s"),        SourceService::Combine (L"C:\\Work",      L"D:/x/a.s"));
+        }
+
+
+        TEST_METHOD (CombineKeepsAUncPrefix)
+        {
+            Assert::AreEqual (std::wstring (L"\\\\server\\share\\src\\a.s"), SourceService::Combine (L"\\\\server\\share\\bin", L"../src/a.s"));
+            Assert::AreEqual (std::wstring (L"\\\\server\\share\\a.s"),      SourceService::Combine (L"C:\\Work",               L"//server/share/a.s"));
+        }
+
+
+        //  A debug file loaded by a relative name has no folder, and its sources
+        //  are read from the current directory, so that is the one listed.
+        TEST_METHOD (AnEmptyFolderListsTheCurrentDirectory)
+        {
+            Win32FileSystem               files;
+            std::vector<FileSystemEntry>  empty;
+            std::vector<FileSystemEntry>  current;
+            HRESULT                       hrEmpty   = files.EnumerateEntries (L"",  empty);
+            HRESULT                       hrCurrent = files.EnumerateEntries (L".", current);
+
+
+
+            Assert::IsTrue (SUCCEEDED (hrEmpty));
+            Assert::IsTrue (SUCCEEDED (hrCurrent));
+
+            Assert::AreEqual (current.size(), empty.size());
+
+            for (size_t i = 0; i < current.size(); i++)
+            {
+                Assert::AreEqual (current[i].name, empty[i].name);
+            }
         }
     };
 }

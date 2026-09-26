@@ -298,7 +298,8 @@ std::wstring SourceService::GetFileName (const std::wstring & path)
 //  SourceService::Combine
 //
 //  A relative path from a folder, with `.` and `..` resolved and backslash
-//  separators. An absolute path is taken as it is.
+//  separators. An absolute path is taken as it is, and a UNC path keeps both
+//  of its leading backslashes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -310,6 +311,8 @@ std::wstring SourceService::Combine (const std::wstring & folder, const std::wst
     std::vector<std::wstring>   parts;
     std::wstring                part;
     std::wstring                result;
+    bool                        isUnc      = joined.size() > 1 && (joined[0] == L'\\' || joined[0] == L'/') &&
+                                             (joined[1] == L'\\' || joined[1] == L'/');
 
 
 
@@ -338,6 +341,11 @@ std::wstring SourceService::Combine (const std::wstring & folder, const std::wst
     for (const std::wstring & each : parts)
     {
         result += (result.empty() ? L"" : L"\\") + each;
+    }
+
+    if (isUnc)
+    {
+        return L"\\\\" + result;
     }
 
     return (!joined.empty() && (joined[0] == L'\\' || joined[0] == L'/')) ? L"\\" + result : result;

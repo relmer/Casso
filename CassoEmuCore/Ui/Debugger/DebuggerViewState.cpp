@@ -64,6 +64,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 
 
     snapshot.isPaused       = isPaused;
+    snapshot.isAssembling   = session.IsAssembling();
     snapshot.mode           = session.GetMode();
     snapshot.goTo           = m_goTo;
     snapshot.showPane       = m_showPane;
@@ -504,7 +505,8 @@ std::optional<Word> DebuggerViewState::GetMemoryWindowAddress (int id) const
 //  The source pane's share of the snapshot, when a debug file is loaded: the
 //  line at PC at both ends of any macro nesting, the source line of each code
 //  row, the breakpoints that sit on lines, and the map from lines to
-//  addresses, which is rebuilt only when another debug file is loaded.
+//  addresses, which is rebuilt only when another debug file is loaded or the
+//  same one is loaded at another offset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,7 +525,14 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
         return;
     }
 
+    //  The same file loaded at another offset has the same text, so the key
+    //  holds where each segment was placed too.
     key = session.GetDebugFileKey() + SourcePathList::WideToUtf8 (session.GetDebugFilePath());
+
+    for (const DebugSegment & segment : file.segments)
+    {
+        key += std::format (":{:X}", segment.start);
+    }
 
     if (m_lineAddresses == nullptr || key != m_lineAddressesKey)
     {
@@ -2412,7 +2421,8 @@ std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session
 //
 //  ReadFile or WriteFile when a Monitor line holds an R or W with no file
 //  name, which the window asks for before the line runs. Batch and the pipe
-//  have no one to ask, so there the handler reports the error instead.
+//  have no one to ask, so there the handler reports the error instead. A line
+//  typed while the session is assembling is an instruction, not a command.
 //
 //  The line is parsed against a scratch state: a range comes from the line
 //  itself, and the session's own state must not move for a line that has not
@@ -2420,14 +2430,14 @@ std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<DebugVerb> DebuggerViewState::GetMissingFileVerb (const std::string & line, CommandMode mode)
+std::optional<DebugVerb> DebuggerViewState::GetMissingFileVerb (const std::string & line, CommandMode mode, bool isAssembling)
 {
     MonitorState        scratch;
     MonitorParseResult  parsed;
 
 
 
-    if (mode != CommandMode::Monitor)
+    if (mode != CommandMode::Monitor || isAssembling)
     {
         return std::nullopt;
     }

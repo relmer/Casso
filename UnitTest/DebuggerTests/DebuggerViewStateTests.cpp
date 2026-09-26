@@ -1637,13 +1637,14 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFR", CommandMode::Monitor) == DebugVerb::ReadFile,  L"R");
-            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFW", CommandMode::Monitor) == DebugVerb::WriteFile, L"W");
+            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFR", CommandMode::Monitor, false) == DebugVerb::ReadFile,  L"R");
+            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFW", CommandMode::Monitor, false) == DebugVerb::WriteFile, L"W");
 
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR a.bin", CommandMode::Monitor).has_value(), L"named");
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FF",        CommandMode::Monitor).has_value(), L"no R or W");
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("/R",             CommandMode::Monitor).has_value(), L"an AppleWin line");
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR",       CommandMode::AppleWin).has_value(), L"AppleWin mode");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR a.bin", CommandMode::Monitor, false).has_value(), L"named");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FF",        CommandMode::Monitor, false).has_value(), L"no R or W");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("/R",             CommandMode::Monitor, false).has_value(), L"an AppleWin line");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR",       CommandMode::AppleWin, false).has_value(), L"AppleWin mode");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("LSR",            CommandMode::Monitor,  true).has_value(),  L"an assembly line");
 
             line   = DebuggerViewState::GetLineWithFileName ("300.3FFW", "C:\\My Files\\dump.bin");
             parsed = MonitorParser::Parse (line, state);
@@ -2185,7 +2186,7 @@ namespace DebuggerViewStateTests
     {
     public:
 
-        static void LoadDebugFile (MachineRig & rig)
+        static void LoadDebugFile (MachineRig & rig, Word start = 0x0300)
         {
             DebugFile  file;
 
@@ -2193,7 +2194,7 @@ namespace DebuggerViewStateTests
 
             file.major = 2;
             file.files = { { 0, "main.a65", 45, 0, "", 0 }, { 1, "macros.inc", 30, 0, "", 0 } };
-            file.segments.push_back ({ 0, "CODE", 0x0300, 6 });
+            file.segments.push_back ({ 0, "CODE", start, 6 });
             file.spans = { { 0, 0, 0, 2 }, { 1, 0, 2, 3 }, { 2, 0, 5, 1 } };
             file.lines = { { 0, 0, 2, DebugLineType::Asm,   0, { 0 } },
                            { 1, 0, 3, DebugLineType::Asm,   0, { 1 } },
@@ -2284,6 +2285,23 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  The same file loaded again at another offset moves every line.
+        TEST_METHOD (ReloadingAtAnotherOffsetMovesTheLines)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            LoadDebugFile (rig);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            LoadDebugFile (rig, 0x1300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((Word) 0x1305, snapshot.source->lineAddresses->at ({ 0, 4 }));
+        }
+
+
         TEST_METHOD (ABreakpointMarksEveryLineAtItsAddress)
         {
             MachineRig            rig;
@@ -2301,6 +2319,21 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::format ("BPC {}", id), SourcePane::GetToggleLine (*snapshot.source, 0, 3));
             Assert::AreEqual (std::format ("BPC {}", id), SourcePane::GetToggleLine (*snapshot.source, 1, 5));
             Assert::AreEqual (std::string ("BP main.a65:4"), SourcePane::GetToggleLine (*snapshot.source, 0, 4));
+        }
+
+
+        //  A dropped file with no record has no lines to set a breakpoint on.
+        TEST_METHOD (AFileWithNoRecordTogglesNothing)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            LoadDebugFile (rig);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue (SourcePane::GetToggleLine (*snapshot.source, -1, 4).empty());
         }
 
 

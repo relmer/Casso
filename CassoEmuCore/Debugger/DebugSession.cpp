@@ -1056,6 +1056,7 @@ void DebugSession::OnUserPaused()
     stop.registers = m_target.GetRegisters();
     stop.pc        = stop.registers.pc;
 
+    TryGetSourceLine (stop.pc, stop.sourceFile, stop.sourceLine);
     m_sink.OnStopped (stop);
 }
 

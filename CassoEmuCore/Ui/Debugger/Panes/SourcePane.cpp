@@ -445,12 +445,18 @@ void SourcePane::OnClick (POINT atDip)
 void SourcePane::OnDoubleClick (POINT atDip)
 {
     std::optional<int>  line = GetLineAt (atDip);
+    std::string         toggle;
 
 
 
     if (line.has_value())
     {
-        m_run (GetToggleLine (*m_state, m_fileId, *line));
+        toggle = GetToggleLine (*m_state, m_fileId, *line);
+    }
+
+    if (!toggle.empty())
+    {
+        m_run (toggle);
     }
 }
 
@@ -663,14 +669,13 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
 //
 //  SourcePane::GetToggleLine
 //
+//  Empty for a file with no record in the debug file, which has no line a
+//  breakpoint could be set on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string SourcePane::GetToggleLine (const DebuggerViewSnapshot::SourceState & state, int fileId, int line)
 {
-    std::string  name;
-
-
-
     for (const std::tuple<int, int, int> & bp : state.breakpointLines)
     {
         if (std::get<0> (bp) == fileId && std::get<1> (bp) == line)
@@ -681,10 +686,13 @@ std::string SourcePane::GetToggleLine (const DebuggerViewSnapshot::SourceState &
 
     for (const DebugSourceFile & record : state.files)
     {
-        name = (record.id == fileId) ? record.name : name;
+        if (record.id == fileId)
+        {
+            return std::format ("BP {}:{}", record.name, line);
+        }
     }
 
-    return std::format ("BP {}:{}", name, line);
+    return std::string();
 }
 
 
