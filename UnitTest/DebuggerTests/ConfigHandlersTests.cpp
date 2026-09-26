@@ -42,6 +42,8 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("D:\\disks\\sub"),  rig.RunOk ("cd sub").text.at (0), L"a relative directory is under the current one");
             Assert::AreEqual (std::wstring (L"D:\\disks\\sub"), rig.session.GetCurrentDirectory());
             rig.RunFails ("CD", "invalid arguments");
+            rig.RunFails ("CD \"\"", "invalid arguments");
+            Assert::AreEqual (std::wstring (L"D:\\disks\\sub"), rig.session.GetCurrentDirectory(), L"a quoted empty name leaves the directory alone");
         }
 
 
