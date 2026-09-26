@@ -799,6 +799,23 @@ std::optional<DebuggerKeySchemes::Action> DebuggerViewState::GetConsoleKeyAction
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::DoesConsoleKeepKey
+//
+//  The Monitor reads an empty line as a request for the next row of bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::DoesConsoleKeepKey (CommandMode mode, WPARAM vk, bool ctrl, bool alt)
+{
+    return mode == CommandMode::Monitor && vk == VK_RETURN && !ctrl && !alt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetToggleBreakpointLine
 //
 //  A click sets a breakpoint where there is none and clears the one that is

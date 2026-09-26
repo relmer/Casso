@@ -1551,6 +1551,17 @@ namespace DebuggerViewStateTests
             Assert::IsFalse (DebuggerViewState::GetConsoleKeyAction (CommandMode::GSSquared, VK_SPACE, true, false, false, true).has_value(), L"Ctrl+Space");
         }
 
+        //  In Monitor mode Return on an empty line shows the next row of bytes,
+        //  so the command line keeps it rather than handing it to the scheme.
+        TEST_METHOD (MonitorMode_EmptyLineReturn_StaysInCommandLine)
+        {
+            Assert::IsTrue  (DebuggerViewState::DoesConsoleKeepKey (CommandMode::Monitor,   VK_RETURN, false, false));
+            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::Monitor,   VK_SPACE,  false, false), L"Space");
+            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::Monitor,   VK_RETURN, true,  false), L"Ctrl+Return");
+            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::AppleWin,  VK_RETURN, false, false), L"AppleWin mode");
+            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::GSSquared, VK_RETURN, false, false), L"GSSquared mode");
+        }
+
         //  The controls send AppleWin lines; in GSSquared mode they go in its
         //  words, and each one runs there.
         TEST_METHOD (GSSquaredMode_ControlLines_AreInItsWords)

@@ -417,6 +417,11 @@ public:
                                                                            bool        shift,
                                                                            bool        isLineEmpty);
 
+    //  In Monitor mode Return on an empty command line is a line of its own:
+    //  it shows the next row of bytes, so the command line keeps it from the
+    //  key scheme.
+    static bool  DoesConsoleKeepKey (CommandMode mode, WPARAM vk, bool ctrl, bool alt);
+
     //  A line from the window's command box, run and formatted exactly as batch
     //  mode runs and formats it. CPU thread only.
     static Reply  ExecuteLine (DebugSession & session, const std::string & line, CommandMode mode);

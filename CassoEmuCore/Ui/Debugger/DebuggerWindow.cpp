@@ -1960,7 +1960,9 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 //  space. Returns true when the key was decided here.
 //
 //  In GSSquared mode the empty command line has GSSquared's own keys first:
-//  Space and F10 step and Return resumes, whatever the scheme.
+//  Space and F10 step and Return resumes, whatever the scheme. In Monitor
+//  mode Return on the empty command line is the Monitor's own empty line,
+//  which shows the next row of bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1971,12 +1973,16 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
     bool                                          decided       = false;
     CommandMode                                   mode          = (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
     std::optional<DebuggerKeySchemes::Action>     consoleAction;
+    bool                                          boxEmpty      = false;
 
 
 
     consoleAction = (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_commandBox)
                   ? DebuggerViewState::GetConsoleKeyAction (mode, ev.vk, ev.ctrl, ev.alt, ev.shift, box->GetText().empty())
                   : std::nullopt;
+
+    boxEmpty = box != nullptr && box->GetText().empty() &&
+               !(box == m_commandBox && DebuggerViewState::DoesConsoleKeepKey (mode, ev.vk, ev.ctrl, ev.alt));
 
     if (consoleAction.has_value())
     {
@@ -1992,7 +1998,7 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
         m_swallowSpace = false;
     }
     else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) &&
-             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box != nullptr && box->GetText().empty()) &&
+             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, boxEmpty) &&
              RouteMappedKey (ev))
     {
         m_swallowSpace = ev.vk == VK_SPACE;
