@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Assembler.h"
+#include "Debugger/DebugFileReader.h"
 #include "Debugger/DebugFileWriter.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
@@ -306,6 +307,27 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Disassembly mode."),         rig.RunOk ("SRC").text.at (1));
             Assert::AreEqual (std::string ("Source mode."),              rig.RunOk ("SRC ON").text.at (1));
             rig.RunFails ("SRC SIDEWAYS", "invalid arguments");
+        }
+
+
+        TEST_METHOD (SrcWithASymbolsOnlyDebugFile_SaysItHasNoLines)
+        {
+            Rig          rig;
+            DebugFile    debugFile;
+            std::string  error;
+
+
+
+            Assert::AreEqual (S_OK, DebugFileReader::Read (
+                "version\tmajor=2,minor=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
+                "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "scope\tid=0,name=\"\",mod=0\n", debugFile, error));
+            rig.session.SetDebugFile (debugFile, L"C:\\Work\\syms.dbg");
+            Assert::IsTrue   (rig.session.HasDebugFile());
+
+            Assert::AreEqual (std::string ("The debug file has no source lines."),                     rig.RunOk ("SRC").text.at (0));
+            Assert::AreEqual (std::string ("Source mode. The debug file has no source lines, so steps go by instruction."), rig.RunOk ("SRC ON").text.at (1));
         }
 
 

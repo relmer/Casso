@@ -1626,9 +1626,13 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
         m_stepBySource = command.count != 0;
     }
 
-    if (!hasSource)
+    if (!HasDebugFile())
     {
         message.lines.push_back ("No debug file is loaded. Use SYM LOAD to load one.");
+    }
+    else if (!hasSource)
+    {
+        message.lines.push_back ("The debug file has no source lines.");
     }
     else if (TryGetSourceLine (pc, file, line))
     {
@@ -1639,9 +1643,10 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
         message.lines.push_back (std::format ("No source line produced ${:04X}.", pc));
     }
 
-    message.lines.push_back ((m_stepBySource && hasSource) ? "Source mode."
-                             : m_stepBySource              ? "Source mode. Until a debug file is loaded, steps go by instruction."
-                             :                               "Disassembly mode.");
+    message.lines.push_back ((m_stepBySource && hasSource)       ? "Source mode."
+                             : (m_stepBySource && HasDebugFile()) ? "Source mode. The debug file has no source lines, so steps go by instruction."
+                             : m_stepBySource                     ? "Source mode. Until a debug file is loaded, steps go by instruction."
+                             :                                      "Disassembly mode.");
     reply.data = message;
 }
 
