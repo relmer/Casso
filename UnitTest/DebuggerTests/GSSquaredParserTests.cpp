@@ -94,6 +94,16 @@ namespace DebuggerTests
             Refused ("nobp 99999999999999999999", ParseStatus::Invalid);
         }
 
+        //  help takes one word, as ? does.
+        TEST_METHOD (Help_TakesAWord)
+        {
+            DebugCommand  command = One ("help bp");
+
+
+
+            AssertVerb (DebugVerb::Help, command, "help bp");
+        }
+
         TEST_METHOD (Address_ExaminesOneByte)
         {
             DebugCommand  command = One ("300");

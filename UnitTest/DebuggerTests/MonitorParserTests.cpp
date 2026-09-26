@@ -111,6 +111,20 @@ namespace DebuggerTests
 
 
 
+        //  A byte above $7F is not a control code, so its error quotes the
+        //  byte itself rather than a caret form.
+        TEST_METHOD (HighByte_IsNotReportedAsAControlCode)
+        {
+            Rig                 rig;
+            MonitorParseResult  result = rig.Parse ("\xE9");
+
+
+
+            Assert::IsTrue  (result.status != ParseStatus::Ok);
+            Assert::IsFalse (result.error.starts_with ("^"), Widen (result.error).c_str());
+        }
+
+
         //  `.addr` PICKS UP WHERE THE LAST ONE STOPPED, which is the whole
         //  point of the form: after `300`, `.30F` reads $0301 through $030F.
         TEST_METHOD (DotAddress_ContinuesFromTheLastExamined)

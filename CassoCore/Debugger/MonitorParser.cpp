@@ -541,7 +541,7 @@ DebugCommand MonitorParser::MakeCommand (DebugVerb verb, char source)
     command.verb = verb;
     command.mode = CommandMode::Monitor;
 
-    command.sourceName = (source < kFirstPrintable)
+    command.sourceName = (source >= 0 && source < kFirstPrintable)
                        ? std::string ("^") + (char) (source + 'A' - 1)
                        : std::string (1, source);
 

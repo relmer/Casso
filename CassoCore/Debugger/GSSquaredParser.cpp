@@ -265,6 +265,7 @@ bool GSSquaredParser::TryParseWord (Line & line)
     else if (word == "watch" || word == "nowatch")  { ParseWatch           (line); }
     else if (word == "load" || word == "save")      { ParseFile            (line, word == "load"); }
     else if (word == "sload" || word == "slookup" || word == "sclear") { ParseSymbols (line, word); }
+    else if (word == "help" && line.tokens.size() == 2) { ParseAppleWin    (line, "HELP " + line.tokens[1], word); }
     else if (word == "help")                        { ParseNoArguments     (line, "HELP"); }
     else if (word == "s")                           { ParseNoArguments     (line, "T"); }
     else if (word == "o")                           { ParseNoArguments     (line, "P"); }
