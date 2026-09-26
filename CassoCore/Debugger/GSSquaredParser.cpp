@@ -810,6 +810,12 @@ bool GSSquaredParser::TryParseRange (Line & line, const std::string & token, Wor
         return true;
     }
 
+    if (period == 0)
+    {
+        SetInvalid (line, std::format ("{} is not a range. A range is first.last in hex.", token));
+        return false;
+    }
+
     if (!TryParseAddress (line, token.substr (0, period), first))
     {
         return false;
