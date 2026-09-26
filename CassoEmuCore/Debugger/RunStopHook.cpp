@@ -221,6 +221,31 @@ bool RunStopHook::HasStopped() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RunStopHook::GetBudgetReason
+//
+////////////////////////////////////////////////////////////////////////////////
+
+StopReason RunStopHook::GetBudgetReason() const
+{
+    Word  pc = m_host.GetCpu()->GetPC();
+    Byte  sp = m_host.GetCpu()->GetSP();
+
+
+
+    if (!m_active || m_instructions == 0 || !IsRunComplete (pc, sp))
+    {
+        return StopReason::Budget;
+    }
+
+    return (m_request.kind == RunKind::RunTo || m_request.kind == RunKind::Go) ? StopReason::RunTo : StopReason::Step;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunStopHook::GetReason
 //
 ////////////////////////////////////////////////////////////////////////////////

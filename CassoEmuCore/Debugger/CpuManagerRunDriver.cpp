@@ -161,7 +161,7 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
 
     if (budgetSpent)
     {
-        Finish (StopReason::Budget, m_spent);
+        Finish (m_hook.GetBudgetReason(), m_spent);
         return true;
     }
 

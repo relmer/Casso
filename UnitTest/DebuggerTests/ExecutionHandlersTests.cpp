@@ -78,6 +78,29 @@ namespace DebuggerTests
 
 
 
+        //  A step that is complete on the cycle the budget runs out is a step:
+        //  the reason a client acts on wins over the budget.
+        TEST_METHOD (AStepEndingAsTheBudgetRunsOut_IsAStep)
+        {
+            MachineRig  rig;
+
+
+
+            // $0300: LDA #$41 (2 cycles) / NOP
+            rig.Load (0x0300, { 0xA9, 0x41, 0xEA }, 0x0300);
+
+            rig.RunOk ("BUDGET 2");
+            rig.RunOk ("T");
+            Assert::AreEqual ((Word) 0x0302, rig.LastStop().pc);
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Step, L"not Budget");
+
+            rig.RunOk ("BUDGET 1");
+            rig.RunOk ("T 2");
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Budget, L"a budget that runs out first is still the reason");
+        }
+
+
+
         //  A breakpoint partway through a counted step ends it there.
         TEST_METHOD (CountedStep_EndsAtABreakpoint)
         {

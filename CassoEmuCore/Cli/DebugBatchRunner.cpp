@@ -112,7 +112,6 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
 {
     HRESULT                   hr     = S_OK;
     std::vector<std::string>  lines;
-    DebugCommand              budget;
     DebugCommand              mode;
     OutputFormat              output = OutputFormat::AppleWin;
     DebugSession              session (*m_target, m_sink, RunState::Paused);
@@ -127,10 +126,8 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     //  A batch run is the debugger attached from the first instruction.
     session.SetCallRecording (true);
 
-    budget.verb       = DebugVerb::SetBudget;
-    budget.sourceName = "BUDGET";
-    budget.count      = (uint32_t) std::min<uint64_t> (options.maxCycles, UINT32_MAX);
-    session.Execute (budget);
+    //  Set directly: a BUDGET command carries 32 bits, and --max-cycles 64.
+    session.SetBudget ((options.maxCycles == 0) ? std::nullopt : std::optional<uint64_t> (options.maxCycles));
 
     if (CommandModeNames::TryParse (options.mode, mode.mode) && mode.mode != CommandMode::AppleWin)
     {

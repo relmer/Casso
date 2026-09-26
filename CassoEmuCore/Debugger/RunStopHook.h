@@ -60,6 +60,11 @@ public:
     bool        HasStopped       () const;
     StopReason  GetReason        () const;
 
+    //  The reason the run would stop with before the instruction at the PC,
+    //  if it is already complete there. Asked when a budget runs out, so a
+    //  step that finished on the budget's last cycle is reported as a step.
+    StopReason  GetBudgetReason  () const;
+
     bool        ShouldStopBefore (Word pc) override;
     bool        HasPendingStop   () const override;
 

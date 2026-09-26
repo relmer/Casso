@@ -63,7 +63,7 @@ HRESULT SynchronousRunDriver::Start (const RunRequest & request)
         budgetSpent  = request.budget.has_value() && spent >= *request.budget;
     }
 
-    stop.reason    = m_hook.HasStopped() ? m_hook.GetReason() : (budgetSpent ? StopReason::Budget : StopReason::Pause);
+    stop.reason    = m_hook.HasStopped() ? m_hook.GetReason() : (budgetSpent ? m_hook.GetBudgetReason() : StopReason::Pause);
     stop.registers = m_host.GetCpu()->GetCpu6502()->GetRegisters();
     stop.pc        = stop.registers.pc;
     stop.cycles    = spent;
