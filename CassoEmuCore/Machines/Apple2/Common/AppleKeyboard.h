@@ -124,9 +124,13 @@ public:
     // Arm the emulated //e keyboard auto-repeat for a freshly-pressed key
     // (UI thread). The host OS auto-repeat is suppressed by the shell; the
     // authentic //e delay-then-repeat cadence is regenerated here instead.
-    // A value of 0 disarms (no key to repeat). Also raises the UI-thread
-    // host key-down / key-up notifications on the attached input sink.
+    // Every code arms, $00 (Ctrl+@) included. Also raises the UI-thread
+    // host key-down notification on the attached input sink.
     void BeginKeyRepeat (Byte asciiChar);
+
+    // Disarm the auto-repeat on key release (UI thread), raising the
+    // matching host key-up notification once.
+    void EndKeyRepeat();
 
     // Attach (or detach with nullptr) the Input Debug panel sink. Set from
     // the UI thread; read from the CPU thread on the device's null
@@ -165,7 +169,11 @@ private:
     // Auto-repeat state. m_repeatKey is written by the UI thread (arm /
     // disarm) and read by the CPU thread (TickAutoRepeat); the cadence
     // accumulator, phase flag, and last-seen key are touched only by
-    // TickAutoRepeat.
+    // TickAutoRepeat. The key fields hold the 7-bit code with kKeyArmedBit
+    // set, so 0 means "no key" while Ctrl+@ ($00) is still a key.
+    static constexpr Byte kKeyArmedBit  = 0x80;
+    static constexpr Byte kKeyCodeMask  = 0x7F;
+
     atomic<Byte>   m_repeatKey{0};
     uint32_t       m_repeatAccumUs = 0;
     bool           m_repeatStarted = false;
@@ -186,6 +194,6 @@ private:
     int            m_lastEmittedStrobe  = -1;
 
     // Last host key-down ascii for host-down/up coalescing (UI thread
-    // only). 0 means no key is currently held.
+    // only), with kKeyArmedBit set. 0 means no key is currently held.
     Byte           m_lastHostKeyDownAscii = 0;
 };
