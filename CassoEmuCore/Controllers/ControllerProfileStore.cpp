@@ -35,6 +35,7 @@ static constexpr const char *  s_kpszPb1Key         = "pb1";
 static constexpr const char *  s_kpszPb2Key         = "pb2";
 static constexpr const char *  s_kpszCalibrationKey = "calibration";
 static constexpr const char *  s_kpszActiveKey      = "activeProfiles";
+static constexpr const char *  s_kpszJoyportActive  = "joyportActiveProfiles";
 static constexpr const char *  s_kpszModeKey        = "mode";
 static constexpr const char *  s_kpszAxesKey        = "axes";
 static constexpr const char *  s_kpszIndexKey       = "index";
@@ -405,9 +406,9 @@ ControlMapping ControllerModelSettings::MakeBuiltInMapping (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ControllerProfileKind ControllerModelSettings::GetAutomaticKind (bool isJoyportAttached)
+ControllerProfileKind ControllerModelSettings::GetAutomaticKind (ProfileMode mode)
 {
-    return isJoyportAttached ? ControllerProfileKind::Joyport : ControllerProfileKind::Default;
+    return mode == ProfileMode::Joyport ? ControllerProfileKind::Joyport : ControllerProfileKind::Default;
 }
 
 
@@ -490,6 +491,7 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
     models.clear();
     calibrations.clear();
     activeProfiles.clear();
+    joyportActiveProfiles.clear();
 
     if (controllers.GetType() != JsonType::Object)
     {
@@ -508,7 +510,12 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
 
     if (controllers.HasObject (s_kpszActiveKey, activeObj) && activeObj != nullptr)
     {
-        ReadActiveProfiles (*activeObj, outRejected);
+        ReadActiveProfiles (*activeObj, activeProfiles, outRejected);
+    }
+
+    if (controllers.HasObject (s_kpszJoyportActive, activeObj) && activeObj != nullptr)
+    {
+        ReadActiveProfiles (*activeObj, joyportActiveProfiles, outRejected);
     }
 }
 
@@ -534,6 +541,7 @@ JsonValue ControllerProfileStore::ToJson (const JsonValue & controllers) const
     std::vector<std::pair<std::string, JsonValue>>  modelEntries;
     std::vector<std::pair<std::string, JsonValue>>  calibrationEntries;
     std::vector<std::pair<std::string, JsonValue>>  activeEntries;
+    std::vector<std::pair<std::string, JsonValue>>  joyportEntries;
 
 
 
@@ -560,9 +568,15 @@ JsonValue ControllerProfileStore::ToJson (const JsonValue & controllers) const
         activeEntries.emplace_back (kv.first, JsonValue (kv.second));
     }
 
+    for (const auto & kv : joyportActiveProfiles)
+    {
+        joyportEntries.emplace_back (kv.first, JsonValue (kv.second));
+    }
+
     ReplaceMember (members, s_kpszModelsKey,      std::move (modelEntries));
     ReplaceMember (members, s_kpszCalibrationKey, std::move (calibrationEntries));
     ReplaceMember (members, s_kpszActiveKey,      std::move (activeEntries));
+    ReplaceMember (members, s_kpszJoyportActive,  std::move (joyportEntries));
 
     if (members.empty() && controllers.GetType() != JsonType::Object)
     {
@@ -890,7 +904,10 @@ void ControllerProfileStore::ReadCalibrations (const JsonValue & calibrationObj,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerProfileStore::ReadActiveProfiles (const JsonValue & activeObj, std::vector<std::string> & outRejected)
+void ControllerProfileStore::ReadActiveProfiles (
+    const JsonValue                     & activeObj,
+    std::map<std::string, std::string>  & outProfiles,
+    std::vector<std::string>            & outRejected)
 {
     ControllerUnitKey  unit;
     HRESULT            hr   = S_OK;
@@ -907,7 +924,7 @@ void ControllerProfileStore::ReadActiveProfiles (const JsonValue & activeObj, st
             continue;
         }
 
-        activeProfiles[entry.first] = entry.second.GetString();
+        outProfiles[entry.first] = entry.second.GetString();
     }
 }
 

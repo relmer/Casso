@@ -633,6 +633,26 @@ namespace ControllerTests
         }
 
 
+        //  Each mode's chosen profiles are saved apart, so neither overwrites
+        //  the other.
+        TEST_METHOD (ActiveProfiles_RoundTripForEachMode)
+        {
+            ControllerProfileStore    store;
+            ControllerProfileStore    readBack;
+            std::vector<std::string>  rejected;
+            std::string               unit = ControllerTokens::UnitToToken ({ Xbox(), "045e:02e0", ControllerUnitSource::XInputProduct });
+
+            store.GetActiveProfiles (ProfileMode::Normal)[unit]  = "Flight";
+            store.GetActiveProfiles (ProfileMode::Joyport)[unit] = "Default";
+
+            readBack.FromJson (store.ToJson (JsonValue()), rejected);
+
+            Assert::IsTrue   (rejected.empty());
+            Assert::AreEqual (std::string ("Flight"),  readBack.activeProfiles.at (unit));
+            Assert::AreEqual (std::string ("Default"), readBack.joyportActiveProfiles.at (unit));
+        }
+
+
         TEST_METHOD (DeleteProfile_RemovesOnlyThatProfile)
         {
             ControllerProfileStore     store;

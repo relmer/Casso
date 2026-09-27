@@ -194,9 +194,11 @@ public:
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
 
-    // Whether the machine's Joyport is attached, which decides the profile a
-    // controller with none chosen plays: the Joyport profile or the Default.
-    void                                  SetJoyportAttached       (bool isAttached) { m_isJoyportAttached = isAttached; }
+    // The mode whose active profiles the page edits: with a Joyport attached
+    // or without. Set before Load; a controller with no profile chosen in it
+    // plays that mode's built-in profile.
+    void                                  SetProfileMode           (ProfileMode mode) { m_profileMode = mode; }
+    ProfileMode                           GetProfileMode           () const           { return m_profileMode; }
 
     // The selected model's profiles, Default and Joyport first, and the one
     // being edited.
@@ -294,11 +296,11 @@ private:
     std::map<std::string, ControllerCalibration>    m_baselineCalibrations;
 
     // The edited controller's active profile as chosen, empty for none, which
-    // plays the built-in profile m_isJoyportAttached selects. It is that
+    // plays the built-in profile of m_profileMode. It is that
     // controller's entry in m_activeProfiles, loaded when Editing moves to it
     // and written back whenever it changes.
     std::string                                     m_editedProfile;
-    bool                                            m_isJoyportAttached = false;
+    ProfileMode                                     m_profileMode = ProfileMode::Normal;
 
     // Every controller's active profile, by unit token, and as it was when
     // the page opened or last committed.

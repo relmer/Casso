@@ -1238,10 +1238,10 @@ bool ControllersPageState::IsEditingBuiltInProfile() const
 //
 //  SelectProfile
 //
-//  A name the model has no profile for selects no profile, which plays the
-//  built-in one the Joyport selects, and so does selecting that built-in
-//  profile itself: the controller keeps following the Joyport. The other
-//  built-in profile is recorded by name. A capture in progress belongs to
+//  The choice is recorded for the page's mode. A name the model has no
+//  profile for selects no profile, which plays the mode's built-in profile,
+//  and so does selecting that built-in profile itself. The other built-in
+//  profile is recorded by name. A capture in progress belongs to
 //  the profile it was started on, so it is called off.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1251,7 +1251,7 @@ void ControllersPageState::SelectProfile (const std::string & name)
     const ControllerModelSettings *  settings  = FindSelectedModel();
     const ControllerProfile *        profile   = settings != nullptr ? settings->FindProfile (name) : nullptr;
     ControllerProfileKind            kind      = profile != nullptr ? profile->kind : ControllerModelSettings::GetBuiltInKind (name);
-    ControllerProfileKind            automatic = ControllerModelSettings::GetAutomaticKind (m_isJoyportAttached);
+    ControllerProfileKind            automatic = ControllerModelSettings::GetAutomaticKind (m_profileMode);
 
 
 
@@ -2387,7 +2387,7 @@ const ControllerProfile * ControllersPageState::FindEditedProfile() const
 //
 //  The built-in profile the edited controller plays when its chosen name is
 //  not a profile its model has saved: the one chosen by name, or with none
-//  chosen, the one the Joyport selects.
+//  chosen, the page mode's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2399,7 +2399,7 @@ ControllerProfileKind ControllersPageState::GetEditedBuiltInKind() const
 
     if (kind == ControllerProfileKind::User)
     {
-        kind = ControllerModelSettings::GetAutomaticKind (m_isJoyportAttached);
+        kind = ControllerModelSettings::GetAutomaticKind (m_profileMode);
     }
 
     return kind;

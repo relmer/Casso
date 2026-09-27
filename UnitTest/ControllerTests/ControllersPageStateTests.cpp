@@ -504,7 +504,7 @@ namespace ControllerTests
             ControllerModelKey      model    = MakeStick().unit.model;
             std::vector<ControlId>  controls = MakeStick().controls;
 
-            page.SetJoyportAttached (true);
+            page.SetProfileMode (ProfileMode::Joyport);
             page.Load ({ MakeStick() }, {}, {}, true);
 
             Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName());

@@ -33,11 +33,31 @@ enum class ControllerProfileKind
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProfileMode
+//
+//  Each controller's chosen profile is kept once for play without a Joyport
+//  and once for play with one, so attaching or detaching the Joyport switches
+//  to the profile last chosen for that mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ProfileMode
+{
+    Normal,
+    Joyport,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControllerProfile
 //
 //  One named mapping for a controller model. A controller with no profile
-//  chosen plays the model's Joyport profile while a Joyport is attached and
-//  its Default otherwise.
+//  chosen for the mode it is playing in plays the model's Joyport profile
+//  while a Joyport is attached and its Default otherwise.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,7 +162,7 @@ struct ControllerModelSettings
 
     // Which built-in profile a controller with no profile chosen plays, and
     // which one a name is, ignoring case; User for any other name.
-    static ControllerProfileKind  GetAutomaticKind      (bool isJoyportAttached);
+    static ControllerProfileKind  GetAutomaticKind      (ProfileMode mode);
     static ControllerProfileKind  GetBuiltInKind        (const std::string & name);
 
     bool operator== (const ControllerModelSettings &) const = default;
@@ -182,10 +202,14 @@ public:
     std::map<std::string, ControllerModelSettings>  models;
     std::map<std::string, ControllerCalibration>    calibrations;
 
-    // Each controller's active profile, by unit token; an empty name is the
-    // Default. Global rather than per machine, so a profile made for one
-    // machine can be played on any of them.
+    // Each controller's active profile, by unit token, once for play without
+    // a Joyport and once for play with one; an empty name is that mode's
+    // built-in profile. Global rather than per machine, so a profile made
+    // for one machine can be played on any of them.
     std::map<std::string, std::string>              activeProfiles;
+    std::map<std::string, std::string>              joyportActiveProfiles;
+
+    std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) { return mode == ProfileMode::Joyport ? joyportActiveProfiles : activeProfiles; }
 
     void       FromJson (const JsonValue & controllers, std::vector<std::string> & outRejected);
     JsonValue  ToJson   (const JsonValue & controllers) const;
@@ -226,7 +250,7 @@ private:
 
     void              ReadModels        (const JsonValue & modelsObj, std::vector<std::string> & outRejected);
     void              ReadCalibrations  (const JsonValue & calibrationObj, std::vector<std::string> & outRejected);
-    void              ReadActiveProfiles(const JsonValue & activeObj, std::vector<std::string> & outRejected);
+    static void       ReadActiveProfiles(const JsonValue & activeObj, std::map<std::string, std::string> & outProfiles, std::vector<std::string> & outRejected);
 
     static bool       ReadProfile       (const JsonValue & profileObj, ControllerProfile & outProfile);
     static bool       ReadMapping       (const JsonValue & mappingObj, ControlMapping & outMapping);

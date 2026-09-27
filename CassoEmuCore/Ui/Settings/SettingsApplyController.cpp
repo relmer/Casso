@@ -90,10 +90,11 @@ HRESULT SettingsApplyController::CommitControllerSettings (const std::map<std::s
     // were rather than dropped by a store that never held them.
     existing.FromJson (m_prefs->controllers, unreadable);
 
-    store.models         = models;
-    store.calibrations   = calibrations;
-    store.activeProfiles = existing.activeProfiles;
-    m_prefs->controllers = store.ToJson (m_prefs->controllers);
+    store.models                = models;
+    store.calibrations          = calibrations;
+    store.activeProfiles        = existing.activeProfiles;
+    store.joyportActiveProfiles = existing.joyportActiveProfiles;
+    m_prefs->controllers        = store.ToJson (m_prefs->controllers);
 
     if (m_controllerService != nullptr)
     {
@@ -463,14 +464,24 @@ void SettingsApplyController::CommitApply()
     // once. It is global, saved with the settings rather than per machine.
     if (m_controllersState != nullptr && m_controllersState->IsDirty() && m_prefs != nullptr)
     {
-        ControllerProfileStore  store;
-        HRESULT                 hrSave        = S_OK;
-        bool                    profileChange = m_controllersState->HasActiveProfileChanged();
+        ControllerProfileStore    store;
+        ControllerProfileStore    existing;
+        std::vector<std::string>  unreadable;
+        HRESULT                   hrSave        = S_OK;
+        bool                      profileChange = m_controllersState->HasActiveProfileChanged();
+        ProfileMode               pageMode      = m_controllersState->GetProfileMode();
 
-        store.models         = m_controllersState->GetModels();
-        store.calibrations   = m_controllersState->GetCalibrations();
-        store.activeProfiles = m_controllersState->GetActiveProfiles();
-        m_prefs->controllers = store.ToJson (m_prefs->controllers);
+        // The page edits the active profiles of the mode it opened in; the
+        // other mode's are written back as saved.
+        existing.FromJson (m_prefs->controllers, unreadable);
+
+        store.models                = m_controllersState->GetModels();
+        store.calibrations          = m_controllersState->GetCalibrations();
+        store.activeProfiles        = existing.activeProfiles;
+        store.joyportActiveProfiles = existing.joyportActiveProfiles;
+
+        store.GetActiveProfiles (pageMode) = m_controllersState->GetActiveProfiles();
+        m_prefs->controllers               = store.ToJson (m_prefs->controllers);
 
         if (m_controllerService != nullptr)
         {
@@ -479,7 +490,7 @@ void SettingsApplyController::CommitApply()
 
             if (profileChange)
             {
-                m_controllerService->SetActiveProfiles (store.activeProfiles);
+                m_controllerService->SetActiveProfiles (pageMode, store.GetActiveProfiles (pageMode));
                 m_emuShell->SyncPaddleSourceList();
             }
         }

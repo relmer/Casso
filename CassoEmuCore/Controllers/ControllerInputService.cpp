@@ -561,14 +561,15 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
 {
     std::unique_lock<std::mutex>  lock   (m_mutex);
     std::string                   token  = ControllerTokens::UnitToToken (unit);
-    auto                          found  = m_activeProfiles.find (token);
+    auto &                        active = GetModeProfilesLocked();
+    auto                          found  = active.find (token);
     bool                          isSame = false;
 
 
 
     // An entry is kept even for the Default, so choosing it is remembered as
     // a choice; only a matching entry is a no-op.
-    isSame = found != m_activeProfiles.end()
+    isSame = found != active.end()
              && found->second.size() == name.size()
              && _stricmp (found->second.c_str(), name.c_str()) == 0;
 
@@ -577,8 +578,8 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
         return;
     }
 
-    m_activeProfiles[token] = name;
-    m_rateResetPending      = true;
+    active[token]      = name;
+    m_rateResetPending = true;
     UnresolveDriversLocked();
     SyncDriversLocked();
 
@@ -595,7 +596,9 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
 //
 //  GetActiveProfile
 //
-//  Empty for the Default, and for a controller that has never had one chosen.
+//  The profile chosen for the mode being played. Empty for that mode's
+//  built-in profile, and for a controller that has never had one chosen in
+//  it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -620,11 +623,44 @@ std::string ControllerInputService::GetActiveProfile (const ControllerUnitKey & 
 
 std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnitKey & unit) const
 {
-    auto  found = m_activeProfiles.find (ControllerTokens::UnitToToken (unit));
+    const auto &  active = GetModeProfilesLocked();
+    auto          found  = active.find (ControllerTokens::UnitToToken (unit));
 
 
 
-    return (found != m_activeProfiles.end()) ? found->second : std::string();
+    return (found != active.end()) ? found->second : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModeProfilesLocked
+//
+//  The active profiles for the mode being played.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, std::string> & ControllerInputService::GetModeProfilesLocked()
+{
+    return m_profileMode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModeProfilesLocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::map<std::string, std::string> & ControllerInputService::GetModeProfilesLocked() const
+{
+    return m_profileMode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
 }
 
 
@@ -635,18 +671,19 @@ std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnit
 //
 //  SetActiveProfiles
 //
-//  The whole map, by unit token: set once from the saved prefs, and read back
-//  to save them.
+//  The whole map for one mode, by unit token: set once from the saved prefs,
+//  and read back to save them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetActiveProfiles (std::map<std::string, std::string> activeProfiles)
+void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles)
 {
     std::unique_lock<std::mutex>  lock (m_mutex);
 
 
 
-    m_activeProfiles   = std::move (activeProfiles);
+    (mode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles) = std::move (activeProfiles);
+
     m_rateResetPending = true;
     UnresolveDriversLocked();
     SyncDriversLocked();
@@ -664,24 +701,26 @@ void ControllerInputService::SetActiveProfiles (std::map<std::string, std::strin
 //
 //  SetJoyportAttached
 //
-//  Every controller with no profile chosen switches between the Joyport and
-//  Default profiles, released as for a profile change.
+//  Every controller switches to the profile chosen for the new mode, or with
+//  none chosen, to that mode's built-in profile, released as for a profile
+//  change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::SetJoyportAttached (bool isAttached)
 {
     std::unique_lock<std::mutex>  lock (m_mutex);
+    ProfileMode                   mode = isAttached ? ProfileMode::Joyport : ProfileMode::Normal;
 
 
 
-    if (m_isJoyportAttached == isAttached)
+    if (m_profileMode == mode)
     {
         return;
     }
 
-    m_isJoyportAttached = isAttached;
-    m_rateResetPending  = true;
+    m_profileMode      = mode;
+    m_rateResetPending = true;
     UnresolveDriversLocked();
     SyncDriversLocked();
 
@@ -700,13 +739,13 @@ void ControllerInputService::SetJoyportAttached (bool isAttached)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<std::string, std::string> ControllerInputService::GetActiveProfiles() const
+std::map<std::string, std::string> ControllerInputService::GetActiveProfiles (ProfileMode mode) const
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
 
 
 
-    return m_activeProfiles;
+    return mode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
 }
 
 
@@ -1172,8 +1211,8 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.devices             = m_devices;
     snapshot.selection           = m_selection;
     snapshot.saved               = m_saved;
-    snapshot.activeProfiles      = m_activeProfiles;
-    snapshot.isJoyportAttached   = m_isJoyportAttached;
+    snapshot.activeProfiles      = GetModeProfilesLocked();
+    snapshot.profileMode         = m_profileMode;
     snapshot.lastSample          = m_lastSample;
     snapshot.isSelectedConnected = m_isSelectedConnected;
     snapshot.multiplayer         = m_multiplayer;
@@ -1726,7 +1765,7 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
     const ControllerDeviceInfo  * device     = FindDeviceLocked (driver.unit);
     const ControllerProfile     * profile    = nullptr;
     std::string                   active;
-    ControllerProfileKind         kind       = ControllerModelSettings::GetAutomaticKind (m_isJoyportAttached);
+    ControllerProfileKind         kind       = ControllerModelSettings::GetAutomaticKind (m_profileMode);
     ControllerProfileKind         chosenKind = ControllerProfileKind::User;
 
 
@@ -1751,9 +1790,9 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
     }
 
     // The deadzone belongs to the model, whichever profile is active. With no
-    // profile chosen, or one the model no longer has, the controller plays
-    // the Joyport profile while a Joyport is attached and the Default
-    // otherwise.
+    // profile chosen for this mode, or one the model no longer has, the
+    // controller plays the Joyport profile while a Joyport is attached and
+    // the Default otherwise.
     m_profiles.GetBuiltInSettings (kind, device->unit.model, device->controls, driver.mapping, driver.deadzone);
     driver.isResolved = true;
 

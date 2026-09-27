@@ -470,7 +470,8 @@ HRESULT EmulatorShell::Initialize (
         store.FromJson (m_globalPrefs.controllers, rejected);
         m_controllerService->SetModelSettings  (store.models);
         m_controllerService->SetCalibrations   (store.calibrations);
-        m_controllerService->SetActiveProfiles (store.activeProfiles);
+        m_controllerService->SetActiveProfiles (ProfileMode::Normal,  store.activeProfiles);
+        m_controllerService->SetActiveProfiles (ProfileMode::Joyport, store.joyportActiveProfiles);
 
         if (!rejected.empty())
         {

@@ -186,10 +186,11 @@ void EmulatorShell::SaveControllerCalibrations()
         return;
     }
 
-    store.models         = m_controllerService->GetModelSettings();
-    store.calibrations   = m_controllerService->GetCalibrations();
-    store.activeProfiles = m_controllerService->GetActiveProfiles();
-    controllers          = store.ToJson (m_globalPrefs.controllers);
+    store.models                = m_controllerService->GetModelSettings();
+    store.calibrations          = m_controllerService->GetCalibrations();
+    store.activeProfiles        = m_controllerService->GetActiveProfiles (ProfileMode::Normal);
+    store.joyportActiveProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Joyport);
+    controllers                 = store.ToJson (m_globalPrefs.controllers);
 
     if (JsonWriter::Write (controllers) == JsonWriter::Write (m_globalPrefs.controllers))
     {
@@ -254,12 +255,13 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs, const s
 
 void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const std::string & machineId)
 {
-    HRESULT                           hr         = S_OK;
-    std::string                       token;
-    std::string                       legacyProfile;
-    std::optional<ControllerUnitKey>  selection;
-    ControllerUnitKey                 unit;
-    const MachineDefinition         * definition = MachineDefinitions::Find (machineId);
+    HRESULT                              hr         = S_OK;
+    std::string                          token;
+    std::string                          legacyProfile;
+    std::map<std::string, std::string>   normalProfiles;
+    std::optional<ControllerUnitKey>     selection;
+    ControllerUnitKey                    unit;
+    const MachineDefinition            * definition = MachineDefinitions::Find (machineId);
 
 
 
@@ -298,12 +300,14 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
     // A machine's own active profile is from before each controller carried
     // its own. It passes to the machine's saved controller once, when that
     // controller has none recorded, and is written back to no machine after.
-    legacyProfile = MachineInputPrefs::ReadProfileName (uiPrefs);
+    legacyProfile  = MachineInputPrefs::ReadProfileName (uiPrefs);
+    normalProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Normal);
 
     if (!legacyProfile.empty() && selection.has_value() &&
-        m_controllerService->GetActiveProfiles().count (ControllerTokens::UnitToToken (selection.value())) == 0)
+        normalProfiles.count (ControllerTokens::UnitToToken (selection.value())) == 0)
     {
-        m_controllerService->SetActiveProfile (selection.value(), legacyProfile);
+        normalProfiles[ControllerTokens::UnitToToken (selection.value())] = legacyProfile;
+        m_controllerService->SetActiveProfiles (ProfileMode::Normal, normalProfiles);
     }
 
     m_controllerService->SetSelection (selection);

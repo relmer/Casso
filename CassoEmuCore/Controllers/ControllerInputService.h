@@ -60,10 +60,10 @@ public:
         // (FR-011).
         std::optional<ControllerUnitKey>       saved;
 
-        // Each controller's active profile, by unit token; a missing or empty
-        // entry means the built-in profile `isJoyportAttached` selects.
+        // Each controller's active profile for the mode being played, by unit
+        // token; a missing or empty entry means that mode's built-in profile.
         std::map<std::string, std::string>     activeProfiles;
-        bool                                   isJoyportAttached    = false;
+        ProfileMode                            profileMode          = ProfileMode::Normal;
         ControllerSample                       lastSample;
         bool                                   isSelectedConnected  = false;
 
@@ -164,19 +164,20 @@ public:
     void                                            SetModelSettings (std::map<std::string, ControllerModelSettings> models);
     std::map<std::string, ControllerModelSettings>  GetModelSettings () const;
 
-    // Each controller's active profile, by name; empty means Default. The
-    // choice belongs to the controller, not the machine or the player, so a
-    // controller plays its profile on any machine and keeps it through a
-    // swap between players. A name its model does not have plays the
-    // Default. A change takes effect on the next reading, releasing whatever
-    // the old profile held.
+    // Each controller's active profile for the mode being played, by name;
+    // empty means that mode's built-in profile. The choice belongs to the
+    // controller, not the machine or the player, so a controller plays its
+    // profile on any machine and keeps it through a swap between players. A
+    // name its model does not have plays the built-in profile. A change takes
+    // effect on the next reading, releasing whatever the old profile held.
+    // The whole maps, one per mode, are set from and saved to the prefs.
     void                                SetActiveProfile  (const ControllerUnitKey & unit, const std::string & name);
     std::string                         GetActiveProfile  (const ControllerUnitKey & unit) const;
-    void                                SetActiveProfiles (std::map<std::string, std::string> activeProfiles);
-    std::map<std::string, std::string>  GetActiveProfiles () const;
+    void                                SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles);
+    std::map<std::string, std::string>  GetActiveProfiles (ProfileMode mode) const;
 
-    // Whether the machine's Joyport is attached, which decides the profile a
-    // controller with none chosen plays: the Joyport profile or the Default.
+    // Whether the machine's Joyport is attached, which decides the mode whose
+    // chosen profiles are played.
     void                                SetJoyportAttached (bool isAttached);
 
     // Every DirectInput unit's calibration, by unit token. Set once from the
@@ -255,6 +256,10 @@ private:
     void                            UpdateAttachOrderLocked  ();
     uint64_t                        GetAttachOrderLocked     (const ControllerUnitKey & unit) const;
 
+    // The active profiles for the mode being played. Assumes m_mutex is held.
+    std::map<std::string, std::string>        &  GetModeProfilesLocked ();
+    const std::map<std::string, std::string>  &  GetModeProfilesLocked () const;
+
     static void  AddJoyportSwitches (const std::optional<size_t> & player,
                                      const JoystickSwitches      & switches,
                                      GamePortContribution        & merged);
@@ -284,6 +289,8 @@ private:
     std::map<std::string, ControllerCalibration>         m_calibrations;
     ControllerProfileStore                               m_profiles;
     std::map<std::string, std::string>                   m_activeProfiles;
+    std::map<std::string, std::string>                   m_joyportActiveProfiles;
+    ProfileMode                                          m_profileMode = ProfileMode::Normal;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;
@@ -301,7 +308,6 @@ private:
     float                                m_deadzone            = 0.0f;
     bool                                 m_isActive            = true;
     bool                                 m_hasGamePort         = true;
-    bool                                 m_isJoyportAttached   = false;
     bool                                 m_isSelectedConnected = false;
     std::atomic<bool>                    m_hasContribution     {false};
     std::atomic<bool>                    m_devicesDirty        {true};

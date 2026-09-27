@@ -458,9 +458,8 @@ namespace ControllerTests
 
         //  A controller with no profile chosen plays the Joyport profile while
         //  the Joyport is attached, where the D-pad steers and X fires, and
-        //  the Default otherwise, where neither does anything. A Default
-        //  chosen by name stays the Default with the Joyport on.
-        TEST_METHOD (UnchosenProfile_FollowsTheJoyport)
+        //  the Default otherwise, where neither does anything.
+        TEST_METHOD (UnchosenProfile_IsTheModesBuiltInProfile)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -490,16 +489,58 @@ namespace ControllerTests
             Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the Joyport profile steers with the D-pad");
             Assert::IsTrue   (sink.writes.back().state.buttons.test (0),                   L"and fires with X");
 
-            service.SetActiveProfile (device.unit, "Default");
-            service.Tick();
-
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"a Default chosen by name is kept with the Joyport on");
-
-            service.SetActiveProfile (device.unit, std::string());
             service.SetJoyportAttached (false);
             service.Tick();
 
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"detaching the Joyport goes back to the Default");
+        }
+
+
+        //  A profile picked with the Joyport attached is that controller's
+        //  Joyport-mode choice, and one picked without it is its normal-mode
+        //  choice. Attaching or detaching the Joyport plays the choice made
+        //  for the new mode.
+        TEST_METHOD (ChosenProfile_IsRememberedForEachMode)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    device = MakeXboxDevice();
+            ControllerSample        sample;
+
+            sample.connected = true;
+            sample.hats[0]   = ControllerSample::kHatRight;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, sample);
+
+            service.SetSelection (device.unit);
+            service.SetActiveProfile (device.unit, "Joyport");
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the Joyport profile, picked without a Joyport");
+
+            service.SetJoyportAttached (true);
+            service.SetActiveProfile (device.unit, "Default");
+            service.Tick();
+
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"the Default, picked with one");
+
+            service.SetJoyportAttached (false);
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"detaching plays the normal-mode choice");
+            Assert::AreEqual (std::string ("Joyport"), service.GetActiveProfile (device.unit));
+
+            service.SetJoyportAttached (true);
+            service.Tick();
+
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and attaching the Joyport-mode one");
+            Assert::AreEqual (std::string ("Default"), service.GetActiveProfile (device.unit));
+            Assert::AreEqual (std::string ("Joyport"), service.GetActiveProfiles (ProfileMode::Normal).at (ControllerTokens::UnitToToken (device.unit)));
         }
 
 

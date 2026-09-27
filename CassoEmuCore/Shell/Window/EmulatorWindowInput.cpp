@@ -3037,7 +3037,7 @@ void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & sn
 
         section.unit              = units[i];
         section.active            = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
-        section.isJoyportAttached = snapshot.isJoyportAttached;
+        section.isJoyportAttached = snapshot.profileMode == ProfileMode::Joyport;
 
         if (!headers[i].empty())
         {
