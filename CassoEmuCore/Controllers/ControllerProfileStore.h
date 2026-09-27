@@ -110,9 +110,10 @@ enum class ProfileEditResult
 //
 //  ProfileSource
 //
-//  What a new profile's mapping starts from. The New profile dialog offers
-//  only the mode's own mappings, and a copy is only of a profile of the mode
-//  the new profile belongs to.
+//  What a new profile's mapping starts from. Only the mode's own starting
+//  points are accepted: the Joyport mapping in Joyport mode, the default
+//  mapping and Paddles in normal mode, and a copy of a profile of the mode the
+//  new profile belongs to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,6 +196,9 @@ struct ControllerModelSettings
     // mode's for a user's.
     static ProfileMode            GetBuiltInMode        (ControllerProfileKind kind);
     static ControllerProfileKind  GetResetKind          (const ControllerProfile & profile);
+
+    // Whether a built-in starting point is the other mode's.
+    static bool                   IsSourceOfOtherMode   (ProfileSource source, ProfileMode mode);
 
     bool operator== (const ControllerModelSettings &) const = default;
 };
@@ -279,8 +283,8 @@ public:
                                                  ControllerFormFactor            formFactor,
                                                  const std::vector<ControlId>  & controls);
 
-    // The new profile belongs to `mode`, the mode in effect, whatever it
-    // starts from.
+    // The new profile belongs to `mode`, the mode in effect. A starting point
+    // of the other mode is refused as not found.
     ProfileEditResult  CreateProfile (const ControllerModelKey        & model,
                                       ControllerFormFactor              formFactor,
                                       const std::vector<ControlId>    & controls,

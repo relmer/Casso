@@ -63,22 +63,12 @@ public:
     static std::string  ReadControllerToken (const JsonValue * uiPrefs);
     static std::string  ReadProfileName     (const JsonValue * uiPrefs);
 
-    static std::vector<std::pair<std::string, JsonValue>>  BuildControllerEntries (
-        const std::string &  controllerToken,
-        const std::string &  profileName);
-
     // The machine's two-player setup. An absent block, or one that is not
     // enabled, means single-source mode: the machine behaves exactly as it did
     // before the mode existed. A slot whose controller cannot be read is left
     // empty, and the setup is normalized, so an overlapping or repeated pair
     // in a hand-edited file is refused rather than played (FR-036).
     static MultiplayerSetup  ReadMultiplayer (const JsonValue * uiPrefs);
-
-    // Always written, so turning the mode off replaces the saved block rather
-    // than leaving it behind. Paddles this machine lacks are written as they
-    // stand, so a //e's setup survives a trip through a //c (FR-035).
-    static std::pair<std::string, JsonValue>  BuildMultiplayerEntry (
-        const MultiplayerSetup &  setup);
 
     // What the one-time adoption makes of a machine's saved selection: the
     // players' entries, and the last holders they start from. Reads the block

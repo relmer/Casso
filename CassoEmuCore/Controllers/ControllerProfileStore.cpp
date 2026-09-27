@@ -560,6 +560,39 @@ ProfileMode ControllerModelSettings::GetBuiltInMode (ControllerProfileKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ControllerModelSettings::IsSourceOfOtherMode
+//
+//  Whether a built-in starting point belongs to the mode other than `mode`:
+//  the Joyport mapping to Joyport mode, and the default mapping and Paddles to
+//  normal mode. A copy belongs to neither; the profile it copies decides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerModelSettings::IsSourceOfOtherMode (ProfileSource source, ProfileMode mode)
+{
+    bool  isOtherMode = false;
+
+
+
+    switch (source)
+    {
+        case ProfileSource::JoyportMapping:  isOtherMode = mode != ProfileMode::Joyport; break;
+        case ProfileSource::DefaultMapping:
+        case ProfileSource::Paddles:         isOtherMode = mode != ProfileMode::Normal;  break;
+
+        case ProfileSource::CopyOfProfile:
+        default:                                                                         break;
+    }
+
+    return isOtherMode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControllerModelSettings::GetResetKind
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -885,8 +918,9 @@ ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (
 //  CreateProfile
 //
 //  The source mapping is copied before the profile is added, since adding one
-//  can move the profile it was copied from. A copy is only of a profile of
-//  `mode`: a copy of the other mode's profile is refused as not found.
+//  can move the profile it was copied from. Only `mode`'s own starting points
+//  are accepted: a built-in mapping of the other mode, or a copy of the other
+//  mode's profile, is refused as not found.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -904,6 +938,11 @@ ProfileEditResult ControllerProfileStore::CreateProfile (
     ControlMapping             mapping  = DefaultMapping::For (model, controls);
 
 
+
+    if (ControllerModelSettings::IsSourceOfOtherMode (source, mode))
+    {
+        return ProfileEditResult::NotFound;
+    }
 
     if (source == ProfileSource::Paddles)
     {

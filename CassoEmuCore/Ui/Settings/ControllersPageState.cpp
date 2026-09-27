@@ -1427,10 +1427,11 @@ ProfileEditResult ControllersPageState::CheckProfileName (const std::string & na
 //
 //  CreateProfile
 //
-//  The new profile belongs to the page's mode and becomes the edited one. A
-//  copy is only of a profile of that mode, so a copy of the other mode's
-//  profile is refused and nothing changes. Edits on the profile it was
-//  created from stay pending there.
+//  The new profile belongs to the page's mode and becomes the edited one.
+//  Only that mode's own starting points are accepted, so a built-in mapping
+//  of the other mode, or a copy of the other mode's profile, is refused and
+//  nothing changes. Edits on the profile it was created from stay pending
+//  there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1451,6 +1452,11 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
     }
 
     if (selected == nullptr)
+    {
+        return ProfileEditResult::NotFound;
+    }
+
+    if (ControllerModelSettings::IsSourceOfOtherMode (source, m_profileMode))
     {
         return ProfileEditResult::NotFound;
     }

@@ -248,40 +248,6 @@ std::string MachineInputPrefs::ReadProfileName (const JsonValue * uiPrefs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineInputPrefs::BuildControllerEntries
-//
-//  An EMPTY TOKEN IS STILL WRITTEN, as an empty string. The absence of the
-//  key means this machine has never chosen a controller, and the policy is
-//  free to choose one for it; the empty string means the user turned the
-//  controller off in favor of the arrows or the paddle, and choosing one for
-//  them again on the next launch would undo that (FR-032).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildControllerEntries (
-    const std::string &  controllerToken,
-    const std::string &  profileName)
-{
-    std::vector<std::pair<std::string, JsonValue>>  entries;
-
-
-
-    entries.emplace_back (kpszControllerKey, JsonValue (controllerToken));
-
-    if (!profileName.empty())
-    {
-        entries.emplace_back (kpszProfileKey, JsonValue (profileName));
-    }
-
-    return entries;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MachineInputPrefs::ReadGamePortAdapter
 //
 //  The device on the machine's game socket. A machine with no annunciators
@@ -484,51 +450,6 @@ MultiplayerSetup MachineInputPrefs::ReadMultiplayer (const JsonValue * uiPrefs)
     }
 
     return ControllerSelectionPolicy::Normalize (setup);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineInputPrefs::BuildMultiplayerEntry
-//
-//  BOTH SLOTS ARE ALWAYS WRITTEN, an empty one as an empty controller token.
-//  The block is spliced key by key, so a slot left out would leave the one
-//  already in the file behind, and a player the user cleared would come back
-//  on the next launch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::pair<std::string, JsonValue> MachineInputPrefs::BuildMultiplayerEntry (
-    const MultiplayerSetup &  setup)
-{
-    std::vector<std::pair<std::string, JsonValue>>  block;
-    std::vector<JsonValue>                          players;
-    size_t                                          i     = 0;
-
-
-
-    for (i = 0; i < MultiplayerSetup::kPlayerCount; i++)
-    {
-        std::vector<std::pair<std::string, JsonValue>>  entry;
-        std::string                                     token;
-
-        if (setup.players[i].unit.has_value())
-        {
-            token = ControllerTokens::UnitToToken (setup.players[i].unit.value());
-        }
-
-        entry.emplace_back (kpszControllerKey, JsonValue (token));
-        entry.emplace_back (s_kpszMapsKey,     JsonValue (std::string (TargetToToken (setup.players[i].target))));
-        players.emplace_back (std::move (entry));
-    }
-
-    block.emplace_back (s_kpszEnabledKey, JsonValue (setup.isEnabled));
-    block.emplace_back (s_kpszPlayersKey, JsonValue (std::move (players)));
-
-    return { kpszMultiplayerKey, JsonValue (std::move (block)) };
 }
 
 

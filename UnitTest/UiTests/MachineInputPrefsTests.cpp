@@ -296,30 +296,6 @@ public:
     }
 
 
-    TEST_METHOD (ControllerEntries_RoundTripThroughRead)
-    {
-        std::vector<std::pair<std::string, JsonValue>>  entries =
-            MachineInputPrefs::BuildControllerEntries ("xinput", "Lode Runner");
-        JsonValue                                       uiPrefs (std::move (entries));
-
-        Assert::AreEqual (std::string ("xinput"),      MachineInputPrefs::ReadControllerToken (&uiPrefs));
-        Assert::AreEqual (std::string ("Lode Runner"), MachineInputPrefs::ReadProfileName (&uiPrefs));
-    }
-
-
-    TEST_METHOD (ControllerEntries_EmptyTokenIsStillWritten)
-    {
-        std::vector<std::pair<std::string, JsonValue>>  entries =
-            MachineInputPrefs::BuildControllerEntries ("", "");
-
-        // An absent key means the machine never chose, and the policy may
-        // choose for it. An empty string means the user turned the controller
-        // off in favor of the arrows, and choosing again would undo that.
-        Assert::AreEqual (size_t (1), entries.size(), L"the controller key is written even when it is empty");
-        Assert::AreEqual (std::string (MachineInputPrefs::kpszControllerKey), entries[0].first);
-    }
-
-
     static ControllerUnitKey MakeStickUnit (const char * unitId)
     {
         ControllerUnitKey  unit;
@@ -344,44 +320,25 @@ public:
     }
 
 
-    TEST_METHOD (Multiplayer_RoundTripIncludingPaddlesATwoAxisMachineLacks)
+    TEST_METHOD (Multiplayer_ReadsBothPlayersIncludingPaddlesATwoAxisMachineLacks)
     {
-        MultiplayerSetup  setup;
-        MultiplayerSetup  readBack;
+        JsonValue         doc      = ParseOrFail (R"({"$cassoUiPrefs":{"multiplayer":{"enabled":true,"players":[
+            {"controller":"xinput","maps":"paddle0"},
+            {"controller":"dinput:231d:0121/guid:{B}","maps":"joystick1"}
+        ]}}})");
+        MultiplayerSetup  expected;
+        MultiplayerSetup  readBack = MachineInputPrefs::ReadMultiplayer (GetUiPrefsOrFail (doc));
         ControllerUnitKey xbox;
 
         xbox.model.kind = ControllerKind::XInput;
 
-        setup.isEnabled         = true;
-        setup.players[0].unit   = xbox;
-        setup.players[0].target = PlayerAxisTarget::Paddle0;
-        setup.players[1].unit   = MakeStickUnit ("{B}");
-        setup.players[1].target = PlayerAxisTarget::Joystick1;
+        expected.isEnabled         = true;
+        expected.players[0].unit   = xbox;
+        expected.players[0].target = PlayerAxisTarget::Paddle0;
+        expected.players[1].unit   = MakeStickUnit ("{B}");
+        expected.players[1].target = PlayerAxisTarget::Joystick1;
 
-        std::vector<std::pair<std::string, JsonValue>>  entries;
-
-        entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (setup));
-
-        JsonValue  uiPrefs (std::move (entries));
-
-        readBack = MachineInputPrefs::ReadMultiplayer (&uiPrefs);
-
-        Assert::IsTrue (readBack == setup, L"both players come back, PDL2 and PDL3 included");
-    }
-
-
-    TEST_METHOD (Multiplayer_OffIsStillWrittenWithBothSlots)
-    {
-        std::pair<std::string, JsonValue>    entry   = MachineInputPrefs::BuildMultiplayerEntry ({});
-        const JsonValue                    * players = nullptr;
-
-        // The block is spliced key by key, so leaving the key out would leave
-        // a setup the user turned off in the file.
-        Assert::AreEqual (std::string (MachineInputPrefs::kpszMultiplayerKey), entry.first);
-        Assert::IsTrue   (entry.second.GetType() == JsonType::Object);
-        Assert::IsTrue    (entry.second.HasArray ("players", players));
-        Assert::IsNotNull (players);
-        Assert::AreEqual (size_t (2), players->GetArraySize(), L"both slots are written, empty or not");
+        Assert::IsTrue (readBack == expected, L"both players come back, PDL2 and PDL3 included");
     }
 
 

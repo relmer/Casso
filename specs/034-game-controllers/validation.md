@@ -55,6 +55,8 @@ Results are recorded as they are produced. A scenario that could not run says so
 | T142 | `MachineInputPrefs::ReadAdoptedPlayers` adopts the machine's saved `controller` as Player 1's pick as well as its last holder | Red: `Adoption_ASavedControllerIsOnlyPlayerOnesLastHolder` failed with `Expected:<0> Actual:<1> - Player 1 stays on Automatic`. Restored, stamped, rebuilt, green. |
 | T143 | `PlayerSlotPolicy::IsSameUnit` compares model tokens instead of unit tokens | Red: `Notice_TwoPadsOfOneProductAreToldApartByTheirOrdinal` failed, and with it `Notice_ADifferentUnitShowsThePlayerAndItsDescription` and `Notice_APickShowsNoneButUpdatesTheLastHolder`, whose two DirectInput pads share a model. Restored, stamped, rebuilt, green. |
 | T147 (extra) | `ControllerInputService::EvaluateSlotsLocked` records the last holders but drops the notices from the slots change | Red: `Notice_OnlyAControllerOtherThanTheSlotsLastHolderIsAnnounced` failed on its notice count. Restored, stamped, rebuilt, green. |
+| Starting points (before T149) | `ControllerProfileStore::CreateProfile` without the check for a built-in starting point of the other mode | Red: `CreateProfile_ABuiltInStartingPointOfTheOtherMode_IsRefused` failed with `the Joyport mapping in normal mode`, and the source sweep `CreateProfile_FromEverySourceInEachMode_StampsTheModeInEffect` with `the other mode's starting point is refused`. Restored, stamped, rebuilt, green. |
+| Starting points (before T149) | `ControllersPageState::CreateProfile` without the same check | Red: the page's `CreateProfile_ABuiltInStartingPointOfTheOtherMode_IsRefused` failed with `the default mapping in Joyport mode`. Restored, stamped, rebuilt, green. |
 
 ## Final walk and measurements (T093)
 
