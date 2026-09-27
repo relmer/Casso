@@ -15,9 +15,10 @@ static constexpr uint32_t  s_kColdBootCycles = 5000000;
 
 //  What each machine's ROM greets you with. Integer BASIC prompts with `>`
 //  and Applesoft with `]`, which is the most visible difference between a ][
-//  and everything after it.
+//  and everything after it. The ]['s monitor prompts with `*`.
 static constexpr char  s_kIntegerPrompt   = '>';
 static constexpr char  s_kApplesoftPrompt = ']';
+static constexpr char  s_kMonitorPrompt   = '*';
 
 //  The 65C02 added STZ. A 6502 reads $64 as an undocumented two-byte NOP, so
 //  the two answer differently about what they did with it.
@@ -48,14 +49,30 @@ TEST_CLASS (MachineModelTests)
 {
 public:
 
-    TEST_METHOD (TheAppleIIComesUpInIntegerBasic)
+    //  The ][ has no autostart ROM. Power-on lands in the monitor, and
+    //  Ctrl+B is how its owner got to Integer BASIC.
+    TEST_METHOD (TheAppleIIComesUpInTheMonitorAndCtrlBEntersIntegerBasic)
     {
+        constexpr Byte      kCtrlB       = 0x02;
+        constexpr Byte      kReturn      = 0x0D;
+        constexpr uint64_t  kKeyCycles   = 100'000ULL;
+
         TestMachine  machine ("Apple2", TestMachine::Slots::Empty);
+
+
 
         BootToPrompt (machine);
 
+        Assert::IsTrue (FindPrompt (machine, s_kMonitorPrompt) >= 0,
+            ScreenDump (machine, L"a ][ powers on to the monitor's * prompt").c_str());
+
+        machine.GetRefs().keyboard->PressKey (kCtrlB);
+        machine.RunCycles (kKeyCycles);
+        machine.GetRefs().keyboard->PressKey (kReturn);
+        machine.RunCycles (kKeyCycles);
+
         Assert::IsTrue (FindPrompt (machine, s_kIntegerPrompt) >= 0,
-            ScreenDump (machine, L"a ][ greets you with Integer BASIC's > prompt").c_str());
+            ScreenDump (machine, L"Ctrl+B from the monitor reaches Integer BASIC's > prompt").c_str());
     }
 
 
@@ -253,8 +270,14 @@ private:
     }
 
 
-    //  The row a prompt character sits on, or -1. Reads the text screen the
-    //  way the renderer does rather than looking for a cursor variable.
+    //  The row a prompt starts, or -1. Reads the text screen the way the
+    //  renderer does rather than looking for a cursor variable.
+    //
+    //  COLUMN 0 ONLY. A prompt is printed at the start of a line, and a prompt
+    //  character anywhere else is only a character. Searching whole rows let
+    //  the ][ test pass for as long as power-on RAM was filled with random
+    //  bytes: the ][ never reached BASIC, but 960 random characters nearly
+    //  always held a '>'.
     static int FindPrompt (MachineHost & machine, char prompt)
     {
         std::vector<std::string>  rows  = TextScreenScraper::Scrape (machine);
@@ -263,7 +286,7 @@ private:
 
         for (row = 0; found < 0 && row < static_cast<int> (rows.size()); row++)
         {
-            if (rows[row].find (prompt) != std::string::npos)
+            if (!rows[row].empty() && rows[row][0] == prompt)
             {
                 found = row;
             }

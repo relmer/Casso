@@ -34,6 +34,7 @@ public:
 };
 #include "Core/InterruptController.h"
 #include "Core/Prng.h"
+#include "Core/DramPowerOnPattern.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
@@ -284,67 +285,61 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (PowerCycleSeedsAllRamFromPrng)
+    //  Every byte outside the holes is the FF FF 00 00 pattern, so power-on
+    //  RAM is the regular stripes real DRAM comes up with, not noise.
+    TEST_METHOD (PowerCycleFillsRamWithTheDramPattern)
     {
-        size_t       nonZero = 0;
-
-
-
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (kPinnedSeed);
+        size_t       checked = 0;
 
-        // Pre-zero so any post-PowerCycle non-zero byte must come from
-        // the Prng.
+
+
         ram.Reset();
-
         ram.PowerCycle (prng);
 
         for (size_t i = 0; i < 0xC000; i++)
         {
-            if (ram.Read (static_cast<Word> (i)) != 0)
+            if (DramPowerOnPattern::IsHole (i))
             {
-                ++nonZero;
+                continue;
             }
+
+            Assert::AreEqual<Byte> (((i & 2) == 0) ? 0xFF : 0x00, ram.Read (static_cast<Word> (i)),
+                std::format (L"${:04X} must hold the pattern byte", i).c_str());
+            checked++;
         }
 
-        // SplitMix64 over 48 KB will leave ~190 zero bytes statistically;
-        // require at least 90% non-zero to confirm it actually seeded.
-        Assert::IsTrue (nonZero > 40000,
-            L"FR-035: PowerCycle must re-seed RAM (got <40000 non-zero bytes)");
+        Assert::AreEqual<size_t> (0xC000 - 4 * (0xC000 / 512), checked,
+            L"four holes in every 512-byte block, and the pattern everywhere else");
     }
 
-    TEST_METHOD (PowerCycleZeroesNothingButSeedsEverything)
+    //  The holes come from the Prng, so two seeds give two power-ons and one
+    //  seed gives the same power-on twice.
+    TEST_METHOD (PowerCycleHolesComeFromTheSeed)
     {
-        bool         pageHasNonZero = false;
-        Word         page           = 0;
-        Word         offset         = 0;
+        RamDevice    ramA (0x0000, 0xBFFF);
+        RamDevice    ramB (0x0000, 0xBFFF);
+        Prng         prngA (kPinnedSeed);
+        Prng         prngB (kPinnedSeed + 1);
+        size_t       differing = 0;
 
 
 
-        // No region should remain entirely zero after PowerCycle —
-        // every page gets touched by the Prng fill (FR-035, audit §10).
-        RamDevice    ram (0x0000, 0xBFFF);
-        Prng         prng (kPinnedSeed);
+        ramA.PowerCycle (prngA);
+        ramB.PowerCycle (prngB);
 
-        ram.Reset();
-        ram.PowerCycle (prng);
-
-        for (page = 0; page < 0xC0; page++)
+        for (size_t i = 0; i < 0xC000; i++)
         {
-            pageHasNonZero = false;
-
-            for (offset = 0; offset < 0x100; offset++)
+            if (ramA.Read (static_cast<Word> (i)) != ramB.Read (static_cast<Word> (i)))
             {
-                if (ram.Read (static_cast<Word> ((page << 8) | offset)) != 0)
-                {
-                    pageHasNonZero = true;
-                    break;
-                }
+                Assert::IsTrue (DramPowerOnPattern::IsHole (i),
+                    std::format (L"${:04X} differs between seeds but is not a hole", i).c_str());
+                differing++;
             }
-
-            Assert::IsTrue (pageHasNonZero,
-                L"FR-035: every page must contain Prng-seeded data after PowerCycle");
         }
+
+        Assert::IsTrue (differing > 0, L"a different seed must change at least one hole");
     }
 
     TEST_METHOD (PowerCycleResetsLcToBank2WriteRamPrearmed)
