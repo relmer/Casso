@@ -27,12 +27,12 @@ The lines are active low: a closed switch reads with bit 7 clear, and an open on
 
 Joyport-aware games include Boulder Dash I and II, Miner 2049er I and II, Wavy Navy, Sea Dragon, Stellar 7, Spy's Demise, Jawbreaker II, Dino Eggs, Free Fall, Snake Byte, Buzzard Bait, Computer Foosball and Lemmings. Most of them have to be told to use it, through a setup menu or a key combination such as Ctrl-Shift-P.
 
-The unit has two Atari jacks on its front edge and two 16-pin Apple game sockets at the rear of its top face, under a removable cover. Left and right are as seen facing the front of the unit, for both pairs. Two switches on the top, near the front edge, choose which of the four is read:
+The unit has two Atari jacks on its front edge and two 16-pin Apple game sockets at the rear of its top face, under a removable cover. Left and right are as seen facing the front of the unit, for both pairs. Two switches on the top face choose which of the four is read. The Apple / Atari select is near the front edge and the Controller Select sits just behind it, which is why the manual's test program calls them the front switch and the rear or back switch:
 
 - **Apple / Atari select** (front or rear): toward the front reads the Atari jacks, toward the rear the Apple sockets. It has no middle position, so the two kinds are never connected at once.
 - **Controller Select** (left, center or right): left reads only the left jack or socket, right only the right one, and center lets AN0 choose. The manual puts it as making "the right set, the left set or both sets of controllers" active.
 
-Together they select any one of the four controllers, or both of one kind. In Apple mode the Joyport passes Apple paddles through to the paddle inputs, which is what Casso's four paddle inputs already do without it. So Casso shows the Apple / Atari switch as the control that turns the Joyport on: Atari mode is the Joyport in use, and Apple mode is the game port as it is with no Joyport. The Controller Select switch is emulated as it is. Wherever this spec says the Joyport is attached, it means the switch is in Atari mode on a machine that can use it.
+Together they select any one of the four controllers, or both of one kind. In Apple mode the Joyport passes Apple paddles through to the paddle inputs, which is what Casso's four paddle inputs already do without it. So Casso shows the Apple / Atari switch as the control that turns the Joyport on: Atari mode is the Joyport in use, and Apple mode is the game port as it is with no Joyport. Whether the Controller Select switch is emulated is not decided (FR-016); until it is, Casso behaves as if it is at Center. Wherever this spec says the Joyport is attached, it means the switch is in Atari mode on a machine that can use it.
 
 ## Clarifications
 
@@ -45,7 +45,7 @@ Together they select any one of the four controllers, or both of one kind. In Ap
 
 Decisions from GH #156, where a user with two controllers found the one-stick sections of the manual's test program both reading the left controller, and found multiplayer hard to reach. Who is Player 1 and who is Player 2 is decided in spec 034's session of the same date.
 
-- Q: Is the rear Controller Select switch emulated? -> A: Yes, with Left, Center and Right, defaulting to Center. Left and Right lock their jack whatever AN0 says. The manual's test program sets AN0 low for both one-stick sections and relies on this switch to pick the jack, which is why both read the left controller (User Story 6, FR-016).
+- Q: Is the Controller Select switch emulated? -> A: Not decided. Casso behaves as if it is at Center. The manual's test program sets AN0 low for both one-stick sections and relies on this switch, which it calls the rear switch, to pick the jack; that is why both sections read the left controller in Casso. Games set AN0 themselves and work at Center. Emulating it, with Left and Right locking their jack whatever AN0 says, is proposed in User Story 6 and FR-016 and waits on a decision.
 - Q: Where is the Joyport turned on? -> A: On the Controllers page in Settings, drawn as the unit's own Apple / Atari switch, and by the picker's row, now labeled "Joyport (Atari mode)". The Machine tab's device tree no longer lists it. This replaces the 2026-09-24 answer: the user who raised GH #156 looked for it on the Controllers page, and one page now holds the Joyport, its switches and the players (User Story 4, FR-001, FR-012).
 - Q: Is the Joyport setting per machine? -> A: No, global, like the players' entries. Whether it should be on follows the game being played, not the machine. The //c cannot use it, so there it reads as off and the setting is left alone (FR-002).
 - Q: Why can the //c not use it? -> A: Three reasons. The Joyport plugs into the 16-pin game I/O socket, and the //c has only a 9-pin joystick port with no annunciator lines. The annunciator addresses program the //c's mouse and VBL interrupt while IOU access is on. And the //c has no PB2, which carries the right and down switches (FR-001, Assumptions).
@@ -127,7 +127,7 @@ A user turns the Joyport on with one click on the command bar's controller picke
 2. **Given** the Joyport turned on from the picker, **When** the user opens the Controllers page, **Then** the switch is toward the front and labeled Atari mode; **When** the user moves it to Apple mode, **Then** the Joyport is off at once and the picker's row is unchecked.
 3. **Given** the Joyport on, **When** the user relaunches or switches to the ][+, **Then** it is still on.
 4. **Given** the //c, **When** the user opens the controller picker or the Controllers page, **Then** neither offers the Joyport, and the game port reads as it does with no Joyport; **When** the user switches back to the //e, **Then** the Joyport is on as it was left.
-5. **Given** Apple mode, **When** the user looks at the Controller Select switch, **Then** it is disabled, since it has no effect there.
+5. **Given** Apple mode, and the Controller Select switch emulated (FR-016, not decided), **When** the user looks at that switch, **Then** it is disabled, since it has no effect there.
 
 ---
 
@@ -150,7 +150,9 @@ With the Joyport attached, a user opens the Controllers page in Settings and mov
 
 ### User Story 6 - The Controller Select switch (Priority: P2)
 
-A user runs the test program from the Joyport manual, which asks for the rear switch at Right for one stick and at Left for the other. They set the switch in Settings next to the Joyport, and each section reads the stick on that side, as the hardware does.
+**Status**: proposed, not decided. Nothing in this story is built or planned until FR-016 is.
+
+A user runs the test program from the Joyport manual, which asks for the switch it calls the rear switch to be at Right for one stick and at Left for the other. They set the switch in Settings next to the Joyport, and each section reads the stick on that side, as the hardware does.
 
 **Why this priority**: The manual's own test program depends on it, and without it both one-stick sections read the left jack. Games set AN0 themselves and work at Center, so it is not needed for play.
 
@@ -202,14 +204,14 @@ A user attaches the Joyport and plays with the D-pad, the left stick or the righ
 - **The wrong controller on the left jack**: the user picks the controller they want from Joyport left's submenu in the picker, and the other player returns to Automatic (spec 034 FR-041).
 - **A second controller bumped while one person plays**: it becomes Joyport right and takes the right jack, and the player keeps the left. A one-player game that reads the right jack would then stop responding, which setting Joyport right to Same as left prevents.
 - **A trigger resting on an axis**: a gamepad that reports its analog triggers as axes has them used only as fire, never as a stick, since a trigger at rest sits at one end of its travel and would hold a direction closed.
-- **The Controller Select switch and a single controller**: with one controller in use it drives both jacks, so it reads the same at Left, Center and Right.
+- **The Controller Select switch and a single controller** (if FR-016 is adopted): with one controller in use it drives both jacks, so it reads the same at Left, Center and Right.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
 - **FR-001**: Casso MUST have a Joyport setting with two positions, Apple mode and Atari mode, defaulting to Apple mode. Atari mode is the Sirius Joyport in use with its Atari jacks selected; Apple mode is the game port as it is with no Joyport. It MUST be offered in two places that show and change the same setting: a Joyport section on the Controllers page in Settings, and a checkable "Joyport (Atari mode)" row in the command bar's controller picker. The section MUST show it as the unit's own switch seen from above, with the unit's front toward the bottom: the knob toward the bottom is Atari mode and toward the top is Apple mode, and the position in effect is labeled beside it. The Machine tab's device tree MUST NOT list the Joyport. On the //c neither place MUST offer it.
-- **FR-002**: The Joyport setting and the Controller Select position MUST be saved globally, not per machine, and restored at launch. A change from either place MUST take effect at once, without resetting the emulated machine and without waiting for OK. On the //c the Joyport MUST read as off whatever the setting is, and the setting MUST be left as it was, so switching to a machine that can use it restores it. The first launch after this change MUST adopt the setting saved for the machine being launched.
+- **FR-002**: The Joyport setting, and the Controller Select position if FR-016 is adopted, MUST be saved globally, not per machine, and restored at launch. A change from either place MUST take effect at once, without resetting the emulated machine and without waiting for OK. On the //c the Joyport MUST read as off whatever the setting is, and the setting MUST be left as it was, so switching to a machine that can use it restores it. The first launch after this change MUST adopt the setting saved for the machine being launched.
 - **FR-003**: The machine MUST record the state of Annunciators 0, 1 and 2 as programs set them through `$C058`-`$C05D`, on every machine that has them, with or without a Joyport. The //c's use of `$C058`-`$C05F` for its mouse and VBL interrupt, and the //e's use of AN3 for double hi-res, MUST be unchanged.
 - **FR-004**: While the Joyport is attached, a read of PB0, PB1 or PB2 MUST return the switch that the current AN0 and AN1 settings select, per the table in Context, with a closed switch reading bit 7 clear and an open one bit 7 set. The value MUST reflect the annunciator settings at the moment of the read, not at the time of an earlier sample.
 - **FR-005**: Each player's switches MUST come from that controller's active profile. A PDL0 binding past the switch threshold toward its low end closes left, and toward its high end closes right. PDL1 does the same for up and down. The PB0 bindings drive fire. A digital binding (a D-pad, a hat or a button pair) closes its switch whenever it is pressed. Each axis is judged on its own, so a diagonal closes one horizontal and one vertical switch.
@@ -223,7 +225,7 @@ A user attaches the Joyport and plays with the D-pad, the left stick or the righ
 - **FR-013**: With the Joyport not attached, every pushbutton, paddle and key behavior MUST be exactly as before this feature.
 - **FR-014**: The switch logic, the annunciator selection, the reset window, and the choice of which controller drives which jack MUST be testable without a real controller or a real Joyport, as spec 034's controller logic is.
 - **FR-015**: While the Joyport is attached, the Controllers page MUST show a live light for each of the five switches (up, down, left, right, fire) of the controller in Editing, lit exactly when that switch would read closed, in place of the stick position and button lights. It MUST show which jack that controller drives. With the Joyport detached the page MUST be unchanged.
-- **FR-016**: Casso MUST have a Controller Select setting with Left, Center and Right, defaulting to Center, saved globally with the Joyport setting (FR-002). It MUST be shown on the Controllers page beside the Joyport switch, as a switch with its three positions laid out left to right as on the unit, and MUST be disabled in Apple mode. At Left or Right, every read MUST come from that jack whatever AN0 says; at Center, AN0 MUST choose, per the table in Context. Changing it MUST take effect on the next read, with no reset.
+- **FR-016**: [NEEDS CLARIFICATION: whether Casso emulates this switch is not decided; until it is, Casso behaves as if the switch is at Center and none of this applies.] If adopted: Casso MUST have a Controller Select setting with Left, Center and Right, defaulting to Center, saved globally with the Joyport setting (FR-002). It MUST be shown on the Controllers page beside the Joyport switch, as a switch with its three positions laid out left to right as on the unit, and MUST be disabled in Apple mode. At Left or Right, every read MUST come from that jack whatever AN0 says; at Center, AN0 MUST choose, per the table in Context. Changing it MUST take effect on the next read, with no reset.
 - **FR-017**: Every controller model MUST have a built-in Joyport profile beside its Default, which leads the list of Joyport-mode profiles (FR-020). In it, the primary stick, the D-pad and any second stick MUST steer, and the controller's fire-like buttons MUST fire:
   - On an Xbox-class controller: both sticks and the D-pad steer; A, B, X, Y, both bumpers and both triggers fire; Back, Start and the stick clicks do not.
   - On any other gamepad: the primary stick and the D-pad steer, and a second stick steers when the device has one: Z and Rz when it has both, otherwise Rx and Ry. Every button fires.
@@ -241,7 +243,7 @@ A user attaches the Joyport and plays with the D-pad, the left stick or the righ
 - **Annunciator state**: per machine, the on or off state of AN0, AN1 and AN2 as last set by a program.
 - **Atari joystick state**: per jack, whether each of fire, up, down, left and right is closed, derived from the controller that drives the jack.
 - **Reset window**: the interval after a reset during which the Joyport releases every line.
-- **Controller Select position**: global, Left, Center or Right.
+- **Controller Select position** (if FR-016 is adopted): global, Left, Center or Right.
 - **Joyport profile**: per controller model, the built-in profile played with the Joyport attached when no other is chosen.
 - **Chosen profile per mode**: per controller, the profile chosen for play without the Joyport and the one chosen for play with it; either may be unset.
 - **Profile mode**: per profile, normal or Joyport, fixed when the profile is created (FR-020).
@@ -256,8 +258,8 @@ A user attaches the Joyport and plays with the D-pad, the left stick or the righ
 - **SC-004**: In a Joyport-aware game, a user can move in all eight directions and fire, including fire held with a direction, within one minute of attaching the Joyport, with no mapping changes to a controller whose profile already works in joystick games.
 - **SC-005**: Two players on two controllers each drive only their own jack, with neither one's input changing the other's switches, over five minutes of simultaneous play.
 - **SC-006**: With the Joyport not attached, every existing game-port and controller test passes unchanged.
-- **SC-007**: The Joyport setting and the Controller Select position are restored on 100% of relaunches, and are the same on every machine that can use them.
-- **SC-008**: With two controllers each holding a slot, every step of the manual's test program passes in its one-stick and two-stick sections, with each step answered only on the controller for the jack it asks about, at the Controller Select position the program asks for.
+- **SC-007**: The Joyport setting, and the Controller Select position if FR-016 is adopted, are restored on 100% of relaunches, and are the same on every machine that can use them.
+- **SC-008**: (If FR-016 is adopted.) With two controllers each holding a slot, every step of the manual's test program passes in its one-stick and two-stick sections, with each step answered only on the controller for the jack it asks about, at the Controller Select position the program asks for.
 - **SC-009**: With a stick and a gamepad both attached and only the gamepad used, a one-player Joyport game responds to the gamepad on the first try once the game's own Joyport option is selected, with no setup in Casso.
 - **SC-010**: Bandits, which takes Ctrl-@ to select the Joyport (GH #155), plays with a controller on the Joyport profile with no mapping changes.
 
@@ -265,7 +267,7 @@ A user attaches the Joyport and plays with the D-pad, the left stick or the righ
 
 - **Source of truth**: the [Sirius Joyport owner's manual](https://mirrors.apple2.org.za/ftp.apple.asimov.net/unsorted/Sirius%20Joyport%20Manual.pdf) and public write-ups (Wikipedia, Nerdly Pleasures, Lukazi's Apple II Projects) define the behavior. The implementation is clean-room: no GPL emulator source is read or copied.
 - **AN0's sense**: low (`$C058`) selects the left jack and player 1, as the owner's manual gives it. At least one emulator documents the opposite sense for AN0 and a reversed AN1, and reports Wavy Navy steering with up and down on a ][+. The manual takes precedence, and Wavy Navy on the ][+ is a validation case for it.
-- **Controller Select switch**: emulated (FR-016). Center, where AN0 selects the jack, stays the default because it is what two-player games need and what every game works with.
+- **Controller Select switch**: fixed at Center, where AN0 selects the jack, which is what two-player games need and what every game works with. Emulating Left and Right is proposed and not decided (FR-016).
 - **Reset window length**: a few hundred milliseconds of emulated time covers the //e's reset handling with room to spare. The exact length is a planning decision, verified by SC-003.
 - **Switch threshold**: about half of an axis's travel from center. The exact fraction is a planning decision, and is not user-adjustable in this spec.
 - **Power-on annunciator state**: all annunciators start off (low) at power-on. A Ctrl-Reset changes them only if the machine's reset code writes them.
@@ -273,8 +275,8 @@ A user attaches the Joyport and plays with the D-pad, the left stick or the righ
 - **The //c**: a Joyport cannot be connected to it. It has no 16-pin game I/O socket, and its 9-pin joystick connector has no annunciator lines; its annunciator addresses program the mouse and the VBL interrupt while IOU access is on; and it has no PB2 for the right and down switches. Emulating one anyway would describe a machine that never existed and could disturb the mouse in //c software. The IIgs is not emulated.
 - **Apple mode**: the Joyport's Apple paddle passthrough is not emulated as such, since Casso's four paddle inputs already provide what it did. The Apple / Atari switch is shown, with Apple mode meaning the Joyport is off (FR-001).
 - **Paddle inputs in Atari mode (open question)**: the manual does not say whether the paddle inputs can still be read in Atari mode, and its Apple / Atari switch, which has no middle position, suggests they cannot. FR-009 keeps them reading as no paddle connected until a hardware owner answers. Whatever the answer, Casso does not offer one controller as both kinds at once. The paddle inputs (`$C064`-`$C067`) and the Joyport's switches are at separate addresses, but both kinds of fire button are read at `$C061`-`$C063` with opposite polarity, so a joystick game would read fire inverted, and a game that checks the paddle inputs to find out which controller is present could choose the wrong one.
-- **Earlier validation**: the first pass through the manual's test program closed the switches on both jacks for its one-stick sections, because only Center was emulated. That hid the missing Controller Select switch; SC-008 answers each step on one jack only.
-- **Questions for a hardware owner** (GH #156): whether the paddle inputs can be read in Atari mode; whether the Atari jacks' switches reach the pushbutton inputs in Apple mode; which jack one-player Joyport games read; and which button line a second Apple joystick uses (spec 034 Assumptions).
+- **Earlier validation**: the first pass through the manual's test program closed the switches on both jacks for its one-stick sections, because only Center was emulated. That hid the fact that the one-stick sections depend on the Controller Select switch.
+- **Questions for a hardware owner** (GH #156): whether any software depends on the Controller Select switch being at Left or Right; whether the paddle inputs can be read in Atari mode; whether the Atari jacks' switches reach the pushbutton inputs in Apple mode; which jack one-player Joyport games read; and which button line a second Apple joystick uses (spec 034 Assumptions).
 - **Disk associations**: not built; GH #78 owns them. An association should hold one profile preference per mode for each controller model, and the one for the mode in effect applies; with none for that mode, the controller's own choice plays.
 - **Planning notes (2026-09-27)**: the vertical switch is an orientation option on Dxui's toggle, and the three-position switch a new Dxui control in the same style. The setting keeps the saved values the game-port adapter used, None and Sirius Joyport, moved from each machine's preferences to the global ones.
 - **Dependency on spec 034**: controller profiles, the player slots, Automatic, the notices and the controller picker come from spec 034.
