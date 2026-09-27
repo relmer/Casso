@@ -638,13 +638,14 @@ Error:
 
 HRESULT Win32ControllerBackend::ReadXInput (const ControllerUnitKey & unit, ControllerSample & outSample)
 {
-    HRESULT             hr         = S_OK;
-    int                 slot       = -1;
-    bool                hasSlot    = unit.source == ControllerUnitSource::XInputSlot;
-    bool                hasProduct = unit.source == ControllerUnitSource::XInputProduct;
-    bool                isMatch    = false;
-    XINPUT_STATE        state      = {};
-    DWORD               result     = ERROR_DEVICE_NOT_CONNECTED;
+    HRESULT             hr          = S_OK;
+    int                 slot        = -1;
+    bool                hasSlot     = unit.source == ControllerUnitSource::XInputSlot;
+    bool                hasProduct  = unit.source == ControllerUnitSource::XInputProduct;
+    bool                isMatch     = false;
+    bool                isUnchanged = false;
+    XINPUT_STATE        state       = {};
+    DWORD               result      = ERROR_DEVICE_NOT_CONNECTED;
     XInputGamepadState  gamepad;
 
 
@@ -678,12 +679,15 @@ HRESULT Win32ControllerBackend::ReadXInput (const ControllerUnitKey & unit, Cont
 
     CBREx (result == ERROR_SUCCESS, HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED));
 
-    if (m_xinputSlots[(size_t) slot].hasSample &&
-        m_xinputSlots[(size_t) slot].lastPacket == state.dwPacketNumber)
+    isUnchanged = m_xinputSlots[(size_t) slot].hasSample &&
+                  m_xinputSlots[(size_t) slot].lastPacket == state.dwPacketNumber;
+
+    if (isUnchanged)
     {
         outSample = m_xinputSlots[(size_t) slot].sample;
-        return hr;
     }
+
+    BAIL_OUT_IF (isUnchanged, S_OK);
 
     gamepad.buttons      = state.Gamepad.wButtons;
     gamepad.leftTrigger  = state.Gamepad.bLeftTrigger;

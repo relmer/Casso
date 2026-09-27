@@ -48,6 +48,9 @@ Results are recorded as they are produced. A scenario that could not run says so
 | T126 | `PlayerSlotPolicy::ResolveDepartures` never holds a leaver's slot | Red: `Departure_WhileTheOtherPlaysIsHeldForTheLeaver` failed with `Expected:<4> Actual:<0> - the leaver's slot is kept for it while the other plays (SC-012)`. Restored, stamped, rebuilt, green. |
 | T127 | `PlayerSlotPolicy::GetDriverRoute` gives every playing controller the single-controller route, ignoring the slot's target | Red: 12 of 54 service tests failed, among them `TwoJoysticks_EachPlaysItsOwnPaddlesAndItsJoysticksLines` (`Expected:<255> Actual:<0> - player one's stick on PDL0`) and `SecondJoining_NeverChangesWhatTheFirstPlays`. Restored, stamped, rebuilt, green. |
 | T128 | `InputModeRules::GetAxisOwners` hands PDL0 and PDL1 to the controllers whenever one is attached, which is the old turn-off of the keys and the mouse | Red: `KeysPickedForPlayerOne_KeepTheirAxesWhileAControllerIsAttached` failed with `Expected:<1> Actual:<3> - the keys keep PDL0 with a controller attached (FR-032)`, and the mouse test with it. Restored, stamped, rebuilt, green. |
+| T137 | `ControllerInputService::TickDrivers` leaves the idle watch on while Casso is inactive | Red: `IdleWatch_IsOffWhileCassoIsInactive` failed with `Expected:<0> Actual:<2> - an inactive Casso watches nothing`. Restored, stamped, rebuilt, green. |
+| T137 (extra) | `PrepareWatch` reads a watched Xbox controller on every wake instead of on the idle period | Red: `IdleWatch_ReadsAPadNobodyPlaysOnTheIdlePeriod` failed with `Expected:<1> Actual:<2> - a wake before the period does not read it again`. Restored, stamped, rebuilt, green. |
+| T137 (extra) | A watched controller whose read failed stays in the watch | Red: `IdleWatch_AFailedWatchedReadIsReportedAndLeftOut` failed with `Expected:<1> Actual:<2> - it is left out of the watch until it reconnects`. Restored, stamped, rebuilt, green. |
 
 ## Final walk and measurements (T093)
 

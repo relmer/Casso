@@ -55,7 +55,13 @@ class ControllerInputService : public IControllerBackendEvents
 public:
 
     // The measured XInput report interval on this machine (research R13).
-    static constexpr DWORD  kPollPeriodMs = 8;
+    static constexpr DWORD  kPollPeriodMs      = 8;
+
+    // How often a controller nobody plays is read for its first input, when
+    // it has no change events of its own. Slow enough to cost nothing
+    // measurable while idle, quick enough that a person joining a game does
+    // not notice.
+    static constexpr DWORD  kIdleWatchPeriodMs = 100;
 
     struct Snapshot
     {
@@ -71,6 +77,11 @@ public:
 
         // Whether any controller that drives the game port reads.
         bool                                   isAnyDriverConnected = false;
+
+        // Attached controllers whose last read failed while they were
+        // watched for their first input. They are not read again until they
+        // reconnect.
+        std::vector<ControllerUnitKey>         unreadable;
     };
 
     // What changed in the slots, raised on whichever thread changed them. The
@@ -221,6 +232,7 @@ private:
         bool                                 isResolved  = false;
         bool                                 isConnected = false;
         bool                                 isDriving   = false;
+        bool                                 hasFailed   = false;
 
         // What its last reading asked for, on its own PDL0-PDL3 before its
         // slot places them. Absent while it contributes nothing.
@@ -233,6 +245,7 @@ private:
 
     void                   RefreshDevices       ();
     ControllerWaitSources  TickDrivers          ();
+    bool                   PrepareWatch         (std::vector<DriverRead> & reads, bool isWatchDue, ControllerWaitSources & wait);
     void                   ReadDriver           (DriverRead & read, bool isActive);
     void                   EvaluateDriver       (DriverRead & read, float elapsedSeconds, bool isActive, ControllerWaitSources & wait, bool & outNeedsPoll);
     ControllerSample       RecordReading        (const DriverRead & read, HRESULT hr, const ControllerSample & sample, bool isConnected, bool & outHasFlipped);
@@ -299,6 +312,7 @@ private:
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;
+    double                                               m_lastWatchSeconds = -1.0;
     std::atomic<bool>                                    m_rateResetPending {false};
 
     std::optional<ControllerUnitKey>                     m_inspectedUnit;

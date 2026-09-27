@@ -35,12 +35,14 @@ namespace ControllerTests
     {
     public:
 
-        static constexpr Byte    kCenter   = 127;
-        static constexpr Byte    kFullHigh = 255;
-        static constexpr Byte    kFullLow  = 0;
-        static constexpr size_t  kPdl2     = 2;
-        static constexpr size_t  kPdl3     = 3;
-        static constexpr size_t  kPb2      = 2;
+        static constexpr Byte    kCenter      = 127;
+        static constexpr Byte    kFullHigh    = 255;
+        static constexpr Byte    kFullLow     = 0;
+        static constexpr size_t  kPdl2        = 2;
+        static constexpr size_t  kPdl3        = 3;
+        static constexpr size_t  kPb2         = 2;
+        static constexpr double  kMsPerSecond = 1000.0;
+        static constexpr double  kIdleSeconds = ControllerInputService::kIdleWatchPeriodMs / kMsPerSecond;
 
 
         static ControllerDeviceInfo MakeXboxDevice()
@@ -733,9 +735,11 @@ namespace ControllerTests
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    stick = MakeStickDevice();
             ControllerDeviceInfo    xbox  = MakeXboxDevice();
+            double                  now   = 0.0;
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
+            service.SetClock ([&now]() { return now; });
             backend.AddDevice (stick);
             backend.AddDevice (xbox, true);
             backend.SetSample (stick.unit, MakeRestSample());
@@ -744,7 +748,10 @@ namespace ControllerTests
 
             Assert::IsFalse (service.GetPlayerSlots()[0].holder.has_value(), L"two attached and none used: none plays yet");
 
+            // The pad is watched on the idle period, so it is read again once
+            // that has passed.
             backend.SetSample (xbox.unit, MakePushedSample());
+            now += kIdleSeconds;
             service.Tick();
 
             Assert::IsTrue   (service.GetPlayerSlots()[0].holder.value() == xbox.unit, L"the gamepad, used first, is Player 1");
@@ -1971,6 +1978,262 @@ namespace ControllerTests
 
             Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack].test  (static_cast<size_t> (JoystickSwitch::Down)), L"Player 1 is on the left jack");
             Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack].test (static_cast<size_t> (JoystickSwitch::Down)), L"and on the right");
+        }
+
+        //
+        //  Idle watch
+        //
+
+        static ControllerDeviceInfo MakeSecondXboxDevice()
+        {
+            ControllerDeviceInfo  info = MakeXboxDevice();
+
+            info.unit.unitId = "045e:0b13";
+            info.unit.source = ControllerUnitSource::XInputProduct;
+            info.xinputSlot  = 1;
+            return info;
+        }
+
+
+        // Player 1 on a stick that signals its own changes, Player 2 on
+        // Automatic with nobody yet, and an Xbox controller nobody plays,
+        // which has no change events and so is read on the idle period.
+        static void SetUpIdleWatch (FakeControllerBackend   & backend,
+                                    ControllerInputService  & service,
+                                    double                  & now,
+                                    ControllerDeviceInfo    & stick,
+                                    ControllerDeviceInfo    & xbox)
+        {
+            stick = MakeStickDevice();
+            xbox  = MakeXboxDevice();
+
+            service.SetClock ([&now]() { return now; });
+            backend.AddDevice (stick);
+            backend.AddDevice (xbox, true);
+            backend.SetSample (stick.unit, MakeRestSample());
+            backend.SetSample (xbox.unit,  MakeRestSample());
+            SkipCalibration (service, { stick.unit });
+            Pick (service, stick.unit);
+        }
+
+
+        TEST_METHOD (IdleWatch_ReadsAPadNobodyPlaysOnTheIdlePeriod)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick;
+            ControllerDeviceInfo    xbox;
+            ControllerWaitSources   wait;
+            double                  now   = 0.0;
+
+            SetUpIdleWatch (backend, service, now, stick, xbox);
+
+            wait = service.Tick();
+
+            Assert::AreEqual (1, backend.GetReadCount (xbox.unit), L"the pad is read when the watch starts");
+            Assert::AreEqual (ControllerInputService::kIdleWatchPeriodMs, wait.timeoutMs.value(),
+                L"and the thread wakes for the next idle read, not at the poll period");
+
+            now += kIdleSeconds / 2;
+            wait = service.Tick();
+
+            Assert::AreEqual (1, backend.GetReadCount (xbox.unit), L"a wake before the period does not read it again");
+            Assert::AreEqual (ControllerInputService::kIdleWatchPeriodMs / 2, wait.timeoutMs.value(),
+                L"and the wait runs only to the next idle read");
+
+            now += kIdleSeconds / 2;
+            service.Tick();
+
+            Assert::AreEqual (2, backend.GetReadCount (xbox.unit), L"the period passing reads it again");
+        }
+
+
+        TEST_METHOD (IdleWatch_ThePollPeriodWinsWhileAPlayerNeedsPolling)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    first  = MakeXboxDevice();
+            ControllerDeviceInfo    second = MakeSecondXboxDevice();
+            PlayerEntry             disabled;
+
+            disabled.kind = PlayerEntryKind::Disabled;
+
+            backend.AddDevice (first,  true);
+            backend.AddDevice (second, true);
+            backend.SetSample (first.unit,  MakeRestSample());
+            backend.SetSample (second.unit, MakeRestSample());
+            Pick (service, first.unit);
+
+            Assert::AreEqual (ControllerInputService::kPollPeriodMs, service.Tick().timeoutMs.value(),
+                L"a playing Xbox controller and a watched one: the shorter period wins");
+            Assert::AreEqual (1, backend.GetReadCount (second.unit), L"and the watched one is read");
+
+            service.PickPlayerEntry (1, disabled);
+
+            Assert::AreEqual (ControllerInputService::kPollPeriodMs, service.Tick().timeoutMs.value(),
+                L"with nobody waiting, the playing controller is still polled at its period");
+        }
+
+
+        //  SC-007: with nobody waiting for a controller, a controller nobody
+        //  plays is not read and nothing sets a timer.
+        TEST_METHOD (IdleWatch_IsOffWhileNobodyWaits)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick;
+            ControllerDeviceInfo    xbox;
+            ControllerWaitSources   wait;
+            PlayerEntry             disabled;
+            double                  now   = 0.0;
+
+            disabled.kind = PlayerEntryKind::Disabled;
+
+            SetUpIdleWatch (backend, service, now, stick, xbox);
+            service.PickPlayerEntry (1, disabled);
+
+            service.Tick();
+            now += kIdleSeconds;
+            wait = service.Tick();
+
+            Assert::AreEqual (0, backend.GetReadCount (xbox.unit), L"no player waits, so the pad is not watched");
+            Assert::IsFalse  (wait.timeoutMs.has_value(), L"and the stick that plays signals its own changes, so no timer is set");
+        }
+
+
+        //  Input made while another application is active never claims a
+        //  slot, so the watch reads nothing then.
+        TEST_METHOD (IdleWatch_IsOffWhileCassoIsInactive)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick;
+            ControllerDeviceInfo    xbox;
+            ControllerWaitSources   wait;
+            double                  now   = 0.0;
+
+            SetUpIdleWatch (backend, service, now, stick, xbox);
+            service.SetActive (false);
+
+            service.Tick();
+            now += kIdleSeconds;
+            wait = service.Tick();
+
+            Assert::AreEqual (0, backend.GetReadCount (xbox.unit), L"an inactive Casso watches nothing");
+            Assert::IsFalse  (wait.timeoutMs.has_value(), L"and sets no timer for it");
+
+            service.SetActive (true);
+            service.Tick();
+
+            Assert::AreEqual (1, backend.GetReadCount (xbox.unit), L"the watch resumes when Casso is active again");
+        }
+
+
+        TEST_METHOD (IdleWatch_AWatchedDirectInputDeviceWakesTheThreadWithItsEvent)
+        {
+            static constexpr uintptr_t  kEventValue = 0x1234;
+
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox  = MakeXboxDevice();
+            ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
+            HANDLE                  event = reinterpret_cast<HANDLE> (kEventValue);
+            ControllerWaitSources   wait;
+
+            backend.AddDevice (xbox, true);
+            backend.AddDevice (pad);
+            backend.SetSample (xbox.unit, MakeRestSample());
+            backend.SetSample (pad.unit,  MakeRestSample());
+            backend.FindDevice (pad.unit)->wakeEvent = event;
+            Pick (service, xbox.unit);
+
+            wait = service.Tick();
+
+            Assert::IsTrue (std::find (wait.events.begin(), wait.events.end(), event) != wait.events.end(),
+                L"the watched device's change event joins the wait");
+
+            service.Tick();
+
+            Assert::AreEqual (2, backend.GetReadCount (pad.unit), L"and it is read on every wake, not on the idle period");
+        }
+
+
+        TEST_METHOD (IdleWatch_AWatchedReadNeverReachesTheMixer)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick;
+            ControllerDeviceInfo    xbox;
+            ControllerSample        light  = MakeRestSample();
+            ControlMapping          mapping;
+            ButtonBinding           binding;
+            double                  now    = 0.0;
+
+            static constexpr float  kLightThreshold = 0.05f;
+            static constexpr float  kLightPress     = 0.1f;
+
+
+
+            // A trigger bound to PB0 with a light threshold: pressed this far,
+            // it presses PB0 when evaluated, but is short of what counts as a
+            // controller being used.
+            binding.control   = { ControlKind::Trigger, 0 };
+            binding.threshold = kLightThreshold;
+            mapping.pb0.push_back (binding);
+            light.triggers[0] = kLightPress;
+
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            SetUpIdleWatch (backend, service, now, stick, xbox);
+            service.SetModelSettings (MakeModelSettings (xbox, "Light", mapping));
+            service.SetActiveProfile (xbox.unit, "Light");
+            backend.SetSample (xbox.unit, light);
+
+            service.Tick();
+
+            Assert::AreEqual (1, backend.GetReadCount (xbox.unit), L"the pad is read for its first input");
+            Assert::IsFalse  (service.GetPlayerSlots()[1].holder.has_value(), L"which it has not given");
+            Assert::IsFalse  (mixer.GetTargetState().buttons.test (0), L"and the reading does not reach the game port");
+
+            service.PickPlayerEntry (1, MakePick (xbox.unit));
+            service.Tick();
+
+            Assert::IsTrue (mixer.GetTargetState().buttons.test (kPb2), L"picked, the same reading presses its line");
+        }
+
+
+        TEST_METHOD (IdleWatch_AFailedWatchedReadIsReportedAndLeftOut)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox   = MakeXboxDevice();
+            ControllerUnitKey       absent = MakeStickDevice().unit;
+            double                  now    = 0.0;
+
+            service.SetClock ([&now]() { return now; });
+            backend.AddDevice (xbox, true);
+            backend.SetSample (xbox.unit, MakeRestSample());
+
+            // Player 1's pick is not attached, so the pad is the only thing
+            // read, and it is read only by the watch.
+            Pick (service, absent);
+            backend.failNextRead = HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED);
+            service.Tick();
+
+            Assert::AreEqual ((size_t) 1, service.GetSnapshot().unreadable.size(), L"the failed read is reported");
+            Assert::IsTrue   (service.GetSnapshot().unreadable.front() == xbox.unit);
+            Assert::IsFalse  (service.GetPlayerSlots()[1].holder.has_value(), L"and never taken as a pad at rest");
+
+            now += kIdleSeconds;
+            service.Tick();
+
+            Assert::AreEqual (1, backend.GetReadCount (xbox.unit), L"it is left out of the watch until it reconnects");
         }
     };
 }

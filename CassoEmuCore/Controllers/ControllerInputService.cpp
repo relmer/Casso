@@ -27,7 +27,10 @@ struct ControllerInputService::DriverRead
     float              deadzone         = 0.0f;
     size_t             logicalAxisCount = 0;
     bool               isDriving        = false;
+    bool               isWatched        = false;
     bool               isLogged         = false;
+    bool               needsTimedPoll   = false;
+    bool               isRead           = false;
 
     HRESULT            readResult       = S_OK;
     ControllerSample   calibrated;
@@ -900,14 +903,18 @@ ControllerWaitSources ControllerInputService::Tick()
 //
 //  TickDrivers
 //
-//  Controller thread. Reads each attached controller once. A controller no
-//  slot plays is read only for its first real input, which goes into the
-//  input log while Casso is active and can give it a slot; one that is given
+//  Controller thread. Reads each playing controller once, and while a player
+//  on Automatic waits for a controller and Casso is active, watches the ones
+//  nobody plays for their first real input: those with change events of
+//  their own on every wake, the rest every kIdleWatchPeriodMs. A first input
+//  goes into the input log and can give its controller a slot, and one given
 //  a slot that way plays the very reading that gave it, rather than one tick
 //  later. Then everything the playing controllers ask of the game port is
 //  submitted together, and the thread is told how long to wait: the measured
-//  poll period while a controller that must be polled is read, and otherwise
-//  nothing at all, since a DirectInput device wakes the thread itself.
+//  poll period while a playing controller must be polled, the time to the
+//  next idle read while a watched one must be, the shorter of the two when
+//  both, and otherwise nothing at all, since a DirectInput device wakes the
+//  thread itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -920,10 +927,17 @@ ControllerWaitSources ControllerInputService::TickDrivers()
     StateChangedFn              onStateChanged;
     std::optional<SlotsChange>  change;
     float                       elapsedSeconds = 0.0f;
+    double                      nowSeconds     = 0.0;
+    double                      sinceWatchMs   = 0.0;
+    DWORD                       untilWatchMs   = kIdleWatchPeriodMs;
     bool                        isActive       = false;
+    bool                        isWatchOn      = false;
+    bool                        isWatchDue     = false;
+    bool                        hasTimedWatch  = false;
     bool                        hasFlipped     = false;
     bool                        hasNewInput    = false;
     bool                        needsPoll      = false;
+    constexpr double            kMsPerSecond   = 1000.0;
 
 
 
@@ -944,18 +958,33 @@ ControllerWaitSources ControllerInputService::TickDrivers()
         std::lock_guard<std::mutex>  lock (m_mutex);
 
         elapsedSeconds = MeasureElapsedLocked();
+        nowSeconds     = m_lastTickSeconds;
         isActive       = m_isActive;
+        sinceWatchMs   = (nowSeconds - m_lastWatchSeconds) * kMsPerSecond;
+
+        // THE WATCH IS OFF WHILE CASSO IS INACTIVE, so input made while
+        // another application is active never claims a slot, and while no
+        // player waits for a controller, so an idle Casso reads nothing.
+        isWatchOn  = m_isActive && PlayerSlotPolicy::NeedsIdleWatch (m_entries, m_slots);
+        isWatchDue = m_lastWatchSeconds < 0.0 || sinceWatchMs >= kIdleWatchPeriodMs;
 
         SyncDriversLocked();
 
         for (const auto & [token, driver] : m_drivers)
         {
             DriverRead  read;
+            bool        isWatched = !driver.isDriving;
 
-            read.unit     = driver.unit;
-            read.token    = token;
-            read.deadzone = driver.deadzone;
-            read.isLogged = std::find (m_logs.firstInput.begin(), m_logs.firstInput.end(), driver.unit) != m_logs.firstInput.end();
+            if (isWatched && (!isWatchOn || driver.hasFailed))
+            {
+                continue;
+            }
+
+            read.unit      = driver.unit;
+            read.token     = token;
+            read.deadzone  = driver.deadzone;
+            read.isWatched = isWatched;
+            read.isLogged  = std::find (m_logs.firstInput.begin(), m_logs.firstInput.end(), driver.unit) != m_logs.firstInput.end();
 
             reads.push_back (read);
         }
@@ -979,8 +1008,15 @@ ControllerWaitSources ControllerInputService::TickDrivers()
         }
     }
 
+    hasTimedWatch = PrepareWatch (reads, isWatchDue, wait);
+
     for (DriverRead & read : reads)
     {
+        if (!read.isRead)
+        {
+            continue;
+        }
+
         ReadDriver (read, isActive);
         hasFlipped  = hasFlipped  || read.hasFlipped;
         hasNewInput = hasNewInput || read.hasRealInput;
@@ -989,6 +1025,11 @@ ControllerWaitSources ControllerInputService::TickDrivers()
     // First inputs first, so the slots they change decide who is evaluated.
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
+
+        if (hasTimedWatch && isWatchDue)
+        {
+            m_lastWatchSeconds = nowSeconds;
+        }
 
         for (const DriverRead & read : reads)
         {
@@ -1030,7 +1071,10 @@ ControllerWaitSources ControllerInputService::TickDrivers()
 
     for (DriverRead & read : reads)
     {
-        EvaluateDriver (read, elapsedSeconds, isActive, wait, needsPoll);
+        if (read.isRead)
+        {
+            EvaluateDriver (read, elapsedSeconds, isActive, wait, needsPoll);
+        }
     }
 
     ForgetIdleEvaluators();
@@ -1060,7 +1104,59 @@ ControllerWaitSources ControllerInputService::TickDrivers()
         wait.timeoutMs = kPollPeriodMs;
     }
 
+    if (hasTimedWatch)
+    {
+        if (!isWatchDue)
+        {
+            untilWatchMs = (DWORD) std::ceil (std::max (0.0, kIdleWatchPeriodMs - sinceWatchMs));
+        }
+
+        wait.timeoutMs = std::min (wait.timeoutMs.value_or (untilWatchMs), untilWatchMs);
+    }
+
     return wait;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrepareWatch
+//
+//  Controller thread. Which of the controllers read this tick are read at
+//  all: every playing one, a watched one with change events of its own --
+//  whose events the thread now also waits on -- and a watched one without
+//  them only when the idle period is due. Returns whether any watched
+//  controller needs reading on that period.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerInputService::PrepareWatch (std::vector<DriverRead> & reads, bool isWatchDue, ControllerWaitSources & wait)
+{
+    bool  hasTimedWatch = false;
+
+
+
+    for (DriverRead & read : reads)
+    {
+        std::vector<HANDLE>  events;
+
+        if (!read.isWatched)
+        {
+            read.isRead = true;
+            continue;
+        }
+
+        m_backend.GetWakeSources (read.unit, events, read.needsTimedPoll);
+        wait.events.insert (wait.events.end(), events.begin(), events.end());
+
+        read.isRead   = !read.needsTimedPoll || isWatchDue;
+        hasTimedWatch = hasTimedWatch || read.needsTimedPoll;
+    }
+
+    return hasTimedWatch;
 }
 
 
@@ -1131,7 +1227,9 @@ void ControllerInputService::EvaluateDriver (
         outNeedsPoll = outNeedsPoll || evaluator.IsRateMoving();
     }
 
-    if (read.isConnected)
+    // A watched controller's events were gathered with the watch; one that
+    // started playing on this reading waits on its own from now on.
+    if (read.isConnected && read.isDriving)
     {
         m_backend.GetWakeSources (read.unit, events, needsTimedPoll);
         wait.events.insert (wait.events.end(), events.begin(), events.end());
@@ -1197,6 +1295,13 @@ ControllerSample ControllerInputService::RecordReading (
     if (found != m_drivers.end())
     {
         found->second.isConnected = isConnected;
+
+        // A watched controller that cannot be read is reported and left out
+        // of the watch until it reconnects, never taken as one at rest.
+        if (!isConnected && read.isWatched)
+        {
+            found->second.hasFailed = true;
+        }
     }
 
     if (isPlayerOne)
@@ -1278,6 +1383,11 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     for (const auto & [token, driver] : m_drivers)
     {
         snapshot.isAnyDriverConnected = snapshot.isAnyDriverConnected || (driver.isDriving && driver.isConnected);
+
+        if (driver.hasFailed)
+        {
+            snapshot.unreadable.push_back (driver.unit);
+        }
     }
 
     return snapshot;
