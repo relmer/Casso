@@ -96,8 +96,12 @@ public:
         // Each controller that held a slot and has disconnected.
         std::vector<std::wstring>  departedDescriptions;
 
-        // Notices the players' assignment asks for.
+        // A notice for each slot Automatic gave a controller other than the
+        // one that last held it, and the last holders after this change,
+        // which the shell saves when they moved.
         std::vector<std::wstring>  notices;
+        PlayerLastHolders          lastHolders;
+        bool                       haveLastHoldersChanged = false;
     };
 
     using SlotsChangedFn = std::function<void (const SlotsChange &)>;
@@ -138,6 +142,12 @@ public:
     void           PickPlayerEntry  (size_t player, const PlayerEntry & entry);
 
     PlayerSlots    GetPlayerSlots   () const;
+
+    // The controller that last held each slot, set from the saved prefs
+    // before the first tick and read back to save them. It decides only
+    // whether an assignment is announced.
+    void               SetLastHolders (const PlayerLastHolders & lastHolders);
+    PlayerLastHolders  GetLastHolders () const;
 
     // Rescans what is attached on the next tick, for a machine switched to.
     void  RequestRescan      ();
@@ -293,6 +303,7 @@ private:
     PlayerEntries                                        m_entries;
     PlayerSlots                                          m_slots;
     PlayerOrderLogs                                      m_logs;
+    PlayerLastHolders                                    m_lastHolders;
     bool                                                 m_hasEnumerated = false;
 
     // Every controller the tick reads, by unit token.

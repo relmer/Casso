@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Controllers/ControllerSelectionPolicy.h"
+#include "Controllers/PlayerSlotPolicy.h"
 #include "Core/JsonValue.h"
 #include "Ui/UiCommandTypes.h"
 
@@ -78,6 +79,12 @@ public:
     // stand, so a //e's setup survives a trip through a //c (FR-035).
     static std::pair<std::string, JsonValue>  BuildMultiplayerEntry (
         const MultiplayerSetup &  setup);
+
+    // What the one-time adoption makes of a machine's saved selection: the
+    // players' entries, and the last holders they start from. Reads the block
+    // and writes nothing to it.
+    static PlayerEntries  ReadAdoptedPlayers (const JsonValue   * uiPrefs,
+                                              PlayerLastHolders & outLastHolders);
 
     // The device on the machine's game socket: None, or the Sirius Joyport.
     // Always None on a machine with no annunciators to drive one.

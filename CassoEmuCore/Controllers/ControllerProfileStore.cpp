@@ -2,6 +2,7 @@
 
 #include "Controllers/ControllerProfileStore.h"
 
+#include "Config/MachineInputPrefs.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 
@@ -46,6 +47,16 @@ static constexpr const char *  s_kpszMinKey         = "min";
 static constexpr const char *  s_kpszMaxKey         = "max";
 static constexpr const char *  s_kpszUserMode       = "user";
 static constexpr const char *  s_kpszAutomaticMode  = "automatic";
+static constexpr const char *  s_kpszPlayersKey     = "players";
+static constexpr const char *  s_kpszLastHoldersKey = "lastHolders";
+static constexpr const char *  s_kpszEntryKey       = "entry";
+static constexpr const char *  s_kpszControllerKey  = "controller";
+static constexpr const char *  s_kpszMapsKey        = "maps";
+static constexpr const char *  s_kpszAutomaticEntry = "automatic";
+static constexpr const char *  s_kpszPickEntry      = "controller";
+static constexpr const char *  s_kpszKeysEntry      = "keys";
+static constexpr const char *  s_kpszMouseEntry     = "mouse";
+static constexpr const char *  s_kpszDisabledEntry  = "disabled";
 
 
 
@@ -608,6 +619,8 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
     const JsonValue *  modelsObj      = nullptr;
     const JsonValue *  calibrationObj = nullptr;
     const JsonValue *  activeObj      = nullptr;
+    const JsonValue *  playersArr     = nullptr;
+    const JsonValue *  holdersArr     = nullptr;
 
 
 
@@ -615,10 +628,35 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
     calibrations.clear();
     activeProfiles.clear();
     joyportActiveProfiles.clear();
+    players.reset();
+    lastHolders = PlayerLastHolders();
 
     if (controllers.GetType() != JsonType::Object)
     {
         return;
+    }
+
+    // Present in any form, `players` means the adoption has run: an
+    // unreadable value plays both players on Automatic rather than adopting
+    // again from whichever machine happens to launch next.
+    if (controllers.HasArray (s_kpszPlayersKey, playersArr) && playersArr != nullptr)
+    {
+        players = PlayerEntries();
+        ReadPlayers (*playersArr, players.value(), outRejected);
+    }
+    else if (HasMember (controllers, s_kpszPlayersKey))
+    {
+        players = PlayerEntries();
+        outRejected.push_back (s_kpszPlayersKey);
+    }
+
+    if (controllers.HasArray (s_kpszLastHoldersKey, holdersArr) && holdersArr != nullptr)
+    {
+        ReadLastHolders (*holdersArr, lastHolders, outRejected);
+    }
+    else if (HasMember (controllers, s_kpszLastHoldersKey))
+    {
+        outRejected.push_back (s_kpszLastHoldersKey);
     }
 
     if (controllers.HasObject (s_kpszModelsKey, modelsObj) && modelsObj != nullptr)
@@ -700,6 +738,14 @@ JsonValue ControllerProfileStore::ToJson (const JsonValue & controllers) const
     ReplaceMember (members, s_kpszCalibrationKey, std::move (calibrationEntries));
     ReplaceMember (members, s_kpszActiveKey,      std::move (activeEntries));
     ReplaceMember (members, s_kpszJoyportActive,  std::move (joyportEntries));
+
+    // The players are written in full once the adoption has run, and left as
+    // the section holds them before then.
+    if (players.has_value())
+    {
+        SetMember (members, s_kpszPlayersKey,     WritePlayers (players.value()));
+        SetMember (members, s_kpszLastHoldersKey, WriteLastHolders (lastHolders));
+    }
 
     if (members.empty() && controllers.GetType() != JsonType::Object)
     {
@@ -1061,6 +1107,201 @@ void ControllerProfileStore::ReadActiveProfiles (
         }
 
         outProfiles[entry.first] = entry.second.GetString();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadPlayers
+//
+//  Player 1 then Player 2. A player whose entry cannot be played -- not an
+//  object, an unknown entry, an entry that player cannot have, or a pick
+//  whose controller cannot be read -- plays on Automatic and is reported,
+//  keeping any target it set. An array of the wrong length is reported and
+//  read as far as it goes.
+//
+//  The pair is then normalized as a hand-edited file could not make it: a
+//  second pick of Player 1's controller is Automatic, and a second target
+//  that overlaps Player 1's paddles is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerProfileStore::ReadPlayers (
+    const JsonValue           & playersArr,
+    PlayerEntries             & outEntries,
+    std::vector<std::string>  & outRejected)
+{
+    size_t                     count   = playersArr.GetArraySize();
+    size_t                     player  = 0;
+    MultiplayerSetup::AxisSet  first;
+    MultiplayerSetup::AxisSet  second;
+
+
+
+    outEntries = PlayerEntries();
+
+    if (count != PlayerSlotPolicy::kPlayerCount)
+    {
+        outRejected.push_back (s_kpszPlayersKey);
+    }
+
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount && player < count; player++)
+    {
+        if (!TryReadPlayer (playersArr.GetArrayElement (player), player, outEntries[player]))
+        {
+            outEntries[player].kind = PlayerEntryKind::Automatic;
+            outEntries[player].unit.reset();
+            outRejected.push_back (std::string (s_kpszPlayersKey) + " " + std::to_string (player + 1));
+        }
+    }
+
+    outEntries = PlayerSlotPolicy::NormalizeEntries (outEntries);
+
+    if (!outEntries[0].target.has_value() || !outEntries[1].target.has_value())
+    {
+        return;
+    }
+
+    first  = ControllerSelectionPolicy::GetTargetAxes (outEntries[0].target.value(), GamePortContribution::kAxisCount);
+    second = ControllerSelectionPolicy::GetTargetAxes (outEntries[1].target.value(), GamePortContribution::kAxisCount);
+
+    if ((first & second).any())
+    {
+        outEntries[1].target.reset();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryReadPlayer
+//
+//  One player's entry and the target it set. False when the entry cannot be
+//  played by this player; the target is read first, so it survives that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerProfileStore::TryReadPlayer (const JsonValue & playerObj, size_t player, PlayerEntry & outEntry)
+{
+    HRESULT            hr     = S_OK;
+    std::string        kind;
+    std::string        maps;
+    std::string        token;
+    ControllerUnitKey  unit;
+    bool               isOne  = player == 0;
+
+
+
+    outEntry = PlayerEntry();
+
+    if (playerObj.GetType() != JsonType::Object)
+    {
+        return false;
+    }
+
+    if (playerObj.HasString (s_kpszMapsKey, maps))
+    {
+        outEntry.target = MachineInputPrefs::TargetFromToken (maps, PlayerAxisTarget::Joystick0);
+    }
+
+    if (!playerObj.HasString (s_kpszEntryKey, kind))
+    {
+        return false;
+    }
+
+    if (kind == s_kpszAutomaticEntry)
+    {
+        return true;
+    }
+
+    if (kind == s_kpszKeysEntry || kind == s_kpszMouseEntry)
+    {
+        outEntry.kind = (kind == s_kpszKeysEntry) ? PlayerEntryKind::ArrowKeys : PlayerEntryKind::MousePaddle;
+        return isOne;
+    }
+
+    if (kind == s_kpszDisabledEntry)
+    {
+        outEntry.kind = PlayerEntryKind::Disabled;
+        return !isOne;
+    }
+
+    if (kind != s_kpszPickEntry || !playerObj.HasString (s_kpszControllerKey, token))
+    {
+        return false;
+    }
+
+    hr = ControllerTokens::UnitFromToken (token, unit);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    outEntry.kind = PlayerEntryKind::Controller;
+    outEntry.unit = unit;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadLastHolders
+//
+//  A null is a slot nobody has held. An entry that is neither null nor a
+//  readable unit token reads as null and is reported: the next time
+//  Automatic fills that slot, the notice shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerProfileStore::ReadLastHolders (
+    const JsonValue           & holdersArr,
+    PlayerLastHolders         & outHolders,
+    std::vector<std::string>  & outRejected)
+{
+    HRESULT            hr     = S_OK;
+    size_t             count  = holdersArr.GetArraySize();
+    size_t             player = 0;
+    ControllerUnitKey  unit;
+
+
+
+    outHolders = PlayerLastHolders();
+
+    if (count != PlayerSlotPolicy::kPlayerCount)
+    {
+        outRejected.push_back (s_kpszLastHoldersKey);
+    }
+
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount && player < count; player++)
+    {
+        const JsonValue  & holder = holdersArr.GetArrayElement (player);
+
+        if (holder.GetType() == JsonType::Null)
+        {
+            continue;
+        }
+
+        hr = (holder.GetType() == JsonType::String) ? ControllerTokens::UnitFromToken (holder.GetString(), unit)
+                                                     : HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+
+        if (FAILED (hr))
+        {
+            outRejected.push_back (std::string (s_kpszLastHoldersKey) + " " + std::to_string (player + 1));
+            continue;
+        }
+
+        outHolders[player] = unit;
     }
 }
 
@@ -1649,6 +1890,90 @@ JsonValue ControllerProfileStore::WriteCalibration (const ControllerCalibration 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WritePlayers
+//
+//  Both players, always: the controller only for a pick, and the target only
+//  when the user set one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ControllerProfileStore::WritePlayers (const PlayerEntries & entries)
+{
+    std::vector<JsonValue>  arr;
+
+
+
+    for (const PlayerEntry & entry : entries)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  obj;
+        const char                                    * pszKind = s_kpszAutomaticEntry;
+
+        switch (entry.kind)
+        {
+            case PlayerEntryKind::Controller:   pszKind = s_kpszPickEntry;      break;
+            case PlayerEntryKind::ArrowKeys:    pszKind = s_kpszKeysEntry;      break;
+            case PlayerEntryKind::MousePaddle:  pszKind = s_kpszMouseEntry;     break;
+            case PlayerEntryKind::Disabled:     pszKind = s_kpszDisabledEntry;  break;
+
+            case PlayerEntryKind::Automatic:
+            default:                                                            break;
+        }
+
+        obj.emplace_back (s_kpszEntryKey, JsonValue (std::string (pszKind)));
+
+        if (entry.kind == PlayerEntryKind::Controller && entry.unit.has_value())
+        {
+            obj.emplace_back (s_kpszControllerKey, JsonValue (ControllerTokens::UnitToToken (entry.unit.value())));
+        }
+
+        if (entry.target.has_value())
+        {
+            obj.emplace_back (s_kpszMapsKey, JsonValue (std::string (MachineInputPrefs::TargetToToken (entry.target.value()))));
+        }
+
+        arr.emplace_back (std::move (obj));
+    }
+
+    return JsonValue (std::move (arr));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteLastHolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ControllerProfileStore::WriteLastHolders (const PlayerLastHolders & holders)
+{
+    std::vector<JsonValue>  arr;
+
+
+
+    for (const std::optional<ControllerUnitKey> & holder : holders)
+    {
+        if (holder.has_value())
+        {
+            arr.emplace_back (ControllerTokens::UnitToToken (holder.value()));
+        }
+        else
+        {
+            arr.emplace_back (nullptr);
+        }
+    }
+
+    return JsonValue (std::move (arr));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasAnythingToSave
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1725,4 +2050,34 @@ void ControllerProfileStore::ReplaceMember (
     {
         members.emplace_back (pszKey, JsonValue (std::move (entries)));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMember
+//
+//  Puts the value into the section under the key, in place of an existing
+//  member or as a new one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerProfileStore::SetMember (
+    std::vector<std::pair<std::string, JsonValue>>  & members,
+    const char                                      * pszKey,
+    JsonValue                                      && value)
+{
+    for (auto & member : members)
+    {
+        if (member.first == pszKey)
+        {
+            member.second = std::move (value);
+            return;
+        }
+    }
+
+    members.emplace_back (pszKey, std::move (value));
 }

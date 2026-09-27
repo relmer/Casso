@@ -218,7 +218,7 @@ EmulatorShell::~EmulatorShell()
 
     // What automatic calibration learned this session, while the service that
     // holds it still exists and nothing is reading into it.
-    SaveControllerCalibrations();
+    SaveControllerPrefs();
 
     m_controllerService.reset();
     m_controllerBackend.reset();
@@ -448,30 +448,16 @@ HRESULT EmulatorShell::Initialize (
     m_controllerBackend = std::make_unique<Win32ControllerBackend>();
     m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
 
-    // Saved controller settings and calibrations, before the thread starts
-    // reading. Anything that cannot be used is said once: it falls back to
-    // the default mapping or to automatic calibration, and the next save
-    // drops it, so there is nothing to say again.
-    {
-        ControllerProfileStore    store;
-        std::vector<std::string>  rejected;
-
-        store.FromJson (m_globalPrefs.controllers, rejected);
-        m_controllerService->SetModelSettings  (store.models);
-        m_controllerService->SetCalibrations   (store.calibrations);
-        m_controllerService->SetActiveProfiles (ProfileMode::Normal,  store.activeProfiles);
-        m_controllerService->SetActiveProfiles (ProfileMode::Joyport, store.joyportActiveProfiles);
-
-        if (!rejected.empty())
-        {
-            PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
-        }
-    }
+    // Saved controller settings, calibrations and players, before the thread
+    // starts reading, so its first evaluation already knows who was picked
+    // and who last held each slot.
+    LoadControllerPrefs();
 
     m_controllerThread  = std::make_unique<ControllerInputThread>();
 
-    // A controller that held a slot and left is said over the picture; the
-    // command bar's picker already shows what is playing after it.
+    // A controller that held a slot and left is said over the picture, and so
+    // is one Automatic gave a slot that another controller held last time;
+    // the command bar's picker already shows what is playing after either.
     m_controllerService->SetSlotsChangedFn (
         [this] (const ControllerInputService::SlotsChange & change)
         {
@@ -485,6 +471,7 @@ HRESULT EmulatorShell::Initialize (
 
                 m_controllerPickNotices.insert (m_controllerPickNotices.end(), change.notices.begin(), change.notices.end());
                 m_controllerPickHasEntries = m_controllerPickHasEntries || change.haveEntriesChanged;
+                m_controllerPickHasHolders = m_controllerPickHasHolders || change.haveLastHoldersChanged;
             }
 
             PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);

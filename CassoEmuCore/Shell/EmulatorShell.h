@@ -588,14 +588,15 @@ private:
 
     // The players' slots changed, or a controller came or went: the axis
     // owner, the picker and the prefs follow on the UI thread.
-    void    ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged);
+    void    ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged, bool haveLastHoldersChanged);
     // BY VALUE, not by reference. The source arrives from a picker row's
     // dispatch, and picking rebuilds the rows -- turning the arrows and the
     // paddle off each re-syncs the picker -- so a reference into the row
     // would outlive the row it refers to.
     void    PickPaddleSource       (InputModeRules::PaddleSource source);
     void    PickPlayerEntry        (size_t player, const PlayerEntry & entry);
-    void    SaveControllerCalibrations ();
+    void    LoadControllerPrefs        ();
+    void    SaveControllerPrefs        ();
     void    SyncPaddleSourceList   ();
     void    SyncProfileList        (const ControllerInputService::Snapshot & snapshot);
 
@@ -2113,6 +2114,7 @@ private:
     std::mutex                               m_controllerPickMutex;
     std::vector<std::wstring>                m_controllerPickNotices;
     bool                                     m_controllerPickHasEntries = false;
+    bool                                     m_controllerPickHasHolders = false;
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

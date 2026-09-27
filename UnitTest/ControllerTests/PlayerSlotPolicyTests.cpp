@@ -499,5 +499,164 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"Player 1: Pad"), PlayerSlotPolicy::DescribeAssignment (0, L"Pad"));
             Assert::AreEqual (std::wstring (L"Player 2: Pad"), PlayerSlotPolicy::DescribeAssignment (1, L"Pad"));
         }
+
+
+        //
+        //  The changed-holder notice
+        //
+
+        static ControllerDeviceInfo MakeDescribedPad (const char * unitId, const wchar_t * description)
+        {
+            ControllerDeviceInfo  info = MakePad (unitId);
+
+            info.description = description;
+            return info;
+        }
+
+
+        // An Xbox-class controller by product, with ":2" and on for a second
+        // one of the same product.
+        static ControllerDeviceInfo MakeXboxPad (const char * unitId, const wchar_t * description)
+        {
+            ControllerDeviceInfo  info;
+
+            info.unit.model  = { ControllerKind::XInput, 0, 0 };
+            info.unit.unitId = unitId;
+            info.unit.source = ControllerUnitSource::XInputProduct;
+            info.description = description;
+            return info;
+        }
+
+
+        TEST_METHOD (Notice_AutomaticGivingTheLastHolderShowsNone)
+        {
+            World                      world;
+            ControllerDeviceInfo       pad = MakeDescribedPad ("{PAD}", L"Blue pad");
+            PlayerLastHolders          lastHolders;
+            std::vector<std::wstring>  notices;
+
+            lastHolders[0] = pad.unit;
+            world.Attach (pad);
+            world.Step();
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            Assert::IsTrue (Holds (world.slots[0], pad), L"the lone pad is Player 1");
+            Assert::IsTrue (notices.empty(), L"the same controller in the same slot as last time shows nothing");
+            Assert::IsTrue (lastHolders[0] == pad.unit);
+        }
+
+
+        TEST_METHOD (Notice_ADifferentUnitShowsThePlayerAndItsDescription)
+        {
+            World                      world;
+            ControllerDeviceInfo       first  = MakeDescribedPad ("{A}", L"Blue pad");
+            ControllerDeviceInfo       second = MakeDescribedPad ("{B}", L"Red pad");
+            PlayerLastHolders          lastHolders;
+            std::vector<std::wstring>  notices;
+
+            lastHolders[0]       = second.unit;
+            world.devices        = { first, second };
+            world.logs.connected = { first.unit, second.unit };
+            world.Step();
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            Assert::AreEqual ((size_t) 2, notices.size(), L"both slots changed holder");
+            Assert::AreEqual (std::wstring (L"Player 1: Blue pad"), notices[0]);
+            Assert::AreEqual (std::wstring (L"Player 2: Red pad"),  notices[1]);
+            Assert::IsTrue   (lastHolders[0] == first.unit,  L"each slot's holder is its last holder from now on");
+            Assert::IsTrue   (lastHolders[1] == second.unit);
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+            Assert::IsTrue   (notices.empty(), L"recording the same slots again shows nothing");
+        }
+
+
+        TEST_METHOD (Notice_APickShowsNoneButUpdatesTheLastHolder)
+        {
+            World                      world;
+            ControllerDeviceInfo       pad   = MakeDescribedPad ("{PAD}", L"Blue pad");
+            ControllerDeviceInfo       other = MakeDescribedPad ("{OTHER}", L"Red pad");
+            PlayerLastHolders          lastHolders;
+            std::vector<std::wstring>  notices;
+
+            lastHolders[0]   = other.unit;
+            world.entries[0] = MakePick (pad);
+            world.Attach (pad);
+            world.Step();
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            Assert::IsTrue (notices.empty(), L"a pick is what the user chose, so it is not announced");
+            Assert::IsTrue (lastHolders[0] == pad.unit, L"but it is the last holder from now on");
+        }
+
+
+        TEST_METHOD (Notice_TheProvisionalPlayerOneCountsAsAHolder)
+        {
+            World                      world;
+            ControllerDeviceInfo       pad = MakeDescribedPad ("{PAD}", L"Blue pad");
+            PlayerLastHolders          lastHolders;
+            std::vector<std::wstring>  notices;
+
+            world.Attach (pad);
+            world.Step();
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            Assert::AreEqual ((int) PlayerSlotState::Provisional, (int) world.slots[0].state, L"not used yet");
+            Assert::AreEqual ((size_t) 1, notices.size(), L"no last holder is a changed holder");
+            Assert::AreEqual (std::wstring (L"Player 1: Blue pad"), notices[0]);
+            Assert::IsTrue   (lastHolders[0] == pad.unit);
+            Assert::IsFalse  (lastHolders[1].has_value(), L"Player 2 held nothing");
+        }
+
+
+        TEST_METHOD (Notice_AHolderLeavingKeepsTheSavedLastHolder)
+        {
+            World                      world;
+            ControllerDeviceInfo       pad = MakeDescribedPad ("{PAD}", L"Blue pad");
+            PlayerLastHolders          lastHolders;
+            std::vector<std::wstring>  notices;
+
+            world.Attach (pad);
+            world.logs.firstInput = { pad.unit };
+            world.Step();
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            world.Detach (pad);
+            world.Step();
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            Assert::IsTrue (notices.empty());
+            Assert::IsTrue (lastHolders[0] == pad.unit, L"the pad that left is still the last to hold Player 1");
+
+            world.Attach (pad);
+            world.Step();
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            Assert::IsTrue (Holds (world.slots[0], pad), L"it plays again");
+            Assert::IsTrue (notices.empty(), L"and coming back to the slot it last held shows nothing");
+        }
+
+
+        TEST_METHOD (Notice_TwoPadsOfOneProductAreToldApartByTheirOrdinal)
+        {
+            World                      world;
+            ControllerDeviceInfo       first  = MakeXboxPad ("045e:0b13",   L"Xbox Wireless Controller");
+            ControllerDeviceInfo       second = MakeXboxPad ("045e:0b13:2", L"Xbox Wireless Controller");
+            PlayerLastHolders          lastHolders;
+            std::vector<std::wstring>  notices;
+
+            lastHolders[0] = first.unit;
+            world.Attach (second);
+            world.Step();
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders);
+
+            Assert::AreEqual ((size_t) 1, notices.size(), L"the second pad of the product is a different controller");
+            Assert::IsTrue   (lastHolders[0] == second.unit);
+        }
     };
 }

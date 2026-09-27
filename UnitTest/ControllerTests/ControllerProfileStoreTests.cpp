@@ -1104,5 +1104,212 @@ namespace ControllerTests
             Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), rebuilt.deadzone, 0.0001f);
             Assert::AreEqual (size_t (2), store.GetOrCreateModel (Xbox(), ControllerFormFactor::Gamepad, controls).profiles.size());
         }
+
+
+        //
+        //  Players and last holders
+        //
+
+        static ControllerUnitKey StickUnit (const char * unitId)
+        {
+            ControllerUnitKey  unit;
+            HRESULT            hr   = ControllerTokens::UnitFromToken (StickToken (unitId), unit);
+
+            AssertSucceeded (hr);
+            return unit;
+        }
+
+
+        // The section's players read on their own, with what was reported.
+        static ControllerProfileStore ReadSection (const std::string & text, std::vector<std::string> & rejected)
+        {
+            ControllerProfileStore  store;
+
+            store.FromJson (Parse (text), rejected);
+            return store;
+        }
+
+
+        TEST_METHOD (Players_RoundTripThroughTheGlobalPrefsFile)
+        {
+            InMemoryFileSystem        fs;
+            GlobalUserPrefs           saved;
+            GlobalUserPrefs           loaded;
+            ControllerProfileStore    store;
+            ControllerProfileStore    readBack;
+            std::vector<std::string>  rejected;
+            PlayerEntries             entries;
+
+            entries[0].kind   = PlayerEntryKind::Controller;
+            entries[0].unit   = StickUnit ("{A}");
+            entries[0].target = PlayerAxisTarget::Paddle0;
+            entries[1].target = PlayerAxisTarget::Joystick1;
+
+            store.players        = entries;
+            store.lastHolders[0] = StickUnit ("{A}");
+
+            saved.controllers = store.ToJson (saved.controllers);
+            AssertSucceeded (saved.Save  (L"C:\\Casso", fs));
+            AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
+
+            readBack.FromJson (loaded.controllers, rejected);
+
+            Assert::IsTrue  (rejected.empty());
+            Assert::IsTrue  (readBack.players.has_value(), L"saved players mark the adoption done");
+            Assert::IsTrue  (readBack.players.value() == entries, L"a pick, its target, and an Automatic player's target come back");
+            Assert::IsTrue  (readBack.lastHolders[0] == StickUnit ("{A}"), L"the last holder comes back");
+            Assert::IsFalse (readBack.lastHolders[1].has_value(), L"and a slot nobody held stays empty");
+
+            entries         = PlayerEntries();
+            entries[0].kind = PlayerEntryKind::ArrowKeys;
+            entries[1].kind = PlayerEntryKind::Disabled;
+
+            store.players     = entries;
+            saved.controllers = store.ToJson (saved.controllers);
+            AssertSucceeded (saved.Save  (L"C:\\Casso", fs));
+            AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
+
+            readBack.FromJson (loaded.controllers, rejected);
+
+            Assert::IsTrue (rejected.empty());
+            Assert::IsTrue (readBack.players.value() == entries, L"the keys for Player 1 and Disabled for Player 2 come back");
+
+            entries[0].kind = PlayerEntryKind::MousePaddle;
+            store.players   = entries;
+            readBack.FromJson (store.ToJson (JsonValue()), rejected);
+
+            Assert::IsTrue (readBack.players.value() == entries, L"and so does the mouse");
+        }
+
+
+        TEST_METHOD (Players_AbsentLeavesTheAdoptionToRunAndWritesNothing)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            JsonValue                 written;
+            const JsonValue         * member  = nullptr;
+
+            store = ReadSection ("{\"models\":{}}", rejected);
+
+            Assert::IsFalse (store.players.has_value(), L"no players saved means the adoption has not run");
+            Assert::IsTrue  (rejected.empty());
+
+            written = store.ToJson (Parse ("{\"models\":{}}"));
+
+            Assert::IsFalse (written.HasArray ("players", member),     L"nothing is written for players that were never set");
+            Assert::IsFalse (written.HasArray ("lastHolders", member));
+        }
+
+
+        TEST_METHOD (Players_AnUnreadableEntryReadsAsAutomaticAndIsReported)
+        {
+            const char *  kCases[] =
+            {
+                "{\"players\":[{\"entry\":\"joystick\"},{\"entry\":\"automatic\"}]}",
+                "{\"players\":[{\"entry\":\"automatic\"},{\"entry\":\"controller\",\"controller\":\"nonsense\"}]}",
+                "{\"players\":[{\"entry\":\"controller\"},{\"entry\":\"automatic\"}]}",
+                "{\"players\":[{\"maps\":\"paddle0\"},{\"entry\":\"automatic\"}]}",
+                "{\"players\":[5,{\"entry\":\"automatic\"}]}",
+                "{\"players\":[{\"entry\":\"automatic\"},{\"entry\":\"keys\"}]}",
+                "{\"players\":[{\"entry\":\"automatic\"},{\"entry\":\"mouse\"}]}",
+                "{\"players\":[{\"entry\":\"disabled\"},{\"entry\":\"automatic\"}]}",
+            };
+
+            for (const char * text : kCases)
+            {
+                std::vector<std::string>  rejected;
+                ControllerProfileStore    store = ReadSection (text, rejected);
+                std::wstring              label (text, text + strlen (text));
+
+                Assert::IsTrue   (store.players.has_value(), label.c_str());
+                Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) store.players.value()[0].kind, label.c_str());
+                Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) store.players.value()[1].kind, label.c_str());
+                Assert::AreEqual (size_t (1), rejected.size(), (L"reported once: " + label).c_str());
+            }
+        }
+
+
+        TEST_METHOD (Players_AnUnreadableEntryKeepsTheTargetItSet)
+        {
+            std::vector<std::string>  rejected;
+            ControllerProfileStore    store = ReadSection ("{\"players\":[{\"entry\":\"joystick\",\"maps\":\"paddle1\"},{\"entry\":\"automatic\"}]}", rejected);
+
+            Assert::IsTrue (store.players.value()[0].target == PlayerAxisTarget::Paddle1, L"only the entry was unreadable");
+        }
+
+
+        TEST_METHOD (Players_NotAnArrayOfTwo_IsReportedAndReadAsFarAsItGoes)
+        {
+            std::vector<std::string>  rejected;
+            ControllerProfileStore    store = ReadSection ("{\"players\":5}", rejected);
+
+            Assert::IsTrue   (store.players.has_value(), L"present in any form, the adoption has run");
+            Assert::IsTrue   (store.players.value() == PlayerEntries(), L"both players on Automatic");
+            Assert::AreEqual (size_t (1), rejected.size());
+
+            rejected.clear();
+            store = ReadSection ("{\"players\":[{\"entry\":\"keys\"}]}", rejected);
+
+            Assert::AreEqual ((int) PlayerEntryKind::ArrowKeys, (int) store.players.value()[0].kind, L"the one player there is read");
+            Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) store.players.value()[1].kind, L"the missing one is Automatic");
+            Assert::AreEqual (size_t (1), rejected.size(), L"and the length is reported");
+        }
+
+
+        TEST_METHOD (LastHolders_AnUnreadableEntryReadsAsNullAndIsReported)
+        {
+            std::vector<std::string>  rejected;
+            std::string               stick = StickToken ("{A}");
+            ControllerProfileStore    store = ReadSection ("{\"players\":[{\"entry\":\"automatic\"},{\"entry\":\"automatic\"}],"
+                                                           "\"lastHolders\":[\"nonsense\",5]}", rejected);
+
+            Assert::IsFalse  (store.lastHolders[0].has_value());
+            Assert::IsFalse  (store.lastHolders[1].has_value());
+            Assert::AreEqual (size_t (2), rejected.size(), L"each unreadable entry is reported");
+
+            rejected.clear();
+            store = ReadSection ("{\"lastHolders\":[null,\"" + stick + "\"]}", rejected);
+
+            Assert::IsTrue  (rejected.empty(), L"null is a slot nobody held, not an error");
+            Assert::IsFalse (store.lastHolders[0].has_value());
+            Assert::IsTrue  (store.lastHolders[1] == StickUnit ("{A}"));
+        }
+
+
+        TEST_METHOD (Players_ARepeatedControllerOrOverlappingTargetsIsNormalized)
+        {
+            std::vector<std::string>  rejected;
+            std::string               stick = StickToken ("{A}");
+            ControllerProfileStore    store = ReadSection (
+                "{\"players\":[{\"entry\":\"controller\",\"controller\":\"" + stick + "\"},"
+                              "{\"entry\":\"controller\",\"controller\":\"" + stick + "\"}]}", rejected);
+
+            Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) store.players.value()[0].kind);
+            Assert::AreEqual ((int) PlayerEntryKind::Automatic,  (int) store.players.value()[1].kind, L"one controller cannot play for both");
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"maps\":\"joystick0\"},"
+                                              "{\"entry\":\"automatic\",\"maps\":\"paddle1\"}]}", rejected);
+
+            Assert::IsTrue  (store.players.value()[0].target == PlayerAxisTarget::Joystick0);
+            Assert::IsFalse (store.players.value()[1].target.has_value(), L"a second target on Player 1's paddles is dropped");
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"maps\":\"paddle0\"},"
+                                              "{\"entry\":\"automatic\",\"maps\":\"paddle1\"}]}", rejected);
+
+            Assert::IsTrue (store.players.value()[1].target == PlayerAxisTarget::Paddle1, L"two single paddles do not overlap");
+        }
+
+
+        TEST_METHOD (Players_UnknownMembersOfTheSectionStillSurvive)
+        {
+            ControllerProfileStore  store;
+            JsonValue               written;
+            int                     futureKey = 0;
+
+            store.players = PlayerEntries();
+            written       = store.ToJson (Parse ("{\"futureKey\":1}"));
+
+            Assert::IsTrue (written.HasInt ("futureKey", futureKey), L"writing the players keeps what this build does not know");
+        }
     };
 }

@@ -3096,7 +3096,7 @@ void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string p
         m_controllerThread->Wake();
     }
 
-    SaveControllerCalibrations();
+    SaveControllerPrefs();
     SyncPaddleSourceList();
 }
 
@@ -3133,25 +3133,35 @@ void EmulatorShell::StartNewControllerProfile()
 //  ApplyControllerSlotsChange
 //
 //  UI thread. The players' slots changed, or a controller came or went. The
-//  axis owner and the picker follow either way, and the prefs take the
-//  entries when a picked controller was followed to another identity.
+//  axis owner and the picker follow either way, and the global prefs take
+//  the entries when a picked controller was followed to another identity,
+//  and the last holders when a slot's holder changed.
 //
 //  A CONTROLLER CONNECTING TURNS NOTHING OFF. The keys or the mouse picked
-//  for Player 1 stay until the user picks something else (FR-032).
+//  for Player 1 stay until the user picks something else.
 //
-//  Over the picture for a few seconds, never a dialog: the user did not ask
-//  about this, so stopping the machine to have it acknowledged would
-//  interrupt them to report something they may not care about.
+//  Each notice -- a controller that left, or one Automatic gave a slot that
+//  another controller held last time -- goes onto the notice stack over the
+//  picture, never into a dialog: the user did not ask about this, so
+//  stopping the machine to have it acknowledged would interrupt them to
+//  report something they may not care about.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged)
+void EmulatorShell::ApplyControllerSlotsChange (
+    const std::vector<std::wstring>  & notices,
+    bool                               haveEntriesChanged,
+    bool                               haveLastHoldersChanged)
 {
     SyncGamePortAxisOwner();
 
     if (haveEntriesChanged)
     {
         SyncInputModeUi();
+    }
+    else if (haveLastHoldersChanged)
+    {
+        SaveControllerPrefs();
     }
 
     for (const std::wstring & notice : notices)

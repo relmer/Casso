@@ -743,6 +743,60 @@ std::wstring PlayerSlotPolicy::DescribeAssignment (size_t player, const std::wst
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RecordHolders
+//
+//  A slot holds a controller while the controller is attached and the slot
+//  is not only held for it: Automatic's lone Player 1 counts, and so does a
+//  holder waiting for its first input. A holder that leaves is not recorded,
+//  so the saved last holder outlives it. Only Automatic is announced: a pick
+//  is what the user just chose, so it updates the last holder silently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> PlayerSlotPolicy::RecordHolders (
+    const PlayerSlots                        & slots,
+    const std::vector<ControllerDeviceInfo>  & devices,
+    PlayerLastHolders                        & lastHolders)
+{
+    std::vector<std::wstring>  notices;
+    size_t                     player  = 0;
+
+
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        const PlayerSlot            & slot   = slots[player];
+        const ControllerDeviceInfo  * device = nullptr;
+
+        if (!slot.holder.has_value() || slot.state == PlayerSlotState::Held || slot.state == PlayerSlotState::Empty)
+        {
+            continue;
+        }
+
+        device = FindDevice (devices, slot.holder.value());
+
+        if (device == nullptr || IsSameUnit (lastHolders[player], device->unit))
+        {
+            continue;
+        }
+
+        if (!slot.isPicked)
+        {
+            notices.push_back (DescribeAssignment (player, device->description));
+        }
+
+        lastHolders[player] = device->unit;
+    }
+
+    return notices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDriverRoute
 //
 //  A player whose target has none of its paddles on this machine is not read
@@ -1050,4 +1104,45 @@ bool PlayerSlotPolicy::IsCandidate (const Context & context, const PlayerSlots &
 
 
     return IsAttached (context.devices, unit) && !IsPickedUnit (context, unit) && !isHeld;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSameUnit
+//
+//  By unit token, the identity the last holder is saved under, so two
+//  controllers of one product are told apart by their ordinal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlayerSlotPolicy::IsSameUnit (const std::optional<ControllerUnitKey> & last, const ControllerUnitKey & unit)
+{
+    return last.has_value() && ControllerTokens::UnitToToken (last.value()) == ControllerTokens::UnitToToken (unit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ControllerDeviceInfo * PlayerSlotPolicy::FindDevice (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit)
+{
+    for (const ControllerDeviceInfo & device : devices)
+    {
+        if (device.unit == unit)
+        {
+            return &device;
+        }
+    }
+
+    return nullptr;
 }

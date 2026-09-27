@@ -374,6 +374,44 @@ PlayerSlots ControllerInputService::GetPlayerSlots() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetLastHolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetLastHolders (const PlayerLastHolders & lastHolders)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_lastHolders = lastHolders;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLastHolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerLastHolders ControllerInputService::GetLastHolders() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_lastHolders;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResetPaddleRate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1604,8 +1642,9 @@ std::vector<std::wstring> ControllerInputService::FindDepartedLocked (const std:
 //  The players again from what is attached, the entries and the two logs,
 //  with each attached controller's active profile deciding the target of a
 //  slot that follows it. A picked controller found under another identity is
-//  followed there, so the entry holds the controller that is playing. Empty
-//  when nothing changed.
+//  followed there, so the entry holds the controller that is playing. Each
+//  slot's holder is recorded as its last holder, with a notice for each slot
+//  Automatic gave a different controller. Empty when nothing changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1614,6 +1653,7 @@ std::optional<ControllerInputService::SlotsChange> ControllerInputService::Evalu
     PlayerSlotPolicy::MappingsByUnit  mappings;
     PlayerSlots                       previous        = m_slots;
     PlayerEntries                     previousEntries = m_entries;
+    PlayerLastHolders                 previousHolders = m_lastHolders;
     SlotsChange                       change;
     size_t                            player          = 0;
 
@@ -1641,15 +1681,19 @@ std::optional<ControllerInputService::SlotsChange> ControllerInputService::Evalu
         }
     }
 
-    if (m_slots == previous && m_entries == previousEntries && departed.empty())
+    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders);
+
+    if (m_slots == previous && m_entries == previousEntries && m_lastHolders == previousHolders && departed.empty())
     {
         return std::nullopt;
     }
 
-    change.entries              = m_entries;
-    change.slots                = m_slots;
-    change.haveEntriesChanged   = m_entries != previousEntries;
-    change.departedDescriptions = std::move (departed);
+    change.entries                = m_entries;
+    change.slots                  = m_slots;
+    change.lastHolders            = m_lastHolders;
+    change.haveEntriesChanged     = m_entries != previousEntries;
+    change.haveLastHoldersChanged = m_lastHolders != previousHolders;
+    change.departedDescriptions   = std::move (departed);
 
     return change;
 }

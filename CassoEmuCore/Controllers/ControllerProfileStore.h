@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlMapping.h"
 #include "Controllers/ControllerCalibration.h"
+#include "Controllers/PlayerSlotPolicy.h"
 #include "Core/JsonValue.h"
 
 
@@ -238,6 +239,13 @@ public:
     std::map<std::string, std::string>              activeProfiles;
     std::map<std::string, std::string>              joyportActiveProfiles;
 
+    // The two players' entries and the controller that last held each slot,
+    // global like the rest. `players` is absent until the one-time adoption
+    // from the launched machine has run, and its presence is what marks that
+    // adoption done.
+    std::optional<PlayerEntries>                    players;
+    PlayerLastHolders                               lastHolders;
+
     std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) { return mode == ProfileMode::Joyport ? joyportActiveProfiles : activeProfiles; }
 
     void       FromJson (const JsonValue & controllers, std::vector<std::string> & outRejected);
@@ -289,6 +297,11 @@ private:
     void              ReadModels        (const JsonValue & modelsObj, std::vector<std::string> & outRejected);
     void              ReadCalibrations  (const JsonValue & calibrationObj, std::vector<std::string> & outRejected);
     static void       ReadActiveProfiles(const JsonValue & activeObj, std::map<std::string, std::string> & outProfiles, std::vector<std::string> & outRejected);
+    static void       ReadPlayers       (const JsonValue & playersArr, PlayerEntries & outEntries, std::vector<std::string> & outRejected);
+    static bool       TryReadPlayer     (const JsonValue & playerObj, size_t player, PlayerEntry & outEntry);
+    static void       ReadLastHolders   (const JsonValue & holdersArr, PlayerLastHolders & outHolders, std::vector<std::string> & outRejected);
+    static JsonValue  WritePlayers      (const PlayerEntries & entries);
+    static JsonValue  WriteLastHolders  (const PlayerLastHolders & holders);
 
     static bool       ReadProfile       (const JsonValue & profileObj, ControllerProfile & outProfile);
     static bool       ReadMapping       (const JsonValue & mappingObj, ControlMapping & outMapping);
@@ -305,4 +318,7 @@ private:
     static void       ReplaceMember     (std::vector<std::pair<std::string, JsonValue>> & members,
                                          const char                                     * pszKey,
                                          std::vector<std::pair<std::string, JsonValue>> && entries);
+    static void       SetMember         (std::vector<std::pair<std::string, JsonValue>> & members,
+                                         const char                                     * pszKey,
+                                         JsonValue                                     && value);
 };

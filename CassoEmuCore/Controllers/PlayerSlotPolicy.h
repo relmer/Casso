@@ -138,6 +138,22 @@ struct PlayerOrderLogs
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlayerLastHolders
+//
+//  The controller that last held each player's slot, however it came to hold
+//  it. Saved across launches only so that a notice is shown when Automatic
+//  gives a slot a different controller; it never assigns one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+using PlayerLastHolders = std::array<std::optional<ControllerUnitKey>, MultiplayerSetup::kPlayerCount>;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlayerSlotPolicy
 //
 //  Who plays for each player, from what the user chose, what is attached and
@@ -171,6 +187,12 @@ public:
     static bool         IsDrivingSlot      (const PlayerSlot & slot);
     static bool         NeedsIdleWatch     (const PlayerEntries & entries, const PlayerSlots & slots);
     static std::wstring DescribeAssignment (size_t player, const std::wstring & description);
+
+    // Each slot's attached holder becomes its last holder. Returns a notice
+    // for each slot Automatic gave a controller other than its last holder.
+    static std::vector<std::wstring>  RecordHolders (const PlayerSlots                        & slots,
+                                                     const std::vector<ControllerDeviceInfo>  & devices,
+                                                     PlayerLastHolders                        & lastHolders);
 
     // What a player's controller reaches on this machine, or nothing when
     // its slot plays no controller. One player playing alone reaches what a
@@ -214,4 +236,7 @@ private:
     static void  FillAutomatic      (const Context & context, PlayerSlots & slots);
     static void  SetTargets         (const Context & context, PlayerSlots & slots);
     static bool  IsCandidate        (const Context & context, const PlayerSlots & slots, const ControllerUnitKey & unit);
+    static bool  IsSameUnit         (const std::optional<ControllerUnitKey> & last, const ControllerUnitKey & unit);
+
+    static const ControllerDeviceInfo *  FindDevice (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit);
 };

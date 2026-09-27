@@ -8,6 +8,7 @@
 #include "Machines/MachineDefinitions.h"
 
 #include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -514,5 +515,152 @@ private:
         merged.HasObject ("$cassoUiPrefs", uiPrefs);
 
         return MachineInputPrefs::ReadGamePortAdapter (uiPrefs, definition != nullptr && definition->hasAnnunciators);
+    }
+
+    //
+    //  The one-time adoption of the launched machine's selection
+    //
+
+    // The players the adoption makes of a $cassoUiPrefs block, and its last
+    // holders.
+    static PlayerEntries AdoptFrom (const std::string & uiPrefsText, PlayerLastHolders & lastHolders)
+    {
+        std::string  text = "{\"$cassoUiPrefs\":" + uiPrefsText + "}";
+        JsonValue    doc  = ParseOrFail (text.c_str());
+
+        return MachineInputPrefs::ReadAdoptedPlayers (GetUiPrefsOrFail (doc), lastHolders);
+    }
+
+
+    static std::string MakeSlotJson (const char * unitId, const char * maps)
+    {
+        return std::string ("{\"controller\":\"dinput:231d:0121/guid:") + unitId + "\",\"maps\":\"" + maps + "\"}";
+    }
+
+
+    TEST_METHOD (Adoption_ArrowKeysBecomePlayerOnesKeys)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      entries = AdoptFrom (R"({"arrowsToJoystick":true})", lastHolders);
+
+        Assert::AreEqual ((int) PlayerEntryKind::ArrowKeys, (int) entries[0].kind);
+        Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) entries[1].kind);
+        Assert::IsFalse  (lastHolders[0].has_value());
+        Assert::IsFalse  (lastHolders[1].has_value());
+    }
+
+
+    TEST_METHOD (Adoption_MouseAsPaddleBecomesPlayerOnesMouseUnlessTheKeysTookIt)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      mouse = AdoptFrom (R"({"pointerMapping":"paddle"})", lastHolders);
+        PlayerEntries      both  = AdoptFrom (R"({"arrowsToJoystick":true,"pointerMapping":"paddle"})", lastHolders);
+
+        Assert::AreEqual ((int) PlayerEntryKind::MousePaddle, (int) mouse[0].kind);
+        Assert::AreEqual ((int) PlayerEntryKind::ArrowKeys,   (int) both[0].kind, L"the keys come first");
+    }
+
+
+    TEST_METHOD (Adoption_TheIouMouseStaysWithTheMachine)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      entries = AdoptFrom (R"({"pointerMapping":"mouse"})", lastHolders);
+
+        Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) entries[0].kind, L"the //c's own mouse is not a player's entry");
+    }
+
+
+    TEST_METHOD (Adoption_ASavedControllerIsOnlyPlayerOnesLastHolder)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      entries = AdoptFrom (R"({"controller":"dinput:231d:0121/guid:{A}"})", lastHolders);
+
+        Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) entries[0].kind, L"Player 1 stays on Automatic");
+        Assert::IsFalse  (entries[0].unit.has_value(), L"the saved controller is no pick");
+        Assert::IsTrue   (lastHolders[0] == MakeStickUnit ("{A}"), L"it is Player 1's last holder");
+        Assert::IsFalse  (lastHolders[1].has_value(), L"and Player 2 has none");
+
+        entries = AdoptFrom (R"({"controller":"dinput:231d:0121/guid:{A}","arrowsToJoystick":true})", lastHolders);
+
+        Assert::AreEqual ((int) PlayerEntryKind::ArrowKeys, (int) entries[0].kind, L"the keys still become Player 1's entry");
+        Assert::IsTrue   (lastHolders[0] == MakeStickUnit ("{A}"));
+
+        entries = AdoptFrom (R"({"controller":"nonsense"})", lastHolders);
+
+        Assert::IsFalse (lastHolders[0].has_value(), L"an unreadable controller is no last holder");
+    }
+
+
+    TEST_METHOD (Adoption_AnEnabledTwoPlayerBlockGivesBothPlayersPicksAndOutranksTheKeys)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      entries = AdoptFrom (
+            R"({"arrowsToJoystick":true,"controller":"dinput:231d:0121/guid:{C}","multiplayer":{"enabled":true,"players":[)" +
+            MakeSlotJson ("{A}", "paddle0") + "," + MakeSlotJson ("{B}", "paddle1") + "]}}", lastHolders);
+
+        Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) entries[0].kind, L"Player 1's slot outranks the keys");
+        Assert::IsTrue   (entries[0].unit == MakeStickUnit ("{A}"));
+        Assert::IsTrue   (entries[0].target == PlayerAxisTarget::Paddle0, L"with its target set by hand");
+        Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) entries[1].kind);
+        Assert::IsTrue   (entries[1].unit == MakeStickUnit ("{B}"));
+        Assert::IsTrue   (entries[1].target == PlayerAxisTarget::Paddle1);
+        Assert::IsTrue   (lastHolders[0] == MakeStickUnit ("{C}"), L"the saved controller is still only the last holder");
+        Assert::IsFalse  (lastHolders[1].has_value());
+    }
+
+
+    TEST_METHOD (Adoption_AnEnabledBlockWithAnEmptyFirstSlotLeavesPlayerOneTheKeys)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      entries = AdoptFrom (
+            R"({"arrowsToJoystick":true,"multiplayer":{"enabled":true,"players":[{"controller":"","maps":"joystick0"},)" +
+            MakeSlotJson ("{B}", "joystick1") + "]}}", lastHolders);
+
+        Assert::AreEqual ((int) PlayerEntryKind::ArrowKeys,  (int) entries[0].kind);
+        Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) entries[1].kind);
+        Assert::IsTrue   (entries[1].unit == MakeStickUnit ("{B}"));
+    }
+
+
+    TEST_METHOD (Adoption_ADisabledOrAbsentBlockLeavesPlayerTwoOnAutomatic)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      disabled = AdoptFrom (
+            R"({"multiplayer":{"enabled":false,"players":[)" +
+            MakeSlotJson ("{A}", "joystick0") + "," + MakeSlotJson ("{B}", "joystick1") + "]}}", lastHolders);
+        PlayerEntries      absent   = AdoptFrom (R"({"controller":"dinput:231d:0121/guid:{A}"})", lastHolders);
+
+        Assert::IsTrue   (disabled == PlayerEntries(), L"a block turned off gives no picks");
+        Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) absent[1].kind);
+    }
+
+
+    TEST_METHOD (Adoption_NothingSavedIsAutomaticForBoth)
+    {
+        PlayerLastHolders  lastHolders;
+        PlayerEntries      empty = AdoptFrom ("{}", lastHolders);
+
+        Assert::IsTrue  (empty == PlayerEntries());
+        Assert::IsFalse (lastHolders[0].has_value());
+
+        lastHolders[1] = MakeStickUnit ("{STALE}");
+
+        Assert::IsTrue  (MachineInputPrefs::ReadAdoptedPlayers (nullptr, lastHolders) == PlayerEntries(), L"no block at all");
+        Assert::IsFalse (lastHolders[1].has_value(), L"the last holders start empty");
+    }
+
+
+    TEST_METHOD (Adoption_ReadsTheMachinesKeysAndWritesNone)
+    {
+        std::string        text   = std::string (R"({"$cassoUiPrefs":{"arrowsToJoystick":true,"pointerMapping":"paddle",)") +
+                                    R"("controller":"dinput:231d:0121/guid:{C}","multiplayer":{"enabled":true,"players":[)" +
+                                    MakeSlotJson ("{A}", "joystick0") + "," + MakeSlotJson ("{B}", "joystick1") + "]}}}";
+        JsonValue          doc    = ParseOrFail (text.c_str());
+        std::string        before = JsonWriter::Write (doc);
+        PlayerLastHolders  lastHolders;
+
+        MachineInputPrefs::ReadAdoptedPlayers (GetUiPrefsOrFail (doc), lastHolders);
+
+        Assert::AreEqual (before, JsonWriter::Write (doc), L"the machine's controller, two-player block and mappings stay as they were");
     }
 };

@@ -1198,6 +1198,48 @@ namespace ControllerTests
         }
 
 
+        //  The saved last holder filling its slot again is not announced;
+        //  another controller is, and becomes the last holder.
+        TEST_METHOD (Notice_OnlyAControllerOtherThanTheSlotsLastHolderIsAnnounced)
+        {
+            FakeControllerBackend       backend;
+            GamePortInputMixer          mixer;
+            ControllerInputService      service (backend, mixer);
+            ControllerDeviceInfo        stick     = MakeStickDevice();
+            ControllerDeviceInfo        pad       = MakePadDevice ("{PAD}", L"Pad");
+            PlayerLastHolders           lastHolders;
+            std::vector<std::wstring>   notices;
+            bool                        haveMoved = false;
+
+            lastHolders[0] = stick.unit;
+            service.SetLastHolders (lastHolders);
+            service.SetSlotsChangedFn ([&notices, &haveMoved] (const ControllerInputService::SlotsChange & change)
+            {
+                notices.insert (notices.end(), change.notices.begin(), change.notices.end());
+                haveMoved = haveMoved || change.haveLastHoldersChanged;
+            });
+
+            backend.AddDevice (stick);
+            service.Tick();
+
+            Assert::IsTrue  (service.GetPlayerSlots()[0].holder == stick.unit, L"the stick is Player 1");
+            Assert::IsTrue  (notices.empty(), L"it held the slot last time, so nothing is shown");
+            Assert::IsFalse (haveMoved);
+
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+            backend.AddDevice (pad);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::AreEqual ((size_t) 1, notices.size(), L"a different controller in the slot is announced once");
+            Assert::AreEqual (std::wstring (L"Player 1: Pad"), notices.front());
+            Assert::IsTrue   (service.GetLastHolders()[0] == pad.unit, L"and is the last holder from now on");
+            Assert::IsTrue   (haveMoved, L"which the shell is told, so it is saved");
+        }
+
+
         TEST_METHOD (Disconnect_OfAControllerInNoSlotIsNotReported)
         {
             FakeControllerBackend       backend;

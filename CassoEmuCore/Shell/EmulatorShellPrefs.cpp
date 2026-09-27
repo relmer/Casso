@@ -166,15 +166,89 @@ void EmulatorShell::RestoreColorTextPref()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SaveControllerCalibrations
+//  LoadControllerPrefs
 //
-//  Writes every controller model's settings and every unit's calibration
-//  into the global prefs, and saves them only when that changed what they
-//  hold: an automatic calibration that learned nothing new costs no write.
+//  Hands the saved controller settings, calibrations, active profiles,
+//  players and last holders to the service. Anything that cannot be used is
+//  said once: it falls back to the default mapping, to automatic
+//  calibration or to Automatic, and the next save drops it, so there is
+//  nothing to say again.
+//
+//  THE PLAYERS ARE ADOPTED ONCE. With no players saved, the launched
+//  machine's own selection becomes them and is saved at once, so the saved
+//  players mark the adoption done and no other machine's selection is ever
+//  read for it. Player 1's keys are taken here too, before anything can
+//  reconcile Player 1 with a shell that has not heard of them yet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SaveControllerCalibrations()
+void EmulatorShell::LoadControllerPrefs()
+{
+    ControllerProfileStore    store;
+    std::vector<std::string>  rejected;
+    PlayerEntries             entries;
+    PlayerLastHolders         lastHolders;
+    JsonValue                 doc;
+    const JsonValue         * uiPrefs   = nullptr;
+    bool                      isAdopted = false;
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    store.FromJson (m_globalPrefs.controllers, rejected);
+    m_controllerService->SetModelSettings  (store.models);
+    m_controllerService->SetCalibrations   (store.calibrations);
+    m_controllerService->SetActiveProfiles (ProfileMode::Normal,  store.activeProfiles);
+    m_controllerService->SetActiveProfiles (ProfileMode::Joyport, store.joyportActiveProfiles);
+
+    if (store.players.has_value())
+    {
+        entries     = store.players.value();
+        lastHolders = store.lastHolders;
+    }
+    else
+    {
+        LoadMachineUiPrefs (doc, uiPrefs);
+        entries   = MachineInputPrefs::ReadAdoptedPlayers (uiPrefs, lastHolders);
+        isAdopted = true;
+    }
+
+    m_controllerService->SetLastHolders   (lastHolders);
+    m_controllerService->SetPlayerEntries (entries);
+
+    m_arrowsJoystick = m_controllerService->GetPlayerEntries()[0].kind == PlayerEntryKind::ArrowKeys;
+
+    if (isAdopted)
+    {
+        SaveControllerPrefs();
+    }
+
+    if (!rejected.empty())
+    {
+        PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveControllerPrefs
+//
+//  Writes every controller model's settings, every unit's calibration, the
+//  active profiles, the players' entries and the last holders into the
+//  global prefs, and saves them only when that changed what they hold: an
+//  automatic calibration that learned nothing new costs no write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveControllerPrefs()
 {
     ControllerProfileStore  store;
     JsonValue               controllers;
@@ -190,6 +264,8 @@ void EmulatorShell::SaveControllerCalibrations()
     store.calibrations          = m_controllerService->GetCalibrations();
     store.activeProfiles        = m_controllerService->GetActiveProfiles (ProfileMode::Normal);
     store.joyportActiveProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Joyport);
+    store.players               = m_controllerService->GetPlayerEntries();
+    store.lastHolders           = m_controllerService->GetLastHolders();
     controllers                 = store.ToJson (m_globalPrefs.controllers);
 
     if (JsonWriter::Write (controllers) == JsonWriter::Write (m_globalPrefs.controllers))
@@ -209,9 +285,12 @@ void EmulatorShell::SaveControllerCalibrations()
 //
 //  AdoptInputModeForMachine
 //
-//  Seeds the live input mapping from a machine's $cassoUiPrefs block. A
-//  machine that has never stored one falls back to the legacy global setting,
-//  so upgrading from a build where the mapping was global keeps it.
+//  Seeds the live input mapping. Player 1's keys and mouse are the global
+//  players' entries and follow the user from machine to machine; only the
+//  //c's own mouse comes from the machine's $cassoUiPrefs block, and a
+//  machine that has never stored it falls back to the legacy global setting,
+//  so upgrading from a build where the mapping was global keeps it. The mouse
+//  picked as Player 1's paddle takes the pointer, so it outranks that mouse.
 //
 //  STATE ONLY, no chrome. The machine-switch path calls this on the CPU
 //  thread, and SyncSelectorState measures text through Dxui, which asserts
@@ -224,10 +303,27 @@ void EmulatorShell::SaveControllerCalibrations()
 
 void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs, const std::string & machineId)
 {
+    PlayerEntryKind  playerOne     = PlayerEntryKind::Automatic;
+    bool             machineArrows = false;
+
+
+
     MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
                                         m_globalPrefs.pointerMapping,
-                                        m_arrowsJoystick,
+                                        machineArrows,
                                         m_pointerMode);
+
+    if (m_controllerService != nullptr)
+    {
+        playerOne = m_controllerService->GetPlayerEntries()[0].kind;
+    }
+
+    m_arrowsJoystick = playerOne == PlayerEntryKind::ArrowKeys;
+
+    if (playerOne == PlayerEntryKind::MousePaddle)
+    {
+        m_pointerMode = InputMappingMode::Paddle;
+    }
 
     AdoptControllerForMachine (uiPrefs, machineId);
 
@@ -244,13 +340,13 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs, const s
 //
 //  AdoptControllerForMachine
 //
-//  Hands the machine's saved players to the service. A two-player setup the
-//  user turned on gives both players their controllers as picks; otherwise
-//  both play on Automatic.
+//  Sets the service up for the machine being entered: its axis count, the
+//  move of its old active profile, a rate reset and a rescan. The players are
+//  global and are not touched: they describe the controllers on the desk,
+//  not the machine.
 //
-//  An UNREADABLE OR UNKNOWN TOKEN IS TREATED AS NO CHOICE, not as an error.
-//  The machine still runs, and the policy then picks up whatever is attached,
-//  which is what a user with a broken prefs file wants to happen.
+//  An UNREADABLE OR UNKNOWN TOKEN IS TREATED AS NO CONTROLLER, not as an
+//  error: there is only no old profile to move.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,9 +358,6 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
     std::map<std::string, std::string>   normalProfiles;
     std::optional<ControllerUnitKey>     selection;
     ControllerUnitKey                    unit;
-    MultiplayerSetup                     setup;
-    PlayerEntries                        entries;
-    size_t                               i          = 0;
     const MachineDefinition            * definition = MachineDefinitions::Find (machineId);
 
 
@@ -286,24 +379,6 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
     {
         m_controllerService->SetAxisCount (static_cast<size_t> (definition->gamePortAxisCount));
     }
-
-    // A two-player setup the user turned on was set up by hand, so its
-    // controllers are picks. Anything else plays on Automatic: a machine's
-    // saved controller was usually chosen automatically too, and making it a
-    // pick would take Automatic away without the user asking.
-    setup = MachineInputPrefs::ReadMultiplayer (uiPrefs);
-
-    for (i = 0; setup.isEnabled && i < PlayerSlotPolicy::kPlayerCount; i++)
-    {
-        if (setup.players[i].unit.has_value())
-        {
-            entries[i].kind   = PlayerEntryKind::Controller;
-            entries[i].unit   = setup.players[i].unit;
-            entries[i].target = setup.players[i].target;
-        }
-    }
-
-    m_controllerService->SetPlayerEntries (entries);
 
     token = MachineInputPrefs::ReadControllerToken (uiPrefs);
 
@@ -350,9 +425,14 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
 //
 //  PersistInputModeForMachine
 //
-//  Writes the live mapping into the current machine's $cassoUiPrefs block.
-//  Both keys go in one call, so a change that moves both axes -- picking
-//  Paddle drops arrows-to-joystick -- costs one read-modify-write.
+//  Saves the live mapping. The players' entries, Player 1's keys and mouse
+//  among them, go to the global prefs. The machine's $cassoUiPrefs block
+//  takes only its pointer mapping, which is the //c's own mouse: a pointer
+//  mode that holds the pointer is written as Off.
+//
+//  THE MACHINE'S OLD SELECTION IS LEFT ALONE. Its controller, two-player
+//  block and arrows-to-joystick are neither written nor removed, so an older
+//  build reading the same file keeps its own behavior.
 //
 //  Best-effort: a missing store or machine name, or a write failure, just
 //  leaves the on-disk state as it was.
@@ -363,10 +443,10 @@ void EmulatorShell::PersistInputModeForMachine()
 {
     HRESULT                                         hr = S_OK;
     std::vector<std::pair<std::string, JsonValue>>  entries;
-    std::vector<std::pair<std::string, JsonValue>>  controllerEntries;
-    std::string                                     token;
 
 
+
+    SaveControllerPrefs();
 
     if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
     {
@@ -374,45 +454,6 @@ void EmulatorShell::PersistInputModeForMachine()
     }
 
     entries = MachineInputPrefs::BuildUiPrefEntries (m_pointerMode);
-
-    // The controller rides along in the same read-modify-write: choosing one
-    // turns the arrows and the paddle off, so every change that touches one
-    // of the three touches at least two of the keys.
-    if (m_controllerService != nullptr)
-    {
-        // Player 1's controller, picked or chosen by Automatic. Nothing
-        // playing is not written, so the machine keeps the controller it
-        // last had.
-        ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
-        MultiplayerSetup                  picks;
-        size_t                            i        = 0;
-
-        if (snapshot.slots[0].holder.has_value())
-        {
-            token = ControllerTokens::UnitToToken (snapshot.slots[0].holder.value());
-        }
-
-        // No profile: each controller carries its own now, in the global
-        // prefs, and the machine's old key is left out of what is written.
-        if (!token.empty())
-        {
-            controllerEntries = MachineInputPrefs::BuildControllerEntries (token, std::string());
-            entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
-        }
-
-        // Two picked players are the machine's two-player setup, which is
-        // what brings them back as picks.
-        for (i = 0; i < PlayerSlotPolicy::kPlayerCount; i++)
-        {
-            bool  isPick = snapshot.entries[i].kind == PlayerEntryKind::Controller;
-
-            picks.players[i].unit   = isPick ? snapshot.entries[i].unit : std::nullopt;
-            picks.players[i].target = snapshot.slots[i].target;
-        }
-
-        picks.isEnabled = picks.players[0].unit.has_value() && picks.players[1].unit.has_value();
-        entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (picks));
-    }
 
     hr = DiskSettings::WriteSavedUiPrefs (
              *m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(), entries);

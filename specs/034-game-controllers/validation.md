@@ -51,6 +51,10 @@ Results are recorded as they are produced. A scenario that could not run says so
 | T137 | `ControllerInputService::TickDrivers` leaves the idle watch on while Casso is inactive | Red: `IdleWatch_IsOffWhileCassoIsInactive` failed with `Expected:<0> Actual:<2> - an inactive Casso watches nothing`. Restored, stamped, rebuilt, green. |
 | T137 (extra) | `PrepareWatch` reads a watched Xbox controller on every wake instead of on the idle period | Red: `IdleWatch_ReadsAPadNobodyPlaysOnTheIdlePeriod` failed with `Expected:<1> Actual:<2> - a wake before the period does not read it again`. Restored, stamped, rebuilt, green. |
 | T137 (extra) | A watched controller whose read failed stays in the watch | Red: `IdleWatch_AFailedWatchedReadIsReportedAndLeftOut` failed with `Expected:<1> Actual:<2> - it is left out of the watch until it reconnects`. Restored, stamped, rebuilt, green. |
+| T141 | `ControllerProfileStore::ReadPlayers` skips the report on a player whose entry cannot be played | Red: `Players_AnUnreadableEntryReadsAsAutomaticAndIsReported` failed with `Expected:<1> Actual:<0> - reported once: {"players":[{"entry":"joystick"},...]}`. Restored, stamped, rebuilt, green. |
+| T142 | `MachineInputPrefs::ReadAdoptedPlayers` adopts the machine's saved `controller` as Player 1's pick as well as its last holder | Red: `Adoption_ASavedControllerIsOnlyPlayerOnesLastHolder` failed with `Expected:<0> Actual:<1> - Player 1 stays on Automatic`. Restored, stamped, rebuilt, green. |
+| T143 | `PlayerSlotPolicy::IsSameUnit` compares model tokens instead of unit tokens | Red: `Notice_TwoPadsOfOneProductAreToldApartByTheirOrdinal` failed, and with it `Notice_ADifferentUnitShowsThePlayerAndItsDescription` and `Notice_APickShowsNoneButUpdatesTheLastHolder`, whose two DirectInput pads share a model. Restored, stamped, rebuilt, green. |
+| T147 (extra) | `ControllerInputService::EvaluateSlotsLocked` records the last holders but drops the notices from the slots change | Red: `Notice_OnlyAControllerOtherThanTheSlotsLastHolderIsAnnounced` failed on its notice count. Restored, stamped, rebuilt, green. |
 
 ## Final walk and measurements (T093)
 

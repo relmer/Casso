@@ -2504,19 +2504,22 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     if (msg == WM_APP_CONTROLLER_PICK)
     {
         std::vector<std::wstring>  notices;
-        bool                       haveEntriesChanged = false;
+        bool                       haveEntriesChanged     = false;
+        bool                       haveLastHoldersChanged = false;
 
         {
             std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
             notices.swap (m_controllerPickNotices);
             haveEntriesChanged         = m_controllerPickHasEntries;
+            haveLastHoldersChanged     = m_controllerPickHasHolders;
             m_controllerPickHasEntries = false;
+            m_controllerPickHasHolders = false;
         }
 
         // A device arriving or leaving changes the rows even when it changes
         // nothing else, so the list is rebuilt on every one of these.
-        ApplyControllerSlotsChange (notices, haveEntriesChanged);
+        ApplyControllerSlotsChange (notices, haveEntriesChanged, haveLastHoldersChanged);
         SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;

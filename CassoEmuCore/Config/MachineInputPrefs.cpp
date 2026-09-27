@@ -530,3 +530,73 @@ std::pair<std::string, JsonValue> MachineInputPrefs::BuildMultiplayerEntry (
 
     return { kpszMultiplayerKey, JsonValue (std::move (block)) };
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::ReadAdoptedPlayers
+//
+//  The block's arrows-to-joystick gives Player 1 the keys, and its paddle
+//  pointer mapping the mouse when the keys have not taken Player 1. A saved
+//  controller only becomes Player 1's last holder: the old selection was
+//  usually made automatically too, and making it a pick would take Automatic
+//  away without the user asking. A two-player block that is turned on was set
+//  up by hand, so each filled slot becomes that player's pick with its target,
+//  and Player 1's outranks the keys and the mouse. Everything else, and a
+//  //c's own mouse, leaves the player on Automatic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerEntries MachineInputPrefs::ReadAdoptedPlayers (
+    const JsonValue    * uiPrefs,
+    PlayerLastHolders  & outLastHolders)
+{
+    HRESULT            hr      = S_OK;
+    PlayerEntries      entries;
+    MultiplayerSetup   setup   = ReadMultiplayer (uiPrefs);
+    std::string        token   = ReadControllerToken (uiPrefs);
+    std::string        pointer;
+    bool               arrows  = false;
+    ControllerUnitKey  unit;
+    size_t             player  = 0;
+
+
+
+    outLastHolders = PlayerLastHolders();
+
+    if (uiPrefs != nullptr && uiPrefs->HasBool (kpszArrowsKey, arrows) && arrows)
+    {
+        entries[0].kind = PlayerEntryKind::ArrowKeys;
+    }
+    else if (uiPrefs != nullptr && uiPrefs->HasString (kpszPointerKey, pointer) && pointer == s_kpszInputModePaddle)
+    {
+        entries[0].kind = PlayerEntryKind::MousePaddle;
+    }
+
+    if (!token.empty())
+    {
+        hr = ControllerTokens::UnitFromToken (token, unit);
+
+        if (SUCCEEDED (hr))
+        {
+            outLastHolders[0] = unit;
+        }
+    }
+
+    for (player = 0; setup.isEnabled && player < PlayerSlotPolicy::kPlayerCount; player++)
+    {
+        if (!setup.players[player].unit.has_value())
+        {
+            continue;
+        }
+
+        entries[player].kind   = PlayerEntryKind::Controller;
+        entries[player].unit   = setup.players[player].unit;
+        entries[player].target = setup.players[player].target;
+    }
+
+    return PlayerSlotPolicy::NormalizeEntries (entries);
+}
