@@ -26,6 +26,9 @@ machine or attach state:
 
 ## ControllerInputService
 
+> **Superseded (2026-09-27) by "Jack assignment" below**, which derives the
+> jacks from spec 034's players (research R21). The table is kept as built.
+
 After `BuildMergedLocked`, the service sets `merged.jacks`:
 
 | Mode | Left jack | Right jack |
@@ -91,3 +94,75 @@ current switches at once.
 - `InputModeRulesTests.cpp`: `GetFireKeyButtons` attached and detached.
 - `MachineGamePortSinkTests.cpp`: jacks reach the Joyport, only on change; no
   write on the //c.
+
+---
+
+## 2026-09-27 additions (GH #156)
+
+### Jack assignment (FR-008, research R21)
+
+```cpp
+enum class JoyportPlayerState { Idle, Driving, Held };   // spec 034's PlayerSlotState, reduced (R21)
+
+struct JoyportPlayers
+{
+    std::array<JoyportPlayerState, 2>  players           = {};
+    bool                               isPlayer2Disabled = false;   // "Same as left" while the Joyport is on
+};
+
+enum class JoyportJackSource { None, Player1, Player2 };
+
+class JoyportJackRules
+{
+public:
+    static std::array<JoyportJackSource, 2>  AssignJacks (const JoyportPlayers & players);
+};
+```
+
+| Player 1 | Player 2 | Left | Right |
+|---|---|---|---|
+| Driving | Idle | Player1 | Player1 |
+| Idle | Driving | Player2 | Player2 |
+| Driving | Disabled | Player1 | Player1 |
+| Driving | Driving | Player1 | Player2 |
+| Held | Driving | None | Player2 |
+| Driving | Held | Player1 | None |
+| anything else | | None | None |
+
+The reduction from 034's `PlayerSlotState` (`Playing`, `Provisional` or the
+arrow keys are Driving; `Held` is Held; the rest Idle) is a second pure
+function, `JoyportJackRules::ReducePlayerState`, added when 034's type
+exists.
+
+`None` reads every switch open. `ControllerInputService::AddJoyportSwitches`
+places each player's pre-merge switches on the jacks this returns. Slot targets
+play no part. When Player 1 is the arrow keys, the mixer takes that player's
+switches from the keyboard sources; a jack assigned to Player 2 still takes the
+Controller source's switches for Player 2.
+
+Tests: `UnitTest/ControllerTests/JoyportJackRulesTests.cpp` (every row, plus
+"a held slot never passes to the other player"); `ControllerInputServiceTests.cpp`
+(US3 scenarios 1, 2, 4, 5 and 6 through `FakeControllerBackend`, once spec
+034's players exist).
+
+### The Joyport profile's second stick (FR-017, research R18)
+
+`DefaultMapping::MakeJoyport (model, formFactor, controls)`:
+
+| Device | Steers | Fires |
+|---|---|---|
+| XInput | left stick, right stick, D-pad | A, B, X, Y, both bumpers, both triggers |
+| DirectInput gamepad | primary stick (X/Y), D-pad, and Z/Rz if both present, else Rx/Ry if both present | every button |
+| DirectInput joystick or wheel | primary stick, D-pad | every button |
+
+No trigger (`ControlKind::Trigger`) is ever an axis binding. Tests in
+`ControllerProfileStoreTests.cpp` beside the existing built-in profile tests:
+each row; a gamepad with Z only and Rx/Ry gets Rx/Ry; one with neither pair
+gets no second stick; a joystick with Z/Rz gets none.
+
+### Mode of the profile played (FR-018, FR-020, research R17)
+
+The service resolves a controller's profile for the mode in effect: the
+mode's active choice when it points at a profile of that mode, otherwise the
+mode's built-in profile. `SetActiveProfile` with a profile of the other mode
+leaves the choice unchanged. Evaluation of the chosen mapping is unchanged.

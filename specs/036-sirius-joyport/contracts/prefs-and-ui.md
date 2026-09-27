@@ -2,6 +2,11 @@
 
 Covers FR-001, FR-002, FR-012, FR-015 and User Stories 4 and 5.
 
+> **2026-09-27 (GH #156)**: the setting became global, the Machine tab entry
+> was removed, and the Controllers page gained the Apple / Atari switch and
+> per-mode profile lists. The sections below the rule are the 2026-09-24
+> contract as built; where the 2026-09-27 section at the end differs, it wins.
+
 ## Pref
 
 ```jsonc
@@ -116,3 +121,108 @@ table.
 - Detached: the page is unchanged (FR-015).
 - Tests: `ControllersPageStateTests.cpp` for `GetJoyportJack` in each mode and
   after Editing moves to player 2.
+
+---
+
+## 2026-09-27: global setting, Apple / Atari switch, per-mode profiles
+
+Research R14-R23.
+
+### Global pref
+
+```jsonc
+{
+  "gamePortAdapter": "siriusJoyport",   // global section; "none" for Apple mode
+  "machines": {
+    "Apple2e": {
+      "$cassoUiPrefs": {
+        "gamePortAdapter": "siriusJoyport"   // legacy: read once for adoption, never written again
+      }
+    }
+  }
+}
+```
+
+- `GlobalUserPrefs::gamePortAdapter` round-trips through `ToJson` / `FromJson`;
+  empty (key absent) means never set. Tested in `GlobalUserPrefsTests.cpp`.
+- At cold boot the shell calls `JoyportSetting::ResolveAtLaunch` with the
+  global token and the launched machine's `$cassoUiPrefs`. When `isAdopted`,
+  it writes the global value at once through `SaveGlobalPrefs`, so later
+  launches do not adopt again. A machine switch reads no pref.
+- `PersistGamePortAdapterForMachine` is removed; the machine-switch call of
+  `AdoptGamePortAdapterForMachine` becomes "apply the global setting to the new
+  machine's Joyport through `IsInEffect`".
+
+### EmulatorShell
+
+```cpp
+void             SetGamePortAdapter (GamePortAdapter adapter);   // UI thread: live + global save
+GamePortAdapter  GetGamePortAdapter () const;                    // the global setting, not the machine's state
+bool             IsJoyportInEffect  () const;                    // JoyportSetting::IsInEffect for the running machine
+```
+
+- `SetGamePortAdapter` stores the setting, applies `IsInEffect` to the live
+  machine's Joyport (under the shared lifetime lock) and to
+  `ControllerInputService::SetJoyportAttached`, resubmits the fire keys, saves
+  the global prefs, and calls `SyncSelectorState`. It never resets the
+  machine.
+- `ApplyGamePortAdapterLive` is removed with the Settings apply path; both
+  `IDM_GAMEPORT_ADAPTER_*` commands route to `SetGamePortAdapter`.
+- `GetGamePortAdapter` now returns the setting, which on the //c differs from
+  what the machine reads; callers that want the latter use
+  `IsJoyportInEffect`.
+
+### Picker row
+
+- Label **Joyport (Atari mode)**. Placement as before.
+- `isOffered` = the running machine has annunciators; `isOn` =
+  `IsJoyportInEffect()` (FR-012). On the //c the row is absent, so its check
+  state never shows the saved setting.
+- Mouse-as-paddle is left out of the picker while `IsJoyportInEffect()`
+  (FR-009). The predicate is `JoyportSetting::IsMousePaddleOffered (bool
+  isJoyportInEffect)`; spec 034's Player 1 submenu consults it.
+- The profile sections list `GetProfileNames (mode)` for the mode in effect
+  (FR-020), replacing "Default and Joyport lead every section".
+- Player labels, Player 2's Disabled entry and the Automatic row text come from
+  `JoyportLabels` (R22) once spec 034's player submenus exist.
+
+### Machine tab
+
+- The Game port group is removed. `HardwarePage::BuildNodes` loses its
+  `supportsGamePortAdapter` and `gamePortAdapter` parameters, and
+  `HardwarePageTests.cpp` asserts that no machine lists the Joyport.
+- `SettingsUiPrefs::gamePortAdapter`, `SetGamePortAdapter`,
+  `ObserveLiveGamePortAdapter` and `ISettingsApplySink::ApplyGamePortAdapter`
+  are removed, with their tests; `SettingsSheet::OnDialogTick` no longer
+  observes the setting.
+
+### Controllers page
+
+- `ControllersPage::SetJoyportFns (std::function<bool()> isOn,
+  std::function<bool()> isOffered, std::function<void (bool)> set)` replaces
+  `SetJoyportAttachedFn`. `SettingsSheet` wires `isOn` to
+  `IsJoyportInEffect`, `isOffered` to `SettingsMachineInfo::supportsGamePortAdapter`,
+  and `set` to posting `IDM_GAMEPORT_ADAPTER_JOYPORT` or `_NONE`.
+- A **Joyport** section heads the page when offered: a `DxuiToggle` with
+  `OnDirection::Down`, checked for Atari mode, labeled "Atari mode" or "Apple
+  mode" by its state. Not offered (the //c): no section, profile mode Normal.
+- On a change, the page calls `set`, then
+  `ControllersPageState::SetProfileMode (mode)`, which reloads the profile list
+  and the edited profile for the new mode in place, the same way
+  `SelectProfile` switches profiles. The stick art (`JoyportSwitchView`)
+  replaces the stick and button lights while the mode is Joyport, as before.
+- A change made from the picker while the sheet is open is picked up on the
+  page's next poll by comparing `isOn()` with the toggle, and handled like a
+  change on the page itself, minus the `set` call.
+- Profile creation offers **Default mapping**, **Joyport mapping**,
+  **Paddles** and **Copy of** any profile of either mode, in both modes; the
+  new profile takes the page's mode.
+- Tests: `ControllersPageStateTests.cpp` (the list per mode, built-in first;
+  swapping in place; create stamps the mode; reset restores the mode's
+  built-in; a copy from the other mode); the page's section visibility through
+  `SettingsMachineInfo` in `SettingsPanelStateTests.cpp` or the page-state
+  tests, whichever holds the flag.
+
+### Controller Select (FR-016)
+
+Not part of this contract. Deferred pending the owner's decision (R24).

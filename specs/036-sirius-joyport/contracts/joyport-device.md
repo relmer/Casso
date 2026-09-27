@@ -86,6 +86,14 @@ public:
 `m_joyport->OnMachineReset()` as their last step, after the CPU's own reset,
 so a power cycle stamps the zeroed counter. A machine switch builds a new
 Joyport, applies the machine's saved adapter, and then runs `PowerCycle`.
+(2026-09-27: it applies the global setting through
+`JoyportSetting::IsInEffect` instead; research R14, R16.)
+
+## Controller Select (FR-016)
+
+The device models the switch at Center only: AN0 chooses the jack on every
+read. Emulating Left and Right is undecided (spec FR-016) and is not part of
+this contract; research R24 records the shape it would take.
 
 ## Tests (UnitTest/EmuTests/)
 

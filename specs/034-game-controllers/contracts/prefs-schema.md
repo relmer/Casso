@@ -66,7 +66,48 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
 | An `activeProfiles` entry whose key is not a unit token, or whose value is not a string | Entry dropped and reported; that controller uses Default |
 | An `activeProfiles` name its model has no profile of | Kept; the controller uses Default until a profile of that name exists |
 
+### Players and last holders (2026-09-27)
+
+Two keys join the `controllers` section (research R19, R21):
+
+```json
+"controllers": {
+  "players": [
+    { "entry": "controller", "controller": "xinput/product:045e:0b13", "maps": "joystick0" },
+    { "entry": "automatic" }
+  ],
+  "lastHolders": [ "xinput/product:045e:0b13", "dinput:231d:0121/guid:{01661270}" ]
+}
+```
+
+| Key | Value | Rules |
+|---|---|---|
+| `players` | Array of exactly two objects, Player 1 then Player 2 | Absent = the one-time adoption has not run (below). Written in full whenever an entry or a user-set target changes |
+| `players[n].entry` | `automatic`, `controller`, `keys`, `mouse` or `disabled` | `keys` and `mouse` valid for Player 1 only, `disabled` for Player 2 only; an invalid or unknown value reads as `automatic` and is reported once |
+| `players[n].controller` | Unit token | Required for `controller`; an unreadable token reads as `automatic` and is reported |
+| `players[n].maps` | Target token as in the per-machine block below | Absent = follow the active profile (FR-043). Kept for paddles the machine lacks (FR-035) |
+| `lastHolders` | Array of two unit tokens or `null` | Only for the notice rule (FR-044); an unreadable entry reads as `null`, which means the next Automatic assignment to that slot shows a notice |
+
+- Both entries picking one controller, or two user-set targets that overlap, are normalized on load: Player 2's entry becomes `automatic`, or its `maps` is dropped (FR-036).
+- `players` never holds what Automatic chose; that lives only in `lastHolders` and never assigns a controller (FR-011).
+
+### One-time adoption from the launched machine
+
+Runs at launch when `controllers.players` is absent, reading the launched machine's `$cassoUiPrefs` block, then writes `players` and `lastHolders` so it never runs again:
+
+| Machine key | Becomes |
+|---|---|
+| `arrowsToJoystick: true` | Player 1 `keys` |
+| `pointerMapping: "paddle"` | Player 1 `mouse`, unless `arrowsToJoystick` already gave Player 1 the keys |
+| `controller` | Player 1 `controller` with that token, unless Player 1 already has the keys or the mouse |
+| `multiplayer` with `enabled: true` | Each filled slot becomes that player's `controller` entry and `maps`; Player 1's slot outranks the three rows above |
+| anything else, or nothing | `automatic`; Player 2 is `automatic` when the block is absent or not enabled |
+
+`lastHolders` starts as two `null`s and fills as slots are held, by a pick as much as by Automatic (FR-044). Other machines' `controller`, `multiplayer`, `arrowsToJoystick` and paddle `pointerMapping` values are ignored from then on and left in their files, so an older build keeps reading its own keys.
+
 ## Per machine: `$cassoUiPrefs` block
+
+**Superseded for selection (2026-09-27)**: this build writes neither `controller` nor `multiplayer`, and reads them only for the one-time adoption above and for the `controllerProfile` move (FR-029), which still keys on the machine's `controller`. A `pointerMapping` of `mouse`, the //c IOU mouse, stays per machine. The rest of this section is the schema older builds write.
 
 Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside `arrowsToJoystick` and `pointerMapping`.
 
@@ -103,3 +144,4 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 - Round-trip of every field through `InMemoryFileSystem`.
 - Each rule in the table above, including that a rejected entry is reported rather than silently replaced.
 - Profile lookup by model token and name, the interface GH #78 will use.
+- (2026-09-27) `players` and `lastHolders` round trip; each invalid value in the players table reads as documented and is reported; a repeated controller or an overlapping `maps` is normalized; every row of the adoption table, including that adoption runs once and that other machines' keys are left in their files.

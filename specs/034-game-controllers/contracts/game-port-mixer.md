@@ -95,6 +95,24 @@ Deliberate behavior changes, both toward the rule that the axis owner decides:
 - Leaving paddle mode for Off recenters the paddles; before, they kept the last mouse position.
 - Entering paddle mode centers the paddles on the ][ and ][+ as well as the //e; before, only the //e was centered.
 
+## The `Controller` contribution with two player slots (2026-09-27)
+
+The mixer's interface and rules above are unchanged. What changes is how `ControllerInputService` composes the one `Controller` contribution it submits (research R17, R18; data model [Players](../data-model.md#players-2026-09-27)):
+
+| Rule | Detail |
+|---|---|
+| One playing | When `PlayerSlotPolicy::IsOnePlaying` holds, the playing controller (or Automatic's provisional Player 1) drives PDL0, PDL1 and PB0-PB2 from its `pdl0`, `pdl1` and `pb0`-`pb2` bindings, whichever slot it holds and whatever that slot's target (FR-042, FR-039) |
+| Both playing | Each slot drives its target's paddles, its `pdl0`.. bindings landing on them in ascending order (FR-038), and the button lines of its target (below) |
+| Button lines by target | Joystick 0: `pb0` to PB0 and `pb1` to PB1. Joystick 1: `pb0` to PB2. Paddle 0/1/2: `pb0` to PB0/PB1/PB2. Paddle 3: none. Bindings with no line are ignored and kept in the profile (FR-039) |
+| Held slot on disconnect | The leaver's paddles are left absent (center) and its lines released within one tick (FR-010). The slot is held for it while the other slot plays, and a held slot blocks the one-playing rule, so the remaining player keeps only its own target's paddles and lines and is not widened onto the leaver's (FR-040, SC-012) |
+| Return | The held slot's controller takes the slot back and drives its target again |
+| Start over | With no slot playing and none held, the Automatic slots empty and nothing drives the port until R16 fills one (FR-040) |
+| Waiting | A slot filled by Automatic whose holder has given no input contributes nothing, and the controller holding it is watched only for its first input (R23) |
+| Keys and mouse | Player 1 on the keys or the mouse makes the `ArrowKeys` or `MousePaddle` source the axis owner for PDL0/PDL1 as before; Player 2's controller, when playing, is the owner of its target's axes |
+| No second joining changes the first | A second controller that starts playing while the first plays on Joystick 0 takes Joystick 1 or a free paddle and never PDL0, PDL1, PB0 or PB1 (SC-014, edge case "A second controller bumped") |
+
+Supersedes, for multiplayer, the Phase 9 rule "Player one's `pb0` drives PB0 and player two's drives PB1".
+
 ## Unit-test obligations
 
 - A button held by one source stays pressed when another source releases it.
@@ -104,3 +122,4 @@ Deliberate behavior changes, both toward the rule that the axis owner decides:
 - A submission from another thread requests one flush and does not write.
 - `MachineGamePortSink` against real `AppleGamePort`, `Apple2eSoftSwitchBank` and `Apple2eKeyboard` instances: ][+ routing including PB2, //e routing with PB2 as Shift, //c leaving `$C063` alone, no game port returning true and writing nothing, a held lifetime lock returning false.
 - Existing input tests (`UnitTest/EmuTests/GamePortTests.cpp`, `InputEventCoalescingTests.cpp`) continue to pass unchanged.
+- (2026-09-27) Through `ControllerInputServiceTests`: each row of the button-lines table with both players playing; one playing drives PB0-PB2 from either slot; a held slot keeps the remaining player on its own lines; a return restores the leaver; start over leaves nothing driving until input; a second controller joining never changes PDL0, PDL1, PB0 or PB1 while the first plays on Joystick 0.

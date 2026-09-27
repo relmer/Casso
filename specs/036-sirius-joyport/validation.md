@@ -36,6 +36,13 @@ rows need a person, a real controller, or a commercial disk.
 | V1, V2: a real controller on the readout disk, //e and ][+ | manual | not yet run: needs a person holding a controller |
 | The [Joyport manual](https://mirrors.apple2.org.za/ftp.apple.asimov.net/unsorted/Sirius%20Joyport%20Manual.pdf)'s own Applesoft test program (`Joyport.do`, from the Google Drive link in web-a2e #19 and apple2ts #213; not committed), booted on a //e and driven headlessly by a throwaway harness that read each prompt and closed the switch it asked for: both non-centered sections on both jacks (Casso emulates only the Center position of the rear switch), then the centered section with each switch closed on ONLY the jack the program named | automated, one-off | passed every Atari-stick step through to the Apple-mode paddle section, which is not emulated. The listing itself confirms the mapping: PB2 right/down, PB1 left/up, PB0 fire, and in the centered section the left stick on AN0 off and the right on AN0 on |
 
+Note (2026-09-27): the pass above ran both one-stick sections with the
+switches closed on both jacks, because only the Center position of the
+Controller Select switch is emulated and the harness drove one stick. It
+therefore did not show that those sections depend on the switch at Left or
+Right, which GH #156 found with two controllers. Whether to emulate that
+switch is open (spec FR-016).
+
 ## Phase 4: resets (US2)
 
 | Check | Kind | Result |

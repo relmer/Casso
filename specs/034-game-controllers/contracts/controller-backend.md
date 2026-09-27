@@ -46,6 +46,20 @@ public:
 | `OnDevicesChanged` | Raised on the controller thread after a HID arrival or removal, at the +300 ms and +2 s rescans (R4). There is no periodic rescan; The service, not the backend, decides whether a timed poll is needed: only when the selected controller, or the controller viewed on an open Controllers page, is XInput or a polled DirectInput device, or when an R4 fallback receiver is attached. `GetWakeSources` reports the per-device facts (event handles, polled flag) the service uses for that decision. |
 | Activation | The backend does not know about focus. `ControllerInputService` gates samples on Casso's activation state (R2), set from the shell's `WM_ACTIVATEAPP` handling. |
 
+## Idle watch (2026-09-27)
+
+Research R23. The interface does not change; the service reads more devices, at two rates.
+
+| Rule | Detail |
+|---|---|
+| When | While `PlayerSlotPolicy::NeedsIdleWatch` holds (a player on Automatic is waiting for a controller) and Casso is active. Off otherwise, including while Casso is inactive, so input made then never claims a slot (FR-033) |
+| Which devices | Every attached controller that holds no slot, plus Automatic's provisional Player 1 |
+| XInput | `ReadSample` every `kIdleWatchPeriodMs` (100 ms). An unchanged `dwPacketNumber` returns the cached sample without decoding, as it already does, so a pad at rest costs one `XInputGetState` call per read |
+| DirectInput | The device's `SetEventNotification` handle (from `GetWakeSources`) joins the wait set; the device is read when it fires. A `DIDC_POLLEDDEVICE` device is read on the idle period |
+| What a watched read feeds | Only `PlayerSlotPolicy::IsRealInput`. Nothing reaches the mixer until the controller holds a slot, from which point it is read at the R13 period like any slot holder |
+| Wait timeout | The shorter of the R13 period (while a slot holder needs timed polling) and the idle period (while an XInput or polled DirectInput device is watched). With neither, the wait still has no timeout (SC-007) |
+| Failure | A watched read that fails is handled like any read failure: the device is reported disconnected and dropped from the watch, never read as a healthy rest sample (FR-015) |
+
 ## Threading
 
 All methods are called only from `ControllerInputThread`. The backend holds no locks and exposes nothing to other threads.
@@ -61,3 +75,4 @@ All methods are called only from `ControllerInputThread`. The backend holds no l
 
 - Every decoder rule is covered by synthetic `DIJOYSTATE2` / `XINPUT_STATE` values, including POV centered (`LOWORD == 0xFFFF`), each diagonal, and axis range extremes.
 - The service's handling of each `ReadSample` failure is covered through `FakeControllerBackend`, and each such test must observe the disconnected state rather than a rest sample reported as healthy.
+- (2026-09-27) Through `FakeControllerBackend`: the wait timeout for every combination of slot holders and watched devices; the watch off while inactive and while no player waits; a watched DirectInput device contributing its event handle; a watched read never reaching the mixer; a failed watched read reported as disconnected.

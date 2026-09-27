@@ -8,6 +8,12 @@ with a searchable [OCR copy](Sirius%20Joyport%20Manual%20%28OCR%29.pdf) kept in 
 directory (also archive.org `siriusjoyportmanual`). No GPL emulator source was read; GSSquared's prose docs
 disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
 
+R14-R24 record the 2026-09-27 decisions (spec Clarifications, GH #156) and were
+checked against the tree at `b3feaa4a`, which includes the built-in Joyport
+profile (`3f0c4620`) and the per-mode profile choices (`c00c2c7a`). Where one
+of them replaces an earlier decision, the earlier one is marked superseded and
+kept as written.
+
 ## R1. What the manual gives
 
 - **Decision**: AN0 off (`$C058`) selects the left jack, on (`$C059`) the right.
@@ -16,6 +22,8 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
 - **Rationale**: the manual's own tables, as quoted in the spec's Context. The
   manual also describes the Controller Select switch: Left and Right hold one
   jack whatever AN0 says, Center lets AN0 choose. Only Center is in scope.
+  (2026-09-27: whether Left and Right are emulated is now an open decision,
+  FR-016; see R24.)
 - **Alternatives considered**: GSSquared's documented sense (both lines
   reversed). Rejected; Wavy Navy on the ][+ is the check (quickstart V6).
 
@@ -124,6 +132,11 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
 
 ## R6. Which controller drives which jack
 
+> **Partly superseded by R21 (2026-09-27).** The keyboard, owner and Alt-key
+> rules below stand. The controller rows (single source on both jacks,
+> multiplayer slot 1 left and slot 2 right) are replaced by R21, which derives
+> the jacks from spec 034's players and adds the held jack and Same as left.
+
 - **Decision**: `ControllerInputService` builds a `JoyportJacks` value (two
   `JoystickSwitches`) from each driver's own pre-merge `logical->switches`,
   beside the existing `BuildMergedLocked`, and hands it to the mixer on the
@@ -174,6 +187,9 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
 
 ## R8. The adapter setting and its persistence
 
+> **Superseded by R14 (2026-09-27)** for where the setting is kept: it is now
+> global. The enum and its tokens stand.
+
 - **Decision**: a `GamePortAdapter` enum (`None`, `SiriusJoyport`) with tokens
   `"none"` and `"siriusJoyport"`, stored per machine as
   `$cassoUiPrefs.gamePortAdapter`. Default `None`, so `SaveDelta` omits it. It
@@ -190,6 +206,10 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
 
 ## R9. The command-bar picker row
 
+> **Amended by R15 (2026-09-27).** The row is now labeled "Joyport (Atari
+> mode)", and `isOffered` comes from R16's rule. Placement, check state and
+> thread handling stand.
+
 - **Decision**: a checkable **Sirius Joyport** command in the paddle-source
   picker, placed after the source rows and before the Multiplayer separator's
   group, wired like the mouse toggle: `EmulatorCommands::SetJoyportFns (isOn,
@@ -205,6 +225,9 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
   lifetime lock is held shared around the pointer, as in the sink.
 
 ## R10. The Machine tab entry
+
+> **Superseded by R15 (2026-09-27).** The Machine tab no longer lists the
+> Joyport; the Game port group and its OK-applied path are removed.
 
 - **Decision**: `HardwarePage::BuildNodes` gains a **Game port** group, present
   only when the machine has annunciators, holding two checkbox rows, **None**
@@ -226,6 +249,10 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
 
 ## R11. The picker used while Settings is open
 
+> **Superseded by R15 (2026-09-27).** The setting leaves the sheet's snapshot
+> and applies at once from the Controllers page, so OK has nothing to revert
+> and the live observation is removed.
+
 - **Decision**: `SettingsPanelState::ObserveLiveGamePortAdapter (adapter)`,
   called from `SettingsSheet::OnDialogTick` with the shell's live value. When
   the live value differs from the last one observed, the state re-seeds
@@ -241,6 +268,11 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
   applies on OK like the sheet's other settings.
 
 ## R12. The Controllers page lights
+
+> **As built, and amended by R23 (2026-09-27).** The five lights were built as
+> `JoyportSwitchView`, an Atari stick drawn from above whose markers and fire
+> button light, in place of five `ButtonLightView`s; the jack heading stands.
+> R23 adds the Joyport section and the per-mode profile list above it.
 
 - **Decision**: while the Joyport is attached, `ControllersPage` hides the
   stick widget, the button lights and their headings, and shows a **Joyport**
@@ -267,3 +299,291 @@ disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
   all 20 combinations. AppleWin issue #1517's `JOYPORT.DSK` is a useful second
   opinion, but it is a third-party image, so it is used only if the user
   supplies it and is never committed.
+
+## R14. The Joyport setting is global, and adopts the old per-machine value once
+
+- **Decision**: `GlobalUserPrefs` gains `std::string gamePortAdapter`, holding
+  the existing tokens `"none"` or `"siriusJoyport"` (R8), empty meaning never
+  set. It is read at launch and written by every change from the picker or the
+  Controllers page, through `SaveGlobalPrefs`. When it is empty at launch, the
+  shell adopts the launched machine's `$cassoUiPrefs.gamePortAdapter` through
+  the existing `MachineInputPrefs::ReadGamePortAdapter (uiPrefs,
+  hasAnnunciators)`, stores the result globally at once, and never reads the
+  per-machine key again. A machine switch no longer reads anything; it applies
+  the global value through R16's rule.
+- **The decision is a pure function**:
+  `JoyportSetting::ResolveAtLaunch (const std::string & globalToken, const
+  JsonValue * launchedUiPrefs, bool launchedHasAnnunciators)` returns the
+  setting and whether it was adopted (so the caller saves). Both call sites,
+  cold boot and the adoption save, stay one-line forwarders.
+- **The per-machine key**: no longer written. Values already in a user's file
+  are left in place, like the 1.22 input keys in `GlobalUserPrefs`, so an older
+  build still finds what it wrote. `PersistGamePortAdapterForMachine` and the
+  machine-switch half of `AdoptGamePortAdapterForMachine` are removed;
+  `BuildUiPrefsDefaults` keeps the `"none"` default so `SaveDelta` still drops
+  a default a user's file never had.
+- **Rationale**: the spec makes the setting follow the game, not the machine
+  (Clarifications 2026-09-27). One adoption from the machine being launched
+  keeps an upgrading user's Joyport on where they used it; empty-means-unset
+  makes it one-time without a separate flag, and an unknown token still reads
+  as `None` (R8).
+- **Alternatives considered**: adopting from any machine that had it on.
+  Rejected; FR-002 specifies the launched machine, and scanning every machine
+  block would let a machine the user has not run in months decide it. A
+  migration flag in the file. Rejected; the empty token already carries it.
+
+## R15. Apple / Atari is the control that turns the Joyport on; the Machine tab drops it
+
+- **Decision**: the Joyport is turned on and off in two places, both of which
+  call one shell function, `EmulatorShell::SetGamePortAdapter`, which sets the
+  live machine's Joyport, the controller service's mode and the global pref,
+  then resyncs the picker:
+  - the picker row, relabeled **Joyport (Atari mode)**, placement unchanged
+    (R9);
+  - a **Joyport** section at the top of the Controllers page, drawn as the
+    unit's Apple / Atari switch seen from above (R19), with "Atari mode" or
+    "Apple mode" beside it. It applies at once, like the page's multiplayer
+    controls, through a `SetJoyportFns (isOn, isOffered, set)` on
+    `ControllersPage` that `SettingsSheet` wires to the shell.
+- **Removed**: the Machine tab's Game port group (`HardwarePage::BuildGamePortGroup`,
+  `SetGamePortChecks`, `ResolveGamePortToggle`, the `BuildNodes` parameters),
+  `SettingsUiPrefs::gamePortAdapter`, `SettingsPanelState::SetGamePortAdapter`
+  and `ObserveLiveGamePortAdapter`, `ISettingsApplySink::ApplyGamePortAdapter`,
+  and the `OnDialogTick` observation. `SettingsMachineInfo::supportsGamePortAdapter`
+  stays and now gates the Controllers page section. The two
+  `IDM_GAMEPORT_ADAPTER_*` commands stay, now posted by the Controllers page,
+  and route to `SetGamePortAdapter` (live and saved) instead of the live-only
+  path, since nothing else saves the setting any more.
+- **Rationale**: the spec moves the setting to the Controllers page (FR-001)
+  and makes every change immediate (FR-002). Out of the sheet's snapshot, the
+  edge case "pressing OK does not undo it" holds by construction, which is why
+  R11's re-seeding goes.
+- **Removal is not deletion of library code**: every item removed above is
+  Casso's own Settings plumbing for this one setting, not Dxui library code.
+
+## R16. The //c reads the Joyport as off and keeps the setting
+
+- **Decision**: one pure rule,
+  `JoyportSetting::IsInEffect (GamePortAdapter setting, bool hasAnnunciators)`,
+  true only for the Joyport on a machine with annunciators. Every consumer calls
+  it: `SiriusJoyport::SetAttached` on a machine switch and at launch,
+  `ControllerInputService::SetJoyportAttached` (so the //c plays normal-mode
+  profiles), the picker row's `isOffered` and `isOn`, the Controllers page
+  section and its profile mode, and the player labels (R22). The global value
+  itself is never rewritten by a machine switch.
+- **Rationale**: the //c builds no Joyport (R3), so the device half already
+  holds; what changes is that the service, the picker and the page must stop
+  reading the saved value directly. One predicate keeps the five consumers from
+  disagreeing, and switching back to the //e finds the setting as it was left
+  (US4 scenario 4).
+- **Machine switch with a controller held** (spec edge case): unchanged from
+  R7; the //c has no Joyport, so its reads fall straight through.
+
+## R17. Each profile belongs to one mode, fixed at creation
+
+- **Decision**: `ControllerProfile` gains `ProfileMode mode = ProfileMode::Normal`.
+  - Built-in profiles take their mode from their kind: Default is Normal and
+    Joyport is Joyport, set by `EnsureBuiltInProfiles` and on load whatever the
+    file holds.
+  - A user profile's mode is saved as `"profileMode": "joyport"` in its profile
+    object, omitted for Normal. A profile with no such member, which is every
+    profile saved before this change, is Normal (FR-020). An unknown value
+    reads as Normal rather than dropping the profile, since the mapping itself
+    is sound.
+  - `ControllerProfileStore::CreateProfile` gains the mode in effect and stamps
+    it on the new profile. `ProfileSource` gains `JoyportMapping`, so both
+    modes offer the Default mapping, the Joyport mapping, Paddles, and a copy of
+    any profile of either mode.
+  - `ResetProfile` restores the built-in mapping of the profile's own mode: a
+    user profile in Joyport mode resets to the Joyport mapping, not the
+    Default's. `MakeBuiltInMapping`'s "a user profile resets to the Default's"
+    becomes "to its mode's built-in".
+  - Lists: `ControllerModelSettings::GetProfileNames (ProfileMode)` returns the
+    mode's built-in profile first, then that mode's user profiles in stored
+    order. The picker's `ProfileSection` and the Controllers page both build
+    from it, which replaces `SetProfileSections`' rule of listing Default and
+    Joyport first in every section.
+  - Names: `CheckProfileName` already compares against every profile of the
+    model, so names stay unique across both modes with no change (FR-020, spec
+    034 FR-027). A test pins it.
+  - Choices: an active-profile entry that points at a profile of the other mode is
+    treated as unset, so the controller plays its mode's built-in profile, and
+    the entry is dropped the next time the choices are saved. This is a
+    silent normalization rather than a rejected entry: it was reachable only
+    in development builds of this branch, and nothing the user made is lost.
+- **Reverses part of `3f0c4620` and `c00c2c7a`**: those let any profile be
+  picked in either mode, and `ChosenProfile_IsRememberedForEachMode` picks the
+  Joyport profile in normal mode and the Default in Joyport mode. The test is
+  rewritten to pick a normal-mode user profile and a Joyport-mode user profile;
+  a new test pins that picking a profile of the other mode is rejected and
+  leaves the choice unchanged.
+- **Rationale**: FR-020. A field on the profile, rather than two profile lists
+  per model, keeps one namespace for names, one store for mappings, and lets
+  "copy of any profile of either mode" stay a lookup by name.
+- **Alternatives considered**: deriving the mode from the active-profile map a
+  profile was last picked in. Rejected; a profile never picked would have no
+  mode, and FR-020 fixes the mode at creation.
+
+## R18. The second stick on a DirectInput gamepad
+
+- **Decision**: `DefaultMapping::MakeJoyport` gains the device's
+  `ControllerFormFactor` (from `ControllerDeviceInfo::formFactor`,
+  `CassoEmuCore/Controllers/ControllerTypes.h`), and so do
+  `MakeBuiltInMapping`, `EnsureBuiltInProfiles`, `GetBuiltInSettings`,
+  `GetOrCreateModel`, `CreateProfile` and `ResetProfile`, as an explicit
+  parameter beside the model with no default, so the compiler finds every
+  caller. For `ControllerKind::DirectInput` with form factor `Gamepad`, a
+  pure `DefaultMapping::FindSecondStick (formFactor, controls)` picks:
+  - Z (axis 2) and Rz (axis 5) when the device reports both;
+  - otherwise Rx (axis 3) and Ry (axis 4) when it reports both;
+  - otherwise none.
+  The pair is added as Absolute bindings on PDL0 and PDL1 after the primary
+  stick, as the XInput right stick is. Joysticks and wheels are unchanged:
+  primary stick, D-pad, every button (FR-017).
+- **Axis order**: `DirectInputSampleDecoder::Decode` fills `sample.axes` as
+  x, y, z, rx, ry, rz, slider 0, slider 1, and `ControlId` indexes axes the
+  same way (0-7), so the indexes above are the decoder's own.
+- **Triggers**: XInput triggers are `ControlKind::Trigger` and are only ever
+  bound to PB0. DirectInput has no trigger kind (the decoder's `ListControls`
+  comment), so a DirectInput trigger is an axis Casso cannot tell apart from a
+  stick. The Z/Rz-before-Rx/Ry order is what keeps them off the switches on
+  the common layouts: a pad reporting Z and Rz uses them for its right stick
+  and Rx/Ry for its triggers, and an Xbox-class pad read through DirectInput
+  reports its triggers as one Z axis with no Rz, so the rule falls through to
+  Rx/Ry for its right stick. A pad that breaks both conventions gets a wrong
+  second stick, which the user can edit out of the profile.
+- **Model versus unit**: profiles are per model and the form factor is per
+  unit, but every unit of a DirectInput model has the same vendor and product
+  and so the same `dwDevType`; the first unit seen decides the built-in
+  mapping, as its controls list already does.
+- **Existing profiles**: a Joyport profile already saved keeps its mapping
+  (FR-017's "keeping its mapping" rule applies to user data); a user gets the
+  second stick by resetting it.
+
+## R19. The vertical switch is an orientation option on DxuiToggle
+
+- **Decision**: `DxuiToggle` gains `enum class OnDirection { Right, Up, Down }`
+  and `SetOnDirection`, default `Right` (today's horizontal pill). `Up` and
+  `Down` lay the pill out vertically, with the thumb traveling toward that end
+  when checked. The pill and thumb rectangles come from a pure static
+  `ComputeTrackAndThumb (const RECT & pill, OnDirection, bool checked)`, so the
+  geometry is tested without a painter; hit testing and keyboard handling are
+  unchanged. The Joyport section uses `Down`, since the unit's front is toward
+  the bottom and front is Atari mode (FR-001), and sets the label to "Atari
+  mode" or "Apple mode" on each change.
+- **Rationale**: the spec's planning note puts the orientation on the existing
+  toggle; a direction rather than a bool records which end is on, which a
+  vertical switch needs and a horizontal one never did.
+- **Alternatives considered**: a Joyport-specific view drawing the unit's
+  switch. Rejected; it would duplicate focus, hover and accessibility handling
+  the toggle already has.
+
+## R20. One controller is never an analog joystick and an Atari stick at once
+
+- **Decision**: unchanged mechanism, recorded because the spec now states it as
+  a requirement (FR-009): while the Joyport is in effect, `IsDrivingPaddles`
+  makes `$C064`-`$C067` read as no paddle connected (R3), controllers drive the
+  switches, and the picker leaves mouse-as-paddle out. The picker rule is a
+  pure predicate the picker consults, so spec 034's Player 1 submenu does not
+  have to know about the Joyport.
+- **Rationale**: the paddle inputs and the Joyport's switches are at different
+  addresses, but both kinds of fire button are read at `$C061`-`$C063` with
+  opposite polarity: an Apple button reads bit 7 set when pressed, an Atari
+  switch bit 7 clear when closed. With both offered, a joystick game would
+  steer from the paddles and read fire inverted, and a game that probes the
+  paddle inputs to detect a joystick could pick the wrong controller. The
+  hardware's Apple / Atari switch never connects both either.
+
+## R21. Which controller drives which jack, from spec 034's players
+
+- **Decision**: a pure `JoyportJackRules::AssignJacks (const JoyportPlayers &)`
+  returns, for each jack, which player's switches it carries. Its input is a
+  reduction of spec 034's `PlayerSlotState` (034 data-model, "Players
+  (2026-09-27)") to three states per player, plus whether Player 2 is
+  Disabled:
+
+  | 034 slot state | Joyport state |
+  |---|---|
+  | `Playing`, `Provisional`, or Player 1 on the arrow keys | Driving |
+  | `Held` | Held |
+  | `Empty`, `Waiting`, Player 1 on mouse-as-paddle | Idle |
+
+  | Player 1 | Player 2 | Left jack | Right jack |
+  |---|---|---|---|
+  | Driving | Idle | Player 1 | Player 1 |
+  | Idle | Driving | Player 2 | Player 2 |
+  | Driving | Disabled (Same as left) | Player 1 | Player 1 |
+  | Driving | Driving | Player 1 | Player 2 |
+  | Held | Driving | open | Player 2 |
+  | Driving | Held | Player 1 | open |
+  | anything else | | open | open |
+
+  The first two rows are FR-008's "one controller playing alone", which
+  matches 034's `IsOnePlaying`. A Held slot is how 034 keeps a leaver's place
+  (its FR-040), so the split survives their absence and the remaining player
+  does not regain the other jack. When 034's Automatic starts over, both slots
+  go Idle and the first player again drives both. Slot targets play no part
+  (US3 scenario 3). `ControllerInputService::AddJoyportSwitches` is rewritten to
+  place each driver by this assignment instead of by `std::optional<size_t>
+  player`.
+- **Keyboard**: the arrow keys are one of Player 1's entries in spec 034's
+  picker. When Player 1 is the arrow keys and Player 2 holds a controller, the
+  left jack carries the keys and the right jack the controller; the mixer
+  composes the jacks from the assignment instead of from the axis owner alone
+  (R6's owner table stands for the non-Joyport paddles and buttons).
+- **Rationale**: FR-008 as clarified. Deriving from the slot holders rather
+  than from recent input makes the result deterministic and testable with
+  `FakeControllerBackend`.
+- **Dependency**: spec 034's player state and Automatic (its FR-040 to
+  FR-042). The rule's tests use a plain `JoyportPlayers` value, so they do not
+  wait on 034; wiring it into the service does.
+
+## R22. Joyport labels in the picker and the notices
+
+- **Decision**: a pure `JoyportLabels` helper (in `CassoEmuCore/Controllers/`)
+  returns the player row label, Player 2's Disabled entry label, the Automatic
+  row text and the notice text for a given player and `IsInEffect` state:
+  - off: whatever spec 034 shows (Player 1, Player 2, Disabled);
+  - on: "Joyport left", "Joyport right", "Same as left"; Joyport right on
+    Automatic with no holder reads "Joyport right: same as left"; the notice
+    for a controller playing alone reads "Joyport left and right:
+    description", and otherwise "Joyport left: description" or "Joyport
+    right: description" (FR-019).
+  Spec 034's picker and notice code calls it where it now builds those
+  strings.
+- **Rationale**: one place for the strings keeps the picker and the notices
+  from drifting, and the rule is testable as plain data.
+- **Dependency**: spec 034's player submenus and notice stack (its FR-008 and
+  FR-044). The helper and its tests do not wait; the hookup does.
+
+## R23. The Controllers page's Joyport section and per-mode lists
+
+- **Decision**: the page gains a **Joyport** section, above the controller
+  list, shown only when `SettingsMachineInfo::supportsGamePortAdapter` is true
+  (not the //c). It holds the vertical toggle (R19). Moving it calls the shell
+  at once (R15), then `ControllersPageState::SetProfileMode` with the new
+  mode, which now reloads the profile list and the edited profile in place:
+  the edited controller switches to its choice for the new mode, as
+  `SelectProfile` does today, so a pending edit is handled exactly as when the
+  user picks another profile. The stick art (R12) replaces the stick and
+  button lights while the mode is Joyport.
+- **Rationale**: FR-001 and FR-020 ("moving the Joyport switch on the
+  Controllers page MUST swap the list in place"). `SetProfileMode` today only
+  takes effect before `Load`, which is why it needs the reload.
+- **Mouse-as-paddle** is not on this page, so nothing here hides it (R20).
+
+## R24. The Controller Select switch: deferred
+
+- **Decision**: not planned. FR-016 carries an open clarification marker that
+  the owner has not resolved, so the emulator keeps the switch at Center, as
+  the `SiriusJoyport` contract and its tests already do. Nothing in R14-R23
+  depends on it.
+- **If adopted**, the shape it would take, recorded so the decision can be
+  made against it and not as a commitment: a global `joyportControllerSelect`
+  token (`left`, `center`, `right`) beside `gamePortAdapter` (R14); a
+  `SiriusJoyport::SetControllerSelect` read on each `TryReadButton`, where Left
+  or Right fixes the jack whatever AN0 selects; a three-position Dxui control in
+  the toggle's style, disabled in Apple mode (spec planning notes); and the
+  manual's test program as the check for SC-008. The earlier pass through that
+  program closed switches on both jacks for its one-stick sections, which is
+  why it passed without this switch (validation.md).

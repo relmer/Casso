@@ -46,8 +46,8 @@ joystick state" entity, one per jack. An alias,
 | `GamePortTargets` | `Shell/MachineGamePortSink.h` | + `SiriusJoyport * joyport` (null on the //c). |
 | `MachineHost` | `Shell/MachineHost.h` | + owns `std::unique_ptr<SiriusJoyport>`, `GetJoyport` / `SetJoyport`, beside the mouse. (`MachineRefs` holds only pointers into the owned device list, so it gains nothing.) |
 | `IMachine` | `Machines/IMachine.h` | + `HasAnnunciators()`, the source of `MachineDefinition::hasAnnunciators`. |
-| `SettingsUiPrefs` | `Ui/Settings/SettingsPanelState.h` | + `GamePortAdapter gamePortAdapter = None`. |
-| `ISettingsApplySink` | `SettingsPanelState.h` | + `ApplyGamePortAdapter (GamePortAdapter)`. |
+| `SettingsUiPrefs` | `Ui/Settings/SettingsPanelState.h` | + `GamePortAdapter gamePortAdapter = None`. (Removed 2026-09-27, R15.) |
+| `ISettingsApplySink` | `SettingsPanelState.h` | + `ApplyGamePortAdapter (GamePortAdapter)`. (Removed 2026-09-27, R15.) |
 
 ## Annunciator state
 
@@ -97,5 +97,121 @@ Detached  ------------------->  Active  ------------------------------->  Releas
 
 ## Settings pref
 
+> **Superseded (2026-09-27)** by the global setting below. Kept as the source
+> the one-time adoption reads.
+
 `$cassoUiPrefs.gamePortAdapter`, per machine, token as above. Omitted when
 `"none"`. See [contracts/prefs-and-ui.md](contracts/prefs-and-ui.md).
+
+---
+
+## 2026-09-27 additions (GH #156)
+
+Research R14-R23. The spec's entities map as follows.
+
+| Spec entity | Where it lives |
+|---|---|
+| Joyport setting | `GlobalUserPrefs::gamePortAdapter` (token), read through `JoyportSetting` |
+| Profile mode | `ControllerProfile::mode` |
+| Joyport profile | the `ControllerProfileKind::Joyport` built-in (already built), now Joyport-mode |
+| Chosen profile per mode | `ControllerProfileStore::activeProfiles` / `joyportActiveProfiles` (already built), now restricted to the mode's own profiles |
+| Controller Select position | not modeled; FR-016 is undecided (R24) |
+
+### Joyport setting (global)
+
+| Field | Type | Notes |
+|---|---|---|
+| `GlobalUserPrefs::gamePortAdapter` | `std::string` | `"none"` (Apple mode) or `"siriusJoyport"` (Atari mode). Empty means never set, which triggers the one-time adoption (R14). Written on every change. |
+
+`JoyportSetting` (`CassoEmuCore/Controllers/JoyportSetting.h/.cpp`), static
+members only:
+
+| Function | Returns |
+|---|---|
+| `IsInEffect (GamePortAdapter setting, bool hasAnnunciators)` | whether the running machine reads the Joyport; false on the //c whatever the setting (R16) |
+| `IsMousePaddleOffered (bool isJoyportInEffect)` | whether the picker lists mouse-as-paddle: false while the Joyport is in effect (FR-009, R20) |
+| `ResolveAtLaunch (const std::string & globalToken, const JsonValue * launchedUiPrefs, bool launchedHasAnnunciators)` | a `JoyportLaunchSetting { GamePortAdapter setting; bool isAdopted; }`: the global value when set, otherwise the launched machine's saved per-machine value (`None` on a machine without annunciators), with `isAdopted` true so the caller saves it |
+
+State transitions of the setting:
+
+```text
+           picker row checked / page switch to Atari
+ Apple  --------------------------------------------->  Atari
+ mode   <---------------------------------------------  mode
+           picker row unchecked / page switch to Apple
+
+ A machine switch changes neither; IsInEffect decides what the machine reads.
+```
+
+### ControllerProfile (changed)
+
+| Field | Type | Notes |
+|---|---|---|
+| `mode` | `ProfileMode` | `Normal` or `Joyport`, fixed at creation. Built-ins: Default `Normal`, Joyport `Joyport`, forced from the kind. User profiles: saved as `"profileMode": "joyport"`, omitted for `Normal`; absent or unknown reads `Normal`. |
+
+Validation and rules:
+
+- Names are unique per model across both modes, ignoring case (unchanged
+  `CheckProfileName`).
+- `ControllerModelSettings::GetProfileNames (ProfileMode mode)`: the mode's
+  built-in profile first, then the mode's user profiles in stored order.
+- Reset restores the built-in mapping of the profile's own mode.
+- An active-profile entry pointing at a profile of the other mode is treated as
+  unset.
+
+### ProfileSource (changed)
+
+| Value | Starting mapping |
+|---|---|
+| `DefaultMapping` | the Default built-in mapping |
+| `JoyportMapping` | new: the Joyport built-in mapping |
+| `CopyOfProfile` | a copy of any profile of either mode |
+| `Paddles` | the Paddles template |
+
+The new profile's mode is the mode in effect, whatever the source.
+
+### Built-in mapping inputs (changed)
+
+`DefaultMapping::MakeJoyport`, `ControllerModelSettings::MakeBuiltInMapping`,
+`EnsureBuiltInProfiles`, `ResetProfile`, and `ControllerProfileStore`'s
+`GetBuiltInSettings`, `GetOrCreateModel`, `CreateProfile` and `ResetProfile`
+gain `ControllerFormFactor formFactor`. `DefaultMapping::FindSecondStick
+(ControllerFormFactor, const std::vector<ControlId> &)` returns
+`std::optional<std::pair<ControlId, ControlId>>`: Z/Rz, else Rx/Ry, on a
+DirectInput gamepad; none on a joystick or wheel (R18).
+
+### Jack assignment
+
+`JoyportJackRules` (`CassoEmuCore/Controllers/JoyportJackRules.h/.cpp`):
+
+| Type | Fields |
+|---|---|
+| `JoyportPlayerState` (enum) | `Idle`, `Driving`, `Held`: spec 034's `PlayerSlotState` reduced per R21 |
+| `JoyportPlayers` (input) | `std::array<JoyportPlayerState, 2> players`; `bool isPlayer2Disabled` |
+| `JoyportJackSource` (enum) | `None`, `Player1`, `Player2` |
+| `AssignJacks` result | `std::array<JoyportJackSource, 2>`, `[0]` left, `[1]` right |
+
+The table is research R21. Invariant: a jack's source is always a Driving
+player; a Held player's jack is `None` and is never handed to the other
+player.
+
+### Labels
+
+`JoyportLabels` (`CassoEmuCore/Controllers/JoyportLabels.h/.cpp`) returns the
+strings of FR-019 from a player index, `IsInEffect`, and whether the notice is
+for a controller playing alone (R22).
+
+### DxuiToggle (changed)
+
+| Member | Notes |
+|---|---|
+| `enum class OnDirection { Right, Up, Down }` | which end the thumb travels to when checked; `Right` is today's pill |
+| `SetOnDirection` / `GetOnDirection` | default `Right` |
+| `static ComputeTrackAndThumb (const RECT & pill, OnDirection, bool checked)` | pure geometry, tested without a painter |
+
+### Removed
+
+`SettingsUiPrefs::gamePortAdapter`, `ISettingsApplySink::ApplyGamePortAdapter`,
+`SettingsPanelState::SetGamePortAdapter` / `ObserveLiveGamePortAdapter`, the
+`HardwarePage` Game port group and its helpers (R15). The per-machine key is
+no longer written (R14).

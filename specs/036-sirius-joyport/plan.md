@@ -1,6 +1,6 @@
 # Implementation Plan: Sirius Joyport Emulation
 
-**Branch**: `036-sirius-joyport` | **Date**: 2026-09-24 | **Spec**: [spec.md](spec.md)
+**Branch**: `036-sirius-joyport` | **Date**: 2026-09-24, updated 2026-09-27 (GH #156) | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/036-sirius-joyport/spec.md`
 
@@ -32,6 +32,40 @@ a checkable picker row (live) or a Game port group on the Machine tab (on OK),
 with neither ever resetting the machine (R8-R11). The Controllers page swaps its
 stick and button lights for five switch lights while the Joyport is attached
 (R12). A `JoyportTest` readout disk covers SC-001 (R13).
+
+### 2026-09-27 update (GH #156)
+
+The 2026-09-24 design above shipped in 1.28.0. GH #156 changed where the
+Joyport is turned on, how profiles relate to it and which controller drives
+which jack. The paragraphs above stay as the record of what was built; this
+update plans the difference.
+
+- **A global Apple / Atari setting** replaces the per-machine adapter
+  (R14). It keeps the `"none"` / `"siriusJoyport"` tokens, moves to
+  `GlobalUserPrefs`, and adopts the launched machine's saved value once. The
+  //c reads it as off without changing it, through one predicate every
+  consumer calls (R16).
+- **Where it is turned on** (R15, R19, R23): the picker row, relabeled
+  **Joyport (Atari mode)**, and a Joyport section on the Controllers page
+  drawn as the unit's own vertical switch, using a new `OnDirection` option on
+  `DxuiToggle`. Both apply at once. The Machine tab's Game port group and the
+  sheet's OK-applied path for it are removed.
+- **Profiles belong to a mode** (R17): a `mode` field on each profile, fixed
+  at creation and saved as `"profileMode"`; lists show only the mode's
+  profiles, built-in first; creation offers the same starting points in both
+  modes; reset restores the mode's built-in. This reverses the part of the
+  already-built `3f0c4620` and `c00c2c7a` that let any profile be picked in
+  either mode.
+- **The Joyport profile's DirectInput second stick** (R18): Z/Rz, else Rx/Ry,
+  on a DirectInput gamepad only, using `ControllerFormFactor`.
+- **Jacks from spec 034's players** (R21): one player drives both jacks; two
+  split left and right; a leaver's jack is held; Same as left keeps Player 1
+  on both. **Labels** (R22) come from one helper that spec 034's picker and
+  notices call.
+- **Never analog and Atari at once** (R20): the mechanism already exists; the
+  picker now leaves mouse-as-paddle out while the Joyport is on.
+- **Deferred**: the Controller Select switch (FR-016) is not decided by the
+  owner and is not planned (R24). Casso keeps it at Center.
 
 ## Technical Context
 
@@ -65,6 +99,24 @@ detached behavior identical to today (FR-013, SC-006)
 **Scale/Scope**: two jacks of five switches; four machine models; three
 annunciators
 
+**2026-09-27 additions**:
+
+- **Dependencies**: spec 034's player slots, Automatic, player submenus and
+  notice stack (its FR-008, FR-040 to FR-044), being planned at the same time.
+  Only the hookups wait on it (R21, R22); the rules and their tests do not.
+  Dxui's `DxuiToggle` gains an orientation option.
+- **Storage**: global `gamePortAdapter` in `UserPrefs.json`; per profile
+  `"profileMode"` in the `controllers` section. The per-machine key is read
+  once for adoption and no longer written.
+- **Testing**: as above, plus `GlobalUserPrefsTests`,
+  `ControllerProfileStoreTests`, `ControllersPageStateTests`, a new
+  `JoyportJackRulesTests`, `JoyportLabelsTests`, `JoyportSettingTests` and
+  `DxuiToggleTests`. The scenario suite runs at the gate because the Joyport
+  is guest-visible.
+- **Unknowns**: none left for planning. FR-016 is an owner decision, not a
+  planning unknown, and is deferred (R24). Spec items found underspecified
+  are listed under Open Items below; none blocks the plan.
+
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
@@ -82,6 +134,22 @@ annunciators
 **Post-design re-check**: Pass. The one presentation decision the spec leaves
 open, how a two-choice setting appears in a checkbox-only tree, is resolved
 without a new widget (R10). No violations to track.
+
+### 2026-09-27 check
+
+| Principle | Status | How |
+|---|---|---|
+| I. Code Quality | Pass | New logic is three small static-only classes (`JoyportSetting`, `JoyportJackRules`, `JoyportLabels`) and a field on `ControllerProfile`. The prefs read and write keep EHM; the rules cannot fail. |
+| II. Testing Discipline, Test Isolation | Pass | Every new rule is a pure function with a table-driven test: adoption and `IsInEffect`, jack assignment, labels, profile mode on load, create and reset, the second-stick choice, toggle geometry. Prefs through `InMemoryFileSystem`; controllers through `FakeControllerBackend`. The rework of the two built commits rewrites `ChosenProfile_IsRememberedForEachMode` to the new rule rather than deleting it. |
+| III. UX Consistency | Pass | Sentence-case labels ("Joyport (Atari mode)", "Atari mode", "Same as left"). One setting, two places that show and change it, as the mouse toggle does. No CLI change. |
+| IV. Performance | Pass | No new thread or timer. The jack assignment runs on the existing controller tick. |
+| V. Simplicity | Pass | The setting reuses the adapter enum and tokens. Removing the Machine tab path deletes more Settings plumbing than the Controllers page section adds. The Controller Select switch is not built (YAGNI until decided). |
+| VI. Thin Executable, Testable Core | Pass | All code in `CassoEmuCore` and `Dxui`; nothing in `Casso.exe`. The two shell call sites for adoption stay one-line forwarders to `JoyportSetting`. |
+| Dependencies | Pass | None added. |
+
+**Post-design re-check (2026-09-27)**: Pass. Two items are outside planning
+and are not gate failures: FR-016 carries an open clarification marker on
+purpose (R24), and the hookups of R21 and R22 wait on spec 034's player work.
 
 ## Project Structure
 
@@ -164,6 +232,49 @@ devices, the switch logic extends the Controllers classes spec 034 created, and
 the UI changes stay in the files that already own each surface. Nothing new
 goes in an executable.
 
+#### 2026-09-27 additions
+
+```text
+Dxui/Widgets/
+└── DxuiToggle.h/.cpp                       # OnDirection (Right, Up, Down); ComputeTrackAndThumb
+
+CassoEmuCore/
+├── Config/
+│   ├── GlobalUserPrefs.h/.cpp              # + gamePortAdapter (global token)
+│   └── MachineInputPrefs.h/.cpp            # ReadGamePortAdapter kept for adoption only
+├── Controllers/
+│   ├── JoyportSetting.h/.cpp               # new: IsInEffect, IsMousePaddleOffered, ResolveAtLaunch
+│   ├── JoyportJackRules.h/.cpp             # new: AssignJacks from the players
+│   ├── JoyportLabels.h/.cpp                # new: FR-019 strings
+│   ├── ControlMapping.h/.cpp               # MakeJoyport + formFactor; FindSecondStick
+│   ├── ControllerProfileStore.h/.cpp       # ControllerProfile::mode, "profileMode", GetProfileNames(mode),
+│   │                                       #   ProfileSource::JoyportMapping, reset to the mode's built-in
+│   └── ControllerInputService.h/.cpp       # mode-checked choices; AddJoyportSwitches by AssignJacks
+├── Shell/
+│   ├── EmulatorShell.h, EmulatorShellPrefs.cpp          # global setting, adoption, IsJoyportInEffect
+│   ├── MachineManager.cpp                  # apply the global setting on machine switch
+│   ├── WindowCommandManager.cpp            # IDM_GAMEPORT_ADAPTER_* to SetGamePortAdapter
+│   └── Window/EmulatorWindow.cpp, EmulatorWindowInput.cpp  # picker fns, profile sections per mode
+└── Ui/
+    ├── Chrome/EmulatorCommands.h/.cpp      # "Joyport (Atari mode)"; per-mode profile sections
+    └── Settings/
+        ├── HardwarePage.h/.cpp             # Game port group removed
+        ├── SettingsPanelState.h/.cpp       # gamePortAdapter plumbing removed
+        ├── SettingsApplyAdapter.h/.cpp     # ApplyGamePortAdapter removed
+        ├── SettingsSheet.cpp               # observation removed; SetJoyportFns wiring
+        ├── ControllersPage.h/.cpp          # Joyport section with the vertical toggle
+        └── ControllersPageState.h/.cpp     # SetProfileMode reloads; lists per mode; create/reset by mode
+
+UnitTest/
+├── Dxui/DxuiToggleTests.cpp                # new
+├── ControllerTests/
+│   ├── JoyportSettingTests.cpp             # new
+│   ├── JoyportJackRulesTests.cpp           # new
+│   ├── JoyportLabelsTests.cpp              # new
+│   └── (extend) ControllerProfileStoreTests, ControllerInputServiceTests, ControllersPageStateTests, PaddleSourceRowsTests
+└── UiTests/                                # (extend) GlobalUserPrefsTests, HardwarePageTests, SettingsPanelStateTests, MachineInputPrefsTests
+```
+
 ## Delivery Slices
 
 Each slice leaves the build green and is committed on its own (constitution:
@@ -179,6 +290,41 @@ commit per phase).
 | 6 | **US3 two players**: multiplayer jacks, disconnect | 3 | US3, FR-008 (multiplayer), SC-005 |
 | 7 | **US5 page**: switch lights, jack caption | 5, 6 | US5, FR-015 |
 | 8 | **Polish**: quickstart V6, V7, V10, CHANGELOG, README, the full gate | all | SC-004, SC-006 |
+
+### 2026-09-27 slices
+
+| Phase | Slice | Depends on | Covers |
+|---|---|---|---|
+| 9 | **Profile modes**: `ControllerProfile::mode` and its storage, lists per mode, create and reset by mode, `ProfileSource::JoyportMapping`, mode-checked choices; rework of `3f0c4620` and `c00c2c7a` | 8 | US7 sc. 2, 5; FR-018, FR-020 |
+| 10 | **Joyport profile second stick**: `formFactor` through the built-in mapping path, `FindSecondStick` | 9 | US7 sc. 1, 3; FR-017 |
+| 11 | **Global setting**: `GlobalUserPrefs::gamePortAdapter`, adoption, `IsInEffect`, the //c, machine switch, command routing | 8 | US4 sc. 3, 4; FR-002, SC-007 |
+| 12 | **Where it is turned on**: `DxuiToggle` orientation, the Controllers page section and in-place list swap, picker row relabel, mouse-as-paddle hidden, Machine tab and sheet plumbing removed | 9, 11 | US4 sc. 1, 2; FR-001, FR-009, FR-012 |
+| 13 | **Jacks and labels from spec 034's players**: `JoyportJackRules`, `JoyportLabels`, and their hookups | 11; spec 034's player work for the hookups | US3; FR-008, FR-019, SC-009 |
+| 14 | **Validation and gate**: quickstart V11-V20, CHANGELOG and README for approval, the full gate | 9-13 | SC-007, SC-009, SC-010 |
+| (15) | **Optional, blocked on the FR-016 decision**: the Controller Select switch | owner decision | US6, FR-016, SC-008 |
+
+## Open Items (2026-09-27)
+
+Found while planning; recorded, not resolved here.
+
+- **FR-016**: the owner's decision on the Controller Select switch (R24).
+- **Mouse-as-paddle already chosen** when the Joyport is turned on: FR-009
+  hides the entry, but the spec does not state what Player 1 plays meanwhile.
+  The plan keeps today's behavior (the mixer's MousePaddle owner leaves every
+  switch open) and keeps the entry saved, so turning the Joyport off restores
+  it.
+- **Arrow keys as Player 1 beside a controller as Player 2** (R21): whether
+  spec 034's players allow that pairing decides whether the mixer must compose
+  the jacks from two sources. The plan supports it; if 034 rules it out, the
+  composition reduces to today's owner table.
+- **A profile saved by this build read by an older build**: the older build
+  ignores `"profileMode"` and lists a Joyport-mode profile as an ordinary one.
+  Accepted; nothing is lost.
+- **Joyport profile already saved**: an existing saved Joyport profile keeps
+  its mapping, so a DirectInput gamepad user gets the second stick only after
+  Reset profile (R18). The spec's "keeping its mapping" rule covers only a
+  user profile called Joyport; this reads it as covering the saved built-in
+  too.
 
 ## Complexity Tracking
 

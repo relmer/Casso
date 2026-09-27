@@ -1,6 +1,6 @@
 # Implementation Plan: Physical Game Controllers
 
-**Branch**: `034-game-controllers` | **Date**: 2026-09-11 | **Spec**: [spec.md](spec.md)
+**Branch**: `034-game-controllers` (worked on `claude/issue-156-fix-6f63fe` for GH #156) | **Date**: 2026-09-11, updated 2026-09-27 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/034-game-controllers/spec.md` (GH #97)
 
@@ -17,25 +17,37 @@ Two findings shape delivery:
 1. **A hardware check comes first** (research R2, R4, R13): the XInput packet rate, DirectInput change events, whether wireless Xbox power on and off raises HID notifications, and whether XInput keeps delivering while the Settings sheet is the active Casso window.
 2. **032 is on master and merged into this branch** (R11). The Machine menu and the toolbar input control are built on its shipped widgets (`DxuiCommand`, `DxuiPopupMenu` submenus, `DxuiToolbar`, `InputClusterEntry`), which differ from 032's contracts.
 
+### 2026-09-27: two always-present player slots (GH #156)
+
+The spec's Session 2026-09-27 replaces single-source and multiplayer modes with **two global player slots that are always present**, so two controllers play two players with no setup. Phases 12-18 of [tasks.md](tasks.md) build it on top of what Phases 1-11 shipped; research [R16-R25](research.md#2026-09-27-two-always-present-player-slots-gh-156) records the decisions.
+
+- **Who plays** is computed by a new pure `PlayerSlotPolicy` from the two player entries (Automatic, a picked controller, keys/mouse for Player 1, Disabled for Player 2), the attached devices, and two logs the service keeps: the order controllers connected while Casso runs and the order they first gave real input while active (R16). A slot filled by Automatic counts as playing only after input; one controller playing drives PDL0/PDL1/PB0-PB2 as a single controller always has; a leaving player's slot is held so the other keeps only what they had (R17).
+- **What a slot drives** follows its target, and the target follows the holder's active profile unless set on the Controllers page; buttons follow the target as the hardware wires them (R18). `PlayerTargetRules` holds both as pure lookups. The mixer is unchanged; the service composes the one `Controller` contribution differently ([contracts/game-port-mixer.md](contracts/game-port-mixer.md)).
+- **Idle controllers are watched** for their first input: XInput every 100 ms by packet number, DirectInput by its existing events, only while a player on Automatic is waiting and Casso is active (R23, [contracts/controller-backend.md](contracts/controller-backend.md)).
+- **Persistence moves to global** `controllers.players` and `controllers.lastHolders`, with a one-time adoption of the launched machine's per-machine keys (R19, [contracts/prefs-schema.md](contracts/prefs-schema.md)).
+- **The picker** gets a Player 1 row and a Player 2 row with submenus and a profile section at each foot; the Profiles submenu, the Multiplayer row and "N controllers" go (R22). Its label gains " +1" and a middle ellipsis from a new `DxuiElide::Middle` (R24).
+- **Notices stack** in a new Dxui control, `DxuiNoticeStack`, with a shared `DxuiSlide` for the menus' open duration and easing; the shell keeps the thread hand-off and the anchor (R20, [contracts/notice-stack.md](contracts/notice-stack.md)). Assignment notices show only when a slot's holder differs from the saved last holder (R21).
+- **Spec 036** owns the picker's "Joyport (Atari mode)" row, the Joyport labels on the player rows and notices, and which mode each profile belongs to. The hooks it needs (`PlayerSlotPolicy::DescribeAssignment`, the row model, the profile section's list for the mode in effect) are planned here and filled there.
+
 ## Technical Context
 
 **Language/Version**: C++ stdcpplatest, MSVC v145
 
 **Primary Dependencies**: Windows SDK only: XInput 1.4 (`xinput.lib`), DirectInput 8 (`dinput8.lib`, `dxguid.lib`), HID (`hid.lib`) for serial numbers, `RegisterDeviceNotification`. Dxui for the Controllers page, and 032's `DxuiCommand`, `DxuiPopupMenuItem` and `DxuiToolbar` for the menu and toolbar.
 
-**Storage**: `GlobalUserPrefs` JSON (new `controllers` section) and the per-machine `$cassoUiPrefs` block ([contracts/prefs-schema.md](contracts/prefs-schema.md))
+**Storage**: `GlobalUserPrefs` JSON (new `controllers` section) and the per-machine `$cassoUiPrefs` block ([contracts/prefs-schema.md](contracts/prefs-schema.md)). From 2026-09-27 the players' entries and last holders are global too (`controllers.players`, `controllers.lastHolders`); the per-machine `controller` and `multiplayer` keys are read once for adoption and no longer written (R19)
 
-**Testing**: Microsoft C++ Unit Test Framework; new `UnitTest/ControllerTests/` with `FakeControllerBackend` and `RecordingGamePortSink`; existing `InMemoryFileSystem` for prefs
+**Testing**: Microsoft C++ Unit Test Framework; new `UnitTest/ControllerTests/` with `FakeControllerBackend` and `RecordingGamePortSink`; existing `InMemoryFileSystem` for prefs. 2026-09-27 logic is driven the same way, with the service's injected clock (`ControllerInputService::SetClock`) and Dxui's pass-in time (`Tick (nowMs)`) standing in for real time, and the animation flag passed in rather than read from `DxuiSystemSettings` inside the tested code, since that singleton reads the real system and the CI runner reports animations off
 
 **Target Platform**: Windows 10/11, x64 and ARM64 (ARM64 build-only; x64 Debug and Release are the test bar)
 
 **Project Type**: Desktop application (emulator)
 
-**Performance Goals**: DirectInput devices read on their own change events; XInput polled at the measured packet rate (R13; measured 125 packets/s, 8 ms); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: with nothing connected the thread waits with no timeout; controllers are found by HID arrival notifications, never by polling empty slots)
+**Performance Goals**: DirectInput devices read on their own change events; XInput polled at the measured packet rate (R13; measured 125 packets/s, 8 ms); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: with nothing connected the thread waits with no timeout; controllers are found by HID arrival notifications, never by polling empty slots). 2026-09-27: while a player on Automatic waits for a controller and Casso is active, attached controllers that hold no slot are watched for first input at 100 ms (XInput) or on their events (DirectInput), still with no measurable cost (SC-007, R23); a notice slide or expiry keeps frames coming only while it runs
 
 **Constraints**: no redistributables; no real device access in unit tests; no undocumented API on a required path (`XInputGetCapabilitiesEx` is optional with fallback, R6); input applies only while Casso is active, and Xbox-class controllers always use XInput (FR-033)
 
-**Scale/Scope**: up to 4 XInput slots plus any number of DirectInput devices; up to four analog axes, each with at most one owner, so several controllers drive the port at once (FR-034 to FR-038)
+**Scale/Scope**: up to 4 XInput slots plus any number of DirectInput devices; up to four analog axes, each with at most one owner, so several controllers drive the port at once (FR-034 to FR-038); exactly two player slots (FR-037); any number of stacked notices (FR-044)
 
 ## Constitution Check
 
@@ -53,6 +65,20 @@ Two findings shape delivery:
 
 **Post-design re-check**: Pass. The contracts keep the device boundary to one seam with a fake, the mixer is pure with a recording sink, and prefs use the existing in-memory file system. No violations to track.
 
+### Constitution check, 2026-09-27 work
+
+| Principle | Status | How |
+|---|---|---|
+| I. Code Quality | Pass | `PlayerSlotPolicy`, `PlayerTargetRules`, `DxuiNoticeStack` and `DxuiSlide` are small classes with static helpers; the adoption is one function per source key. EHM on the prefs readers, which report rather than drop a bad value. |
+| II. Testing Discipline, Test Isolation | Pass | Every ordering, holding, routing and target rule is a pure function over data, driven by `FakeControllerBackend` and the service's injected clock. The notice stack and slide take the time and the animation flag as arguments, so no test reads the clock or `DxuiSystemSettings`, which reads the real system (and reports animations off on the CI runner). Each new test group carries a mutation check (tasks). |
+| III. UX Consistency | Pass | Picker labels in sentence case; notices go through one stack for every caller; the slides use the menus' open duration and easing and follow the system's animation setting. No CLI change. |
+| IV. Performance | Pass | The idle watch reads an XInput pad at 10 Hz only while a player on Automatic waits and Casso is active, and an unchanged packet is not decoded (R23); DirectInput adds no reads beyond its own events. The stack requests frames only while a slide runs or until the next expiry. |
+| V. Simplicity | Pass with note | Two new core classes and two new Dxui types, each with one purpose. The two logs in the service are the least state that answers both SC-013 and SC-014 (R16). The held state is added only because FR-040 and FR-042 would otherwise disagree (R17). |
+| VI. Thin Executable, Testable Core | Pass | Player logic in `CassoEmuCore/Controllers/`, the stack, slide and middle elision in `Dxui/`, which `UnitTest` links. `Casso.exe` unchanged. The shell keeps only the thread hand-off, the anchor and the redraw request for notices (R20). |
+| Dependencies | Pass | None added. |
+
+**Post-design re-check (2026-09-27)**: Pass. The mixer interface is unchanged, the backend interface is unchanged, the new Dxui control and the prefs keys each have a contract with its test obligations, and nothing new needs the exe.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -67,6 +93,7 @@ specs/034-game-controllers/
 ├── contracts/
 │   ├── controller-backend.md
 │   ├── game-port-mixer.md
+│   ├── notice-stack.md          # 2026-09-27
 │   └── prefs-schema.md
 ├── checklists/requirements.md
 └── tasks.md             # /speckit-tasks, not created here
@@ -141,6 +168,54 @@ UnitTest/
     └── ControllersPageStateTests.cpp
 ```
 
+Added by the 2026-09-27 work (research R16-R25):
+
+```text
+CassoEmuCore/
+├── Controllers/
+│   ├── PlayerSlotPolicy.h/.cpp        # new: entries + devices + logs -> two slots, states, notices
+│   ├── PlayerTargetRules.h/.cpp       # new: target from profile, button routes by target
+│   ├── ControllerInputService.h/.cpp  # logs, idle watch, slot-based merge; multiplayer mode removed
+│   ├── ControllerSelectionPolicy.h/.cpp # automatic selection and replacement removed; Normalize, targets kept
+│   └── InputModeRules.h/.cpp          # player row model, " +1" label; character cut removed
+├── Config/
+│   ├── GlobalUserPrefs.h/.cpp         # controllers.players, controllers.lastHolders
+│   └── MachineInputPrefs.h/.cpp       # read-only adoption helpers
+├── Shell/
+│   ├── EmulatorShell.h                # DxuiNoticeStack replaces DxuiTimedInfoBanner
+│   ├── EmulatorShellPrefs.cpp         # adoption, global persistence
+│   ├── EmulatorShellPresent.cpp       # ShowNotice/SyncNotice over the stack
+│   └── Window/EmulatorWindowInput.cpp # player picks, profile sections, Machine menu toggles as Player 1
+└── Ui/
+    ├── Chrome/EmulatorCommands.h/.cpp # player rows with submenus and profile sections
+    └── Settings/
+        ├── ControllersPageState.h/.cpp# player entries, Multiplayer checkbox, user-set targets
+        └── ControllersPage.h/.cpp     # checkbox and the slide
+
+Dxui/
+├── Core/
+│   ├── DxuiSlide.h/.cpp               # new: menu-open duration and ease-out, flag passed in
+│   ├── DxuiTextElide.h/.cpp           # + DxuiElide::Middle with a kept suffix
+│   └── DxuiCommand.h                  # + optional label fit (max width, elide, kept suffix)
+└── Widgets/
+    ├── DxuiNoticeStack.h/.cpp         # new
+    └── DxuiToolbar.cpp                # measure and paint a fitted label
+
+UnitTest/
+├── ControllerTests/
+│   ├── PlayerSlotPolicyTests.cpp      # new
+│   ├── PlayerTargetRulesTests.cpp     # new
+│   └── (existing service, rows, page, rules tests extended)
+├── Dxui/
+│   ├── DxuiNoticeStackTests.cpp       # new
+│   ├── DxuiSlideTests.cpp             # new
+│   ├── DxuiTextElideTests.cpp         # + middle
+│   └── DxuiToolbarTests.cpp           # + fitted label
+└── UiTests/
+    ├── GlobalUserPrefsTests.cpp       # + players, lastHolders
+    └── MachineInputPrefsTests.cpp     # + adoption
+```
+
 **Structure Decision**: a new `CassoEmuCore/Controllers/` folder for the pure logic, the device seam beside the existing seams, shell wiring in `Shell/`, the page beside the other Settings pages, and menu and toolbar rows in the chrome files 032 created. Shell and chrome decisions that would otherwise be untestable (input-mode exclusion, notice expiry, deferred menu rebuild) are factored into small pure classes with their own tests.
 
 ## Delivery Slices
@@ -159,6 +234,14 @@ Each slice matches a phase in [tasks.md](tasks.md), leaves the build green, and 
 | 8 | **US6 profiles**: named profiles, Paddles template, active profile per controller unit (per machine until Phase 11), Profiles submenu on the paddle-source picker | 7 | US6, FR-026-030, SC-010 |
 | 9 | **US7 two players**: per-machine axis budget, per-axis ownership and displacement, multi-controller assignment and its persistence, assignment UI on the Controllers page, //c reduced to two axes | 7, 8 | US7, FR-034-038, SC-011, SC-012 |
 | 10 | **Polish**: measurements, CHANGELOG, README, gates | 9 | SC-002, SC-005, SC-007 |
+| 11 | **Active profile per controller**: global per unit, Profiles submenu (built after 1.26.1) | 8 | FR-028, FR-029 |
+| 12 | **Notice stack** (2026-09-27): `DxuiSlide`, `DxuiNoticeStack`, shell on the stack | none | FR-044 (stacking), FR-013 |
+| 13 | **Player slots**: `PlayerTargetRules`, `PlayerSlotPolicy`, service logs, one-playing rule, held slots, buttons by target, target from profile; removal of the multiplayer mode and of automatic selection turning off the keys | 11 | US7, FR-009, FR-010, FR-032, FR-038-040, FR-042, FR-043, SC-013, SC-014 |
+| 14 | **Idle watch** | 13 | FR-042, SC-005, SC-007 |
+| 15 | **Global persistence and adoption; changed-holder notice** | 12, 13 | FR-011, FR-037, FR-044, SC-006 |
+| 16 | **Picker**: player rows, submenus, profile sections, " +1" label with middle ellipsis; Machine menu toggles as Player 1 | 13, 15 | FR-008, FR-008b, FR-028, FR-041 |
+| 17 | **Controllers page**: player entries, Multiplayer checkbox and slide, user-set targets; 034 checks of the built Joyport profile work | 12 (slide), 15 | FR-019, FR-024, FR-026, FR-029, FR-037 |
+| 18 | **Validation and gates** | 12-17 | quickstart 16-28, SC-005, SC-007 |
 
 ## Complexity Tracking
 

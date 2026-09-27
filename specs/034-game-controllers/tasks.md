@@ -300,6 +300,133 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
+## Two Always-Present Player Slots (2026-09-27, GH #156)
+
+**Source**: spec.md Session 2026-09-27, User Story 7, FR-008-FR-011, FR-013, FR-019, FR-024, FR-026-FR-029, FR-032, FR-037-FR-044, SC-005-SC-007, SC-013, SC-014; research R16-R25; data-model.md "Players (2026-09-27)" and "Notice stack (2026-09-27)"; contracts `notice-stack.md`, `game-port-mixer.md`, `controller-backend.md`, `prefs-schema.md`; quickstart section 4a.
+
+**Rules for every phase below**: tests first, and each test group ends with a mutation check (stub or alter the code it covers, confirm the group goes red with a discriminating assertion message, restore, then `(Get-Item <file>).LastWriteTime = Get-Date` before rebuilding, per `.github/copilot-instructions.md`). New `.h`/`.cpp` files go into `CassoEmuCore/CassoEmuCore.vcxproj`, `Dxui/Dxui.vcxproj` or `UnitTest/UnitTest.vcxproj` in the task that creates them, and `scripts/CheckStyle.ps1 -Mode Staged` runs before each commit that adds files. No spec, task or phase references in code comments. Spec 036 owns the picker's "Joyport (Atari mode)" row, the Joyport labels on player rows and notices, and which mode each profile belongs to; the hooks for them are built here and filled there. Commit bodies carry `Refs #97` and `Refs #156`.
+
+## Phase 12: Notice Stack (FR-044, FR-013)
+
+**Goal**: every notice stays up for its full time; a later one appears below and slides up when the one above expires, over the menus' open duration and easing.
+
+**Independent Test**: with time and the animation flag passed in, two pushed notices each last their full duration and the second slides into the first's place over 150 ms with ease-out, or jumps with animations off.
+
+- [ ] T118 [P] [US7] Create `UnitTest/Dxui/DxuiSlideTests.cpp`: offset at start equals the distance, at the midpoint equals `distance * (1 - DxuiAnimation::ApplyEase (DxuiTweenEase::EaseOut, 0.5f))`, zero at `DxuiPopupMenu::kRevealMs` and after; `isAnimated` false is done at once; a slide started from a nonzero current offset continues from it. Mutation: replace the ease with linear and confirm the midpoint test fails
+- [ ] T119 [P] [US7] Create `UnitTest/Dxui/DxuiNoticeStackTests.cpp` covering every obligation in `specs/034-game-controllers/contracts/notice-stack.md`: two notices 1 s apart each last their own full duration; the second appears below the first without a slide; the first's expiry slides the second to the top; three notices with the middle one given a shorter duration: the top stays and only the bottom moves; a second expiry mid-slide continues from the current offset; `GetNextChangeMs` gives the nearest expiry or slide end and nothing when empty; `SetAnimationsEnabled (false)` moves notices at once; animations pinned on and off explicitly in each test, never read from `DxuiSystemSettings`. Mutation: make `Push` replace the last notice (the old `Show` behavior) and confirm the duration test fails
+- [ ] T120 [US7] Create `Dxui/Core/DxuiSlide.h/.cpp` per the contract: `Start (distancePx, startMs, isAnimated)`, `GetOffset (nowMs)`, `IsDone (nowMs)`, duration `DxuiPopupMenu::kRevealMs` (move that constant from the private section of `Dxui/Widgets/DxuiPopupMenu.h` to its public section, or to a shared Dxui constant both use) and `DxuiAnimation::ApplyEase (DxuiTweenEase::EaseOut, t)`, the curve `DxuiPopupHost` applies inline; no clock and no `DxuiSystemSettings` read inside
+- [ ] T121 [US7] Create `Dxui/Widgets/DxuiNoticeStack.h/.cpp` (`IDxuiControl`) per `contracts/notice-stack.md`: an ordered list of `DxuiTimedInfoBanner`s, each with its own `untilMs`; `Push`, `Clear`, `IsShowing`, `IsAnimating`, `GetNextChangeMs`, `GetCount`, `GetText`, `GetOffsetPx`, `SetDurationMs`, `SetDpi`, `SetAnimationsEnabled`, `GetMeasuredHeightPx`, `Layout`, `Paint`, `Tick`; slides via `DxuiSlide`; each notice keeps the banner's label role for accessibility
+- [ ] T122 [US7] Move the shell onto the stack: in `CassoEmuCore/Shell/EmulatorShell.h` replace `DxuiTimedInfoBanner m_notice` with `DxuiNoticeStack`; in `CassoEmuCore/Shell/EmulatorShellPresent.cpp` make `ShowNotice` a `Push`, make `SyncNotice` lay the stack out from `ComputeTopOverlayEdgePx` with the measured height, pass `DxuiSystemSettings::Instance().AreMenuAnimationsEnabled()` through `SetAnimationsEnabled`, and keep frames coming while `IsAnimating` and until `GetNextChangeMs`; update the hide path in the same file and the `Adopt (m_notice)` in `CassoEmuCore/Shell/Window/EmulatorWindow.cpp`. `PostNotice` and every `ShowNotice`/`PostNotice` caller stay unchanged
+- [ ] T123 [US7] Build Debug x64 with `scripts/Build.ps1`; run `scripts/RunTests.ps1 -Filter DxuiNoticeStack`, `-Filter DxuiSlide`, `-Filter DxuiTimedInfoBanner`; launch Casso minimized with `--title`, take a screenshot and toggle write protect within two seconds, and capture the window to confirm two notices stack and the second slides up (quickstart 25)
+- [ ] T124 [US7] Commit: `feat(ui): stack notices so each stays up for its full time`
+
+**Checkpoint**: every notice goes through one stack.
+
+---
+
+## Phase 13: Player Slots (US7, US2, US3)
+
+**Goal**: two global player slots, filled by pick or by Automatic in connect or first-input order; one controller playing drives PDL0/PDL1/PB0-PB2; buttons follow the slot's target; the target follows the active profile; a leaving player's slot is held.
+
+**Independent Test**: with `FakeControllerBackend` and the service's injected clock, User Story 7 scenarios 1-3, 6, 7, 9-11 and the edge cases "several attached at launch", "bumped while solo", "sleeps and wakes" and "input while inactive" hold, and a second controller joining never changes PDL0, PDL1, PB0 or PB1 while the first plays on Joystick 0.
+
+### Tests
+
+- [ ] T125 [P] [US7] Create `UnitTest/ControllerTests/PlayerTargetRulesTests.cpp`: `GetAutomaticTarget` gives Paddle 0 / Joystick 0 for Player 1 by whether the mapping has a `pdl0` binding and no `pdl1` binding; Player 2 gives Joystick 1, Paddle 1 beside Player 1's Paddle 0, Paddle 2 beside Player 1's Joystick 0; every row of the `GetButtonRoute` table in research R18 (Joystick 0: `pb0`->PB0, `pb1`->PB1; Joystick 1: `pb0`->PB2; Paddle 0/1/2: `pb0`->PB0/PB1/PB2; Paddle 3: none); `GetSingleRoute` drives PDL0, PDL1 and PB0-PB2. Sweep the `PlayerAxisTarget` enum, not the table, so a missing row fails. Mutation: route Joystick 1's `pb0` to PB1 and confirm a test fails
+- [ ] T126 [P] [US7] Create `UnitTest/ControllerTests/PlayerSlotPolicyTests.cpp` for every rule in research R16 and R17 and the data-model state diagram: two candidates in the connection log fill Player 1 and Player 2 in log order; one or none in the log falls to the input log's order; a lone candidate with no input is `Provisional` Player 1 and gives way when another candidate gives real input first; two or more attached at launch with no input fill nothing; picked controllers are never candidates; a return to a held slot and a repeat arrival are not added to the connection log; `Waiting` becomes `Playing` on input; a picked slot is `Playing` while attached and `Waiting` while not; a holder leaving while the other plays is `Held`, a return takes it back, and the other stopping starts over; start over clears Automatic slots and both logs of units with no slot and never rewrites a pick; picking the controller the other player holds returns the other to Automatic (FR-041); Player 2 `Disabled` leaves Player 1 alone; `IsRealInput` is true for a button, a D-pad direction, a trigger past `XINPUT_GAMEPAD_TRIGGER_THRESHOLD` and an axis past 50% after calibration and deadzone, and false for an axis at 45% and for a drifting stick inside the deadzone; `IsOnePlaying` is false while the other slot is `Held`; `NeedsIdleWatch` per data model; `DescribeAssignment (0, L"Pad")` gives "Player 1: Pad". Mutation: swap the log order and confirm the SC-014 ordering test fails; drop the `Held` state and confirm the SC-012 test fails
+- [ ] T127 [US7] Rework `UnitTest/ControllerTests/ControllerInputServiceTests.cpp` for the slots: delete or rewrite the tests that assert `SetMultiplayerEnabled`, `IsMultiplayerPlayable`, the "N controllers" live mode, replacement of a departed selection by the longest-attached controller, and `clearsOtherInputModes`; add, through the fake backend and injected clock: logs recorded only while `SetActive (true)`; User Story 7 scenarios 1-3, 6, 7, 9-11; one controller playing drives PDL0, PDL1 and PB0-PB2 from either slot; a held slot keeps the remaining player on its own paddles and lines with no interruption to its readings (SC-012); a leaver's paddles center and lines release within one tick (FR-010); a second controller joining never changes PDL0, PDL1, PB0 or PB1 while the first plays on Joystick 0 (SC-014); the target follows an active-profile switch, including a switch caused by `SetJoyportAttached`; a picked DirectInput unit absent at launch with exactly one unit of its model attached is taken as the pick (FR-032); a picked Xbox-class unit follows FR-018a's adoption. Mutation: make the merge ignore the slot target and confirm the Joystick 1 test fails
+- [ ] T128 [P] [US2] Extend `UnitTest/ControllerTests/InputModeRulesTests.cpp`: a controller connecting does not turn off the keys or the mouse picked for Player 1 (FR-032, US2 #5); Player 1 on the keys owns PDL0/PDL1 while Player 2's controller owns its target's axes. Mutation: restore the old turn-off and confirm the test fails
+
+### Implementation
+
+- [ ] T129 [P] [US7] Create `CassoEmuCore/Controllers/PlayerTargetRules.h/.cpp` (static members) per research R18 and the data model: `GetAutomaticTarget (player, mapping, otherTarget)`, `GetButtonRoute (target)`, `GetSingleRoute ()`
+- [ ] T130 [US7] Create `CassoEmuCore/Controllers/PlayerSlotPolicy.h/.cpp` with `PlayerEntryKind` (`Automatic`, `Controller`, `ArrowKeys`, `MousePaddle`, `Disabled`; "`ArrowKeys` and `MousePaddle` are valid for Player 1 only and `Disabled` for Player 2 only"), `PlayerEntry` (`kind`; `unit` "set only for `Controller`"; `target` "absent = follow the active profile"), `PlayerEntries`, `PlayerSlotState` (`Empty`, `Provisional`, `Waiting`, `Playing`, `Held`), `PlayerSlot`, `PlayerOrderLogs`, and the static operations `Evaluate`, `IsRealInput`, `IsOnePlaying`, `DescribeAssignment`, `NeedsIdleWatch` per data-model.md; the 50% axis threshold as a named constant; `ControllerSelectionPolicy::Normalize` applied to the result (FR-036)
+- [ ] T131 [US7] Rework `CassoEmuCore/Controllers/ControllerInputService.h/.cpp`: replace `SetSelection`, `SetMultiplayer`, `SetMultiplayerEnabled`, `SetMultiplayerSlot`, `GetMultiplayer` and `GetLiveMultiplayer` with `SetPlayerEntries`/`GetPlayerEntries`; record the connection log in `RefreshDevices` (after the startup enumeration) and the input log in `TickDriver` (only while active); evaluate `PlayerSlotPolicy` on every device, entry, input or profile change; compose `BuildMergedLocked` from slot states, `IsOnePlaying`, targets and `PlayerTargetRules` routes per `contracts/game-port-mixer.md`; replace `SelectionChangedFn` with a slots-changed callback carrying the slots, the notices to show and the departed holder's description; extend `Snapshot` with entries and slots; keep `AddJoyportSwitches` working from the slots
+- [ ] T132 [US7] Trim `CassoEmuCore/Controllers/ControllerSelectionPolicy.h/.cpp`: remove `Evaluate`'s automatic selection and replacement, `SelectionChangeReason::AutomaticSelection`/`Replacement`/`Cleared`, `clearsOtherInputModes`, `IsMultiplayerPlayable` and `MultiplayerSetup::isEnabled`; keep `MultiplayerSlot`, `PlayerAxisTarget`, `Normalize`, `GetTargetAxes`, `GetTargetChoices`, `AdoptSlotKeyedPlayers` and the same-model adoption, now used by `PlayerSlotPolicy` for picked units; rewrite the class comments to describe the slots without spec references; update `UnitTest/ControllerTests/ControllerSelectionPolicyTests.cpp` to match
+- [ ] T133 [US2] In `CassoEmuCore/Controllers/InputModeRules.h/.cpp` and `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`, remove the path by which a controller connecting turned off arrows-to-joystick and mouse-to-paddle, and set the mixer's axis owner per axis in `SyncGamePortAxisOwner`: Player 1's keys or mouse own PDL0/PDL1, the `Controller` source owns the rest
+- [ ] T134 [US3] Raise the FR-013 disconnect notice from the slots-changed callback in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp` for a controller that held a slot only, through `PostNotice`, replacing the selection-based notice
+- [ ] T135 [US7] Build; run `scripts/RunTests.ps1 -Filter Controller` and `-Filter InputModeRules`; record each mutation result from T125-T128 in the commit body
+- [ ] T136 [US7] Commit: `feat(controllers): play two global player slots filled by pick or by first use`
+
+**Checkpoint**: two controllers play two players with no setup; one person playing is unaffected by a second controller sitting idle.
+
+---
+
+## Phase 14: Idle Watch (FR-042, SC-005, SC-007)
+
+**Goal**: controllers that hold no slot are watched for their first input, cheaply, only while a player on Automatic waits and Casso is active.
+
+**Independent Test**: through the fake backend, the wait timeout and the watched set follow every rule in `contracts/controller-backend.md` "Idle watch", and no watched read reaches the mixer.
+
+- [ ] T137 [P] [US7] Extend `UnitTest/ControllerTests/FakeControllerBackend.h` with a per-unit read count, and `UnitTest/ControllerTests/ControllerInputServiceTests.cpp` with the idle-watch obligations of `contracts/controller-backend.md`: timeout 100 ms while an XInput pad is watched, the R13 period while a slot holder needs polling, the shorter of the two when both, none when neither (SC-007); the watch off while inactive and while no Automatic player waits; a watched DirectInput device contributes its event handle; a watched read never reaches the mixer; a failed watched read reports disconnected. Mutation: leave the watch on while inactive and confirm the "input while inactive" test fails
+- [ ] T138 [US7] Implement the watch in `CassoEmuCore/Controllers/ControllerInputService.h/.cpp`: `kIdleWatchPeriodMs` = 100 as a named constant; watched units from `PlayerSlotPolicy::NeedsIdleWatch` and the slots; XInput read on the idle period, DirectInput on its events (polled devices on the idle period); results feed only `IsRealInput` and the input log; the returned `ControllerWaitSources` per the contract
+- [ ] T139 [US7] In `CassoEmuCore/Seams/Win32ControllerBackend.cpp`, confirm the unchanged-`dwPacketNumber` path returns the cached sample without decoding, and replace its early `return hr;` inside the HRESULT function with a single-exit form (EHM rule); no interface change
+- [ ] T140 [US7] Build; run `-Filter Controller`; commit: `feat(controllers): watch idle controllers for their first input`
+
+---
+
+## Phase 15: Global Persistence, Adoption and the Changed-Holder Notice (FR-011, FR-037, FR-044)
+
+**Goal**: the players' entries and last holders are global; the first launch adopts the launched machine's saved selection and slots once; an Automatic assignment shows "Player N: description" only when the holder differs from the saved last holder.
+
+**Independent Test**: prefs round trips through `InMemoryFileSystem`; every adoption row in `contracts/prefs-schema.md`; one controller in the same slot as last time shows no notice across a relaunch, a different one does.
+
+- [ ] T141 [P] [US2] Extend `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`: `players` and `lastHolders` round trip in the `controllers` section; each invalid value in the players table reads as `automatic` or `null` as documented and is reported; `keys`/`mouse` for Player 2 and `disabled` for Player 1 read as `automatic`; a repeated controller or overlapping `maps` is normalized; unknown keys still survive. Mutation: skip the report on an invalid entry and confirm the test fails
+- [ ] T142 [P] [US2] Extend `UnitTest/UiTests/MachineInputPrefsTests.cpp` with every row of the adoption table in `contracts/prefs-schema.md` (keys, paddle, controller, an enabled `multiplayer` block outranking them for Player 1, a disabled or absent block leaving Player 2 Automatic, nothing at all), and that adoption reads but never writes the per-machine keys. Mutation: let `controller` outrank `arrowsToJoystick` and confirm the test fails
+- [ ] T143 [P] [US7] Extend `UnitTest/ControllerTests/PlayerSlotPolicyTests.cpp` with FR-044: Automatic assigning the saved last holder shows no notice; a different unit shows "Player N: description"; a pick shows none but updates the last holder; the provisional Player 1 counts as a holder; a holder leaving does not clear the saved last holder; identity is the unit token (two pads of one product compared by their ordinal). Mutation: compare model tokens instead of unit tokens and confirm the two-pad test fails
+- [ ] T144 [US2] Add `players` and `lastHolders` to `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp` (which reads and writes the `controllers` section of `CassoEmuCore/Config/GlobalUserPrefs.cpp`) per `contracts/prefs-schema.md`, with the documented fallbacks and reports
+- [ ] T145 [US2] Add a pure `MachineInputPrefs::ReadAdoptedPlayers (uiPrefs)` to `CassoEmuCore/Config/MachineInputPrefs.h/.cpp` building `PlayerEntries` from the adoption table
+- [ ] T146 [US2] Rework `CassoEmuCore/Shell/EmulatorShellPrefs.cpp`: at launch, when the store has no `players`, adopt from the launched machine through `ReadAdoptedPlayers` and save at once; `AdoptControllerForMachine` keeps the axis count, the FR-029 legacy profile move keyed on the machine's `controller`, the rate reset and the rescan, and no longer sets a selection or a multiplayer setup; `AdoptInputModeForMachine` takes Player 1's keys and mouse from the global entries and only the //c IOU mouse (`pointerMapping` of `mouse`) from the machine; `PersistInputModeForMachine` stops writing `controller`, `multiplayer` and `arrowsToJoystick`, and writes `pointerMapping` only for the IOU mouse; entry changes save the global prefs
+- [ ] T147 [US7] Wire the changed-holder notice: the shell's slots-changed handler in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp` posts each notice `PlayerSlotPolicy` returns through `PostNotice` and saves `lastHolders` when they changed
+- [ ] T148 [US7] Build; run `-Filter ControllerProfileStore`, `-Filter MachineInputPrefs`, `-Filter PlayerSlotPolicy`, `-Filter GlobalUserPrefs`; commit: `feat(controllers): keep the players globally and announce a changed holder`
+
+---
+
+## Phase 16: Picker (FR-008, FR-008b, FR-028, FR-041)
+
+**Goal**: the command-bar picker lists a Player 1 row and a Player 2 row, each opening a submenu with Automatic, the controllers, keys/mouse or Disabled, and a profile section for the controller playing there; its label is Player 1's description plus " +1" with two players, shortened with a middle ellipsis.
+
+**Independent Test**: the row model for every combination of entries and slot states has exactly one checked entry per submenu, the right profile section or none, and the right label; the toolbar measures and paints the same fitted label.
+
+- [ ] T149 [P] [US7] Extend `UnitTest/Dxui/DxuiTextElideTests.cpp` for `DxuiElide::Middle`: a fitting string is unchanged; a long one keeps its head and tail with one ellipsis between; the kept suffix (" +1") is never cut; with no room for more the result is the ellipsis plus the suffix. Mutation: elide from the tail and confirm a test fails
+- [ ] T150 [P] [US7] Extend `UnitTest/Dxui/DxuiToolbarTests.cpp`: a command with a label fit is measured at the fitted width and painted with the same fitted text; a command without one behaves as before. Mutation: measure the unfitted label and confirm the width test fails
+- [ ] T151 [P] [US2] Rewrite `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp` for the player rows: two rows showing what is playing; Player 1's submenu lists Automatic, the controllers, the keys and the mouse; Player 2's lists Automatic, the controllers and Disabled; exactly one checked above the separator; "Automatic (description)" once chosen; a picked controller that is absent stays checked and marked not connected; the profile section appears under the playing controller's description with the active profile checked and New... last, and is absent for Automatic before it has chosen, the keys, the mouse, Disabled and an absent pick; the label is the description, "Keys", "Mouse" or "Controller", with " +1" while Player 2 counts as playing; the trailing vendor and product parenthetical is dropped first. Delete the tests for the `Multiplayer` row, "N controllers" and the separate Profiles submenu
+- [ ] T152 [US7] Add `DxuiElide::Middle` with a kept-suffix count to `Dxui/Core/DxuiTextElide.h/.cpp`, width-based and binary-searched like the existing modes
+- [ ] T153 [US7] Add an optional label fit (maximum width in DIPs, elide mode, kept suffix) to `DxuiCommand` in `Dxui/Core/DxuiCommand.h`, and honor it in both `DxuiToolbar::GetEntryWidthPx` and the entry's paint in `Dxui/Widgets/DxuiToolbar.cpp`
+- [ ] T154 [US7] In `CassoEmuCore/Controllers/InputModeRules.h/.cpp`, replace the paddle-source list with a pure player row model (two rows, their submenu entries, their profile sections) built from the entries, slots and devices; compose the label with " +1" per FR-008b; remove `kShortLabelLimit`'s character cut from `Shorten`, keeping the parenthetical drop, and give the picker command the label fit (middle, kept suffix " +1")
+- [ ] T155 [US7] In `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp`, replace `SetPaddleSources` and `SetProfileSections` with a player-row setter that materializes `DxuiPopupMenuItem::ForSubmenu` rows, a separator, a `Header` row (T111's kind), profile commands and New...; remove the `Multiplayer` row; leave a place for spec 036's Joyport row after the player rows
+- [ ] T156 [US7] In `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp` and `EmulatorWindow.cpp`, replace `PickPaddleSource` with a player pick that applies FR-041 (a controller at once; the other player's controller returns the other to Automatic) and saves the global entries; build the rows in `SyncPaddleSourceList`/`SyncProfileList` from the snapshot, with each section's profiles taken from the store for the mode in effect; make the Machine menu's per-source toggles set Player 1's entry (FR-008)
+- [ ] T157 [US7] Build; run `-Filter DxuiTextElide`, `-Filter DxuiToolbar`, `-Filter PaddleSourceRows`, `-Filter Chrome`, `-Filter MenuBar`; run quickstart 24 and 26 with Casso minimized and captured; commit: `feat(controllers): pick each player from a submenu on the command bar`
+
+---
+
+## Phase 17: Controllers Page and Built-Work Checks (FR-019, FR-024, FR-026, FR-029, FR-037)
+
+**Goal**: the Controllers page shows the players' entries and a Multiplayer checkbox (ticked by default) that is Player 2's Disabled seen another way, with the rows below sliding; the Joyport profile work already built meets 034's requirements.
+
+**Independent Test**: `ControllersPageState` with a fake service: the checkbox follows and sets Player 2's entry, entries apply as changed outside Apply/Cancel, and target choices exclude what the other player holds; profile store tests hold FR-024, FR-026, FR-029 and US6 #4.
+
+- [ ] T158 [P] [US7] Extend `UnitTest/ControllerTests/ControllersPageStateTests.cpp`: the Multiplayer checkbox is ticked by default and reads `entries[1].kind != Disabled`; unticking writes `Disabled` and ticking writes `Automatic`; entries and targets apply at once and are not reverted by Cancel (FR-019); a user-set target can be set and cleared back to following the profile; `GetTargetChoices` excludes what the other player holds and what the machine lacks (FR-035, FR-036); picking the other player's controller returns that player to Automatic. Mutation: route the checkbox through the Apply baseline and confirm the Cancel test fails
+- [ ] T159 [P] [US6] Extend `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp` and `ControllerInputServiceTests.cpp` with 034's checks of the built Joyport profile work (`3f0c4620`, `c00c2c7a`): both built-ins exist for every model and cannot be renamed or deleted (FR-026); reset restores the built-in mapping of the profile's mode (FR-024); deleting the active profile makes the built-in of its mode active (US6 #4); a remembered profile that no longer exists uses the built-in of the mode in effect (FR-029); the legacy `controllerProfile` passes once as the normal-mode choice (FR-029). Record which pass as built and which fail
+- [ ] T160 [US6] Fix in `CassoEmuCore/Controllers/ControllerProfileStore.cpp` and `ControllerInputService.cpp` whatever T159 found failing; leave per-profile mode membership to spec 036
+- [ ] T161 [US7] Rework `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp` from `MultiplayerSetup` to `PlayerEntries`: the Multiplayer checkbox, each player's entry and optional target, applied through a callback as they change
+- [ ] T162 [US7] Rework `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`: a "Multiplayer" checkbox; Player 2's row shown while it is ticked; the rows below it slide down and back through `DxuiSlide`, with `DxuiSystemSettings::Instance().AreMenuAnimationsEnabled()` passed in; each player's entry and target drop-downs, the target list including a choice that returns it to following the profile (its wording to be approved by the owner); sentence case throughout
+- [ ] T163 [US7] Build; run `-Filter ControllersPageState`, `-Filter ControllerProfileStore`, `-Filter Settings`; capture the Controllers page with the checkbox ticked and unticked; commit: `feat(settings): show the players and a Multiplayer checkbox on the Controllers page`
+
+---
+
+## Phase 18: Validation and Gates (2026-09-27 work)
+
+- [ ] T164 Walk quickstart section 4a, scenarios 16-28, on Release x64 with real controllers and record outcomes in `specs/034-game-controllers/validation.md`, including any scenario that could not run and why; measure with temporary, uncommitted instrumentation SC-005 (lone controller connect to first write, and first input to first write with two attached) and SC-007 (CPU time over 60 s idle with two controllers attached and none used, against the same run with none attached)
+- [ ] T165 Draft the CHANGELOG `[Unreleased]` line and any README change for the player slots and the notice stack, and hold them until the owner has tested and approved the feature
+- [ ] T166 Merge `origin/master` into the branch if it moved; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
+- [ ] T167 `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit (orphaned `////` banners included)
+- [ ] T168 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release x64, and a build of ARM64; zero warnings
+- [ ] T169 Full suite with `scripts/RunTests.ps1` in Debug and in Release, after confirming `UnitTest.dll` is newer than the build start; a filtered pass is not a suite pass
+- [ ] T170 Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies
@@ -314,6 +441,8 @@ description: "Task list for 034 physical game controllers"
 - **US6**: after US5 (profile management lives on the page).
 - **US7**: after US5 (the assignment UI lives on the Controllers page) and US6. It widens types that US1-US6 already use, so doing it last means widening once; doing it first would mean building the selection policy twice.
 - **Polish**: after the stories to ship.
+- **Phase 11**: after US6.
+- **Phases 12-18 (2026-09-27)**: Phase 12 (notice stack) depends on nothing and can run beside Phase 13. Phase 13 (player slots) comes first of the controller work; Phase 14 (idle watch) and Phase 15 (persistence, changed-holder notice) follow it, and Phase 15's notice needs Phase 12. Phase 16 (picker) needs Phases 13 and 15. Phase 17 needs Phase 12's `DxuiSlide` and Phase 15's entries; its built-work checks (T159, T160) can run any time. Phase 18 comes last. Spec 036's Joyport row, labels and per-profile modes build on Phases 13, 15 and 16.
 
 ### Within Each Story
 
@@ -326,6 +455,7 @@ description: "Task list for 034 physical game controllers"
 - T008, T010, T020-T024 (new files).
 - Test tasks marked [P] within each story.
 - US4 beside US2 and US3 once US1 is done.
+- 2026-09-27: T118/T119 beside T125-T128; T129 beside T126; T141-T143; T149-T151; T158/T159.
 
 ---
 
@@ -368,6 +498,21 @@ Task: "PaddleSourceRowsTests.cpp (T041)"
 5. US6: profiles.
 
 Each phase ends with a commit and leaves the build and suite green, so the branch could merge to master after any story.
+
+### Two Always-Present Player Slots (2026-09-27)
+
+1. Phase 12 and Phase 13 in parallel: the stack is self-contained Dxui work, the slots are the core of GH #156.
+2. Stop after Phase 13 and validate quickstart 16, 17, 20 and 21 with fakes and on hardware: that is the smallest increment that fixes GH #156.
+3. Phases 14-17 in order; Phase 18 before any merge to master.
+
+## Parallel Example: Player Slots
+
+```text
+Task: "UnitTest/ControllerTests/PlayerTargetRulesTests.cpp (T125)"
+Task: "UnitTest/ControllerTests/PlayerSlotPolicyTests.cpp (T126)"
+Task: "UnitTest/ControllerTests/InputModeRulesTests.cpp (T128)"
+Task: "UnitTest/Dxui/DxuiNoticeStackTests.cpp (T119)"
+```
 
 ---
 

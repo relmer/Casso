@@ -16,11 +16,11 @@ description: "Task list for 036 Sirius Joyport emulation"
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
-- **[Story]**: US1-US5 from spec.md
+- **[Story]**: US1-US7 from spec.md (US6, the Controller Select switch, only in the optional Phase 15)
 - Paths are repository-relative. Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` or `UnitTest/UnitTest.vcxproj` in the same task that creates it.
 - Existing functions are referenced by name, not line number.
 - Code style: `.github/copilot-instructions.md` (EHM, column alignment, 5/3 blank lines, `////` banners in `.cpp` with new functions spliced ahead of the banner, verb-first function names, no magic numbers, American spelling, no spec or task references in comments). Run `scripts/CheckStyle.ps1 -Mode Staged` before every commit that adds files.
-- There is no GitHub issue for this feature, so commit messages carry no `Refs` line.
+- There is no GitHub issue for this feature, so commit messages carry no `Refs` line. (Phases 9-15 carry `GH #156` in the commit body, as `3f0c4620` and `c00c2c7a` do.)
 - Clean-room: never read `repos\gssquared` source. The [owner's manual](https://mirrors.apple2.org.za/ftp.apple.asimov.net/unsorted/Sirius%20Joyport%20Manual.pdf) is the reference (research R1).
 
 ---
@@ -199,6 +199,163 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ---
 
+## 2026-09-27 design (GH #156)
+
+Phases 9-15 cover the difference between the 1.28.0 design above and the spec's `### Session 2026-09-27` clarifications: plan.md's "2026-09-27 update" and slices 9-15, research R14-R24, and the 2026-09-27 sections of data-model.md and contracts/. Earlier tasks stay as built; where one of them built something this design removes or changes, the task below says so. Each test task ends by confirming the test fails with the implementation stubbed or reverted, and each phase has its own mutation-check task that records its results in `validation.md`.
+
+---
+
+## Phase 9: User Story 7 - Profiles belong to one mode (Priority: P1)
+
+**Goal**: every profile belongs to normal or Joyport mode, fixed at creation; lists show only the mode's profiles with its built-in first; creation offers the same starting points in both modes; reset restores the mode's built-in (FR-018, FR-020, research R17). Reworks the part of `3f0c4620` and `c00c2c7a` that let any profile be picked in either mode.
+
+**Independent Test**: quickstart V17; with the Joyport on, a profile created is listed only while it is on, and the Default cannot be picked.
+
+### Tests for Phase 9
+
+- [ ] T061 [P] [US7] In `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`, add profile-mode storage tests: a user profile created in Joyport mode writes `"profileMode": "joyport"` and reads back `ProfileMode::Joyport`; a normal-mode profile writes no `profileMode` member; a profile with no member ("Profiles saved before this change are normal-mode profiles") reads `Normal`; an unknown value reads `Normal` and the profile is kept, not rejected; the Default reads `Normal` and the Joyport built-in reads `Joyport` whatever the file holds; a user profile called Joyport that becomes the built-in keeps its mapping and becomes Joyport-mode. Confirm the tests fail with `ReadProfile` ignoring the member
+- [ ] T062 [P] [US7] In the same file, add list, create and reset tests: `ControllerModelSettings::GetProfileNames (ProfileMode)` returns the mode's built-in first, then that mode's user profiles in stored order, and none of the other mode's; `ControllerProfileStore::CreateProfile` with every `ProfileSource` value (sweep the enum: `DefaultMapping`, `JoyportMapping`, `CopyOfProfile` from a profile of each mode, `Paddles`) in each mode stamps the mode in effect and starts from the right mapping; a name used in the other mode is `DuplicateName` ignoring case ("Names stay unique per model across both modes"); `ResetProfile` gives a Joyport-mode user profile the Joyport mapping and a normal-mode one the Default mapping, and each built-in its own. Confirm a test fails with `ResetProfile` always using the Default mapping
+- [ ] T063 [P] [US7] In `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`, rewrite `ChosenProfile_IsRememberedForEachMode` so it picks a normal-mode user profile without the Joyport and a Joyport-mode user profile with it (it now picks the Joyport built-in in normal mode and the Default in Joyport mode, which FR-020 forbids), keeping its per-mode assertions; add `ChosenProfile_OfTheOtherMode_IsIgnored`: `SetActiveProfile` with the Joyport built-in in normal mode, or the Default in Joyport mode, leaves the choice unchanged and plays the mode's built-in, and an entry loaded from prefs that points at the other mode's profile plays the mode's built-in and is gone from `GetActiveProfiles` after the next save. `UnchosenProfile_IsTheModesBuiltInProfile` stays as it is. Confirm the new test fails with the mode check removed
+- [ ] T064 [P] [US7] In `UnitTest/ControllerTests/ControllersPageStateTests.cpp`: `GetProfileNames` follows the page's mode; `SetProfileMode` after `Load` swaps the list and the edited profile in place (to the controller's choice for the new mode, or the mode's built-in with none), handling a pending edit as `SelectProfile` does; `CreateProfile` stamps the page's mode; `ResetProfile` restores the mode's built-in; the copy sources list the profiles of both modes. Update the existing tests that expect Default and Joyport in every list. Confirm a test fails with `SetProfileMode` only storing the value
+- [ ] T065 [P] [US7] In `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp`, update the profile-section tests from `3f0c4620`: a Joyport-mode section lists the Joyport profile first and only Joyport-mode names, with no Default; a normal-mode section lists the Default first and no Joyport profile; Automatic still checks the mode's built-in. Confirm a test fails with `SetProfileSections` adding both built-ins again
+
+### Implementation for Phase 9
+
+- [ ] T066 [US7] In `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp`: add `ProfileMode mode = ProfileMode::Normal` to `ControllerProfile`; read and write it as `"profileMode"` with the value `"joyport"`, omitted for `Normal`, absent or unknown reading `Normal`; force the built-ins' modes from their kind in `EnsureBuiltInProfiles` and on load; add `GetProfileNames (ProfileMode) const`; give `AddProfile` and `ControllerProfileStore::CreateProfile` a `ProfileMode` parameter; add `ProfileSource::JoyportMapping`; make `ResetProfile` restore `MakeBuiltInMapping (GetAutomaticKind (profile->mode), ...)` for a user profile. Update the `ProfileMode`, `ControllerProfile` and `MakeBuiltInMapping` header comments to state that each profile belongs to one mode
+- [ ] T067 [US7] In `CassoEmuCore/Controllers/ControllerInputService.h/.cpp`, resolve a controller's profile only from a choice of the mode in effect (else the mode's built-in), make `SetActiveProfile` leave the choice unchanged for a profile of the other mode, and drop other-mode entries from `activeProfiles` / `joyportActiveProfiles` when the choices are next handed back for saving
+- [ ] T068 [US7] In `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`, build the list from `GetProfileNames (m_profileMode)`, make `SetProfileMode` reload the list and the edited profile when called after `Load`, pass the page's mode to `CreateProfile`, and list both modes' profiles as copy sources; in `CassoEmuCore/Ui/Settings/ControllersPage.cpp`, add **Joyport mapping** to the create dialog's starting points beside **Default mapping** and **Paddles** (sentence case)
+- [ ] T069 [US7] In `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`, fill each `EmulatorCommands::ProfileSection`'s `names` from `GetProfileNames (snapshot.profileMode)`, and in `CassoEmuCore/Ui/Chrome/EmulatorCommands.cpp` `SetProfileSections`, drop the rule that puts Default and Joyport at the top of every section (the names already lead with the mode's built-in), updating its banner comment
+- [ ] T070 [US7] Mutation checks for Phase 9, each against its test group, results recorded in `specs/036-sirius-joyport/validation.md` under a new "Phase 9" heading: `GetProfileNames` ignoring the mode; `ReadProfile` ignoring `profileMode`; `ResetProfile` always the Default mapping; `SetActiveProfile` accepting the other mode's profile; `SetProfileMode` not reloading
+- [ ] T071 [US7] Build x64 Debug and Release, run `scripts/RunTests.ps1` (full suite), then commit: `feat(controllers): Give each profile a mode, fixed when it is created` (body: GH #156)
+
+**Checkpoint**: each mode lists and plays only its own profiles.
+
+---
+
+## Phase 10: User Story 7 - The Joyport profile's second stick on a DirectInput gamepad (Priority: P1)
+
+**Goal**: FR-017's DirectInput rule: on a DirectInput gamepad the Joyport profile also steers with Z/Rz, else Rx/Ry; joysticks and wheels unchanged; no trigger ever steers (research R18).
+
+**Independent Test**: quickstart V16.
+
+### Tests for Phase 10
+
+- [ ] T072 [P] [US7] In `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`, beside the built-in profile tests, add `DefaultMapping::FindSecondStick` and `MakeJoyport` tests: a DirectInput gamepad reporting Z and Rz gets Z/Rz; one reporting Z, Rx and Ry but no Rz gets Rx/Ry (an Xbox-class pad read through DirectInput); Rx and Ry only gets Rx/Ry; neither pair gets none; a joystick and a wheel with Z/Rz get none; an XInput controller still gets its right stick; the pair is bound Absolute on PDL0 and PDL1 after the primary stick; for every `ControllerFormFactor` value (sweep the enum) no `ControlKind::Trigger` appears in `pdl0`-`pdl3`. Confirm a test fails with `FindSecondStick` trying Rx/Ry before Z/Rz
+
+### Implementation for Phase 10
+
+- [ ] T073 [US7] In `CassoEmuCore/Controllers/ControlMapping.h/.cpp`, add `static std::optional<std::pair<ControlId, ControlId>> FindSecondStick (ControllerFormFactor formFactor, const std::vector<ControlId> & controls)` with the axis indexes as class constants (Z 2, Rx 3, Ry 4, Rz 5, matching `DirectInputSampleDecoder::Decode`'s x, y, z, rx, ry, rz order), give `MakeJoyport` a `ControllerFormFactor formFactor` parameter after the model, bind the pair for a DirectInput gamepad, and rewrite the `MakeJoyport` banner comment to state the rule
+- [ ] T074 [US7] Pass `ControllerFormFactor` through the built-in mapping path with no default argument, so the compiler finds every caller: `ControllerModelSettings::MakeBuiltInMapping`, `EnsureBuiltInProfiles` and `ResetProfile`, and `ControllerProfileStore::GetBuiltInSettings`, `GetOrCreateModel`, `CreateProfile` and `ResetProfile` in `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp`; the callers in `CassoEmuCore/Controllers/ControllerInputService.cpp` (from `device->formFactor`) and `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp` (add `ControllerFormFactor formFactor` to `ControllerEntry`, filled in `Load` and `UpdateDevices`); update every test call site
+- [ ] T075 [US7] Mutation checks for Phase 10, recorded in `validation.md`: `FindSecondStick` ignoring the form factor; preferring Rx/Ry; binding a trigger axis
+- [ ] T076 [US7] Build x64 Debug and Release, run the full suite, then commit: `feat(controllers): Steer with a DirectInput gamepad's second stick in the Joyport profile` (body: GH #156)
+
+**Checkpoint**: FR-017 complete for every kind of controller.
+
+---
+
+## Phase 11: User Story 4 - A global Joyport setting (Priority: P2)
+
+**Goal**: the Joyport setting is global, adopts the launched machine's saved value once, and reads as off on the //c without changing (FR-002, SC-007, research R14, R16).
+
+**Independent Test**: quickstart V12, V13 and V14.
+
+### Tests for Phase 11
+
+- [ ] T077 [P] [US4] Create `UnitTest/ControllerTests/JoyportSettingTests.cpp` (add to `UnitTest/UnitTest.vcxproj`): `IsInEffect` for all four combinations of setting and `hasAnnunciators`; `IsMousePaddleOffered` true only when not in effect; `ResolveAtLaunch`: a set global token (`"none"` or `"siriusJoyport"`) wins and is not adopted whatever the machine block holds; an empty global token with the launched //e's `$cassoUiPrefs.gamePortAdapter` = `"siriusJoyport"` gives `SiriusJoyport`, adopted; empty with no machine key gives `None`, adopted; empty with the //c (`hasAnnunciators` false) and a key present gives `None`, adopted; an unknown global token gives `None`, not adopted. Confirm a test fails with `IsInEffect` ignoring `hasAnnunciators`
+- [ ] T078 [P] [US4] Extend `UnitTest/UiTests/GlobalUserPrefsTests.cpp`: `gamePortAdapter` round-trips through `ToJson` / `FromJson`; an absent key loads as empty; a set value is written
+- [ ] T079 [P] [US4] Extend `UnitTest/UiTests/MachineInputPrefsTests.cpp` and `UnitTest/UiTests/UserConfigStoreTests.cpp`: `ReadGamePortAdapter` stays as the adoption reader (T041's reading cases stand); a machine block holding `gamePortAdapter` round-trips untouched through `SaveDelta`; no path writes the key any more. Remove the T041 case that persists the key through `SpliceUiPrefs`, since nothing persists it
+
+### Implementation for Phase 11
+
+- [ ] T080 [US4] Create `CassoEmuCore/Controllers/JoyportSetting.h/.cpp` (add to `CassoEmuCore/CassoEmuCore.vcxproj`), static members only, per data-model.md: `IsInEffect`, `IsMousePaddleOffered`, and `ResolveAtLaunch` returning `JoyportLaunchSetting { GamePortAdapter setting; bool isAdopted; }`
+- [ ] T081 [US4] In `CassoEmuCore/Config/GlobalUserPrefs.h/.cpp`, add `std::string gamePortAdapter` ("empty == never set"), read and written as the global key `gamePortAdapter`
+- [ ] T082 [US4] In `CassoEmuCore/Shell/EmulatorShell.h` and `CassoEmuCore/Shell/EmulatorShellPrefs.cpp`: at cold boot, a one-line forwarder calls `JoyportSetting::ResolveAtLaunch` with `m_globalPrefs.gamePortAdapter` and the launched machine's ui prefs, and saves the global prefs when `isAdopted`; `SetGamePortAdapter` stores the global token and saves with `SaveGlobalPrefs` instead of `PersistGamePortAdapterForMachine`, which is removed; `AdoptGamePortAdapterForMachine` becomes `ApplyGamePortAdapterToMachine()`, setting the Joyport's attached state and `ControllerInputService::SetJoyportAttached` from `IsInEffect`; add `IsJoyportInEffect() const`; `GetGamePortAdapter` returns the setting
+- [ ] T083 [US4] In `CassoEmuCore/Shell/MachineManager.cpp`'s `SwitchMachine`, replace the per-machine read with a call to `ApplyGamePortAdapterToMachine` after `BuildMachineDevices` and before `PowerCycle` (one-line forwarder), so the //c reads the Joyport as off and switching back restores it
+- [ ] T084 [US4] In `CassoEmuCore/Shell/Window/EmulatorWindow.cpp`, wire the picker row's `isOn` to `IsJoyportInEffect` and `isOffered` to the running machine's `hasAnnunciators`
+- [ ] T085 [US4] Mutation checks for Phase 11, recorded in `validation.md`: `IsInEffect` ignoring `hasAnnunciators`; `ResolveAtLaunch` adopting when the global token is set; `GlobalUserPrefs` not writing the key
+- [ ] T086 [US4] Build x64 Debug and Release, run the full suite, then commit: `feat(joyport): Make the Joyport setting global` (body: GH #156)
+
+**Checkpoint**: one setting for every machine that can use it; the //c ignores it and leaves it alone.
+
+---
+
+## Phase 12: User Story 4 - The Apple / Atari switch on the Controllers page (Priority: P2)
+
+**Goal**: the Controllers page shows the Joyport as the unit's vertical Apple / Atari switch and swaps the profile list in place; the picker row reads "Joyport (Atari mode)" and hides mouse-as-paddle while on; the Machine tab no longer lists the Joyport (FR-001, FR-009, FR-012, FR-020, research R15, R19, R20, R23).
+
+**Independent Test**: quickstart V11, V17 (the page half) and V20.
+
+### Tests for Phase 12
+
+- [ ] T087 [P] [US4] Create `UnitTest/Dxui/DxuiToggleTests.cpp` (add to `UnitTest/UnitTest.vcxproj`): `ComputeTrackAndThumb` for `OnDirection::Right` matches today's horizontal geometry for both states; `Up` and `Down` give a track taller than wide, with the thumb at the top or bottom end as the checked state requires; the default is `Right`; a click and Space flip it the same in every direction. Confirm a test fails with `Down` laid out as `Up`
+- [ ] T088 [P] [US4] In `UnitTest/UiTests/HardwarePageTests.cpp`, replace the Game port group tests (T037) with one asserting that `BuildNodes` lists no Joyport and no Game port group on the ][+, the //e or the //c
+- [ ] T089 [P] [US4] In `UnitTest/UiTests/SettingsPanelStateTests.cpp`, remove the `gamePortAdapter` tests (T038) and add one asserting that `BuildJson` never writes `gamePortAdapter`, so OK cannot undo a change made from the picker or the page
+- [ ] T090 [P] [US4] In `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp`: the row's label is exactly "Joyport (Atari mode)"; it is absent on the //c even with the setting on; checked exactly when `isOn` returns true; mouse-as-paddle is absent while the Joyport is in effect and present otherwise (retarget to Player 1's submenu when spec 034's picker lands). Confirm a test fails with mouse-as-paddle always offered
+- [ ] T091 [P] [US4] In `UnitTest/ControllerTests/ControllersPageStateTests.cpp`, test a static `ControllersPageState::GetJoyportSwitchLabel (bool isAtariMode)`: exactly "Atari mode" and "Apple mode"
+
+### Implementation for Phase 12
+
+- [ ] T092 [US4] In `Dxui/Widgets/DxuiToggle.h/.cpp`, add `enum class OnDirection { Right, Up, Down }`, `SetOnDirection` / `GetOnDirection` (default `Right`) and the pure static `ComputeTrackAndThumb (const RECT & pill, OnDirection, bool checked)`; paint from it, leaving the horizontal pill unchanged; update the class banner comment
+- [ ] T093 [US4] In `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, remove the Game port group (`BuildGamePortGroup`, `SetGamePortChecks`, `ResolveGamePortToggle`, the `supportsGamePortAdapter` and `gamePortAdapter` parameters of `BuildNodes` and its `SetOnToggle` routing)
+- [ ] T094 [US4] Remove the sheet's OK-applied path for the setting: `SettingsUiPrefs::gamePortAdapter`, `SetGamePortAdapter`, `ObserveLiveGamePortAdapter` and `ISettingsApplySink::ApplyGamePortAdapter` in `CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp`; `ApplyGamePortAdapter` in `CassoEmuCore/Ui/Settings/SettingsApplyAdapter.h/.cpp` and the test `RecordingSink`; the `OnDialogTick` observation in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`. Keep `SettingsMachineInfo::supportsGamePortAdapter`
+- [ ] T095 [US4] In `CassoEmuCore/Shell/WindowCommandManager.cpp`, route `IDM_GAMEPORT_ADAPTER_NONE` and `IDM_GAMEPORT_ADAPTER_JOYPORT` to `EmulatorShell::SetGamePortAdapter`, and remove `ApplyGamePortAdapterLive` from `CassoEmuCore/Shell/EmulatorShell.h` and `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`, now that nothing calls it
+- [ ] T096 [US4] In `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, replace `SetJoyportAttachedFn` with `SetJoyportFns (isOn, isOffered, set)` and add a **Joyport** section at the top of the page, only when offered: a `DxuiToggle` with `OnDirection::Down`, checked for Atari mode, labeled by `GetJoyportSwitchLabel`. On a change it calls `set`, then `ControllersPageState::SetProfileMode`, then relayouts; `Poll` compares `isOn()` with the toggle and applies a picker change the same way without calling `set`. The stick art (`JoyportSwitchView`) follows the mode as before. In `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`, wire `isOn` to `EmulatorShell::IsJoyportInEffect`, `isOffered` to `supportsGamePortAdapter`, and `set` to posting the matching `IDM_GAMEPORT_ADAPTER_*` as `WM_COMMAND`
+- [ ] T097 [US4] In `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp`, label the row **Joyport (Atari mode)** and leave mouse-as-paddle out of the picker while `JoyportSetting::IsMousePaddleOffered` returns false; update the comments that still describe a device on the game socket
+- [ ] T098 [US4] Mutation checks for Phase 12, recorded in `validation.md`: `ComputeTrackAndThumb` ignoring the direction; mouse-as-paddle always offered; the row offered on the //c
+- [ ] T099 [US4] Build x64 Debug and Release, run the full suite, capture the Controllers page with the Joyport section in both modes (DPI-aware `PrintWindow` of the sheet, Casso launched minimized with `--title`), then commit: `feat(joyport): Turn the Joyport on from an Apple / Atari switch on the Controllers page` (body: GH #156)
+
+**Checkpoint**: the Joyport is turned on from the picker or the Controllers page, and nowhere else.
+
+---
+
+## Phase 13: User Story 3 - Jacks and labels from spec 034's players (Priority: P2)
+
+**Goal**: FR-008's jack rules and FR-019's labels, driven by spec 034's player slots (research R21, R22).
+
+**Depends on spec 034**: T100-T103 do not. T104-T106 need spec 034's `PlayerSlotPolicy`, player submenus and notice stack (034 FR-008, FR-040 to FR-044, its "Players (2026-09-27)" data model) to have landed; do not start them before 034's tasks for those are complete.
+
+**Independent Test**: quickstart V18.
+
+### Tests for Phase 13
+
+- [ ] T100 [P] [US3] Create `UnitTest/ControllerTests/JoyportJackRulesTests.cpp` (add to `UnitTest/UnitTest.vcxproj`): every row of the table in `contracts/switch-evaluation.md`; then a sweep of every `JoyportPlayerState` pair with `isPlayer2Disabled` both ways asserting the invariant that a jack's source is always a Driving player and a Held player's jack is never handed to the other. Confirm a test fails with a Held player treated as Idle
+- [ ] T101 [P] [US3] Create `UnitTest/ControllerTests/JoyportLabelsTests.cpp` (add to `UnitTest/UnitTest.vcxproj`): with the Joyport in effect, exactly "Joyport left", "Joyport right", "Same as left", "Joyport right: same as left", "Joyport left and right: description" for a controller playing alone, and "Joyport left: description" / "Joyport right: description" otherwise; with it off, spec 034's "Player 1", "Player 2", "Disabled" and "Player N: description". Confirm a test fails with the Joyport labels returned while off
+
+### Implementation for Phase 13
+
+- [ ] T102 [US3] Create `CassoEmuCore/Controllers/JoyportJackRules.h/.cpp` (add to `CassoEmuCore/CassoEmuCore.vcxproj`) per `contracts/switch-evaluation.md`: `JoyportPlayerState`, `JoyportPlayers`, `JoyportJackSource`, `AssignJacks`
+- [ ] T103 [US3] Create `CassoEmuCore/Controllers/JoyportLabels.h/.cpp` (add to `CassoEmuCore/CassoEmuCore.vcxproj`), static members only, returning the strings T101 tests
+- [ ] T104 [US3] (Needs spec 034's `PlayerSlotPolicy`.) Tests first in `UnitTest/ControllerTests/ControllerInputServiceTests.cpp` and `UnitTest/ControllerTests/GamePortInputMixerTests.cpp` through `FakeControllerBackend`: US3 scenarios 1, 2, 4, 5 and 6; a leaver's jack reads open while the other player keeps only their own; Player 1 on the arrow keys with Player 2 on a controller splits keys left and controller right. Then add `JoyportJackRules::ReducePlayerState` (034's `Playing`, `Provisional` or the arrow keys are Driving; `Held` is Held; the rest Idle), rewrite `ControllerInputService::AddJoyportSwitches` in `CassoEmuCore/Controllers/ControllerInputService.cpp` to place each player's pre-merge switches by `AssignJacks`, and compose keyboard and controller jacks in `CassoEmuCore/Controllers/GamePortInputMixer.cpp`. Update T050's tests that assume slot 1 left and slot 2 right whenever multiplayer is on. Confirm a test fails with the old placement
+- [ ] T105 [US3] (Needs spec 034's player submenus.) In `CassoEmuCore/Ui/Chrome/EmulatorCommands.cpp`, take the player row labels, Player 2's Disabled entry and the Automatic row text from `JoyportLabels` while `IsJoyportInEffect`; tests in `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp` (or the picker test file spec 034 creates) for both states
+- [ ] T106 [US3] (Needs spec 034's notice stack.) Make spec 034's `PlayerSlotPolicy::DescribeAssignment` take its text from `JoyportLabels` while the Joyport is in effect, including "Joyport left and right: description" while one controller plays alone; tests beside spec 034's notice tests
+- [ ] T107 [US3] Mutation checks for Phase 13, recorded in `validation.md`: `AssignJacks` treating Held as Idle; `AssignJacks` ignoring `isPlayer2Disabled`; `JoyportLabels` returning Joyport labels while off; `AddJoyportSwitches` reverted to slot placement
+- [ ] T108 [US3] Build x64 Debug and Release, run the full suite, then commit: `feat(joyport): Assign the Joyport's jacks and labels from the players` (body: GH #156)
+
+**Checkpoint**: one player drives both jacks, two split them, and the picker and notices read Joyport left and Joyport right.
+
+---
+
+## Phase 14: Validation and gate (2026-09-27 design)
+
+- [ ] T109 Run quickstart V11-V20 in the running app (V16 needs a DirectInput gamepad and a flight stick, V18 two controllers, V19 the Bandits disk from the user), restoring the global `gamePortAdapter` and `disk1Path` afterward; record in `validation.md` under a new "2026-09-27 design" heading, including SC-009 (V18) and SC-010 (V19)
+- [ ] T110 [P] Draft the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only, `GH #156:` first) and the README headline change, and show both to the user for approval before any push
+- [ ] T111 Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release; `scripts/RunTests.ps1` Debug and Release, full suite, not filtered; `scripts/RunTests.ps1 -Build -Scenario`, since the Joyport is guest-visible; `git add` the new files (not `.specify/feature.json`), then `scripts/CheckStyle.ps1 -Mode Tree`; ARM64 Debug build only; `rg -n '\w \(\)'` over the new code. Record every result in `validation.md`, including any suite that could not run and why
+- [ ] T112 Reconcile `spec.md`, `plan.md`, `research.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results for the GH #156 design (036-sirius-joyport)`
+
+---
+
+## Phase 15 (optional): User Story 6 - The Controller Select switch -- BLOCKED on the FR-016 decision
+
+**Status**: blocked. FR-016 carries an open clarification marker that only the owner can resolve. Do not start any task in this phase until the owner has decided to emulate the switch; if the decision is no, delete this phase. The tasks record the shape research R24 describes so the decision can be made against it.
+
+- [ ] T113 [P] [US6] (Blocked on FR-016.) Extend `UnitTest/EmuTests/SiriusJoyportTests.cpp`: at Left or Right every read comes from that jack whatever AN0 selects; at Center AN0 chooses; a change takes effect on the next read
+- [ ] T114 [US6] (Blocked on FR-016.) Add `enum class JoyportControllerSelect { Left, Center, Right }` and `SetControllerSelect` to `CassoEmuCore/Machines/Apple2/Common/SiriusJoyport.h/.cpp`, read on each `TryReadButton`
+- [ ] T115 [US6] (Blocked on FR-016.) Save the position globally as `joyportControllerSelect` in `CassoEmuCore/Config/GlobalUserPrefs.h/.cpp`, default Center, with tests in `UnitTest/UiTests/GlobalUserPrefsTests.cpp`, and apply it at launch and on machine switch beside T082 and T083
+- [ ] T116 [US6] (Blocked on FR-016.) Create a three-position Dxui control in the toggle's style in `Dxui/Widgets/` with a geometry test in `UnitTest/Dxui/`, and show it beside the Joyport switch in `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, positions left to right, disabled in Apple mode
+- [ ] T117 [US6] (Blocked on FR-016.) Run the manual's test program with two controllers for SC-008 and record it in `validation.md`
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies
@@ -212,6 +369,16 @@ description: "Task list for 036 Sirius Joyport emulation"
 - **US5 (Phase 7)**: after US3 (the jack caption covers multiplayer) and US4 (the page reads the setting).
 - **Polish (Phase 8)**: after the stories to ship.
 
+### 2026-09-27 phases
+
+- **Phase 9 (profile modes)**: after Phase 8. Blocks Phase 10 (same files) and Phase 12 (the page's list swap).
+- **Phase 10 (second stick)**: after Phase 9.
+- **Phase 11 (global setting)**: after Phase 8; independent of Phases 9 and 10.
+- **Phase 12 (the switch and the picker)**: after Phases 9 and 11.
+- **Phase 13 (jacks and labels)**: T100-T103 after Phase 11; T104-T106 after spec 034's player slots, submenus and notice stack.
+- **Phase 14 (validation and gate)**: after Phases 9-13.
+- **Phase 15**: blocked on the owner's FR-016 decision; independent of Phases 9-14 if adopted.
+
 ### Within Each Story
 
 - Tests first; confirm they fail with the implementation stubbed.
@@ -223,6 +390,8 @@ description: "Task list for 036 Sirius Joyport emulation"
 - T004, T007, T010, T015, T018 in Phase 2 (separate test files).
 - T020-T024 (US1 tests), T033-T034 (US2), T037-T041 (US4).
 - US3 beside US2 and US4 once US1 is done.
+- T061-T065 (Phase 9 tests), T077-T079 (Phase 11), T087-T091 (Phase 12), T100-T101 (Phase 13).
+- Phase 11 beside Phases 9 and 10; T100-T103 beside Phase 12.
 
 ---
 
@@ -246,6 +415,16 @@ Task: "Extend UserConfigStoreTests.cpp (T040)"
 Task: "Extend MachineInputPrefsTests.cpp (T041)"
 ```
 
+## Parallel Example: Phase 12
+
+```text
+Task: "Create DxuiToggleTests.cpp (T087)"
+Task: "HardwarePageTests.cpp lists no Joyport (T088)"
+Task: "SettingsPanelStateTests.cpp never writes the setting (T089)"
+Task: "PaddleSourceRowsTests.cpp row label and mouse-as-paddle (T090)"
+Task: "ControllersPageStateTests.cpp switch label (T091)"
+```
+
 ---
 
 ## Implementation Strategy
@@ -264,6 +443,14 @@ Task: "Extend MachineInputPrefsTests.cpp (T041)"
 3. US5: the Controllers page.
 
 Each phase ends with a commit and leaves the build and suite green.
+
+### 2026-09-27 design
+
+1. Phase 9 then Phase 10: the Joyport profile and profile modes (US7, P1) -- the smallest shippable slice of GH #156, since it is what a first Joyport user meets.
+2. Phase 11 then Phase 12: the global setting and the Apple / Atari switch (US4).
+3. Phase 13: jacks and labels, finished once spec 034's players land (US3).
+4. Phase 14: validation and the gate.
+5. Phase 15 only if the owner adopts FR-016.
 
 ---
 

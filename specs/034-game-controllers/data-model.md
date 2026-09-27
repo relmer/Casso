@@ -179,6 +179,8 @@ Owns `std::map<ModelToken, ModelSettings>`, `std::map<UnitToken, ControllerCalib
 
 ## Per-machine state
 
+**Superseded (2026-09-27)**: the per-machine selection, the per-machine `multiplayer` block, the single-source/multiplayer modes and the connect-time policy table below describe the design before GH #156. They are kept as the record of what Phase 4-9 built. What replaces them is under [Players](#players-2026-09-27) at the end of this file; `MultiplayerSlot`, `PlayerAxisTarget`, `Normalize`, `GetTargetAxes` and `GetTargetChoices` carry over. The per-machine keys are now read only by the one-time adoption and the legacy profile move ([research R19](research.md)).
+
 ### MachineControllerPrefs (in `MachineInputPrefs`)
 
 | Key | Type | Notes |
@@ -242,3 +244,120 @@ Xbox-class selection matches any unit of the selected model; with several connec
 ### GamePortInputMixer (pure, mutex-guarded)
 
 Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner is held **per axis** (`ArrowKeys`, `MousePaddle`, `Controller`, `None`); `SetAxisOwner (owner)` sets all four and `SetAxisOwner (axis, owner)` displaces one axis's owner only (FR-036). Several controllers reach the mixer as the single `Controller` source, merged by the service with each axis held separately, so PDL0 and PDL1 can belong to different controllers. Final buttons = OR of all sources; each final axis = that axis's owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.
+
+## Players (2026-09-27)
+
+Two player slots, always present and global (FR-037). Research [R16-R25](research.md#2026-09-27-two-always-present-player-slots-gh-156).
+
+### PlayerEntryKind (enum)
+
+`Automatic`, `Controller`, `ArrowKeys`, `MousePaddle`, `Disabled`. `ArrowKeys` and `MousePaddle` are valid for Player 1 only and `Disabled` for Player 2 only (FR-008); a value outside its player's set reads as `Automatic`.
+
+### PlayerEntry (global, one per player)
+
+| Field | Type | Notes |
+|---|---|---|
+| kind | `PlayerEntryKind` | Default `Automatic` for both players, so Multiplayer is ticked by default (FR-037) |
+| unit | `std::optional<ControllerUnitKey>` | Set only for `Controller`: the picked controller, attached or not (FR-011, FR-041) |
+| target | `std::optional<PlayerAxisTarget>` | Set only when the user chose the target on the Controllers page; absent = follow the active profile (FR-043, R18) |
+
+- `PlayerEntries` is `std::array<PlayerEntry, 2>`. The Multiplayer checkbox is `entries[1].kind != Disabled`; unticking it writes `Disabled`, ticking it writes `Automatic`.
+- The two entries may not pick the same controller (FR-036). Picking a controller the other entry holds sets the other entry to `Automatic` (FR-041).
+
+### PlayerSlotState (enum)
+
+| State | Meaning | Counts as playing |
+|---|---|---|
+| `Empty` | No holder: Automatic waiting, `Disabled`, or keys/mouse (Player 1) | Keys and mouse yes; otherwise no |
+| `Provisional` | Automatic's lone Player 1 before any input (FR-032, R16) | No, but drives the port |
+| `Waiting` | Holder assigned by Automatic, not yet used; or a picked controller that is not attached | No |
+| `Playing` | Picked and attached, or assigned by Automatic and used | Yes |
+| `Held` | Holder left while the other slot was playing; kept for it (FR-040, R17) | No; blocks the one-playing rule |
+
+### PlayerSlot (runtime, one per player, computed by `PlayerSlotPolicy`)
+
+| Field | Type | Notes |
+|---|---|---|
+| state | `PlayerSlotState` | |
+| holder | `std::optional<ControllerUnitKey>` | The controller in the slot, including a held one that is absent |
+| isPicked | `bool` | From the entry; false for Automatic |
+| target | `PlayerAxisTarget` | The entry's `target` if set, else `PlayerTargetRules::GetAutomaticTarget` over the holder's active profile (R18) |
+
+### PlayerOrderLogs (runtime, held by `ControllerInputService`)
+
+| Field | Type | Notes |
+|---|---|---|
+| connected | `std::vector<ControllerUnitKey>` | Distinct controllers that arrived after the startup enumeration, in order; a return to a held slot and a repeat are not added (R16) |
+| firstInput | `std::vector<ControllerUnitKey>` | Controllers whose first real input came while Casso was active, in order (FR-033, FR-042) |
+
+Both are cleared of every controller that holds no slot when Automatic starts over (FR-040).
+
+### LastHolders (global)
+
+`std::array<std::optional<ControllerUnitKey>, 2>`: the controller that last held each slot, however it got there. Used only to decide whether an Automatic assignment shows a notice (FR-044, R21); never used to assign.
+
+### PlayerSlotPolicy (pure)
+
+Inputs: `PlayerEntries`, attached devices, `PlayerOrderLogs`, the previous slots (for `Held`), the axis count, and each candidate's active profile mapping (for targets). Output: `std::array<PlayerSlot, 2>`, plus the assignment notices to show and whether `LastHolders` changed.
+
+| Operation | Rule |
+|---|---|
+| `Evaluate` | R16 ordering and states; R17 held slots and start over; targets per R18; `Normalize` over the result (FR-036) |
+| `IsRealInput (sample, calibration, deadzone)` | A button or D-pad press, a trigger past its threshold, or an axis past 50% after calibration and deadzone (R16) |
+| `IsOnePlaying (slots)` | Exactly one slot `Playing` or `Provisional` (or Player 1 on keys/mouse) and the other `Empty` or `Waiting`, not `Held` |
+| `DescribeAssignment (player, description)` | "Player 1: description"; spec 036 substitutes its Joyport labels here |
+| `NeedsIdleWatch (entries, slots)` | Whether any Automatic player is `Empty`, `Waiting` or `Provisional`, which turns on R23's watch |
+
+### PlayerTargetRules (pure)
+
+| Operation | Rule |
+|---|---|
+| `GetAutomaticTarget (player, mapping, otherTarget)` | Paddle when `pdl0` has a binding and `pdl1` has none, else joystick; Player 1 gets Joystick 0 / Paddle 0; Player 2 gets Joystick 1, or the lowest paddle Player 1 does not hold |
+| `GetButtonRoute (target)` | The R18 table: which of `pb0`/`pb1` reaches which of PB0-PB2 |
+| `GetSingleRoute ()` | The one-playing route: `pdl0`/`pdl1` to PDL0/PDL1, `pb0`-`pb2` to PB0-PB2 |
+
+### State transitions (one slot on Automatic)
+
+```text
+Empty --lone candidate attached, no input yet--> Provisional
+Provisional --its first real input--> Playing
+Provisional --another candidate's first real input--> Empty (that candidate fills the slot per R16)
+Empty --R16 picks a holder--> Waiting
+Waiting --holder's first real input--> Playing
+Playing --holder leaves, other slot Playing--> Held
+Playing --holder leaves, other slot not Playing--> Empty (start over)
+Held --holder returns--> Playing
+Held --other slot stops playing--> Empty (start over)
+```
+
+A picked slot is `Playing` while its controller is attached and `Waiting` while it is not; a disconnect never rewrites the entry (FR-040). Player 1 on keys or the mouse is `Empty` with those sources driving through the mixer as before.
+
+### What the game port gets (`ControllerInputService::BuildMergedLocked`)
+
+| Slots | Player 1 drives | Player 2 drives |
+|---|---|---|
+| One playing (`IsOnePlaying`) | If it is the one: PDL0, PDL1, PB0-PB2 by `GetSingleRoute` | If it is the one: the same, whatever its target |
+| Both playing | Its target's paddles and `GetButtonRoute` | Its target's paddles and `GetButtonRoute` |
+| One playing, one `Held` | Its own target only | Its own target only; the held slot drives nothing |
+
+Paddles and lines a player does not drive are absent from the contribution, so they rest at center or released.
+
+## Notice stack (2026-09-27)
+
+`Dxui/Widgets/DxuiNoticeStack.h/.cpp` ([contracts/notice-stack.md](contracts/notice-stack.md), research R20).
+
+| Entity | Fields | Notes |
+|---|---|---|
+| Notice | `DxuiTimedInfoBanner` (text, `untilMs`), `slide` (`DxuiSlide`) | Own full duration; `slide` is the offset still to travel after a notice above expired |
+| DxuiNoticeStack | ordered notices, bounds, `nowMs` of the last tick | Arrival order top to bottom |
+| DxuiSlide | `startMs`, `distancePx`, `isAnimated`, duration `DxuiPopupMenu::kRevealMs`, `DxuiTweenEase::EaseOut` | Returns the end at once when `isAnimated` is false; the caller passes the menu animation setting in |
+
+```text
+(push) --> Showing[below the last]
+Showing --its untilMs passes--> removed; each notice below it starts a slide up by the removed notice's height
+Sliding --duration passes--> Showing at its new place
+```
+
+## Saved state added (2026-09-27)
+
+In the global `controllers` section ([contracts/prefs-schema.md](contracts/prefs-schema.md)): `players` (two `PlayerEntry` records; its presence marks the one-time adoption as done) and `lastHolders` (two unit tokens or null). Per machine: `controller` and `multiplayer` are no longer written and are read only by the adoption and the legacy profile move; `arrowsToJoystick` and a `pointerMapping` of `paddle` are read only by the adoption; a `pointerMapping` of `mouse` (the //c IOU mouse) stays per machine.
