@@ -94,6 +94,8 @@ private:
     bool   MoveFocusSpatial  (DxuiFocusKey arrow);
     void   ChangeFocus       (IDxuiControl * ctl, bool showCue);
 
+    static bool  IsClippedByAncestor (const IDxuiControl * ctl, POINT pointPx);
+
     DxuiPanel                    * m_root                  = nullptr;
     const IDxuiTheme             * m_theme                 = nullptr;
     std::vector<IDxuiControl *>    m_tabOrder;

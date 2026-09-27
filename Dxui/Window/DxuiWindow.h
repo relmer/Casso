@@ -93,6 +93,11 @@ public:
         // The screen rect BelowAnchorRect opens under. Ignored by every
         // other mode.
         RECT                placementAnchorRectPx = {};
+
+        // Shrink the initial size to fit the monitor's work area. For
+        // content that can scroll into less room; see DxuiPropertySheet::
+        // SetDesignHeightDip.
+        bool                fitToWorkArea         = false;
     };
 
 
@@ -256,6 +261,13 @@ protected:
     //  no-op (a plain dialog has no page tabs).
     //
     virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
+
+    //
+    //  A dialog key (Tab, an arrow, Enter) was consumed, and `focused` holds
+    //  the keyboard focus afterward (null for none). A scrolling window
+    //  brings it into view here. Default no-op.
+    //
+    virtual void  OnDialogKeyHandled (IDxuiControl * focused) { UNREFERENCED_PARAMETER (focused); }
 
     //
     //  Modal in-content overlay (e.g. the Settings color picker). While
