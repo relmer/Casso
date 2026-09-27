@@ -270,7 +270,7 @@ Two player slots, always present and global (FR-037). Research [R16-R25](researc
 |---|---|---|
 | `Empty` | No holder: Automatic waiting, `Disabled`, or keys/mouse (Player 1) | Keys and mouse yes; otherwise no |
 | `Provisional` | Automatic's lone Player 1 before any input (FR-032, R16) | No, but drives the port |
-| `Waiting` | Holder assigned by Automatic, not yet used; or a picked controller that is not attached | No |
+| `Waiting` | Holder assigned by Automatic, not yet used; or a picked controller that is not attached while the other slot is not in use | No |
 | `Playing` | Picked and attached, or assigned by Automatic and used | Yes |
 | `Held` | Holder left while the other slot was playing; kept for it (FR-040, R17) | No; blocks the one-playing rule |
 
@@ -330,7 +330,7 @@ Held --holder returns--> Playing
 Held --other slot stops playing--> Empty (start over)
 ```
 
-A picked slot is `Playing` while its controller is attached and `Waiting` while it is not; a disconnect never rewrites the entry (FR-040). Player 1 on keys or the mouse is `Empty` with those sources driving through the mixer as before.
+A picked slot is `Playing` while its controller is attached. While it is not attached it is `Held` if the other slot is in use, so the remaining player is not given its lines (FR-040), and `Waiting` otherwise; a disconnect never rewrites the entry. Player 1 on keys or the mouse is `Empty` with those sources driving through the mixer as before.
 
 ### What the game port gets (`ControllerInputService::BuildMergedLocked`)
 
