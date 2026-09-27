@@ -555,15 +555,19 @@ std::map<std::string, ControllerModelSettings> ControllerInputService::GetModelS
 //  up and an axis it does not drive centers before the next reading submits
 //  what the new profile asks for (FR-030).
 //
+//  A profile of the other mode cannot be chosen, so it leaves the choice as
+//  it was.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, const std::string & name)
 {
-    std::unique_lock<std::mutex>  lock   (m_mutex);
-    std::string                   token  = ControllerTokens::UnitToToken (unit);
-    auto &                        active = GetModeProfilesLocked();
-    auto                          found  = active.find (token);
-    bool                          isSame = false;
+    std::unique_lock<std::mutex>  lock        (m_mutex);
+    std::string                   token       = ControllerTokens::UnitToToken (unit);
+    auto &                        active      = GetModeProfilesLocked();
+    auto                          found       = active.find (token);
+    bool                          isSame      = false;
+    bool                          isOtherMode = IsOfOtherModeLocked (unit.model, name, m_profileMode);
 
 
 
@@ -573,7 +577,7 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
              && found->second.size() == name.size()
              && _stricmp (found->second.c_str(), name.c_str()) == 0;
 
-    if (isSame)
+    if (isSame || isOtherMode)
     {
         return;
     }
@@ -737,15 +741,60 @@ void ControllerInputService::SetJoyportAttached (bool isAttached)
 //
 //  GetActiveProfiles
 //
+//  What is saved, so a choice of the other mode's profile, which can come
+//  only from the prefs, is dropped here rather than written back.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::map<std::string, std::string> ControllerInputService::GetActiveProfiles (ProfileMode mode) const
 {
-    std::lock_guard<std::mutex>  lock (m_mutex);
+    std::lock_guard<std::mutex>                 lock    (m_mutex);
+    const std::map<std::string, std::string> &  all     = mode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
+    std::map<std::string, std::string>          choices;
+    ControllerUnitKey                           unit;
+    HRESULT                                     hr      = S_OK;
 
 
 
-    return mode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
+    for (const auto & entry : all)
+    {
+        hr = ControllerTokens::UnitFromToken (entry.first, unit);
+
+        if (SUCCEEDED (hr) && IsOfOtherModeLocked (unit.model, entry.second, mode))
+        {
+            continue;
+        }
+
+        choices.insert (entry);
+    }
+
+    return choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOfOtherModeLocked
+//
+//  A model with nothing saved still has its built-in profiles by name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerInputService::IsOfOtherModeLocked (const ControllerModelKey & model, const std::string & name, ProfileMode mode) const
+{
+    auto  found = m_profiles.models.find (ControllerTokens::ModelToToken (model));
+
+
+
+    if (found == m_profiles.models.end())
+    {
+        return ControllerModelSettings().IsOfOtherMode (name, mode);
+    }
+
+    return found->second.IsOfOtherMode (name, mode);
 }
 
 
@@ -1776,8 +1825,14 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
     }
 
     // THIS CONTROLLER'S profile, not the machine's: two players on two pads
-    // of one model can each play their own.
+    // of one model can each play their own. A choice of the other mode's
+    // profile, which only the prefs can hold, is no choice.
     active = GetActiveProfileLocked (driver.unit);
+
+    if (IsOfOtherModeLocked (device->unit.model, active, m_profileMode))
+    {
+        active.clear();
+    }
 
     // A built-in profile chosen by name plays even for a model with nothing
     // saved, which has no profile of that name to find.

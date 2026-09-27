@@ -17,12 +17,23 @@ static constexpr int    s_kRowGapDp        = 10;
 static constexpr int    s_kLabelWidthDp    = 90;
 static constexpr int    s_kButtonWidthDp   = 96;
 static constexpr int    s_kButtonGapDp     = 12;
-static constexpr int    s_kSourceCount     = 3;
 static constexpr int    s_kErrorLineCount  = 2;
 static constexpr size_t s_kNameMaxLength   = 80;
 static constexpr int    s_kKeyDownMask     = 0x8000;
 static constexpr float  s_kTitleFontDip    = 15.0f;
 static constexpr float  s_kBorderDip       = 1.0f;
+
+// The new profile dialog's starting points, in the order it lists them. Both
+// modes offer all four.
+static constexpr ProfileSource  s_kSources[] =
+{
+    ProfileSource::DefaultMapping,
+    ProfileSource::JoyportMapping,
+    ProfileSource::CopyOfProfile,
+    ProfileSource::Paddles,
+};
+
+static constexpr int    s_kSourceCount     = (int) std::size (s_kSources);
 
 
 
@@ -249,6 +260,7 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     m_sourceLabel.SetTextRole (DxuiTextRole::Body);
 
     options.push_back ({ {}, L"Default mapping" });
+    options.push_back ({ {}, L"Joyport mapping" });
     options.push_back ({ {}, L"Copy of \"" + m_subject + L"\"" });
     options.push_back ({ {}, L"Paddles" });
 
@@ -313,6 +325,7 @@ void ProfileDialogOverlay::Accept()
     AcceptFn           onAccept = m_onAccept;
     ProfileSource      source   = ProfileSource::DefaultMapping;
     ProfileEditResult  result   = ProfileEditResult::Ok;
+    int                selected = m_source.GetSelected();
     std::wstring       label;
     std::wstring       rule;
 
@@ -323,11 +336,9 @@ void ProfileDialogOverlay::Accept()
         return;
     }
 
-    switch (m_source.GetSelected())
+    if (selected >= 0 && selected < s_kSourceCount)
     {
-        case 1:  source = ProfileSource::CopyOfProfile; break;
-        case 2:  source = ProfileSource::Paddles;       break;
-        default: source = ProfileSource::DefaultMapping; break;
+        source = s_kSources[selected];
     }
 
     m_open = false;

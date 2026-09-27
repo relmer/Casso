@@ -15,6 +15,8 @@ static constexpr const char *  s_kpszProfilesKey    = "profiles";
 static constexpr const char *  s_kpszNameKey        = "name";
 static constexpr const char *  s_kpszDefaultKey     = "default";
 static constexpr const char *  s_kpszJoyportKey     = "joyport";
+static constexpr const char *  s_kpszProfileModeKey = "profileMode";
+static constexpr const char *  s_kpszJoyportMode    = "joyport";
 static constexpr const char *  s_kpszMappingKey     = "mapping";
 static constexpr const char *  s_kpszAnalogKey      = "analog";
 static constexpr const char *  s_kpszInvertedKey    = "inverted";
@@ -206,14 +208,86 @@ ProfileEditResult ControllerModelSettings::CheckProfileName (const std::string &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ControllerModelSettings::AddProfile
+//  ControllerModelSettings::GetProfileNames
 //
-//  A profile added here is always the user's; the built-in profiles come from
-//  EnsureBuiltInProfiles.
+//  The built-in profile is listed whether or not the model has it saved,
+//  since it is what a controller of the model plays with nothing chosen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfileEditResult ControllerModelSettings::AddProfile (const std::string & name, const ControlMapping & mapping)
+std::vector<std::string> ControllerModelSettings::GetProfileNames (ProfileMode mode) const
+{
+    ControllerProfileKind      builtInKind = GetAutomaticKind (mode);
+    const ControllerProfile *  builtIn     = FindBuiltInProfile (builtInKind);
+    std::vector<std::string>   names;
+
+
+
+    if (builtIn != nullptr)
+    {
+        names.push_back (builtIn->name);
+    }
+    else
+    {
+        names.push_back (builtInKind == ControllerProfileKind::Joyport ? ControllerProfile::kpszJoyportName
+                                                                       : ControllerProfile::kpszDefaultName);
+    }
+
+    for (const ControllerProfile & profile : profiles)
+    {
+        if (profile.kind == ControllerProfileKind::User && profile.mode == mode)
+        {
+            names.push_back (profile.name);
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::IsOfOtherMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerModelSettings::IsOfOtherMode (const std::string & name, ProfileMode mode) const
+{
+    const ControllerProfile *  profile = FindProfile (name);
+    ControllerProfileKind      kind    = GetBuiltInKind (name);
+
+
+
+    if (profile != nullptr)
+    {
+        return profile->mode != mode;
+    }
+
+    if (kind != ControllerProfileKind::User)
+    {
+        return GetBuiltInMode (kind) != mode;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::AddProfile
+//
+//  A profile added here is always the user's; the built-in profiles come from
+//  EnsureBuiltInProfiles. It belongs to `mode` from here on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerModelSettings::AddProfile (const std::string & name, const ControlMapping & mapping, ProfileMode mode)
 {
     ProfileEditResult  result = CheckProfileName (name);
 
@@ -224,7 +298,7 @@ ProfileEditResult ControllerModelSettings::AddProfile (const std::string & name,
         return result;
     }
 
-    profiles.push_back ({ TrimProfileName (name), ControllerProfileKind::User, mapping });
+    profiles.push_back ({ TrimProfileName (name), ControllerProfileKind::User, mapping, mode });
     return ProfileEditResult::Ok;
 }
 
@@ -305,7 +379,7 @@ ProfileEditResult ControllerModelSettings::DeleteProfile (const std::string & na
 //
 //  Any profile, the built-in ones included, can be reset. Each built-in
 //  profile goes back to its own mapping, and a user's goes back to the
-//  Default's.
+//  mapping of its mode's built-in profile.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,7 +397,7 @@ ProfileEditResult ControllerModelSettings::ResetProfile (
         return ProfileEditResult::NotFound;
     }
 
-    profile->mapping = MakeBuiltInMapping (profile->kind, model, controls);
+    profile->mapping = MakeBuiltInMapping (GetResetKind (*profile), model, controls);
     return ProfileEditResult::Ok;
 }
 
@@ -339,8 +413,9 @@ ProfileEditResult ControllerModelSettings::ResetProfile (
 //  had no Joyport profile, or its copy was unreadable and dropped on load --
 //  gets one from that profile's built-in mapping. A surviving user profile of
 //  the same name becomes the built-in one rather than gaining a second
-//  profile of that name. The Default leads the list and the Joyport profile
-//  follows it.
+//  profile of that name, keeping its mapping and taking the built-in
+//  profile's mode. The Default leads the list and the Joyport profile
+//  follows it. Every built-in profile belongs to the mode of its kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -369,7 +444,15 @@ void ControllerModelSettings::EnsureBuiltInProfiles (const ControllerModelKey & 
         }
 
         profiles.insert (profiles.begin() + std::min (i, profiles.size()),
-                         { kNames[i], kKinds[i], MakeBuiltInMapping (kKinds[i], model, controls) });
+                         { kNames[i], kKinds[i], MakeBuiltInMapping (kKinds[i], model, controls), GetBuiltInMode (kKinds[i]) });
+    }
+
+    for (ControllerProfile & profile : profiles)
+    {
+        if (profile.kind != ControllerProfileKind::User)
+        {
+            profile.mode = GetBuiltInMode (profile.kind);
+        }
     }
 }
 
@@ -438,6 +521,41 @@ ControllerProfileKind ControllerModelSettings::GetBuiltInKind (const std::string
     }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::GetBuiltInMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileMode ControllerModelSettings::GetBuiltInMode (ControllerProfileKind kind)
+{
+    return kind == ControllerProfileKind::Joyport ? ProfileMode::Joyport : ProfileMode::Normal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::GetResetKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerProfileKind ControllerModelSettings::GetResetKind (const ControllerProfile & profile)
+{
+    if (profile.kind != ControllerProfileKind::User)
+    {
+        return profile.kind;
+    }
+
+    return GetAutomaticKind (profile.mode);
 }
 
 
@@ -711,7 +829,8 @@ ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (const Contro
 //  CreateProfile
 //
 //  The source mapping is copied before the profile is added, since adding one
-//  can move the profile it was copied from.
+//  can move the profile it was copied from. A copy can be of a profile of
+//  either mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -720,6 +839,7 @@ ProfileEditResult ControllerProfileStore::CreateProfile (
     const std::vector<ControlId>  & controls,
     const std::string             & name,
     ProfileSource                   source,
+    ProfileMode                     mode,
     const std::string             & sourceName)
 {
     ControllerModelSettings  & settings = GetOrCreateModel (model, controls);
@@ -731,6 +851,10 @@ ProfileEditResult ControllerProfileStore::CreateProfile (
     if (source == ProfileSource::Paddles)
     {
         mapping = DefaultMapping::MakePaddles (model, controls);
+    }
+    else if (source == ProfileSource::JoyportMapping)
+    {
+        mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Joyport, model, controls);
     }
     else if (source == ProfileSource::CopyOfProfile)
     {
@@ -744,7 +868,7 @@ ProfileEditResult ControllerProfileStore::CreateProfile (
         mapping = copied->mapping;
     }
 
-    return settings.AddProfile (name, mapping);
+    return settings.AddProfile (name, mapping, mode);
 }
 
 
@@ -936,6 +1060,11 @@ void ControllerProfileStore::ReadActiveProfiles (
 //
 //  ReadProfile
 //
+//  A profile with no mode, which is every profile saved before profiles had
+//  one, is a normal-mode profile. So is one whose mode is not recognized:
+//  its mapping is sound, so it is kept rather than dropped. A built-in
+//  profile belongs to the mode of its kind, whatever the file holds.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ControllerProfileStore::ReadProfile (const JsonValue & profileObj, ControllerProfile & outProfile)
@@ -943,6 +1072,7 @@ bool ControllerProfileStore::ReadProfile (const JsonValue & profileObj, Controll
     const JsonValue *  mappingObj = nullptr;
     bool               isDefault  = false;
     bool               isJoyport  = false;
+    std::string        mode;
 
 
 
@@ -972,6 +1102,16 @@ bool ControllerProfileStore::ReadProfile (const JsonValue & profileObj, Controll
     else if (isJoyport)
     {
         outProfile.kind = ControllerProfileKind::Joyport;
+    }
+
+    if (profileObj.HasString (s_kpszProfileModeKey, mode) && mode == s_kpszJoyportMode)
+    {
+        outProfile.mode = ProfileMode::Joyport;
+    }
+
+    if (outProfile.kind != ControllerProfileKind::User)
+    {
+        outProfile.mode = ControllerModelSettings::GetBuiltInMode (outProfile.kind);
     }
 
     return ReadMapping (*mappingObj, outProfile.mapping);
@@ -1321,6 +1461,13 @@ JsonValue ControllerProfileStore::WriteModel (const ControllerModelSettings & se
         else if (profile.kind == ControllerProfileKind::Joyport)
         {
             profileObj.emplace_back (s_kpszJoyportKey, JsonValue (true));
+        }
+
+        // Normal mode is left out, so the file reads as it did before
+        // profiles had a mode.
+        if (profile.mode == ProfileMode::Joyport)
+        {
+            profileObj.emplace_back (s_kpszProfileModeKey, JsonValue (std::string (s_kpszJoyportMode)));
         }
 
         profileObj.emplace_back (s_kpszMappingKey, WriteMapping (profile.mapping));

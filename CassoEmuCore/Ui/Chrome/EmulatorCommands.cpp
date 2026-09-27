@@ -733,10 +733,10 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 //
 //  EmulatorCommands::SetProfileSections
 //
-//  Default always leads a section, whether or not its list carries it or
-//  where: the service plays Default for any name a model lacks, so it is
-//  always a real choice. Sections are kept apart by a separator, and New...
-//  closes the list below one more.
+//  Each section lists its names as given: the profiles of the mode in
+//  effect, led by that mode's built-in profile, the Default without the
+//  Joyport and the Joyport profile with it. Sections are kept apart by a
+//  separator, and New... closes the list below one more.
 //
 //  A menu on screen shares ownership of its rows, so dropping ours frees only
 //  the rows nothing else still holds.
@@ -755,9 +755,9 @@ void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
 
     for (const ProfileSection & section : m_profileSections)
     {
-        std::vector<std::string>  names;
-        bool                      isActiveListed = false;
-        const char              * pszAutomatic   = section.isJoyportAttached ? pszJoyport : pszDefault;
+        const std::vector<std::string> &  names          = section.names;
+        bool                              isActiveListed = false;
+        const char                      * pszAutomatic   = section.isJoyportAttached ? pszJoyport : pszDefault;
 
         if (!m_profileItems.empty())
         {
@@ -769,20 +769,9 @@ void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
             m_profileItems.push_back (DxuiPopupMenuItem::ForHeader (section.header));
         }
 
-        names.push_back (pszDefault);
-        names.push_back (pszJoyport);
-
-        for (const std::string & name : section.names)
-        {
-            if (_stricmp (name.c_str(), pszDefault) != 0 && _stricmp (name.c_str(), pszJoyport) != 0)
-            {
-                names.push_back (name);
-            }
-        }
-
-        // An empty active name is whichever built-in profile the Joyport
-        // selects, and so is a name the model does not have, which is what
-        // the service plays in that case.
+        // An empty active name is the mode's built-in profile, and so is a
+        // name the list does not carry, which is what the service plays in
+        // that case.
         for (const std::string & name : names)
         {
             isActiveListed = isActiveListed || _stricmp (name.c_str(), section.active.c_str()) == 0;
@@ -804,9 +793,8 @@ void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
             // The row carries its controller and name by value rather than an
             // index, so a row from a list rebuilt since still picks the
             // profile it shows, for the controller it was shown for. Picking
-            // the built-in profile the Joyport selects records no choice, so
-            // the controller keeps following the Joyport; picking the other
-            // one records it by name.
+            // the mode's built-in profile records no choice, so the
+            // controller plays it until another is picked.
             cmd->dispatch  = [this, unit, name, isAutomatic] ()
             {
                 if (m_onProfilePicked)

@@ -479,25 +479,25 @@ namespace ControllerTests
             Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Paddles") == ProfileEditResult::Ok);
             Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(), L"a copy takes the source's pending edits");
 
-            Assert::AreEqual (size_t (5), page.GetProfileNames().size());
+            Assert::AreEqual (size_t (4), page.GetProfileNames().size(), L"the Default and the three normal-mode profiles, and no Joyport profile");
             Assert::AreEqual (std::string ("Default"), page.GetProfileNames()[0], L"Default is listed first");
-            Assert::AreEqual (std::string ("Joyport"), page.GetProfileNames()[1], L"and Joyport second");
+            Assert::AreEqual (std::string ("From default"), page.GetProfileNames()[1]);
             Assert::IsTrue   (page.IsDirty());
             Assert::IsTrue   (models.empty(), L"nothing reaches the settings the page was opened with");
 
             page.Revert();
 
-            Assert::AreEqual (size_t (2), page.GetProfileNames().size(), L"Cancel takes the new profiles away");
+            Assert::AreEqual (size_t (1), page.GetProfileNames().size(), L"Cancel takes the new profiles away");
             Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
             Assert::IsFalse  (page.IsDirty());
         }
 
 
         //  With the Joyport attached, a controller with no profile chosen edits
-        //  the Joyport profile. Choosing it records no choice; choosing the
-        //  Default records it by name, so it outlasts the Joyport. Reset puts
-        //  the Joyport profile back to its own mapping, and it can be neither
-        //  renamed nor deleted.
+        //  the Joyport profile. Choosing it records no choice, and the Default,
+        //  a normal-mode profile, cannot be chosen. Reset puts the Joyport
+        //  profile back to its own mapping, and it can be neither renamed nor
+        //  deleted.
         TEST_METHOD (WithAJoyport_TheUnchosenProfileIsTheJoyportProfile)
         {
             ControllersPageState    page;
@@ -519,10 +519,131 @@ namespace ControllerTests
             Assert::IsTrue   (page.DeleteProfile() == ProfileEditResult::IsBuiltInProfile);
 
             page.SelectProfile ("Default");
-            Assert::AreEqual (std::string ("Default"), page.GetActiveProfileName(), L"the Default is recorded by name");
+            Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"the Default is not chosen with the Joyport on");
+            Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName());
 
             page.SelectProfile ("Joyport");
             Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"the Joyport profile is recorded as no choice");
+        }
+
+
+        // The stick's model with both built-in profiles, the normal-mode
+        // "Swapped" and the Joyport-mode "Atari", each binding a button no
+        // built-in profile binds.
+        static std::map<std::string, ControllerModelSettings> MakeSavedWithBothModes()
+        {
+            std::map<std::string, ControllerModelSettings>  models   = MakeSavedWithSwapped();
+            ControllerModelSettings                       & settings = models.begin()->second;
+            ControlMapping                                  atari;
+
+            atari.pb0 = { { { ControlKind::Button, 2 } } };
+
+            settings.EnsureBuiltInProfiles (MakeStick().unit.model, MakeStick().controls);
+            settings.AddProfile ("Atari", atari, ProfileMode::Joyport);
+            return models;
+        }
+
+
+        TEST_METHOD (ProfileNames_FollowThePagesMode)
+        {
+            ControllersPageState  normal;
+            ControllersPageState  joyport;
+
+            normal.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+
+            joyport.SetProfileMode (ProfileMode::Joyport);
+            joyport.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+
+            Assert::IsTrue (normal.GetProfileNames()  == std::vector<std::string> { "Default", "Swapped" }, L"normal mode: the Default first, and no Joyport-mode profile");
+            Assert::IsTrue (joyport.GetProfileNames() == std::vector<std::string> { "Joyport", "Atari" },   L"Joyport mode: the Joyport profile first, and no normal-mode profile");
+            Assert::IsTrue (normal.GetCopySourceNames() == std::vector<std::string> { "Default", "Swapped", "Joyport", "Atari" },
+                L"a new profile can be a copy of a profile of either mode");
+        }
+
+
+        //  Moving the mode after the page opened swaps the list and the edited
+        //  profile in place: each controller to its choice for the new mode,
+        //  or to that mode's built-in profile with none. An unsaved edit stays
+        //  pending on the profile it was made on.
+        TEST_METHOD (SetProfileMode_AfterLoad_SwapsTheListAndTheEditedProfile)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+            std::string           token = ControllerTokens::UnitToToken (stick.unit);
+
+            page.Load ({ stick }, MakeSavedWithBothModes(), {}, true, std::map<std::string, std::string> { { token, "Swapped" } }, stick.unit);
+            page.SetOtherModeActiveProfiles ({ { token, "Atari" } });
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+            page.BeginCapture (PaddleTarget::Pb0, Rest());
+
+            page.SetProfileMode (ProfileMode::Joyport);
+
+            Assert::IsTrue   (page.GetProfileNames() == std::vector<std::string> { "Joyport", "Atari" });
+            Assert::AreEqual (std::string ("Atari"), page.GetEditedProfileName(), L"the controller's Joyport-mode choice");
+            Assert::IsFalse  (page.IsCapturing(), L"a capture belongs to the profile it was started on");
+
+            page.SetProfileMode (ProfileMode::Normal);
+
+            Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName(), L"and back to its normal-mode choice");
+            Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(),             L"with its edit still pending");
+            Assert::IsTrue   (page.HasUnappliedProfileEdits());
+
+            page.SetOtherModeActiveProfiles ({});
+            page.SetProfileMode (ProfileMode::Joyport);
+
+            Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName(), L"with no choice for the mode, its built-in profile");
+        }
+
+
+        //  A choice made after switching is kept for the mode it was made in.
+        TEST_METHOD (SetProfileMode_KeepsEachModesChoicesForOk)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+            std::string           token = ControllerTokens::UnitToToken (stick.unit);
+
+            page.Load ({ stick }, MakeSavedWithBothModes(), {}, true, std::string(), stick.unit);
+            page.SetProfileMode (ProfileMode::Joyport);
+            page.SelectProfile ("Atari");
+
+            Assert::IsTrue   (page.HasActiveProfileChanged (ProfileMode::Joyport));
+            Assert::IsFalse  (page.HasActiveProfileChanged (ProfileMode::Normal));
+            Assert::AreEqual (std::string ("Atari"), page.GetActiveProfiles (ProfileMode::Joyport).at (token));
+            Assert::IsTrue   (page.GetActiveProfiles (ProfileMode::Normal).find (token) == page.GetActiveProfiles (ProfileMode::Normal).end());
+
+            page.Revert();
+
+            Assert::IsFalse (page.HasActiveProfileChanged(), L"Cancel takes back a choice made in either mode");
+        }
+
+
+        //  A profile created in Joyport mode belongs to Joyport mode, from
+        //  whichever starting point, and resets to the Joyport mapping.
+        TEST_METHOD (CreateProfile_BelongsToThePagesModeAndResetsToItsBuiltIn)
+        {
+            ControllersPageState    page;
+            ControllerModelKey      model    = MakeStick().unit.model;
+            std::vector<ControlId>  controls = MakeStick().controls;
+            std::string             token    = ControllerTokens::ModelToToken (model);
+
+            page.SetProfileMode (ProfileMode::Joyport);
+            page.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+
+            Assert::IsTrue (page.CreateProfile ("From default", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::Ok);
+            Assert::IsTrue (page.GetMapping() == DefaultMapping::For (model, controls));
+            Assert::IsTrue (page.GetModels().at (token).FindProfile ("From default")->mode == ProfileMode::Joyport);
+
+            page.ResetProfile();
+
+            Assert::IsTrue (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls), L"a Joyport-mode profile resets to the Joyport mapping");
+
+            Assert::IsTrue (page.CreateProfile ("From Joyport", ProfileSource::JoyportMapping, std::string()) == ProfileEditResult::Ok);
+            Assert::IsTrue (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls));
+            Assert::IsTrue (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Swapped") == ProfileEditResult::Ok, L"a copy of a normal-mode profile");
+            Assert::IsTrue (page.GetModels().at (token).FindProfile ("Copy")->mode == ProfileMode::Joyport);
+            Assert::IsTrue (page.CreateProfile ("swapped", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::DuplicateName,
+                L"a name used in the other mode is taken");
+            Assert::IsTrue (page.GetProfileNames() == std::vector<std::string> { "Joyport", "Atari", "From default", "From Joyport", "Copy" });
         }
 
 
@@ -546,7 +667,7 @@ namespace ControllerTests
 
             Assert::IsTrue   (page.DeleteProfile() == ProfileEditResult::Ok);
             Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
-            Assert::AreEqual (size_t (2), page.GetProfileNames().size());
+            Assert::AreEqual (size_t (1), page.GetProfileNames().size());
             Assert::IsTrue   (page.HasActiveProfileChanged(), L"the machine's active profile was deleted");
             Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"so the Default becomes active on OK");
         }
@@ -892,7 +1013,7 @@ namespace ControllerTests
             page.DeleteProfile();
             Assert::IsTrue (page.IsDirty(), L"delete");
             page.Revert();
-            Assert::AreEqual (size_t (4), page.GetProfileNames().size(), L"and Cancel brings a deleted profile back");
+            Assert::AreEqual (size_t (3), page.GetProfileNames().size(), L"and Cancel brings a deleted profile back");
         }
 
 

@@ -168,9 +168,11 @@ public:
     // empty means that mode's built-in profile. The choice belongs to the
     // controller, not the machine or the player, so a controller plays its
     // profile on any machine and keeps it through a swap between players. A
-    // name its model does not have plays the built-in profile. A change takes
+    // name its model does not have plays the built-in profile, and so does a
+    // profile of the other mode, which cannot be chosen. A change takes
     // effect on the next reading, releasing whatever the old profile held.
-    // The whole maps, one per mode, are set from and saved to the prefs.
+    // The whole maps, one per mode, are set from and saved to the prefs;
+    // what is read back to save leaves out choices of the other mode.
     void                                SetActiveProfile  (const ControllerUnitKey & unit, const std::string & name);
     std::string                         GetActiveProfile  (const ControllerUnitKey & unit) const;
     void                                SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles);
@@ -255,6 +257,7 @@ private:
     float                           MeasureElapsedLocked     ();
     void                            UpdateAttachOrderLocked  ();
     uint64_t                        GetAttachOrderLocked     (const ControllerUnitKey & unit) const;
+    bool                            IsOfOtherModeLocked      (const ControllerModelKey & model, const std::string & name, ProfileMode mode) const;
 
     // The active profiles for the mode being played. Assumes m_mutex is held.
     std::map<std::string, std::string>        &  GetModeProfilesLocked ();

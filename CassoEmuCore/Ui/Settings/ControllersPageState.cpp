@@ -38,6 +38,8 @@ void ControllersPageState::Load (
     m_activeProfiles         = activeProfiles;
     m_baselineActiveProfiles = activeProfiles;
 
+    m_otherActiveProfiles.clear();
+    m_baselineOtherActiveProfiles.clear();
     m_committedNames.clear();
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
@@ -101,11 +103,75 @@ void ControllersPageState::Load (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetOtherModeActiveProfiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetOtherModeActiveProfiles (const std::map<std::string, std::string> & activeProfiles)
+{
+    m_otherActiveProfiles         = activeProfiles;
+    m_baselineOtherActiveProfiles = activeProfiles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetProfileMode
+//
+//  After Load, the list and the edited profile follow the mode at once: each
+//  controller goes to its choice for the new mode, or with none, to that
+//  mode's built-in profile. Edits on the profile left stay pending there, as
+//  they do when another profile is selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetProfileMode (ProfileMode mode)
+{
+    if (mode == m_profileMode)
+    {
+        return;
+    }
+
+    std::swap (m_activeProfiles,         m_otherActiveProfiles);
+    std::swap (m_baselineActiveProfiles, m_baselineOtherActiveProfiles);
+
+    m_profileMode = mode;
+    LoadEditedProfile();
+
+    m_capture.Cancel();
+    m_liveEvaluator.ResetRate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveProfiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::map<std::string, std::string> & ControllersPageState::GetActiveProfiles (ProfileMode mode) const
+{
+    return mode == m_profileMode ? m_activeProfiles : m_otherActiveProfiles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadEditedProfile
 //
 //  m_editedProfile is the edited controller's entry in m_activeProfiles: read
 //  from the map when Editing moves to a controller, written back to it each
-//  time it changes.
+//  time it changes. An entry naming a profile of the other mode is no
+//  choice, so the mode's built-in profile is edited.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +190,7 @@ void ControllersPageState::LoadEditedProfile()
 
     found = m_activeProfiles.find (ControllerTokens::UnitToToken (m_controllers[m_selected.value()].unit));
 
-    if (found != m_activeProfiles.end())
+    if (found != m_activeProfiles.end() && !IsNameOfOtherMode (found->second))
     {
         m_editedProfile = found->second;
     }
@@ -159,30 +225,35 @@ void ControllersPageState::StoreEditedProfile()
 //  RetargetActiveProfiles
 //
 //  A profile renamed or deleted on one controller is the same profile for
-//  every controller of its model, so each of them that had it active follows:
-//  to the new name, or to the Default when `to` is empty.
+//  every controller of its model, so each of them that had it active follows,
+//  in either mode: to the new name, or to the mode's built-in profile when
+//  `to` is empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPageState::RetargetActiveProfiles (const std::string & modelToken, const std::string & from, const std::string & to)
 {
-    ControllerUnitKey  unit;
-    HRESULT            hr   = S_OK;
+    std::map<std::string, std::string> *  maps[] = { &m_activeProfiles, &m_otherActiveProfiles };
+    ControllerUnitKey                     unit;
+    HRESULT                               hr     = S_OK;
 
 
 
-    for (auto & entry : m_activeProfiles)
+    for (std::map<std::string, std::string> * map : maps)
     {
-        hr = ControllerTokens::UnitFromToken (entry.first, unit);
-
-        if (FAILED (hr) || ControllerTokens::ModelToToken (unit.model) != modelToken)
+        for (auto & entry : *map)
         {
-            continue;
-        }
+            hr = ControllerTokens::UnitFromToken (entry.first, unit);
 
-        if (entry.second.size() == from.size() && _stricmp (entry.second.c_str(), from.c_str()) == 0)
-        {
-            entry.second = to;
+            if (FAILED (hr) || ControllerTokens::ModelToToken (unit.model) != modelToken)
+            {
+                continue;
+            }
+
+            if (entry.second.size() == from.size() && _stricmp (entry.second.c_str(), from.c_str()) == 0)
+            {
+                entry.second = to;
+            }
         }
     }
 }
@@ -1155,34 +1226,56 @@ bool ControllersPageState::SetThreshold (PaddleTarget target, size_t index, floa
 //
 //  GetProfileNames
 //
-//  A model with nothing saved still lists its Default and Joyport profiles,
-//  one of which is what it plays with.
+//  A model with nothing saved still lists the mode's built-in profile, which
+//  is what it plays with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> ControllersPageState::GetProfileNames() const
 {
     const ControllerModelSettings *  settings = FindSelectedModel();
-    std::vector<std::string>         names;
 
 
-
-    names.push_back (ControllerProfile::kpszDefaultName);
-    names.push_back (ControllerProfile::kpszJoyportName);
 
     if (settings == nullptr)
     {
-        return names;
+        return ControllerModelSettings().GetProfileNames (m_profileMode);
     }
 
-    for (const ControllerProfile & profile : settings->profiles)
+    return settings->GetProfileNames (m_profileMode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCopySourceNames
+//
+//  Normal mode's profiles, then Joyport mode's, each led by its built-in
+//  profile.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> ControllersPageState::GetCopySourceNames() const
+{
+    const ControllerModelSettings *  settings = FindSelectedModel();
+    ControllerModelSettings          empty;
+    std::vector<std::string>         names;
+    std::vector<std::string>         joyport;
+
+
+
+    if (settings == nullptr)
     {
-        if (profile.kind == ControllerProfileKind::User)
-        {
-            names.push_back (profile.name);
-        }
+        settings = &empty;
     }
 
+    names   = settings->GetProfileNames (ProfileMode::Normal);
+    joyport = settings->GetProfileNames (ProfileMode::Joyport);
+
+    names.insert (names.end(), joyport.begin(), joyport.end());
     return names;
 }
 
@@ -1240,9 +1333,10 @@ bool ControllersPageState::IsEditingBuiltInProfile() const
 //
 //  The choice is recorded for the page's mode. A name the model has no
 //  profile for selects no profile, which plays the mode's built-in profile,
-//  and so does selecting that built-in profile itself. The other built-in
-//  profile is recorded by name. A capture in progress belongs to
-//  the profile it was started on, so it is called off.
+//  and so does selecting that built-in profile itself. A profile of the
+//  other mode cannot be chosen, so it leaves the choice as it was. A capture
+//  in progress belongs to the profile it was started on, so it is called
+//  off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1254,6 +1348,11 @@ void ControllersPageState::SelectProfile (const std::string & name)
     ControllerProfileKind            automatic = ControllerModelSettings::GetAutomaticKind (m_profileMode);
 
 
+
+    if (IsNameOfOtherMode (name))
+    {
+        return;
+    }
 
     if (kind == automatic || (profile == nullptr && kind == ControllerProfileKind::User))
     {
@@ -1310,8 +1409,9 @@ ProfileEditResult ControllersPageState::CheckProfileName (const std::string & na
 //
 //  CreateProfile
 //
-//  The new profile becomes the edited one. Edits on the profile it was
-//  created from stay pending there.
+//  The new profile belongs to the page's mode and becomes the edited one. It
+//  can start as a copy of a profile of either mode. Edits on the profile it
+//  was created from stay pending there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1340,6 +1440,10 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
     {
         mapping = DefaultMapping::MakePaddles (selected->unit.model, selected->controls);
     }
+    else if (source == ProfileSource::JoyportMapping)
+    {
+        mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Joyport, selected->unit.model, selected->controls);
+    }
     else if (source == ProfileSource::CopyOfProfile)
     {
         copied = settings != nullptr ? settings->FindProfile (sourceName) : nullptr;
@@ -1364,7 +1468,7 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
 
     EnsureEditedProfile();
     target = EnsureSelectedModel();
-    result = target->AddProfile (name, mapping);
+    result = target->AddProfile (name, mapping, m_profileMode);
 
     if (result == ProfileEditResult::Ok)
     {
@@ -1467,9 +1571,9 @@ ProfileEditResult ControllersPageState::DeleteProfile()
 //
 //  ResetProfile
 //
-//  The edited profile back to the built-in mapping (FR-024): the Joyport
-//  profile to its own, every other profile to the Default's. Other profiles
-//  and the model's deadzone are left alone.
+//  The edited profile back to the built-in mapping (FR-024): each built-in
+//  profile to its own, and a user's to its mode's built-in profile's. Other
+//  profiles and the model's deadzone are left alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1485,7 +1589,7 @@ void ControllersPageState::ResetProfile()
         return;
     }
 
-    profile->mapping = ControllerModelSettings::MakeBuiltInMapping (profile->kind, selected->unit.model, selected->controls);
+    profile->mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerModelSettings::GetResetKind (*profile), selected->unit.model, selected->controls);
     m_liveEvaluator.ResetRate();
 }
 
@@ -1639,15 +1743,36 @@ Error:
 //
 //  HasActiveProfileChanged
 //
-//  A controller with no entry plays the Default, the same as one whose entry
-//  is empty, so picking the Default for it is no change.
+//  Either mode's choices count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ControllersPageState::HasActiveProfileChanged() const
 {
-    return !IsEachPlayedAlike (m_activeProfiles, m_baselineActiveProfiles) ||
-           !IsEachPlayedAlike (m_baselineActiveProfiles, m_activeProfiles);
+    return HasActiveProfileChanged (ProfileMode::Normal) || HasActiveProfileChanged (ProfileMode::Joyport);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasActiveProfileChanged
+//
+//  A controller with no entry plays the mode's built-in profile, the same as
+//  one whose entry is empty, so picking that profile for it is no change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::HasActiveProfileChanged (ProfileMode mode) const
+{
+    const std::map<std::string, std::string> &  active   = GetActiveProfiles (mode);
+    const std::map<std::string, std::string> &  baseline = mode == m_profileMode ? m_baselineActiveProfiles : m_baselineOtherActiveProfiles;
+
+
+
+    return !IsEachPlayedAlike (active, baseline) || !IsEachPlayedAlike (baseline, active);
 }
 
 
@@ -2198,10 +2323,11 @@ bool ControllersPageState::IsDirty() const
 
 void ControllersPageState::Revert()
 {
-    m_models          = m_baselineModels;
-    m_calibrations    = m_baselineCalibrations;
-    m_activeProfiles  = m_baselineActiveProfiles;
-    m_calibrationStep = CalibrationStep::None;
+    m_models              = m_baselineModels;
+    m_calibrations        = m_baselineCalibrations;
+    m_activeProfiles      = m_baselineActiveProfiles;
+    m_otherActiveProfiles = m_baselineOtherActiveProfiles;
+    m_calibrationStep     = CalibrationStep::None;
 
     LoadEditedProfile();
 
@@ -2222,9 +2348,10 @@ void ControllersPageState::Revert()
 
 void ControllersPageState::MarkCommitted()
 {
-    m_baselineModels         = m_models;
-    m_baselineCalibrations   = m_calibrations;
-    m_baselineActiveProfiles = m_activeProfiles;
+    m_baselineModels              = m_models;
+    m_baselineCalibrations        = m_calibrations;
+    m_baselineActiveProfiles      = m_activeProfiles;
+    m_baselineOtherActiveProfiles = m_otherActiveProfiles;
 
     m_committedNames.clear();
 }
@@ -2386,23 +2513,40 @@ const ControllerProfile * ControllersPageState::FindEditedProfile() const
 //  GetEditedBuiltInKind
 //
 //  The built-in profile the edited controller plays when its chosen name is
-//  not a profile its model has saved: the one chosen by name, or with none
-//  chosen, the page mode's.
+//  not a profile its model has saved: always the page mode's, since the
+//  other mode's cannot be chosen in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ControllerProfileKind ControllersPageState::GetEditedBuiltInKind() const
 {
-    ControllerProfileKind  kind = ControllerModelSettings::GetBuiltInKind (m_editedProfile);
+    return ControllerModelSettings::GetAutomaticKind (m_profileMode);
+}
 
 
 
-    if (kind == ControllerProfileKind::User)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsNameOfOtherMode
+//
+//  On the selected model, or by name alone for a model with nothing saved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsNameOfOtherMode (const std::string & name) const
+{
+    const ControllerModelSettings *  settings = FindSelectedModel();
+
+
+
+    if (settings == nullptr)
     {
-        kind = ControllerModelSettings::GetAutomaticKind (m_profileMode);
+        return ControllerModelSettings().IsOfOtherMode (name, m_profileMode);
     }
 
-    return kind;
+    return settings->IsOfOtherMode (name, m_profileMode);
 }
 
 

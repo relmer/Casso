@@ -99,3 +99,21 @@ place a player on a jack.
 | `scripts/CheckStyle.ps1 -Mode Tree` | 1,562 files, OK |
 | SC-002 (one frame) | not measured separately: the switches ride the same `Submit` and UI-thread flush as the controller buttons whose latency spec 034 measured |
 | V6 Wavy Navy on the ][+, V7 Boulder Dash on the //e, V10 detached with `JoystickTest.dsk` | manual, not yet run: need the game disks and a person at a controller |
+
+## Phase 9: profile modes (US7)
+
+| Check | Kind | Result |
+|---|---|---|
+| `profileMode` written for a Joyport-mode profile only and read back; absent or unknown reads normal and keeps the profile; the built-in profiles take their mode from their kind; a user profile called Joyport becomes a Joyport-mode built-in keeping its mapping (`ControllerProfileStoreTests`) | automated | pass |
+| Lists per mode with the built-in first; every `ProfileSource` in each mode stamps the mode in effect and starts from the right mapping, a copy of either mode's profile included; a name used in the other mode is a duplicate; reset by the profile's mode (`ControllerProfileStoreTests`) | automated | pass |
+| A normal-mode and a Joyport-mode user profile each remembered for its mode; a profile of the other mode picked, or loaded from the prefs, is ignored, plays the mode's built-in profile and is not saved back (`ControllerInputServiceTests`) | automated | pass |
+| The page's list follows its mode; `SetProfileMode` after Load swaps the list and the edited profile, keeping a pending edit; each mode's choices kept for OK and reverted by Cancel; a created profile belongs to the page's mode and resets to its built-in; copy sources list both modes (`ControllersPageStateTests`) | automated | pass |
+| Picker sections: normal mode lists the Default first and no Joyport profile, Joyport mode the Joyport profile first and no Default; the mode's built-in is checked with nothing chosen (`PaddleSourceRowsTests`) | automated | pass |
+| Mutation: `GetProfileNames` ignoring the mode | automated | 4 tests went red: `GetProfileNames_ListsTheModesBuiltInFirstThenItsOwnProfiles`, `ProfileNames_FollowThePagesMode`, both `ProfileRows_In*Mode_*` |
+| Mutation: `ReadProfile` ignoring `profileMode` | automated | 2 tests went red: `ProfileMode_IsSavedForJoyportModeOnlyAndReadBack`, `ProfileMode_AbsentOrUnknownReadsNormalAndKeepsTheProfile` |
+| Mutation: `ResetProfile` always the Default mapping | automated | 2 tests went red: `ResetProfile_RestoresTheBuiltInMappingOfTheProfilesMode`, `ResetProfile_RestoresTheJoyportProfileToItsOwnMapping` |
+| Mutation: `SetActiveProfile` accepting the other mode's profile | automated | 1 test went red: `ChosenProfile_OfTheOtherMode_IsIgnored` |
+| Mutation: `SetProfileMode` only storing the value | automated | 1 test went red: `SetProfileMode_AfterLoad_SwapsTheListAndTheEditedProfile` |
+| Mutation: `SetProfileSections` adding both built-in profiles again | automated | 6 of 7 `ProfileRows_*` tests went red, including both mode tests |
+| Full unit suite | x64 Release | 5,709 of 5,709 |
+| V17 in the running app | manual | not yet run |

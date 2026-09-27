@@ -35,9 +35,11 @@ enum class ControllerProfileKind
 //
 //  ProfileMode
 //
-//  Each controller's chosen profile is kept once for play without a Joyport
-//  and once for play with one, so attaching or detaching the Joyport switches
-//  to the profile last chosen for that mode.
+//  Play without a Joyport is normal mode, and play with one is Joyport mode.
+//  Every profile belongs to one of them, fixed when it is created, and is
+//  listed and played only in that mode. Each controller's chosen profile is
+//  kept once per mode, so attaching or detaching the Joyport switches to the
+//  profile last chosen for the new mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,9 +57,11 @@ enum class ProfileMode
 //
 //  ControllerProfile
 //
-//  One named mapping for a controller model. A controller with no profile
-//  chosen for the mode it is playing in plays the model's Joyport profile
-//  while a Joyport is attached and its Default otherwise.
+//  One named mapping for a controller model, belonging to one mode: the mode
+//  in effect when it was created. The Default belongs to normal mode and the
+//  Joyport profile to Joyport mode, each leading its mode's list. A
+//  controller with no profile chosen for the mode it is playing in plays that
+//  mode's built-in profile.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +73,7 @@ struct ControllerProfile
     std::string            name;
     ControllerProfileKind  kind = ControllerProfileKind::User;
     ControlMapping         mapping;
+    ProfileMode            mode = ProfileMode::Normal;
 
     bool operator== (const ControllerProfile &) const = default;
 };
@@ -104,13 +109,15 @@ enum class ProfileEditResult
 //
 //  ProfileSource
 //
-//  What a new profile's mapping starts from.
+//  What a new profile's mapping starts from. Every source is offered in
+//  both modes, and a copy can be of a profile of either mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class ProfileSource
 {
     DefaultMapping,
+    JoyportMapping,
     CopyOfProfile,
     Paddles,
 };
@@ -146,7 +153,16 @@ struct ControllerModelSettings
     // changes only case is not a duplicate of itself.
     ProfileEditResult          CheckProfileName    (const std::string & name, const ControllerProfile * excluding = nullptr) const;
 
-    ProfileEditResult          AddProfile            (const std::string & name, const ControlMapping & mapping);
+    // The mode's built-in profile first, then the mode's own profiles in the
+    // order they are kept.
+    std::vector<std::string>   GetProfileNames     (ProfileMode mode) const;
+
+    // Whether a name is a profile of the mode other than `mode`: a built-in
+    // profile by its name, or a saved profile made in that mode. A name the
+    // model has no profile for is not.
+    bool                       IsOfOtherMode       (const std::string & name, ProfileMode mode) const;
+
+    ProfileEditResult          AddProfile            (const std::string & name, const ControlMapping & mapping, ProfileMode mode);
     ProfileEditResult          RenameProfile         (const std::string & name, const std::string & newName);
     ProfileEditResult          DeleteProfile         (const std::string & name);
     ProfileEditResult          ResetProfile          (const std::string & name, const ControllerModelKey & model, const std::vector<ControlId> & controls);
@@ -154,8 +170,7 @@ struct ControllerModelSettings
 
     static std::string         TrimProfileName       (const std::string & name);
 
-    // The built-in mapping a profile of this kind resets to; a user profile
-    // resets to the Default's.
+    // The built-in mapping a profile of this kind resets to.
     static ControlMapping         MakeBuiltInMapping    (ControllerProfileKind           kind,
                                                          const ControllerModelKey      & model,
                                                          const std::vector<ControlId>  & controls);
@@ -164,6 +179,12 @@ struct ControllerModelSettings
     // which one a name is, ignoring case; User for any other name.
     static ControllerProfileKind  GetAutomaticKind      (ProfileMode mode);
     static ControllerProfileKind  GetBuiltInKind        (const std::string & name);
+
+    // The mode a built-in profile belongs to, and the built-in profile whose
+    // mapping a profile resets to: its own for a built-in profile, and its
+    // mode's for a user's.
+    static ProfileMode            GetBuiltInMode        (ControllerProfileKind kind);
+    static ControllerProfileKind  GetResetKind          (const ControllerProfile & profile);
 
     bool operator== (const ControllerModelSettings &) const = default;
 };
@@ -237,10 +258,13 @@ public:
     // has none, and always holding a Default profile.
     ControllerModelSettings &  GetOrCreateModel (const ControllerModelKey & model, const std::vector<ControlId> & controls);
 
+    // The new profile belongs to `mode`, the mode in effect, whatever it
+    // starts from.
     ProfileEditResult  CreateProfile (const ControllerModelKey        & model,
                                       const std::vector<ControlId>    & controls,
                                       const std::string               & name,
                                       ProfileSource                     source,
+                                      ProfileMode                       mode,
                                       const std::string               & sourceName = std::string());
     ProfileEditResult  ResetProfile  (const ControllerModelKey        & model,
                                       const std::vector<ControlId>    & controls,

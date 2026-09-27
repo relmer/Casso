@@ -81,9 +81,10 @@ public:
     // Raised when the user picks a profile for one controller. Empty for Default.
     using ProfilePickedFn = std::function<void (const ControllerUnitKey & unit, const std::string & profileName)>;
 
-    // One controller's part of the Profiles submenu: its model's profiles,
-    // its own active one, and the header over them -- empty when it is the
-    // only controller listed, where a title would say nothing.
+    // One controller's part of the Profiles submenu: its model's profiles of
+    // the mode in effect, that mode's built-in profile first; its own active
+    // one; and the header over them -- empty when it is the only controller
+    // listed, where a title would say nothing.
     struct ProfileSection
     {
         ControllerUnitKey         unit;

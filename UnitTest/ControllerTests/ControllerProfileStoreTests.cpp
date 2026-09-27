@@ -458,11 +458,11 @@ namespace ControllerTests
             std::string                forty (ControllerModelSettings::kMaxProfileNameLength, 'a');
             std::string                fortyOne (ControllerModelSettings::kMaxProfileNameLength + 1, 'b');
 
-            Assert::IsTrue   (settings.AddProfile ("", ControlMapping()) == ProfileEditResult::EmptyName);
-            Assert::IsTrue   (settings.AddProfile (" \t ", ControlMapping()) == ProfileEditResult::EmptyName, L"whitespace alone is empty");
-            Assert::IsTrue   (settings.AddProfile (fortyOne, ControlMapping()) == ProfileEditResult::NameTooLong);
-            Assert::IsTrue   (settings.AddProfile ("  " + forty + "  ", ControlMapping()) == ProfileEditResult::Ok, L"length is measured after trimming");
-            Assert::IsTrue   (settings.AddProfile ("  Flight  ", ControlMapping()) == ProfileEditResult::Ok);
+            Assert::IsTrue   (settings.AddProfile ("", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::EmptyName);
+            Assert::IsTrue   (settings.AddProfile (" \t ", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::EmptyName, L"whitespace alone is empty");
+            Assert::IsTrue   (settings.AddProfile (fortyOne, ControlMapping(), ProfileMode::Normal) == ProfileEditResult::NameTooLong);
+            Assert::IsTrue   (settings.AddProfile ("  " + forty + "  ", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::Ok, L"length is measured after trimming");
+            Assert::IsTrue   (settings.AddProfile ("  Flight  ", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::Ok);
             Assert::IsTrue   (settings.FindProfile ("Flight") != nullptr, L"and the name is stored trimmed");
             Assert::AreEqual (std::string ("Flight"), settings.FindProfile ("flight")->name);
             Assert::IsTrue   (settings.RenameProfile ("Flight", "   ") == ProfileEditResult::EmptyName);
@@ -475,10 +475,10 @@ namespace ControllerTests
             ControllerProfileStore     store;
             ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
 
-            Assert::IsTrue   (settings.AddProfile ("Flight", ControlMapping()) == ProfileEditResult::Ok);
-            Assert::IsTrue   (settings.AddProfile ("Lode Runner", ControlMapping()) == ProfileEditResult::Ok);
-            Assert::IsTrue   (settings.AddProfile ("FLIGHT", ControlMapping()) == ProfileEditResult::DuplicateName);
-            Assert::IsTrue   (settings.AddProfile ("default", ControlMapping()) == ProfileEditResult::DuplicateName, L"never a second Default");
+            Assert::IsTrue   (settings.AddProfile ("Flight", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::Ok);
+            Assert::IsTrue   (settings.AddProfile ("Lode Runner", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::Ok);
+            Assert::IsTrue   (settings.AddProfile ("FLIGHT", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::DuplicateName);
+            Assert::IsTrue   (settings.AddProfile ("default", ControlMapping(), ProfileMode::Normal) == ProfileEditResult::DuplicateName, L"never a second Default");
             Assert::IsTrue   (settings.RenameProfile ("Lode Runner", " flight ") == ProfileEditResult::DuplicateName);
             Assert::IsTrue   (settings.RenameProfile ("Flight", "FLIGHT") == ProfileEditResult::Ok, L"a profile may change the case of its own name");
             Assert::AreEqual (std::string ("FLIGHT"), settings.FindProfile ("flight")->name);
@@ -493,13 +493,13 @@ namespace ControllerTests
             ControllerModelSettings      & settings = store.GetOrCreateModel (Xbox(), controls);
             int                            defaults = 0;
 
-            settings.AddProfile ("Flight", MakeFullMapping());
+            settings.AddProfile ("Flight", MakeFullMapping(), ProfileMode::Normal);
 
-            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Plain", ProfileSource::DefaultMapping) == ProfileEditResult::Ok);
-            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Flight 2", ProfileSource::CopyOfProfile, "flight") == ProfileEditResult::Ok);
-            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Pong", ProfileSource::Paddles) == ProfileEditResult::Ok);
-            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Ghost", ProfileSource::CopyOfProfile, "Missing") == ProfileEditResult::NotFound);
-            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "PONG", ProfileSource::Paddles) == ProfileEditResult::DuplicateName);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Plain", ProfileSource::DefaultMapping, ProfileMode::Normal) == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Flight 2", ProfileSource::CopyOfProfile, ProfileMode::Normal, "flight") == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Pong", ProfileSource::Paddles, ProfileMode::Normal) == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Ghost", ProfileSource::CopyOfProfile, ProfileMode::Normal, "Missing") == ProfileEditResult::NotFound);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "PONG", ProfileSource::Paddles, ProfileMode::Normal) == ProfileEditResult::DuplicateName);
 
             Assert::IsTrue (settings.FindProfile ("Plain")->mapping == DefaultMapping::For (Xbox(), controls));
             Assert::IsTrue (settings.FindProfile ("Flight 2")->mapping == MakeFullMapping(), L"a copy carries the source's mapping");
@@ -521,7 +521,7 @@ namespace ControllerTests
             std::vector<ControlId>         controls = XInputSampleDecoder::ListControls();
             ControllerModelSettings      & settings = store.GetOrCreateModel (Xbox(), controls);
 
-            settings.AddProfile ("Flight", MakeFullMapping());
+            settings.AddProfile ("Flight", MakeFullMapping(), ProfileMode::Normal);
             settings.profiles[0].mapping = MakeFullMapping();
 
             Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Flight") == ProfileEditResult::Ok);
@@ -546,6 +546,230 @@ namespace ControllerTests
 
             Assert::IsTrue (store.ResetProfile (Xbox(), controls, "joyport") == ProfileEditResult::Ok);
             Assert::IsTrue (joyport->mapping == DefaultMapping::MakeJoyport (Xbox(), controls), L"not to the Default's mapping");
+        }
+
+
+        // One profile object as ToJson wrote it, or null.
+        static const JsonValue * FindWrittenProfile (const JsonValue & written, const std::string & token, const std::string & name)
+        {
+            const JsonValue *  models   = nullptr;
+            const JsonValue *  model    = nullptr;
+            const JsonValue *  profiles = nullptr;
+            std::string        found;
+
+            if (!written.HasObject ("models", models) || models == nullptr ||
+                !models->HasObject (token, model)     || model == nullptr  ||
+                !model->HasArray ("profiles", profiles) || profiles == nullptr)
+            {
+                return nullptr;
+            }
+
+            for (size_t i = 0; i < profiles->GetArraySize(); i++)
+            {
+                if (profiles->GetArrayElement (i).HasString ("name", found) && found == name)
+                {
+                    return &profiles->GetArrayElement (i);
+                }
+            }
+
+            return nullptr;
+        }
+
+
+        //  A Joyport-mode profile is saved with its mode and a normal-mode
+        //  one without, so a file from before profiles had modes reads the
+        //  same as one written now.
+        TEST_METHOD (ProfileMode_IsSavedForJoyportModeOnlyAndReadBack)
+        {
+            ControllerProfileStore    store;
+            ControllerProfileStore    readBack;
+            std::vector<std::string>  rejected;
+            std::vector<ControlId>    controls = XInputSampleDecoder::ListControls();
+            std::string               token    = ControllerTokens::ModelToToken (Xbox());
+            JsonValue                 written;
+            const JsonValue         * atari    = nullptr;
+            const JsonValue         * apple    = nullptr;
+            std::string               mode;
+
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Atari", ProfileSource::DefaultMapping, ProfileMode::Joyport) == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Apple", ProfileSource::DefaultMapping, ProfileMode::Normal)  == ProfileEditResult::Ok);
+
+            written = store.ToJson (JsonValue());
+            atari   = FindWrittenProfile (written, token, "Atari");
+            apple   = FindWrittenProfile (written, token, "Apple");
+
+            Assert::IsNotNull (atari);
+            Assert::IsNotNull (apple);
+            Assert::IsTrue    (atari->HasString ("profileMode", mode), L"a Joyport-mode profile writes its mode");
+            Assert::AreEqual  (std::string ("joyport"), mode);
+            Assert::IsFalse   (apple->HasString ("profileMode", mode), L"a normal-mode profile writes none");
+
+            readBack.FromJson (written, rejected);
+
+            Assert::IsTrue (rejected.empty());
+            Assert::IsTrue (readBack.models.at (token).FindProfile ("Atari")->mode == ProfileMode::Joyport, L"and each reads back in its mode");
+            Assert::IsTrue (readBack.models.at (token).FindProfile ("Apple")->mode == ProfileMode::Normal);
+        }
+
+
+        //  Every profile saved before this change has no mode and is a
+        //  normal-mode profile. A mode this build does not know is read the
+        //  same way; the mapping is sound, so the profile is kept.
+        TEST_METHOD (ProfileMode_AbsentOrUnknownReadsNormalAndKeepsTheProfile)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::string               token = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc   = Parse (
+                "{\"models\":{\"" + token + "\":{\"profiles\":["
+                  "{\"name\":\"Older\",\"mapping\":{}},"
+                  "{\"name\":\"Odd\",\"profileMode\":\"sideways\",\"mapping\":{}},"
+                  "{\"name\":\"Atari\",\"profileMode\":\"joyport\",\"mapping\":{}}"
+                "]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::IsTrue   (rejected.empty(), L"an unknown mode rejects nothing");
+            Assert::AreEqual (size_t (3), store.models.at (token).profiles.size());
+            Assert::IsTrue   (store.models.at (token).FindProfile ("Older")->mode == ProfileMode::Normal);
+            Assert::IsTrue   (store.models.at (token).FindProfile ("Odd")->mode   == ProfileMode::Normal);
+            Assert::IsTrue   (store.models.at (token).FindProfile ("Atari")->mode == ProfileMode::Joyport);
+        }
+
+
+        //  The Default is a normal-mode profile and the Joyport profile a
+        //  Joyport-mode one, whatever the file says.
+        TEST_METHOD (ProfileMode_OfTheBuiltInProfilesComesFromTheirKind)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::string               token = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc   = Parse (
+                "{\"models\":{\"" + token + "\":{\"profiles\":["
+                  "{\"name\":\"Default\",\"default\":true,\"profileMode\":\"joyport\",\"mapping\":{}},"
+                  "{\"name\":\"Joyport\",\"joyport\":true,\"mapping\":{}}"
+                "]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::IsTrue (rejected.empty());
+            Assert::IsTrue (store.models.at (token).FindDefaultProfile()->mode == ProfileMode::Normal);
+            Assert::IsTrue (store.models.at (token).FindBuiltInProfile (ControllerProfileKind::Joyport)->mode == ProfileMode::Joyport);
+        }
+
+
+        //  Each mode lists its own built-in profile first and then only its
+        //  own profiles, in the order they are kept.
+        TEST_METHOD (GetProfileNames_ListsTheModesBuiltInFirstThenItsOwnProfiles)
+        {
+            ControllerProfileStore     store;
+            ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
+
+            settings.AddProfile ("Flight",  ControlMapping(), ProfileMode::Normal);
+            settings.AddProfile ("Atari",   ControlMapping(), ProfileMode::Joyport);
+            settings.AddProfile ("Pong",    ControlMapping(), ProfileMode::Normal);
+            settings.AddProfile ("Boulder", ControlMapping(), ProfileMode::Joyport);
+
+            Assert::IsTrue (settings.GetProfileNames (ProfileMode::Normal)  == std::vector<std::string> { "Default", "Flight", "Pong" });
+            Assert::IsTrue (settings.GetProfileNames (ProfileMode::Joyport) == std::vector<std::string> { "Joyport", "Atari", "Boulder" });
+            Assert::IsTrue (ControllerModelSettings().GetProfileNames (ProfileMode::Joyport) == std::vector<std::string> { "Joyport" },
+                L"a model with nothing saved still lists the built-in profile it plays");
+        }
+
+
+        //  Every starting point is offered in both modes, and the new profile
+        //  belongs to the mode in effect whichever it starts from, a copy of
+        //  the other mode's profile included.
+        TEST_METHOD (CreateProfile_FromEverySourceInEachMode_StampsTheModeInEffect)
+        {
+            struct Case
+            {
+                ProfileSource  source;
+                const char   * pszSourceName;
+            };
+
+            const Case                    cases[] =
+            {
+                { ProfileSource::DefaultMapping, "" },
+                { ProfileSource::JoyportMapping, "" },
+                { ProfileSource::CopyOfProfile,  "Flight" },
+                { ProfileSource::CopyOfProfile,  "Atari" },
+                { ProfileSource::Paddles,        "" },
+            };
+            const ProfileMode             modes[]  = { ProfileMode::Normal, ProfileMode::Joyport };
+            ControllerProfileStore        store;
+            std::vector<ControlId>        controls = XInputSampleDecoder::ListControls();
+            ControllerModelSettings     & settings = store.GetOrCreateModel (Xbox(), controls);
+            ControlMapping                flight   = MakeFullMapping();
+            ControlMapping                atari;
+            ControlMapping                expected;
+            int                           created  = 0;
+
+            atari.pb0.push_back ({ { ControlKind::Button, 3 } });
+
+            settings.AddProfile ("Flight", flight, ProfileMode::Normal);
+            settings.AddProfile ("Atari",  atari,  ProfileMode::Joyport);
+
+            for (ProfileMode mode : modes)
+            {
+                for (const Case & c : cases)
+                {
+                    std::string  name = "New " + std::to_string (created++);
+
+                    switch (c.source)
+                    {
+                        case ProfileSource::DefaultMapping: expected = DefaultMapping::For (Xbox(), controls);                                              break;
+                        case ProfileSource::JoyportMapping: expected = DefaultMapping::MakeJoyport (Xbox(), controls);                                      break;
+                        case ProfileSource::CopyOfProfile:  expected = std::string (c.pszSourceName) == "Flight" ? flight : atari;                         break;
+                        case ProfileSource::Paddles:        expected = DefaultMapping::MakePaddles (Xbox(), controls);                                      break;
+                    }
+
+                    Assert::IsTrue (store.CreateProfile (Xbox(), controls, name, c.source, mode, c.pszSourceName) == ProfileEditResult::Ok);
+                    Assert::IsTrue (settings.FindProfile (name)->mode == mode,        L"the new profile belongs to the mode in effect");
+                    Assert::IsTrue (settings.FindProfile (name)->mapping == expected, L"and starts from the source's mapping");
+                }
+            }
+
+            Assert::AreEqual (10, created, L"every source was tried in both modes");
+        }
+
+
+        //  Names stay unique across both modes, so a profile of the other
+        //  mode, or the other mode's built-in profile, holds its name.
+        TEST_METHOD (CreateProfile_ANameUsedInTheOtherMode_IsADuplicate)
+        {
+            ControllerProfileStore  store;
+            std::vector<ControlId>  controls = XInputSampleDecoder::ListControls();
+
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Atari", ProfileSource::DefaultMapping, ProfileMode::Joyport) == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "ATARI", ProfileSource::DefaultMapping, ProfileMode::Normal)  == ProfileEditResult::DuplicateName);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "joyport", ProfileSource::DefaultMapping, ProfileMode::Normal) == ProfileEditResult::DuplicateName);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "default", ProfileSource::DefaultMapping, ProfileMode::Joyport) == ProfileEditResult::DuplicateName);
+        }
+
+
+        //  A user profile resets to the built-in mapping of its own mode, and
+        //  each built-in profile to its own.
+        TEST_METHOD (ResetProfile_RestoresTheBuiltInMappingOfTheProfilesMode)
+        {
+            ControllerProfileStore         store;
+            std::vector<ControlId>         controls = XInputSampleDecoder::ListControls();
+            ControllerModelSettings      & settings = store.GetOrCreateModel (Xbox(), controls);
+
+            settings.AddProfile ("Apple", MakeFullMapping(), ProfileMode::Normal);
+            settings.AddProfile ("Atari", MakeFullMapping(), ProfileMode::Joyport);
+            settings.FindBuiltInProfile (ControllerProfileKind::Default)->mapping = MakeFullMapping();
+            settings.FindBuiltInProfile (ControllerProfileKind::Joyport)->mapping = MakeFullMapping();
+
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Apple")   == ProfileEditResult::Ok);
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Atari")   == ProfileEditResult::Ok);
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Default") == ProfileEditResult::Ok);
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Joyport") == ProfileEditResult::Ok);
+
+            Assert::IsTrue (settings.FindProfile ("Apple")->mapping   == DefaultMapping::For (Xbox(), controls),         L"a normal-mode profile to the Default's");
+            Assert::IsTrue (settings.FindProfile ("Atari")->mapping   == DefaultMapping::MakeJoyport (Xbox(), controls), L"a Joyport-mode profile to the Joyport profile's");
+            Assert::IsTrue (settings.FindProfile ("Default")->mapping == DefaultMapping::For (Xbox(), controls));
+            Assert::IsTrue (settings.FindProfile ("Joyport")->mapping == DefaultMapping::MakeJoyport (Xbox(), controls));
         }
 
 
@@ -630,6 +854,8 @@ namespace ControllerTests
             Assert::AreEqual (size_t (2), adopted.profiles.size(), L"no second Joyport profile");
             Assert::IsTrue   (adopted.profiles[1].kind == ControllerProfileKind::Joyport);
             Assert::IsTrue   (adopted.profiles[1].mapping == ControlMapping(), L"the user's mapping is kept");
+            Assert::IsTrue   (adopted.profiles[1].mode == ProfileMode::Joyport, L"and it becomes a Joyport-mode profile");
+            Assert::IsTrue   (older.profiles[1].mode == ProfileMode::Joyport);
         }
 
 
@@ -658,8 +884,8 @@ namespace ControllerTests
             ControllerProfileStore     store;
             ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
 
-            settings.AddProfile ("Flight", MakeFullMapping());
-            settings.AddProfile ("Pong", ControlMapping());
+            settings.AddProfile ("Flight", MakeFullMapping(), ProfileMode::Normal);
+            settings.AddProfile ("Pong", ControlMapping(), ProfileMode::Normal);
 
             Assert::IsTrue   (settings.DeleteProfile ("FLIGHT") == ProfileEditResult::Ok);
             Assert::IsTrue   (settings.FindProfile ("Flight") == nullptr);
@@ -673,7 +899,7 @@ namespace ControllerTests
             ControllerProfileStore  store;
             std::string             token = ControllerTokens::ModelToToken (Xbox());
 
-            store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls()).AddProfile ("Lode Runner", MakeFullMapping());
+            store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls()).AddProfile ("Lode Runner", MakeFullMapping(), ProfileMode::Normal);
 
             Assert::IsTrue (store.FindProfile (token, "lode runner") != nullptr, L"ignoring case");
             Assert::IsTrue (store.FindProfile (token, "Lode Runner")->mapping == MakeFullMapping());
@@ -693,8 +919,8 @@ namespace ControllerTests
             std::vector<std::string>  rejected;
             std::string               token    = ControllerTokens::ModelToToken (Xbox());
 
-            store.GetOrCreateModel (Xbox(), controls).AddProfile ("Flight", MakeFullMapping());
-            store.CreateProfile (Xbox(), controls, "Pong", ProfileSource::Paddles);
+            store.GetOrCreateModel (Xbox(), controls).AddProfile ("Flight", MakeFullMapping(), ProfileMode::Normal);
+            store.CreateProfile (Xbox(), controls, "Pong", ProfileSource::Paddles, ProfileMode::Normal);
 
             saved.controllers = store.ToJson (saved.controllers);
             AssertSucceeded (saved.Save  (L"C:\\Casso", fs));

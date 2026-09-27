@@ -500,6 +500,34 @@ namespace ControllerTests
         //  Joyport-mode choice, and one picked without it is its normal-mode
         //  choice. Attaching or detaching the Joyport plays the choice made
         //  for the new mode.
+        // One normal-mode profile, "Dpad", that steers PDL0 with the D-pad,
+        // and one Joyport-mode profile, "Atari", that binds nothing but fire
+        // on X. Neither built-in profile plays like either of them.
+        static std::map<std::string, ControllerModelSettings> MakeProfilesOfEachMode (const ControllerDeviceInfo & device)
+        {
+            ControllerProfileStore     store;
+            ControllerModelSettings &  settings = store.GetOrCreateModel (device.unit.model, device.controls);
+            ControlMapping             dpad;
+            ControlMapping             atari;
+            AxisBinding                pair;
+
+            pair.kind     = AxisBindingKind::DigitalPair;
+            pair.negative = { ControlKind::DpadLeft,  0 };
+            pair.positive = { ControlKind::DpadRight, 0 };
+            dpad.pdl0.push_back (pair);
+
+            atari.pb0.push_back ({ { ControlKind::Button, 2 } });
+
+            settings.AddProfile ("Dpad",  dpad,  ProfileMode::Normal);
+            settings.AddProfile ("Atari", atari, ProfileMode::Joyport);
+            return store.models;
+        }
+
+
+        //  A profile picked with the Joyport attached is that controller's
+        //  Joyport-mode choice, and one picked without it is its normal-mode
+        //  choice. Attaching or detaching the Joyport plays the choice made
+        //  for the new mode.
         TEST_METHOD (ChosenProfile_IsRememberedForEachMode)
         {
             FakeControllerBackend   backend;
@@ -516,31 +544,88 @@ namespace ControllerTests
             mixer.SetAxisOwner (AxisOwner::Controller);
             backend.AddDevice (device, true);
             backend.SetSample (device.unit, sample);
+            service.SetModelSettings (MakeProfilesOfEachMode (device));
 
             service.SetSelection (device.unit);
-            service.SetActiveProfile (device.unit, "Joyport");
+            service.SetActiveProfile (device.unit, "Dpad");
             service.Tick();
 
-            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the Joyport profile, picked without a Joyport");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"a normal-mode profile, picked without a Joyport");
 
             service.SetJoyportAttached (true);
-            service.SetActiveProfile (device.unit, "Default");
+            service.SetActiveProfile (device.unit, "Atari");
             service.Tick();
 
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"the Default, picked with one");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"a Joyport-mode profile, picked with one");
 
             service.SetJoyportAttached (false);
             service.Tick();
 
             Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"detaching plays the normal-mode choice");
-            Assert::AreEqual (std::string ("Joyport"), service.GetActiveProfile (device.unit));
+            Assert::AreEqual (std::string ("Dpad"), service.GetActiveProfile (device.unit));
 
             service.SetJoyportAttached (true);
             service.Tick();
 
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and attaching the Joyport-mode one");
-            Assert::AreEqual (std::string ("Default"), service.GetActiveProfile (device.unit));
-            Assert::AreEqual (std::string ("Joyport"), service.GetActiveProfiles (ProfileMode::Normal).at (ControllerTokens::UnitToToken (device.unit)));
+            Assert::AreEqual (std::string ("Atari"), service.GetActiveProfile (device.unit));
+            Assert::AreEqual (std::string ("Dpad"), service.GetActiveProfiles (ProfileMode::Normal).at (ControllerTokens::UnitToToken (device.unit)));
+        }
+
+
+        //  A profile of the other mode cannot be chosen: picking one leaves
+        //  the choice as it was, and a choice of one loaded from the prefs
+        //  plays the mode's built-in profile and is not saved back.
+        TEST_METHOD (ChosenProfile_OfTheOtherMode_IsIgnored)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    device = MakeXboxDevice();
+            std::string             token  = ControllerTokens::UnitToToken (device.unit);
+            ControllerSample        sample;
+
+            sample.connected = true;
+            sample.hats[0]   = ControllerSample::kHatRight;
+            sample.buttons.set (2);
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, sample);
+            service.SetModelSettings (MakeProfilesOfEachMode (device));
+            service.SetSelection (device.unit);
+
+            service.SetActiveProfile (device.unit, "Joyport");
+            service.SetActiveProfile (device.unit, "Atari");
+            service.Tick();
+
+            Assert::AreEqual (std::string(), service.GetActiveProfile (device.unit), L"neither Joyport-mode profile is chosen without a Joyport");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],            L"so the Default plays");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (0));
+
+            service.SetJoyportAttached (true);
+            service.SetActiveProfile (device.unit, "Default");
+            service.SetActiveProfile (device.unit, "Dpad");
+            service.Tick();
+
+            Assert::AreEqual (std::string(), service.GetActiveProfile (device.unit),       L"nor either normal-mode profile with one");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"so the Joyport profile plays");
+
+            // Choices loaded from the prefs, each of the other mode's profile.
+            service.SetActiveProfiles (ProfileMode::Normal,  { { token, "Atari" } });
+            service.SetActiveProfiles (ProfileMode::Joyport, { { token, "Default" } });
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"with the Joyport, the Joyport profile plays, not the Default");
+
+            service.SetJoyportAttached (false);
+            service.Tick();
+
+            Assert::IsFalse (sink.writes.back().state.buttons.test (0), L"without it, the Default plays, not Atari");
+            Assert::IsTrue  (service.GetActiveProfiles (ProfileMode::Normal).empty(),  L"and neither choice is saved back");
+            Assert::IsTrue  (service.GetActiveProfiles (ProfileMode::Joyport).empty());
         }
 
 
@@ -1145,7 +1230,7 @@ namespace ControllerTests
 
 
 
-            settings.AddProfile (pszName, mapping);
+            settings.AddProfile (pszName, mapping, ProfileMode::Normal);
             models[ControllerTokens::ModelToToken (device.unit.model)] = settings;
             return models;
         }
@@ -1286,7 +1371,7 @@ namespace ControllerTests
             // any reading: only the switch's own reset can bring the paddle
             // back.
             models = MakeModelSettings (device, "Rate A", mapping);
-            models.begin()->second.AddProfile ("Rate B", mapping);
+            models.begin()->second.AddProfile ("Rate B", mapping, ProfileMode::Normal);
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);

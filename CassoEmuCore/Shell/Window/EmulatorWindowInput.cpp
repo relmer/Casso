@@ -3044,13 +3044,10 @@ void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & sn
             section.header = headers[i] + L" " + s_kchEmDash + L" " + device->description;
         }
 
-        if (model != models.end())
-        {
-            for (const ControllerProfile & profile : model->second.profiles)
-            {
-                section.names.push_back (profile.name);
-            }
-        }
+        // Only the profiles of the mode in effect, its built-in profile
+        // first, which a model with nothing saved still lists.
+        section.names = (model != models.end()) ? model->second.GetProfileNames (snapshot.profileMode)
+                                                : ControllerModelSettings().GetProfileNames (snapshot.profileMode);
 
         sections.push_back (std::move (section));
     }

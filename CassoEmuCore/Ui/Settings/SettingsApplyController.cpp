@@ -470,9 +470,12 @@ void SettingsApplyController::CommitApply()
         HRESULT                   hrSave        = S_OK;
         bool                      profileChange = m_controllersState->HasActiveProfileChanged();
         ProfileMode               pageMode      = m_controllersState->GetProfileMode();
+        const ProfileMode         kModes[]      = { ProfileMode::Normal, ProfileMode::Joyport };
 
-        // The page edits the active profiles of the mode it opened in; the
-        // other mode's are written back as saved.
+        // The page edits the active profiles of the mode it is in, and holds
+        // the other mode's too, since its mode can change while it is open.
+        // The other mode's are written back as saved unless the page changed
+        // them.
         existing.FromJson (m_prefs->controllers, unreadable);
 
         store.models                = m_controllersState->GetModels();
@@ -480,8 +483,15 @@ void SettingsApplyController::CommitApply()
         store.activeProfiles        = existing.activeProfiles;
         store.joyportActiveProfiles = existing.joyportActiveProfiles;
 
-        store.GetActiveProfiles (pageMode) = m_controllersState->GetActiveProfiles();
-        m_prefs->controllers               = store.ToJson (m_prefs->controllers);
+        for (ProfileMode mode : kModes)
+        {
+            if (mode == pageMode || m_controllersState->HasActiveProfileChanged (mode))
+            {
+                store.GetActiveProfiles (mode) = m_controllersState->GetActiveProfiles (mode);
+            }
+        }
+
+        m_prefs->controllers = store.ToJson (m_prefs->controllers);
 
         if (m_controllerService != nullptr)
         {
@@ -490,7 +500,14 @@ void SettingsApplyController::CommitApply()
 
             if (profileChange)
             {
-                m_controllerService->SetActiveProfiles (pageMode, store.GetActiveProfiles (pageMode));
+                for (ProfileMode mode : kModes)
+                {
+                    if (mode == pageMode || m_controllersState->HasActiveProfileChanged (mode))
+                    {
+                        m_controllerService->SetActiveProfiles (mode, store.GetActiveProfiles (mode));
+                    }
+                }
+
                 m_emuShell->SyncPaddleSourceList();
             }
         }

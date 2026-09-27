@@ -194,15 +194,23 @@ public:
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
 
-    // The mode whose active profiles the page edits: with a Joyport attached
-    // or without. Set before Load; a controller with no profile chosen in it
-    // plays that mode's built-in profile.
-    void                                  SetProfileMode           (ProfileMode mode) { m_profileMode = mode; }
+    // The mode whose profiles the page lists and whose active profiles it
+    // edits: with a Joyport attached or without. A controller with no
+    // profile chosen in it plays that mode's built-in profile. Set before
+    // Load, or after it to swap the list and the edited profile in place.
+    void                                  SetProfileMode           (ProfileMode mode);
     ProfileMode                           GetProfileMode           () const           { return m_profileMode; }
 
-    // The selected model's profiles, Default and Joyport first, and the one
-    // being edited.
+    // Every controller's active profile in the mode the page is not in, by
+    // unit token, set after Load; the page edits it once SetProfileMode
+    // switches to that mode.
+    void                                  SetOtherModeActiveProfiles (const std::map<std::string, std::string> & activeProfiles);
+
+    // The selected model's profiles of the page's mode, its built-in profile
+    // first; every profile of both modes, which a new profile can be a copy
+    // of; and the one being edited.
     std::vector<std::string>              GetProfileNames          () const;
+    std::vector<std::string>              GetCopySourceNames       () const;
     std::string                           GetEditedProfileName     () const;
     bool                                  IsEditingBuiltInProfile  () const;
     void                                  SelectProfile            (const std::string & name);
@@ -229,10 +237,13 @@ public:
     HRESULT                               SaveProfileEdits         (const CommitFn & commit);
 
     // Every controller's active profile as it stands on the page, by unit
-    // token, which becomes the service's on OK; whether any differs from when
-    // the page opened; and the edited controller's, empty for Default.
+    // token, for the page's mode or for either, which becomes the service's
+    // on OK; whether any differs from when the page opened; and the edited
+    // controller's, empty for the mode's built-in profile.
     const std::map<std::string, std::string> &  GetActiveProfiles () const { return m_activeProfiles; }
+    const std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) const;
     bool                                  HasActiveProfileChanged  () const;
+    bool                                  HasActiveProfileChanged  (ProfileMode mode) const;
     const std::string &                   GetActiveProfileName     () const;
 
     // The two lines shown for a refused name; false when the result is not a
@@ -278,6 +289,7 @@ private:
     const ControllerProfile *        FindEditedProfile    () const;
     ControllerProfile *              EnsureEditedProfile  ();
     ControllerProfileKind            GetEditedBuiltInKind () const;
+    bool                             IsNameOfOtherMode    (const std::string & name) const;
     bool                             FindCommittedMapping (ControlMapping & mapping) const;
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
 
@@ -303,9 +315,12 @@ private:
     ProfileMode                                     m_profileMode = ProfileMode::Normal;
 
     // Every controller's active profile, by unit token, and as it was when
-    // the page opened or last committed.
+    // the page opened or last committed: for the page's mode, and set aside
+    // for the other mode until SetProfileMode swaps them.
     std::map<std::string, std::string>              m_activeProfiles;
     std::map<std::string, std::string>              m_baselineActiveProfiles;
+    std::map<std::string, std::string>              m_otherActiveProfiles;
+    std::map<std::string, std::string>              m_baselineOtherActiveProfiles;
 
     void  LoadEditedProfile      ();
     void  StoreEditedProfile     ();
