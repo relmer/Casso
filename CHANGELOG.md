@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+
+- GH #155: Ctrl+@ (Ctrl+Shift+2) now sends a NUL keypress like a real
+  Apple II, so Bandits and other Sirius games can switch to the Joyport.
+
 ## [1.28.0] - 2026-09-25: The one with Joyport/Atari joystick emulation, Siriously
 
 ### Added

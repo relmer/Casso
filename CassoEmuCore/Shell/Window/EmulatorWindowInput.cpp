@@ -1764,7 +1764,7 @@ void EmulatorShell::ReleaseGuestKeys()
     if (m_machine.GetRefs().keyboard != nullptr)
     {
         m_machine.GetRefs().keyboard->SetKeyDown (false);
-        m_machine.GetRefs().keyboard->BeginKeyRepeat (0);
+        m_machine.GetRefs().keyboard->EndKeyRepeat();
     }
 }
 
@@ -2169,7 +2169,7 @@ static bool HostKeyboardLayoutIsDvorak()
 //  the emulated //e then generates its own authentic repeat cadence in Tick.
 //  Letting both repeats run would double the rate and sound wrong.
 //
-//  A key-up always calls BeginKeyRepeat(0). The //e latch holds exactly one
+//  A key-up always calls EndKeyRepeat. The //e latch holds exactly one
 //  key, so a release necessarily ends the current repeat; clearing it also
 //  stops a later non-character press (a bare modifier, say) from resurrecting
 //  the previous character's repeat.
@@ -2330,7 +2330,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // clears any stale armed key so a later non-character press
             // (e.g. a bare modifier) can never resurrect the previous
             // character's repeat.
-            m_machine.GetRefs().keyboard->BeginKeyRepeat (0);
+            m_machine.GetRefs().keyboard->EndKeyRepeat();
         }
 
         // Release the //e Open/Closed-Apple and Shift modifiers as the host
@@ -2351,7 +2351,9 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     {
         WPARAM  ch = ev.vk;
 
-        if (ch >= 1 && ch <= 127)
+        // $00 is a real character: Windows sends it for Ctrl+Shift+2, the
+        // PC's Ctrl+@, and some games wait for it.
+        if (ch <= 127)
         {
             // //c keyboard switch: remap physical keystrokes to Dvorak when the
             // switch is engaged. A no-op on the //e, when the switch is out, and
