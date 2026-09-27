@@ -124,10 +124,13 @@ ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, co
 //  each axis the control pushed furthest wins, so a stick at rest does not
 //  mask the D-pad.
 //
-//  The primary stick and the first D-pad steer on any controller. The right
-//  stick is added only on an Xbox-class controller, whose layout is fixed:
-//  on a DirectInput device the same axis indexes can be pedals or a throttle
-//  resting hard over, which would hold a direction switch closed.
+//  The primary stick and the first D-pad steer on any controller. A second
+//  stick steers too, bound Absolute after the primary one: an Xbox-class
+//  controller's right stick, whose layout is fixed, and on a DirectInput
+//  gamepad the pair FindSecondStick picks. A DirectInput joystick or wheel
+//  gets no second stick, since its other axes can be pedals, a twist or a
+//  throttle resting off center, which would hold a direction switch closed.
+//  No trigger ever steers: one at rest sits at the end of its travel.
 //
 //  An Xbox-class controller fires with A, B, X, Y, both bumpers and both
 //  triggers, leaving out Back, Start and the stick clicks, which are pressed
@@ -136,24 +139,37 @@ ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ControlMapping DefaultMapping::MakeJoyport (const ControllerModelKey & model, const std::vector<ControlId> & controls)
+ControlMapping DefaultMapping::MakeJoyport (
+    const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
+    const std::vector<ControlId>  & controls)
 {
-    constexpr int   kDpadHat       = 0;
-    constexpr int   kXInputBackBtn = 6;
-    bool            isXInput       = model.kind == ControllerKind::XInput;
-    ControlMapping  mapping        = For (model, controls);
-    ControlId       rightX         = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
-    ControlId       rightY         = { ControlKind::Axis, XInputSampleDecoder::kRightStickY };
-    AxisBinding     binding;
+    constexpr int                                   kDpadHat       = 0;
+    constexpr int                                   kXInputBackBtn = 6;
+    bool                                            isXInput       = model.kind == ControllerKind::XInput;
+    ControlMapping                                  mapping        = For (model, controls);
+    ControlId                                       rightX         = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
+    ControlId                                       rightY         = { ControlKind::Axis, XInputSampleDecoder::kRightStickY };
+    std::optional<std::pair<ControlId, ControlId>>  secondStick;
+    AxisBinding                                     binding;
 
 
 
     if (isXInput && HasControl (controls, rightX) && HasControl (controls, rightY))
     {
-        binding.analog = rightX;
+        secondStick = std::make_pair (rightX, rightY);
+    }
+    else if (!isXInput)
+    {
+        secondStick = FindSecondStick (formFactor, controls);
+    }
+
+    if (secondStick.has_value())
+    {
+        binding.analog = secondStick->first;
         mapping.pdl0.push_back (binding);
 
-        binding.analog = rightY;
+        binding.analog = secondStick->second;
         mapping.pdl1.push_back (binding);
     }
 
@@ -189,6 +205,55 @@ ControlMapping DefaultMapping::MakeJoyport (const ControllerModelKey & model, co
     }
 
     return mapping;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindSecondStick
+//
+//  On a DirectInput gamepad: Z and Rz when it reports both, otherwise Rx and
+//  Ry when it reports both, otherwise none. On a joystick or a wheel, none.
+//
+//  DirectInput has no trigger kind, so a trigger is an axis Casso cannot tell
+//  from a stick; the order is what keeps triggers off the switches on the
+//  common layouts. A pad that reports Z and Rz uses them for its second stick
+//  and Rx and Ry for its triggers, and an Xbox-class pad read through
+//  DirectInput reports its triggers as one Z axis with no Rz and its right
+//  stick as Rx and Ry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<ControlId, ControlId>> DefaultMapping::FindSecondStick (
+    ControllerFormFactor            formFactor,
+    const std::vector<ControlId>  & controls)
+{
+    ControlId  z  = { ControlKind::Axis, kAxisZ };
+    ControlId  rz = { ControlKind::Axis, kAxisRz };
+    ControlId  rx = { ControlKind::Axis, kAxisRx };
+    ControlId  ry = { ControlKind::Axis, kAxisRy };
+
+
+
+    if (formFactor != ControllerFormFactor::Gamepad)
+    {
+        return std::nullopt;
+    }
+
+    if (HasControl (controls, z) && HasControl (controls, rz))
+    {
+        return std::make_pair (z, rz);
+    }
+
+    if (HasControl (controls, rx) && HasControl (controls, ry))
+    {
+        return std::make_pair (rx, ry);
+    }
+
+    return std::nullopt;
 }
 
 

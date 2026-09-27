@@ -88,6 +88,7 @@ public:
         ControllerUnitKey       unit;
         std::wstring            description;
         std::vector<ControlId>  controls;
+        ControllerFormFactor    formFactor  = ControllerFormFactor::Gamepad;
         bool                    isConnected = true;
     };
 

@@ -126,9 +126,21 @@ class DefaultMapping
 {
 public:
 
+    // A DirectInput device's axes, by ControlId index: the order in which
+    // DirectInputSampleDecoder::Decode fills them.
+    static constexpr int  kAxisZ  = 2;
+    static constexpr int  kAxisRx = 3;
+    static constexpr int  kAxisRy = 4;
+    static constexpr int  kAxisRz = 5;
+
     static ControlMapping  For         (const ControllerModelKey & model, const std::vector<ControlId> & controls);
     static ControlMapping  MakePaddles (const ControllerModelKey & model, const std::vector<ControlId> & controls);
-    static ControlMapping  MakeJoyport (const ControllerModelKey & model, const std::vector<ControlId> & controls);
+    static ControlMapping  MakeJoyport (const ControllerModelKey      & model,
+                                        ControllerFormFactor            formFactor,
+                                        const std::vector<ControlId>  & controls);
+
+    // The X and Y axes of a DirectInput gamepad's second stick, if it has one.
+    static std::optional<std::pair<ControlId, ControlId>>  FindSecondStick (ControllerFormFactor formFactor, const std::vector<ControlId> & controls);
 
 private:
 

@@ -506,7 +506,7 @@ namespace ControllerTests
         static std::map<std::string, ControllerModelSettings> MakeProfilesOfEachMode (const ControllerDeviceInfo & device)
         {
             ControllerProfileStore     store;
-            ControllerModelSettings &  settings = store.GetOrCreateModel (device.unit.model, device.controls);
+            ControllerModelSettings &  settings = store.GetOrCreateModel (device.unit.model, ControllerFormFactor::Gamepad, device.controls);
             ControlMapping             dpad;
             ControlMapping             atari;
             AxisBinding                pair;
@@ -570,6 +570,46 @@ namespace ControllerTests
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and attaching the Joyport-mode one");
             Assert::AreEqual (std::string ("Atari"), service.GetActiveProfile (device.unit));
             Assert::AreEqual (std::string ("Dpad"), service.GetActiveProfiles (ProfileMode::Normal).at (ControllerTokens::UnitToToken (device.unit)));
+        }
+
+
+        //  With the Joyport on and nothing chosen, a DirectInput gamepad plays
+        //  the Joyport profile made for its form factor, so its second stick
+        //  steers; a joystick with the same axes gets no second stick.
+        TEST_METHOD (JoyportProfile_OnADirectInputGamepad_SteersWithItsSecondStick)
+        {
+            const ControllerFormFactor  formFactors[] = { ControllerFormFactor::Gamepad, ControllerFormFactor::Joystick };
+            const Byte                  expected[]    = { 255, kCenter };
+
+            for (size_t i = 0; i < std::size (formFactors); i++)
+            {
+                FakeControllerBackend   backend;
+                GamePortInputMixer      mixer;
+                RecordingGamePortSink   sink;
+                ControllerInputService  service (backend, mixer);
+                ControllerDeviceInfo    device = MakePadDevice ("{PAD}", L"USB gamepad");
+                ControllerSample        sample;
+
+                device.formFactor = formFactors[i];
+                device.controls.push_back ({ ControlKind::Axis, DefaultMapping::kAxisZ });
+                device.controls.push_back ({ ControlKind::Axis, DefaultMapping::kAxisRz });
+
+                sample.connected                    = true;
+                sample.axes[DefaultMapping::kAxisZ] = 1.0f;
+
+                mixer.SetSink (&sink);
+                mixer.SetAxisOwner (AxisOwner::Controller);
+                backend.AddDevice (device, true);
+                backend.SetSample (device.unit, sample);
+                SkipCalibration (service, { device.unit });
+
+                service.SetSelection (device.unit);
+                service.SetJoyportAttached (true);
+                service.Tick();
+
+                Assert::AreEqual (expected[i], sink.writes.back().state.paddle[0],
+                    i == 0 ? L"a gamepad's Z steers" : L"a joystick's Z does not");
+            }
         }
 
 
@@ -1226,7 +1266,7 @@ namespace ControllerTests
         {
             std::map<std::string, ControllerModelSettings>  models;
             ControllerProfileStore                          store;
-            ControllerModelSettings                       & settings = store.GetOrCreateModel (device.unit.model, device.controls);
+            ControllerModelSettings                       & settings = store.GetOrCreateModel (device.unit.model, ControllerFormFactor::Gamepad, device.controls);
 
 
 

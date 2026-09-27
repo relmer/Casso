@@ -1848,7 +1848,7 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
     // profile chosen for this mode, or one the model no longer has, the
     // controller plays the Joyport profile while a Joyport is attached and
     // the Default otherwise.
-    m_profiles.GetBuiltInSettings (kind, device->unit.model, device->controls, driver.mapping, driver.deadzone);
+    m_profiles.GetBuiltInSettings (kind, device->unit.model, device->formFactor, device->controls, driver.mapping, driver.deadzone);
     driver.isResolved = true;
 
     if (active.empty())

@@ -117,3 +117,16 @@ place a player on a jack.
 | Mutation: `SetProfileSections` adding both built-in profiles again | automated | 6 of 7 `ProfileRows_*` tests went red, including both mode tests |
 | Full unit suite | x64 Release | 5,709 of 5,709 |
 | V17 in the running app | manual | not yet run |
+
+## Phase 10: the Joyport profile's second stick (US7)
+
+| Check | Kind | Result |
+|---|---|---|
+| `FindSecondStick`: a DirectInput gamepad with Z and Rz gets Z/Rz; with Z, Rx and Ry but no Rz, or Rx and Ry alone, gets Rx/Ry; neither pair whole gets none; a joystick and a wheel get none (`ControllerProfileStoreTests`) | automated | pass |
+| `MakeJoyport`: the second stick bound Absolute on PDL0 and PDL1 after the primary stick; an Xbox controller keeps its right stick; a joystick and a wheel steer with the primary stick and D-pad only; for every form factor on both an Xbox and a DirectInput model, no trigger on any axis (`ControllerProfileStoreTests`) | automated | pass |
+| The form factor reaches the built-in mapping: the service plays a gamepad's Z with the Joyport on and not a joystick's (`ControllerInputServiceTests`); the page's entry keeps the device's form factor and shows its Joyport mapping (`ControllersPageStateTests`) | automated | pass |
+| Mutation: `FindSecondStick` ignoring the form factor | automated | 4 tests went red: `FindSecondStick_OnAJoystickOrWheel_IsNone`, `JoyportMapping_OnADirectInputJoystickLeavesTheOtherAxesAlone`, both `JoyportProfile_*` |
+| Mutation: `FindSecondStick` preferring Rx/Ry | automated | 1 test went red: `FindSecondStick_OnAGamepad_PrefersZAndRz` |
+| Mutation: `MakeJoyport` binding a trigger axis | automated | 2 tests went red: `JoyportMapping_NoTriggerEverSteers`, `JoyportMapping_SteersWithEverythingAndFiresWithEverything` |
+| Full unit suite | x64 Release | 5,717 of 5,717 |
+| V16: a DirectInput gamepad and a flight stick | manual | not yet run |

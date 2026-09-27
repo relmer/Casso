@@ -386,6 +386,7 @@ ProfileEditResult ControllerModelSettings::DeleteProfile (const std::string & na
 ProfileEditResult ControllerModelSettings::ResetProfile (
     const std::string             & name,
     const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
     const std::vector<ControlId>  & controls)
 {
     ControllerProfile *  profile = FindProfile (name);
@@ -397,7 +398,7 @@ ProfileEditResult ControllerModelSettings::ResetProfile (
         return ProfileEditResult::NotFound;
     }
 
-    profile->mapping = MakeBuiltInMapping (GetResetKind (*profile), model, controls);
+    profile->mapping = MakeBuiltInMapping (GetResetKind (*profile), model, formFactor, controls);
     return ProfileEditResult::Ok;
 }
 
@@ -419,7 +420,10 @@ ProfileEditResult ControllerModelSettings::ResetProfile (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerModelSettings::EnsureBuiltInProfiles (const ControllerModelKey & model, const std::vector<ControlId> & controls)
+void ControllerModelSettings::EnsureBuiltInProfiles (
+    const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
+    const std::vector<ControlId>  & controls)
 {
     constexpr ControllerProfileKind  kKinds[] = { ControllerProfileKind::Default, ControllerProfileKind::Joyport };
     constexpr const char           * kNames[] = { ControllerProfile::kpszDefaultName, ControllerProfile::kpszJoyportName };
@@ -444,7 +448,7 @@ void ControllerModelSettings::EnsureBuiltInProfiles (const ControllerModelKey & 
         }
 
         profiles.insert (profiles.begin() + std::min (i, profiles.size()),
-                         { kNames[i], kKinds[i], MakeBuiltInMapping (kKinds[i], model, controls), GetBuiltInMode (kKinds[i]) });
+                         { kNames[i], kKinds[i], MakeBuiltInMapping (kKinds[i], model, formFactor, controls), GetBuiltInMode (kKinds[i]) });
     }
 
     for (ControllerProfile & profile : profiles)
@@ -469,11 +473,12 @@ void ControllerModelSettings::EnsureBuiltInProfiles (const ControllerModelKey & 
 ControlMapping ControllerModelSettings::MakeBuiltInMapping (
     ControllerProfileKind           kind,
     const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
     const std::vector<ControlId>  & controls)
 {
     if (kind == ControllerProfileKind::Joyport)
     {
-        return DefaultMapping::MakeJoyport (model, controls);
+        return DefaultMapping::MakeJoyport (model, formFactor, controls);
     }
 
     return DefaultMapping::For (model, controls);
@@ -720,11 +725,12 @@ JsonValue ControllerProfileStore::ToJson (const JsonValue & controllers) const
 
 void ControllerProfileStore::GetDefaultSettings (
     const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
     const std::vector<ControlId>  & controls,
     ControlMapping                & outMapping,
     float                         & outDeadzone) const
 {
-    GetBuiltInSettings (ControllerProfileKind::Default, model, controls, outMapping, outDeadzone);
+    GetBuiltInSettings (ControllerProfileKind::Default, model, formFactor, controls, outMapping, outDeadzone);
 }
 
 
@@ -740,6 +746,7 @@ void ControllerProfileStore::GetDefaultSettings (
 void ControllerProfileStore::GetBuiltInSettings (
     ControllerProfileKind           kind,
     const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
     const std::vector<ControlId>  & controls,
     ControlMapping                & outMapping,
     float                         & outDeadzone) const
@@ -749,7 +756,7 @@ void ControllerProfileStore::GetBuiltInSettings (
 
 
 
-    outMapping  = ControllerModelSettings::MakeBuiltInMapping (kind, model, controls);
+    outMapping  = ControllerModelSettings::MakeBuiltInMapping (kind, model, formFactor, controls);
     outDeadzone = DeadzoneShaper::GetDefaultDeadzone (model.kind);
 
     if (found == models.end())
@@ -803,7 +810,10 @@ const ControllerProfile * ControllerProfileStore::FindProfile (const std::string
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (const ControllerModelKey & model, const std::vector<ControlId> & controls)
+ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (
+    const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
+    const std::vector<ControlId>  & controls)
 {
     std::string  token = ControllerTokens::ModelToToken (model);
     auto         found = models.find (token);
@@ -816,7 +826,7 @@ ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (const Contro
         found->second.deadzone = DeadzoneShaper::GetDefaultDeadzone (model.kind);
     }
 
-    found->second.EnsureBuiltInProfiles (model, controls);
+    found->second.EnsureBuiltInProfiles (model, formFactor, controls);
     return found->second;
 }
 
@@ -836,13 +846,14 @@ ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (const Contro
 
 ProfileEditResult ControllerProfileStore::CreateProfile (
     const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
     const std::vector<ControlId>  & controls,
     const std::string             & name,
     ProfileSource                   source,
     ProfileMode                     mode,
     const std::string             & sourceName)
 {
-    ControllerModelSettings  & settings = GetOrCreateModel (model, controls);
+    ControllerModelSettings  & settings = GetOrCreateModel (model, formFactor, controls);
     const ControllerProfile  * copied   = nullptr;
     ControlMapping             mapping  = DefaultMapping::For (model, controls);
 
@@ -854,7 +865,7 @@ ProfileEditResult ControllerProfileStore::CreateProfile (
     }
     else if (source == ProfileSource::JoyportMapping)
     {
-        mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Joyport, model, controls);
+        mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Joyport, model, formFactor, controls);
     }
     else if (source == ProfileSource::CopyOfProfile)
     {
@@ -883,14 +894,15 @@ ProfileEditResult ControllerProfileStore::CreateProfile (
 
 ProfileEditResult ControllerProfileStore::ResetProfile (
     const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
     const std::vector<ControlId>  & controls,
     const std::string             & name)
 {
-    ControllerModelSettings &  settings = GetOrCreateModel (model, controls);
+    ControllerModelSettings &  settings = GetOrCreateModel (model, formFactor, controls);
 
 
 
-    return settings.ResetProfile (name, model, controls);
+    return settings.ResetProfile (name, model, formFactor, controls);
 }
 
 

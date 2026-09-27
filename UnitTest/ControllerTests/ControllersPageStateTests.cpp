@@ -508,13 +508,13 @@ namespace ControllerTests
             page.Load ({ MakeStick() }, {}, {}, true);
 
             Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName());
-            Assert::IsTrue   (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls));
+            Assert::IsTrue   (page.GetMapping() == DefaultMapping::MakeJoyport (model, ControllerFormFactor::Gamepad, controls));
             Assert::IsTrue   (page.IsEditingBuiltInProfile());
 
             page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
             page.ResetProfile();
 
-            Assert::IsTrue   (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls), L"Reset restores the Joyport mapping");
+            Assert::IsTrue   (page.GetMapping() == DefaultMapping::MakeJoyport (model, ControllerFormFactor::Gamepad, controls), L"Reset restores the Joyport mapping");
             Assert::IsTrue   (page.RenameProfile ("Atari") == ProfileEditResult::IsBuiltInProfile);
             Assert::IsTrue   (page.DeleteProfile() == ProfileEditResult::IsBuiltInProfile);
 
@@ -538,9 +538,37 @@ namespace ControllerTests
 
             atari.pb0 = { { { ControlKind::Button, 2 } } };
 
-            settings.EnsureBuiltInProfiles (MakeStick().unit.model, MakeStick().controls);
+            settings.EnsureBuiltInProfiles (MakeStick().unit.model, ControllerFormFactor::Gamepad, MakeStick().controls);
             settings.AddProfile ("Atari", atari, ProfileMode::Joyport);
             return models;
+        }
+
+
+        //  The page shows the Joyport profile made for the controller's form
+        //  factor: a DirectInput gamepad's second stick is in it, and a
+        //  joystick's same axes are not.
+        TEST_METHOD (JoyportProfile_FollowsTheControllersFormFactor)
+        {
+            ControllersPageState  gamepadPage;
+            ControllersPageState  joystickPage;
+            ControllerDeviceInfo  gamepad  = MakeStick();
+            ControllerDeviceInfo  joystick = MakeStick();
+
+            gamepad.controls.push_back ({ ControlKind::Axis, DefaultMapping::kAxisZ });
+            gamepad.controls.push_back ({ ControlKind::Axis, DefaultMapping::kAxisRz });
+            gamepad.formFactor  = ControllerFormFactor::Gamepad;
+            joystick.controls   = gamepad.controls;
+            joystick.formFactor = ControllerFormFactor::Joystick;
+
+            gamepadPage.SetProfileMode (ProfileMode::Joyport);
+            gamepadPage.Load ({ gamepad }, {}, {}, true);
+            joystickPage.SetProfileMode (ProfileMode::Joyport);
+            joystickPage.Load ({ joystick }, {}, {}, true);
+
+            Assert::IsTrue   (gamepadPage.GetControllers()[0].formFactor == ControllerFormFactor::Gamepad, L"the entry keeps the device's form factor");
+            Assert::IsTrue   (gamepadPage.GetMapping() == DefaultMapping::MakeJoyport (gamepad.unit.model, ControllerFormFactor::Gamepad, gamepad.controls));
+            Assert::AreEqual (size_t (2), gamepadPage.GetMapping().pdl0.size(),  L"the primary stick and Z");
+            Assert::AreEqual (size_t (1), joystickPage.GetMapping().pdl0.size(), L"the primary stick alone");
         }
 
 
@@ -635,10 +663,10 @@ namespace ControllerTests
 
             page.ResetProfile();
 
-            Assert::IsTrue (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls), L"a Joyport-mode profile resets to the Joyport mapping");
+            Assert::IsTrue (page.GetMapping() == DefaultMapping::MakeJoyport (model, ControllerFormFactor::Gamepad, controls), L"a Joyport-mode profile resets to the Joyport mapping");
 
             Assert::IsTrue (page.CreateProfile ("From Joyport", ProfileSource::JoyportMapping, std::string()) == ProfileEditResult::Ok);
-            Assert::IsTrue (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls));
+            Assert::IsTrue (page.GetMapping() == DefaultMapping::MakeJoyport (model, ControllerFormFactor::Gamepad, controls));
             Assert::IsTrue (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Swapped") == ProfileEditResult::Ok, L"a copy of a normal-mode profile");
             Assert::IsTrue (page.GetModels().at (token).FindProfile ("Copy")->mode == ProfileMode::Joyport);
             Assert::IsTrue (page.CreateProfile ("swapped", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::DuplicateName,

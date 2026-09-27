@@ -363,7 +363,7 @@ namespace ControllerTests
         {
             ControllerModelSettings  settings;
 
-            settings.EnsureBuiltInProfiles ({ ControllerKind::XInput, 0, 0 }, {});
+            settings.EnsureBuiltInProfiles ({ ControllerKind::XInput, 0, 0 }, ControllerFormFactor::Gamepad, {});
             settings.AddProfile ("Paddles", ControlMapping(), ProfileMode::Normal);
             settings.AddProfile ("Atari",   ControlMapping(), ProfileMode::Joyport);
             settings.AddProfile ("Swapped", ControlMapping(), ProfileMode::Normal);

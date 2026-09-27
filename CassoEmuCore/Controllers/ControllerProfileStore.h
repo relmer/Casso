@@ -162,17 +162,25 @@ struct ControllerModelSettings
     // model has no profile for is not.
     bool                       IsOfOtherMode       (const std::string & name, ProfileMode mode) const;
 
+    // The built-in mappings depend on the device's form factor as well as its
+    // model and controls, since the Joyport profile's second stick does.
     ProfileEditResult          AddProfile            (const std::string & name, const ControlMapping & mapping, ProfileMode mode);
     ProfileEditResult          RenameProfile         (const std::string & name, const std::string & newName);
     ProfileEditResult          DeleteProfile         (const std::string & name);
-    ProfileEditResult          ResetProfile          (const std::string & name, const ControllerModelKey & model, const std::vector<ControlId> & controls);
-    void                       EnsureBuiltInProfiles (const ControllerModelKey & model, const std::vector<ControlId> & controls);
+    ProfileEditResult          ResetProfile          (const std::string             & name,
+                                                      const ControllerModelKey      & model,
+                                                      ControllerFormFactor            formFactor,
+                                                      const std::vector<ControlId>  & controls);
+    void                       EnsureBuiltInProfiles (const ControllerModelKey      & model,
+                                                      ControllerFormFactor            formFactor,
+                                                      const std::vector<ControlId>  & controls);
 
     static std::string         TrimProfileName       (const std::string & name);
 
     // The built-in mapping a profile of this kind resets to.
     static ControlMapping         MakeBuiltInMapping    (ControllerProfileKind           kind,
                                                          const ControllerModelKey      & model,
+                                                         ControllerFormFactor            formFactor,
                                                          const std::vector<ControlId>  & controls);
 
     // Which built-in profile a controller with no profile chosen plays, and
@@ -239,6 +247,7 @@ public:
     // saved Default profile when it has one, and the built-in default
     // otherwise.
     void       GetDefaultSettings (const ControllerModelKey        & model,
+                                   ControllerFormFactor              formFactor,
                                    const std::vector<ControlId>    & controls,
                                    ControlMapping                  & outMapping,
                                    float                           & outDeadzone) const;
@@ -246,6 +255,7 @@ public:
     // The same for either built-in profile.
     void       GetBuiltInSettings (ControllerProfileKind             kind,
                                    const ControllerModelKey        & model,
+                                   ControllerFormFactor              formFactor,
                                    const std::vector<ControlId>    & controls,
                                    ControlMapping                  & outMapping,
                                    float                           & outDeadzone) const;
@@ -256,17 +266,21 @@ public:
 
     // The model's settings, added with the default deadzone when the model
     // has none, and always holding a Default profile.
-    ControllerModelSettings &  GetOrCreateModel (const ControllerModelKey & model, const std::vector<ControlId> & controls);
+    ControllerModelSettings &  GetOrCreateModel (const ControllerModelKey      & model,
+                                                 ControllerFormFactor            formFactor,
+                                                 const std::vector<ControlId>  & controls);
 
     // The new profile belongs to `mode`, the mode in effect, whatever it
     // starts from.
     ProfileEditResult  CreateProfile (const ControllerModelKey        & model,
+                                      ControllerFormFactor              formFactor,
                                       const std::vector<ControlId>    & controls,
                                       const std::string               & name,
                                       ProfileSource                     source,
                                       ProfileMode                       mode,
                                       const std::string               & sourceName = std::string());
     ProfileEditResult  ResetProfile  (const ControllerModelKey        & model,
+                                      ControllerFormFactor              formFactor,
                                       const std::vector<ControlId>    & controls,
                                       const std::string               & name);
 

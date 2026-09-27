@@ -283,7 +283,7 @@ void ControllersPageState::UpdateDevices (const std::vector<ControllerDeviceInfo
 
         if (!isKnown)
         {
-            m_controllers.push_back ({ device.unit, device.description, device.controls, true });
+            m_controllers.push_back ({ device.unit, device.description, device.controls, device.formFactor, true });
         }
     }
 
@@ -896,7 +896,7 @@ const ControlMapping & ControllersPageState::GetMapping() const
         return m_emptyMapping;
     }
 
-    m_builtInMapping = ControllerModelSettings::MakeBuiltInMapping (GetEditedBuiltInKind(), selected->unit.model, selected->controls);
+    m_builtInMapping = ControllerModelSettings::MakeBuiltInMapping (GetEditedBuiltInKind(), selected->unit.model, selected->formFactor, selected->controls);
     return m_builtInMapping;
 }
 
@@ -1391,7 +1391,8 @@ ProfileEditResult ControllersPageState::CheckProfileName (const std::string & na
 
 
 
-    check.EnsureBuiltInProfiles (ControllerModelKey(), std::vector<ControlId>());
+    // Only the built-in profiles' names matter here, not their mappings.
+    check.EnsureBuiltInProfiles (ControllerModelKey(), ControllerFormFactor::Gamepad, std::vector<ControlId>());
 
     if (isRename)
     {
@@ -1442,7 +1443,7 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
     }
     else if (source == ProfileSource::JoyportMapping)
     {
-        mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Joyport, selected->unit.model, selected->controls);
+        mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Joyport, selected->unit.model, selected->formFactor, selected->controls);
     }
     else if (source == ProfileSource::CopyOfProfile)
     {
@@ -1589,7 +1590,7 @@ void ControllersPageState::ResetProfile()
         return;
     }
 
-    profile->mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerModelSettings::GetResetKind (*profile), selected->unit.model, selected->controls);
+    profile->mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerModelSettings::GetResetKind (*profile), selected->unit.model, selected->formFactor, selected->controls);
     m_liveEvaluator.ResetRate();
 }
 
@@ -1674,7 +1675,7 @@ void ControllersPageState::DiscardProfileEdits()
         ControllerModelSettings  fresh;
 
         fresh.deadzone = DeadzoneShaper::GetDefaultDeadzone (selected->unit.model.kind);
-        fresh.EnsureBuiltInProfiles (selected->unit.model, selected->controls);
+        fresh.EnsureBuiltInProfiles (selected->unit.model, selected->formFactor, selected->controls);
 
         if (m_models[token] == fresh)
         {
@@ -2575,7 +2576,7 @@ ControllerProfile * ControllersPageState::EnsureEditedProfile()
         return nullptr;
     }
 
-    settings->EnsureBuiltInProfiles (selected->unit.model, selected->controls);
+    settings->EnsureBuiltInProfiles (selected->unit.model, selected->formFactor, selected->controls);
 
     if (!m_editedProfile.empty())
     {
@@ -2641,7 +2642,7 @@ bool ControllersPageState::FindCommittedMapping (ControlMapping & mapping) const
     }
 
     mapping = profile != nullptr ? profile->mapping
-                                 : ControllerModelSettings::MakeBuiltInMapping (kind, selected->unit.model, selected->controls);
+                                 : ControllerModelSettings::MakeBuiltInMapping (kind, selected->unit.model, selected->formFactor, selected->controls);
     return true;
 }
 
