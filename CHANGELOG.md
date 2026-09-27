@@ -8,10 +8,26 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+
+- GH #157: Debug > Save CPU trace writes the `--trace` recording to a text file
+  on the desktop. The file starts with the run's power-on memory seed, and the
+  new `--seed` option starts Casso with that seed to reproduce it.
+
+### Changed
+
+- GH #157: `--trace` no longer writes a file on every exit. The trace is saved
+  from the Debug menu, or automatically on a crash.
+
 ### Fixed
 
 - GH #155: Ctrl+@ (Ctrl+Shift+2) now sends a NUL keypress like a real
   Apple II, so Bandits and other Sirius games can switch to the Joyport.
+- GH #154: The Settings window now fits on screens too short for it, such as
+  1080p at 125% scale. Its pages scroll between the tabs and the OK and Cancel
+  buttons, which stay on screen.
+- The toolbar tooltips for Full screen and Copy screenshot no longer show a
+  stray "&".
 
 ## [1.28.0] - 2026-09-25: The one with Joyport/Atari joystick emulation, Siriously
 

@@ -33,6 +33,7 @@ public:
     virtual void     HoldAppleKeysThroughReset (bool openApple, bool closedApple)               = 0;
     virtual void     PowerCycle               ()                                                = 0;
     virtual void     StepInstruction          ()                                                = 0;
+    virtual void     SaveTrace                ()                                                = 0;
     virtual void     RemountDisks             ()                                                = 0;
     virtual HRESULT  MountDisk                (int drive, const std::string & path)             = 0;
     virtual void     EjectDisk                (int drive)                                       = 0;

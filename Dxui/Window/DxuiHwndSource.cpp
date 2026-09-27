@@ -413,6 +413,8 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     SIZE         frameSizePx      = {};
     POINT        ownerPlacementPx = {};
     bool         placedByOwner    = false;
+    RECT         workArea         = {};
+    SIZE         fittedSizePx     = {};
 
 
 
@@ -538,6 +540,16 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         windowY  = CW_USEDEFAULT;
         widthPx  = MulDiv (params.initialSizeDip.cx, (int) dpiAtCreate, (int) s_kDefaultDpi);
         heightPx = MulDiv (params.initialSizeDip.cy, (int) dpiAtCreate, (int) s_kDefaultDpi);
+
+        // Fit BEFORE placing, so the placement measures the size the window
+        // will really have. A dialog that fits at 100% scale can outgrow a
+        // 1080-line screen at 125%, before the taskbar is even counted.
+        if (params.fitToWorkArea && TryGetAnchorWorkArea (anchorHwnd, workArea))
+        {
+            fittedSizePx = FitSizeToWorkArea (SIZE { widthPx, heightPx }, workArea);
+            widthPx      = fittedSizePx.cx;
+            heightPx     = fittedSizePx.cy;
+        }
 
         // A caller-chosen placement instead of the cascade. For a
         // composited window this is not just a nicety: CW_USEDEFAULT is
@@ -691,6 +703,94 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
     if (result.y < work.top)             { result.y = work.top;             }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::FitSizeToWorkArea
+//
+//  Pure placement geometry (declared in the header). Reduces each axis of
+//  `windowSizePx` to the work area's extent on that axis. Position is left to
+//  the placement and ClampToWorkArea, which can only keep a window inside the
+//  work area once it is no larger than it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiHwndSource::FitSizeToWorkArea (const SIZE & windowSizePx, const RECT & work)
+{
+    SIZE  result = windowSizePx;
+    LONG  workW  = work.right  - work.left;
+    LONG  workH  = work.bottom - work.top;
+
+
+
+    if (workW > 0 && result.cx > workW) { result.cx = workW; }
+    if (workH > 0 && result.cy > workH) { result.cy = workH; }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TryGetAnchorWorkArea
+//
+//  The monitor is found from the anchor's RECT rather than its window for the
+//  same reason as in TryGetWindowPlacement: a minimized anchor is parked
+//  off-screen, and its restored rect is where the new window will open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork)
+{
+    HRESULT          hr         = S_OK;
+    RECT             anchorRect = {};
+    HMONITOR         monitor    = nullptr;
+    MONITORINFO      info       = { sizeof (info) };
+    WINDOWPLACEMENT  placement  = {};
+    BOOL             gotAnchor  = FALSE;
+    BOOL             gotInfo    = FALSE;
+
+
+
+    if (anchorHwnd != nullptr)
+    {
+        if (IsIconic (anchorHwnd))
+        {
+            placement.length = sizeof (placement);
+            gotAnchor        = GetWindowPlacement (anchorHwnd, &placement);
+            anchorRect       = placement.rcNormalPosition;
+        }
+        else
+        {
+            gotAnchor = GetWindowRect (anchorHwnd, &anchorRect);
+        }
+
+        CWR (gotAnchor);
+
+        monitor = MonitorFromRect (&anchorRect, MONITOR_DEFAULTTONEAREST);
+    }
+    else
+    {
+        monitor = MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+    }
+
+    CWRA (monitor);
+
+    gotInfo = GetMonitorInfoW (monitor, &info);
+    CWR (gotInfo);
+
+    outWork = info.rcWork;
+
+Error:
+    return SUCCEEDED (hr);
 }
 
 

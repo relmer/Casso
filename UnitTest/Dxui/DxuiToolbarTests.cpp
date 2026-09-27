@@ -303,6 +303,28 @@ public:
     }
 
 
+    //
+    //  A command's menu label carries the Alt mnemonic marker. A collapsed
+    //  button's tooltip, and a labeled button's measured width, use the text
+    //  without it, or "&Full screen" shows its ampersand.
+    //
+    TEST_METHOD (GetTooltipAt_CollapsedNameDropsMnemonicMarker)
+    {
+        Fixture  f;
+        RECT     anchor = {};
+
+
+        f.eps->label = L"&E";
+        f.Build();
+
+        f.LayoutAt (f.FullWidth());
+        Assert::IsTrue (f.bar.IsLabeled (5), L"stripped label fits the same width as \"E\"");
+
+        f.LayoutAt (f.FullWidth() - 1);
+        Assert::AreEqual (L"E", f.bar.GetTooltipAt (f.Center (4, 4).x, s_kBandPx / 2, anchor));
+    }
+
+
     TEST_METHOD (Dispatch_FiresOnceOnDownAndUpOnOneEntry)
     {
         Fixture  f;

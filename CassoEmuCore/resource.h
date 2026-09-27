@@ -100,6 +100,7 @@
 #define IDM_PRINTER_MODERN_SENT     40066
 #define IDM_PRINTER_MODERN_FAILED   40067
 #define IDM_VIEW_DRIVE_STRIP        40068  // Fullscreen drive overlay strip toggle
+#define IDM_DEBUG_SAVE_TRACE        40069  // Write the --trace ring to the desktop
 
 
 // Frames per second over the picture. On by default in a debug build and

@@ -111,5 +111,10 @@ public:
     // shadow margin the hook knows nothing about. Defaulted to a no-op so a
     // mock or a simple painter compiles unchanged.
     virtual void   SetOrigin (float xPx, float yPx)                           { (void) xPx; (void) yPx; }
+
+    // Clip every shape drawn after it to `clipPx` (same coordinates as the
+    // draw calls), or stop clipping with nullptr. One level, not a stack: a
+    // scrolling container sets it around its children and clears it after.
+    virtual void   SetClipRect (const RECT * clipPx)                          { (void) clipPx; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 };

@@ -247,7 +247,9 @@ public:
     // (may be empty) is invoked periodically with (entriesWritten,
     // totalEntries) so a UI can show progress. Returns true on success.
     // CassoCore stays UI-free; the caller owns any progress dialog.
+    // `preamble` is written under the title line as given.
     HRESULT  DumpTraceToFile (const std::wstring & path,
+                              const std::string  & preamble,
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const;
 
 protected:

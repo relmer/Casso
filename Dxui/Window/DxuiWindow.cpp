@@ -58,6 +58,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.placement             = params.placement;
     hostParams.placementAnchorHwnd   = params.placementAnchorHwnd;
     hostParams.placementAnchorRectPx = params.placementAnchorRectPx;
+    hostParams.fitToWorkArea         = params.fitToWorkArea;
 
     m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);
@@ -1079,6 +1080,7 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
     // repaints so the change shows at once rather than on the next tick.
     if (isHandled)
     {
+        OnDialogKeyHandled (m_focus.GetFocusedControl());
         Invalidate();
     }
 
