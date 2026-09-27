@@ -158,6 +158,7 @@
     <ClCompile Include="Core\DxuiInput.cpp" />
     <ClCompile Include="Core\DxuiPanel.cpp" />
     <ClCompile Include="Core\DxuiPanZoom.cpp" />
+    <ClCompile Include="Core\DxuiSlide.cpp" />
     <ClCompile Include="Core\DxuiSystemSettings.cpp" />
     <ClCompile Include="Core\DxuiStackLayout.cpp" />
     <ClCompile Include="Core\DxuiThread.cpp" />
@@ -181,6 +182,7 @@
     <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiActionBanner.cpp" />
     <ClCompile Include="Widgets\DxuiTimedInfoBanner.cpp" />
+    <ClCompile Include="Widgets\DxuiNoticeStack.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
@@ -227,6 +229,7 @@
     <ClInclude Include="Core\DxuiInput.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />
+    <ClInclude Include="Core\DxuiSlide.h" />
     <ClInclude Include="Core\DxuiSystemSettings.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
     <ClInclude Include="Core\DxuiThread.h" />
@@ -260,6 +263,7 @@
     <ClInclude Include="Widgets\DxuiInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiActionBanner.h" />
     <ClInclude Include="Widgets\DxuiTimedInfoBanner.h" />
+    <ClInclude Include="Widgets\DxuiNoticeStack.h" />
     <ClInclude Include="Widgets\DxuiWarningBadge.h" />
     <ClInclude Include="Widgets\DxuiListView.h" />
     <ClInclude Include="Widgets\DxuiMenuBar.h" />

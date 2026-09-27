@@ -71,7 +71,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Widgets/DxuiActionBanner.h"
 #include "Widgets/DxuiInfoBanner.h"
-#include "Widgets/DxuiTimedInfoBanner.h"
+#include "Widgets/DxuiNoticeStack.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
@@ -1721,20 +1721,22 @@ private:
 
     PendingCapture             m_pendingCapture;
 
-    // The transient notice: a screenshot's filename or the reason it failed,
-    // or which write-protect mechanism a Disk menu command changed. Its own
-    // bar rather than the mouse-capture one's, because the two can be wanted
-    // at once and this one expires on a timer while that one tracks a state.
+    // The transient notices: a screenshot's filename or the reason it failed,
+    // which write-protect mechanism a Disk menu command changed, a controller
+    // that left. Their own bars rather than the mouse-capture one's, because
+    // the two can be wanted at once and these expire on a timer while that one
+    // tracks a state. Several can be up at once, stacked in arrival order,
+    // each for its own full time.
     //
-    // A MESSAGE BAR ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. It was
-    // shadowed text over the bottom of the viewport, which put a filename --
-    // the one thing here that is never about the machine -- in the middle of
-    // the photograph. It now reads as the same kind of thing the
+    // MESSAGE BARS ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. The notice
+    // was shadowed text over the bottom of the viewport, which put a filename
+    // -- the one thing here that is never about the machine -- in the middle
+    // of the photograph. It now reads as the same kind of thing the
     // pointer-capture bar is, and says so by looking like it.
     //
-    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. It hangs under whatever docked
-    // chrome is at the top and covers a little of the picture instead.
-    DxuiTimedInfoBanner            m_notice;
+    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. The stack hangs under whatever
+    // docked chrome is at the top and covers a little of the picture instead.
+    DxuiNoticeStack                m_notices;
 
     void  ShowNotice   (const std::wstring & text);
     void  PostNotice   (const std::wstring & text);

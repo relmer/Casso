@@ -43,6 +43,9 @@ public:
     //  Whether the notice is inside its countdown at nowMs.
     bool  IsShowing       (int64_t nowMs) const { return nowMs < m_untilMs; }
 
+    //  When the countdown runs out.
+    int64_t  GetUntilMs   () const              { return m_untilMs; }
+
     void  SetDurationMs   (int64_t durationMs)                  { m_durationMs = durationMs; }
     void  SetScrimOpacity (float opacity)                       { m_scrim.SetOpacity (opacity); }
     void  SetSeverity     (DxuiInfoBanner::Severity severity)   { m_banner.SetSeverity (severity); }

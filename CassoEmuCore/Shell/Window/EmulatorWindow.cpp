@@ -600,10 +600,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_standInBar.SetCentered (true);
     m_standInBar.SetVisible  (false);
 
-    //  THE NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both are up the
-    //  notice is the one on top -- it is the newer of the two, and the older
-    //  one is still readable in the strip above it.
-    m_host->GetRoot().Adopt (m_notice);
+    //  THE NOTICES, ADOPTED AFTER THE CAPTURE BAR so that when both are up
+    //  the notices are on top -- they are the newer, and the older one is
+    //  still readable in the strip above them.
+    m_host->GetRoot().Adopt (m_notices);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -1465,15 +1465,23 @@ void EmulatorShell::OnModalLoopTick()
 //  a bounded upkeep interval so drive-activity sampling stays live behind a
 //  static screen, and drops to a faster tick while a tooltip dwell is pending.
 //  Every other animated surface (persistence trail, drive doors, open menus,
-//  live Settings edits) forces a present through NeedsPresent and so never
-//  reaches this path.
+//  live Settings edits, sliding notices) forces a present through
+//  NeedsPresent and so never reaches this path.
+//
+//  A notice's expiry is a change due at a known time, so the wait ends no
+//  later than that, and the notice leaves when its time is up rather than on
+//  the next upkeep tick after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::WaitForFrameOrMessage()
 {
-    DWORD  timeout = s_kIdleUpkeepMs;
-    DWORD  waited  = 0;
+    DWORD                   timeout      = s_kIdleUpkeepMs;
+    DWORD                   waited       = 0;
+    std::optional<int64_t>  nextChangeMs = m_notices.GetNextChangeMs();
+    int64_t                 untilMs      = 0;
+    int64_t                 nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                               std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
@@ -1485,6 +1493,12 @@ void EmulatorShell::WaitForFrameOrMessage()
         m_toolbar.WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;
+    }
+
+    if (nextChangeMs.has_value())
+    {
+        untilMs = std::clamp (*nextChangeMs - nowMs, (int64_t) 0, (int64_t) timeout);
+        timeout = (DWORD) untilMs;
     }
 
     waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
