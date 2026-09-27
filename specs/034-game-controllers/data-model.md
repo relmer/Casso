@@ -303,7 +303,7 @@ Inputs: `PlayerEntries`, attached devices, `PlayerOrderLogs`, the previous slots
 | Operation | Rule |
 |---|---|
 | `Evaluate` | R16 ordering and states; R17 held slots and start over; targets per R18; `Normalize` over the result (FR-036) |
-| `IsRealInput (sample, calibration, deadzone)` | A button or D-pad press, a trigger past its threshold, or an axis past 50% after calibration and deadzone (R16) |
+| `IsRealInput (sample, calibration, deadzone)` | A button or D-pad press, a trigger past its threshold, or any axis outside its deadzone after calibration (R16) |
 | `IsOnePlaying (slots)` | Exactly one slot `Playing` or `Provisional` (or Player 1 on keys/mouse) and the other `Empty` or `Waiting`, not `Held` |
 | `DescribeAssignment (player, description)` | "Player 1: description"; spec 036 substitutes its Joyport labels here |
 | `NeedsIdleWatch (entries, slots)` | Whether any Automatic player is `Empty`, `Waiting` or `Provisional`, which turns on R23's watch |

@@ -99,11 +99,11 @@ Runs at launch when `controllers.players` is absent, reading the launched machin
 |---|---|
 | `arrowsToJoystick: true` | Player 1 `keys` |
 | `pointerMapping: "paddle"` | Player 1 `mouse`, unless `arrowsToJoystick` already gave Player 1 the keys |
-| `controller` | Player 1 `controller` with that token, unless Player 1 already has the keys or the mouse |
+| `controller` | Player 1's entry in `lastHolders` only; Player 1 stays `automatic` (unless it has the keys or the mouse) |
 | `multiplayer` with `enabled: true` | Each filled slot becomes that player's `controller` entry and `maps`; Player 1's slot outranks the three rows above |
 | anything else, or nothing | `automatic`; Player 2 is `automatic` when the block is absent or not enabled |
 
-`lastHolders` starts as two `null`s and fills as slots are held, by a pick as much as by Automatic (FR-044). Other machines' `controller`, `multiplayer`, `arrowsToJoystick` and paddle `pointerMapping` values are ignored from then on and left in their files, so an older build keeps reading its own keys.
+`lastHolders` starts as two `null`s, apart from Player 1's adopted `controller` above, and fills as slots are held, by a pick as much as by Automatic (FR-044). Other machines' `controller`, `multiplayer`, `arrowsToJoystick` and paddle `pointerMapping` values are ignored from then on and left in their files, so an older build keeps reading its own keys.
 
 ## Per machine: `$cassoUiPrefs` block
 
