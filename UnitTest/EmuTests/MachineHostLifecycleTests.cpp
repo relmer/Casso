@@ -4,6 +4,8 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Shell/MachineHost.h"
+#include "TestMachine.h"
+#include "TextScreenScraper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -111,6 +113,79 @@ public:
         //  than merely observing one of them.
         Assert::IsTrue (anyChanged,
             L"a power cycle re-seeds DRAM, which is what makes it not a soft reset");
+    }
+
+
+    //  Whatever the fill left, a power cycle must not leave the power-up byte
+    //  valid, or the autostart ROM takes a warm reset through a vector that
+    //  was never set up.
+    TEST_METHOD (APowerCycleInvalidatesThePowerUpByte)
+    {
+        MachineHost  host;
+        Byte         entryHi = 0;
+        Byte         powerUp = 0;
+
+
+
+        Build (host);
+
+        host.PowerCycle();
+
+        entryHi = host.GetMemoryBus().ReadByte (0x03F3);
+        powerUp = host.GetMemoryBus().ReadByte (0x03F4);
+
+        Assert::AreNotEqual<Byte> (static_cast<Byte> (entryHi ^ 0xA5), powerUp,
+            L"the power-up byte must fail the autostart ROM's warm-reset check");
+        Assert::AreEqual<Byte> (0, host.GetMemoryBus().ReadByte (0x03F2));
+        Assert::AreEqual<Byte> (0, entryHi);
+        Assert::AreEqual<Byte> (0, powerUp);
+    }
+
+
+    //  The monitor's random seed is read before anything writes it when a
+    //  disk autostarts, and a zero seed hangs Pooyan.
+    TEST_METHOD (APowerCycleLeavesTheRandomSeedNonzero)
+    {
+        MachineHost  host;
+        Byte         seedLo = 0;
+        Byte         seedHi = 0;
+
+
+
+        Build (host);
+
+        host.PowerCycle();
+
+        seedLo = host.GetMemoryBus().ReadByte (0x004E);
+        seedHi = host.GetMemoryBus().ReadByte (0x004F);
+
+        Assert::AreNotEqual<Byte> (0, seedLo, L"$4E must be nonzero after a power cycle");
+        Assert::AreNotEqual<Byte> (0, seedHi, L"$4F must be nonzero after a power cycle");
+    }
+
+
+    //  GH #157, end to end. Under the uniform random fill this seed left the
+    //  power-up byte valid, and a //e Enhanced jumped into garbage with the
+    //  power-on screen never cleared. A cold boot must reach the banner.
+    TEST_METHOD (AColdBootReachesTheBannerUnderAFormerlyHangingSeed)
+    {
+        constexpr uint64_t  kFormerlyHangingSeed = 0x46305DE659C7976DULL;
+        constexpr uint64_t  kBootCycles          = 1'500'000ULL;
+
+        TestMachine               machine ("Apple2eEnhanced");
+        std::vector<std::string>  rows;
+
+
+
+        machine.SetPrng (std::make_unique<Prng> (kFormerlyHangingSeed));
+        machine.PowerCycle();
+        machine.RunCycles (kBootCycles);
+
+        rows = TextScreenScraper::Scrape (machine);
+
+        Assert::IsTrue (rows[0].find ("Apple //e") != std::string::npos,
+            std::format (L"row 0 must show the banner, got '{}'",
+                         std::wstring (rows[0].begin(), rows[0].end())).c_str());
     }
 
 

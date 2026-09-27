@@ -217,9 +217,9 @@ public:
     void  SoftReset();
 
     //  Power off and on. Dirty disks are flushed first -- the mounts
-    //  themselves persist -- and then every DRAM-owning device is re-seeded
-    //  from the shared Prng, so the machine comes up with the arbitrary
-    //  contents a real one would have rather than the ones it just had.
+    //  themselves persist -- and then every DRAM-owning device is refilled
+    //  with the power-on pattern, so the machine comes up with what a real
+    //  one would hold rather than the contents it just had.
     void  PowerCycle();
 
     //  Where this machine's pending printer strip persists across a switch
@@ -230,6 +230,10 @@ public:
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
 private:
+
+    //  Power-on bytes the fill must not decide: the power-up byte and the
+    //  monitor's random seed.
+    void  ApplyPowerOnOverrides();
 
     // 4K of page tables; on the heap, see m_diskStore.
     std::unique_ptr<MemoryBus>  m_memoryBus;
