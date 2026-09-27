@@ -214,11 +214,15 @@ public:
 
     // Execution trace (--trace switch). SetTraceCapacity must be called
     // before Initialize so the CPU's ring is allocated when the machine
-    // is built. DumpTrace writes the recorded ring to a timestamped text
-    // file in the working directory, showing a progress window; it is
-    // called both on graceful exit and from the crash handler, and is a
-    // no-op (and self-guards against a double dump) when tracing is off.
+    // is built. The ring is written to a timestamped text file on the
+    // desktop by Debug > Save CPU trace (SaveTrace) or by the crash handler
+    // (DumpTrace, one-shot); both are no-ops when tracing is off.
     void SetTraceCapacity (size_t capacityEntries) { m_traceCapacity = capacityEntries; }
+
+    // Power-on DRAM seed (--seed). Replaces the one the constructor drew
+    // from the clock; must be called before Initialize.
+    void     SetPrngSeed (uint64_t seed);
+    uint64_t GetPrngSeed () const { return m_prngSeed; }
 
     // Runs with change notification deliberately broken, so the check made
     // before every write can be measured on its own. Undocumented; set from
@@ -232,7 +236,9 @@ public:
     // not refresh the caption itself.
     void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
     bool IsTracing        () const { return m_traceCapacity > 0; }
-    void DumpTrace        (const wstring & reason);
+    void    DumpTrace        (const wstring & reason);
+    HRESULT WriteTrace       (const wstring & reason, std::wstring & path);
+    static std::wstring GetTraceFolder();
 
     // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
@@ -390,6 +396,7 @@ private:
     // have the target's signature; these are the ones that were inline in
     // the dispatch switch before it became CpuCommandDispatcher.
     void     StepInstruction         () override;
+    void     SaveTrace               () override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
     void     RemountDisks            () override;
 
@@ -1423,6 +1430,7 @@ private:
     MachineHost             m_machine;
 
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
+    uint64_t               m_prngSeed      = 0;       // power-on DRAM seed; --seed overrides
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
     wstring                m_titlePrefix;                 // --title (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace

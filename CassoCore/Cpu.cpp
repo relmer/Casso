@@ -172,7 +172,15 @@ void Cpu::TracePush (Byte opcode)
     e.intr             = m_pendingTraceIntr;
     m_pendingTraceIntr = kTraceIntrNone;
 
-    m_traceHead = (m_traceHead + 1) % m_traceCapacity;
+    // A compare rather than %: this runs for every instruction while tracing,
+    // and a 64-bit divide was the costliest thing in it.
+    m_traceHead++;
+
+    if (m_traceHead == m_traceCapacity)
+    {
+        m_traceHead = 0;
+    }
+
     m_traceCount++;
 }
 
@@ -251,7 +259,8 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 //
 //    00000001  PC=$XXXX  op=$XX OPS=$XX $XX (NAME)  A=$XX X=$XX Y=$XX SP=$XX P=$XX
 //
-//  `onProgress` (if set) is called every kProgressStride entries and once
+//  `preamble` follows the title line verbatim; the emulator puts the power-on
+//  seed there. `onProgress` (if set) is called every kProgressStride entries and once
 //  at completion with (entriesWritten, totalEntries). CassoCore owns no UI;
 //  the caller drives any progress dialog.
 //
@@ -263,6 +272,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
+                              const std::string  & preamble,
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const
 {
     static constexpr uint64_t  kProgressStride = 100000;
@@ -292,6 +302,7 @@ HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
         start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
 
         out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
+        out << preamble;
 
         // Pre-scan for the interrupt-rate summary. An interrupt storm (stuck
         // IRQ line, unacknowledged source, an ISR that never returns) is

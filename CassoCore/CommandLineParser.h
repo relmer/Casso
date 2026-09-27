@@ -373,6 +373,10 @@ public:
     //  not an error at startup.
     static size_t  ParseTraceSize (const std::string & text);
 
+    //  A --seed value, decimal or 0x-prefixed hex. False for anything else,
+    //  including a value too large for 64 bits.
+    static bool    TryParseSeed   (const std::string & text, uint64_t & seed);
+
     // Whether one argument is the user asking for usage text, in any form
     // and either prefix. Public because a subcommand's own grammar has to ask
     // the same question the top level does.
@@ -546,6 +550,10 @@ private:
     static void  RefuseEmulatorArgument (const std::string & raw,
                                          const std::string & canonical,
                                          CommandLineOptions::EmulatorOptions & parsed);
+
+    //  Records a --seed value, or refuses the command line over a bad one.
+    static void  ApplySeed               (const std::string & text,
+                                          CommandLineOptions::EmulatorOptions & parsed);
 
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);

@@ -108,18 +108,7 @@ EmulatorShell::EmulatorShell()
 
     seed ^= static_cast<uint64_t> (GetCurrentProcessId()) << 32;
 
-    m_machine.SetPrng (make_unique<Prng> (seed));
-
-#ifdef _DEBUG
-    // Log the per-boot DRAM seed so when an illegal-opcode (or any
-    // other non-deterministic) fault fires later, the user can grep
-    // the debug output for "[Casso] Cold boot seed:" and capture the
-    // value into a bug report. Re-running with the same seed gives
-    // byte-identical DRAM at every PowerCycle, which is the first
-    // requirement for reproducing flaky CPU faults.
-    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n",
-              (unsigned long long) seed);
-#endif
+    SetPrngSeed (seed);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -1377,6 +1366,28 @@ void EmulatorShell::StepInstructionWhilePaused()
 void EmulatorShell::SoftReset()
 {
     m_machineManager->SoftReset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPrngSeed
+//
+//  Replaces the power-on DRAM Prng with one seeded from `seed`. The seed is
+//  kept so the trace file can record it: the same seed gives byte-identical
+//  DRAM at the first power-on, which is what replaying a startup fault needs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetPrngSeed (uint64_t seed)
+{
+    m_prngSeed = seed;
+    m_machine.SetPrng (make_unique<Prng> (seed));
+
+    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n", (unsigned long long) seed);
 }
 
 

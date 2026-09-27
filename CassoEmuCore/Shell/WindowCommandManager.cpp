@@ -426,6 +426,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_CONTROLLER_SETTINGS)                           { route = WindowCommandRoute::View; }
+    else if (id == IDM_DEBUG_SAVE_TRACE)                                   { route = WindowCommandRoute::Machine; }
     else if (id == IDM_PRINTER_DISCARD)                                    { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_COPY)                                       { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_PRINT)                                      { route = WindowCommandRoute::Printer; }
@@ -718,6 +719,22 @@ void WindowCommandManager::OnMachineCommand (int id)
         {
             m_shell.m_cpuManager.TogglePaused();
             m_shell.UpdateWindowTitle();
+            break;
+        }
+
+        case IDM_DEBUG_SAVE_TRACE:
+        {
+            // The ring belongs to the CPU thread, and pausing only sets a
+            // flag, so the write is queued to run there between slices.
+            if (m_shell.IsTracing())
+            {
+                m_shell.PostCommand (static_cast<WORD> (id));
+            }
+            else
+            {
+                m_shell.PostNotice (L"Start Casso with --trace to record a CPU trace.");
+            }
+
             break;
         }
 

@@ -299,6 +299,7 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "disk1",
     "disk2",
     "trace",
+    "seed",
 
     //  Undocumented, and here rather than in a help table for that reason:
     //  this list is what makes `/no-image-watch` canonicalize like every other
@@ -323,9 +324,12 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
-    { "--trace",   " [size]",  "Record a CPU execution trace and write it out on "
-                              "exit or on a crash. A size takes a K, M or G suffix." },
-    { "--help",    "",         "Show this message and exit." },
+    { "--trace",   " [size]",  "Record a CPU execution trace, written to the desktop "
+                              "by Debug > Save CPU trace or on a crash. A size takes "
+                              "a K, M or G suffix." },
+    { "--seed",    " <value>", "Power on with this memory seed, decimal or 0x hex. "
+                              "The trace file records the seed each run used." },
+    { "--help",   "",         "Show this message and exit." },
 };
 
 
@@ -4270,6 +4274,14 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.traceEntries = ParseTraceSize (arg.substr (arg.find ('=') + 1));
         }
+        else if (arg == "--seed" && hasValue)
+        {
+            ApplySeed (argv[++i], parsed);
+        }
+        else if (arg.rfind ("--seed=", 0) == 0)
+        {
+            ApplySeed (arg.substr (arg.find ('=') + 1), parsed);
+        }
         else if (arg == "--no-image-watch")
         {
             parsed.noImageWatch = true;
@@ -4335,7 +4347,8 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
         parsed.refusalMessage = "Error: unexpected argument " + raw;
     }
     else if (canonical == "--machine" || canonical == "--disk1"
-          || canonical == "--disk2"   || canonical == "--title")
+          || canonical == "--disk2"   || canonical == "--title"
+          || canonical == "--seed")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }
@@ -4495,4 +4508,80 @@ size_t CommandLineParser::ParseTraceSize (const std::string & text)
     }
 
     return (size_t) value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::TryParseSeed
+//
+//  Decimal, or hex after a 0x prefix, which is how the trace file prints the
+//  seed so it can be pasted back. Every character must be consumed: a seed
+//  that silently became a different number would replay a different power-on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::TryParseSeed (const std::string & text, uint64_t & seed)
+{
+    constexpr int  kDecimal = 10;
+    constexpr int  kHex     = 16;
+
+
+
+    bool                  isHex  = text.size() > 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X');
+    const char          * digits = text.c_str() + (isHex ? 2 : 0);
+    char                * end    = nullptr;
+    unsigned long long    value  = 0;
+
+
+
+    if (!isxdigit ((unsigned char) digits[0]))
+    {
+        return false;
+    }
+
+    errno = 0;
+    value = strtoull (digits, &end, isHex ? kHex : kDecimal);
+
+    if (errno == ERANGE || end == nullptr || *end != '\0')
+    {
+        return false;
+    }
+
+    seed = value;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplySeed
+//
+//  Records a --seed value, or refuses the command line over one that is not a
+//  number. The first refusal stands, as it does for every other argument.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplySeed (const std::string                   & text,
+                                   CommandLineOptions::EmulatorOptions & parsed)
+{
+    bool  isValid = TryParseSeed (text, parsed.seed);
+
+
+
+    if (isValid)
+    {
+        parsed.hasSeed = true;
+    }
+    else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+    {
+        parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+        parsed.refusalMessage = "Error: invalid seed " + text;
+    }
 }
