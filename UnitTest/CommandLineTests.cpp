@@ -3122,6 +3122,55 @@ namespace CommandLineTests
                 L"an unknown suffix leaves the bare number");
         }
 
+        //  Hex as the trace file prints it, decimal, and the = form all land
+        //  on the same field; without --seed there is no seed.
+        TEST_METHOD (Emulator_SeedTakesHexDecimalAndEquals)
+        {
+            ArgVector                            none    = { "--machine", "Apple2e" };
+            ArgVector                            hex     = { "--seed", "0x00000000CA550036" };
+            ArgVector                            decimal = { "--seed", "12345" };
+            ArgVector                            joined  = { "/seed=0xFFFFFFFFFFFFFFFF" };
+            CommandLineOptions::EmulatorOptions  parsed;
+
+
+
+            parsed = CommandLineParser::ParseEmulator (none.Count(), none.Data());
+            Assert::IsFalse (parsed.hasSeed);
+
+            parsed = CommandLineParser::ParseEmulator (hex.Count(), hex.Data());
+            Assert::IsTrue  (parsed.hasSeed);
+            Assert::AreEqual ((uint64_t) 0xCA550036ULL, parsed.seed);
+
+            parsed = CommandLineParser::ParseEmulator (decimal.Count(), decimal.Data());
+            Assert::AreEqual ((uint64_t) 12345, parsed.seed);
+
+            parsed = CommandLineParser::ParseEmulator (joined.Count(), joined.Data());
+            Assert::IsTrue  (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::AreEqual ((uint64_t) 0xFFFFFFFFFFFFFFFFULL, parsed.seed);
+        }
+
+        //  A seed that is not exactly a number would replay a different
+        //  power-on, so it stops startup instead.
+        TEST_METHOD (Emulator_BadSeed_IsRefused)
+        {
+            ArgVector  junk     = { "--seed", "12abc" };
+            ArgVector  overflow = { "--seed", "0x1FFFFFFFFFFFFFFFF" };
+            ArgVector  bareHex  = { "--seed", "0x" };
+            ArgVector  missing  = { "--seed" };
+
+            for (ArgVector * args : { &junk, &overflow, &bareHex })
+            {
+                CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args->Count(), args->Data());
+
+                Assert::IsTrue  (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+                Assert::IsFalse (parsed.hasSeed);
+                Assert::IsTrue  (parsed.refusalMessage.starts_with ("Error: invalid seed "));
+            }
+
+            Assert::AreEqual (std::string ("Error: missing value for --seed"),
+                CommandLineParser::ParseEmulator (missing.Count(), missing.Data()).refusalMessage);
+        }
+
         //  THE UNDOCUMENTED CAPTION LABEL, which is the only way to tell
         //  several windows running the same machine apart. Undocumented is not
         //  untested: it is parsed by the same table as everything else, so it

@@ -8,6 +8,17 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+
+- GH #157: Debug > Save CPU trace writes the `--trace` recording to a text file
+  on the desktop. The file starts with the run's power-on memory seed, and the
+  new `--seed` option starts Casso with that seed to reproduce it.
+
+### Changed
+
+- GH #157: `--trace` no longer writes a file on every exit. The trace is saved
+  from the Debug menu, or automatically on a crash.
+
 ### Fixed
 
 - GH #155: Ctrl+@ (Ctrl+Shift+2) now sends a NUL keypress like a real
