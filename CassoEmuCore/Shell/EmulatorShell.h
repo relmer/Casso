@@ -586,15 +586,15 @@ private:
     // disagree about whether the band is big enough.
     int           GetStandInBarHeightPx (float widthPx) const;
 
-    // The controller thread moved the selection, or a controller came or
-    // went: the axis owner, the picker and the prefs follow on the UI thread.
-    void    ApplyControllerSelectionChange (const std::wstring & description, SelectionChangeReason reason, bool hasNotice);
+    // The players' slots changed, or a controller came or went: the axis
+    // owner, the picker and the prefs follow on the UI thread.
+    void    ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged);
     // BY VALUE, not by reference. The source arrives from a picker row's
     // dispatch, and picking rebuilds the rows -- turning the arrows and the
     // paddle off each re-syncs the picker -- so a reference into the row
     // would outlive the row it refers to.
     void    PickPaddleSource       (InputModeRules::PaddleSource source);
-    void    SetControllerSelection (const std::optional<ControllerUnitKey> & selection);
+    void    PickPlayerEntry        (size_t player, const PlayerEntry & entry);
     void    SaveControllerCalibrations ();
     void    SyncPaddleSourceList   ();
     void    SyncProfileList        (const ControllerInputService::Snapshot & snapshot);
@@ -2107,13 +2107,12 @@ private:
     std::unique_ptr<ControllerInputService>  m_controllerService;
     std::unique_ptr<ControllerInputThread>   m_controllerThread;
 
-    // Written by the controller thread when the policy moves the selection,
+    // Written by the controller thread when the players' slots change,
     // read on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting
     // prefs and raising a notice are both UI-thread work.
     std::mutex                               m_controllerPickMutex;
-    std::wstring                             m_controllerPickDescription;
-    SelectionChangeReason                    m_controllerPickReason     = SelectionChangeReason::None;
-    bool                                     m_controllerPickHasNotice  = false;
+    std::vector<std::wstring>                m_controllerPickNotices;
+    bool                                     m_controllerPickHasEntries = false;
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

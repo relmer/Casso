@@ -244,8 +244,9 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs, const s
 //
 //  AdoptControllerForMachine
 //
-//  Hands the machine's remembered controller to the service, so the policy
-//  starts from the user's choice rather than choosing for them.
+//  Hands the machine's saved players to the service. A two-player setup the
+//  user turned on gives both players their controllers as picks; otherwise
+//  both play on Automatic.
 //
 //  An UNREADABLE OR UNKNOWN TOKEN IS TREATED AS NO CHOICE, not as an error.
 //  The machine still runs, and the policy then picks up whatever is attached,
@@ -261,6 +262,9 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
     std::map<std::string, std::string>   normalProfiles;
     std::optional<ControllerUnitKey>     selection;
     ControllerUnitKey                    unit;
+    MultiplayerSetup                     setup;
+    PlayerEntries                        entries;
+    size_t                               i          = 0;
     const MachineDefinition            * definition = MachineDefinitions::Find (machineId);
 
 
@@ -283,7 +287,23 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
         m_controllerService->SetAxisCount (static_cast<size_t> (definition->gamePortAxisCount));
     }
 
-    m_controllerService->SetMultiplayer (MachineInputPrefs::ReadMultiplayer (uiPrefs));
+    // A two-player setup the user turned on was set up by hand, so its
+    // controllers are picks. Anything else plays on Automatic: a machine's
+    // saved controller was usually chosen automatically too, and making it a
+    // pick would take Automatic away without the user asking.
+    setup = MachineInputPrefs::ReadMultiplayer (uiPrefs);
+
+    for (i = 0; setup.isEnabled && i < PlayerSlotPolicy::kPlayerCount; i++)
+    {
+        if (setup.players[i].unit.has_value())
+        {
+            entries[i].kind   = PlayerEntryKind::Controller;
+            entries[i].unit   = setup.players[i].unit;
+            entries[i].target = setup.players[i].target;
+        }
+    }
+
+    m_controllerService->SetPlayerEntries (entries);
 
     token = MachineInputPrefs::ReadControllerToken (uiPrefs);
 
@@ -310,14 +330,10 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
         m_controllerService->SetActiveProfiles (ProfileMode::Normal, normalProfiles);
     }
 
-    m_controllerService->SetSelection (selection);
-
     // A rate binding's paddle position belongs to the machine it was moved on.
     m_controllerService->ResetPaddleRate();
 
-    // Whatever was saved, the policy decides against what is attached now: a
-    // machine with nothing saved selects an attached controller, and one
-    // whose saved controller is absent has it replaced (FR-011, FR-032).
+    // The players are decided against what is attached now.
     m_controllerService->RequestRescan();
 
     if (m_controllerThread != nullptr)
@@ -364,20 +380,38 @@ void EmulatorShell::PersistInputModeForMachine()
     // of the three touches at least two of the keys.
     if (m_controllerService != nullptr)
     {
-        // The saved controller, not the one in use: a clear is never saved
-        // (FR-011).
+        // Player 1's controller, picked or chosen by Automatic. Nothing
+        // playing is not written, so the machine keeps the controller it
+        // last had.
         ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
+        MultiplayerSetup                  picks;
+        size_t                            i        = 0;
 
-        if (snapshot.saved.has_value())
+        if (snapshot.slots[0].holder.has_value())
         {
-            token = ControllerTokens::UnitToToken (snapshot.saved.value());
+            token = ControllerTokens::UnitToToken (snapshot.slots[0].holder.value());
         }
 
         // No profile: each controller carries its own now, in the global
         // prefs, and the machine's old key is left out of what is written.
-        controllerEntries = MachineInputPrefs::BuildControllerEntries (token, std::string());
-        entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
-        entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (snapshot.multiplayer));
+        if (!token.empty())
+        {
+            controllerEntries = MachineInputPrefs::BuildControllerEntries (token, std::string());
+            entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
+        }
+
+        // Two picked players are the machine's two-player setup, which is
+        // what brings them back as picks.
+        for (i = 0; i < PlayerSlotPolicy::kPlayerCount; i++)
+        {
+            bool  isPick = snapshot.entries[i].kind == PlayerEntryKind::Controller;
+
+            picks.players[i].unit   = isPick ? snapshot.entries[i].unit : std::nullopt;
+            picks.players[i].target = snapshot.slots[i].target;
+        }
+
+        picks.isEnabled = picks.players[0].unit.has_value() && picks.players[1].unit.has_value();
+        entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (picks));
     }
 
     hr = DiskSettings::WriteSavedUiPrefs (

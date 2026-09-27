@@ -458,7 +458,7 @@ HRESULT SettingsSheet::OpenModeless (
                                      service->GetCalibrations(),
                                      !m_emuShell->MachineHasCaseSwitches(),
                                      snapshot.activeProfiles,
-                                     snapshot.selection);
+                                     snapshot.slots[0].holder);
             m_controllersState.SetOtherModeActiveProfiles (service->GetActiveProfiles (snapshot.profileMode == ProfileMode::Joyport ? ProfileMode::Normal
                                                                                                                                     : ProfileMode::Joyport));
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
@@ -469,11 +469,13 @@ HRESULT SettingsSheet::OpenModeless (
             // machine input settings, so an edit goes to the service and to
             // the machine's prefs as it is made, exactly as a pick from the
             // toolbar's paddle picker does.
-            m_controllersState.SetMultiplayer (service->GetLiveMultiplayer(), snapshot.axisCount);
+            m_controllersState.SetMultiplayer (PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots), snapshot.axisCount);
 
             m_controllersState.SetOnMultiplayerChanged ([this, service] (const MultiplayerSetup & setup)
             {
-                service->SetMultiplayer (setup);
+                ControllerInputService::Snapshot  current = service->GetSnapshot();
+
+                service->SetPlayerEntries (PlayerSlotPolicy::ApplySetupView (current.entries, current.slots, setup));
                 m_emuShell->PersistInputModeForMachine();
                 m_emuShell->SyncPaddleSourceList();
             });
@@ -616,7 +618,7 @@ void SettingsSheet::ShowControllersPage()
         // Laid out again rather than merely re-synced: the section is not a
         // value on the page, it is rows that come and go, and every row below
         // it moves with them.
-        m_controllersState.SetMultiplayer (m_emuShell->GetControllerService()->GetLiveMultiplayer(), snapshot.axisCount);
+        m_controllersState.SetMultiplayer (PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots), snapshot.axisCount);
         m_controllersPage->Relayout();
         m_controllersPage->FollowPlayerOne();
     }
@@ -724,7 +726,7 @@ void SettingsSheet::OnDialogTick()
         // between the two-player and single-player settings the same way it
         // moves the toolbar picker, even though it never touches the saved
         // setup (FR-040).
-        MultiplayerSetup  live = m_emuShell->GetControllerService()->GetLiveMultiplayer();
+        MultiplayerSetup  live = PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots);
 
         if (m_controllersState.GetMultiplayer() != live ||
             m_controllersState.GetAxisCount()   != snapshot.axisCount)

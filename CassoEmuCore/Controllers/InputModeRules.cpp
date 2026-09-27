@@ -248,38 +248,45 @@ std::wstring InputModeRules::Shorten (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetAxisOwner
+//  GetAxisOwners
 //
-//  A selected controller owns the axes once it reads. Until it does -- the
-//  moment after it is chosen, or after a read failed and before the rescan
-//  moves the selection -- NOTHING DOES, and the axes rest at center.
+//  PLAYER 1'S KEYS OR MOUSE KEEP PDL0 AND PDL1, whatever controllers are
+//  attached: a controller connecting does not take them, and a controller
+//  playing as Player 2 plays the axes of its own slot beside them. Every
+//  other axis, and all four when neither is picked, belongs to the controller
+//  source, which leaves an axis no controller drives at center.
 //
 //  THE ARROW KEYS NEVER TAKE THE AXES ON THEIR OWN. Arrows-to-joystick also
 //  turns X and Z into the buttons, which takes them from the guest's
-//  keyboard, so it is on only because the user turned it on (FR-008a).
+//  keyboard, so it is on only because the user turned it on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AxisOwner InputModeRules::GetAxisOwner (const State & state)
+InputModeRules::AxisOwners InputModeRules::GetAxisOwners (const State & state)
 {
-    if (state.hasController)
-    {
-        return state.isControllerAttached ? AxisOwner::Controller : AxisOwner::None;
-    }
+    static constexpr size_t  kPlayerOneAxes = 2;
+    AxisOwners               owners;
+    AxisOwner                playerOne      = AxisOwner::Controller;
+    size_t                   axis           = 0;
+
+
 
     if (state.mousePaddle)
     {
-        return AxisOwner::MousePaddle;
+        playerOne = AxisOwner::MousePaddle;
     }
-
-    if (state.arrowsJoystick)
+    else if (state.arrowsJoystick)
     {
-        return AxisOwner::ArrowKeys;
+        playerOne = AxisOwner::ArrowKeys;
     }
 
-    return AxisOwner::None;
-}
+    for (axis = 0; axis < owners.size(); axis++)
+    {
+        owners[axis] = (axis < kPlayerOneAxes) ? playerOne : AxisOwner::Controller;
+    }
 
+    return owners;
+}
 
 
 

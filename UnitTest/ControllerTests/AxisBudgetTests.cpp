@@ -79,16 +79,17 @@ namespace ControllerTests
 
         // Two players: the Xbox controller on joystick 0 and the stick on
         // joystick 1, which a //c does not have.
-        static MultiplayerSetup MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
+        static PlayerEntries MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
         {
-            MultiplayerSetup  setup;
+            PlayerEntries  entries;
 
-            setup.isEnabled          = true;
-            setup.players[0].unit    = first;
-            setup.players[0].target  = PlayerAxisTarget::Joystick0;
-            setup.players[1].unit    = second;
-            setup.players[1].target  = PlayerAxisTarget::Joystick1;
-            return setup;
+            entries[0].kind   = PlayerEntryKind::Controller;
+            entries[0].unit   = first;
+            entries[0].target = PlayerAxisTarget::Joystick0;
+            entries[1].kind   = PlayerEntryKind::Controller;
+            entries[1].unit   = second;
+            entries[1].target = PlayerAxisTarget::Joystick1;
+            return entries;
         }
 
 
@@ -113,20 +114,20 @@ namespace ControllerTests
             backend.SetSample (stick.unit, pushed);
             SkipCalibration (service, stick.unit);
 
-            service.SetMultiplayer (MakeTwoPlayers (xbox.unit, stick.unit));
+            service.SetPlayerEntries (MakeTwoPlayers (xbox.unit, stick.unit));
             service.SetAxisCount (2);
             service.Tick();
 
             Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[2], L"PDL2 is not driven on a machine with two axes");
-            Assert::IsFalse  (mixer.GetTargetState().buttons.test (1),
+            Assert::IsFalse  (mixer.GetTargetState().buttons.test (2),
                 L"a player whose paddles the machine lacks does not drive the game port at all, buttons included");
-            Assert::IsTrue   (service.GetMultiplayer().players[1].unit.has_value(), L"the slot is kept, not discarded");
+            Assert::IsTrue   (service.GetPlayerEntries()[1].unit.has_value(), L"the pick is kept, not discarded");
 
             service.SetAxisCount (4);
             service.Tick();
 
             Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[2], L"a machine with four axes plays it again");
-            Assert::IsTrue   (mixer.GetTargetState().buttons.test (1), L"and player two's button reaches PB1");
+            Assert::IsTrue   (mixer.GetTargetState().buttons.test (2), L"and player two's first button reaches PB2, joystick 1's line");
         }
 
 
@@ -138,13 +139,13 @@ namespace ControllerTests
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    xbox   = MakeXboxDevice();
             ControllerDeviceInfo    stick  = MakeStickDevice();
-            MultiplayerSetup        setup  = MakeTwoPlayers (xbox.unit, stick.unit);
+            PlayerEntries           setup  = MakeTwoPlayers (xbox.unit, stick.unit);
             ControllerSample        pushed;
 
             pushed.connected = true;
             pushed.axes[0]   = 1.0f;
 
-            setup.players[1].target = PlayerAxisTarget::Paddle3;
+            setup[1].target = PlayerAxisTarget::Paddle3;
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
@@ -153,12 +154,12 @@ namespace ControllerTests
             backend.SetSample (stick.unit, pushed);
             SkipCalibration (service, stick.unit);
 
-            service.SetMultiplayer (setup);
+            service.SetPlayerEntries (setup);
             service.SetAxisCount (2);
             service.Tick();
 
             Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[1], L"a //c has no PDL3, and the player does not fall back onto PDL1");
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle3, (int) service.GetMultiplayer().players[1].target,
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle3, (int) service.GetPlayerEntries()[1].target.value(),
                 L"and the slot survives the switch");
 
             service.SetAxisCount (4);

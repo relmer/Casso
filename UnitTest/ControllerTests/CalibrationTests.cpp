@@ -227,7 +227,7 @@ namespace ControllerTests
             mixer.SetAxisOwner (AxisOwner::Controller);
             backend.AddDevice (stick);
             backend.SetSample (stick.unit, MakeSample (0.2f, 0.2f));
-            service.SetSelection (stick.unit);
+            service.PickPlayerEntry (0, { PlayerEntryKind::Controller, stick.unit });
             service.Tick();
 
             Assert::IsTrue (std::abs ((int) sink.writes.back().state.paddle[0] - 127) <= 1,
@@ -249,7 +249,7 @@ namespace ControllerTests
 
             backend.AddDevice (xbox, true);
             backend.SetSample (xbox.unit, sample);
-            service.SetSelection (xbox.unit);
+            service.PickPlayerEntry (0, { PlayerEntryKind::Controller, xbox.unit });
             service.Tick();
 
             Assert::IsTrue (service.GetCalibrations().empty(), L"Xbox-class controllers are factory-calibrated (FR-018a)");
@@ -273,7 +273,7 @@ namespace ControllerTests
             service.SetCalibrations (saved);
             backend.AddDevice (second);
             backend.SetSample (second.unit, MakeSample (0.0f));
-            service.SetSelection (second.unit);
+            service.PickPlayerEntry (0, { PlayerEntryKind::Controller, second.unit });
             service.Tick();
 
             Assert::IsTrue (service.GetCalibrations().at (ControllerTokens::UnitToToken (second.unit)).mode == CalibrationMode::Automatic,

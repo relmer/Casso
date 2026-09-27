@@ -292,6 +292,8 @@
     <ClCompile Include="ControllerTests\ControllerProfileStoreTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerSelectionPolicyTests.cpp" />
     <ClCompile Include="ControllerTests\InputModeRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerSlotPolicyTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerTargetRulesTests.cpp" />
     <ClCompile Include="ControllerTests\PaddleSourceRowsTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerInputServiceTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerDescriptionsTests.cpp" />

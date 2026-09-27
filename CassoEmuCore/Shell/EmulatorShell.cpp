@@ -470,15 +470,21 @@ HRESULT EmulatorShell::Initialize (
 
     m_controllerThread  = std::make_unique<ControllerInputThread>();
 
-    m_controllerService->SetSelectionChangedFn (
-        [this] (const ControllerSelectionPolicy::Decision & decision)
+    // A controller that held a slot and left is said over the picture; the
+    // command bar's picker already shows what is playing after it.
+    m_controllerService->SetSlotsChangedFn (
+        [this] (const ControllerInputService::SlotsChange & change)
         {
             {
                 std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
-                m_controllerPickDescription = decision.departedDescription;
-                m_controllerPickReason      = decision.reason;
-                m_controllerPickHasNotice   = decision.isAnnounced;
+                for (const std::wstring & description : change.departedDescriptions)
+                {
+                    m_controllerPickNotices.push_back (description + L" disconnected.");
+                }
+
+                m_controllerPickNotices.insert (m_controllerPickNotices.end(), change.notices.begin(), change.notices.end());
+                m_controllerPickHasEntries = m_controllerPickHasEntries || change.haveEntriesChanged;
             }
 
             PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);

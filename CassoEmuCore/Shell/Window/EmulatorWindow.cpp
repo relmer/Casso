@@ -2499,28 +2499,24 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    // The controller thread's policy moved the selection, or a controller came
-    // or went. Saying so and writing it to the prefs both belong here, not on
-    // that thread.
+    // The players' slots changed, or a controller came or went. Saying so and
+    // writing it to the prefs both belong here, not on the controller thread.
     if (msg == WM_APP_CONTROLLER_PICK)
     {
-        std::wstring           description;
-        SelectionChangeReason  reason    = SelectionChangeReason::None;
-        bool                   hasNotice = false;
+        std::vector<std::wstring>  notices;
+        bool                       haveEntriesChanged = false;
 
         {
             std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
-            description               = m_controllerPickDescription;
-            reason                    = m_controllerPickReason;
-            hasNotice                 = m_controllerPickHasNotice;
-            m_controllerPickReason    = SelectionChangeReason::None;
-            m_controllerPickHasNotice = false;
+            notices.swap (m_controllerPickNotices);
+            haveEntriesChanged         = m_controllerPickHasEntries;
+            m_controllerPickHasEntries = false;
         }
 
         // A device arriving or leaving changes the rows even when it changes
         // nothing else, so the list is rebuilt on every one of these.
-        ApplyControllerSelectionChange (description, reason, hasNotice);
+        ApplyControllerSlotsChange (notices, haveEntriesChanged);
         SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;

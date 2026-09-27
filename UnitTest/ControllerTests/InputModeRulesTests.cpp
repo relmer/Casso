@@ -12,9 +12,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  InputModeRulesTests
 //
-//  Three sources drive the paddle axes and only one can have them, so these
-//  assert that choosing any one gives up the other two, and that the arrow
-//  keys never take the axes on their own.
+//  Player 1 plays on one of three sources, so these assert that choosing any
+//  one gives up the other two, that a controller connecting takes nothing from
+//  the keys or the mouse, and that the arrow keys never take the axes on their
+//  own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,31 +25,57 @@ namespace ControllerTests
     {
     public:
 
-        TEST_METHOD (Controller_OwnsTheAxesWhileAttached)
+        TEST_METHOD (NothingPicked_TheControllersOwnEveryAxis)
         {
-            InputModeRules::State  state;
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
 
             state.hasController        = true;
             state.isControllerAttached = true;
+            owners                     = InputModeRules::GetAxisOwners (state);
 
-            Assert::AreEqual ((int) AxisOwner::Controller, (int) InputModeRules::GetAxisOwner (state));
+            for (AxisOwner owner : owners)
+            {
+                Assert::AreEqual ((int) AxisOwner::Controller, (int) owner,
+                    L"the controllers hold every axis; one no controller drives rests at center");
+            }
         }
 
 
-        TEST_METHOD (Controller_NotReadingRestsTheAxes)
+        //  A controller connecting does not take the keys from Player 1: they
+        //  keep PDL0 and PDL1, and a controller playing as Player 2 plays the
+        //  axes of its own slot beside them.
+        TEST_METHOD (KeysPickedForPlayerOne_KeepTheirAxesWhileAControllerIsAttached)
         {
-            InputModeRules::State  state;
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
 
+            state.arrowsJoystick       = true;
             state.hasController        = true;
-            state.isControllerAttached = false;
+            state.isControllerAttached = true;
+            owners                     = InputModeRules::GetAxisOwners (state);
 
-            // Until the selected controller reads, nothing drives the axes.
-            // The arrow keys never take them on their own: arrows-to-joystick
-            // takes X and Z from the guest's keyboard (FR-008a).
-            Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (state),
-                L"the arrow keys are only ever on because the user turned them on");
+            Assert::AreEqual ((int) AxisOwner::ArrowKeys,  (int) owners[0], L"the keys keep PDL0 with a controller attached (FR-032)");
+            Assert::AreEqual ((int) AxisOwner::ArrowKeys,  (int) owners[1], L"and PDL1");
+            Assert::AreEqual ((int) AxisOwner::Controller, (int) owners[2], L"Player 2's controller owns the rest");
+            Assert::AreEqual ((int) AxisOwner::Controller, (int) owners[3]);
         }
 
+
+        TEST_METHOD (MousePickedForPlayerOne_KeepsItsAxesWhileAControllerIsAttached)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+            state.mousePaddle          = true;
+            state.hasController        = true;
+            state.isControllerAttached = true;
+            owners                     = InputModeRules::GetAxisOwners (state);
+
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[0], L"the mouse keeps PDL0 with a controller attached");
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[1]);
+            Assert::AreEqual ((int) AxisOwner::Controller,  (int) owners[2]);
+        }
 
         TEST_METHOD (SelectingAController_TurnsOffTheArrowsAndThePaddle)
         {
@@ -301,9 +328,10 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (NothingChosen_AxesRestAtCenter)
+        TEST_METHOD (NothingChosen_TheArrowsTakeNothing)
         {
-            Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (InputModeRules::State()));
+            Assert::AreEqual ((int) AxisOwner::Controller, (int) InputModeRules::GetAxisOwners (InputModeRules::State())[0],
+                L"the arrow keys are only ever on because the user turned them on");
         }
 
 
@@ -314,7 +342,7 @@ namespace ControllerTests
             state.arrowsJoystick = true;
             state.mousePaddle    = true;
 
-            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) InputModeRules::GetAxisOwner (state),
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) InputModeRules::GetAxisOwners (state)[0],
                 L"the setters make this unreachable, but the owner must still be decided, never ambiguous");
         }
 

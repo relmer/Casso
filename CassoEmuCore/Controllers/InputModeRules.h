@@ -16,9 +16,10 @@
 //  InputModeRules
 //
 //  Who owns the paddle axes, and what turning one input source on does to the
-//  others. Three sources drive PDL0/PDL1 -- the arrow keys, the mouse in
-//  paddle mode, and a controller -- and only one of them can, so choosing any
-//  of them gives up the other two.
+//  others. Player 1 plays on the arrow keys, the mouse in paddle mode, or a
+//  controller, and only one of them, so choosing any of them gives up the
+//  other two. A controller connecting chooses nothing: the keys or the mouse
+//  picked for Player 1 stay until the user picks something else.
 //
 //  This is pure so the exclusivity can be asserted without a machine. It was
 //  spread across `SetArrowsJoystick`, `SetPointerMapping` and
@@ -101,10 +102,12 @@ public:
     // mode is on is not a question this answers.
     static std::wstring  GetStandInBannerText (const State & state);
 
-    static AxisOwner  GetAxisOwner            (const State & state);
-    static State      AfterSelectingController (State state);
-    static State      AfterSettingArrows       (State state, bool on);
-    static State      AfterSettingMousePaddle  (State state, bool on);
+    using AxisOwners = std::array<AxisOwner, GamePortContribution::kAxisCount>;
+
+    static AxisOwners  GetAxisOwners           (const State & state);
+    static State       AfterSelectingController (State state);
+    static State       AfterSettingArrows       (State state, bool on);
+    static State       AfterSettingMousePaddle  (State state, bool on);
 
     // PB0 and PB1 as the keys-as-joystick fire keys drive them: X or left Alt,
     // and Z or right Alt. With the Joyport attached the Alt keys are left out.

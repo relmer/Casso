@@ -294,6 +294,8 @@
     <ClCompile Include="Controllers\ControllerProfileStore.cpp" />
     <ClCompile Include="Controllers\ControllerSelectionPolicy.cpp" />
     <ClCompile Include="Controllers\InputModeRules.cpp" />
+    <ClCompile Include="Controllers\PlayerSlotPolicy.cpp" />
+    <ClCompile Include="Controllers\PlayerTargetRules.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
@@ -565,6 +567,8 @@
     <ClInclude Include="Controllers\ControllerProfileStore.h" />
     <ClInclude Include="Controllers\ControllerSelectionPolicy.h" />
     <ClInclude Include="Controllers\InputModeRules.h" />
+    <ClInclude Include="Controllers\PlayerSlotPolicy.h" />
+    <ClInclude Include="Controllers\PlayerTargetRules.h" />
     <ClInclude Include="Controllers\ControllerInputService.h" />
     <ClInclude Include="Controllers\DirectInputSampleDecoder.h" />
     <ClInclude Include="Controllers\XInputSampleDecoder.h" />
