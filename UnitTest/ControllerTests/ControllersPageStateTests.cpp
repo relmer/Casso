@@ -584,8 +584,101 @@ namespace ControllerTests
 
             Assert::IsTrue (normal.GetProfileNames()  == std::vector<std::string> { "Default", "Swapped" }, L"normal mode: the Default first, and no Joyport-mode profile");
             Assert::IsTrue (joyport.GetProfileNames() == std::vector<std::string> { "Joyport", "Atari" },   L"Joyport mode: the Joyport profile first, and no normal-mode profile");
-            Assert::IsTrue (normal.GetCopySourceNames() == std::vector<std::string> { "Default", "Swapped", "Joyport", "Atari" },
-                L"a new profile can be a copy of a profile of either mode");
+        }
+
+
+        //  A new profile is a copy only of a profile of the page's mode, and
+        //  the mode's built-in profile is offered only once its mapping is no
+        //  longer the built-in mapping, which a copy would only duplicate.
+        TEST_METHOD (CopySources_ListThePagesModeLessAnUneditedBuiltIn)
+        {
+            ControllersPageState  normal;
+            ControllersPageState  joyport;
+            ControllersPageState  none;
+
+            normal.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+
+            joyport.SetProfileMode (ProfileMode::Joyport);
+            joyport.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+
+            Assert::IsTrue (normal.GetCopySourceNames()  == std::vector<std::string> { "Swapped" }, L"normal mode: its own profiles, less the unedited Default");
+            Assert::IsTrue (joyport.GetCopySourceNames() == std::vector<std::string> { "Atari" },   L"Joyport mode: its own profiles, less the unedited Joyport profile");
+
+            normal.AddButtonBinding  (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+            joyport.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+
+            Assert::IsTrue (normal.GetCopySourceNames()  == std::vector<std::string> { "Default", "Swapped" }, L"an edited Default is offered, a pending edit included");
+            Assert::IsTrue (joyport.GetCopySourceNames() == std::vector<std::string> { "Joyport", "Atari" });
+
+            none.Load ({}, MakeSavedWithBothModes(), {}, true);
+
+            Assert::IsTrue (none.GetCopySourceNames().empty(), L"with no controller there is nothing to copy");
+        }
+
+
+        //  A model with nothing saved has only its built-in profiles, each
+        //  still its built-in mapping, so there is nothing to copy.
+        TEST_METHOD (CopySources_AModelWithNothingSavedHasNone)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            Assert::IsTrue (page.GetCopySourceNames().empty());
+        }
+
+
+        TEST_METHOD (CreateProfile_ACopyOfTheOtherModesProfile_IsRefused)
+        {
+            ControllersPageState  page;
+            std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
+
+            page.SetProfileMode (ProfileMode::Joyport);
+            page.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+
+            Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Swapped") == ProfileEditResult::NotFound, L"a normal-mode profile in Joyport mode");
+            Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Default") == ProfileEditResult::NotFound, L"the Default in Joyport mode");
+            Assert::IsTrue  (page.GetModels().at (token).FindProfile ("Copy") == nullptr, L"nothing is created");
+            Assert::IsFalse (page.IsDirty());
+        }
+
+
+        TEST_METHOD (StartingPoints_AreTheModesOwn)
+        {
+            using Sources = std::vector<ProfileSource>;
+
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Normal, true)
+                            == Sources { ProfileSource::DefaultMapping, ProfileSource::Paddles, ProfileSource::CopyOfProfile },
+                            L"normal mode: the Default mapping, Paddles, or a copy");
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Joyport, true)
+                            == Sources { ProfileSource::JoyportMapping, ProfileSource::CopyOfProfile },
+                            L"Joyport mode: the Joyport mapping, or a copy");
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Normal, false)
+                            == Sources { ProfileSource::DefaultMapping, ProfileSource::Paddles },
+                            L"no copy with nothing to copy");
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Joyport, false)
+                            == Sources { ProfileSource::JoyportMapping });
+        }
+
+
+        TEST_METHOD (StartingPointLabels_ForEverySource)
+        {
+            const std::pair<ProfileSource, const wchar_t *>  kLabels[] =
+            {
+                { ProfileSource::DefaultMapping, L"Default mapping" },
+                { ProfileSource::JoyportMapping, L"Joyport mapping" },
+                { ProfileSource::CopyOfProfile,  L"Copy of"         },
+                { ProfileSource::Paddles,        L"Paddles"         },
+            };
+            int                                              swept = 0;
+
+            for (const auto & label : kLabels)
+            {
+                Assert::AreEqual (std::wstring (label.second), ControllersPageState::GetStartingPointLabel (label.first));
+                swept |= 1 << (int) label.first;
+            }
+
+            Assert::AreEqual ((1 << ((int) ProfileSource::Paddles + 1)) - 1, swept, L"every source has its label");
         }
 
 
@@ -667,7 +760,7 @@ namespace ControllerTests
 
             Assert::IsTrue (page.CreateProfile ("From Joyport", ProfileSource::JoyportMapping, std::string()) == ProfileEditResult::Ok);
             Assert::IsTrue (page.GetMapping() == DefaultMapping::MakeJoyport (model, ControllerFormFactor::Gamepad, controls));
-            Assert::IsTrue (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Swapped") == ProfileEditResult::Ok, L"a copy of a normal-mode profile");
+            Assert::IsTrue (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Atari") == ProfileEditResult::Ok, L"a copy of a Joyport-mode profile");
             Assert::IsTrue (page.GetModels().at (token).FindProfile ("Copy")->mode == ProfileMode::Joyport);
             Assert::IsTrue (page.CreateProfile ("swapped", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::DuplicateName,
                 L"a name used in the other mode is taken");

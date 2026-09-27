@@ -130,3 +130,17 @@ place a player on a jack.
 | Mutation: `MakeJoyport` binding a trigger axis | automated | 2 tests went red: `JoyportMapping_NoTriggerEverSteers`, `JoyportMapping_SteersWithEverythingAndFiresWithEverything` |
 | Full unit suite | x64 Release | 5,717 of 5,717 |
 | V16: a DirectInput gamepad and a flight stick | manual | not yet run |
+
+## Phase 16: new profile starting points (US7)
+
+| Check | Kind | Result |
+|---|---|---|
+| `ControllerProfileStore::CreateProfile` refuses a copy of the other mode's profile, the other mode's built-in included, with `NotFound`, and adds nothing; every other source still stamps the mode in effect (`ControllerProfileStoreTests`) | automated | pass |
+| `GetCopySourceNames` lists only the page mode's profiles, less its built-in profile while that is still the built-in mapping, and lists it once edited, a pending edit included; empty with no controller or nothing saved; the page's `CreateProfile` refuses a copy of the other mode's profile (`ControllersPageStateTests`) | automated | pass |
+| `GetStartingPoints`: Default mapping, Paddles and Copy of in normal mode, Joyport mapping and Copy of in Joyport mode, Copy of left out with nothing to copy; `GetStartingPointLabel` for every source (`ControllersPageStateTests`) | automated | pass |
+| Mutation: the store's `CreateProfile` without the mode check | automated | 2 tests went red: `CreateProfile_ACopyOfTheOtherModesProfile_IsRefused` (`a Joyport-mode profile in normal mode`) and `CreateProfile_FromEverySourceInEachMode_StampsTheModeInEffect` |
+| Mutation: the built-in profile always in the copy list | automated | 2 tests went red: `CopySources_ListThePagesModeLessAnUneditedBuiltIn` (`normal mode: its own profiles, less the unedited Default`) and `CopySources_AModelWithNothingSavedHasNone` |
+| Mutation: the Joyport mapping offered in normal mode | automated | 1 test went red: `StartingPoints_AreTheModesOwn` (`normal mode: the Default mapping, Paddles, or a copy`) |
+| Mutation: the page's `CreateProfile` without the mode check | automated | 1 test went red: `CreateProfile_ACopyOfTheOtherModesProfile_IsRefused` (`a normal-mode profile in Joyport mode`) |
+| Full unit suite | x64 Release | 5,790 of 5,790 |
+| The New profile dialog on screen in both modes | manual | not run: opening it needs an attached controller and a walk through the sheet by posted input; left for the owner |

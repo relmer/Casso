@@ -356,6 +356,30 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 
 ---
 
+## Phase 16: User Story 7 - A new profile starts only from its own mode (Priority: P1)
+
+**Goal**: FR-020 as changed on 2026-09-27: the New profile dialog offers only the starting points of the mode in effect (Default mapping, Paddles or a copy in normal mode; Joyport mapping or a copy in Joyport mode), and the profile to copy is chosen from a list of that mode's profiles that leaves out the mode's built-in profile while its mapping is still the built-in mapping. Creating a profile refuses a copy of the other mode's profile. Replaces Phase 9's "every source in both modes" and "copy sources list the profiles of both modes".
+
+**Independent Test**: with the Joyport off, New profile offers Default mapping, Paddles and Copy of, and the copy list holds only normal-mode profiles, the Default only once edited; with it on, Joyport mapping and Copy of, with only Joyport-mode profiles.
+
+### Tests for Phase 16
+
+- [X] T118 [P] [US7] In `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`, add a test that `ControllerProfileStore::CreateProfile` with `ProfileSource::CopyOfProfile` refuses a profile of the other mode, the other mode's built-in profile included, with `ProfileEditResult::NotFound` and adds nothing; rework `CreateProfile_FromEverySourceInEachMode_StampsTheModeInEffect` so a copy across modes is refused while every other source still stamps the mode in effect. Confirm the new test fails with the mode check removed
+- [X] T119 [P] [US7] In `UnitTest/ControllerTests/ControllersPageStateTests.cpp`: `GetCopySourceNames` lists only the page mode's profiles; the mode's built-in profile is left out while its mapping equals the built-in mapping, and listed once edited, a pending edit included; with no controller the list is empty; `CreateProfile` refuses a copy of the other mode's profile with `NotFound` and creates nothing; update `ProfileNames_FollowThePagesMode` and `CreateProfile_BelongsToThePagesModeAndResetsToItsBuiltIn`, which expect both modes' profiles. Confirm a test fails with the built-in profile always listed
+- [X] T120 [P] [US7] In `UnitTest/ControllerTests/ControllersPageStateTests.cpp`, test the static `ControllersPageState::GetStartingPoints (ProfileMode mode, bool canCopy)`: normal mode gives `DefaultMapping`, `Paddles`, `CopyOfProfile` in that order; Joyport mode gives `JoyportMapping`, `CopyOfProfile`; `CopyOfProfile` is left out when nothing can be copied; and the static `GetStartingPointLabel (ProfileSource)` gives exactly "Default mapping", "Joyport mapping", "Paddles" and "Copy of" (sweep the enum). Confirm a test fails with the Joyport mapping offered in normal mode
+
+### Implementation for Phase 16
+
+- [X] T121 [US7] In `CassoEmuCore/Controllers/ControllerProfileStore.cpp`, make `CreateProfile` return `ProfileEditResult::NotFound` for a `CopyOfProfile` source whose profile belongs to the other mode (`ControllerModelSettings::IsOfOtherMode`), and update the `ProfileSource` and `CreateProfile` comments in `ControllerProfileStore.h/.cpp`
+- [X] T122 [US7] In `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`, rework `GetCopySourceNames` to the page mode's profiles less an unedited built-in profile, make `CreateProfile` refuse a copy of the other mode's profile, and add the static `GetStartingPoints` and `GetStartingPointLabel`
+- [X] T123 [US7] In `CassoEmuCore/Ui/Settings/ProfileDialogOverlay.h/.cpp`, replace the fixed starting-point table with the list `OpenNew` is given; show "Copy of" followed by a `DxuiComboBox` of the copy sources, opening in a popup through the host `ControllersPage::SetPopupHost` passes on; choosing from the list selects Copy of; the list takes a focus stop and its own keys while open; the accept callback gets the chosen copy source. In `CassoEmuCore/Ui/Settings/ControllersPage.cpp`, open the dialog with `GetStartingPoints (mode, !names.empty())` and `GetCopySourceNames`, preselecting the edited profile when it is in the list, and create from the chosen source (sentence case)
+- [X] T124 [US7] Mutation checks for Phase 16, recorded in `specs/036-sirius-joyport/validation.md` under a new "Phase 16" heading: `CreateProfile` without the mode check; the built-in profile always in the copy list; the Joyport mapping offered in normal mode
+- [X] T125 [US7] Build x64 Debug and Release, run the full Release suite, capture the New profile dialog in both modes if Casso can be run minimized, then commit: `feat(controllers): start a new profile only from its own mode` (body: GH #156)
+
+**Checkpoint**: a new profile starts from a mapping of its own mode or from a copy of one of that mode's profiles.
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies
@@ -378,6 +402,7 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 - **Phase 13 (jacks and labels)**: T100-T103 after Phase 11; T104-T106 after spec 034's player slots, submenus and notice stack.
 - **Phase 14 (validation and gate)**: after Phases 9-13.
 - **Phase 15**: blocked on the owner's FR-016 decision; independent of Phases 9-14 if adopted.
+- **Phase 16 (new profile starting points)**: after Phase 9; independent of Phases 10-15.
 
 ### Within Each Story
 

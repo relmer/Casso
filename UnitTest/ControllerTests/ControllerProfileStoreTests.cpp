@@ -677,9 +677,9 @@ namespace ControllerTests
         }
 
 
-        //  Every starting point is offered in both modes, and the new profile
-        //  belongs to the mode in effect whichever it starts from, a copy of
-        //  the other mode's profile included.
+        //  The new profile belongs to the mode in effect whichever mapping it
+        //  starts from. A copy is only of a profile of that mode: a copy of
+        //  the other mode's profile is refused.
         TEST_METHOD (CreateProfile_FromEverySourceInEachMode_StampsTheModeInEffect)
         {
             struct Case
@@ -714,13 +714,23 @@ namespace ControllerTests
             {
                 for (const Case & c : cases)
                 {
-                    std::string  name = "New " + std::to_string (created++);
+                    std::string  name        = "New " + std::to_string (created++);
+                    bool         isFlight    = std::string (c.pszSourceName) == "Flight";
+                    bool         isOtherMode = c.source == ProfileSource::CopyOfProfile && isFlight != (mode == ProfileMode::Normal);
+
+                    if (isOtherMode)
+                    {
+                        Assert::IsTrue (store.CreateProfile (Xbox(), ControllerFormFactor::Gamepad, controls, name, c.source, mode, c.pszSourceName) == ProfileEditResult::NotFound,
+                                        L"a copy of the other mode's profile is refused");
+                        Assert::IsTrue (settings.FindProfile (name) == nullptr);
+                        continue;
+                    }
 
                     switch (c.source)
                     {
                         case ProfileSource::DefaultMapping: expected = DefaultMapping::For (Xbox(), controls);                                              break;
                         case ProfileSource::JoyportMapping: expected = DefaultMapping::MakeJoyport (Xbox(), ControllerFormFactor::Gamepad, controls);                                      break;
-                        case ProfileSource::CopyOfProfile:  expected = std::string (c.pszSourceName) == "Flight" ? flight : atari;                         break;
+                        case ProfileSource::CopyOfProfile:  expected = isFlight ? flight : atari;                                                          break;
                         case ProfileSource::Paddles:        expected = DefaultMapping::MakePaddles (Xbox(), controls);                                      break;
                     }
 
@@ -731,6 +741,26 @@ namespace ControllerTests
             }
 
             Assert::AreEqual (10, created, L"every source was tried in both modes");
+        }
+
+
+        TEST_METHOD (CreateProfile_ACopyOfTheOtherModesProfile_IsRefused)
+        {
+            ControllerProfileStore     store;
+            std::vector<ControlId>     controls = XInputSampleDecoder::ListControls();
+            ControllerModelSettings  & settings = store.GetOrCreateModel (Xbox(), ControllerFormFactor::Gamepad, controls);
+            size_t                     count    = 0;
+
+            settings.AddProfile ("Flight", MakeFullMapping(), ProfileMode::Normal);
+            settings.AddProfile ("Atari",  ControlMapping(),  ProfileMode::Joyport);
+            count = settings.profiles.size();
+
+            Assert::IsTrue   (store.CreateProfile (Xbox(), ControllerFormFactor::Gamepad, controls, "A", ProfileSource::CopyOfProfile, ProfileMode::Normal,  "Atari")   == ProfileEditResult::NotFound, L"a Joyport-mode profile in normal mode");
+            Assert::IsTrue   (store.CreateProfile (Xbox(), ControllerFormFactor::Gamepad, controls, "B", ProfileSource::CopyOfProfile, ProfileMode::Normal,  "Joyport") == ProfileEditResult::NotFound, L"the Joyport profile in normal mode");
+            Assert::IsTrue   (store.CreateProfile (Xbox(), ControllerFormFactor::Gamepad, controls, "C", ProfileSource::CopyOfProfile, ProfileMode::Joyport, "Flight")  == ProfileEditResult::NotFound, L"a normal-mode profile in Joyport mode");
+            Assert::IsTrue   (store.CreateProfile (Xbox(), ControllerFormFactor::Gamepad, controls, "D", ProfileSource::CopyOfProfile, ProfileMode::Joyport, "default") == ProfileEditResult::NotFound, L"the Default in Joyport mode");
+            Assert::AreEqual (count, settings.profiles.size(), L"and nothing is added");
+            Assert::IsTrue   (store.CreateProfile (Xbox(), ControllerFormFactor::Gamepad, controls, "E", ProfileSource::CopyOfProfile, ProfileMode::Joyport, "Joyport") == ProfileEditResult::Ok, L"a copy within the mode is made");
         }
 
 

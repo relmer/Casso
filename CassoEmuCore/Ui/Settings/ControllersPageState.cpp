@@ -1253,29 +1253,46 @@ std::vector<std::string> ControllersPageState::GetProfileNames() const
 //
 //  GetCopySourceNames
 //
-//  Normal mode's profiles, then Joyport mode's, each led by its built-in
-//  profile.
+//  The page mode's profiles, pending edits included. Its built-in profile
+//  leads them only once its mapping is no longer the built-in mapping: until
+//  then a copy of it would only duplicate the built-in mapping, which is a
+//  starting point of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> ControllersPageState::GetCopySourceNames() const
 {
+    const ControllerEntry *          selected = GetSelected();
     const ControllerModelSettings *  settings = FindSelectedModel();
+    const ControllerProfile *        builtIn  = nullptr;
+    ControllerProfileKind            kind     = ControllerModelSettings::GetAutomaticKind (m_profileMode);
     ControllerModelSettings          empty;
     std::vector<std::string>         names;
-    std::vector<std::string>         joyport;
+    bool                             isEdited = false;
 
 
+
+    if (selected == nullptr)
+    {
+        return names;
+    }
 
     if (settings == nullptr)
     {
         settings = &empty;
     }
 
-    names   = settings->GetProfileNames (ProfileMode::Normal);
-    joyport = settings->GetProfileNames (ProfileMode::Joyport);
+    names   = settings->GetProfileNames (m_profileMode);
+    builtIn = settings->FindBuiltInProfile (kind);
 
-    names.insert (names.end(), joyport.begin(), joyport.end());
+    isEdited = builtIn != nullptr &&
+               !(builtIn->mapping == ControllerModelSettings::MakeBuiltInMapping (kind, selected->unit.model, selected->formFactor, selected->controls));
+
+    if (!isEdited && !names.empty())
+    {
+        names.erase (names.begin());
+    }
+
     return names;
 }
 
@@ -1410,9 +1427,10 @@ ProfileEditResult ControllersPageState::CheckProfileName (const std::string & na
 //
 //  CreateProfile
 //
-//  The new profile belongs to the page's mode and becomes the edited one. It
-//  can start as a copy of a profile of either mode. Edits on the profile it
-//  was created from stay pending there.
+//  The new profile belongs to the page's mode and becomes the edited one. A
+//  copy is only of a profile of that mode, so a copy of the other mode's
+//  profile is refused and nothing changes. Edits on the profile it was
+//  created from stay pending there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1433,6 +1451,11 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
     }
 
     if (selected == nullptr)
+    {
+        return ProfileEditResult::NotFound;
+    }
+
+    if (source == ProfileSource::CopyOfProfile && IsNameOfOtherMode (sourceName))
     {
         return ProfileEditResult::NotFound;
     }
@@ -1859,6 +1882,75 @@ bool ControllersPageState::TryDescribeNameError (ProfileEditResult result, std::
         default:
             return false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStartingPoints
+//
+//  Only the mode's own: the Default mapping and Paddles in normal mode, the
+//  Joyport mapping in Joyport mode, and in either a copy of one of the mode's
+//  profiles, offered only when there is one to copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ProfileSource> ControllersPageState::GetStartingPoints (ProfileMode mode, bool canCopy)
+{
+    std::vector<ProfileSource>  sources;
+
+
+
+    if (mode == ProfileMode::Joyport)
+    {
+        sources.push_back (ProfileSource::JoyportMapping);
+    }
+    else
+    {
+        sources.push_back (ProfileSource::DefaultMapping);
+        sources.push_back (ProfileSource::Paddles);
+    }
+
+    if (canCopy)
+    {
+        sources.push_back (ProfileSource::CopyOfProfile);
+    }
+
+    return sources;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStartingPointLabel
+//
+//  A copy's label is followed by the list of profiles to copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetStartingPointLabel (ProfileSource source)
+{
+    const wchar_t *  pszLabel = L"Default mapping";
+
+
+
+    switch (source)
+    {
+        case ProfileSource::JoyportMapping:  pszLabel = L"Joyport mapping";  break;
+        case ProfileSource::CopyOfProfile:   pszLabel = L"Copy of";          break;
+        case ProfileSource::Paddles:         pszLabel = L"Paddles";          break;
+
+        case ProfileSource::DefaultMapping:
+        default:                                                             break;
+    }
+
+    return pszLabel;
 }
 
 

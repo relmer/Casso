@@ -15,6 +15,7 @@ static constexpr int    s_kRowHeightDp     = 28;
 static constexpr int    s_kLineHeightDp    = 20;
 static constexpr int    s_kRowGapDp        = 10;
 static constexpr int    s_kLabelWidthDp    = 90;
+static constexpr int    s_kCopyWidthDp     = 84;
 static constexpr int    s_kButtonWidthDp   = 96;
 static constexpr int    s_kButtonGapDp     = 12;
 static constexpr int    s_kErrorLineCount  = 2;
@@ -22,18 +23,6 @@ static constexpr size_t s_kNameMaxLength   = 80;
 static constexpr int    s_kKeyDownMask     = 0x8000;
 static constexpr float  s_kTitleFontDip    = 15.0f;
 static constexpr float  s_kBorderDip       = 1.0f;
-
-// The new profile dialog's starting points, in the order it lists them. Both
-// modes offer all four.
-static constexpr ProfileSource  s_kSources[] =
-{
-    ProfileSource::DefaultMapping,
-    ProfileSource::JoyportMapping,
-    ProfileSource::CopyOfProfile,
-    ProfileSource::Paddles,
-};
-
-static constexpr int    s_kSourceCount     = (int) std::size (s_kSources);
 
 
 
@@ -62,11 +51,26 @@ RECT ProfileDialogOverlay::MakeRect (int l, int t, int w, int h)
 //
 //  OpenNew
 //
+//  The starting points are listed in the order given, the first one chosen.
+//  The copy drop-down opens on `copySelected`.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfileDialogOverlay::OpenNew (const std::wstring & currentName, AcceptFn onAccept)
+void ProfileDialogOverlay::OpenNew (
+    const std::vector<ProfileSource>  & sources,
+    const std::vector<std::wstring>   & copySources,
+    size_t                              copySelected,
+    AcceptFn                            onAccept)
 {
-    Open (Kind::NewProfile, currentName, std::move (onAccept), nullptr);
+    m_sources     = sources;
+    m_copySources = copySources;
+
+    m_copySource.Close();
+    m_copySource.SetItems    (m_copySources);
+    m_copySource.SetSelected (copySelected < m_copySources.size() ? (int) copySelected : 0);
+    m_copySource.SetSelect   ([this] (int) { ChooseCopy(); });
+
+    Open (Kind::NewProfile, std::wstring(), std::move (onAccept), nullptr);
     m_name.SetText (L"");
     m_source.SetSelected (0);
 }
@@ -173,11 +177,81 @@ bool ProfileDialogOverlay::HasNameField() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HasCopyList
+//
+//  New, offering a copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfileDialogOverlay::HasCopyList() const
+{
+    return m_kind == Kind::NewProfile && FindCopyIndex() >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindCopyIndex
+//
+//  The copy's place among the starting points, or -1 when none is offered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProfileDialogOverlay::FindCopyIndex() const
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < m_sources.size(); i++)
+    {
+        if (m_sources[i] == ProfileSource::CopyOfProfile)
+        {
+            return (int) i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChooseCopy
+//
+//  Using the drop-down is choosing to copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileDialogOverlay::ChooseCopy()
+{
+    int  copyIndex = FindCopyIndex();
+
+
+
+    if (copyIndex >= 0)
+    {
+        m_source.SetSelected (copyIndex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Layout
 //
 //  Centered in the sheet. From the top: the title, then for New and Rename the
-//  name field (with Start from for New) and room for a two-line error; the
-//  buttons along the bottom right.
+//  name field (with Start from for New, a copy's drop-down beside its radio
+//  button) and room for a two-line error; the buttons along the bottom right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,6 +263,7 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     int                           lineH    = scaler.ToPx (s_kLineHeightDp);
     int                           rowGap   = scaler.ToPx (s_kRowGapDp);
     int                           labelW   = scaler.ToPx (s_kLabelWidthDp);
+    int                           copyW    = scaler.ToPx (s_kCopyWidthDp);
     int                           btnW     = scaler.ToPx (s_kButtonWidthDp);
     int                           btnGap   = scaler.ToPx (s_kButtonGapDp);
     int                           innerW   = dialogW - pad * 2;
@@ -201,6 +276,8 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     int                           by       = 0;
     int                           bx       = 0;
     int                           i        = 0;
+    int                           count    = (int) m_sources.size();
+    int                           copyAt   = FindCopyIndex();
     UINT                          dpi      = scaler.GetDpi();
     std::vector<DxuiRadioOption>  options;
 
@@ -216,7 +293,7 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
 
         if (m_kind == Kind::NewProfile)
         {
-            contentH += rowGap + rowH * s_kSourceCount;
+            contentH += rowGap + rowH * count;
         }
     }
 
@@ -259,18 +336,23 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     m_sourceLabel.SetText     (L"Start from:");
     m_sourceLabel.SetTextRole (DxuiTextRole::Body);
 
-    options.push_back ({ {}, L"Default mapping" });
-    options.push_back ({ {}, L"Joyport mapping" });
-    options.push_back ({ {}, L"Copy of \"" + m_subject + L"\"" });
-    options.push_back ({ {}, L"Paddles" });
-
-    for (i = 0; i < s_kSourceCount; i++)
+    // A copy's radio button is only as wide as its label, so the drop-down
+    // beside it takes its own clicks.
+    for (i = 0; i < count; i++)
     {
-        options[(size_t) i].rect = MakeRect (x + labelW, y + i * rowH, innerW - labelW, rowH);
+        int  optionW = (i == copyAt) ? copyW : innerW - labelW;
+
+        options.push_back ({ MakeRect (x + labelW, y + i * rowH, optionW, rowH),
+                             ControllersPageState::GetStartingPointLabel (m_sources[(size_t) i]) });
     }
 
     m_source.SetOptions (std::move (options));
-    m_source.Layout     (MakeRect (x + labelW, y, innerW - labelW, rowH * s_kSourceCount), scaler);
+    m_source.Layout     (MakeRect (x + labelW, y, innerW - labelW, rowH * count), scaler);
+
+    if (copyAt >= 0)
+    {
+        m_copySource.SetRect (MakeRect (x + labelW + copyW, y + copyAt * rowH, innerW - labelW - copyW, rowH));
+    }
 
     if (HasCancel())
     {
@@ -301,6 +383,7 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     m_name.SetDpi        (dpi);
     m_sourceLabel.SetDpi (dpi);
     m_source.SetDpi      (dpi);
+    m_copySource.SetDpi  (dpi);
     m_errorLabel.SetDpi  (dpi);
     m_errorRule.SetDpi   (dpi);
     m_primary.SetDpi     (dpi);
@@ -326,8 +409,10 @@ void ProfileDialogOverlay::Accept()
     ProfileSource      source   = ProfileSource::DefaultMapping;
     ProfileEditResult  result   = ProfileEditResult::Ok;
     int                selected = m_source.GetSelected();
+    int                copied   = m_copySource.GetSelectedIndex();
     std::wstring       label;
     std::wstring       rule;
+    std::wstring       copySource;
 
 
 
@@ -336,16 +421,22 @@ void ProfileDialogOverlay::Accept()
         return;
     }
 
-    if (selected >= 0 && selected < s_kSourceCount)
+    if (m_kind == Kind::NewProfile && selected >= 0 && selected < (int) m_sources.size())
     {
-        source = s_kSources[selected];
+        source = m_sources[(size_t) selected];
     }
 
+    if (source == ProfileSource::CopyOfProfile && copied >= 0 && copied < (int) m_copySources.size())
+    {
+        copySource = m_copySources[(size_t) copied];
+    }
+
+    m_copySource.Close();
     m_open = false;
 
     if (onAccept)
     {
-        result = onAccept (HasNameField() ? m_name.GetText() : m_subject, source);
+        result = onAccept (HasNameField() ? m_name.GetText() : m_subject, source, copySource);
     }
 
     if (ControllersPageState::TryDescribeNameError (result, label, rule))
@@ -379,6 +470,7 @@ void ProfileDialogOverlay::Decline()
         return;
     }
 
+    m_copySource.Close();
     m_open = false;
 
     if (onDecline)
@@ -444,6 +536,11 @@ std::vector<ProfileDialogOverlay::Focus> ProfileDialogOverlay::GetFocusOrder() c
         order.push_back (Focus::Source);
     }
 
+    if (HasCopyList())
+    {
+        order.push_back (Focus::CopySource);
+    }
+
     order.push_back (Focus::Primary);
     order.push_back (Focus::Secondary);
 
@@ -498,11 +595,12 @@ void ProfileDialogOverlay::MoveFocus (int delta)
 
 void ProfileDialogOverlay::ApplyFocus()
 {
-    m_name.SetFocused      (m_focus == Focus::Name);
-    m_source.SetFocused    (m_focus == Focus::Source);
-    m_primary.SetFocused   (m_focus == Focus::Primary);
-    m_secondary.SetFocused (m_focus == Focus::Secondary);
-    m_tertiary.SetFocused  (m_focus == Focus::Tertiary);
+    m_name.SetFocused       (m_focus == Focus::Name);
+    m_source.SetFocused     (m_focus == Focus::Source);
+    m_copySource.SetFocused (m_focus == Focus::CopySource);
+    m_primary.SetFocused    (m_focus == Focus::Primary);
+    m_secondary.SetFocused  (m_focus == Focus::Secondary);
+    m_tertiary.SetFocused   (m_focus == Focus::Tertiary);
 }
 
 
@@ -517,7 +615,13 @@ void ProfileDialogOverlay::ApplyFocus()
 
 void ProfileDialogOverlay::OnLButtonDown (int x, int y)
 {
-    if (HasNameField() && m_name.OnLButtonDown (x, y))
+    // The drop-down first: its open list lies over the controls below it.
+    if (HasCopyList() && m_copySource.OnLButtonDown (x, y))
+    {
+        m_focus = Focus::CopySource;
+        ChooseCopy();
+    }
+    else if (HasNameField() && m_name.OnLButtonDown (x, y))
     {
         m_focus = Focus::Name;
     }
@@ -556,6 +660,13 @@ void ProfileDialogOverlay::OnLButtonDown (int x, int y)
 
 void ProfileDialogOverlay::OnLButtonUp (int x, int y)
 {
+    // A release on the drop-down's list is a choice from it, whatever lies
+    // underneath.
+    if (HasCopyList() && m_copySource.OnLButtonUp (x, y))
+    {
+        return;
+    }
+
     if (HasNameField())
     {
         (void) m_name.OnLButtonUp (x, y);
@@ -598,10 +709,11 @@ void ProfileDialogOverlay::OnMouseMove (int x, int y)
         m_name.SetMouseHover (x, y);
     }
 
-    m_source.SetMouseHover (x, y);
-    m_primary.SetMouse     (x, y, false);
-    m_secondary.SetMouse   (x, y, false);
-    m_tertiary.SetMouse    (x, y, false);
+    m_source.SetMouseHover     (x, y);
+    m_copySource.SetMouseHover (x, y);
+    m_primary.SetMouse         (x, y, false);
+    m_secondary.SetMouse       (x, y, false);
+    m_tertiary.SetMouse        (x, y, false);
 }
 
 
@@ -641,7 +753,8 @@ LPCWSTR ProfileDialogOverlay::GetCursorForPoint (POINT clientPx) const
 //  Tab and Shift+Tab move through the controls. Enter runs the focused
 //  button, or the primary one from anywhere else. Escape cancels: on the
 //  save-or-discard prompt that is its Cancel, which neither saves nor
-//  discards.
+//  discards. While the copy drop-down's list is open it takes every key, so
+//  Enter chooses from it and Escape closes only it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -651,7 +764,11 @@ bool ProfileDialogOverlay::OnKey (WPARAM vk)
 
 
 
-    if (vk == VK_ESCAPE)
+    if (m_copySource.IsOpen())
+    {
+        (void) m_copySource.HandleKey (vk);
+    }
+    else if (vk == VK_ESCAPE)
     {
         if (HasCancel())
         {
@@ -685,11 +802,12 @@ bool ProfileDialogOverlay::OnKey (WPARAM vk)
     {
         switch (m_focus)
         {
-            case Focus::Name:      (void) m_name.OnKey (vk);      break;
-            case Focus::Source:    (void) m_source.OnKey (vk);    break;
-            case Focus::Primary:   (void) m_primary.OnKey (vk);   break;
-            case Focus::Secondary: (void) m_secondary.OnKey (vk); break;
-            case Focus::Tertiary:  (void) m_tertiary.OnKey (vk);  break;
+            case Focus::Name:       (void) m_name.OnKey (vk);           break;
+            case Focus::Source:     (void) m_source.OnKey (vk);         break;
+            case Focus::CopySource: (void) m_copySource.HandleKey (vk); break;
+            case Focus::Primary:    (void) m_primary.OnKey (vk);        break;
+            case Focus::Secondary:  (void) m_secondary.OnKey (vk);      break;
+            case Focus::Tertiary:   (void) m_tertiary.OnKey (vk);       break;
         }
     }
 
@@ -770,12 +888,24 @@ void ProfileDialogOverlay::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
         m_source.Paint      (painter, text, theme);
     }
 
+    if (HasCopyList())
+    {
+        m_copySource.SetTheme  (&theme);
+        m_copySource.PaintBase (painter, text);
+    }
+
     m_primary.Paint   (painter, text, theme);
     m_secondary.Paint (painter, text, theme);
 
     if (HasCancel())
     {
         m_tertiary.Paint (painter, text, theme);
+    }
+
+    // Last, so a list painted in the sheet lies over everything under it.
+    if (HasCopyList())
+    {
+        m_copySource.PaintMenu (painter, text);
     }
 }
 

@@ -110,8 +110,9 @@ enum class ProfileEditResult
 //
 //  ProfileSource
 //
-//  What a new profile's mapping starts from. Every source is offered in
-//  both modes, and a copy can be of a profile of either mode.
+//  What a new profile's mapping starts from. The New profile dialog offers
+//  only the mode's own mappings, and a copy is only of a profile of the mode
+//  the new profile belongs to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

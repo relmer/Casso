@@ -322,8 +322,9 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
 
 
-    m_controller.SetPopupHost (host);
-    m_profile.SetPopupHost    (host);
+    m_controller.SetPopupHost    (host);
+    m_profile.SetPopupHost       (host);
+    m_profileDialog.SetPopupHost (host);
 
     for (target = 0; target < kPlayerCount; target++)
     {
@@ -1171,7 +1172,7 @@ void ControllersPage::AskToSaveProfileEdits (std::function<void()> proceed)
     Refresh();
 
     m_profileDialog.OpenSaveOrDiscard (Utf8ToWide (m_state->GetEditedProfileName()),
-        [this, proceed] (const std::wstring &, ProfileSource)
+        [this, proceed] (const std::wstring &, ProfileSource, const std::wstring &)
         {
             HRESULT  hr = m_onCommitProfile ? m_state->SaveProfileEdits (m_onCommitProfile) : E_FAIL;
 
@@ -1208,18 +1209,38 @@ void ControllersPage::AskToSaveProfileEdits (std::function<void()> proceed)
 //
 //  OpenNewProfileDialog
 //
+//  The starting points of the mode in effect, and the profiles of that mode
+//  a copy can start from, opening on the edited profile when it is one of
+//  them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::OpenNewProfileDialog()
 {
-    std::string  current = m_state->GetEditedProfileName();
+    std::vector<std::string>   names    = m_state->GetCopySourceNames();
+    std::string                edited   = m_state->GetEditedProfileName();
+    std::vector<std::wstring>  copies;
+    size_t                     selected = 0;
+    size_t                     i        = 0;
 
 
 
-    m_profileDialog.OpenNew (Utf8ToWide (current),
-        [this, current] (const std::wstring & name, ProfileSource source)
+    for (i = 0; i < names.size(); i++)
+    {
+        copies.push_back (Utf8ToWide (names[i]));
+
+        if (names[i] == edited)
         {
-            ProfileEditResult  result = m_state->CreateProfile (WideToUtf8 (name), source, current);
+            selected = i;
+        }
+    }
+
+    m_profileDialog.OpenNew (ControllersPageState::GetStartingPoints (m_state->GetProfileMode(), !names.empty()),
+                             copies,
+                             selected,
+        [this] (const std::wstring & name, ProfileSource source, const std::wstring & copySource)
+        {
+            ProfileEditResult  result = m_state->CreateProfile (WideToUtf8 (name), source, WideToUtf8 (copySource));
 
             if (result == ProfileEditResult::Ok)
             {
@@ -1252,7 +1273,7 @@ void ControllersPage::OnRenameProfile()
     }
 
     m_profileDialog.OpenRename (Utf8ToWide (m_state->GetEditedProfileName()),
-        [this] (const std::wstring & name, ProfileSource)
+        [this] (const std::wstring & name, ProfileSource, const std::wstring &)
         {
             ProfileEditResult  result = m_state->RenameProfile (WideToUtf8 (name));
 
@@ -1285,7 +1306,7 @@ void ControllersPage::OnDeleteProfile()
     }
 
     m_profileDialog.OpenConfirmDelete (Utf8ToWide (m_state->GetEditedProfileName()),
-        [this] (const std::wstring &, ProfileSource)
+        [this] (const std::wstring &, ProfileSource, const std::wstring &)
         {
             ProfileEditResult  result = m_state->DeleteProfile();
 

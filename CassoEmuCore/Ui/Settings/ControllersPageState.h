@@ -208,8 +208,8 @@ public:
     void                                  SetOtherModeActiveProfiles (const std::map<std::string, std::string> & activeProfiles);
 
     // The selected model's profiles of the page's mode, its built-in profile
-    // first; every profile of both modes, which a new profile can be a copy
-    // of; and the one being edited.
+    // first; the ones of them a new profile can be a copy of; and the one
+    // being edited.
     std::vector<std::string>              GetProfileNames          () const;
     std::vector<std::string>              GetCopySourceNames       () const;
     std::string                           GetEditedProfileName     () const;
@@ -250,6 +250,11 @@ public:
     // The two lines shown for a refused name; false when the result is not a
     // name error.
     static bool                           TryDescribeNameError     (ProfileEditResult result, std::wstring & outLabel, std::wstring & outRule);
+
+    // What a new profile can start from in a mode, in the order the New
+    // profile dialog lists them, and each one's label there.
+    static std::vector<ProfileSource>     GetStartingPoints        (ProfileMode mode, bool canCopy);
+    static std::wstring                   GetStartingPointLabel    (ProfileSource source);
 
     // Every control assigned to more than one target (FR-025).
     std::vector<ControlId>                GetSharedControls  () const;

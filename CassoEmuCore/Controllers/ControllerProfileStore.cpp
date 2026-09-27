@@ -885,8 +885,8 @@ ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (
 //  CreateProfile
 //
 //  The source mapping is copied before the profile is added, since adding one
-//  can move the profile it was copied from. A copy can be of a profile of
-//  either mode.
+//  can move the profile it was copied from. A copy is only of a profile of
+//  `mode`: a copy of the other mode's profile is refused as not found.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -917,7 +917,7 @@ ProfileEditResult ControllerProfileStore::CreateProfile (
     {
         copied = settings.FindProfile (sourceName);
 
-        if (copied == nullptr)
+        if (copied == nullptr || settings.IsOfOtherMode (sourceName, mode))
         {
             return ProfileEditResult::NotFound;
         }
