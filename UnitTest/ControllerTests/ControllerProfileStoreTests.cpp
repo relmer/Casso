@@ -230,7 +230,7 @@ namespace ControllerTests
             std::string               token = ControllerTokens::ModelToToken (Stick());
 
             settings.deadzone = 0.3f;
-            settings.profiles.push_back ({ "Default", true, MakeFullMapping() });
+            settings.profiles.push_back ({ "Default", ControllerProfileKind::Default, MakeFullMapping() });
             store.models[token] = settings;
 
             saved.controllers = store.ToJson (saved.controllers);
@@ -269,7 +269,7 @@ namespace ControllerTests
             mapping.pdl2.push_back (rightX);
             mapping.pdl3.push_back (pair);
 
-            settings.profiles.push_back ({ "Default", true, mapping });
+            settings.profiles.push_back ({ "Default", ControllerProfileKind::Default, mapping });
             store.models[token] = settings;
 
             saved.controllers = store.ToJson (saved.controllers);
@@ -297,7 +297,7 @@ namespace ControllerTests
             const JsonValue         * mapping  = nullptr;
             const JsonValue         * axes     = nullptr;
 
-            settings.profiles.push_back ({ "Default", true, MakeFullMapping() });
+            settings.profiles.push_back ({ "Default", ControllerProfileKind::Default, MakeFullMapping() });
             store.models[token] = settings;
 
             written = store.ToJson (JsonValue());
@@ -405,7 +405,7 @@ namespace ControllerTests
             std::vector<ControlId>    controls = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 }, { ControlKind::Button, 0 } };
 
             settings.deadzone = 0.4f;
-            settings.profiles.push_back ({ "Lode Runner", false, ControlMapping() });
+            settings.profiles.push_back ({ "Lode Runner", ControllerProfileKind::User, ControlMapping() });
             store.models[ControllerTokens::ModelToToken (Stick())] = settings;
 
             store.GetDefaultSettings (Stick(), controls, mapping, deadzone);
@@ -435,15 +435,18 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (DefaultProfile_CanNeitherBeDeletedNorRenamed)
+        TEST_METHOD (BuiltInProfiles_CanNeitherBeDeletedNorRenamed)
         {
             ControllerProfileStore     store;
             ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
 
-            Assert::IsTrue (settings.DeleteProfile ("Default") == ProfileEditResult::IsDefaultProfile);
-            Assert::IsTrue (settings.RenameProfile ("default", "Main") == ProfileEditResult::IsDefaultProfile);
-            Assert::AreEqual (size_t (1), settings.profiles.size());
+            Assert::IsTrue (settings.DeleteProfile ("Default") == ProfileEditResult::IsBuiltInProfile);
+            Assert::IsTrue (settings.RenameProfile ("default", "Main") == ProfileEditResult::IsBuiltInProfile);
+            Assert::IsTrue (settings.DeleteProfile ("Joyport") == ProfileEditResult::IsBuiltInProfile);
+            Assert::IsTrue (settings.RenameProfile ("JOYPORT", "Atari") == ProfileEditResult::IsBuiltInProfile);
+            Assert::AreEqual (size_t (2), settings.profiles.size());
             Assert::AreEqual (std::string ("Default"), settings.profiles[0].name);
+            Assert::AreEqual (std::string ("Joyport"), settings.profiles[1].name);
             Assert::IsTrue (settings.DeleteProfile ("Missing") == ProfileEditResult::NotFound);
         }
 
@@ -479,7 +482,7 @@ namespace ControllerTests
             Assert::IsTrue   (settings.RenameProfile ("Lode Runner", " flight ") == ProfileEditResult::DuplicateName);
             Assert::IsTrue   (settings.RenameProfile ("Flight", "FLIGHT") == ProfileEditResult::Ok, L"a profile may change the case of its own name");
             Assert::AreEqual (std::string ("FLIGHT"), settings.FindProfile ("flight")->name);
-            Assert::AreEqual (size_t (3), settings.profiles.size());
+            Assert::AreEqual (size_t (4), settings.profiles.size());
         }
 
 
@@ -505,7 +508,7 @@ namespace ControllerTests
 
             for (const ControllerProfile & profile : settings.profiles)
             {
-                defaults += profile.isDefault ? 1 : 0;
+                defaults += profile.kind == ControllerProfileKind::Default ? 1 : 0;
             }
 
             Assert::AreEqual (1, defaults, L"creating profiles never adds a second Default");
@@ -529,6 +532,107 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (ResetProfile_RestoresTheJoyportProfileToItsOwnMapping)
+        {
+            ControllerProfileStore         store;
+            std::vector<ControlId>         controls = XInputSampleDecoder::ListControls();
+            ControllerModelSettings      & settings = store.GetOrCreateModel (Xbox(), controls);
+            ControllerProfile            * joyport  = settings.FindBuiltInProfile (ControllerProfileKind::Joyport);
+
+            Assert::IsNotNull (joyport, L"every model has a Joyport profile");
+            Assert::IsTrue    (joyport->mapping == DefaultMapping::MakeJoyport (Xbox(), controls), L"made from the Joyport mapping");
+
+            joyport->mapping = MakeFullMapping();
+
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "joyport") == ProfileEditResult::Ok);
+            Assert::IsTrue (joyport->mapping == DefaultMapping::MakeJoyport (Xbox(), controls), L"not to the Default's mapping");
+        }
+
+
+        //  Every stick and the D-pad steer, and every face button, bumper and
+        //  trigger fires. Back, Start and the stick clicks do not.
+        TEST_METHOD (JoyportMapping_SteersWithEverythingAndFiresWithEverything)
+        {
+            std::vector<ControlId>  controls = XInputSampleDecoder::ListControls();
+            ControlMapping          mapping  = DefaultMapping::MakeJoyport (Xbox(), controls);
+            size_t                  triggers = 0;
+            size_t                  buttons  = 0;
+
+            Assert::AreEqual (size_t (3), mapping.pdl0.size(), L"left stick, right stick and D-pad on X");
+            Assert::AreEqual (size_t (3), mapping.pdl1.size(), L"and on Y");
+            Assert::IsTrue   (mapping.pdl0[2].kind == AxisBindingKind::DigitalPair);
+            Assert::IsTrue   (mapping.pdl1[2].negative == ControlId { ControlKind::DpadUp, 0 }, L"up is toward 0, as on the sticks");
+
+            for (const ButtonBinding & binding : mapping.pb0)
+            {
+                triggers += binding.control.kind == ControlKind::Trigger ? 1 : 0;
+                buttons  += binding.control.kind == ControlKind::Button  ? 1 : 0;
+
+                Assert::IsTrue (binding.control.kind != ControlKind::Button || binding.control.index < 6, L"no Back, Start or stick click");
+            }
+
+            Assert::AreEqual (size_t (2), triggers, L"both triggers fire");
+            Assert::AreEqual (size_t (6), buttons,  L"A, B, X, Y and both bumpers fire");
+        }
+
+
+        //  A DirectInput device's higher axes can be pedals or a throttle
+        //  resting hard over, so only its primary stick and D-pad steer.
+        TEST_METHOD (JoyportMapping_OnADirectInputDeviceLeavesTheOtherAxesAlone)
+        {
+            std::vector<ControlId>  controls =
+            {
+                { ControlKind::Axis,      0 },
+                { ControlKind::Axis,      1 },
+                { ControlKind::Axis,      3 },
+                { ControlKind::Axis,      4 },
+                { ControlKind::Button,    0 },
+                { ControlKind::Button,    9 },
+                { ControlKind::DpadLeft,  0 },
+                { ControlKind::DpadRight, 0 },
+            };
+            ControlMapping          mapping  = DefaultMapping::MakeJoyport (Stick(), controls);
+
+            Assert::AreEqual (size_t (2), mapping.pdl0.size(), L"the primary stick and the D-pad");
+            Assert::AreEqual (size_t (1), mapping.pdl1.size(), L"no D-pad pair on Y, so the stick alone");
+            Assert::AreEqual (size_t (2), mapping.pb0.size(),  L"every button fires");
+        }
+
+
+        //  Prefs saved before the Joyport profile existed gain it, and a
+        //  profile the user already called Joyport becomes it rather than
+        //  standing beside a second one.
+        TEST_METHOD (AnOlderModel_GainsItsJoyportProfile)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::vector<ControlId>    controls = XInputSampleDecoder::ListControls();
+            std::string               xbox     = ControllerTokens::ModelToToken (Xbox());
+            std::string               stick    = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc      = Parse (
+                "{\"models\":{"
+                  "\"" + xbox  + "\":{\"profiles\":[{\"name\":\"Default\",\"default\":true,\"mapping\":{}}]},"
+                  "\"" + stick + "\":{\"profiles\":[{\"name\":\"Default\",\"default\":true,\"mapping\":{}},"
+                                                   "{\"name\":\"joyport\",\"mapping\":{}}]}"
+                "}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::IsTrue   (rejected.empty());
+
+            const ControllerModelSettings &  older   = store.GetOrCreateModel (Xbox(), controls);
+            const ControllerModelSettings &  adopted = store.GetOrCreateModel (Stick(), controls);
+
+            Assert::AreEqual (size_t (2), older.profiles.size());
+            Assert::IsTrue   (older.profiles[1].kind == ControllerProfileKind::Joyport);
+            Assert::IsTrue   (older.profiles[1].mapping == DefaultMapping::MakeJoyport (Xbox(), controls));
+
+            Assert::AreEqual (size_t (2), adopted.profiles.size(), L"no second Joyport profile");
+            Assert::IsTrue   (adopted.profiles[1].kind == ControllerProfileKind::Joyport);
+            Assert::IsTrue   (adopted.profiles[1].mapping == ControlMapping(), L"the user's mapping is kept");
+        }
+
+
         TEST_METHOD (DeleteProfile_RemovesOnlyThatProfile)
         {
             ControllerProfileStore     store;
@@ -540,7 +644,7 @@ namespace ControllerTests
             Assert::IsTrue   (settings.DeleteProfile ("FLIGHT") == ProfileEditResult::Ok);
             Assert::IsTrue   (settings.FindProfile ("Flight") == nullptr);
             Assert::IsTrue   (settings.FindProfile ("Pong") != nullptr);
-            Assert::AreEqual (size_t (2), settings.profiles.size());
+            Assert::AreEqual (size_t (3), settings.profiles.size());
         }
 
 
@@ -609,7 +713,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (AModelThatFailsValidation_IsRebuiltWithOnlyItsDefaultAndReported)
+        TEST_METHOD (AModelThatFailsValidation_IsRebuiltWithOnlyItsBuiltInProfilesAndReported)
         {
             ControllerProfileStore    store;
             std::vector<std::string>  rejected;
@@ -631,10 +735,11 @@ namespace ControllerTests
 
             const ControllerModelSettings &  rebuilt = store.GetOrCreateModel (Stick(), controls);
 
-            Assert::AreEqual (size_t (1), rebuilt.profiles.size(), L"the rebuilt model holds only its Default");
-            Assert::IsTrue   (rebuilt.profiles[0].isDefault);
+            Assert::AreEqual (size_t (2), rebuilt.profiles.size(), L"the rebuilt model holds only its built-in profiles");
+            Assert::IsTrue   (rebuilt.profiles[0].kind == ControllerProfileKind::Default);
+            Assert::IsTrue   (rebuilt.profiles[1].kind == ControllerProfileKind::Joyport);
             Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), rebuilt.deadzone, 0.0001f);
-            Assert::AreEqual (size_t (1), store.GetOrCreateModel (Xbox(), controls).profiles.size());
+            Assert::AreEqual (size_t (2), store.GetOrCreateModel (Xbox(), controls).profiles.size());
         }
     };
 }

@@ -662,6 +662,40 @@ void ControllerInputService::SetActiveProfiles (std::map<std::string, std::strin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetJoyportAttached
+//
+//  Every controller with no profile chosen switches between the Joyport and
+//  Default profiles, released as for a profile change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetJoyportAttached (bool isAttached)
+{
+    std::unique_lock<std::mutex>  lock (m_mutex);
+
+
+
+    if (m_isJoyportAttached == isAttached)
+    {
+        return;
+    }
+
+    m_isJoyportAttached = isAttached;
+    m_rateResetPending  = true;
+    UnresolveDriversLocked();
+    SyncDriversLocked();
+
+    lock.unlock();
+
+    ReleaseContribution();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetActiveProfiles
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1139,6 +1173,7 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.selection           = m_selection;
     snapshot.saved               = m_saved;
     snapshot.activeProfiles      = m_activeProfiles;
+    snapshot.isJoyportAttached   = m_isJoyportAttached;
     snapshot.lastSample          = m_lastSample;
     snapshot.isSelectedConnected = m_isSelectedConnected;
     snapshot.multiplayer         = m_multiplayer;
@@ -1688,9 +1723,11 @@ void ControllerInputService::SyncDriversLocked()
 
 void ControllerInputService::ResolveMappingLocked (DriverState & driver)
 {
-    const ControllerDeviceInfo  * device  = FindDeviceLocked (driver.unit);
-    const ControllerProfile     * profile = nullptr;
+    const ControllerDeviceInfo  * device     = FindDeviceLocked (driver.unit);
+    const ControllerProfile     * profile    = nullptr;
     std::string                   active;
+    ControllerProfileKind         kind       = ControllerModelSettings::GetAutomaticKind (m_isJoyportAttached);
+    ControllerProfileKind         chosenKind = ControllerProfileKind::User;
 
 
 
@@ -1699,21 +1736,34 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
         return;
     }
 
-    // The deadzone belongs to the model, whichever profile is active.
-    m_profiles.GetDefaultSettings (device->unit.model, device->controls, driver.mapping, driver.deadzone);
-    driver.isResolved = true;
-
     // THIS CONTROLLER'S profile, not the machine's: two players on two pads
     // of one model can each play their own.
     active = GetActiveProfileLocked (driver.unit);
+
+    // A built-in profile chosen by name plays even for a model with nothing
+    // saved, which has no profile of that name to find.
+    chosenKind = ControllerModelSettings::GetBuiltInKind (active);
+
+    if (chosenKind != ControllerProfileKind::User)
+    {
+        kind = chosenKind;
+        active.clear();
+    }
+
+    // The deadzone belongs to the model, whichever profile is active. With no
+    // profile chosen, or one the model no longer has, the controller plays
+    // the Joyport profile while a Joyport is attached and the Default
+    // otherwise.
+    m_profiles.GetBuiltInSettings (kind, device->unit.model, device->controls, driver.mapping, driver.deadzone);
+    driver.isResolved = true;
 
     if (active.empty())
     {
         return;
     }
 
-    // A remembered profile the model no longer has plays the Default, which
-    // is already in hand; nothing is recreated for it (FR-029).
+    // A remembered profile the model no longer has plays the built-in one
+    // already in hand; nothing is recreated for it (FR-029).
     profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device->unit.model), active);
 
     if (profile != nullptr)

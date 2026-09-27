@@ -427,7 +427,7 @@ namespace ControllerTests
             mapping.pdl2.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kRightStickX } });
             mapping.pdl3.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kRightStickY } });
 
-            settings.profiles.push_back ({ "Default", true, mapping });
+            settings.profiles.push_back ({ "Default", ControllerProfileKind::Default, mapping });
             models[ControllerTokens::ModelToToken (xbox.unit.model)] = settings;
 
             sample.connected = true;
@@ -453,6 +453,53 @@ namespace ControllerTests
             // none in single-source mode (FR-038).
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[2], L"PDL2 is left free");
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[3], L"as is PDL3");
+        }
+
+
+        //  A controller with no profile chosen plays the Joyport profile while
+        //  the Joyport is attached, where the D-pad steers and X fires, and
+        //  the Default otherwise, where neither does anything. A Default
+        //  chosen by name stays the Default with the Joyport on.
+        TEST_METHOD (UnchosenProfile_FollowsTheJoyport)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    device = MakeXboxDevice();
+            ControllerSample        sample;
+
+            sample.connected = true;
+            sample.hats[0]   = ControllerSample::kHatRight;
+            sample.buttons.set (2);
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, sample);
+
+            service.SetSelection (device.unit);
+            service.Tick();
+
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"the Default leaves the D-pad unbound");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (0),   L"and X is not fire");
+
+            service.SetJoyportAttached (true);
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the Joyport profile steers with the D-pad");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),                   L"and fires with X");
+
+            service.SetActiveProfile (device.unit, "Default");
+            service.Tick();
+
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"a Default chosen by name is kept with the Joyport on");
+
+            service.SetActiveProfile (device.unit, std::string());
+            service.SetJoyportAttached (false);
+            service.Tick();
+
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"detaching the Joyport goes back to the Default");
         }
 
 

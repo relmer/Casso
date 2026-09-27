@@ -744,6 +744,7 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
 {
     const char *  pszDefault = ControllerProfile::kpszDefaultName;
+    const char *  pszJoyport = ControllerProfile::kpszJoyportName;
 
 
 
@@ -754,6 +755,7 @@ void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
     {
         std::vector<std::string>  names;
         bool                      isActiveListed = false;
+        const char              * pszAutomatic   = section.isJoyportAttached ? pszJoyport : pszDefault;
 
         if (!m_profileItems.empty())
         {
@@ -766,17 +768,19 @@ void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
         }
 
         names.push_back (pszDefault);
+        names.push_back (pszJoyport);
 
         for (const std::string & name : section.names)
         {
-            if (_stricmp (name.c_str(), pszDefault) != 0)
+            if (_stricmp (name.c_str(), pszDefault) != 0 && _stricmp (name.c_str(), pszJoyport) != 0)
             {
                 names.push_back (name);
             }
         }
 
-        // An empty active name is Default, and so is a name the model does
-        // not have, which is what the service plays in that case.
+        // An empty active name is whichever built-in profile the Joyport
+        // selects, and so is a name the model does not have, which is what
+        // the service plays in that case.
         for (const std::string & name : names)
         {
             isActiveListed = isActiveListed || _stricmp (name.c_str(), section.active.c_str()) == 0;
@@ -784,12 +788,12 @@ void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
 
         for (size_t i = 0; i < names.size(); i++)
         {
-            std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
-            std::string                   name      = names[i];
-            ControllerUnitKey             unit      = section.unit;
-            bool                          isDefault = (i == 0);
-            bool                          isChecked = isActiveListed ? _stricmp (name.c_str(), section.active.c_str()) == 0
-                                                                     : isDefault;
+            std::shared_ptr<DxuiCommand>  cmd         = std::make_shared<DxuiCommand>();
+            std::string                   name        = names[i];
+            ControllerUnitKey             unit        = section.unit;
+            bool                          isAutomatic = _stricmp (name.c_str(), pszAutomatic) == 0;
+            bool                          isChecked   = isActiveListed ? _stricmp (name.c_str(), section.active.c_str()) == 0
+                                                                       : isAutomatic;
 
             cmd->id        = (int) i;
             cmd->label     = TextEncoding::NarrowToWide (name);
@@ -797,12 +801,15 @@ void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
 
             // The row carries its controller and name by value rather than an
             // index, so a row from a list rebuilt since still picks the
-            // profile it shows, for the controller it was shown for.
-            cmd->dispatch  = [this, unit, name, isDefault] ()
+            // profile it shows, for the controller it was shown for. Picking
+            // the built-in profile the Joyport selects records no choice, so
+            // the controller keeps following the Joyport; picking the other
+            // one records it by name.
+            cmd->dispatch  = [this, unit, name, isAutomatic] ()
             {
                 if (m_onProfilePicked)
                 {
-                    m_onProfilePicked (unit, isDefault ? std::string() : name);
+                    m_onProfilePicked (unit, isAutomatic ? std::string() : name);
                 }
             };
 

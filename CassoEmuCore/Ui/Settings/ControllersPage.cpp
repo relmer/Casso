@@ -1021,7 +1021,7 @@ void ControllersPage::RefreshProfiles()
     std::vector<std::wstring>  items;
     std::string                edited   = m_state->GetEditedProfileName();
     bool                       hasUnit  = m_state->GetSelectedIndex().has_value();
-    bool                       canEdit  = hasUnit && !m_state->IsEditingDefaultProfile();
+    bool                       canEdit  = hasUnit && !m_state->IsEditingBuiltInProfile();
     size_t                     i        = 0;
     int                        selected = 0;
 
@@ -1246,7 +1246,7 @@ void ControllersPage::OpenNewProfileDialog()
 
 void ControllersPage::OnRenameProfile()
 {
-    if (m_state == nullptr || m_state->IsEditingDefaultProfile())
+    if (m_state == nullptr || m_state->IsEditingBuiltInProfile())
     {
         return;
     }
@@ -1279,7 +1279,7 @@ void ControllersPage::OnRenameProfile()
 
 void ControllersPage::OnDeleteProfile()
 {
-    if (m_state == nullptr || m_state->IsEditingDefaultProfile())
+    if (m_state == nullptr || m_state->IsEditingBuiltInProfile())
     {
         return;
     }

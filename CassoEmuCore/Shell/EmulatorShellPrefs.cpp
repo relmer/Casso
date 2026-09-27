@@ -473,6 +473,11 @@ void EmulatorShell::AdoptGamePortAdapterForMachine (const JsonValue * uiPrefs)
     {
         joyport->SetAttached (adapter == GamePortAdapter::SiriusJoyport);
     }
+
+    if (m_controllerService)
+    {
+        m_controllerService->SetJoyportAttached (joyport != nullptr && adapter == GamePortAdapter::SiriusJoyport);
+    }
 }
 
 

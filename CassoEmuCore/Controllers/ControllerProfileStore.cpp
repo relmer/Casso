@@ -14,6 +14,7 @@ static constexpr const char *  s_kpszDeadzoneKey    = "deadzone";
 static constexpr const char *  s_kpszProfilesKey    = "profiles";
 static constexpr const char *  s_kpszNameKey        = "name";
 static constexpr const char *  s_kpszDefaultKey     = "default";
+static constexpr const char *  s_kpszJoyportKey     = "joyport";
 static constexpr const char *  s_kpszMappingKey     = "mapping";
 static constexpr const char *  s_kpszAnalogKey      = "analog";
 static constexpr const char *  s_kpszInvertedKey    = "inverted";
@@ -55,15 +56,49 @@ static constexpr const char *  s_kpszAutomaticMode  = "automatic";
 
 const ControllerProfile * ControllerModelSettings::FindDefaultProfile() const
 {
+    return FindBuiltInProfile (ControllerProfileKind::Default);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::FindBuiltInProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ControllerProfile * ControllerModelSettings::FindBuiltInProfile (ControllerProfileKind kind) const
+{
     for (const ControllerProfile & profile : profiles)
     {
-        if (profile.isDefault)
+        if (profile.kind == kind)
         {
             return &profile;
         }
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::FindBuiltInProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerProfile * ControllerModelSettings::FindBuiltInProfile (ControllerProfileKind kind)
+{
+    const ControllerModelSettings &  self = *this;
+
+
+
+    return const_cast<ControllerProfile *> (self.FindBuiltInProfile (kind));
 }
 
 
@@ -172,8 +207,8 @@ ProfileEditResult ControllerModelSettings::CheckProfileName (const std::string &
 //
 //  ControllerModelSettings::AddProfile
 //
-//  A profile added here is never the Default; the model already has one, or
-//  gets it from EnsureDefaultProfile.
+//  A profile added here is always the user's; the built-in profiles come from
+//  EnsureBuiltInProfiles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,7 +223,7 @@ ProfileEditResult ControllerModelSettings::AddProfile (const std::string & name,
         return result;
     }
 
-    profiles.push_back ({ TrimProfileName (name), false, mapping });
+    profiles.push_back ({ TrimProfileName (name), ControllerProfileKind::User, mapping });
     return ProfileEditResult::Ok;
 }
 
@@ -214,9 +249,9 @@ ProfileEditResult ControllerModelSettings::RenameProfile (const std::string & na
         return ProfileEditResult::NotFound;
     }
 
-    if (profile->isDefault)
+    if (profile->kind != ControllerProfileKind::User)
     {
-        return ProfileEditResult::IsDefaultProfile;
+        return ProfileEditResult::IsBuiltInProfile;
     }
 
     result = CheckProfileName (newName, profile);
@@ -250,9 +285,9 @@ ProfileEditResult ControllerModelSettings::DeleteProfile (const std::string & na
         return ProfileEditResult::NotFound;
     }
 
-    if (profile->isDefault)
+    if (profile->kind != ControllerProfileKind::User)
     {
-        return ProfileEditResult::IsDefaultProfile;
+        return ProfileEditResult::IsBuiltInProfile;
     }
 
     profiles.erase (profiles.begin() + (profile - profiles.data()));
@@ -267,11 +302,16 @@ ProfileEditResult ControllerModelSettings::DeleteProfile (const std::string & na
 //
 //  ControllerModelSettings::ResetProfile
 //
-//  Any profile, the Default included, can be reset.
+//  Any profile, the built-in ones included, can be reset. Each built-in
+//  profile goes back to its own mapping, and a user's goes back to the
+//  Default's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfileEditResult ControllerModelSettings::ResetProfile (const std::string & name, const ControlMapping & defaultMapping)
+ProfileEditResult ControllerModelSettings::ResetProfile (
+    const std::string             & name,
+    const ControllerModelKey      & model,
+    const std::vector<ControlId>  & controls)
 {
     ControllerProfile *  profile = FindProfile (name);
 
@@ -282,7 +322,7 @@ ProfileEditResult ControllerModelSettings::ResetProfile (const std::string & nam
         return ProfileEditResult::NotFound;
     }
 
-    profile->mapping = defaultMapping;
+    profile->mapping = MakeBuiltInMapping (profile->kind, model, controls);
     return ProfileEditResult::Ok;
 }
 
@@ -292,35 +332,111 @@ ProfileEditResult ControllerModelSettings::ResetProfile (const std::string & nam
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ControllerModelSettings::EnsureDefaultProfile
+//  ControllerModelSettings::EnsureBuiltInProfiles
 //
-//  A model with no Default -- never edited, or its Default was unreadable and
-//  dropped on load -- gets one from the default mapping. A surviving profile
-//  already called Default becomes the Default rather than gaining a second
-//  profile of the same name.
+//  A model missing a built-in profile -- never edited, saved by a build that
+//  had no Joyport profile, or its copy was unreadable and dropped on load --
+//  gets one from that profile's built-in mapping. A surviving user profile of
+//  the same name becomes the built-in one rather than gaining a second
+//  profile of that name. The Default leads the list and the Joyport profile
+//  follows it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerModelSettings::EnsureDefaultProfile (const ControlMapping & defaultMapping)
+void ControllerModelSettings::EnsureBuiltInProfiles (const ControllerModelKey & model, const std::vector<ControlId> & controls)
 {
-    ControllerProfile *  named = nullptr;
+    constexpr ControllerProfileKind  kKinds[] = { ControllerProfileKind::Default, ControllerProfileKind::Joyport };
+    constexpr const char           * kNames[] = { ControllerProfile::kpszDefaultName, ControllerProfile::kpszJoyportName };
+    ControllerProfile              * named    = nullptr;
+    size_t                           i        = 0;
 
 
 
-    if (FindDefaultProfile() != nullptr)
+    for (i = 0; i < std::size (kKinds); i++)
     {
-        return;
+        if (FindBuiltInProfile (kKinds[i]) != nullptr)
+        {
+            continue;
+        }
+
+        named = FindProfile (kNames[i]);
+
+        if (named != nullptr)
+        {
+            named->kind = kKinds[i];
+            continue;
+        }
+
+        profiles.insert (profiles.begin() + std::min (i, profiles.size()),
+                         { kNames[i], kKinds[i], MakeBuiltInMapping (kKinds[i], model, controls) });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::MakeBuiltInMapping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControlMapping ControllerModelSettings::MakeBuiltInMapping (
+    ControllerProfileKind           kind,
+    const ControllerModelKey      & model,
+    const std::vector<ControlId>  & controls)
+{
+    if (kind == ControllerProfileKind::Joyport)
+    {
+        return DefaultMapping::MakeJoyport (model, controls);
     }
 
-    named = FindProfile (ControllerProfile::kpszDefaultName);
+    return DefaultMapping::For (model, controls);
+}
 
-    if (named != nullptr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::GetAutomaticKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerProfileKind ControllerModelSettings::GetAutomaticKind (bool isJoyportAttached)
+{
+    return isJoyportAttached ? ControllerProfileKind::Joyport : ControllerProfileKind::Default;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::GetBuiltInKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerProfileKind ControllerModelSettings::GetBuiltInKind (const std::string & name)
+{
+    std::string            trimmed = TrimProfileName (name);
+    ControllerProfileKind  kind    = ControllerProfileKind::User;
+
+
+
+    if (_stricmp (trimmed.c_str(), ControllerProfile::kpszDefaultName) == 0)
     {
-        named->isDefault = true;
-        return;
+        kind = ControllerProfileKind::Default;
+    }
+    else if (_stricmp (trimmed.c_str(), ControllerProfile::kpszJoyportName) == 0)
+    {
+        kind = ControllerProfileKind::Joyport;
     }
 
-    profiles.insert (profiles.begin(), { ControllerProfile::kpszDefaultName, true, defaultMapping });
+    return kind;
 }
 
 
@@ -476,12 +592,32 @@ void ControllerProfileStore::GetDefaultSettings (
     ControlMapping                & outMapping,
     float                         & outDeadzone) const
 {
+    GetBuiltInSettings (ControllerProfileKind::Default, model, controls, outMapping, outDeadzone);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBuiltInSettings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerProfileStore::GetBuiltInSettings (
+    ControllerProfileKind           kind,
+    const ControllerModelKey      & model,
+    const std::vector<ControlId>  & controls,
+    ControlMapping                & outMapping,
+    float                         & outDeadzone) const
+{
     auto                       found   = models.find (ControllerTokens::ModelToToken (model));
     const ControllerProfile *  profile = nullptr;
 
 
 
-    outMapping  = DefaultMapping::For (model, controls);
+    outMapping  = ControllerModelSettings::MakeBuiltInMapping (kind, model, controls);
     outDeadzone = DeadzoneShaper::GetDefaultDeadzone (model.kind);
 
     if (found == models.end())
@@ -490,7 +626,7 @@ void ControllerProfileStore::GetDefaultSettings (
     }
 
     outDeadzone = found->second.deadzone;
-    profile     = found->second.FindDefaultProfile();
+    profile     = found->second.FindBuiltInProfile (kind);
 
     if (profile != nullptr)
     {
@@ -548,7 +684,7 @@ ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (const Contro
         found->second.deadzone = DeadzoneShaper::GetDefaultDeadzone (model.kind);
     }
 
-    found->second.EnsureDefaultProfile (DefaultMapping::For (model, controls));
+    found->second.EnsureBuiltInProfiles (model, controls);
     return found->second;
 }
 
@@ -616,7 +752,7 @@ ProfileEditResult ControllerProfileStore::ResetProfile (
 
 
 
-    return settings.ResetProfile (name, DefaultMapping::For (model, controls));
+    return settings.ResetProfile (name, model, controls);
 }
 
 
@@ -633,7 +769,7 @@ ProfileEditResult ControllerProfileStore::ResetProfile (
 //  Default recreated from the default mapping. Within a readable model, each
 //  profile stands or falls on its own, and a later profile whose name matches
 //  an earlier one, ignoring case, is dropped. Only the first profile marked
-//  Default stays the Default.
+//  as each built-in profile stays that profile.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -646,7 +782,6 @@ void ControllerProfileStore::ReadModels (const JsonValue & modelsObj, std::vecto
         ControllerModelSettings  settings;
         const JsonValue *        profilesArr = nullptr;
         double                   deadzone    = 0.0;
-        bool                     hasDefault  = false;
         bool                     isReadable  = false;
         size_t                   i           = 0;
 
@@ -701,8 +836,10 @@ void ControllerProfileStore::ReadModels (const JsonValue & modelsObj, std::vecto
                     continue;
                 }
 
-                profile.isDefault = profile.isDefault && !hasDefault;
-                hasDefault        = hasDefault || profile.isDefault;
+                if (profile.kind != ControllerProfileKind::User && settings.FindBuiltInProfile (profile.kind) != nullptr)
+                {
+                    profile.kind = ControllerProfileKind::User;
+                }
 
                 settings.profiles.push_back (profile);
             }
@@ -788,6 +925,7 @@ bool ControllerProfileStore::ReadProfile (const JsonValue & profileObj, Controll
 {
     const JsonValue *  mappingObj = nullptr;
     bool               isDefault  = false;
+    bool               isJoyport  = false;
 
 
 
@@ -807,7 +945,17 @@ bool ControllerProfileStore::ReadProfile (const JsonValue & profileObj, Controll
         return false;
     }
 
-    outProfile.isDefault = profileObj.HasBool (s_kpszDefaultKey, isDefault) && isDefault;
+    isDefault = profileObj.HasBool (s_kpszDefaultKey, isDefault) && isDefault;
+    isJoyport = profileObj.HasBool (s_kpszJoyportKey, isJoyport) && isJoyport;
+
+    if (isDefault)
+    {
+        outProfile.kind = ControllerProfileKind::Default;
+    }
+    else if (isJoyport)
+    {
+        outProfile.kind = ControllerProfileKind::Joyport;
+    }
 
     return ReadMapping (*mappingObj, outProfile.mapping);
 }
@@ -1149,9 +1297,13 @@ JsonValue ControllerProfileStore::WriteModel (const ControllerModelSettings & se
 
         profileObj.emplace_back (s_kpszNameKey, JsonValue (profile.name));
 
-        if (profile.isDefault)
+        if (profile.kind == ControllerProfileKind::Default)
         {
             profileObj.emplace_back (s_kpszDefaultKey, JsonValue (true));
+        }
+        else if (profile.kind == ControllerProfileKind::Joyport)
+        {
+            profileObj.emplace_back (s_kpszJoyportKey, JsonValue (true));
         }
 
         profileObj.emplace_back (s_kpszMappingKey, WriteMapping (profile.mapping));

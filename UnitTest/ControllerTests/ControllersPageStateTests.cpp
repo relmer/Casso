@@ -420,8 +420,8 @@ namespace ControllerTests
             swapped.pb1 = { { { ControlKind::Button, 0 } } };
 
             settings.deadzone = DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput);
-            settings.profiles.push_back ({ ControllerProfile::kpszDefaultName, true, DefaultMapping::For (MakeStick().unit.model, MakeStick().controls) });
-            settings.profiles.push_back ({ "Swapped", false, swapped });
+            settings.profiles.push_back ({ ControllerProfile::kpszDefaultName, ControllerProfileKind::Default, DefaultMapping::For (MakeStick().unit.model, MakeStick().controls) });
+            settings.profiles.push_back ({ "Swapped", ControllerProfileKind::User, swapped });
 
             models[ControllerTokens::ModelToToken (MakeStick().unit.model)] = settings;
             return models;
@@ -454,7 +454,7 @@ namespace ControllerTests
             page.Load ({ MakeStick() }, {}, {}, true, "Swapped");
 
             Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
-            Assert::IsTrue   (page.IsEditingDefaultProfile());
+            Assert::IsTrue   (page.IsEditingBuiltInProfile());
             Assert::AreEqual (std::string ("Swapped"), page.GetActiveProfileName(), L"the machine's choice is kept for a controller that has it");
         }
 
@@ -479,16 +479,50 @@ namespace ControllerTests
             Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Paddles") == ProfileEditResult::Ok);
             Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(), L"a copy takes the source's pending edits");
 
-            Assert::AreEqual (size_t (4), page.GetProfileNames().size());
+            Assert::AreEqual (size_t (5), page.GetProfileNames().size());
             Assert::AreEqual (std::string ("Default"), page.GetProfileNames()[0], L"Default is listed first");
+            Assert::AreEqual (std::string ("Joyport"), page.GetProfileNames()[1], L"and Joyport second");
             Assert::IsTrue   (page.IsDirty());
             Assert::IsTrue   (models.empty(), L"nothing reaches the settings the page was opened with");
 
             page.Revert();
 
-            Assert::AreEqual (size_t (1), page.GetProfileNames().size(), L"Cancel takes the new profiles away");
+            Assert::AreEqual (size_t (2), page.GetProfileNames().size(), L"Cancel takes the new profiles away");
             Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
             Assert::IsFalse  (page.IsDirty());
+        }
+
+
+        //  With the Joyport attached, a controller with no profile chosen edits
+        //  the Joyport profile. Choosing it records no choice; choosing the
+        //  Default records it by name, so it outlasts the Joyport. Reset puts
+        //  the Joyport profile back to its own mapping, and it can be neither
+        //  renamed nor deleted.
+        TEST_METHOD (WithAJoyport_TheUnchosenProfileIsTheJoyportProfile)
+        {
+            ControllersPageState    page;
+            ControllerModelKey      model    = MakeStick().unit.model;
+            std::vector<ControlId>  controls = MakeStick().controls;
+
+            page.SetJoyportAttached (true);
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName());
+            Assert::IsTrue   (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls));
+            Assert::IsTrue   (page.IsEditingBuiltInProfile());
+
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+            page.ResetProfile();
+
+            Assert::IsTrue   (page.GetMapping() == DefaultMapping::MakeJoyport (model, controls), L"Reset restores the Joyport mapping");
+            Assert::IsTrue   (page.RenameProfile ("Atari") == ProfileEditResult::IsBuiltInProfile);
+            Assert::IsTrue   (page.DeleteProfile() == ProfileEditResult::IsBuiltInProfile);
+
+            page.SelectProfile ("Default");
+            Assert::AreEqual (std::string ("Default"), page.GetActiveProfileName(), L"the Default is recorded by name");
+
+            page.SelectProfile ("Joyport");
+            Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"the Joyport profile is recorded as no choice");
         }
 
 
@@ -498,8 +532,8 @@ namespace ControllerTests
 
             page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true);
 
-            Assert::IsTrue  (page.RenameProfile ("Other") == ProfileEditResult::IsDefaultProfile);
-            Assert::IsTrue  (page.DeleteProfile() == ProfileEditResult::IsDefaultProfile);
+            Assert::IsTrue  (page.RenameProfile ("Other") == ProfileEditResult::IsBuiltInProfile);
+            Assert::IsTrue  (page.DeleteProfile() == ProfileEditResult::IsBuiltInProfile);
             Assert::IsFalse (page.IsDirty());
         }
 
@@ -512,7 +546,7 @@ namespace ControllerTests
 
             Assert::IsTrue   (page.DeleteProfile() == ProfileEditResult::Ok);
             Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
-            Assert::AreEqual (size_t (1), page.GetProfileNames().size());
+            Assert::AreEqual (size_t (2), page.GetProfileNames().size());
             Assert::IsTrue   (page.HasActiveProfileChanged(), L"the machine's active profile was deleted");
             Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"so the Default becomes active on OK");
         }
@@ -545,7 +579,7 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"Each profile name for a controller must be different, ignoring capitalization."), rule);
 
             Assert::IsFalse  (ControllersPageState::TryDescribeNameError (ProfileEditResult::Ok, label, rule));
-            Assert::IsFalse  (ControllersPageState::TryDescribeNameError (ProfileEditResult::IsDefaultProfile, label, rule));
+            Assert::IsFalse  (ControllersPageState::TryDescribeNameError (ProfileEditResult::IsBuiltInProfile, label, rule));
         }
 
 
@@ -692,7 +726,7 @@ namespace ControllerTests
             page.DiscardProfileEdits();
 
             Assert::IsFalse (page.HasUnappliedProfileEdits());
-            Assert::IsTrue  (page.IsEditingDefaultProfile());
+            Assert::IsTrue  (page.IsEditingBuiltInProfile());
             Assert::IsTrue  (page.GetModels().empty(), L"nothing is left of it");
         }
 
@@ -858,7 +892,7 @@ namespace ControllerTests
             page.DeleteProfile();
             Assert::IsTrue (page.IsDirty(), L"delete");
             page.Revert();
-            Assert::AreEqual (size_t (3), page.GetProfileNames().size(), L"and Cancel brings a deleted profile back");
+            Assert::AreEqual (size_t (4), page.GetProfileNames().size(), L"and Cancel brings a deleted profile back");
         }
 
 

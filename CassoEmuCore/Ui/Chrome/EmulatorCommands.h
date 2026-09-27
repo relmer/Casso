@@ -90,6 +90,7 @@ public:
         std::wstring              header;
         std::vector<std::string>  names;
         std::string               active;
+        bool                      isJoyportAttached = false;
     };
 
     // Ids for the toolbar entries that are not menu commands. Menu command

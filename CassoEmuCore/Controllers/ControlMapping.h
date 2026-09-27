@@ -128,6 +128,7 @@ public:
 
     static ControlMapping  For         (const ControllerModelKey & model, const std::vector<ControlId> & controls);
     static ControlMapping  MakePaddles (const ControllerModelKey & model, const std::vector<ControlId> & controls);
+    static ControlMapping  MakeJoyport (const ControllerModelKey & model, const std::vector<ControlId> & controls);
 
 private:
 

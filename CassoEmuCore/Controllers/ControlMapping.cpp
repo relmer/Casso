@@ -116,6 +116,87 @@ ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeJoyport
+//
+//  Every direction control steers and every fire-like control fires, so an
+//  Atari-style game plays however the player holds the controller. The
+//  Joyport reads direction switches off PDL0 and PDL1 and fire off PB0; on
+//  each axis the control pushed furthest wins, so a stick at rest does not
+//  mask the D-pad.
+//
+//  The primary stick and the first D-pad steer on any controller. The right
+//  stick is added only on an Xbox-class controller, whose layout is fixed:
+//  on a DirectInput device the same axis indexes can be pedals or a throttle
+//  resting hard over, which would hold a direction switch closed.
+//
+//  An Xbox-class controller fires with A, B, X, Y, both bumpers and both
+//  triggers, leaving out Back, Start and the stick clicks, which are pressed
+//  by accident while steering. Any other controller fires with every button.
+//  B stays on PB1 as it is in the Default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControlMapping DefaultMapping::MakeJoyport (const ControllerModelKey & model, const std::vector<ControlId> & controls)
+{
+    constexpr int   kDpadHat       = 0;
+    constexpr int   kXInputBackBtn = 6;
+    bool            isXInput       = model.kind == ControllerKind::XInput;
+    ControlMapping  mapping        = For (model, controls);
+    ControlId       rightX         = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
+    ControlId       rightY         = { ControlKind::Axis, XInputSampleDecoder::kRightStickY };
+    AxisBinding     binding;
+
+
+
+    if (isXInput && HasControl (controls, rightX) && HasControl (controls, rightY))
+    {
+        binding.analog = rightX;
+        mapping.pdl0.push_back (binding);
+
+        binding.analog = rightY;
+        mapping.pdl1.push_back (binding);
+    }
+
+    binding      = AxisBinding();
+    binding.kind = AxisBindingKind::DigitalPair;
+
+    if (HasControl (controls, { ControlKind::DpadLeft, kDpadHat }) && HasControl (controls, { ControlKind::DpadRight, kDpadHat }))
+    {
+        binding.negative = { ControlKind::DpadLeft,  kDpadHat };
+        binding.positive = { ControlKind::DpadRight, kDpadHat };
+        mapping.pdl0.push_back (binding);
+    }
+
+    if (HasControl (controls, { ControlKind::DpadUp, kDpadHat }) && HasControl (controls, { ControlKind::DpadDown, kDpadHat }))
+    {
+        binding.negative = { ControlKind::DpadUp,   kDpadHat };
+        binding.positive = { ControlKind::DpadDown, kDpadHat };
+        mapping.pdl1.push_back (binding);
+    }
+
+    mapping.pb0.clear();
+
+    for (const ControlId & control : controls)
+    {
+        if (control.kind == ControlKind::Button && !(isXInput && control.index >= kXInputBackBtn))
+        {
+            mapping.pb0.push_back ({ control });
+        }
+        else if (control.kind == ControlKind::Trigger)
+        {
+            mapping.pb0.push_back ({ control, ButtonBinding::kTriggerThreshold });
+        }
+    }
+
+    return mapping;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasControl
 //
 ////////////////////////////////////////////////////////////////////////////////

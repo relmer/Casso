@@ -12,21 +12,43 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ControllerProfileKind
+//
+//  Every model has one Default and one Joyport profile, which cannot be
+//  renamed or deleted and reset to their own built-in mappings. Everything
+//  else is the user's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ControllerProfileKind
+{
+    User,
+    Default,
+    Joyport,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControllerProfile
 //
-//  One named mapping for a controller model. Exactly one profile per model is
-//  its Default, which is what the model plays with until the user picks
-//  another.
+//  One named mapping for a controller model. A controller with no profile
+//  chosen plays the model's Joyport profile while a Joyport is attached and
+//  its Default otherwise.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ControllerProfile
 {
     static constexpr const char *  kpszDefaultName = "Default";
+    static constexpr const char *  kpszJoyportName = "Joyport";
 
-    std::string     name;
-    bool            isDefault = false;
-    ControlMapping  mapping;
+    std::string            name;
+    ControllerProfileKind  kind = ControllerProfileKind::User;
+    ControlMapping         mapping;
 
     bool operator== (const ControllerProfile &) const = default;
 };
@@ -51,7 +73,7 @@ enum class ProfileEditResult
     NameTooLong,
     DuplicateName,
     NotFound,
-    IsDefaultProfile,
+    IsBuiltInProfile,
 };
 
 
@@ -95,6 +117,8 @@ struct ControllerModelSettings
     std::vector<ControllerProfile>  profiles;
 
     const ControllerProfile *  FindDefaultProfile  () const;
+    const ControllerProfile *  FindBuiltInProfile  (ControllerProfileKind kind) const;
+    ControllerProfile       *  FindBuiltInProfile  (ControllerProfileKind kind);
     const ControllerProfile *  FindProfile         (const std::string & name) const;
     ControllerProfile       *  FindProfile         (const std::string & name);
 
@@ -102,13 +126,24 @@ struct ControllerModelSettings
     // changes only case is not a duplicate of itself.
     ProfileEditResult          CheckProfileName    (const std::string & name, const ControllerProfile * excluding = nullptr) const;
 
-    ProfileEditResult          AddProfile          (const std::string & name, const ControlMapping & mapping);
-    ProfileEditResult          RenameProfile       (const std::string & name, const std::string & newName);
-    ProfileEditResult          DeleteProfile       (const std::string & name);
-    ProfileEditResult          ResetProfile        (const std::string & name, const ControlMapping & defaultMapping);
-    void                       EnsureDefaultProfile(const ControlMapping & defaultMapping);
+    ProfileEditResult          AddProfile            (const std::string & name, const ControlMapping & mapping);
+    ProfileEditResult          RenameProfile         (const std::string & name, const std::string & newName);
+    ProfileEditResult          DeleteProfile         (const std::string & name);
+    ProfileEditResult          ResetProfile          (const std::string & name, const ControllerModelKey & model, const std::vector<ControlId> & controls);
+    void                       EnsureBuiltInProfiles (const ControllerModelKey & model, const std::vector<ControlId> & controls);
 
-    static std::string         TrimProfileName     (const std::string & name);
+    static std::string         TrimProfileName       (const std::string & name);
+
+    // The built-in mapping a profile of this kind resets to; a user profile
+    // resets to the Default's.
+    static ControlMapping         MakeBuiltInMapping    (ControllerProfileKind           kind,
+                                                         const ControllerModelKey      & model,
+                                                         const std::vector<ControlId>  & controls);
+
+    // Which built-in profile a controller with no profile chosen plays, and
+    // which one a name is, ignoring case; User for any other name.
+    static ControllerProfileKind  GetAutomaticKind      (bool isJoyportAttached);
+    static ControllerProfileKind  GetBuiltInKind        (const std::string & name);
 
     bool operator== (const ControllerModelSettings &) const = default;
 };
@@ -159,6 +194,13 @@ public:
     // saved Default profile when it has one, and the built-in default
     // otherwise.
     void       GetDefaultSettings (const ControllerModelKey        & model,
+                                   const std::vector<ControlId>    & controls,
+                                   ControlMapping                  & outMapping,
+                                   float                           & outDeadzone) const;
+
+    // The same for either built-in profile.
+    void       GetBuiltInSettings (ControllerProfileKind             kind,
+                                   const ControllerModelKey        & model,
                                    const std::vector<ControlId>    & controls,
                                    ControlMapping                  & outMapping,
                                    float                           & outDeadzone) const;

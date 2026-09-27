@@ -803,8 +803,8 @@ std::wstring ControllersPageState::GetTargetLabel (PlayerAxisTarget target)
 //
 //  GetMapping
 //
-//  The edited profile's mapping as edited, or the built-in default for a
-//  model nothing has been saved or edited for.
+//  The edited profile's mapping as edited, or the built-in profile's own
+//  mapping for a model nothing has been saved or edited for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -825,7 +825,7 @@ const ControlMapping & ControllersPageState::GetMapping() const
         return m_emptyMapping;
     }
 
-    m_builtInMapping = DefaultMapping::For (selected->unit.model, selected->controls);
+    m_builtInMapping = ControllerModelSettings::MakeBuiltInMapping (GetEditedBuiltInKind(), selected->unit.model, selected->controls);
     return m_builtInMapping;
 }
 
@@ -1155,20 +1155,20 @@ bool ControllersPageState::SetThreshold (PaddleTarget target, size_t index, floa
 //
 //  GetProfileNames
 //
-//  A model with nothing saved still lists its Default, which is what it
-//  plays with.
+//  A model with nothing saved still lists its Default and Joyport profiles,
+//  one of which is what it plays with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> ControllersPageState::GetProfileNames() const
 {
-    const ControllerModelSettings *  settings    = FindSelectedModel();
-    const ControllerProfile *        defaultProf = settings != nullptr ? settings->FindDefaultProfile() : nullptr;
+    const ControllerModelSettings *  settings = FindSelectedModel();
     std::vector<std::string>         names;
 
 
 
-    names.push_back (defaultProf != nullptr ? defaultProf->name : std::string (ControllerProfile::kpszDefaultName));
+    names.push_back (ControllerProfile::kpszDefaultName);
+    names.push_back (ControllerProfile::kpszJoyportName);
 
     if (settings == nullptr)
     {
@@ -1177,7 +1177,7 @@ std::vector<std::string> ControllersPageState::GetProfileNames() const
 
     for (const ControllerProfile & profile : settings->profiles)
     {
-        if (&profile != defaultProf)
+        if (profile.kind == ControllerProfileKind::User)
         {
             names.push_back (profile.name);
         }
@@ -1202,7 +1202,13 @@ std::string ControllersPageState::GetEditedProfileName() const
 
 
 
-    return profile != nullptr ? profile->name : std::string (ControllerProfile::kpszDefaultName);
+    if (profile != nullptr)
+    {
+        return profile->name;
+    }
+
+    return GetEditedBuiltInKind() == ControllerProfileKind::Joyport ? ControllerProfile::kpszJoyportName
+                                                                    : ControllerProfile::kpszDefaultName;
 }
 
 
@@ -1211,17 +1217,17 @@ std::string ControllersPageState::GetEditedProfileName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsEditingDefaultProfile
+//  IsEditingBuiltInProfile
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ControllersPageState::IsEditingDefaultProfile() const
+bool ControllersPageState::IsEditingBuiltInProfile() const
 {
     const ControllerProfile *  profile = FindEditedProfile();
 
 
 
-    return profile == nullptr || profile->isDefault;
+    return profile == nullptr || profile->kind != ControllerProfileKind::User;
 }
 
 
@@ -1232,19 +1238,32 @@ bool ControllersPageState::IsEditingDefaultProfile() const
 //
 //  SelectProfile
 //
-//  A name the model has no profile for selects the Default. A capture in
-//  progress belongs to the profile it was started on, so it is called off.
+//  A name the model has no profile for selects no profile, which plays the
+//  built-in one the Joyport selects, and so does selecting that built-in
+//  profile itself: the controller keeps following the Joyport. The other
+//  built-in profile is recorded by name. A capture in progress belongs to
+//  the profile it was started on, so it is called off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPageState::SelectProfile (const std::string & name)
 {
-    const ControllerModelSettings *  settings = FindSelectedModel();
-    const ControllerProfile *        profile  = settings != nullptr ? settings->FindProfile (name) : nullptr;
+    const ControllerModelSettings *  settings  = FindSelectedModel();
+    const ControllerProfile *        profile   = settings != nullptr ? settings->FindProfile (name) : nullptr;
+    ControllerProfileKind            kind      = profile != nullptr ? profile->kind : ControllerModelSettings::GetBuiltInKind (name);
+    ControllerProfileKind            automatic = ControllerModelSettings::GetAutomaticKind (m_isJoyportAttached);
 
 
 
-    m_editedProfile = (profile == nullptr || profile->isDefault) ? std::string() : profile->name;
+    if (kind == automatic || (profile == nullptr && kind == ControllerProfileKind::User))
+    {
+        m_editedProfile.clear();
+    }
+    else
+    {
+        m_editedProfile = profile != nullptr ? profile->name : ControllerModelSettings::TrimProfileName (name);
+    }
+
     StoreEditedProfile();
 
     m_capture.Cancel();
@@ -1259,8 +1278,8 @@ void ControllersPageState::SelectProfile (const std::string & name)
 //
 //  CheckProfileName
 //
-//  Checked against the model's profiles as edited, with the Default counted
-//  even before the model has one saved. A rename is not a duplicate of the
+//  Checked against the model's profiles as edited, with the built-in profiles
+//  counted even before the model has them saved. A rename is not a duplicate of the
 //  profile being renamed.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1273,7 +1292,7 @@ ProfileEditResult ControllersPageState::CheckProfileName (const std::string & na
 
 
 
-    check.EnsureDefaultProfile (ControlMapping());
+    check.EnsureBuiltInProfiles (ControllerModelKey(), std::vector<ControlId>());
 
     if (isRename)
     {
@@ -1377,9 +1396,9 @@ ProfileEditResult ControllersPageState::RenameProfile (const std::string & newNa
 
 
 
-    if (IsEditingDefaultProfile() || selected == nullptr)
+    if (IsEditingBuiltInProfile() || selected == nullptr)
     {
-        return ProfileEditResult::IsDefaultProfile;
+        return ProfileEditResult::IsBuiltInProfile;
     }
 
     token         = ControllerTokens::ModelToToken (selected->unit.model);
@@ -1421,9 +1440,9 @@ ProfileEditResult ControllersPageState::DeleteProfile()
 
 
 
-    if (IsEditingDefaultProfile())
+    if (IsEditingBuiltInProfile())
     {
-        return ProfileEditResult::IsDefaultProfile;
+        return ProfileEditResult::IsBuiltInProfile;
     }
 
     name     = GetEditedProfileName();
@@ -1448,7 +1467,8 @@ ProfileEditResult ControllersPageState::DeleteProfile()
 //
 //  ResetProfile
 //
-//  The edited profile back to the built-in mapping (FR-024). Other profiles
+//  The edited profile back to the built-in mapping (FR-024): the Joyport
+//  profile to its own, every other profile to the Default's. Other profiles
 //  and the model's deadzone are left alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1465,7 +1485,7 @@ void ControllersPageState::ResetProfile()
         return;
     }
 
-    profile->mapping = DefaultMapping::For (selected->unit.model, selected->controls);
+    profile->mapping = ControllerModelSettings::MakeBuiltInMapping (profile->kind, selected->unit.model, selected->controls);
     m_liveEvaluator.ResetRate();
 }
 
@@ -1550,7 +1570,7 @@ void ControllersPageState::DiscardProfileEdits()
         ControllerModelSettings  fresh;
 
         fresh.deadzone = DeadzoneShaper::GetDefaultDeadzone (selected->unit.model.kind);
-        fresh.EnsureDefaultProfile (DefaultMapping::For (selected->unit.model, selected->controls));
+        fresh.EnsureBuiltInProfiles (selected->unit.model, selected->controls);
 
         if (m_models[token] == fresh)
         {
@@ -2354,7 +2374,35 @@ const ControllerProfile * ControllersPageState::FindEditedProfile() const
         profile = settings->FindProfile (m_editedProfile);
     }
 
-    return profile != nullptr ? profile : settings->FindDefaultProfile();
+    return profile != nullptr ? profile : settings->FindBuiltInProfile (GetEditedBuiltInKind());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEditedBuiltInKind
+//
+//  The built-in profile the edited controller plays when its chosen name is
+//  not a profile its model has saved: the one chosen by name, or with none
+//  chosen, the one the Joyport selects.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerProfileKind ControllersPageState::GetEditedBuiltInKind() const
+{
+    ControllerProfileKind  kind = ControllerModelSettings::GetBuiltInKind (m_editedProfile);
+
+
+
+    if (kind == ControllerProfileKind::User)
+    {
+        kind = ControllerModelSettings::GetAutomaticKind (m_isJoyportAttached);
+    }
+
+    return kind;
 }
 
 
@@ -2365,8 +2413,8 @@ const ControllerProfile * ControllersPageState::FindEditedProfile() const
 //
 //  EnsureEditedProfile
 //
-//  The profile the edits go to, with the model's Default created from the
-//  built-in default mapping when the model has none.
+//  The profile the edits go to, with the model's built-in profiles created
+//  from their built-in mappings when the model has none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2383,27 +2431,14 @@ ControllerProfile * ControllersPageState::EnsureEditedProfile()
         return nullptr;
     }
 
-    settings->EnsureDefaultProfile (DefaultMapping::For (selected->unit.model, selected->controls));
+    settings->EnsureBuiltInProfiles (selected->unit.model, selected->controls);
 
     if (!m_editedProfile.empty())
     {
         profile = settings->FindProfile (m_editedProfile);
     }
 
-    if (profile != nullptr)
-    {
-        return profile;
-    }
-
-    for (ControllerProfile & candidate : settings->profiles)
-    {
-        if (candidate.isDefault)
-        {
-            return &candidate;
-        }
-    }
-
-    return nullptr;
+    return profile != nullptr ? profile : settings->FindBuiltInProfile (GetEditedBuiltInKind());
 }
 
 
@@ -2416,7 +2451,8 @@ ControllerProfile * ControllersPageState::EnsureEditedProfile()
 //
 //  What the save-or-discard prompt compares against: the edited profile's
 //  mapping in the committed settings, found under the name it was committed
-//  with. A model or Default never committed has the built-in mapping. False
+//  with. A model or built-in profile never committed has its built-in
+//  mapping. False
 //  for a profile created on the page, which has no committed mapping.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2428,6 +2464,7 @@ bool ControllersPageState::FindCommittedMapping (ControlMapping & mapping) const
     const ControllerModelSettings *  settings  = nullptr;
     const ControllerProfile *        profile   = nullptr;
     std::string                      token;
+    ControllerProfileKind            kind      = ControllerProfileKind::User;
 
 
 
@@ -2443,7 +2480,9 @@ bool ControllersPageState::FindCommittedMapping (ControlMapping & mapping) const
 
     settings = found != m_baselineModels.end() ? &found->second : nullptr;
 
-    if (edited != nullptr && !edited->isDefault)
+    kind = edited != nullptr ? edited->kind : GetEditedBuiltInKind();
+
+    if (edited != nullptr && kind == ControllerProfileKind::User)
     {
         profile = settings != nullptr ? settings->FindProfile (GetCommittedName (token, edited->name)) : nullptr;
 
@@ -2454,10 +2493,11 @@ bool ControllersPageState::FindCommittedMapping (ControlMapping & mapping) const
     }
     else if (settings != nullptr)
     {
-        profile = settings->FindDefaultProfile();
+        profile = settings->FindBuiltInProfile (kind);
     }
 
-    mapping = profile != nullptr ? profile->mapping : DefaultMapping::For (selected->unit.model, selected->controls);
+    mapping = profile != nullptr ? profile->mapping
+                                 : ControllerModelSettings::MakeBuiltInMapping (kind, selected->unit.model, selected->controls);
     return true;
 }
 

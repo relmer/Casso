@@ -443,6 +443,7 @@ HRESULT SettingsSheet::OpenModeless (
 
             // The page opens on the machine's selected controller, with every
             // controller's own active profile.
+            m_controllersState.SetJoyportAttached (snapshot.isJoyportAttached);
             m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
@@ -701,6 +702,7 @@ void SettingsSheet::OnDialogTick()
     {
         ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
 
+        m_controllersState.SetJoyportAttached (snapshot.isJoyportAttached);
         m_controllersState.UpdateDevices (snapshot.devices);
 
         // The mode can be turned on from the picker while the sheet is open,

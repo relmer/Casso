@@ -2687,6 +2687,11 @@ void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
 
     lifetime.unlock();
 
+    if (m_controllerService)
+    {
+        m_controllerService->SetJoyportAttached (joyport != nullptr && adapter == GamePortAdapter::SiriusJoyport);
+    }
+
     if (m_arrowsJoystick)
     {
         UpdateJoystickButtonsFromKeys();
@@ -3030,8 +3035,9 @@ void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & sn
             continue;
         }
 
-        section.unit   = units[i];
-        section.active = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
+        section.unit              = units[i];
+        section.active            = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
+        section.isJoyportAttached = snapshot.isJoyportAttached;
 
         if (!headers[i].empty())
         {

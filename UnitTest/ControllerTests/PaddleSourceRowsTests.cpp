@@ -368,12 +368,13 @@ namespace ControllerTests
 
             items = commands.GetProfileItems();
 
-            Assert::AreEqual (static_cast<size_t> (5), items.size(), L"three profiles, a separator, New...");
+            Assert::AreEqual (static_cast<size_t> (6), items.size(), L"four profiles, a separator, New...");
             Assert::AreEqual (std::wstring (L"Default"), items[0].command->label, L"Default leads wherever the store keeps it");
-            Assert::AreEqual (std::wstring (L"Paddles"), items[1].command->label);
-            Assert::AreEqual (std::wstring (L"Swapped"), items[2].command->label);
-            Assert::IsTrue   (items[3].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::AreEqual (std::wstring (L"New..."), items[4].command->label);
+            Assert::AreEqual (std::wstring (L"Joyport"), items[1].command->label, L"and Joyport follows it, saved or not");
+            Assert::AreEqual (std::wstring (L"Paddles"), items[2].command->label);
+            Assert::AreEqual (std::wstring (L"Swapped"), items[3].command->label);
+            Assert::IsTrue   (items[4].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::AreEqual (std::wstring (L"New..."), items[5].command->label);
         }
 
 
@@ -384,7 +385,7 @@ namespace ControllerTests
             commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles" }, "PADDLES") });
 
             Assert::IsFalse (commands.GetProfileItems()[0].command->IsChecked());
-            Assert::IsTrue  (commands.GetProfileItems()[1].command->IsChecked());
+            Assert::IsTrue  (commands.GetProfileItems()[2].command->IsChecked());
 
             commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles" }, "") });
 
@@ -425,19 +426,19 @@ namespace ControllerTests
 
             items = commands.GetProfileItems();
 
-            // Player 1: header, Default, Test; separator; Player 2: header,
-            // Default, Test; separator; New...
-            Assert::AreEqual (static_cast<size_t> (9), items.size());
+            // Player 1: header, Default, Joyport, Test; separator; Player 2:
+            // header, Default, Joyport, Test; separator; New...
+            Assert::AreEqual (static_cast<size_t> (11), items.size());
             Assert::IsTrue   (items[0].kind == DxuiPopupMenuItem::Kind::Header);
             Assert::AreEqual (std::wstring (L"Player 1"), items[0].command->label);
             Assert::IsTrue   (items[1].command->IsChecked(),  L"player one plays Default");
-            Assert::IsFalse  (items[2].command->IsChecked());
-            Assert::IsTrue   (items[3].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::IsTrue   (items[4].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::IsFalse  (items[5].command->IsChecked());
-            Assert::IsTrue   (items[6].command->IsChecked(),  L"player two plays Test on a pad of the same model");
+            Assert::IsFalse  (items[3].command->IsChecked());
+            Assert::IsTrue   (items[4].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::IsTrue   (items[5].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::IsFalse  (items[6].command->IsChecked());
+            Assert::IsTrue   (items[8].command->IsChecked(),  L"player two plays Test on a pad of the same model");
 
-            items[6].command->dispatch();
+            items[8].command->dispatch();
             Assert::IsTrue   (pickedUnit == MakeUnit ("045e:02e0:2"), L"a row picks for the controller it was listed under");
             Assert::AreEqual (std::string ("Test"), pickedName);
         }
@@ -458,11 +459,44 @@ namespace ControllerTests
             // Paddles was.
             commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Swapped" }, "") });
 
-            stale[1].command->dispatch();
+            stale[2].command->dispatch();
             Assert::AreEqual (std::string ("Paddles"), picked);
 
             stale[0].command->dispatch();
             Assert::AreEqual (std::string(), picked, L"Default is picked as the empty name");
+        }
+
+
+        //  With a Joyport attached, a controller with no profile chosen plays
+        //  the Joyport profile, so that is the row checked. Picking it records
+        //  no choice, so the controller goes back to the Default when the
+        //  Joyport comes off; picking the Default records it by name, so it
+        //  stays.
+        TEST_METHOD (ProfileRows_WithAJoyportTheJoyportProfileIsTheUnchosenOne)
+        {
+            EmulatorCommands                  commands;
+            EmulatorCommands::ProfileSection  section = MakeSection ("045e:02e0", { "Default", "Paddles" }, "");
+            std::string                       picked  = "unset";
+
+            section.isJoyportAttached = true;
+
+            commands.SetProfilePickedFn ([&] (const ControllerUnitKey &, const std::string & name) { picked = name; });
+            commands.SetProfileSections ({ section });
+
+            Assert::IsFalse  (commands.GetProfileItems()[0].command->IsChecked());
+            Assert::IsTrue   (commands.GetProfileItems()[1].command->IsChecked(), L"empty means Joyport");
+
+            commands.GetProfileItems()[1].command->dispatch();
+            Assert::AreEqual (std::string(), picked, L"Joyport is picked as the empty name");
+
+            commands.GetProfileItems()[0].command->dispatch();
+            Assert::AreEqual (std::string ("Default"), picked, L"and the Default by name");
+
+            section.active = "Default";
+            commands.SetProfileSections ({ section });
+
+            Assert::IsTrue   (commands.GetProfileItems()[0].command->IsChecked(), L"a chosen Default stays checked");
+            Assert::IsFalse  (commands.GetProfileItems()[1].command->IsChecked());
         }
 
 

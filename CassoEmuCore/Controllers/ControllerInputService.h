@@ -61,8 +61,9 @@ public:
         std::optional<ControllerUnitKey>       saved;
 
         // Each controller's active profile, by unit token; a missing or empty
-        // entry means Default.
+        // entry means the built-in profile `isJoyportAttached` selects.
         std::map<std::string, std::string>     activeProfiles;
+        bool                                   isJoyportAttached    = false;
         ControllerSample                       lastSample;
         bool                                   isSelectedConnected  = false;
 
@@ -173,6 +174,10 @@ public:
     std::string                         GetActiveProfile  (const ControllerUnitKey & unit) const;
     void                                SetActiveProfiles (std::map<std::string, std::string> activeProfiles);
     std::map<std::string, std::string>  GetActiveProfiles () const;
+
+    // Whether the machine's Joyport is attached, which decides the profile a
+    // controller with none chosen plays: the Joyport profile or the Default.
+    void                                SetJoyportAttached (bool isAttached);
 
     // Every DirectInput unit's calibration, by unit token. Set once from the
     // saved prefs; read back to save them, including what automatic
@@ -296,6 +301,7 @@ private:
     float                                m_deadzone            = 0.0f;
     bool                                 m_isActive            = true;
     bool                                 m_hasGamePort         = true;
+    bool                                 m_isJoyportAttached   = false;
     bool                                 m_isSelectedConnected = false;
     std::atomic<bool>                    m_hasContribution     {false};
     std::atomic<bool>                    m_devicesDirty        {true};

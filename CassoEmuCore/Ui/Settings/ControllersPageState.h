@@ -194,10 +194,15 @@ public:
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
 
-    // The selected model's profiles, Default first, and the one being edited.
+    // Whether the machine's Joyport is attached, which decides the profile a
+    // controller with none chosen plays: the Joyport profile or the Default.
+    void                                  SetJoyportAttached       (bool isAttached) { m_isJoyportAttached = isAttached; }
+
+    // The selected model's profiles, Default and Joyport first, and the one
+    // being edited.
     std::vector<std::string>              GetProfileNames          () const;
     std::string                           GetEditedProfileName     () const;
-    bool                                  IsEditingDefaultProfile  () const;
+    bool                                  IsEditingBuiltInProfile  () const;
     void                                  SelectProfile            (const std::string & name);
     ProfileEditResult                     CheckProfileName         (const std::string & name, bool isRename) const;
     ProfileEditResult                     CreateProfile            (const std::string & name, ProfileSource source, const std::string & sourceName);
@@ -270,6 +275,7 @@ private:
     const ControllerModelSettings *  FindSelectedModel    () const;
     const ControllerProfile *        FindEditedProfile    () const;
     ControllerProfile *              EnsureEditedProfile  ();
+    ControllerProfileKind            GetEditedBuiltInKind () const;
     bool                             FindCommittedMapping (ControlMapping & mapping) const;
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
 
@@ -287,10 +293,12 @@ private:
     std::map<std::string, ControllerModelSettings>  m_baselineModels;
     std::map<std::string, ControllerCalibration>    m_baselineCalibrations;
 
-    // The edited controller's active profile as chosen, empty for Default. It
-    // is that controller's entry in m_activeProfiles, loaded when Editing
-    // moves to it and written back whenever it changes.
+    // The edited controller's active profile as chosen, empty for none, which
+    // plays the built-in profile m_isJoyportAttached selects. It is that
+    // controller's entry in m_activeProfiles, loaded when Editing moves to it
+    // and written back whenever it changes.
     std::string                                     m_editedProfile;
+    bool                                            m_isJoyportAttached = false;
 
     // Every controller's active profile, by unit token, and as it was when
     // the page opened or last committed.
