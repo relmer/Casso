@@ -21,8 +21,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
-- GH #157: Fixes a rare hang due to the Apple //e warm reset test inadvertently
-  matching the random memory fill bytes.
+- GH #157: Fixes a rare hang due to the Apple II autostart ROM's warm reset test
+  inadvertently matching the random memory fill bytes.
 - GH #155: Ctrl+@ (Ctrl+Shift+2) now sends a NUL keypress like a real
   Apple II, so Bandits and other Sirius games can switch to the Joyport.
 - GH #154: The Settings window now fits on screens too short for it, such as
