@@ -239,6 +239,12 @@ public:
         // the owner rather than the owner's whole frame. Ignored by every
         // other mode.
         RECT                     placementAnchorRectPx    = {};
+
+        // Shrink the initial size to the work area of the monitor the window
+        // opens on, so a tall dialog on a small or scaled display keeps its
+        // bottom edge above the taskbar. Only for content that can scroll or
+        // reflow into less room. Ignored when useInitialWindowRectPx is set.
+        bool                     fitToWorkArea            = false;
     };
 
 
@@ -259,6 +265,13 @@ public:
     //  leaves the bottom button row under the taskbar.
     //
     static POINT  ClampToWorkArea  (const RECT & windowRect, const RECT & work);
+
+    //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Returns `windowSizePx` reduced on each axis to the size of
+    //  `work`. A size that already fits comes back unchanged.
+    //
+    static SIZE   FitSizeToWorkArea (const SIZE & windowSizePx, const RECT & work);
 
     //
     //  Which side of the owner PlaceBesideOwner tries first. The other
@@ -687,6 +700,11 @@ private:
     static bool           TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowSizePx,
                                                  DxuiWindowPlacement mode, const RECT & anchorRectPx,
                                                  POINT & outTopLeft);
+
+    // Work area of the monitor a window placed against `anchorHwnd` opens
+    // on: the anchor's monitor (its restored rect's, when minimized), or the
+    // primary monitor with no anchor. False when the system will not say.
+    static bool           TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork);
 
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();

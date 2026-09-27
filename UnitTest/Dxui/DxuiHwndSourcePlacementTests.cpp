@@ -126,6 +126,51 @@ public:
     }
 
 
+    //
+    //  GH #154: the Settings sheet at 125% is 1100 px tall, taller than the
+    //  1040 px work area of a 1080p screen. It comes back exactly as tall as
+    //  the work area, width untouched.
+    //
+    TEST_METHOD (FitSizeShrinksTooTallToWorkArea)
+    {
+        SIZE  size = { 900, 1100 };
+        SIZE  fit  = DxuiHwndSource::FitSizeToWorkArea (size, s_kWork);
+
+
+        Assert::AreEqual (900L,  fit.cx, L"width fits, so it is unchanged");
+        Assert::AreEqual (1040L, fit.cy, L"height reduced to the work area");
+    }
+
+
+    //
+    //  A size that fits is returned unchanged, so a dialog on a large screen
+    //  opens at its design size.
+    //
+    TEST_METHOD (FitSizeLeavesFittingSizeAlone)
+    {
+        SIZE  size = { 720, 880 };
+        SIZE  fit  = DxuiHwndSource::FitSizeToWorkArea (size, s_kWork);
+
+
+        Assert::AreEqual (720L, fit.cx, L"width unchanged");
+        Assert::AreEqual (880L, fit.cy, L"height unchanged");
+    }
+
+
+    //
+    //  Both axes are fitted against a work area with a non-zero origin.
+    //
+    TEST_METHOD (FitSizeUsesWorkAreaExtentNotOrigin)
+    {
+        SIZE  size = { 2000, 1200 };
+        SIZE  fit  = DxuiHwndSource::FitSizeToWorkArea (size, GetRect (-1280, 40, 0, 1024));
+
+
+        Assert::AreEqual (1280L, fit.cx, L"width reduced to the work area's width");
+        Assert::AreEqual (984L,  fit.cy, L"height reduced to the work area's height");
+    }
+
+
     SIZE  GetSize (LONG cx, LONG cy)
     {
         SIZE  size = { cx, cy };

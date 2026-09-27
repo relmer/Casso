@@ -28,3 +28,36 @@ void DxuiPropertyPage::MarkDirty (bool dirty)
         m_onDirtyChanged();
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetViewport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertyPage::SetViewport (const RECT * viewportPx)
+{
+    m_hasViewport = (viewportPx != nullptr);
+    m_viewportPx  = m_hasViewport ? *viewportPx : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPointClipped
+//
+//  Outside the viewport the page's controls are laid out but not drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPropertyPage::IsPointClipped (POINT clientPx) const
+{
+    return m_hasViewport && PtInRect (&m_viewportPx, clientPx) == FALSE;
+}

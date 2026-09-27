@@ -109,6 +109,11 @@ public:
 
     virtual DxuiHitTestKind  ClassifyHit  (POINT clientDip) const               { (void) clientDip; return DxuiHitTestKind::Client; }
 
+    // True when this container hides its children at a client point, as a
+    // scrolled page does past its viewport. A press there must not reach or
+    // focus a child that is laid out under it but not drawn.
+    virtual bool  IsPointClipped  (POINT clientPx) const                        { (void) clientPx; return false; }
+
     virtual std::wstring        GetAccessibleName () const                        { return L""; }
     virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }
 

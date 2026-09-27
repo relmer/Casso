@@ -47,9 +47,22 @@ public:
     virtual void  OnActivated () {}
     virtual bool  OnApply     () { return true; }
 
+    //
+    //  The viewport the sheet shows this page through, in client pixels, or
+    //  nullptr when the page is shown whole. The sheet does the clipping and
+    //  the input filtering; the page records it so a press outside it cannot
+    //  focus one of its controls.
+    //
+    void  SetViewport    (const RECT * viewportPx);
+    bool  HasViewport    () const { return m_hasViewport; }
+    RECT  GetViewport    () const { return m_viewportPx; }
+    bool  IsPointClipped (POINT clientPx) const override;
+
 
 protected:
     std::wstring           m_title;
-    bool                   m_dirty = false;
+    bool                   m_dirty       = false;
     std::function<void()>  m_onDirtyChanged;
+    bool                   m_hasViewport = false;
+    RECT                   m_viewportPx  = {};
 };

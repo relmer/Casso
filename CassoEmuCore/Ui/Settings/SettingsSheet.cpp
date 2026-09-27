@@ -125,7 +125,12 @@ void SettingsSheet::OnBuildPages()
 //  back on revert (FR-131) -- so it is never wider than Cancel while it just
 //  reads "OK".
 //
-//  Minimum size equals the initial size: the pages have no smaller valid form.
+//  The sheet opens at its design size when the screen has room for it, and
+//  otherwise at the height of the monitor's work area, with the pages
+//  scrolling between the tab strip and OK / Cancel. The pages have no smaller
+//  valid form, so they keep their design height and scroll rather than
+//  squeezing; the buttons stay on screen either way (GH #154: 880 DIP at 125%
+//  is taller than a 1080p screen).
 //
 //  The app icon is loaded LR_SHARED, which hands back a process-cached handle
 //  needing no DestroyIcon, so the sheet is not generic in alt-tab.
@@ -155,6 +160,10 @@ HRESULT SettingsSheet::OpenModeless (
     // No Apply button. Set BEFORE Create so OnCreate honors the hidden Apply.
     SetApplyVisible (false);
 
+    // Pages keep their design height and scroll when the window is fitted
+    // to a screen shorter than that.
+    SetDesignHeightDip (s_kSheetHeightDip);
+
     // OK stays the standard command-button width (matching Cancel) until a
     // pending reboot relabels it "OK (reboot)"; RefreshOkLabel widens it then
     // and narrows it back on revert (FR-131), so it is never wider than Cancel
@@ -164,7 +173,7 @@ HRESULT SettingsSheet::OpenModeless (
     params.hInstance                = hInstance;
     params.ownerHwnd                = ownerHwnd;
     params.initialSizeDip           = { s_kSheetWidthDip, s_kSheetHeightDip };
-    params.minSizeDip               = { s_kSheetWidthDip, s_kSheetHeightDip };
+    params.fitToWorkArea            = true;
     params.resizable                = false;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -776,6 +785,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     int                             fbH      = 0;
     const uint32_t                * fbPixels = nullptr;
     CrtUvRect                       uv       = { 0.0f, 0.0f, 1.0f, 1.0f };
+    RECT                            viewport = {};
 
 
 
@@ -785,6 +795,18 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     }
 
     request = m_themePage->TakeSceneRequest();
+
+    // This pass runs after the panel tree, outside the sheet's page clip, so
+    // a scrolled preview has to be cropped to the viewport here as well.
+    if (IsPageScrollable())
+    {
+        viewport = GetPageViewportPx();
+
+        if (IntersectRect (&request.clipPx, &request.clipPx, &viewport) == FALSE)
+        {
+            return;
+        }
+    }
 
     if (request.mode == ThemePage::PreviewSceneMode::None ||
         request.rectPx.right <= request.rectPx.left ||

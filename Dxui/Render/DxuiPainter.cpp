@@ -342,6 +342,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_viewportHeightPx = viewportHeightPx;
     m_vertices.clear();
     m_betweenBeginEnd  = true;
+    m_hasClip          = false;
 
 Error:
     return hr;
@@ -390,6 +391,72 @@ DxuiPainter::Vertex DxuiPainter::MakeVertex (uint32_t argbColor, float alphaMult
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LerpVertex
+//
+//  Every field, position included, since PushQuad overwrites the position
+//  afterward anyway.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPainter::Vertex DxuiPainter::LerpVertex (const Vertex & a, const Vertex & b, float t)
+{
+    Vertex  v;
+
+
+
+    v.x      = a.x      + (b.x      - a.x)      * t;
+    v.y      = a.y      + (b.y      - a.y)      * t;
+    v.r      = a.r      + (b.r      - a.r)      * t;
+    v.g      = a.g      + (b.g      - a.g)      * t;
+    v.b      = a.b      + (b.b      - a.b)      * t;
+    v.a      = a.a      + (b.a      - a.a)      * t;
+    v.localX = a.localX + (b.localX - a.localX) * t;
+    v.localY = a.localY + (b.localY - a.localY) * t;
+    v.shape0 = a.shape0 + (b.shape0 - a.shape0) * t;
+    v.shape1 = a.shape1 + (b.shape1 - a.shape1) * t;
+    v.shape2 = a.shape2 + (b.shape2 - a.shape2) * t;
+    v.shape3 = a.shape3 + (b.shape3 - a.shape3) * t;
+    v.kind   = a.kind;
+    v.edge0  = a.edge0  + (b.edge0  - a.edge0)  * t;
+    v.edge1  = a.edge1  + (b.edge1  - a.edge1)  * t;
+    v.edge2  = a.edge2  + (b.edge2  - a.edge2)  * t;
+    v.edge3  = a.edge3  + (b.edge3  - a.edge3)  * t;
+
+    return v;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetClipRect
+//
+//  Stored with the origin already applied, because PushQuad compares it
+//  against positions that have the origin applied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::SetClipRect (const RECT * clipPx)
+{
+    m_hasClip = (clipPx != nullptr);
+
+    if (m_hasClip)
+    {
+        m_clipPx.left   = clipPx->left   + (LONG) m_originXPx;
+        m_clipPx.top    = clipPx->top    + (LONG) m_originYPx;
+        m_clipPx.right  = clipPx->right  + (LONG) m_originXPx;
+        m_clipPx.bottom = clipPx->bottom + (LONG) m_originYPx;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NdcFromPixel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,14 +494,55 @@ void DxuiPainter::PushQuad (
     const Vertex & bottomLeft,
     const Vertex & bottomRight)
 {
-    Vertex  tl = topLeft;
-    Vertex  tr = topRight;
-    Vertex  bl = bottomLeft;
-    Vertex  br = bottomRight;
-    float   x0 = xPx + m_originXPx;
-    float   y0 = yPx + m_originYPx;
+    Vertex  tl  = topLeft;
+    Vertex  tr  = topRight;
+    Vertex  bl  = bottomLeft;
+    Vertex  br  = bottomRight;
+    float   x0  = xPx + m_originXPx;
+    float   y0  = yPx + m_originYPx;
+    float   cx0 = 0.0f;
+    float   cy0 = 0.0f;
+    float   cx1 = 0.0f;
+    float   cy1 = 0.0f;
+    float   u0  = 0.0f;
+    float   u1  = 0.0f;
+    float   v0  = 0.0f;
+    float   v1  = 0.0f;
 
 
+
+    // The clip trims the quad itself rather than discarding pixels. Every
+    // vertex attribute -- color, shape-local position, edge distances -- is
+    // affine in screen position across an axis-aligned quad, so the trimmed
+    // corners interpolate to exactly what the pixel shader would have seen
+    // there, and a clipped rounded rect keeps its curve.
+    if (m_hasClip)
+    {
+        cx0 = std::max (x0,            (float) m_clipPx.left);
+        cy0 = std::max (y0,            (float) m_clipPx.top);
+        cx1 = std::min (x0 + widthPx,  (float) m_clipPx.right);
+        cy1 = std::min (y0 + heightPx, (float) m_clipPx.bottom);
+
+        if (cx1 <= cx0 || cy1 <= cy0 || widthPx <= 0.0f || heightPx <= 0.0f)
+        {
+            return;
+        }
+
+        u0 = (cx0 - x0) / widthPx;
+        u1 = (cx1 - x0) / widthPx;
+        v0 = (cy0 - y0) / heightPx;
+        v1 = (cy1 - y0) / heightPx;
+
+        tl = LerpVertex (LerpVertex (topLeft, topRight, u0), LerpVertex (bottomLeft, bottomRight, u0), v0);
+        tr = LerpVertex (LerpVertex (topLeft, topRight, u1), LerpVertex (bottomLeft, bottomRight, u1), v0);
+        bl = LerpVertex (LerpVertex (topLeft, topRight, u0), LerpVertex (bottomLeft, bottomRight, u0), v1);
+        br = LerpVertex (LerpVertex (topLeft, topRight, u1), LerpVertex (bottomLeft, bottomRight, u1), v1);
+
+        x0       = cx0;
+        y0       = cy0;
+        widthPx  = cx1 - cx0;
+        heightPx = cy1 - cy0;
+    }
 
     // The origin is applied HERE and only here: every primitive, spans and
     // arcs included, reaches the vertex buffer through this function.

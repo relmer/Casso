@@ -265,6 +265,35 @@ void DxuiFocusManager::SetFocused (IDxuiControl * ctl)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsClippedByAncestor
+//
+//  A control scrolled out of its container's viewport keeps its bounds, so
+//  the bounds alone would let a press on the tab strip or the button row
+//  focus a page control laid out underneath it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiFocusManager::IsClippedByAncestor (const IDxuiControl * ctl, POINT pointPx)
+{
+    const IDxuiControl *  node    = (ctl != nullptr) ? ctl->GetParent() : nullptr;
+    bool                  clipped = false;
+
+
+
+    for ( ; node != nullptr && !clipped; node = node->GetParent())
+    {
+        clipped = node->IsPointClipped (pointPx);
+    }
+
+    return clipped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FocusAtPoint
 //
 //  A press gives focus to the focusable control under it, without its focus
@@ -288,7 +317,8 @@ bool DxuiFocusManager::FocusAtPoint (POINT pointDip)
         RECT  bounds = (*it)->GetBounds();
 
         if (pointDip.x >= bounds.left && pointDip.x < bounds.right &&
-            pointDip.y >= bounds.top  && pointDip.y < bounds.bottom)
+            pointDip.y >= bounds.top  && pointDip.y < bounds.bottom &&
+            !IsClippedByAncestor (*it, pointDip))
         {
             ChangeFocus (*it, false);
             return true;

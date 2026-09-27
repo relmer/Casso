@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Window/DxuiPropertySheet.h"
+#include "Window/DxuiPropertyPage.h"
 #include "Window/DxuiButtonRow.h"
 #include "Core/DxuiDpiScaler.h"
 
@@ -148,6 +149,77 @@ public:
         AssertRect (MakeRect (576, 512, 768, 568), rects[2], L"apply");
 
         Assert::AreEqual (bounds.right - 32, rects[2].right);
+    }
+
+
+    TEST_METHOD (PageScroll_OffByDefault)
+    {
+        DxuiPropertySheet  sheet;
+
+        Assert::IsFalse  (sheet.IsPageScrollable());
+        Assert::AreEqual (0, sheet.GetPageScrollPos());
+    }
+
+
+    TEST_METHOD (ClampScrollPos_KeepsWithinContent)
+    {
+        Assert::AreEqual (0,   DxuiPropertySheet::ClampScrollPos (-40, 1000, 800), L"never above the top");
+        Assert::AreEqual (120, DxuiPropertySheet::ClampScrollPos (120, 1000, 800), L"in range is unchanged");
+        Assert::AreEqual (200, DxuiPropertySheet::ClampScrollPos (900, 1000, 800), L"bottom stops at content - viewport");
+        Assert::AreEqual (0,   DxuiPropertySheet::ClampScrollPos (50,  600,  800), L"content that fits never scrolls");
+    }
+
+
+    TEST_METHOD (ScrollPosToReveal_VisibleTargetLeavesPosition)
+    {
+        RECT  viewport = MakeRect (0, 100, 700, 500);
+
+        Assert::AreEqual (60, DxuiPropertySheet::GetScrollPosToReveal (60, MakeRect (20, 200, 200, 230), viewport));
+    }
+
+
+    TEST_METHOD (ScrollPosToReveal_BelowScrollsDownByOvershoot)
+    {
+        RECT  viewport = MakeRect (0, 100, 700, 500);
+
+        // Bottom at 540 is 40 past the viewport, so scroll 40 further.
+        Assert::AreEqual (100, DxuiPropertySheet::GetScrollPosToReveal (60, MakeRect (20, 510, 200, 540), viewport));
+    }
+
+
+    TEST_METHOD (ScrollPosToReveal_AboveScrollsUpByUndershoot)
+    {
+        RECT  viewport = MakeRect (0, 100, 700, 500);
+
+        // Top at 70 is 30 above the viewport, so scroll 30 back.
+        Assert::AreEqual (30, DxuiPropertySheet::GetScrollPosToReveal (60, MakeRect (20, 70, 200, 100), viewport));
+    }
+
+
+    TEST_METHOD (ScrollPosToReveal_TallTargetShowsItsTop)
+    {
+        RECT  viewport = MakeRect (0, 100, 700, 500);
+
+        // 600 px tall in a 400 px viewport: aligning the bottom would push the
+        // top out, so the top edge is aligned instead.
+        Assert::AreEqual (80, DxuiPropertySheet::GetScrollPosToReveal (60, MakeRect (20, 120, 200, 720), viewport));
+    }
+
+
+    TEST_METHOD (PropertyPage_ClipsOnlyOutsideItsViewport)
+    {
+        DxuiPropertyPage  page (L"Page");
+        RECT              viewport = MakeRect (0, 100, 700, 500);
+
+        Assert::IsFalse (page.IsPointClipped (POINT { 10, 10 }), L"no viewport, nothing clipped");
+
+        page.SetViewport (&viewport);
+        Assert::IsTrue  (page.IsPointClipped (POINT { 10, 50 }),  L"above the viewport");
+        Assert::IsFalse (page.IsPointClipped (POINT { 10, 300 }), L"inside the viewport");
+        Assert::IsTrue  (page.IsPointClipped (POINT { 10, 500 }), L"bottom edge is exclusive");
+
+        page.SetViewport (nullptr);
+        Assert::IsFalse (page.IsPointClipped (POINT { 10, 50 }), L"cleared viewport clips nothing");
     }
 };
 
