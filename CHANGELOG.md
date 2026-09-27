@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+
+- GH #154: The Settings window now fits on screens too short for it, such as
+  1080p at 125% scale. Its pages scroll between the tabs and the OK and Cancel
+  buttons, which stay on screen.
+- The toolbar tooltips for Full screen and Copy screenshot no longer show a
+  stray "&".
+
 ## [1.28.0] - 2026-09-25: The one with Joyport/Atari joystick emulation, Siriously
 
 ### Added

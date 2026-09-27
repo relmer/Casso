@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiToolbar.h"
+#include "DxuiMenuBar.h"
 #include "Window/DxuiHwndSource.h"
 #include "Render/DxuiShadow.h"
 
@@ -624,11 +625,39 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
     if (labeled && slot.entry.command != nullptr)
     {
-        label  = slot.entry.command->GetShortText();
+        label  = GetButtonText (*slot.entry.command);
         width += iconGap + MeasureLabelPx (label.c_str(), fontPx);
     }
 
     return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetButtonText
+//
+//  A command without a short label falls back to its menu label, which marks
+//  the Alt mnemonic with '&'. The menu bar consumes that marker; a toolbar
+//  button or its tooltip has no mnemonic, so it is stripped here or it shows
+//  as a literal ampersand ("&Full screen").
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiToolbar::GetButtonText (const DxuiCommand & cmd)
+{
+    std::wstring  stripped;
+    int           mnIdx    = -1;
+    wchar_t       mnCh     = 0;
+
+
+
+    DxuiMenuBar::ParseMnemonic (cmd.GetShortText(), stripped, mnIdx, mnCh);
+
+    return stripped;
 }
 
 
@@ -920,8 +949,9 @@ const wchar_t * DxuiToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
         }
         else if (!slot.labeled)
         {
-            anchor = slot.rc;
-            tip    = cmd->label.c_str();
+            m_tipText = GetButtonText (*cmd);
+            anchor    = slot.rc;
+            tip       = m_tipText.c_str();
         }
     }
 
@@ -1401,7 +1431,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
     if (slot.labeled && cmd != nullptr)
     {
-        label = cmd->GetShortText();
+        label = GetButtonText (*cmd);
 
         if (!label.empty())
         {
