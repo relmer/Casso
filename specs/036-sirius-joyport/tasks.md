@@ -21,7 +21,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 - Existing functions are referenced by name, not line number.
 - Code style: `.github/copilot-instructions.md` (EHM, column alignment, 5/3 blank lines, `////` banners in `.cpp` with new functions spliced ahead of the banner, verb-first function names, no magic numbers, American spelling, no spec or task references in comments). Run `scripts/CheckStyle.ps1 -Mode Staged` before every commit that adds files.
 - There is no GitHub issue for this feature, so commit messages carry no `Refs` line.
-- Clean-room: never read `repos\gssquared` source. The owner's manual is the reference (research R1).
+- Clean-room: never read `repos\gssquared` source. The [owner's manual](https://mirrors.apple2.org.za/ftp.apple.asimov.net/unsorted/Sirius%20Joyport%20Manual.pdf) is the reference (research R1).
 
 ---
 

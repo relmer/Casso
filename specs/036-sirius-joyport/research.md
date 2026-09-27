@@ -3,8 +3,9 @@
 **Feature**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md)
 
 Every decision below was checked against the tree at `d185c107`. The hardware
-behavior comes from the Sirius Joyport owner's manual (archive.org
-`siriusjoyportmanual`). No GPL emulator source was read; GSSquared's prose docs
+behavior comes from the [Sirius Joyport owner's manual](https://mirrors.apple2.org.za/ftp.apple.asimov.net/unsorted/Sirius%20Joyport%20Manual.pdf),
+with a searchable [OCR copy](Sirius%20Joyport%20Manual%20%28OCR%29.pdf) kept in this
+directory (also archive.org `siriusjoyportmanual`). No GPL emulator source was read; GSSquared's prose docs
 disagree with the manual on AN0 and AN1, and the manual wins (spec Assumptions).
 
 ## R1. What the manual gives

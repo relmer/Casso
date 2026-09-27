@@ -58,7 +58,7 @@ and `RecordingGamePortSink`; Settings tests on `SettingsPanelState` and its
 costs two atomic loads and a table lookup on the CPU thread; with no Joyport the
 read path adds one null-pointer test
 
-**Constraints**: clean-room (the owner's manual only; GSSquared's source is not
+**Constraints**: clean-room (the [owner's manual](https://mirrors.apple2.org.za/ftp.apple.asimov.net/unsorted/Sirius%20Joyport%20Manual.pdf) only; GSSquared's source is not
 read); the //c's `$C058`-`$C05F` IOU behavior and the //e's DHIRES unchanged;
 detached behavior identical to today (FR-013, SC-006)
 
