@@ -75,12 +75,14 @@ public:
 
     //  Lays the page out once on a machine that can take the Joyport, with
     //  two sticks attached and the players given, editing the controller at
-    //  `edited`, and returns its reported content height.
+    //  `edited`, in a page whose right edge is `right`, and returns its
+    //  reported content height.
     static int LayOutPage (ControllersPage       & page,
                            ControllersPageState  & state,
                            const PlayerEntries   & entries = PlayerEntries(),
                            const PlayerSlots     & slots   = MakeTwoPlaying(),
-                           size_t                  edited  = 0)
+                           size_t                  edited  = 0,
+                           int                     right   = kRightPx)
     {
         DxuiDpiScaler  scaler;
 
@@ -94,7 +96,7 @@ public:
         page.SetState (&state);
 
         scaler.SetDpi (kDpi);
-        page.Layout   (RECT { kLeftPx, kTopPx, kRightPx, kBottomPx }, scaler);
+        page.Layout   (RECT { kLeftPx, kTopPx, right, kBottomPx }, scaler);
 
         return page.GetContentHeightPx();
     }
@@ -222,11 +224,34 @@ public:
     }
 
 
-    //  Both players' rows are always there, each with its mode and a note of
-    //  what the player drives. Player 1's modes start at Joystick and Player
-    //  2's at Automatic, showing Player 1's mode. There is no checkbox: Player 2's entry lists
-    //  Disabled.
-    TEST_METHOD (PlayerRows_AreBothShownWithAModeAndANote)
+    //  The shown button with the given label, or null.
+    static const DxuiButton * FindButton (const ControllersPage & page, const std::wstring & label)
+    {
+        const DxuiButton  * button = nullptr;
+        const DxuiButton  * found  = nullptr;
+        size_t              i      = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            button = dynamic_cast<const DxuiButton *> (page.GetChild (i));
+
+            if (button != nullptr && button->IsVisible() && button->GetAccessibleName() == label)
+            {
+                found = button;
+            }
+        }
+
+        return found;
+    }
+
+
+    //  Both players' rows are always there, each with its entry and its mode
+    //  and no note beside them. Player 1's modes start at Joystick and Player
+    //  2's at Automatic, showing Player 1's mode. There is no checkbox:
+    //  Player 2's entry lists Disabled.
+    TEST_METHOD (PlayerRows_AreBothShownWithAMode)
     {
         ControllersPage          page;
         ControllersPageState     state;
@@ -251,8 +276,8 @@ public:
         Assert::AreEqual (0, one->GetSelectedIndex(),                  L"Player 1 in Joystick mode");
         Assert::AreEqual (std::wstring (L"Paddle"), two->GetItems()[(size_t) two->GetSelectedIndex()], L"Player 2 in Paddle mode");
         Assert::IsNotNull (FindLabel (page, L"Player 1:"),             L"the row shows the player, not a jack");
-        Assert::IsNotNull (FindLabel (page, L"joystick 0"),            L"Player 1's note");
-        Assert::IsNotNull (FindLabel (page, L"paddle 2"),              L"Player 2's note, beside a joystick");
+        Assert::IsNull    (FindLabel (page, L"joystick 0"),            L"no note beside Player 1's row");
+        Assert::IsNull    (FindLabel (page, L"paddle 2"),              L"nor beside Player 2's");
         Assert::IsTrue    (FindWarnings (page).empty(),                L"no Joyport, no warning");
         Assert::AreEqual (size_t (2), FindCombos (page, L"Automatic").size(), L"each player's entries");
         Assert::AreEqual (std::wstring (L"Disabled"), FindCombos (page, L"Automatic")[1]->GetItems().back(), L"Player 2's entries end in Disabled");
@@ -266,10 +291,73 @@ public:
     }
 
 
-    //  Player 1 in the left jack: its note gives the jacks it drives, Player
-    //  2's list shows the left jack and cannot choose it, and Player 2, on
-    //  Paddle beside the Joyport, has a warning under its row and its
-    //  button rows disabled.
+    //  The two drop-downs of each player's row reach the right edge of the
+    //  Profile row's Delete... at the design width, and stretch with a wider
+    //  page, the entry keeping the larger share. Each shortens a label too
+    //  long for it in the middle, so its end stays visible.
+    TEST_METHOD (PlayerRows_StretchToTheProfileRowAndWithTheSheet)
+    {
+        constexpr int          kDesignRightPx = kLeftPx + 600;
+        constexpr int          kWideRightPx   = 1000;
+        ControllersPage        narrow;
+        ControllersPage        wide;
+        ControllersPageState   narrowState;
+        ControllersPageState   wideState;
+        const DxuiComboBox   * mode           = nullptr;
+        const DxuiComboBox   * entry          = nullptr;
+        const DxuiButton     * deleteButton   = nullptr;
+        int                    narrowEntry    = 0;
+
+
+
+        LayOutPage (narrow, narrowState, PlayerEntries(), PlayerSlots(), 0, kDesignRightPx);
+        LayOutPage (wide,   wideState,   PlayerEntries(), PlayerSlots(), 0, kWideRightPx);
+
+        mode         = FindCombos (narrow, L"Joystick")[0];
+        entry        = FindCombos (narrow, L"Automatic")[0];
+        deleteButton = FindButton (narrow, L"Delete...");
+        narrowEntry  = entry->GetBounds().right - entry->GetBounds().left;
+
+        Assert::IsNotNull (deleteButton);
+        Assert::AreEqual ((int) deleteButton->GetBounds().right, (int) mode->GetBounds().right, L"the mode reaches Delete...'s right edge");
+        Assert::IsTrue    (entry->GetBounds().right < mode->GetBounds().left, L"beside the entry");
+        Assert::IsTrue    (narrowEntry > mode->GetBounds().right - mode->GetBounds().left, L"the entry takes the larger share");
+        Assert::IsTrue    (entry->GetElide() == DxuiElide::Middle && mode->GetElide() == DxuiElide::Middle, L"both shorten in the middle");
+
+        mode  = FindCombos (wide, L"Joystick")[0];
+        entry = FindCombos (wide, L"Automatic")[0];
+
+        Assert::AreEqual (kWideRightPx - kPagePadPx, (int) mode->GetBounds().right, L"a wider page stretches the row to its padding");
+        Assert::IsTrue   (entry->GetBounds().right - entry->GetBounds().left > narrowEntry, L"and the entry with it");
+    }
+
+
+    //  The heading above the input picture gives what the controller in
+    //  Editing drives.
+    TEST_METHOD (Heading_GivesWhatTheEditedControllerDrives)
+    {
+        ControllersPage       first;
+        ControllersPage       second;
+        ControllersPageState  firstState;
+        ControllersPageState  secondState;
+        PlayerSlots           slots       = MakeTwoPlaying();
+
+
+
+        slots[1].target = PlayerAxisTarget::Joystick1;
+
+        LayOutPage (first,  firstState,  PlayerEntries(), slots, 0);
+        LayOutPage (second, secondState, PlayerEntries(), slots, 1);
+
+        Assert::IsNotNull (FindLabel (first,  L"Joystick 0"), L"Player 1's stick");
+        Assert::IsNotNull (FindLabel (second, L"Joystick 1"), L"Player 2's stick");
+    }
+
+
+    //  Player 1 in the left jack: Player 2's list shows the left jack and
+    //  cannot choose it, and Player 2, on Paddle beside the Joyport, is
+    //  headed by the paddle it plays as though alone, has a warning under its
+    //  row and has its button rows disabled.
     TEST_METHOD (PlayerRows_BesideTheJoyportWarnAndDisableTheButtons)
     {
         ControllersPage                        page;
@@ -286,8 +374,7 @@ public:
         warnings = FindWarnings (page);
         rows     = CountBindingRows (page);
 
-        Assert::IsNotNull (FindLabel (page, L"both jacks"), L"Player 1 alone in the Joyport drives both jacks");
-        Assert::IsNotNull (FindLabel (page, L"paddle 0"),   L"and Player 2 plays its paddle as though alone");
+        Assert::IsNotNull (FindLabel (page, L"Paddle 0"),   L"Player 2 plays its paddle as though alone");
         Assert::IsFalse   (two->IsItemEnabled (2),          L"the left jack is Player 1's");
         Assert::IsTrue    (two->IsItemEnabled (3),          L"the right jack is free");
 

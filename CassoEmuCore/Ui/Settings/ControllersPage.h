@@ -31,11 +31,10 @@ class DxuiHwndSource;
 //  forwards every edit to it; the sheet's apply pipeline commits that state on
 //  OK and reverts it on Cancel.
 //
-//      * Players            (each player's entry, its mode -- Joystick, a
-//                            Joyport jack or Paddle, and Automatic for
-//                            Player 2 -- a note of what it drives, and a
-//                            warning under a player whose buttons the Joyport
-//                            has taken)
+//      * Players            (each player's entry and its mode -- Joystick, a
+//                            Joyport jack, Paddle or Two paddles, and
+//                            Automatic for Player 2 -- and a warning under a
+//                            player whose buttons the Joyport has taken)
 //      * Controller         (DxuiComboBox: every attached controller)
 //      * Profile            (DxuiComboBox: the model's profiles, with New,
 //                            Rename and Delete)
@@ -207,15 +206,13 @@ private:
     IDxuiTextRenderer                         * m_textRenderer        = nullptr;
     DxuiHwndSource                            * m_popupHost           = nullptr;
 
-    // The two players, each always shown: the entry, the mode and the note
-    // of what the player drives, and under a player whose buttons the Joyport
-    // has taken, a warning saying so. The entry and mode drop-downs carry
+    // The two players, each always shown: the entry and the mode, and under
+    // a player whose buttons the Joyport has taken, a warning saying so. The entry and mode drop-downs carry
     // what they offer, so a pick resolves to an entry or a mode rather than
     // to an index into a list that may have been rebuilt since.
     std::array<DxuiLabel, kPlayerCount>                 m_playerLabel;
     std::array<DxuiComboBox, kPlayerCount>              m_playerEntry;
     std::array<DxuiComboBox, kPlayerCount>              m_playerMode;
-    std::array<DxuiLabel, kPlayerCount>                 m_playerNote;
     std::array<DxuiInfoBanner, kPlayerCount>            m_playerWarning;
     std::array<std::vector<PlayerEntry>, kPlayerCount>  m_playerEntries;
     std::array<std::vector<PlayerMode>, kPlayerCount>   m_playerModes;

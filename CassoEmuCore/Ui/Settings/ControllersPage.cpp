@@ -22,7 +22,6 @@ static constexpr int  s_kButtonWidthDp          = 130;
 static constexpr int  s_kProfileButtonWidthDp   = 90;
 static constexpr int  s_kOptionWidthDp          = 110;
 static constexpr int  s_kPlayerModeWidthDp      = 170;
-static constexpr int  s_kPlayerNoteWidthDp      = 170;
 static constexpr int  s_kChildIndentDp          = 18;
 static constexpr int  s_kGapDp                  = 6;
 static constexpr int  s_kSectionGapDp           = 14;
@@ -60,8 +59,12 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_playerLabel[target]);
         Adopt (m_playerEntry[target]);
         Adopt (m_playerMode[target]);
-        Adopt (m_playerNote[target]);
         Adopt (m_playerWarning[target]);
+
+        // A description or a mode too long for its drop-down keeps its end,
+        // where two units of a model differ.
+        m_playerEntry[target].SetElide (DxuiElide::Middle);
+        m_playerMode[target].SetElide  (DxuiElide::Middle);
 
         m_playerWarning[target].SetSeverity (DxuiInfoBanner::Severity::Info);
         m_playerWarning[target].SetVisible  (false);
@@ -413,10 +416,13 @@ IDxuiTextRenderer * ControllersPage::GetMeasuringRenderer() const
 //  reported last, after the page is fully laid out, since the sheet may lay
 //  the page out again in response.
 //
-//  Each player's row is its entry, its mode and a note of what the player
-//  drives, with a warning under it while the Joyport has taken the player's
-//  buttons. Both rows are always there: Player 2's Disabled entry is how
-//  two-player play is turned off.
+//  Each player's row is its entry and its mode, with a warning under it
+//  while the Joyport has taken the player's buttons. Both rows are always
+//  there: Player 2's Disabled entry is how two-player play is turned off.
+//  The two drop-downs reach the right edge of the Profile row at the design
+//  width and stretch with a wider sheet, sharing the row as their design
+//  widths do. What each player drives is the heading above the input
+//  picture, for the controller in Editing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,7 +444,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  gap         = scaler.ToPx (s_kGapDp);
     int                  sectionGap  = scaler.ToPx (s_kSectionGapDp);
     int                  modeWidth   = scaler.ToPx (s_kPlayerModeWidthDp);
-    int                  noteWidth   = scaler.ToPx (s_kPlayerNoteWidthDp);
     int                  x           = rect.left + pad;
     int                  y           = rect.top  + pad;
     int                  axesX       = x + stickSize + sectionGap;
@@ -448,6 +453,11 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  playerStep  = rowH + gap;
     int                  axisWarnW   = labelWidth + rowWidth + gap + optionWidth + addWidth;
     int                  buttonWarnW = wideWidth + labelWidth + buttonWidth;
+    int                  profileEnd  = x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2 + profileBtnW;
+    int                  rowsEnd     = std::max (profileEnd, (int) rect.right - pad);
+    int                  rowsWidth   = rowsEnd - (x + labelWidth) - gap;
+    int                  entryWidth  = rowsWidth * rowWidth / (rowWidth + modeWidth);
+    int                  modeX       = x + labelWidth + entryWidth + gap;
     bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool                 isJoyport   = IsJoyportMode();
     size_t               target      = 0;
@@ -465,19 +475,17 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     // The players lead the page, since who is playing decides what
     // everything below edits. A player whose buttons the Joyport has taken
-    // has a warning under its row, as wide as the row's drop-downs and note.
+    // has a warning under its row, as wide as the row's drop-downs.
     for (player = 0; player < kPlayerCount; player++)
     {
-        int           modeX   = x + labelWidth + rowWidth + gap;
-        int           warnW   = rowWidth + gap + modeWidth + gap + noteWidth;
+        int           warnW   = rowsWidth + gap;
         int           warnH   = 0;
         std::wstring  warning = m_state != nullptr ? m_state->GetButtonsCutNotice (player) : std::wstring();
 
         m_playerLabel[player].SetRect (MakeRect (x, y, labelWidth, rowH));
         m_playerLabel[player].SetText (player == 0 ? L"Player 1:" : L"Player 2:");
-        m_playerEntry[player].SetRect (MakeRect (x + labelWidth, y, rowWidth, rowH));
-        m_playerMode[player].SetRect  (MakeRect (modeX, y, modeWidth, rowH));
-        m_playerNote[player].SetRect  (MakeRect (modeX + modeWidth + gap, y, noteWidth, rowH));
+        m_playerEntry[player].SetRect (MakeRect (x + labelWidth, y, entryWidth, rowH));
+        m_playerMode[player].SetRect  (MakeRect (modeX, y, rowsEnd - modeX, rowH));
 
         y += playerStep;
 
@@ -529,14 +537,13 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_deleteProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2, y, profileBtnW, rowH));
     y += rowH + sectionGap;
 
-    // With the Joyport attached the heading gives the jack this controller
-    // drives, and the stick's square shows the switches it closes instead.
+    // The heading gives what this controller drives: its joystick, paddle,
+    // paddles or Joyport jack. In a jack the stick's square shows the
+    // switches it closes instead.
     m_isJoyportShown = isJoyport;
 
     m_joystickHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
-    m_joystickHeading.SetText (isJoyport && m_state != nullptr
-                                   ? ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack())
-                                   : std::wstring (L"Joystick"));
+    m_joystickHeading.SetText (m_state != nullptr ? m_state->GetEditedHeading() : std::wstring (L"Joystick"));
     y += rowH;
 
     stickTop   = y;
@@ -692,7 +699,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_playerLabel[player].SetDpi (dpi);
         m_playerEntry[player].SetDpi (dpi);
         m_playerMode[player].SetDpi  (dpi);
-        m_playerNote[player].SetDpi  (dpi);
     }
 
     m_controllerLabel.SetDpi (dpi);
@@ -957,7 +963,7 @@ void ControllersPage::PollSwitchLights (const GamePortContribution * reading)
 
     BAIL_OUT_IF (!isShowing, S_OK);
 
-    m_joystickHeading.SetText (ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack()));
+    m_joystickHeading.SetText (m_state->GetEditedHeading());
 
     m_switchView.SetActive   (reading != nullptr);
     m_switchView.SetSwitches (reading != nullptr ? reading->switches : JoystickSwitches());
@@ -1822,9 +1828,9 @@ void ControllersPage::RefreshPlayers()
         m_playerMode[player].SetItems        (modeItems);
         m_playerMode[player].SetItemsEnabled (modeEnabled);
         m_playerMode[player].SetSelected     (selectedMode);
-
-        m_playerNote[player].SetText (m_state->GetPlayerNote (player));
     }
+
+    m_joystickHeading.SetText (m_state->GetEditedHeading());
 }
 
 

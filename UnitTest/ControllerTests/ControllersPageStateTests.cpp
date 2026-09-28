@@ -1763,68 +1763,65 @@ namespace ControllerTests
         }
 
 
-        //  The note beside each player's row: the joystick or paddle its mode
-        //  gives it, nothing on a machine without it, the paddles the mouse
-        //  drives, the jacks of a player in the Joyport, and no note for
-        //  Player 2 Disabled.
-        TEST_METHOD (PlayerNote_SaysWhatThePlayerDrives)
+        //  The heading above the input picture, for the controller in
+        //  Editing: the joystick, paddle or paddles its player's mode gives
+        //  it, the jack or jacks of a player in the Joyport, and a sentence
+        //  saying so where this machine has none of what the mode gives.
+        TEST_METHOD (EditedHeading_SaysWhatTheControllerDrives)
         {
             ControllersPageState  page;
             ControllerDeviceInfo  first  = MakeStick ("{A}");
             ControllerDeviceInfo  second = MakeStick ("{B}");
             PlayerEntries         entries;
 
+            auto  getHeading = [&page] (size_t index)
+            {
+                page.SelectController (index);
+                return page.GetEditedHeading();
+            };
+
 
 
             page.Load ({ first, second }, {}, {}, true);
 
             SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Joystick, PlayerMode::Joystick);
-            Assert::AreEqual (std::wstring (L"joystick 0"), page.GetPlayerNote (0));
-            Assert::AreEqual (std::wstring (L"joystick 1"), page.GetPlayerNote (1));
+            Assert::AreEqual (std::wstring (L"Joystick 0"), getHeading (0));
+            Assert::AreEqual (std::wstring (L"Joystick 1"), getHeading (1));
 
             SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Joystick, PlayerMode::Paddle);
-            Assert::AreEqual (std::wstring (L"paddle 2"), page.GetPlayerNote (1), L"a paddle beside a joystick");
+            Assert::AreEqual (std::wstring (L"Paddle 2"), getHeading (1), L"a paddle beside a joystick");
 
             SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Paddle, PlayerMode::Paddle);
-            Assert::AreEqual (std::wstring (L"paddle 0"), page.GetPlayerNote (0));
-            Assert::AreEqual (std::wstring (L"paddle 1"), page.GetPlayerNote (1), L"a paddle beside a paddle");
+            Assert::AreEqual (std::wstring (L"Paddle 0"), getHeading (0));
+            Assert::AreEqual (std::wstring (L"Paddle 1"), getHeading (1), L"a paddle beside a paddle");
+
+            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::TwoPaddles, PlayerMode::TwoPaddles);
+            Assert::AreEqual (std::wstring (L"Paddles 0 and 1"), getHeading (0));
+            Assert::AreEqual (std::wstring (L"Paddles 2 and 3"), getHeading (1));
 
             SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Joystick, PlayerMode::Joystick, 2);
-            Assert::AreEqual (std::wstring (L"nothing on this machine"), page.GetPlayerNote (1), L"a second joystick on the //c");
+            Assert::AreEqual (std::wstring (L"Not used on this machine"), getHeading (1), L"a second joystick on the //c");
 
-            entries[0].kind = PlayerEntryKind::MousePaddle;
-            entries[1].kind = PlayerEntryKind::Disabled;
-            page.SetPlayers (entries, PlayerSlots(), 4);
-            Assert::AreEqual (std::wstring (L"paddles 0 and 1"), page.GetPlayerNote (0), L"the mouse drives both of Player 1's paddles");
-            Assert::AreEqual (std::wstring(),                    page.GetPlayerNote (1), L"and Disabled drives nothing");
-
-            entries[1].kind = PlayerEntryKind::Automatic;
-            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
-            Assert::AreEqual (std::wstring (L"paddle 0"), page.GetPlayerNote (0), L"while Player 2 plays, the mouse drives paddle 0 alone");
-
-            entries[0]      = PlayerEntry();
             entries[0].mode = PlayerMode::JoyportLeft;
             entries[1].kind = PlayerEntryKind::Disabled;
             entries[1].mode = PlayerMode::SameAsPlayer1;
             page.SetJoyportAvailable (true);
             page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
-            Assert::AreEqual (std::wstring (L"both jacks"), page.GetPlayerNote (0), L"with Player 2 Disabled, Player 1 drives both jacks");
+            Assert::AreEqual (std::wstring (L"Atari joystick: both jacks"), getHeading (0), L"with Player 2 Disabled, Player 1 drives both jacks");
 
             entries[1].kind = PlayerEntryKind::Automatic;
             page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
-            Assert::AreEqual (std::wstring (L"left jack"),  page.GetPlayerNote (0));
-            Assert::AreEqual (std::wstring (L"right jack"), page.GetPlayerNote (1), L"Same as Player 1 is the other jack");
+            Assert::AreEqual (std::wstring (L"Atari joystick: left jack"),  getHeading (0));
+            Assert::AreEqual (std::wstring (L"Atari joystick: right jack"), getHeading (1), L"Same as Player 1 is the other jack");
 
             entries[1].mode = PlayerMode::Joystick;
             page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
-            Assert::AreEqual (std::wstring (L"both jacks"), page.GetPlayerNote (0), L"the right jack is free");
-            Assert::AreEqual (std::wstring (L"joystick 0"), page.GetPlayerNote (1), L"beside the Joyport a joystick plays as though alone");
+            Assert::AreEqual (std::wstring (L"Joystick 0"), getHeading (1), L"beside the Joyport a joystick plays as though alone");
 
-            entries[1].mode = PlayerMode::Paddle;
+            entries[1].mode = PlayerMode::TwoPaddles;
             page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
-            Assert::AreEqual (std::wstring (L"paddle 0"), page.GetPlayerNote (1), L"and a paddle too");
+            Assert::AreEqual (std::wstring (L"Paddles 0 and 1"), getHeading (1), L"and two paddles too");
         }
-
 
         TEST_METHOD (MultiplayerRows_AreNamedByThePaddleThePlayerDrives)
         {

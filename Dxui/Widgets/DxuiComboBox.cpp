@@ -937,6 +937,12 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         textWidth = 0;
     }
 
+    if (m_elide != DxuiElide::None && !label.empty())
+    {
+        label = DxuiTextElide::ToWidth (text, label, fontDip, s_kFontFamily,
+                                        (float) textWidth - GetGlyphIndent (fontDip), m_elide);
+    }
+
     painter.FillRoundedRect ((float) m_boundsDip.left,
                              (float) m_boundsDip.top,
                              (float) (m_boundsDip.right - m_boundsDip.left),
@@ -987,6 +993,46 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                     focusThick,
                                     c.focus);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFitWidthPx
+//
+//  The closed box's inset, the widest item as measured, the glyph column
+//  when there are glyphs, the same inset again as the gap before the arrow,
+//  and the arrow with its margin. A measure that fails counts as nothing,
+//  which leaves the box no wider than its chrome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiComboBox::GetFitWidthPx (IDxuiTextRenderer & text) const
+{
+    HRESULT  hr        = S_OK;
+    float    fontPx    = m_scaler.ToPxf (s_kFontDip);
+    float    widest    = 0.0f;
+    float    width     = 0.0f;
+    float    height    = 0.0f;
+    float    inset     = (float) m_scaler.ToPx (s_kTextInsetDip);
+    float    arrow     = (float) (m_scaler.ToPx (s_kChevronWidthDip) + m_scaler.ToPx (s_kChevronRightDip));
+
+
+
+    for (const std::wstring & item : m_items)
+    {
+        hr = text.MeasureString (item.c_str(), fontPx, s_kFontFamily, width, height);
+
+        if (SUCCEEDED (hr))
+        {
+            widest = (std::max) (widest, width);
+        }
+    }
+
+    return inset + GetGlyphIndent (fontPx) + widest + inset + arrow;
 }
 
 

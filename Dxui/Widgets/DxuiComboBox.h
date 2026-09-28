@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiTextElide.h"
 
 
 class DxuiHwndSource;
@@ -35,6 +36,16 @@ public:
     // SetItems clears the flags, so set them after the items.
     void  SetItemsEnabled (const std::vector<bool> & enabled);
     bool  IsItemEnabled   (int index) const;
+
+    // How the closed box fits a selected item too long for it: None, the
+    // default, draws it whole and lets it run under the arrow; Middle keeps
+    // both ends, so the end of a long label stays visible.
+    void       SetElide  (DxuiElide mode) { m_elide = mode; }
+    DxuiElide  GetElide  () const         { return m_elide; }
+
+    // The width in pixels the closed box needs to show its longest item
+    // whole beside the arrow, measured with `text`.
+    float      GetFitWidthPx (IDxuiTextRenderer & text) const;
     void  SetSelected (int index);
     void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
     void  SetFocused  (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
@@ -160,6 +171,7 @@ private:
     std::vector<std::wstring>    m_items;
     std::vector<std::wstring>    m_glyphs;
     std::vector<bool>            m_itemsEnabled;
+    DxuiElide                    m_elide           = DxuiElide::None;
     SelectFn                     m_select;
     SelectFn                     m_highlightChange;
     bool                         m_open            = false;

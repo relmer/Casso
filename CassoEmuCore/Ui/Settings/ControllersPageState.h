@@ -163,13 +163,18 @@ public:
     void                   SetPlayerMode         (size_t player, PlayerMode mode);
 
     // What one player's entry and mode drop-downs list, Player 2's Disabled
-    // and Automatic among them; the note of what the player drives:
-    // "joystick 0", "paddle 1", "left jack" and the like; and the notice
-    // under a player whose buttons the Joyport has taken, empty otherwise.
+    // and Automatic among them, and the notice under a player whose buttons
+    // the Joyport has taken, empty otherwise.
     std::vector<InputModeRules::PlayerChoice>      GetEntryChoices     (size_t player) const;
     std::vector<InputModeRules::PlayerModeChoice>  GetModeChoices      (size_t player) const;
-    std::wstring                                   GetPlayerNote       (size_t player) const;
     std::wstring                                   GetButtonsCutNotice (size_t player) const;
+
+    // The heading above the input picture: what the controller in Editing
+    // drives, "Joystick 0", "Paddle 1", "Paddles 2 and 3", "Atari joystick:
+    // left jack" and the like, or a sentence saying it drives nothing here.
+    std::wstring                                   GetEditedHeading    () const;
+
+    static constexpr const wchar_t *  kpszNotUsedHeading = L"Not used on this machine";
 
     // Whether the controller in Editing plays for a player in a Joyport
     // jack, and whether the Joyport has taken its player's buttons.
@@ -354,6 +359,7 @@ private:
     static constexpr size_t  kPaddlesPerJoystick = 2;
 
     JoyportJack                          GetPlayerJack      (size_t player) const;
+    std::wstring                         GetPlayerHeading   (size_t player) const;
     static std::wstring                  GetJoyportJackNote (JoyportJack jack);
 
     static std::vector<AxisBinding> *    FindAxisList    (ControlMapping & mapping, PaddleTarget target);

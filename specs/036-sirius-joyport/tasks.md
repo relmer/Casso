@@ -424,7 +424,7 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 
 - [X] T146 Update `spec.md` (Session 2026-09-28; FR-009, FR-019, FR-021, FR-022), `data-model.md` and `contracts/prefs-and-ui.md` for Two paddles
 - [X] T147 [P] [US4] Tests first: `PlayerModeRulesTests::AreButtonsCut_ForAPlayerBesideTheJoyport` (Two paddles beside Joyport left loses its buttons), `PlayerSlotPolicyTests::Modes_BesideTheJoyportAPlayerPlaysAsThoughAlone` (Two paddles beside the Joyport on paddles 0 and 1 with no button line); then implement with spec 034's T204
-- [ ] T148 [US5] The Controllers page's note column removed; the heading keeps "Atari joystick: left jack", "right jack" and "both jacks" for a Joyport player (FR-019); with spec 034's T206-T207
+- [X] T148 [US5] The Controllers page's note column removed; the heading keeps "Atari joystick: left jack", "right jack" and "both jacks" for a Joyport player (FR-019); with spec 034's T206-T207
 ---
 
 ## Dependencies and Execution Order

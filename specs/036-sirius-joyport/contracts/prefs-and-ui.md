@@ -339,9 +339,12 @@ picker row, the commands and the Controllers page's Joyport section above.
   disabled item, through `DxuiComboBox`'s new per-item enabled flags
   (disabled items drawn in the disabled text color, skipped by the keyboard,
   not committed by a click).
-- The note beside each row gives what the player drives: "left jack", "right
-  jack", "both jacks", "joystick 0", "joystick 1", "paddle 0", "paddle 1" and
-  so on.
+- (Superseded 2026-09-28, later: the notes beside the rows are removed, and
+  the rows' two drop-downs stretch to the Profile row's right edge.) The
+  heading above the input picture, ControllersPageState::GetEditedHeading,
+  gives what the controller in Editing drives: "Atari joystick: left jack",
+  ": right jack" or ": both jacks" on the Joyport, and otherwise "Joystick 0",
+  "Paddle 1", "Paddles 2 and 3" or "Not used on this machine".
 - A player with `AreButtonsCut` has its button binding rows disabled, and
   under its row Dxui's warning badge with "This controller's buttons are
   disabled because Player N is using the Joyport.", N being the other player.

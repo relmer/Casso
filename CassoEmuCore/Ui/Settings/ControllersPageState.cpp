@@ -923,67 +923,101 @@ bool ControllersPageState::AreEditedButtonsCut() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetPlayerNote
+//  GetEditedHeading
 //
-//  What a player drives, for the note beside its row: its Joyport jack or
-//  jacks for a player in one, and otherwise the joystick or paddle its place
-//  on the game port is wired to, or nothing where this machine does not have
-//  it. The mouse as paddle drives both of Player 1's paddles, or paddle 0
-//  alone while Player 2 plays, and a player who is Disabled drives nothing,
-//  so has no note.
+//  The heading above the input picture: what the controller in Editing
+//  drives, by its player's place on the game port. A controller no player
+//  holds is headed by the kind of profile the page edits for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ControllersPageState::GetPlayerNote (size_t player) const
+std::wstring ControllersPageState::GetEditedHeading() const
+{
+    std::optional<size_t>  player = FindHoldingPlayer();
+    std::wstring           heading;
+
+
+
+    if (player.has_value())
+    {
+        return GetPlayerHeading (player.value());
+    }
+
+    switch (m_profileMode)
+    {
+        case ProfileMode::Paddle:    heading = L"Paddle";                               break;
+        case ProfileMode::Joyport:   heading = GetJoyportHeading (JoyportJack::None);   break;
+
+        case ProfileMode::Joystick:
+        default:                     heading = L"Joystick";                             break;
+    }
+
+    return heading;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlayerHeading
+//
+//  What a player drives: its Joyport jack or jacks for a player in one, and
+//  otherwise the joystick, paddle or pair of paddles its place on the game
+//  port is wired to, numbered as the machine's own software numbers them.
+//  A player whose place this machine does not have drives nothing, and the
+//  heading says so.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetPlayerHeading (size_t player) const
 {
     PlayerTargetRules::Route  route;
-    std::optional<size_t>     first;
-    size_t                    count = 0;
-    size_t                    i     = 0;
+    std::vector<size_t>       paddles;
+    PlayerMode                mode    = PlayerMode::Joystick;
 
 
 
-    if (player >= kPlayerCount || m_entries[player].kind == PlayerEntryKind::Disabled)
+    if (player >= kPlayerCount)
     {
         return std::wstring();
     }
 
     if (PlayerModeRules::IsOnJoyport (m_entries, player, m_hasJoyport))
     {
-        return GetJoyportJackNote (GetPlayerJack (player));
-    }
-
-    if (m_entries[player].kind == PlayerEntryKind::MousePaddle)
-    {
-        return PlayerSlotPolicy::IsDrivingSlot (m_slots[kPlayerTwo]) ? L"paddle 0" : L"paddles 0 and 1";
+        return GetJoyportHeading (GetPlayerJack (player));
     }
 
     route = PlayerSlotPolicy::GetPlayerRoute (m_slots, m_entries, player, m_axisCount, m_hasJoyport);
 
-    for (i = 0; i < route.paddles.size(); i++)
+    for (const std::optional<size_t> & paddle : route.paddles)
     {
-        if (!route.paddles[i].has_value())
+        if (paddle.has_value())
         {
-            continue;
+            paddles.push_back (paddle.value());
         }
-
-        first = first.has_value() ? first : route.paddles[i];
-        count++;
     }
 
-    if (!first.has_value())
+    if (paddles.empty())
     {
-        return L"nothing on this machine";
+        return kpszNotUsedHeading;
     }
 
-    if (count == 1)
+    mode = PlayerModeRules::ResolveMode (m_entries, player, m_hasJoyport);
+
+    if (mode == PlayerMode::TwoPaddles && paddles.size() >= kPaddlesPerJoystick)
     {
-        return std::format (L"paddle {}", first.value());
+        return std::format (L"Paddles {} and {}", paddles[0], paddles[1]);
     }
 
-    return std::format (L"joystick {}", first.value() / kPaddlesPerJoystick);
+    if (paddles.size() == 1 || PlayerModeRules::IsPaddleMode (mode))
+    {
+        return std::format (L"Paddle {}", paddles[0]);
+    }
+
+    return std::format (L"Joystick {}", paddles[0] / kPaddlesPerJoystick);
 }
-
 
 
 
