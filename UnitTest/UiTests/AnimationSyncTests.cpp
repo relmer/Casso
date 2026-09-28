@@ -2,6 +2,8 @@
 
 #include "CppUnitTest.h"
 
+#include "Ui/DriveWidgetController.h"
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -91,27 +93,28 @@ public:
 
     TEST_METHOD (DriveSyncBroker_PublishAndConsumeWithinFrame)
     {
-        DxuiAnimation                          anim;
-        DxuiDriveSyncBrokerEvent               visual;
-        DxuiDriveSyncBrokerEvent               audio;
-        std::vector<DxuiDriveSyncBrokerEvent>  events;
+        using SyncAction = DriveWidgetController::SyncAction;
 
-        visual.driveIndex  = 0;
-        visual.tag         = 1;
-        visual.frameTimeMs = 42;
-        audio.driveIndex   = 0;
-        audio.tag          = 2;
-        audio.frameTimeMs  = 42;
+        DriveWidgetController                               controller;
+        std::vector<DriveWidgetController::DriveSyncEvent>  events;
+        uint64_t                                            openId  = 0;
+        uint64_t                                            closeId = 0;
 
-        anim.PublishSyncEvent (visual);
-        anim.PublishSyncEvent (audio);
 
-        events = anim.ConsumePendingEvents();
+
+        openId  = controller.PublishSyncEvent (0, SyncAction::DoorOpen,  42);
+        closeId = controller.PublishSyncEvent (0, SyncAction::DoorClose, 42);
+
+        events = controller.ConsumeSyncEvents();
 
         Assert::AreEqual ((size_t) 2, events.size());
-        Assert::AreEqual (visual.frameTimeMs, events[0].frameTimeMs);
-        Assert::AreEqual (audio.frameTimeMs,  events[1].frameTimeMs);
-        Assert::IsTrue   (anim.ConsumePendingEvents().empty());
+        Assert::AreNotEqual (openId, closeId);
+        Assert::AreEqual (openId,  events[0].eventId);
+        Assert::AreEqual (closeId, events[1].eventId);
+        Assert::IsTrue   (events[0].action == SyncAction::DoorOpen);
+        Assert::IsTrue   (events[1].action == SyncAction::DoorClose);
+        Assert::AreEqual ((int64_t) 42, events[1].timestampMs);
+        Assert::IsTrue   (controller.ConsumeSyncEvents().empty());
     }
 
 
