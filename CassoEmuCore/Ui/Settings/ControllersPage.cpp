@@ -1829,7 +1829,6 @@ void ControllersPage::ApplyPlayerEntry (size_t player, const PlayerEntry & entry
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FollowPlayerOne

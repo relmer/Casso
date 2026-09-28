@@ -720,8 +720,8 @@ namespace ControllerTests
         //  A profile saved before profiles had three kinds carries no kind,
         //  or "joyport". One that binds PDL0 and not PDL1, as the Paddles
         //  starting point made them, becomes a Paddle profile; the rest become
-        //  Joystick profiles; and a Joyport profile stays one. A kind this
-        //  build does not know is read the same way, and the profile is kept.
+        //  Joystick profiles; and a Joyport profile stays one. An
+        //  unrecognized kind is read the same way, and the profile is kept.
         TEST_METHOD (ProfileMode_AbsentOrUnknownIsClassifiedByTheMappingAndKeepsTheProfile)
         {
             ControllerProfileStore    store;
@@ -1434,8 +1434,7 @@ namespace ControllerTests
         //  Each player's mode is saved under `mode`. A player saved before
         //  players had modes carries the paddles its slot mapped to, under
         //  `maps`, and a single paddle there reads as Paddle mode; a player
-        //  with neither, or a mode this build does not know, is in Joystick
-        //  mode. The keys play in Joystick mode and the mouse in Paddle mode,
+        //  with neither, or with an unrecognized mode, is in Joystick mode. The keys play in Joystick mode and the mouse in Paddle mode,
         //  whatever the file holds.
         TEST_METHOD (Players_TheModeIsSavedAndALegacyTargetReadsAsIt)
         {

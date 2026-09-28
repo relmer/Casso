@@ -702,7 +702,6 @@ std::optional<ControllerUnitKey> ControllersPageState::GetPlayerUnit (size_t pla
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PickPlayerEntry
@@ -1126,7 +1125,6 @@ std::wstring ControllersPageState::GetJoyportPositionLabel (bool isAtariMode)
 {
     return isAtariMode ? L"Atari (front)" : L"Apple (rear)";
 }
-
 
 
 

@@ -125,8 +125,8 @@ std::wstring InputModeRules::DescribeUnit (
 //  A player whose words give an idle text reads it instead while on
 //  Automatic with no controller playing, a holder that has not given input
 //  included. A controller or Automatic in Paddle mode is marked "(paddle)";
-//  Joystick mode is what a player is unless it says otherwise, and the keys
-//  and the mouse are a joystick and a paddle already.
+//  Joystick mode is the default and takes no mark, and the keys and the
+//  mouse are a joystick and a paddle already.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

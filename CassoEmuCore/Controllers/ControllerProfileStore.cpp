@@ -1485,8 +1485,8 @@ void ControllerProfileStore::ReadPlayers (
 //  TryReadPlayer
 //
 //  One player's entry and its mode. False when the entry cannot be played by
-//  this player; the mode is read first, so it survives that. A mode this
-//  build does not know is Joystick. A player saved before players had modes
+//  this player; the mode is read first, so it survives that. An
+//  unrecognized mode is Joystick. A player saved before players had modes
 //  carries the paddles its slot mapped to instead, under `maps`, and a
 //  single paddle there reads as Paddle mode.
 //

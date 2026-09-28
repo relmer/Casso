@@ -138,7 +138,6 @@ MultiplayerSetup::AxisSet ControllerSelectionPolicy::GetTargetAxes (
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindPlayer
@@ -213,7 +212,6 @@ MultiplayerSetup ControllerSelectionPolicy::Normalize (MultiplayerSetup setup)
 
     return setup;
 }
-
 
 
 
