@@ -126,6 +126,7 @@ struct IDCompositionVisual;
 #include "Core/DxuiPanZoom.h"
 #include "Core/DxuiViewport.h"
 #include "Core/DxuiFocusManager.h"
+#include "Core/DxuiUnicodeSymbols.h"
 
 // ComPtr alias needed by Render/* headers below. Defined in the
 // umbrella so any consumer including Dxui.h (typically via their

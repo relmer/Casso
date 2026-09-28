@@ -231,7 +231,7 @@
     <ClInclude Include="Core\DxuiSystemSettings.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
     <ClInclude Include="Core\DxuiThread.h" />
-    <ClInclude Include="Core\UnicodeSymbols.h" />
+    <ClInclude Include="Core\DxuiUnicodeSymbols.h" />
     <ClInclude Include="Core\DxuiViewport.h" />
     <ClInclude Include="Core\IDxuiControl.h" />
     <ClInclude Include="Core\IDxuiLayout.h" />

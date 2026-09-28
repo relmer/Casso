@@ -5,7 +5,6 @@
 #include "Core/DxuiSystemSettings.h"
 #include "Window/DxuiHwndSource.h"
 
-#include "Core/UnicodeSymbols.h"
 
 
 

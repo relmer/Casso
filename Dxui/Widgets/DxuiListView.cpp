@@ -3,7 +3,7 @@
 
 #include "DxuiListView.h"
 
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 
 

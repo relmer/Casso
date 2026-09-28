@@ -466,6 +466,7 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\AppleSingleCodec.h" />
     <ClInclude Include="Core\MemoryDevice.h" />
+    <ClInclude Include="Core\UnicodeSymbols.h" />
     <ClInclude Include="Core\ComponentRegistry.h" />
     <ClInclude Include="Core\CpuFactory.h" />
     <ClInclude Include="Core\Cpu65C02.h" />
