@@ -116,7 +116,7 @@
 #include <hidclass.h>
 #include <dbt.h>
 
-#include "../CassoCore/Ehm.h"
+#include "../Ehm/Ehm.h"
 
 //
 //  Dxui's public umbrella header, and the only way its headers are meant to be

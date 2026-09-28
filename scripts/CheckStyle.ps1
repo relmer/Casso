@@ -190,7 +190,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = '(?<!_)\bgoto\s+Error'
         Message = 'bare goto Error -- use an EHM macro (CHR / CBR / CWRA / ...)'
-        Exclude = @('CassoCore/Ehm.h', 'CassoCore/Ehm.cpp', 'UnitTest/EhmTestHelper.h', 'UnitTest/EhmTestHelper.cpp')
+        Exclude = @('Ehm/Ehm.h', 'Ehm/Ehm.cpp', 'UnitTest/EhmTestHelper.h', 'UnitTest/EhmTestHelper.cpp')
     },
     @{
         # Producing S_FALSE overloads the return with a second, private
@@ -202,7 +202,7 @@ $checks = @(
         Globs    = @('*.cpp', '*.h')
         Pattern  = '\breturn\s+S_FALSE\b|(?<![=!<>])=\s*S_FALSE\b|,\s*S_FALSE\s*\)'
         Message  = 'producing S_FALSE -- use an explicit status enum/out-param, or mark the line // EHM-ALLOW-SFALSE: <reason>'
-        Exclude  = @('CassoCore/Ehm.h')
+        Exclude  = @('Ehm/Ehm.h')
         Suppress = 'EHM-ALLOW-SFALSE'
     },
     @{
@@ -216,7 +216,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = 'CB[RW]?A?F?Ex\s*\(.*,\s*E_FAIL\s*[,)]'
         Message = 'redundant -Ex: that is the family default, so use the base macro'
-        Exclude = @('CassoCore/Ehm.h')
+        Exclude = @('Ehm/Ehm.h')
     },
     @{
         Id      = 'CS0007'
@@ -257,7 +257,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = '#include\s*"(?:\.\./)*(?:CassoCore/)?Ehm\.h"'
         Message = 'Ehm.h comes from Pch.h -- do not include it directly'
-        Exclude = @('CassoCore/Ehm.cpp', 'Pch.h')
+        Exclude = @('Ehm/Ehm.cpp', 'Pch.h')
     },
     @{
         # IGNORE_RETURN_VALUE (result, replacement) overwrites an already-
@@ -275,7 +275,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = 'IGNORE_RETURN_VALUE\s*\(\s*\w+\s*,\s*([^)]*\(|$)'
         Message = 'call inside IGNORE_RETURN_VALUE -- capture the result first, then IGNORE_RETURN_VALUE (result, S_OK)'
-        Exclude = @('CassoCore/Ehm.h')
+        Exclude = @('Ehm/Ehm.h')
     }
 )
 
@@ -707,7 +707,7 @@ function Test-EhmConditionCalls
     {
         if ($rel -notlike '*.cpp' -and $rel -notlike '*.h') { continue }
         if ($rel -like '*External/*')                       { continue }
-        if ($rel -like '*CassoCore/Ehm.h')                  { continue }
+        if ($rel -like '*Ehm/Ehm.h')                  { continue }
 
         $full = Join-Path $repoRoot $rel
         if (-not (Test-Path -LiteralPath $full)) { continue }

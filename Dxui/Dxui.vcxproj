@@ -367,6 +367,11 @@
       <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ehm\Ehm.vcxproj">
+      <Project>{5E1D2C3B-7A49-4F08-B6E1-2C8D9A0F4E71}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
