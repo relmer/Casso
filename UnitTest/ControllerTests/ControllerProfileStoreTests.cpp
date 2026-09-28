@@ -1118,6 +1118,21 @@ namespace ControllerTests
         }
 
 
+        //  The Joyport reads neither PB1 nor PB2, so nothing is put on them.
+        TEST_METHOD (JoyportMapping_BindsNothingToPb1OrPb2)
+        {
+            ControlMapping  xbox  = DefaultMapping::MakeJoyport (Xbox(),  ControllerFormFactor::Gamepad, XInputSampleDecoder::ListControls());
+            ControlMapping  stick = DefaultMapping::MakeJoyport (Stick(), ControllerFormFactor::Joystick, XInputSampleDecoder::ListControls());
+
+
+
+            Assert::IsTrue (xbox.pb1.empty(),  L"B is not left on PB1");
+            Assert::IsTrue (xbox.pb2.empty());
+            Assert::IsTrue (stick.pb1.empty());
+            Assert::IsTrue (stick.pb2.empty());
+        }
+
+
         //  A trigger rests at one end of its travel, so on no kind of
         //  controller does one steer: an Xbox controller's triggers only fire.
         TEST_METHOD (JoyportMapping_NoTriggerEverSteers)

@@ -135,7 +135,8 @@ ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, co
 //  An Xbox-class controller fires with A, B, X, Y, both bumpers and both
 //  triggers, leaving out Back, Start and the stick clicks, which are pressed
 //  by accident while steering. Any other controller fires with every button.
-//  B stays on PB1 as it is in the Default.
+//  Nothing is on PB1 or PB2: the Joyport reads neither, so a button left there
+//  would do nothing and would show as assigned twice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,6 +192,8 @@ ControlMapping DefaultMapping::MakeJoyport (
     }
 
     mapping.pb0.clear();
+    mapping.pb1.clear();
+    mapping.pb2.clear();
 
     for (const ControlId & control : controls)
     {

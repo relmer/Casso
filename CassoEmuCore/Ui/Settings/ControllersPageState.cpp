@@ -2490,9 +2490,12 @@ std::wstring ControllersPageState::GetStartingPointLabel (ProfileSource source)
 //
 //  ListControlUses
 //
-//  Every control on every target of the edited mapping, in the page's row
-//  order: PDL0, PDL1, PB0, PB1, then PB2 on a machine that has it. A D-pad
-//  pair on an axis row counts as both of its directions.
+//  Every control on every target of the edited mapping that the page shows,
+//  in the page's row order: PDL0, PDL1, PB0, PB1, then PB2 on a machine that
+//  has it. A target out of play for the controller in Editing -- PB1 and PB2
+//  in a Joyport jack, say -- keeps its bindings but is left out, so a control
+//  there is not reported as shared. A D-pad pair on an axis row counts as
+//  both of its directions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2536,6 +2539,8 @@ std::vector<std::pair<ControlId, PaddleTarget>> ControllersPageState::ListContro
     {
         addButtons (mapping.pb2, PaddleTarget::Pb2);
     }
+
+    std::erase_if (uses, [this] (const auto & use) { return !IsTargetInPlay (use.second); });
 
     return uses;
 }

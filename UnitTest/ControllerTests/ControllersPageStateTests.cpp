@@ -278,6 +278,32 @@ namespace ControllerTests
         }
 
 
+        //  In a Joyport jack PB1 is not shown and plays nothing, so a control
+        //  on fire and on PB1 is not reported. On a joystick PB1 shows, and
+        //  the same pair is.
+        TEST_METHOD (SharedControls_CountOnlyTheTargetsInPlay)
+        {
+            ControllersPageState  jack;
+            ControllersPageState  joystick;
+            ControlId             button0 = { ControlKind::Button, 0 };
+
+
+
+            jack.Load ({ MakeStick() }, {}, {}, true);
+            SetJoyportPlayer (jack, true);
+            jack.AddButtonBinding (PaddleTarget::Pb1, { button0 });   // button 0 already fires
+
+            joystick.Load ({ MakeStick() }, {}, {}, true);
+            SetJoyportPlayer (joystick, false);
+            joystick.AddButtonBinding (PaddleTarget::Pb1, { button0 });   // button 0 is already PB0
+
+            Assert::IsTrue   (jack.GetSharedControls().empty(), L"PB1 is out of play in a jack");
+            Assert::IsTrue   (jack.GetControlTargets (button0) == std::vector<PaddleTarget> { PaddleTarget::Pb0 });
+            Assert::AreEqual (size_t (1), joystick.GetSharedControls().size(), L"PB1 shows on a joystick");
+            Assert::IsTrue   (joystick.GetSharedControls()[0] == button0);
+        }
+
+
         TEST_METHOD (ControlTargets_ListEachTargetOnceInRowOrder)
         {
             ControllersPageState       page;
