@@ -493,6 +493,7 @@
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
     <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\SettingsPageEnablementTests.cpp" />
+    <ClCompile Include="UiTests\ControllersPageLayoutTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />

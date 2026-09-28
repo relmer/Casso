@@ -61,3 +61,30 @@ bool DxuiPropertyPage::IsPointClipped (POINT clientPx) const
 {
     return m_hasViewport && PtInRect (&m_viewportPx, clientPx) == FALSE;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetContentHeightPx
+//
+//  Records the height and, on a change, notifies the owning sheet so it can
+//  recompute the scroll range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertyPage::SetContentHeightPx (int heightPx)
+{
+    bool  changed = (heightPx != m_contentHeightPx);
+
+
+
+    m_contentHeightPx = heightPx;
+
+    if (changed && m_onContentHeightChanged)
+    {
+        m_onContentHeightChanged();
+    }
+}

@@ -93,7 +93,9 @@ public:
     //  window leaves). When the window is shorter than that -- fitted to a
     //  small or scaled screen -- the pages keep the height they would have
     //  had and scroll behind a viewport between the tab strip and the button
-    //  row, so OK and Cancel stay on screen. Call before Create.
+    //  row, so OK and Cancel stay on screen. Call before Create. A page whose
+    //  content runs taller than that (DxuiPropertyPage::SetContentHeightPx)
+    //  scrolls the same way, at any window height.
     //
     void  SetDesignHeightDip (int heightDip) { m_designHeightDip = heightDip; }
     bool  IsPageScrollable   () const { return m_scrollable; }
@@ -171,9 +173,13 @@ private:
     int   PageIndexOfTab      (int tabIndex) const;
     void  BuildTabList        (std::vector<DxuiTabStrip::Tab> & out) const;
 
-    void                LayoutPages       (const RECT & pageAreaPx, const DxuiDpiScaler & scaler);
-    DxuiPropertyPage *  FindOwningPage    (const IDxuiControl * ctl) const;
-    bool                IsPage            (const IDxuiControl * ctl) const;
+    void                LayoutPages                (const RECT & pageAreaPx, const DxuiDpiScaler & scaler);
+    void                PlacePages                 (const DxuiDpiScaler & scaler);
+    void                UpdateScrollRange          ();
+    void                ConfigureScrollbar         (const DxuiDpiScaler & scaler);
+    void                OnPageContentHeightChanged (const DxuiPropertyPage * page);
+    DxuiPropertyPage *  FindOwningPage             (const IDxuiControl * ctl) const;
+    bool                IsPage                     (const IDxuiControl * ctl) const;
 
     DxuiTabStrip *                   m_tabs   = nullptr;
     DxuiButton   *                   m_ok     = nullptr;
@@ -196,11 +202,15 @@ private:
 
     // Page scrolling (see SetDesignHeightDip). The viewport is where the
     // pages show; they are laid out m_scrollPosPx above it, at full height.
-    int                              m_designHeightDip = 0;
-    bool                             m_scrollable      = false;
-    int                              m_scrollPosPx     = 0;
-    int                              m_contentPx       = 0;
-    RECT                             m_pageAreaPx      = {};
-    RECT                             m_viewportPx      = {};
+    // m_designContentPx is the height every page gets at the design size;
+    // m_contentPx is the active page's, which is taller when its content is.
+    int                              m_designHeightDip   = 0;
+    bool                             m_scrollable        = false;
+    int                              m_scrollPosPx       = 0;
+    int                              m_designContentPx   = 0;
+    int                              m_contentPx         = 0;
+    bool                             m_isLayingOutPages  = false;
+    RECT                             m_pageAreaPx        = {};
+    RECT                             m_viewportPx        = {};
     DxuiScrollbar                    m_scrollbar;
 };

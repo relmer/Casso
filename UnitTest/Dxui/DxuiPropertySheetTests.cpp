@@ -221,6 +221,146 @@ public:
         page.SetViewport (nullptr);
         Assert::IsFalse (page.IsPointClipped (POINT { 10, 50 }), L"cleared viewport clips nothing");
     }
+
+
+    //
+    //  A page that reports a fixed content height, and a sheet laid out with
+    //  no window, so the scroll range is driven only by what the page
+    //  reports. With no window there is no design-height deficit.
+    //
+    class TallPage : public DxuiPropertyPage
+    {
+    public:
+        TallPage (std::wstring title, int heightPx) : DxuiPropertyPage (std::move (title)), m_heightPx (heightPx) {}
+
+        void  Layout (const RECT & rect, const DxuiDpiScaler & scaler) override
+        {
+            UNREFERENCED_PARAMETER (scaler);
+
+            DxuiPanel::SetBounds (rect);
+            SetContentHeightPx   (m_heightPx);
+        }
+
+        // The page's rows came or went after layout.
+        void  Resize (int heightPx)
+        {
+            m_heightPx = heightPx;
+            SetContentHeightPx (heightPx);
+        }
+
+    private:
+        int  m_heightPx = 0;
+    };
+
+
+    class ScrollSheet : public DxuiPropertySheet
+    {
+    public:
+        static constexpr int  kWidthPx  = 600;
+        static constexpr int  kHeightPx = 400;
+
+        TallPage *  AddPage (int heightPx) { return CreatePage<TallPage> (L"Page", heightPx); }
+
+        void  LayOut()
+        {
+            DxuiDpiScaler  scaler;
+
+            scaler.SetDpi (kScrollTestDpi);
+            Layout (MakeRect (0, 0, kWidthPx, kHeightPx), scaler);
+        }
+
+        // The page area inside the viewport's padding.
+        int  GetAreaTop() const    { return GetPageViewportPx().top    + DxuiButtonRow::kEdgePadDip; }
+        int  GetAreaBottom() const { return GetPageViewportPx().bottom - DxuiButtonRow::kEdgePadDip; }
+    };
+
+    static constexpr UINT  kScrollTestDpi = 96;
+    static constexpr int   kShortPagePx   = 100;
+    static constexpr int   kTallPagePx    = 1000;
+    static constexpr int   kFarDownPx     = 100000;
+    static constexpr int   kOverhangPx    = 50;
+
+
+    TEST_METHOD (PageScroll_ContentThatFitsDoesNotScroll)
+    {
+        ScrollSheet  sheet;
+
+
+
+        sheet.AddPage (kShortPagePx);
+        sheet.LayOut();
+
+        Assert::IsFalse  (sheet.IsPageScrollable());
+        Assert::AreEqual (0, sheet.GetPageScrollPos());
+    }
+
+
+    TEST_METHOD (PageScroll_TallContentScrollsToRevealItsLastRow)
+    {
+        ScrollSheet  sheet;
+        TallPage   * page  = sheet.AddPage (kTallPagePx);
+        int          viewH = 0;
+
+
+
+        sheet.LayOut();
+        viewH = sheet.GetAreaBottom() - sheet.GetAreaTop();
+
+        Assert::IsTrue (sheet.IsPageScrollable(), L"a page taller than the viewport scrolls with no window height deficit");
+        Assert::IsTrue (page->HasViewport(),      L"and is clipped to the viewport from its first layout");
+
+        sheet.SetPageScrollPos (kFarDownPx);
+
+        Assert::AreEqual (kTallPagePx - viewH, sheet.GetPageScrollPos(), L"the bottom stops at the page's content height");
+        Assert::AreEqual (sheet.GetAreaBottom(), (int) page->GetBounds().top + kTallPagePx, L"the last row sits at the bottom of the viewport");
+    }
+
+
+    TEST_METHOD (PageScroll_FollowsContentHeightChangedAfterLayout)
+    {
+        ScrollSheet  sheet;
+        TallPage   * page  = sheet.AddPage (kShortPagePx);
+        int          viewH = 0;
+
+
+
+        sheet.LayOut();
+        viewH = sheet.GetAreaBottom() - sheet.GetAreaTop();
+        Assert::IsFalse (sheet.IsPageScrollable());
+
+        page->Resize (kTallPagePx);
+        Assert::IsTrue (sheet.IsPageScrollable(), L"rows added after layout extend the range");
+
+        sheet.SetPageScrollPos (kFarDownPx);
+        page->Resize (viewH + kOverhangPx);
+
+        Assert::AreEqual (kOverhangPx, sheet.GetPageScrollPos(), L"rows removed pull the position back into range");
+        Assert::AreEqual (sheet.GetAreaTop() - kOverhangPx, (int) page->GetBounds().top, L"and the page is placed at the new position");
+
+        page->Resize (kShortPagePx);
+        Assert::IsFalse  (sheet.IsPageScrollable(), L"content that fits again stops scrolling");
+        Assert::AreEqual (sheet.GetAreaTop(), (int) page->GetBounds().top);
+    }
+
+
+    TEST_METHOD (PageScroll_RangeIsTheActivePages)
+    {
+        ScrollSheet  sheet;
+
+
+
+        sheet.AddPage (kShortPagePx);
+        sheet.AddPage (kTallPagePx);
+        sheet.LayOut();
+
+        Assert::IsFalse (sheet.IsPageScrollable(), L"the short page is showing");
+
+        sheet.SetActivePage (1);
+        Assert::IsTrue (sheet.IsPageScrollable(), L"the tall page scrolls");
+
+        sheet.SetActivePage (0);
+        Assert::IsFalse (sheet.IsPageScrollable(), L"back on the short page");
+    }
 };
 
 

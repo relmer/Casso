@@ -58,11 +58,24 @@ public:
     RECT  GetViewport    () const { return m_viewportPx; }
     bool  IsPointClipped (POINT clientPx) const override;
 
+    //
+    //  How tall the page's content is, in pixels from the top of the rect it
+    //  was laid out in, or 0 for a page that fits whatever rect it is given.
+    //  The sheet scrolls a page whose content runs past the viewport, and
+    //  takes a change reported after layout -- rows added or sliding -- as a
+    //  change to the scroll range.
+    //
+    void  SetContentHeightPx        (int heightPx);
+    int   GetContentHeightPx        () const { return m_contentHeightPx; }
+    void  SetOnContentHeightChanged (std::function<void()> fn) { m_onContentHeightChanged = std::move (fn); }
+
 
 protected:
     std::wstring           m_title;
-    bool                   m_dirty       = false;
+    bool                   m_dirty           = false;
     std::function<void()>  m_onDirtyChanged;
-    bool                   m_hasViewport = false;
-    RECT                   m_viewportPx  = {};
+    bool                   m_hasViewport     = false;
+    RECT                   m_viewportPx      = {};
+    int                    m_contentHeightPx = 0;
+    std::function<void()>  m_onContentHeightChanged;
 };

@@ -380,6 +380,12 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 //  a target's rows moves with them; Relayout reruns this with the last
 //  rectangle whenever they change.
 //
+//  The page is taller than the sheet has room for once the Joyport and the
+//  players sit above the rest, so it reports its content height -- down to
+//  Reset profile and the page padding under it -- and the sheet scrolls it.
+//  The height is reported last, after the page is fully laid out, since the
+//  sheet may lay the page out again in response.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
@@ -407,6 +413,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     axesX       = x + stickSize + sectionGap;
     int     stickTop    = 0;
     int     axesBottom  = 0;
+    int     contentH    = 0;
     int     playerStep  = rowH + gap;
     bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool    isTwoShown  = m_state == nullptr || m_state->IsMultiplayerChecked();
@@ -670,6 +677,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_reset.SetLabel (L"Reset profile");
     m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
+    contentH = y + rowH + pad - rect.top;
 
     m_joyportHeading.SetDpi   (dpi);
     m_multiplayerCheck.SetDpi (dpi);
@@ -724,6 +732,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     Refresh();
 
     DxuiPanel::SetBounds (rect);
+    SetContentHeightPx   (contentH);
 }
 
 

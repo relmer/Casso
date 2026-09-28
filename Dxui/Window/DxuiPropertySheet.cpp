@@ -130,7 +130,8 @@ void DxuiPropertySheet::OnCancel()
 //  RegisterPage
 //
 //  Records a page (added via CreatePage), starts it hidden except the
-//  first, and routes its dirty notifications to the Apply button.
+//  first, routes its dirty notifications to the Apply button, and its
+//  content-height changes to the scroll range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,8 +143,9 @@ void DxuiPropertySheet::RegisterPage (DxuiPropertyPage * page)
 
     CBRA (page != nullptr);
 
-    page->SetVisible        (m_pages.empty());
-    page->SetOnDirtyChanged ([this] () { RefreshApplyEnabled(); });
+    page->SetVisible                (m_pages.empty());
+    page->SetOnDirtyChanged         ([this] () { RefreshApplyEnabled(); });
+    page->SetOnContentHeightChanged ([this, page] () { OnPageContentHeightChanged (page); });
     m_pages.push_back (page);
     m_present.push_back (true);
 
@@ -202,8 +204,15 @@ void DxuiPropertySheet::SetActivePage (int index)
     m_pages[(size_t) index]->OnActivated();
 
     // Every page opens at its top. The pages share one scroll position, and
-    // the previous page's offset means nothing on this one.
-    SetPageScrollPos (0);
+    // the previous page's offset means nothing on this one; the scroll range
+    // is this page's own, since one page's content can be taller than
+    // another's.
+    m_scrollPosPx = 0;
+
+    if (m_haveLayout)
+    {
+        LayoutPages (m_pageAreaPx, m_lastScaler);
+    }
 
     //  THE TAB ORDER IS A SNAPSHOT AND HAS JUST GONE STALE.
     //
@@ -717,19 +726,23 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 //  viewport spans the page insets as well as the page, so a control near an
 //  edge keeps its focus rectangle; the scrollbar takes the right-hand inset.
 //
+//  A page that reports a content height taller than that is given its own
+//  height and scrolls the same way. A page learns its height only by being
+//  laid out, so when the first pass changes the scroll range, the pages are
+//  placed a second time at the corrected position.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPropertySheet::LayoutPages (const RECT & pageAreaPx, const DxuiDpiScaler & scaler)
 {
-    int             pad      = scaler.ToPx (s_kContentPadDip);
-    int             barW     = scaler.ToPx (s_kScrollbarWidthDip);
-    int             barInset = scaler.ToPx (s_kScrollbarInsetDip);
-    int             viewH    = pageAreaPx.bottom - pageAreaPx.top;
-    int             deficit  = 0;
-    RECT            client   = {};
-    RECT            pageRect = pageAreaPx;
-    DxuiScrollInfo  info;
-    size_t          i        = 0;
+    int   pad        = scaler.ToPx (s_kContentPadDip);
+    int   barW       = scaler.ToPx (s_kScrollbarWidthDip);
+    int   barInset   = scaler.ToPx (s_kScrollbarInsetDip);
+    int   viewH      = pageAreaPx.bottom - pageAreaPx.top;
+    int   deficit    = 0;
+    int   placedPos  = 0;
+    bool  wasScroll  = false;
+    RECT  client     = {};
 
 
 
@@ -740,23 +753,110 @@ void DxuiPropertySheet::LayoutPages (const RECT & pageAreaPx, const DxuiDpiScale
         deficit = scaler.ToPx (m_designHeightDip) - (client.bottom - client.top);
     }
 
-    m_scrollable = (deficit > 0);
-    m_contentPx  = viewH + std::max (deficit, 0);
-    m_viewportPx = { m_lastBoundsPx.left,
-                     pageAreaPx.top    - pad,
-                     m_lastBoundsPx.right - barW - barInset,
-                     pageAreaPx.bottom + pad };
+    m_designContentPx = viewH + std::max (deficit, 0);
+    m_viewportPx      = { m_lastBoundsPx.left,
+                          pageAreaPx.top    - pad,
+                          m_lastBoundsPx.right - barW - barInset,
+                          pageAreaPx.bottom + pad };
 
-    m_scrollPosPx = m_scrollable ? ClampScrollPos (m_scrollPosPx, m_contentPx, viewH) : 0;
+    m_isLayingOutPages = true;
 
-    pageRect.top    = pageAreaPx.top - m_scrollPosPx;
-    pageRect.bottom = pageRect.top   + m_contentPx;
+    UpdateScrollRange();
+    placedPos = m_scrollPosPx;
+    wasScroll = m_scrollable;
+    PlacePages (scaler);
+
+    UpdateScrollRange();
+
+    if (m_scrollPosPx != placedPos || m_scrollable != wasScroll)
+    {
+        PlacePages (scaler);
+    }
+
+    m_isLayingOutPages = false;
+
+    ConfigureScrollbar (scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlacePages
+//
+//  Lays every page out at the current scroll position, each at the design
+//  content height or its own content height, whichever is taller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::PlacePages (const DxuiDpiScaler & scaler)
+{
+    RECT    pageRect = m_pageAreaPx;
+    size_t  i        = 0;
+
+
+
+    pageRect.top = m_pageAreaPx.top - m_scrollPosPx;
 
     for (i = 0; i < m_pages.size(); ++i)
     {
+        pageRect.bottom = pageRect.top + std::max (m_designContentPx, m_pages[i]->GetContentHeightPx());
+
         m_pages[i]->SetViewport (m_scrollable ? &m_viewportPx : nullptr);
         m_pages[i]->Layout      (pageRect, scaler);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateScrollRange
+//
+//  The range is the active page's: the design content height, or the page's
+//  own when that is taller. The position is clamped to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::UpdateScrollRange()
+{
+    int  viewH    = m_pageAreaPx.bottom - m_pageAreaPx.top;
+    int  activePx = 0;
+
+
+
+    if (m_active >= 0 && m_active < (int) m_pages.size())
+    {
+        activePx = m_pages[(size_t) m_active]->GetContentHeightPx();
+    }
+
+    m_contentPx   = std::max (m_designContentPx, activePx);
+    m_scrollable  = (m_contentPx > viewH);
+    m_scrollPosPx = m_scrollable ? ClampScrollPos (m_scrollPosPx, m_contentPx, viewH) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigureScrollbar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::ConfigureScrollbar (const DxuiDpiScaler & scaler)
+{
+    int             barW     = scaler.ToPx (s_kScrollbarWidthDip);
+    int             barInset = scaler.ToPx (s_kScrollbarInsetDip);
+    int             viewH    = m_pageAreaPx.bottom - m_pageAreaPx.top;
+    DxuiScrollInfo  info;
+
+
 
     m_scrollbar.Configure (DxuiScrollbar::Orientation::Vertical, barW, s_kScrollMinThumbPx,
                            scaler.ToPx (s_kScrollLineDip));
@@ -769,6 +869,46 @@ void DxuiPropertySheet::LayoutPages (const RECT & pageAreaPx, const DxuiDpiScale
     info.nPage = (UINT) viewH;
     info.nPos  = m_scrollPosPx;
     m_scrollbar.SetScrollInfo (info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPageContentHeightChanged
+//
+//  The active page grew or shrank outside a sheet layout: rows added, or a
+//  section sliding open. The scroll range follows, and the pages are placed
+//  again only when that moved the scroll position or turned scrolling on or
+//  off. A change reported from inside LayoutPages is picked up there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::OnPageContentHeightChanged (const DxuiPropertyPage * page)
+{
+    int   oldPos    = m_scrollPosPx;
+    bool  wasScroll = m_scrollable;
+
+
+
+    if (m_isLayingOutPages || !m_haveLayout || IndexOfPage (page) != m_active)
+    {
+        return;
+    }
+
+    UpdateScrollRange();
+
+    if (m_scrollPosPx != oldPos || m_scrollable != wasScroll)
+    {
+        m_isLayingOutPages = true;
+        PlacePages (m_lastScaler);
+        m_isLayingOutPages = false;
+    }
+
+    ConfigureScrollbar (m_lastScaler);
+    Invalidate();
 }
 
 
