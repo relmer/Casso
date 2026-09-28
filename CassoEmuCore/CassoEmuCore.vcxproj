@@ -110,7 +110,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -124,7 +124,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -136,7 +136,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -150,7 +150,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -162,7 +162,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -176,7 +176,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -393,7 +393,6 @@
     <ClCompile Include="Ui\Settings\ScreenshotsPage.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
-    <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
     <ClCompile Include="Ui\Dialogs\KeyboardMapText.cpp" />
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
     <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
@@ -467,6 +466,7 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\AppleSingleCodec.h" />
     <ClInclude Include="Core\MemoryDevice.h" />
+    <ClInclude Include="Core\UnicodeSymbols.h" />
     <ClInclude Include="Core\ComponentRegistry.h" />
     <ClInclude Include="Core\CpuFactory.h" />
     <ClInclude Include="Core\Cpu65C02.h" />
@@ -682,7 +682,6 @@
     <ClInclude Include="Print\PrinterWorker.h" />
     <ClInclude Include="Print\PrintJobStore.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
-    <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialogs\KeyboardMapText.h" />
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
     <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
@@ -789,6 +788,9 @@
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Ehm\Ehm.vcxproj">
+      <Project>{5E1D2C3B-7A49-4F08-B6E1-2C8D9A0F4E71}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
       <Project>{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}</Project>
     </ProjectReference>

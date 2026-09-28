@@ -17,7 +17,6 @@
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "Window/DxuiMessageBox.h"
 
 #pragma comment(lib, "ole32.lib")
 

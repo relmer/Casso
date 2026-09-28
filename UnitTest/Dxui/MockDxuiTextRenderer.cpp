@@ -298,6 +298,30 @@ HRESULT MockDxuiTextRenderer::MeasureStringWrapped (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DrawFramebuffer
+//
+//  No-op for tests, like DrawIconBitmap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::DrawFramebuffer (
+    const uint32_t * /*srcBgraPixels*/,
+    int              /*srcWidthPx*/,
+    int              /*srcHeightPx*/,
+    float            /*destXDip*/,
+    float            /*destYDip*/,
+    float            /*destWidthDip*/,
+    float            /*destHeightDip*/)
+{
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DrawIconBitmap
 //
 //  No-op for tests: paint paths in this phase don't exercise icon

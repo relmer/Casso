@@ -745,6 +745,7 @@ private:
     void     DispatchNcUpToTrackedButton (LPARAM lp);
     void     HandleDpiChanged          (WPARAM wp, LPARAM lp);
     void     HandleSize                (WPARAM wp, LPARAM lp);
+    void     HandleSettingChange       ();
     void     HandleThemeChange         ();
     void     MaybeRelayoutRoot         (const RECT & clientPx);
     DxuiPanel *  GetRootPanel             () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }

@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+
+- Changes to the Windows animation, menu delay, keyboard cue, and mouse-wheel
+  settings now take effect in a running Casso instead of at its next start.
+
 ## [1.28.1] - 2026-09-27: The one with less crashing
 
 ### Added

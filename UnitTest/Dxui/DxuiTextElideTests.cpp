@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiTextElide.h"
 #include "MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
