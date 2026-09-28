@@ -361,6 +361,145 @@ public:
         sheet.SetActivePage (0);
         Assert::IsFalse (sheet.IsPageScrollable(), L"back on the short page");
     }
+
+    //
+    //  A page that reports a fixed content width and height.
+    //
+    class ExtentPage : public DxuiPropertyPage
+    {
+    public:
+        ExtentPage (std::wstring title, int widthPx, int heightPx) : DxuiPropertyPage (std::move (title)), m_widthPx (widthPx), m_heightPx (heightPx) {}
+
+        void  Layout (const RECT & rect, const DxuiDpiScaler & scaler) override
+        {
+            UNREFERENCED_PARAMETER (scaler);
+
+            DxuiPanel::SetBounds (rect);
+            SetContentWidthPx    (m_widthPx);
+            SetContentHeightPx   (m_heightPx);
+        }
+
+    private:
+        int  m_widthPx  = 0;
+        int  m_heightPx = 0;
+    };
+
+
+    class ExtentSheet : public ScrollSheet
+    {
+    public:
+        ExtentPage *  AddExtentPage (int widthPx, int heightPx) { return CreatePage<ExtentPage> (L"Page", widthPx, heightPx); }
+    };
+
+
+    static constexpr int  kNarrowPx  = 300;
+    static constexpr int  kWidePx    = 650;
+    static constexpr int  kCaptionPx = 32;
+    static constexpr int  kGrowthPx  = 70;
+
+
+    //  Content larger by some amount makes the maximum larger by exactly that
+    //  much, and a caption adds its own height.
+    TEST_METHOD (MaxClientSize_GrowsWithTheContentAndTheCaption)
+    {
+        DxuiDpiScaler  scaler;
+        SIZE           base;
+        SIZE           grown;
+        SIZE           captioned;
+
+
+
+        scaler.SetDpi (kScrollTestDpi);
+
+        base      = DxuiPropertySheet::ComputeMaxClientSizePx (SIZE {}, SIZE { kNarrowPx, kShortPagePx }, 0, scaler);
+        grown     = DxuiPropertySheet::ComputeMaxClientSizePx (SIZE {}, SIZE { kNarrowPx + kGrowthPx, kShortPagePx + kGrowthPx }, 0, scaler);
+        captioned = DxuiPropertySheet::ComputeMaxClientSizePx (SIZE {}, SIZE { kNarrowPx, kShortPagePx }, kCaptionPx, scaler);
+
+        Assert::AreEqual (kNarrowPx + DxuiButtonRow::kEdgePadDip * 2, (int) base.cx, L"the inset on either side of the content");
+        Assert::AreEqual (base.cx + kGrowthPx, grown.cx);
+        Assert::AreEqual (base.cy + kGrowthPx, grown.cy);
+        Assert::AreEqual (base.cx,              captioned.cx);
+        Assert::AreEqual (base.cy + kCaptionPx, captioned.cy);
+    }
+
+
+    //  Content smaller than the design never brings the maximum below it.
+    TEST_METHOD (MaxClientSize_IsNeverBelowTheDesign)
+    {
+        DxuiDpiScaler  scaler;
+        SIZE           maxPx;
+        SIZE           designPx = { ScrollSheet::kWidthPx, kTallPagePx };
+
+
+
+        scaler.SetDpi (kScrollTestDpi);
+        maxPx = DxuiPropertySheet::ComputeMaxClientSizePx (designPx, SIZE { kNarrowPx, kShortPagePx }, 0, scaler);
+
+        Assert::AreEqual (designPx.cx, maxPx.cx);
+        Assert::AreEqual (designPx.cy, maxPx.cy);
+    }
+
+
+    //  The widest page sets the width and the tallest the height, even when
+    //  they are different pages and neither is active.
+    TEST_METHOD (MaxClientSize_TakesTheWidestAndTallestPages)
+    {
+        ExtentSheet    sheet;
+        DxuiDpiScaler  scaler;
+        SIZE           expected;
+        SIZE           actual;
+
+
+
+        sheet.AddExtentPage (kNarrowPx, kTallPagePx);
+        sheet.AddExtentPage (kWidePx,   kShortPagePx);
+        sheet.LayOut();
+
+        scaler.SetDpi (kScrollTestDpi);
+        expected = DxuiPropertySheet::ComputeMaxClientSizePx (SIZE {}, SIZE { kWidePx, kTallPagePx }, 0, scaler);
+        actual   = sheet.GetMaxClientSizePx();
+
+        Assert::AreEqual (expected.cx, actual.cx);
+        Assert::AreEqual (expected.cy, actual.cy);
+    }
+
+
+    //  A request from the active page scrolls just far enough to show it.
+    TEST_METHOD (PageScroll_RevealRequestBringsTheRectIntoView)
+    {
+        ScrollSheet  sheet;
+        TallPage   * page   = sheet.AddPage (kTallPagePx);
+        RECT         target = {};
+
+
+
+        sheet.LayOut();
+        target = MakeRect (0, sheet.GetAreaBottom() + kOverhangPx, kNarrowPx, sheet.GetAreaBottom() + kOverhangPx + kGrowthPx);
+
+        page->RequestReveal (target);
+
+        Assert::AreEqual ((int) (target.bottom - sheet.GetPageViewportPx().bottom), sheet.GetPageScrollPos());
+    }
+
+
+    //  Each dimension is held within its limits, and a maximum below the
+    //  minimum gives way to it.
+    TEST_METHOD (ClampSize_HoldsEachDimensionWithinItsLimits)
+    {
+        SIZE  low     = DxuiWindow::ClampSize (SIZE { 10, 10 },     SIZE { 100, 200 }, SIZE { 400, 500 });
+        SIZE  high    = DxuiWindow::ClampSize (SIZE { 900, 900 },   SIZE { 100, 200 }, SIZE { 400, 500 });
+        SIZE  inside  = DxuiWindow::ClampSize (SIZE { 300, 300 },   SIZE { 100, 200 }, SIZE { 400, 500 });
+        SIZE  crossed = DxuiWindow::ClampSize (SIZE { 900, 900 },   SIZE { 100, 200 }, SIZE { 50,  60 });
+
+        Assert::AreEqual (100L, low.cx);
+        Assert::AreEqual (200L, low.cy);
+        Assert::AreEqual (400L, high.cx);
+        Assert::AreEqual (500L, high.cy);
+        Assert::AreEqual (300L, inside.cx);
+        Assert::AreEqual (300L, inside.cy);
+        Assert::AreEqual (100L, crossed.cx);
+        Assert::AreEqual (200L, crossed.cy);
+    }
 };
 
 

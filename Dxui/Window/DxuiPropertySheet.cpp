@@ -1021,6 +1021,98 @@ int DxuiPropertySheet::GetScrollPosToReveal (int posPx, const RECT & targetPx, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComputeMaxClientSizePx
+//
+//  The client is the caption, the tab strip, the page inset, the content,
+//  the inset again and the button row from top to bottom, and the inset,
+//  the content and the inset across. The design size is the floor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiPropertySheet::ComputeMaxClientSizePx (
+    const SIZE           & designPx,
+    const SIZE           & contentPx,
+    int                    captionPx,
+    const DxuiDpiScaler  & scaler)
+{
+    int  pad      = scaler.ToPx (s_kContentPadDip);
+    int  tabH     = scaler.ToPx (s_kTabStripHeightDip);
+    int  rowH     = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
+    int  contentW = pad + contentPx.cx + pad;
+    int  contentH = captionPx + tabH + pad + contentPx.cy + pad + rowH;
+
+
+
+    return SIZE { std::max (designPx.cx, (LONG) contentW), std::max (designPx.cy, (LONG) contentH) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMaxClientSizePx
+//
+//  Over every page with a tab, as each was last laid out. The caption is
+//  whatever the host put above the bounds the sheet was laid out in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiPropertySheet::GetMaxClientSizePx() const
+{
+    SIZE    designPx  = {};
+    SIZE    contentPx = {};
+    size_t  i         = 0;
+
+
+
+    designPx.cx = m_designWidthDip  > 0 ? m_lastScaler.ToPx (m_designWidthDip)  : 0;
+    designPx.cy = m_designHeightDip > 0 ? m_lastScaler.ToPx (m_designHeightDip) : 0;
+
+    for (i = 0; i < m_pages.size(); ++i)
+    {
+        if (!m_present[i])
+        {
+            continue;
+        }
+
+        contentPx.cx = std::max (contentPx.cx, (LONG) m_pages[i]->GetContentWidthPx());
+        contentPx.cy = std::max (contentPx.cy, (LONG) m_pages[i]->GetContentHeightPx());
+    }
+
+    return ComputeMaxClientSizePx (designPx, contentPx, m_lastBoundsPx.top, m_lastScaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetMaxClientSizePx
+//
+//  None until the pages have been laid out and reported their extents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPropertySheet::TryGetMaxClientSizePx (SIZE & outSizePx) const
+{
+    if (!m_haveLayout)
+    {
+        return false;
+    }
+
+    outSizePx = GetMaxClientSizePx();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsPage / FindOwningPage
 //
 ////////////////////////////////////////////////////////////////////////////////

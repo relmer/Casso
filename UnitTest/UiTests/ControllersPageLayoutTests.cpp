@@ -574,6 +574,34 @@ public:
     }
 
 
+    //  The page's width reaches its rightmost control and its padding, which
+    //  is what the Settings sheet sizes its largest window to.
+    TEST_METHOD (ContentWidth_ReachesTheRightmostControl)
+    {
+        ControllersPage        page;
+        ControllersPageState   state;
+        const IDxuiControl   * child = nullptr;
+        int                    right = 0;
+        size_t                 i     = 0;
+
+
+
+        LayOutPage (page, state);
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            child = page.GetChild (i);
+
+            if (child != nullptr && child->IsVisible())
+            {
+                right = std::max (right, (int) child->GetBounds().right);
+            }
+        }
+
+        Assert::IsTrue   (right > kLeftPx, L"the page shows controls");
+        Assert::AreEqual (right + kPagePadPx - kLeftPx, page.GetContentWidthPx());
+    }
+
     //  Whether a banner sits below one row label and above the next.
     static bool IsBetweenLabels (const DxuiInfoBanner  & banner,
                                  const ControllersPage & page,

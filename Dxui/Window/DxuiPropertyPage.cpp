@@ -106,3 +106,65 @@ void DxuiPropertyPage::RequestReveal (const RECT & rectPx)
         m_onRevealRequested (rectPx);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLowestChildBottomPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPropertyPage::GetLowestChildBottomPx() const
+{
+    const IDxuiControl  * child  = nullptr;
+    int                   lowest = 0;
+    size_t                i      = 0;
+
+
+
+    for (i = 0; i < GetChildCount(); ++i)
+    {
+        child = GetChild (i);
+
+        if (child != nullptr && child->IsVisible())
+        {
+            lowest = std::max (lowest, (int) child->GetBounds().bottom);
+        }
+    }
+
+    return lowest;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRightmostChildEdgePx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPropertyPage::GetRightmostChildEdgePx() const
+{
+    const IDxuiControl  * child = nullptr;
+    int                   right = 0;
+    size_t                i     = 0;
+
+
+
+    for (i = 0; i < GetChildCount(); ++i)
+    {
+        child = GetChild (i);
+
+        if (child != nullptr && child->IsVisible())
+        {
+            right = std::max (right, (int) child->GetBounds().right);
+        }
+    }
+
+    return right;
+}

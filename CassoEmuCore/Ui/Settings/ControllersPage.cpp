@@ -736,6 +736,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     Refresh();
 
     DxuiPanel::SetBounds (rect);
+    SetContentWidthPx    (GetRightmostChildEdgePx() + pad - rect.left);
     SetContentHeightPx   (contentH);
 }
 

@@ -787,7 +787,8 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
 //  OnGetMinMax
 //
 //  Clamps the OS minimum track size to the configured minimum client
-//  size scaled to the current DPI. Borderless, so client size and
+//  size scaled to the current DPI, and the maximum to what the subclass
+//  reports, never below the minimum. Borderless, so client size and
 //  window size coincide.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -796,17 +797,97 @@ DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 {
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
     UINT               dpi    = GetDpi();
+    SIZE               maxPx  = {};
 
 
 
-    if (info != nullptr && (m_minSizeDip.cx > 0 || m_minSizeDip.cy > 0))
+    if (info == nullptr)
+    {
+        return result;
+    }
+
+    if (m_minSizeDip.cx > 0 || m_minSizeDip.cy > 0)
     {
         info->ptMinTrackSize.x = MulDiv (m_minSizeDip.cx, (int) dpi, USER_DEFAULT_SCREEN_DPI);
         info->ptMinTrackSize.y = MulDiv (m_minSizeDip.cy, (int) dpi, USER_DEFAULT_SCREEN_DPI);
         result = DxuiMessageResult::Handled;
     }
 
+    if (TryGetMaxClientSizePx (maxPx))
+    {
+        info->ptMaxTrackSize.x = std::max (maxPx.cx, info->ptMinTrackSize.x);
+        info->ptMaxTrackSize.y = std::max (maxPx.cy, info->ptMinTrackSize.y);
+        result = DxuiMessageResult::Handled;
+    }
+
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClampSize
+//
+//  Each dimension held within [minSize, maxSize]. A maximum below the
+//  minimum gives way to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiWindow::ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize)
+{
+    return SIZE { std::clamp (size.cx, minSize.cx, std::max (maxSize.cx, minSize.cx)),
+                  std::clamp (size.cy, minSize.cy, std::max (maxSize.cy, minSize.cy)) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShrinkToMaxSize
+//
+//  A window larger than its maximum -- opened at a size remembered from
+//  content that has since shrunk -- is brought down to it, keeping its top
+//  left corner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::ShrinkToMaxSize()
+{
+    HRESULT  hr      = S_OK;
+    HWND     hwnd    = GetHwnd();
+    RECT     rect    = {};
+    SIZE     maxPx   = {};
+    SIZE     sizePx  = {};
+    SIZE     clamped = {};
+    bool     hasMax  = false;
+    bool     isOver  = false;
+    BOOL     done    = FALSE;
+
+
+
+    CBRA (hwnd != nullptr);
+
+    hasMax = TryGetMaxClientSizePx (maxPx);
+    BAIL_OUT_IF (!hasMax, S_OK);
+
+    done = GetWindowRect (hwnd, &rect);
+    CWRA (done);
+
+    sizePx  = SIZE { rect.right - rect.left, rect.bottom - rect.top };
+    clamped = SIZE { std::min (sizePx.cx, maxPx.cx), std::min (sizePx.cy, maxPx.cy) };
+    isOver  = clamped.cx != sizePx.cx || clamped.cy != sizePx.cy;
+    BAIL_OUT_IF (!isOver, S_OK);
+
+    done = SetWindowPos (hwnd, nullptr, 0, 0, clamped.cx, clamped.cy, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (done);
+
+Error:
+    return;
 }
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "SettingsSheet.h"
+#include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Config/GlobalUserPrefs.h"
@@ -29,6 +30,11 @@ static constexpr int    s_kSheetWidthDip     = 720;
 // one size for every page and every mode, so it is sized to the taller case.
 // With the mode off the page ends further above OK / Cancel than it used to.
 static constexpr int    s_kSheetHeightDip    = 880;   // the Controllers page in multiplayer, the tallest, ends a section gap above OK / Cancel
+// THE SMALLEST THE USER CAN MAKE IT. The pages scroll vertically below their
+// content height, so the height can come down to where a few rows still show
+// between the tab strip and OK / Cancel. They do not scroll sideways, and
+// every page is laid out for the design width, so that is the least width.
+static constexpr int    s_kSheetMinHeightDip = 480;
 
 
 
@@ -160,9 +166,12 @@ HRESULT SettingsSheet::OpenModeless (
     // No Apply button. Set BEFORE Create so OnCreate honors the hidden Apply.
     SetApplyVisible (false);
 
-    // Pages keep their design height and scroll when the window is fitted
-    // to a screen shorter than that.
-    SetDesignHeightDip (s_kSheetHeightDip);
+    // Every page but Theme reports how tall its content is, and scrolls in a
+    // window shorter than that; Theme fits whatever room it has. So there is
+    // no design height to hold the pages to, and the tallest content sets the
+    // largest the window can be made. Every page is laid out for the design
+    // width, so that is the least of the largest width.
+    SetDesignWidthDip (s_kSheetWidthDip);
 
     // OK stays the standard command-button width (matching Cancel) until a
     // pending reboot relabels it "OK (reboot)"; RefreshOkLabel widens it then
@@ -172,9 +181,13 @@ HRESULT SettingsSheet::OpenModeless (
     params.title                    = L"Settings";
     params.hInstance                = hInstance;
     params.ownerHwnd                = ownerHwnd;
-    params.initialSizeDip           = { s_kSheetWidthDip, s_kSheetHeightDip };
+    // The size the user last left it at, or the design size. The work area
+    // is applied as the window is created, and the pages' own maximum once
+    // they have been laid out.
+    params.minSizeDip               = { s_kSheetWidthDip, s_kSheetMinHeightDip };
+    params.initialSizeDip           = SettingsSheetSize::GetInitialSizeDip (prefs, { s_kSheetWidthDip, s_kSheetHeightDip }, params.minSizeDip);
     params.fitToWorkArea            = true;
-    params.resizable                = false;
+    params.resizable                = true;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
@@ -214,6 +227,9 @@ HRESULT SettingsSheet::OpenModeless (
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);
+
+    ShrinkToMaxSize();
+    m_openedSizeDip = GetSizeDip();
 
     SetTheme (&emuShell.m_chromeTheme);
 
@@ -743,6 +759,68 @@ void SettingsSheet::OnCancel()
 {
     m_apply.Cancel (m_preview);
     RevertDriveAuditionIfDirty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryStoreResizedSize
+//
+//  Only a size the user changed is remembered. One the sheet merely opened
+//  at -- the design size fitted to a small screen, say -- would otherwise
+//  pin it there on every larger screen after.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::TryStoreResizedSize()
+{
+    SIZE  sizeDip   = GetSizeDip();
+    bool  isResized = sizeDip.cx != m_openedSizeDip.cx || sizeDip.cy != m_openedSizeDip.cy;
+
+
+
+    if (m_prefs == nullptr || !isResized)
+    {
+        return false;
+    }
+
+    return SettingsSheetSize::TryStoreSizeDip (*m_prefs, sizeDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSizeDip
+//
+//  The window's size in DIPs at its current DPI, or zero before it exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE SettingsSheet::GetSizeDip() const
+{
+    HRESULT  hr     = S_OK;
+    HWND     hwnd   = GetHwnd();
+    RECT     rect   = {};
+    SIZE     result = {};
+    BOOL     gotIt  = FALSE;
+
+
+
+    CBRA (hwnd != nullptr);
+
+    gotIt = GetWindowRect (hwnd, &rect);
+    CWRA (gotIt);
+
+    result = SettingsSheetSize::PxToDip (SIZE { rect.right - rect.left, rect.bottom - rect.top }, GetDpi());
+
+Error:
+    return result;
 }
 
 

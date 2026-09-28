@@ -321,6 +321,10 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
     // Mirror the page's footprint into the IDxuiControl tree so future
     // centralized walks see this page as a panel covering `rect`.
     DxuiPanel::SetBounds (rect);
+
+    // The tree is given the rest of the page, so its rows, not its rect, are
+    // where the content ends.
+    SetContentHeightPx (treeRect.top + m_tree.GetVisibleCount() * m_tree.GetRowHeight() + pad - rect.top);
 }
 
 

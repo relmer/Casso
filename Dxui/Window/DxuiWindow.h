@@ -196,6 +196,18 @@ public:
     //  prior control drops its caret / focus cue and the new one arms.
     void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
 
+    //
+    //  Each dimension of size held within [minSize, maxSize], a maximum
+    //  below the minimum giving way to it.
+    //
+    static SIZE  ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize);
+
+    //
+    //  Shrinks the window to TryGetMaxClientSizePx when it is larger, keeping
+    //  its position. For a window opened at a remembered size.
+    //
+    void     ShrinkToMaxSize ();
+
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
 
@@ -268,6 +280,13 @@ protected:
     //  brings it into view here. Default no-op.
     //
     virtual void  OnDialogKeyHandled (IDxuiControl * focused) { UNREFERENCED_PARAMETER (focused); }
+
+    //
+    //  The largest client size the user can drag a resizable window to, in
+    //  pixels at the current DPI; false for no limit beyond the OS's. A
+    //  window whose content has a natural size reports it here. Default none.
+    //
+    virtual bool  TryGetMaxClientSizePx (SIZE & outSizePx) const { UNREFERENCED_PARAMETER (outSizePx); return false; }
 
     //
     //  Modal in-content overlay (e.g. the Settings color picker). While

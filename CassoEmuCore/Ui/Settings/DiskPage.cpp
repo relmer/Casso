@@ -256,6 +256,10 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // Mirror the page's footprint into the IDxuiControl tree so future
     // centralized walks see this page as a panel covering `rect`.
     DxuiPanel::SetBounds (rect);
+
+    // Every control here is a fixed height, so the lowest one is where the
+    // content ends, whatever the rect.
+    SetContentHeightPx (GetLowestChildBottomPx() + scaler.ToPx (s_kPagePadDp) - rect.top);
 }
 
 

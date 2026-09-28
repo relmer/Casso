@@ -87,6 +87,12 @@ public:
     //
     void    StartNewControllerProfile (const ControllerUnitKey & unit);
 
+    //
+    //  Records the sheet's size in the prefs when the user has resized it
+    //  since it opened; false when there was nothing new to record.
+    //
+    bool    TryStoreResizedSize ();
+
 protected:
     void     OnBuildPages () override;
 
@@ -230,6 +236,11 @@ private:
     // Amber "press OK to reboot" caption in the bottom bar; owned by the child
     // list (CreateChild), raw pointer for layout / text updates. Null pre-Create.
     DxuiLabel               * m_restartNotice = nullptr;
+
+    // The window's size in DIPs, and what it was when the sheet opened.
+    SIZE  GetSizeDip () const;
+
+    SIZE                      m_openedSizeDip = {};
 
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine

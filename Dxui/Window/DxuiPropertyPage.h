@@ -67,6 +67,14 @@ public:
     //
     void  SetContentHeightPx        (int heightPx);
     int   GetContentHeightPx        () const { return m_contentHeightPx; }
+
+    //
+    //  How wide the page's content is, in pixels from the left of the rect it
+    //  was laid out in, or 0 for a page that fits whatever width it is given.
+    //  With the height, this is what the sheet sizes its largest window to.
+    //
+    void  SetContentWidthPx         (int widthPx) { m_contentWidthPx = widthPx; }
+    int   GetContentWidthPx         () const { return m_contentWidthPx; }
     void  SetOnContentHeightChanged (std::function<void()> fn) { m_onContentHeightChanged = std::move (fn); }
 
     //
@@ -80,12 +88,22 @@ public:
 
 
 protected:
+    //
+    //  The lowest bottom edge and the rightmost right edge among the page's
+    //  visible children, in client pixels, or 0 when none is visible. A page
+    //  of fixed-size controls adds its padding to these to report its
+    //  content extents.
+    //
+    int  GetLowestChildBottomPx  () const;
+    int  GetRightmostChildEdgePx () const;
+
     std::wstring           m_title;
     bool                   m_dirty           = false;
     std::function<void()>  m_onDirtyChanged;
     bool                   m_hasViewport     = false;
     RECT                   m_viewportPx      = {};
     int                    m_contentHeightPx = 0;
+    int                    m_contentWidthPx  = 0;
     std::function<void()>  m_onContentHeightChanged;
     std::function<void (const RECT &)>  m_onRevealRequested;
 };

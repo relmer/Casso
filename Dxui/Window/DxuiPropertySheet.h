@@ -98,6 +98,7 @@ public:
     //  scrolls the same way, at any window height.
     //
     void  SetDesignHeightDip (int heightDip) { m_designHeightDip = heightDip; }
+    void  SetDesignWidthDip  (int widthDip)  { m_designWidthDip  = widthDip; }
     bool  IsPageScrollable   () const { return m_scrollable; }
     int   GetPageScrollPos   () const { return m_scrollPosPx; }
     RECT  GetPageViewportPx  () const { return m_viewportPx; }
@@ -112,6 +113,23 @@ public:
     //
     static int  ClampScrollPos       (int posPx, int contentPx, int viewportPx);
     static int  GetScrollPosToReveal (int posPx, const RECT & targetPx, const RECT & viewportPx);
+
+    //
+    //  The largest client size worth having: every page shown whole with no
+    //  room left over. A page reports its content extents
+    //  (DxuiPropertyPage::SetContentWidthPx / SetContentHeightPx); one that
+    //  reports none fits the design size, so that is the least either
+    //  dimension can be. The strip, the insets and the button row are added
+    //  around the widest and tallest content. GetMaxClientSizePx gives it for
+    //  the pages as last laid out, and ComputeMaxClientSizePx is the pure
+    //  rule (exposed for tests), with designPx the design client size and
+    //  captionPx the height of the caption above the sheet's bounds.
+    //
+    SIZE         GetMaxClientSizePx     () const;
+    static SIZE  ComputeMaxClientSizePx (const SIZE           & designPx,
+                                         const SIZE           & contentPx,
+                                         int                    captionPx,
+                                         const DxuiDpiScaler  & scaler);
 
 
 protected:
@@ -146,6 +164,7 @@ protected:
     void  OnCreate () override;
     bool  OnDialogTabSwitch (bool backward) override;
     void  OnDialogKeyHandled (IDxuiControl * focused) override;
+    bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
 
     //
     //  Commit hooks (Template Method). The button row calls these so a
@@ -206,6 +225,7 @@ private:
     // m_designContentPx is the height every page gets at the design size;
     // m_contentPx is the active page's, which is taller when its content is.
     int                              m_designHeightDip   = 0;
+    int                              m_designWidthDip    = 0;
     bool                             m_scrollable        = false;
     int                              m_scrollPosPx       = 0;
     int                              m_designContentPx   = 0;

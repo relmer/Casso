@@ -232,6 +232,13 @@ struct GlobalUserPrefs
     float        masterVolume             = 1.0f;   // 0 .. 1
     bool         masterMuted              = false;
 
+    // THE SETTINGS SHEET'S SIZE as the user last left it, in DIPs so it means
+    // the same on a monitor of another scale. 0 means never resized, and the
+    // sheet opens at its design size. Restored clamped to the sheet's limits
+    // and to the monitor's work area.
+    int          settingsWidthDip         = 0;
+    int          settingsHeightDip        = 0;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
