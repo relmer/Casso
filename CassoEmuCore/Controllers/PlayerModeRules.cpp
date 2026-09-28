@@ -310,12 +310,45 @@ std::wstring PlayerModeRules::GetModeLabel (PlayerMode mode)
         case PlayerMode::JoyportLeft:    label = L"Joyport left (Atari)";   break;
         case PlayerMode::JoyportRight:   label = L"Joyport right (Atari)";  break;
         case PlayerMode::Paddle:         label = L"Paddle";                 break;
-        case PlayerMode::SameAsPlayer1:  label = L"Same as Player 1";       break;
+        case PlayerMode::SameAsPlayer1:  label = L"Automatic";              break;
 
         default:                                                            break;
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetAutomaticModeLabel
+//
+//  Player 2's Automatic mode with what it resolves to: "Automatic
+//  (joystick)", "Automatic (Joyport right)", "Automatic (paddle)".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PlayerModeRules::GetAutomaticModeLabel (PlayerMode resolved)
+{
+    std::wstring  mode;
+
+
+
+    switch (resolved)
+    {
+        case PlayerMode::Joystick:      mode = L"joystick";       break;
+        case PlayerMode::JoyportLeft:   mode = L"Joyport left";   break;
+        case PlayerMode::JoyportRight:  mode = L"Joyport right";  break;
+        case PlayerMode::Paddle:        mode = L"paddle";         break;
+
+        default:                                                  break;
+    }
+
+    return mode.empty() ? GetModeLabel (PlayerMode::SameAsPlayer1)
+                        : GetModeLabel (PlayerMode::SameAsPlayer1) + L" (" + mode + L")";
 }
 
 
@@ -341,11 +374,12 @@ std::wstring PlayerModeRules::GetPlayerLabel (size_t player)
 //
 //  BuildModeChoices
 //
-//  Joystick, the two jacks and Paddle, in that order, with Same as Player 1
-//  ahead of them for Player 2. The player's own mode is checked, Same as
-//  Player 1 included, and a jack the other player holds is listed but cannot
-//  be chosen. A machine without a Joyport lists no jacks, and a jack saved
-//  earlier is checked as the Joystick it plays as there.
+//  Joystick, the two jacks and Paddle, in that order, with Automatic ahead of
+//  them for Player 2, showing the mode it resolves to. Player 1 has no
+//  Automatic. The player's own mode is checked, Automatic included, and a
+//  jack the other player holds is listed but cannot be chosen. A machine
+//  without a Joyport lists no jacks, and a jack saved earlier is checked as
+//  the Joystick it plays as there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,7 +390,8 @@ std::vector<InputModeRules::PlayerModeChoice> PlayerModeRules::BuildModeChoices 
 {
     std::vector<InputModeRules::PlayerModeChoice>  choices;
     std::vector<PlayerMode>                        modes;
-    PlayerMode                                     current = PlayerMode::Joystick;
+    PlayerEntries                                  automatic = entries;
+    PlayerMode                                     current   = PlayerMode::Joystick;
 
 
 
@@ -392,6 +427,13 @@ std::vector<InputModeRules::PlayerModeChoice> PlayerModeRules::BuildModeChoices 
         InputModeRules::PlayerModeChoice  choice;
 
         choice.label     = GetModeLabel (mode);
+
+        if (mode == PlayerMode::SameAsPlayer1)
+        {
+            automatic[player].mode = PlayerMode::SameAsPlayer1;
+            choice.label           = GetAutomaticModeLabel (ResolveMode (automatic, player, hasJoyport));
+        }
+
         choice.mode      = mode;
         choice.isChecked = mode == current;
         choice.isEnabled = !IsModeTaken (entries, player, mode, hasJoyport);

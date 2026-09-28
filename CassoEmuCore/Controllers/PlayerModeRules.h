@@ -53,6 +53,7 @@ public:
     static bool                   AreKeysOffered      (const PlayerEntries & entries, bool hasJoyport);
     static bool                   IsMouseOffered      (const PlayerEntries & entries, bool hasJoyport);
     static std::wstring           GetModeLabel        (PlayerMode mode);
+    static std::wstring           GetAutomaticModeLabel (PlayerMode resolved);
     static std::wstring           GetPlayerLabel      (size_t player);
 
     static std::vector<InputModeRules::PlayerModeChoice>  BuildModeChoices (const PlayerEntries & entries, size_t player, bool hasJoyport);

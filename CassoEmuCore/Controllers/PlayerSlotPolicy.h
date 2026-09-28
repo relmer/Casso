@@ -94,9 +94,9 @@ using PlayerEntries = std::array<PlayerEntry, MultiplayerSetup::kPlayerCount>;
 //              on the keys or the mouse
 //  Provisional Automatic's lone Player 1 before any controller has given
 //              input: it drives the port, but is not in use
-//  Waiting     a holder chosen by Automatic that has not given input, or a
-//              picked controller that is not attached
-//  Playing     picked and attached, or chosen by Automatic and used
+//  Waiting     a picked controller that is not attached
+//  Playing     picked and attached, or chosen by Automatic: by its first
+//              input, or by connecting while Casso runs
 //  Held        the holder left while the other player went on playing; kept
 //              for it, and playing nothing
 //

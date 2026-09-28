@@ -163,7 +163,7 @@ public:
     void                   SetPlayerMode         (size_t player, PlayerMode mode);
 
     // What one player's entry and mode drop-downs list, Player 2's Disabled
-    // and Same as Player 1 among them; the note of what the player drives:
+    // and Automatic among them; the note of what the player drives:
     // "joystick 0", "paddle 1", "left jack" and the like; and the notice
     // under a player whose buttons the Joyport has taken, empty otherwise.
     std::vector<InputModeRules::PlayerChoice>      GetEntryChoices     (size_t player) const;

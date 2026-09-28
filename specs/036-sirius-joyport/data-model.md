@@ -280,7 +280,7 @@ Research R27. Per-player Joyport modes replace the global setting.
 
 | Function | Returns |
 |---|---|
-| `ResolveMode (entries, player, hasJoyport)` | the mode the player plays: Same as Player 1 is Player 1's mode, or the other jack when Player 1 is on one; a jack is `Joystick` without a Joyport |
+| `ResolveMode (entries, player, hasJoyport)` | the mode the player plays: Automatic is Player 1's mode, or the other jack when Player 1 is on one; a jack is `Joystick` without a Joyport |
 | `IsJoyportMode (mode)` / `GetJack (mode)` | whether a mode is a jack, and which (0 left, 1 right) |
 | `IsOnJoyport (entries, player, hasJoyport)` | whether that player's resolved mode is a jack |
 | `IsJoyportOn (entries, hasJoyport)` | whether either player's resolved mode is a jack |
@@ -289,7 +289,7 @@ Research R27. Per-player Joyport modes replace the global setting.
 | `IsModeTaken (entries, player, mode, hasJoyport)` | whether the other player's resolved mode holds that jack; a Disabled Player 2 holds none |
 | `AreKeysOffered` / `IsMouseOffered (entries, hasJoyport)` | Player 1 in Joystick or a jack; Player 1 in Paddle |
 | `BuildModeChoices (entries, player, hasJoyport)` | the mode list with checked and enabled flags; no jacks without a Joyport |
-| `GetModeLabel (mode)` / `GetPlayerLabel (player)` | "Joystick", "Joyport left (Atari)", "Joyport right (Atari)", "Paddle", "Same as Player 1"; "Player 1", "Player 2" |
+| `GetModeLabel (mode)` / `GetPlayerLabel (player)` | "Joystick", "Joyport left (Atari)", "Joyport right (Atari)", "Paddle", "Automatic"; `GetAutomaticModeLabel (resolved)` gives Player 2's choice as "Automatic (joystick)", "Automatic (Joyport left)", "Automatic (Joyport right)" or "Automatic (paddle)"; "Player 1", "Player 2" |
 | `DescribeAssignment (player, description, jacks)` | "Player N: description", or "Player N (Joyport left): ...", "(Joyport right)", "(Joyport left and right)" |
 | `MigrateAdapter (hasSavedModes, globalToken, launchedUiPrefs, launchedHasAnnunciators)` | a `JoyportMigration { isJoyport; shouldRemoveKey; }` |
 | `ApplyMigration (entries)` | Player 1 on `JoyportLeft`, Player 2 on `SameAsPlayer1` |

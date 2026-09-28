@@ -52,8 +52,9 @@ struct PlayerSlotPolicy::Context
 //    4. with nobody left playing, Automatic starts over
 //    5. empty Automatic slots fill, in connection order when two or more
 //       controllers have arrived while Casso runs, otherwise in the order
-//       they were first used; a lone controller with nothing used yet is
-//       Player 1 at once
+//       they were first used, and are in use at once; a lone controller with
+//       nothing used yet is Player 1 at once, in use once it gives input or
+//       a second controller connects after it
 //    6. targets from the two players' modes, and a second slot that would
 //       repeat the first one's controller is refused
 //
@@ -160,7 +161,10 @@ void PlayerSlotPolicy::ResolvePicks (Context & context)
 //  EvaluateBase
 //
 //  One slot before the other is looked at. A holder that has gone is only
-//  marked here; whether its slot is held depends on the other player.
+//  marked here; whether its slot is held depends on the other player. An
+//  Automatic holder that was in use, or held, stays in use while it is
+//  attached: a controller that took its slot by connecting is in use before
+//  it has given any input, and one that returns to its held slot is back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,7 +213,7 @@ void PlayerSlotPolicy::EvaluateBase (
     {
         slot.holder = prev.holder;
 
-        if (IsLogged (context.logs.firstInput, prev.holder.value()))
+        if (wasInUse || IsLogged (context.logs.firstInput, prev.holder.value()))
         {
             slot.state = PlayerSlotState::Playing;
         }
@@ -412,8 +416,11 @@ void PlayerSlotPolicy::StartOver (PlayerSlots & slots, PlayerOrderLogs & logs)
 //  not. Otherwise the order they are first used in decides, so a stick that is
 //  always plugged in does not come ahead of the pad the user picks up.
 //
-//  A slot filled from the connection log waits for its first input before it
-//  counts as playing; one filled from the input log is playing at once.
+//  Either way a slot is in use as soon as it is filled. Waiting for a first
+//  input is for controllers that were attached at launch, whose order nothing
+//  else can tell. So a controller that connected while Casso runs is in use
+//  once the connection order applies, a lone Player 1 that was waiting for
+//  input included: turning on a second controller splits the players at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -421,8 +428,9 @@ void PlayerSlotPolicy::FillAutomatic (const Context & context, PlayerSlots & slo
 {
     std::vector<ControllerUnitKey>  connected;
     std::vector<ControllerUnitKey>  order;
-    size_t                          candidates = 0;
-    size_t                          player     = 0;
+    bool                            isConnectionOrder = false;
+    size_t                          candidates        = 0;
+    size_t                          player            = 0;
 
 
 
@@ -434,7 +442,9 @@ void PlayerSlotPolicy::FillAutomatic (const Context & context, PlayerSlots & slo
         }
     }
 
-    if (connected.size() >= kPlayerCount)
+    isConnectionOrder = connected.size() >= kPlayerCount;
+
+    if (isConnectionOrder)
     {
         order = connected;
     }
@@ -466,8 +476,20 @@ void PlayerSlotPolicy::FillAutomatic (const Context & context, PlayerSlots & slo
             }
 
             slot.holder = unit;
-            slot.state  = IsLogged (context.logs.firstInput, unit) ? PlayerSlotState::Playing : PlayerSlotState::Waiting;
+            slot.state  = PlayerSlotState::Playing;
             break;
+        }
+    }
+
+    for (player = 0; isConnectionOrder && player < kPlayerCount; player++)
+    {
+        PlayerSlot  & slot          = slots[player];
+        bool          isAutomatic   = context.entries[player].kind == PlayerEntryKind::Automatic;
+        bool          isNotYetInUse = slot.state == PlayerSlotState::Provisional || slot.state == PlayerSlotState::Waiting;
+
+        if (isAutomatic && isNotYetInUse && slot.holder.has_value() && IsLogged (connected, slot.holder.value()))
+        {
+            slot.state = PlayerSlotState::Playing;
         }
     }
 

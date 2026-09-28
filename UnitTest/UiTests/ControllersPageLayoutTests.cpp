@@ -224,7 +224,7 @@ public:
 
     //  Both players' rows are always there, each with its mode and a note of
     //  what the player drives. Player 1's modes start at Joystick and Player
-    //  2's at Same as Player 1. There is no checkbox: Player 2's entry lists
+    //  2's at Automatic, showing Player 1's mode. There is no checkbox: Player 2's entry lists
     //  Disabled.
     TEST_METHOD (PlayerRows_AreBothShownWithAModeAndANote)
     {
@@ -242,10 +242,10 @@ public:
         LayOutPage (page, state, entries, PlayerSlots());
 
         Assert::AreEqual (size_t (1), FindCombos (page, L"Joystick").size(),         L"Player 1's modes");
-        Assert::AreEqual (size_t (1), FindCombos (page, L"Same as Player 1").size(), L"Player 2's modes");
+        Assert::AreEqual (size_t (1), FindCombos (page, L"Automatic (joystick)").size(), L"Player 2's modes");
 
         one = FindCombos (page, L"Joystick")[0];
-        two = FindCombos (page, L"Same as Player 1")[0];
+        two = FindCombos (page, L"Automatic (joystick)")[0];
 
         Assert::IsTrue   (one->GetItems() == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle" });
         Assert::AreEqual (0, one->GetSelectedIndex(),                  L"Player 1 in Joystick mode");
@@ -282,7 +282,7 @@ public:
 
         LayOutPage (page, state, MakeBesideTheJoyport (PlayerMode::Paddle), MakeTwoPlaying(), 1);
 
-        two      = FindCombos (page, L"Same as Player 1")[0];
+        two      = FindCombos (page, L"Automatic (Joyport right)")[0];
         warnings = FindWarnings (page);
         rows     = CountBindingRows (page);
 
@@ -295,7 +295,7 @@ public:
         Assert::AreEqual (std::wstring (kpszCutWarning), warnings[0]->GetText());
         Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Info, L"as an info notice");
         Assert::IsNull   (warnings[0]->GetIconGlyph(), L"with the banner's own drawn info icon, like every other info banner");
-        Assert::IsTrue   (warnings[0]->GetBounds().top >= FindCombos (page, L"Same as Player 1")[0]->GetBounds().bottom, L"under Player 2's row");
+        Assert::IsTrue   (warnings[0]->GetBounds().top >= FindCombos (page, L"Automatic (Joyport right)")[0]->GetBounds().bottom, L"under Player 2's row");
 
         Assert::IsTrue (rows.first  > 0, L"its paddle row can be edited");
         Assert::IsTrue (rows.second > 0, L"and its button row cannot");

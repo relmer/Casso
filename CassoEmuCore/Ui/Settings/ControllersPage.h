@@ -32,7 +32,7 @@ class DxuiHwndSource;
 //  OK and reverts it on Cancel.
 //
 //      * Players            (each player's entry, its mode -- Joystick, a
-//                            Joyport jack or Paddle, and Same as Player 1 for
+//                            Joyport jack or Paddle, and Automatic for
 //                            Player 2 -- a note of what it drives, and a
 //                            warning under a player whose buttons the Joyport
 //                            has taken)

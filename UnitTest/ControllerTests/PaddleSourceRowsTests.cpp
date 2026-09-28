@@ -235,7 +235,7 @@ namespace ControllerTests
 
         //  Each submenu offers the player's modes with the player's own
         //  checked: Joystick then Paddle on a machine without a Joyport, and
-        //  Same as Player 1 ahead of them for Player 2. With a Joyport the
+        //  Automatic ahead of them for Player 2. With a Joyport the
         //  two jacks come between, and a jack the other player holds cannot
         //  be chosen.
         TEST_METHOD (Modes_EachSubmenuOffersThePlayersModes)
@@ -259,7 +259,7 @@ namespace ControllerTests
                 Assert::IsTrue   (modes[player].isEnabled && modes.back().isEnabled);
             }
 
-            Assert::AreEqual (std::wstring (L"Same as Player 1"), picker.rows[1].modes[0].label);
+            Assert::AreEqual (std::wstring (L"Automatic (joystick)"), picker.rows[1].modes[0].label, L"with the mode it resolves to");
             Assert::IsTrue (picker.rows[0].modes[0].isChecked && !picker.rows[0].modes[1].isChecked, L"Player 1 in Joystick mode");
             Assert::IsTrue (!picker.rows[1].modes[1].isChecked && picker.rows[1].modes[2].isChecked, L"Player 2 in Paddle mode");
 
@@ -622,7 +622,7 @@ namespace ControllerTests
                               L"four entries, a separator, three modes, a separator, a header, three profiles, New...");
             Assert::IsTrue   (children[2].command->IsChecked(), L"Player 2's pick");
             Assert::IsTrue   (children[4].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::AreEqual (std::wstring (L"Same as Player 1"), children[5].command->label);
+            Assert::AreEqual (std::wstring (L"Automatic (joystick)"), children[5].command->label);
             Assert::AreEqual (std::wstring (L"Joystick"),         children[6].command->label);
             Assert::AreEqual (std::wstring (L"Paddle"),           children[7].command->label);
             Assert::IsTrue   (children[6].command->IsChecked(),   L"the player's mode");

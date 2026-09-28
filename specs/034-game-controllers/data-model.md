@@ -276,8 +276,8 @@ Two player slots, always present and global (FR-037). Research [R16-R25](researc
 |---|---|---|
 | `Empty` | No holder: Automatic waiting, `Disabled`, or keys/mouse (Player 1) | Keys and mouse yes; otherwise no |
 | `Provisional` | Automatic's lone Player 1 before any input (FR-032, R16) | No, but drives the port |
-| `Waiting` | Holder assigned by Automatic, not yet used; or a picked controller that is not attached while the other slot is not in use | No |
-| `Playing` | Picked and attached, or assigned by Automatic and used | Yes |
+| `Waiting` | A picked controller that is not attached while the other slot is not in use. (Before 2026-09-28 also a holder Automatic assigned by connection order before it was used; such a holder is now `Playing` at once.) | No |
+| `Playing` | Picked and attached, or assigned by Automatic: by its first input, or by connection order, which also puts a lone `Provisional` Player 1 that connected while Casso runs in use (2026-09-28) | Yes |
 | `Held` | Holder left while the other slot was playing; kept for it (FR-040, R17) | No; blocks the one-playing rule |
 
 ### PlayerSlot (runtime, one per player, computed by `PlayerSlotPolicy`)
@@ -345,8 +345,8 @@ What a machine lacks plays nothing (FR-035): on the //c, with no PDL2/PDL3, a se
 Empty --lone candidate attached, no input yet--> Provisional
 Provisional --its first real input--> Playing
 Provisional --another candidate's first real input--> Empty (that candidate fills the slot per R16)
-Empty --R16 picks a holder--> Waiting
-Waiting --holder's first real input--> Playing
+Empty --R16 picks a holder--> Playing (2026-09-28; before, Waiting until its first input)
+Provisional --a second controller connects after it, both connected while Casso runs--> Playing (2026-09-28)
 Playing --holder leaves, other slot Playing--> Held
 Playing --holder leaves, other slot not Playing--> Empty (start over)
 Held --holder returns--> Playing

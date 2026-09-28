@@ -187,7 +187,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (BuildModeChoices_InOrderWithSameAsPlayerOneFirstForPlayerTwo)
+        TEST_METHOD (BuildModeChoices_InOrderWithAutomaticFirstForPlayerTwo)
         {
             PlayerEntries                                  entries = MakeEntries (PlayerMode::JoyportLeft, PlayerMode::SameAsPlayer1);
             std::vector<InputModeRules::PlayerModeChoice>  one     = PlayerModeRules::BuildModeChoices (entries, 0, true);
@@ -205,11 +205,48 @@ namespace ControllerTests
             Assert::IsTrue (FindChoice (one, PlayerMode::JoyportLeft).isChecked);
 
             Assert::AreEqual (size_t (5), two.size());
-            Assert::AreEqual (std::wstring (L"Same as Player 1"), two[0].label);
+            Assert::AreEqual (std::wstring (L"Automatic (Joyport right)"), two[0].label, L"showing the other jack, where it plays");
             Assert::IsTrue   (two[0].isChecked, L"its own mode is checked, not what it resolves to");
             Assert::IsFalse  (FindChoice (two, PlayerMode::JoyportLeft).isEnabled,  L"the jack Player 1 holds is shown disabled");
             Assert::IsTrue   (FindChoice (two, PlayerMode::JoyportRight).isEnabled);
             Assert::IsFalse  (FindChoice (two, PlayerMode::JoyportRight).isChecked);
+        }
+
+
+        //  Player 2's Automatic shows the mode it resolves to, which follows
+        //  Player 1: the same mode, or the other jack.
+        TEST_METHOD (AutomaticLabel_ShowsTheModeItResolvesTo)
+        {
+            auto  getLabel = [] (PlayerMode playerOne, bool hasJoyport)
+            {
+                return PlayerModeRules::BuildModeChoices (MakeEntries (playerOne, PlayerMode::Joystick), 1, hasJoyport)[0].label;
+            };
+
+            Assert::AreEqual (std::wstring (L"Automatic (joystick)"),      getLabel (PlayerMode::Joystick,     true));
+            Assert::AreEqual (std::wstring (L"Automatic (paddle)"),        getLabel (PlayerMode::Paddle,       true));
+            Assert::AreEqual (std::wstring (L"Automatic (Joyport right)"), getLabel (PlayerMode::JoyportLeft,  true));
+            Assert::AreEqual (std::wstring (L"Automatic (Joyport left)"),  getLabel (PlayerMode::JoyportRight, true));
+            Assert::AreEqual (std::wstring (L"Automatic (joystick)"),      getLabel (PlayerMode::JoyportLeft,  false), L"a saved jack plays as Joystick without a Joyport");
+        }
+
+
+        //  Player 1 has no Automatic mode: Joystick, the two jacks and
+        //  Paddle, starting in Joystick.
+        TEST_METHOD (PlayerOneModes_HaveNoAutomaticAndStartAtJoystick)
+        {
+            std::vector<InputModeRules::PlayerModeChoice>  one    = PlayerModeRules::BuildModeChoices (PlayerSlotPolicy::MakeDefaultEntries(), 0, true);
+            std::vector<std::wstring>                      labels;
+
+
+
+            for (const InputModeRules::PlayerModeChoice & choice : one)
+            {
+                labels.push_back (choice.label);
+            }
+
+            Assert::IsTrue  (labels == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle" });
+            Assert::IsFalse (IsModeListed (one, PlayerMode::SameAsPlayer1));
+            Assert::IsTrue  (FindChoice (one, PlayerMode::Joystick).isChecked, L"Joystick by default");
         }
 
 

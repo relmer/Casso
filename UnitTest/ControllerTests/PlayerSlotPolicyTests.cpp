@@ -107,8 +107,73 @@ namespace ControllerTests
 
             Assert::IsTrue   (Holds (world.slots[0], first),  L"the first to connect is Player 1 (SC-014)");
             Assert::IsTrue   (Holds (world.slots[1], second), L"and the second Player 2");
-            Assert::AreEqual ((int) PlayerSlotState::Waiting, (int) world.slots[0].state, L"neither is in use until it gives input");
-            Assert::AreEqual ((int) PlayerSlotState::Waiting, (int) world.slots[1].state);
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[0].state, L"a controller that took its slot by connecting is in use at once");
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[1].state);
+            Assert::IsFalse  (PlayerSlotPolicy::IsOnePlaying (world.slots, world.entries), L"so the two split what one would drive");
+        }
+
+
+        //  The owner's case: a pad turned on while Casso runs is Player 1
+        //  before anyone uses it, and turning on a second puts both in use,
+        //  so the players split the jacks at once.
+        TEST_METHOD (ConnectionLog_ASecondArrivalPutsTheLonePlayerOneInUse)
+        {
+            World                 world;
+            ControllerDeviceInfo  first  = MakePad ("{A}");
+            ControllerDeviceInfo  second = MakePad ("{B}");
+
+
+
+            world.Attach (first);
+            world.logs.connected = { first.unit };
+            world.Step();
+
+            Assert::IsTrue   (Holds (world.slots[0], first));
+            Assert::AreEqual ((int) PlayerSlotState::Provisional, (int) world.slots[0].state, L"alone, it waits for input");
+
+            world.Attach (second);
+            world.logs.connected.push_back (second.unit);
+            world.Step();
+
+            Assert::IsTrue   (Holds (world.slots[0], first),  L"the first to connect stays Player 1");
+            Assert::IsTrue   (Holds (world.slots[1], second), L"and the second is Player 2");
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[0].state, L"both in use with no input from either");
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[1].state);
+            Assert::IsFalse  (PlayerSlotPolicy::IsOnePlaying (world.slots, world.entries));
+
+            world.Step();
+
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[0].state, L"and they stay in use");
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[1].state);
+        }
+
+
+        //  A controller that connected while Casso runs and left while the
+        //  other played returns to its held slot in use, as a return rather
+        //  than a new arrival.
+        TEST_METHOD (ConnectionLog_AReturnToAHeldSlotIsInUse)
+        {
+            World                 world;
+            ControllerDeviceInfo  first  = MakePad ("{A}");
+            ControllerDeviceInfo  second = MakePad ("{B}");
+
+
+
+            world.devices        = { first, second };
+            world.logs.connected = { first.unit, second.unit };
+            world.Step();
+
+            world.Detach (first);
+            world.Step();
+
+            Assert::AreEqual ((int) PlayerSlotState::Held, (int) world.slots[0].state);
+
+            world.Attach (first);
+            world.Step();
+
+            Assert::IsTrue   (Holds (world.slots[0], first), L"it takes its own slot back");
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[0].state, L"in use");
+            Assert::IsTrue   (Holds (world.slots[1], second), L"and Player 2 is unmoved");
         }
 
 
@@ -222,7 +287,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Waiting_BecomesPlayingOnItsFirstInput)
+        TEST_METHOD (ConnectionLog_FirstInputDoesNotReorderThePlayers)
         {
             World                 world;
             ControllerDeviceInfo  first  = MakePad ("{A}");
@@ -236,9 +301,32 @@ namespace ControllerTests
             world.Step();
 
             Assert::IsTrue   (Holds (world.slots[0], first), L"first input does not reorder players the connection order set");
-            Assert::AreEqual ((int) PlayerSlotState::Waiting, (int) world.slots[0].state);
+            Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[0].state);
             Assert::AreEqual ((int) PlayerSlotState::Playing, (int) world.slots[1].state);
-            Assert::IsTrue   (PlayerSlotPolicy::IsOnePlaying (world.slots, world.entries), L"one in use drives everything");
+        }
+
+
+        //  A controller attached at launch still waits for its input: a lone
+        //  one is Player 1 but not in use, and one more arriving is no
+        //  connection order, so nothing changes until one is used.
+        TEST_METHOD (LaunchController_WaitsForInputWhenOneMoreArrives)
+        {
+            World                 world;
+            ControllerDeviceInfo  launch  = MakePad ("{LAUNCH}");
+            ControllerDeviceInfo  arrival = MakePad ("{ARRIVAL}");
+
+
+
+            world.devices = { launch };
+            world.Step();
+
+            world.Attach (arrival);
+            world.logs.connected = { arrival.unit };
+            world.Step();
+
+            Assert::IsTrue   (Holds (world.slots[0], launch));
+            Assert::AreEqual ((int) PlayerSlotState::Provisional, (int) world.slots[0].state, L"not in use until it gives input");
+            Assert::IsFalse  (world.slots[1].holder.has_value(), L"and the arrival alone is not Player 2");
         }
 
 
