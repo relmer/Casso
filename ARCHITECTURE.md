@@ -83,18 +83,45 @@ can link the shell and renderer, not to keep the platform out.
 
 The runtime object graph in the GUI:
 
-```
-EmulatorShell ── owns ── MachineManager ── builds ── the machine
-     │                                                   │
-     ├── EmuCpu (ICpu) ── MemoryBusCpu (Cpu6502/Cpu65C02 ← Cpu)
-     │                          │
-     │                          └── MemoryBus ── devices (via the bus)
-     │                                             + Apple2eMmu (coordinator)
-     ├── CpuManager (the emulation thread)
-     └── D3DRenderer / DxuiHwndSource (present) + Dxui panel tree (chrome)
+```mermaid
+flowchart TD
+    Shell["<b>EmulatorShell</b><br/>the running emulator"]
+
+    Build["<b>MachineBuilder</b>, <b>MachineManager</b><br/>build a machine; switch,<br/>reset, power cycle"]
+    CM["<b>CpuManager</b><br/>the CPU thread,<br/>command queue"]
+    Pic["<b>D3DRenderer</b>, <b>DeskScene</b>,<br/><b>DxuiHwndSource</b><br/>picture, window, chrome"]
+    Side["<b>WasapiAudio</b>, <b>PrinterWorker</b>,<br/><b>ControllerInputThread</b>"]
+    Mgrs["<b>DiskManager</b>,<br/><b>ClipboardManager</b>,<br/><b>WindowCommandManager</b>"]
+
+    subgraph machine ["MachineHost: the emulated machine, with no window"]
+        direction TB
+        EmuCpu["<b>EmuCpu</b><br/>holds an ICpu"] --> MBC["<b>MemoryBusCpu</b><br/>Cpu6502 or Cpu65C02"]
+        MBC --> Bus["<b>MemoryBus</b><br/>page table, device map"]
+        Bus --> Dev["<b>devices</b><br/>RAM, ROM, keyboard,<br/>Disk II, Mockingboard, ..."]
+        Mmu["<b>Apple2eMmu</b><br/>re-points the page table"] -.-> Bus
+        Dev -.-> IC["<b>InterruptController</b>"] -.-> EmuCpu
+        VM["<b>video modes</b>,<br/>VideoTiming"]
+        Store["<b>DiskImageStore</b>"]
+    end
+
+    Shell --> Build
+    Shell --> CM
+    Shell --> Pic
+    Shell --> Side
+    Shell --> Mgrs
+    Shell -- owns --> machine
+    Build -. builds .-> machine
+
+    classDef fast fill:#1D9E75,stroke:#0F6E56,color:#FFFFFF
+    classDef slow fill:#7F77DD,stroke:#534AB7,color:#FFFFFF
+    classDef plain fill:#888780,stroke:#5F5E5A,color:#FFFFFF
+    class EmuCpu,MBC,Bus,Dev,Mmu,IC,VM,Store fast
+    class Build,CM,Pic,Side,Mgrs slow
+    class Shell plain
+    style machine fill:none,stroke:#1D9E75
 ```
 
-`EmuCpu` is the `ICpu` wrapper the shell holds; underneath it is a
+`EmuCpu` is the `ICpu` wrapper the machine holds; underneath it is a
 `MemoryBusCpu` (a `Cpu6502`/`Cpu65C02` strategy that routes memory through the
 `MemoryBus` instead of a flat array). Tests substitute a flat-memory `TestCpu` /
 `TestCpu65C02` at the same seam.
