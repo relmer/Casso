@@ -20,7 +20,7 @@ description: "Task list for 034 physical game controllers"
 - Paths are repository-relative. Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` or `UnitTest/UnitTest.vcxproj` in the same task that creates it (neither project has a `.filters` file).
 - Existing functions are referenced by name, not line number; line numbers drift.
 - Code style: `.github/copilot-instructions.md` (EHM, column alignment, 5/3 blank lines, `////` banners in `.cpp`, verb-first function names, no magic numbers, American spelling). Run `scripts/CheckStyle.ps1 -Mode Staged` before every commit that adds files.
-- Every commit message body includes `Refs #97`.
+- Every commit message body includes `Refs #97`. Work from GH #156 (the 2026-09-27 phases) refers to GH #156 only.
 
 ---
 
