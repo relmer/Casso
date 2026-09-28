@@ -50,11 +50,16 @@ public:
 
     // The words the picker writes for the players and for Player 2's
     // Disabled entry, kept apart from the rows so that another mode's words
-    // can take their place.
+    // can take their place. `idle` is what a player's row reads while they
+    // are on Automatic with no controller playing; empty keeps the row as it
+    // would be without it.
     struct PlayerLabels
     {
         std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  players  = { L"Player 1", L"Player 2" };
         std::wstring                                               disabled = L"Disabled";
+        std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  idle;
+
+        bool operator== (const PlayerLabels &) const = default;
     };
 
     // One controller's profiles of the mode in effect, that mode's built-in

@@ -8,6 +8,7 @@
 #include "Controllers/InputModeRules.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/JoyportLabels.h"
 #include "Controllers/JoyportSetting.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -3016,6 +3017,9 @@ void EmulatorShell::SyncPaddleSourceList()
     source.profiles          = GetPickerProfileChoices (snapshot);
     source.knownDescriptions = m_controllerDescriptions;
     source.isJoyportInEffect = IsJoyportInEffect();
+
+    // While the Joyport is on the players are the jacks they drive.
+    source.labels            = JoyportLabels::GetPickerLabels (source.isJoyportInEffect);
 
     m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
 

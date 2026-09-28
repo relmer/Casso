@@ -4,6 +4,7 @@
 
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
+#include "Controllers/JoyportJackRules.h"
 
 
 
@@ -1681,7 +1682,7 @@ std::optional<ControllerInputService::SlotsChange> ControllerInputService::Evalu
         }
     }
 
-    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders);
+    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders, m_entries, m_profileMode == ProfileMode::Joyport);
 
     if (m_slots == previous && m_entries == previousEntries && m_lastHolders == previousHolders && departed.empty())
     {
@@ -2051,7 +2052,6 @@ void ControllerInputService::UnresolveDriversLocked()
 GamePortContribution ControllerInputService::BuildMergedLocked() const
 {
     GamePortContribution  merged;
-    bool                  isOnePlaying = PlayerSlotPolicy::IsOnePlaying (m_slots, m_entries);
     size_t                player       = 0;
     size_t                i            = 0;
 
@@ -2092,9 +2092,9 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
                 merged.buttons.set (route->buttons[i].value());
             }
         }
-
-        AddJoyportSwitches (isOnePlaying ? std::nullopt : std::optional<size_t> (player), logical->switches, merged);
     }
+
+    AddJoyportSwitchesLocked (merged);
 
     return merged;
 }
@@ -2105,36 +2105,66 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AddJoyportSwitches
+//  AddJoyportSwitchesLocked
 //
-//  One controller's Atari switches onto the Joyport's jacks. With two players
-//  the player's slot is the jack, slot 1 left and slot 2 right, whatever
-//  paddles the slot drives; with one playing, that controller appears on both
-//  jacks, so a two-player game played by passing the controller reads it on
-//  either. A jack no controller reaches stays open.
+//  Each Joyport jack carries the switches of the player JoyportJackRules
+//  gives it: one player driving alone is on both jacks, two split them, and
+//  a jack held for a player who left reads open. What paddles a slot maps to
+//  plays no part. A jack given to Player 1 on the arrow keys is marked for
+//  the mixer, which reads the keys.
+//
+//  THE JACKS ARE LEFT UNSET when no controller's reading reaches them and
+//  the keys are not split from anything, so the controllers release as they
+//  always have and the keys alone keep both jacks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::AddJoyportSwitches (
-    const std::optional<size_t>  & player,
-    const JoystickSwitches       & switches,
-    GamePortContribution         & merged)
+void ControllerInputService::AddJoyportSwitchesLocked (GamePortContribution & merged) const
 {
-    JoyportJacks  jacks = merged.jacks.value_or (JoyportJacks());
+    JoyportJackRules::JackSources          sources   = JoyportJackRules::AssignJacks (JoyportJackRules::ReducePlayers (m_slots, m_entries));
+    bool                                   isKeys    = m_entries[0].kind == PlayerEntryKind::ArrowKeys;
+    JoyportJacks                           jacks;
+    std::bitset<JoyportJacks::kJackCount>  keyJacks;
+    bool                                   isRead    = false;
+    size_t                                 jack      = 0;
 
 
 
-    if (!player.has_value())
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
     {
-        jacks.jack[JoyportJacks::kLeftJack]  |= switches;
-        jacks.jack[JoyportJacks::kRightJack] |= switches;
-    }
-    else if (player.value() < JoyportJacks::kJackCount)
-    {
-        jacks.jack[player.value()] |= switches;
+        size_t  player = (sources[jack] == JoyportJackSource::Player1) ? 0 : 1;
+        auto    found  = m_drivers.end();
+
+        if (sources[jack] == JoyportJackSource::None)
+        {
+            continue;
+        }
+
+        if (player == 0 && isKeys)
+        {
+            keyJacks.set (jack);
+            continue;
+        }
+
+        if (!m_slots[player].holder.has_value())
+        {
+            continue;
+        }
+
+        found = m_drivers.find (ControllerTokens::UnitToToken (m_slots[player].holder.value()));
+
+        if (found != m_drivers.end() && found->second.logical.has_value())
+        {
+            jacks.jack[jack] = found->second.logical->switches;
+            isRead           = true;
+        }
     }
 
-    merged.jacks = jacks;
+    if (isRead || (keyJacks.any() && !keyJacks.all()))
+    {
+        merged.jacks    = jacks;
+        merged.keyJacks = keyJacks;
+    }
 }
 
 

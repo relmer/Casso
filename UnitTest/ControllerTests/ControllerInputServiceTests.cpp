@@ -2104,6 +2104,244 @@ namespace ControllerTests
             Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack].test (static_cast<size_t> (JoystickSwitch::Down)), L"and on the right");
         }
 
+
+        //  A stick and a gamepad attached at launch, both players on
+        //  Automatic, neither used. `secondEntry` is Player 2's entry.
+        static void SetUpTwoAtLaunch (FakeControllerBackend   & backend,
+                                      ControllerInputService  & service,
+                                      GamePortInputMixer      & mixer,
+                                      double                  & now,
+                                      ControllerDeviceInfo    & xbox,
+                                      ControllerDeviceInfo    & stick,
+                                      PlayerEntryKind           secondEntry = PlayerEntryKind::Automatic)
+        {
+            PlayerEntries  entries;
+
+
+
+            xbox            = MakeXboxDevice();
+            stick           = MakeStickDevice();
+            entries[1].kind = secondEntry;
+
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            service.SetClock ([&now]() { return now; });
+            backend.AddDevice (stick);
+            backend.AddDevice (xbox, true);
+            backend.SetSample (stick.unit, MakeRestSample());
+            backend.SetSample (xbox.unit,  MakeRestSample());
+            SkipCalibration (service, { stick.unit });
+            service.SetPlayerEntries (entries);
+            service.Tick();
+        }
+
+
+        //  The stick pushed left, read once the idle period has passed.
+        static void UseStick (FakeControllerBackend & backend, ControllerInputService & service, double & now, const ControllerDeviceInfo & stick)
+        {
+            ControllerSample  left = MakeRestSample();
+
+
+
+            left.axes[0] = -1.0f;
+            backend.SetSample (stick.unit, left);
+            now += kIdleSeconds;
+            service.Tick();
+            service.Tick();
+        }
+
+
+        //  US3 #4 and #5: of two controllers attached at launch, the first used
+        //  becomes Joyport left and drives both jacks while the other drives
+        //  nothing; once the other is used it becomes Joyport right, and the
+        //  first drives the left jack alone.
+        TEST_METHOD (Joyport_TheFirstUsedDrivesBothJacksUntilTheSecondIsUsed)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    stick;
+            JoyportJacks            jacks;
+            double                  now     = 0.0;
+            JoystickSwitches        xboxOn  = MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Fire });
+
+
+
+            SetUpTwoAtLaunch (backend, service, mixer, now, xbox, stick);
+
+            backend.SetSample (xbox.unit, MakePushedSample());
+            now += kIdleSeconds;
+            service.Tick();
+            jacks = mixer.GetTargetState().jacks;
+
+            Assert::IsTrue (service.GetPlayerSlots()[0].holder == xbox.unit, L"the pad, used first, is Joyport left");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack]  == xboxOn,  L"it drives the left jack");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack] == xboxOn,  L"and the right");
+
+            UseStick (backend, service, now, stick);
+            jacks = mixer.GetTargetState().jacks;
+
+            Assert::IsTrue (service.GetPlayerSlots()[1].holder == stick.unit,                         L"the stick, used next, is Joyport right");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack]  == xboxOn,                           L"the pad keeps the left jack");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack] == MakeSwitches ({ JoystickSwitch::Left }), L"and the stick alone is on the right");
+        }
+
+
+        //  US3 #6: with Player 2 set to Same as left, a second controller used
+        //  changes nothing: Player 1 still drives both jacks.
+        TEST_METHOD (Joyport_SameAsLeftKeepsPlayerOneOnBothJacks)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    stick;
+            JoyportJacks            jacks;
+            double                  now     = 0.0;
+            JoystickSwitches        xboxOn  = MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Fire });
+
+
+
+            SetUpTwoAtLaunch (backend, service, mixer, now, xbox, stick, PlayerEntryKind::Disabled);
+
+            backend.SetSample (xbox.unit, MakePushedSample());
+            now += kIdleSeconds;
+            service.Tick();
+            UseStick (backend, service, now, stick);
+            jacks = mixer.GetTargetState().jacks;
+
+            Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack]  == xboxOn, L"Player 1 on the left jack");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack] == xboxOn, L"and on the right, with none of the stick's input");
+        }
+
+
+        //  A player who leaves while the other plays keeps their jack, which
+        //  reads open, and the one who stayed keeps only their own.
+        TEST_METHOD (Joyport_ALeaversJackReadsOpenAndIsNotHandedOver)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    stick;
+            ControllerSample        stickSample = MakeRestSample();
+            JoyportJacks            jacks;
+
+
+
+            SetUpTwoJoysticks (backend, service, mixer, sink, xbox, stick);
+
+            stickSample.axes[0] = -1.0f;
+            backend.SetSample (stick.unit, stickSample);
+            service.Tick();
+
+            backend.RemoveDevice (xbox.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+            jacks = mixer.GetTargetState().jacks;
+
+            Assert::IsTrue (service.GetPlayerSlots()[0].state == PlayerSlotState::Held, L"Player 1's slot is held for the pad");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack].none(),                 L"its jack reads every switch open");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack] == MakeSwitches ({ JoystickSwitch::Left }), L"and the stick keeps only the right");
+        }
+
+
+        //  Player 1 on the arrow keys and Player 2 on a controller split the
+        //  jacks: the keys on the left, the controller on the right.
+        TEST_METHOD (Joyport_KeysAndAControllerSplitTheJacks)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox    = MakeXboxDevice();
+            PlayerEntries           entries;
+            GamePortContribution    arrows;
+            JoyportJacks            jacks;
+
+
+
+            entries[0].kind  = PlayerEntryKind::ArrowKeys;
+            entries[1]       = MakePick (xbox.unit);
+            arrows.paddle[1] = kFullLow;
+
+            mixer.SetAxisOwner (AxisOwner::ArrowKeys);
+            mixer.Submit (GamePortSource::ArrowKeys, arrows);
+            backend.AddDevice (xbox, true);
+            backend.SetSample (xbox.unit, MakePushedSample());
+            service.SetPlayerEntries (entries);
+            service.Tick();
+            jacks = mixer.GetTargetState().jacks;
+
+            Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack]  == MakeSwitches ({ JoystickSwitch::Up }),                         L"the keys on the left jack");
+            Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack] == MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Fire }), L"the controller on the right");
+        }
+
+
+        //  The mouse as paddle closes no switch, so Player 2's controller is
+        //  the one player driving the Joyport, on both jacks.
+        TEST_METHOD (Joyport_BesideTheMouseAControllerIsOnBothJacks)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox    = MakeXboxDevice();
+            PlayerEntries           entries;
+            JoyportJacks            jacks;
+            JoystickSwitches        xboxOn  = MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Fire });
+
+
+
+            entries[0].kind = PlayerEntryKind::MousePaddle;
+            entries[1]      = MakePick (xbox.unit);
+
+            mixer.SetAxisOwner (AxisOwner::MousePaddle);
+            backend.AddDevice (xbox, true);
+            backend.SetSample (xbox.unit, MakePushedSample());
+            service.SetPlayerEntries (entries);
+            service.Tick();
+            jacks = mixer.GetTargetState().jacks;
+
+            Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack]  == xboxOn);
+            Assert::IsTrue (jacks.jack[JoyportJacks::kRightJack] == xboxOn);
+        }
+
+
+        //  While the Joyport is in effect the notice gives the jacks: both for
+        //  a controller playing alone.
+        TEST_METHOD (Joyport_TheNoticeGivesTheJacks)
+        {
+            FakeControllerBackend      backend;
+            GamePortInputMixer         mixer;
+            ControllerInputService     service (backend, mixer);
+            ControllerDeviceInfo       xbox;
+            ControllerDeviceInfo       stick;
+            std::vector<std::wstring>  notices;
+            double                     now     = 0.0;
+
+
+
+            service.SetJoyportAttached (true);
+            service.SetSlotsChangedFn ([&notices] (const ControllerInputService::SlotsChange & change)
+            {
+                notices.insert (notices.end(), change.notices.begin(), change.notices.end());
+            });
+
+            SetUpTwoAtLaunch (backend, service, mixer, now, xbox, stick);
+
+            backend.SetSample (xbox.unit, MakePushedSample());
+            now += kIdleSeconds;
+            service.Tick();
+
+            Assert::AreEqual (size_t (1), notices.size());
+            Assert::AreEqual (std::wstring (L"Joyport left and right: Xbox Controller"), notices.back(), L"the pad plays alone");
+
+            UseStick (backend, service, now, stick);
+
+            Assert::AreEqual (size_t (2), notices.size());
+            Assert::AreEqual (std::wstring (L"Joyport right: VKBsim Gladiator"), notices.back());
+        }
+
         //
         //  Idle watch
         //

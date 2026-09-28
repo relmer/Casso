@@ -288,9 +288,9 @@ private:
     std::map<std::string, std::string>        &  GetModeProfilesLocked ();
     const std::map<std::string, std::string>  &  GetModeProfilesLocked () const;
 
-    static void  AddJoyportSwitches (const std::optional<size_t> & player,
-                                     const JoystickSwitches      & switches,
-                                     GamePortContribution        & merged);
+    // Places each player's switches on the Joyport jacks the players' states
+    // give them. Assumes m_mutex is held.
+    void  AddJoyportSwitchesLocked (GamePortContribution & merged) const;
 
     IControllerBackend                 & m_backend;
     GamePortInputMixer                 & m_mixer;

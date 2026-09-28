@@ -304,7 +304,8 @@ struct JoyportJacks
 //  `switches` is the Atari joystick one controller's mapping produces, set by
 //  the evaluator whatever the machine. `jacks` is set only on the merged
 //  controller contribution, and says which controller drives which Joyport
-//  jack.
+//  jack. `keyJacks` marks the jacks in it that Player 1's arrow keys drive,
+//  which the mixer fills from the keys.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,6 +320,7 @@ struct GamePortContribution
     std::bitset<kButtonCount>                    buttons;
     JoystickSwitches                             switches;
     std::optional<JoyportJacks>                  jacks;
+    std::bitset<JoyportJacks::kJackCount>        keyJacks;
 
     bool operator== (const GamePortContribution &) const = default;
 };

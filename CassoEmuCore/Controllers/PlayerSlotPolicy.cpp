@@ -3,6 +3,8 @@
 #include "Controllers/PlayerSlotPolicy.h"
 
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/JoyportJackRules.h"
+#include "Controllers/JoyportLabels.h"
 
 
 
@@ -734,7 +736,7 @@ bool PlayerSlotPolicy::NeedsIdleWatch (const PlayerEntries & entries, const Play
 
 std::wstring PlayerSlotPolicy::DescribeAssignment (size_t player, const std::wstring & description)
 {
-    return L"Player " + std::to_wstring (player + 1) + L": " + description;
+    return JoyportLabels::DescribeAssignment (player, description, false, false);
 }
 
 
@@ -751,15 +753,21 @@ std::wstring PlayerSlotPolicy::DescribeAssignment (size_t player, const std::wst
 //  so the saved last holder outlives it. Only Automatic is announced: a pick
 //  is what the user just chose, so it updates the last holder silently.
 //
+//  While the Joyport is in effect the notice gives the jacks the controller
+//  drives: both, when it plays alone.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::wstring> PlayerSlotPolicy::RecordHolders (
     const PlayerSlots                        & slots,
     const std::vector<ControllerDeviceInfo>  & devices,
-    PlayerLastHolders                        & lastHolders)
+    PlayerLastHolders                        & lastHolders,
+    const PlayerEntries                      & entries,
+    bool                                       isJoyportInEffect)
 {
-    std::vector<std::wstring>  notices;
-    size_t                     player  = 0;
+    std::vector<std::wstring>      notices;
+    JoyportJackRules::JackSources  sources = JoyportJackRules::AssignJacks (JoyportJackRules::ReducePlayers (slots, entries));
+    size_t                         player  = 0;
 
 
 
@@ -782,7 +790,10 @@ std::vector<std::wstring> PlayerSlotPolicy::RecordHolders (
 
         if (!slot.isPicked)
         {
-            notices.push_back (DescribeAssignment (player, device->description));
+            JoyportJackSource  own     = (player == 0) ? JoyportJackSource::Player1 : JoyportJackSource::Player2;
+            bool               isAlone = sources[JoyportJacks::kLeftJack] == own && sources[JoyportJacks::kRightJack] == own;
+
+            notices.push_back (JoyportLabels::DescribeAssignment (player, device->description, isAlone, isJoyportInEffect));
         }
 
         lastHolders[player] = device->unit;

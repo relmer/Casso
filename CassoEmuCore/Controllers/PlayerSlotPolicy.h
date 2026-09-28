@@ -189,10 +189,13 @@ public:
     static std::wstring DescribeAssignment (size_t player, const std::wstring & description);
 
     // Each slot's attached holder becomes its last holder. Returns a notice
-    // for each slot Automatic gave a controller other than its last holder.
+    // for each slot Automatic gave a controller other than its last holder,
+    // in the Joyport's words while it is in effect.
     static std::vector<std::wstring>  RecordHolders (const PlayerSlots                        & slots,
                                                      const std::vector<ControllerDeviceInfo>  & devices,
-                                                     PlayerLastHolders                        & lastHolders);
+                                                     PlayerLastHolders                        & lastHolders,
+                                                     const PlayerEntries                      & entries           = {},
+                                                     bool                                       isJoyportInEffect = false);
 
     // What a player's controller reaches on this machine, or nothing when
     // its slot plays no controller. One player playing alone reaches what a

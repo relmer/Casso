@@ -573,6 +573,43 @@ namespace ControllerTests
         }
 
 
+        //  While the Joyport is in effect a notice gives the jacks: both for
+        //  a controller playing alone, and its own jack once two play.
+        TEST_METHOD (Notice_WithTheJoyportGivesTheJacks)
+        {
+            World                      world;
+            ControllerDeviceInfo       first  = MakeDescribedPad ("{A}", L"Blue pad");
+            ControllerDeviceInfo       second = MakeDescribedPad ("{B}", L"Red pad");
+            PlayerLastHolders          lastHolders;
+            PlayerLastHolders          offHolders;
+            std::vector<std::wstring>  notices;
+
+
+
+            world.Attach (first);
+            world.Step();
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders, world.entries, true);
+            Assert::AreEqual ((size_t) 1, notices.size());
+            Assert::AreEqual (std::wstring (L"Joyport left and right: Blue pad"), notices[0], L"the lone pad drives both jacks");
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, offHolders, world.entries, false);
+            Assert::AreEqual (std::wstring (L"Player 1: Blue pad"), notices[0], L"and without the Joyport, Player 1");
+
+            world.devices        = { first, second };
+            world.logs.connected = { first.unit, second.unit };
+            world.Step();
+            lastHolders          = PlayerLastHolders();
+            world.slots[0].state = PlayerSlotState::Playing;
+            world.slots[1].state = PlayerSlotState::Playing;
+
+            notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders, world.entries, true);
+            Assert::AreEqual ((size_t) 2, notices.size());
+            Assert::AreEqual (std::wstring (L"Joyport left: Blue pad"), notices[0]);
+            Assert::AreEqual (std::wstring (L"Joyport right: Red pad"), notices[1]);
+        }
+
+
         TEST_METHOD (Notice_APickShowsNoneButUpdatesTheLastHolder)
         {
             World                      world;

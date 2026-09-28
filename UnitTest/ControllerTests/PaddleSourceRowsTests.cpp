@@ -2,6 +2,7 @@
 
 #include "resource.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/JoyportLabels.h"
 #include "Ui/Chrome/EmulatorCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -184,6 +185,44 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"Left: Automatic"), picker.rows[0].label);
             Assert::AreEqual (std::wstring (L"Right: Off"),      picker.rows[1].label);
             Assert::AreEqual (std::wstring (L"Off"),             picker.rows[1].choices.back().label, L"and Player 2's Disabled entry");
+        }
+
+
+        //  With the Joyport in effect the rows are the jacks: Joyport right on
+        //  Automatic with no controller playing is the same as the left, and
+        //  Player 2's Disabled reads Same as left. Off, the players keep their
+        //  own words.
+        TEST_METHOD (Rows_WithTheJoyportAreTheJacks)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker;
+
+
+
+            source.labels = JoyportLabels::GetPickerLabels (true);
+            picker        = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Joyport left: Automatic"),     picker.rows[0].label);
+            Assert::AreEqual (std::wstring (L"Joyport right: same as left"), picker.rows[1].label, L"Automatic with no controller");
+            Assert::AreEqual (std::wstring (L"Same as left"),                picker.rows[1].choices.back().label, L"Player 2's Disabled entry");
+
+            source.slots[1] = MakeSlot (PlayerSlotState::Waiting, Stick (source));
+            picker          = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Joyport right: same as left"), picker.rows[1].label, L"a holder that has not given input plays nothing yet");
+
+            source.slots[1] = MakeSlot (PlayerSlotState::Playing, Stick (source));
+            picker          = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Joyport right: VKBsim Gladiator"), picker.rows[1].label, L"a controller playing");
+
+            source.labels = JoyportLabels::GetPickerLabels (false);
+            source.slots  = PlayerSlots();
+            picker        = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Player 1: Automatic"), picker.rows[0].label);
+            Assert::AreEqual (std::wstring (L"Player 2: Automatic"), picker.rows[1].label);
+            Assert::AreEqual (std::wstring (L"Disabled"),            picker.rows[1].choices.back().label);
         }
 
 

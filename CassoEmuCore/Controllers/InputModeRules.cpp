@@ -121,6 +121,9 @@ std::wstring InputModeRules::DescribeUnit (
 //  What a player's row shows after the player's label: the keys, the mouse,
 //  Disabled, the controller in the slot -- marked not connected while it is
 //  away -- or Automatic while Automatic has no controller for the player.
+//  A player whose words give an idle text reads it instead while on
+//  Automatic with no controller playing, a holder that has not given input
+//  included.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,6 +145,12 @@ std::wstring InputModeRules::DescribePlaying (
         case PlayerEntryKind::Automatic:
         case PlayerEntryKind::Controller:
         default:                           break;
+    }
+
+    if (entry.kind == PlayerEntryKind::Automatic && !source.labels.idle[player].empty() &&
+        !PlayerSlotPolicy::IsDrivingSlot (source.slots[player]) && source.slots[player].state != PlayerSlotState::Held)
+    {
+        return source.labels.idle[player];
     }
 
     if (!unit.has_value() && entry.kind == PlayerEntryKind::Controller)
