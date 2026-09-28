@@ -874,17 +874,18 @@ std::wstring ControllersPageState::GetJoyportRowLabel (PaddleTarget target)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetJoyportSwitchLabel
+//  GetJoyportPositionLabel
 //
-//  What the Joyport's Apple / Atari switch shows beside it: the position in
-//  effect. Atari mode is the Joyport in use, reading its Atari jacks; Apple
-//  mode is the game port with no Joyport.
+//  The label beside one position of the Joyport's Apple / Atari switch. The
+//  unit's front faces the player, so Atari mode, the knob toward the front,
+//  reads its Atari jacks, and Apple mode, the knob toward the rear, is the
+//  game port with no Joyport.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ControllersPageState::GetJoyportSwitchLabel (bool isAtariMode)
+std::wstring ControllersPageState::GetJoyportPositionLabel (bool isAtariMode)
 {
-    return isAtariMode ? L"Atari mode" : L"Apple mode";
+    return isAtariMode ? L"Atari (front)" : L"Apple (rear)";
 }
 
 

@@ -57,6 +57,8 @@ ControllersPage::ControllersPage (std::wstring title)
 
     Adopt (m_joyportHeading);
     Adopt (m_joyportSwitch);
+    Adopt (m_joyportAppleLabel);
+    Adopt (m_joyportAtariLabel);
 
     for (target = 0; target < kPlayerCount; target++)
     {
@@ -436,18 +438,11 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // jacks, and toward the top is Apple mode, the game port with no Joyport.
     m_isJoyportSectionShown = isOffered;
 
-    m_joyportHeading.SetVisible (isOffered);
-    m_joyportHeading.SetRect    (MakeRect (x, y, wideWidth, rowH));
-    m_joyportHeading.SetText    (L"Joyport");
-
-    m_joyportSwitch.SetVisible     (isOffered);
-    m_joyportSwitch.SetOnDirection (DxuiToggle::OnDirection::Down);
-    m_joyportSwitch.SetLabel       (ControllersPageState::GetJoyportSwitchLabel (m_joyportSwitch.IsChecked()));
-    m_joyportSwitch.Layout         (MakeRect (x + indent, y + rowH, wideWidth, switchH), scaler);
+    LayOutJoyportSection (x, y, isOffered, scaler);
 
     if (isOffered)
     {
-        y += rowH + switchH + sectionGap;
+        y += switchH + sectionGap;
     }
 
     // The players lead the page after the Joyport, since who is playing
@@ -733,6 +728,74 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     DxuiPanel::SetBounds (rect);
     SetContentHeightPx   (contentH);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayOutJoyportSection
+//
+//  The switch stands in the column the drop-downs below start at, its top at
+//  y. "Joyport" sits to its left, centered on the pill top to bottom, and
+//  each position's label sits to its right, centered on the knob's place at
+//  that end: Apple mode's at the top, Atari mode's at the bottom. Both are
+//  always shown, as they are printed on the unit.
+//
+//  The positions come from the switch's own geometry, so the labels follow
+//  the pill wherever the toggle draws it. The switch is laid out across the
+//  row to find the pill, then narrowed to it, so only the pill takes a click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::LayOutJoyportSection (int x, int y, bool isOffered, const DxuiDpiScaler & scaler)
+{
+    constexpr float  kHalf = 0.5f;
+
+
+
+    UINT                       dpi        = scaler.GetDpi();
+    int                        rowH       = scaler.ToPx (s_kRowHeightDp);
+    int                        labelWidth = scaler.ToPx (s_kLabelWidthDp);
+    int                        rowWidth   = scaler.ToPx (s_kRowWidthDp);
+    int                        gap        = scaler.ToPx (s_kGapDp);
+    int                        switchH    = scaler.ToPx (s_kJoyportSwitchHeightDp);
+    int                        switchX    = x + labelWidth;
+    int                        pillRight  = 0;
+    int                        pillMidY   = 0;
+    DxuiToggle::TrackAndThumb  apple;
+    DxuiToggle::TrackAndThumb  atari;
+
+
+
+    m_joyportSwitch.SetVisible      (isOffered);
+    m_joyportSwitch.SetOnDirection  (DxuiToggle::OnDirection::Down);
+    m_joyportSwitch.SetLabel        (L"Joyport");
+    m_joyportSwitch.SetLabelVisible (false);
+    m_joyportSwitch.Layout          (MakeRect (switchX, y, rowWidth, switchH), scaler);
+
+    apple     = m_joyportSwitch.GetTrackAndThumb (false);
+    atari     = m_joyportSwitch.GetTrackAndThumb (true);
+    pillRight = (int) std::ceil (apple.track.right);
+    pillMidY  = (int) std::lround ((apple.track.top + apple.track.bottom) * kHalf);
+
+    m_joyportSwitch.SetRect (MakeRect (switchX, y, pillRight - switchX, switchH));
+
+    m_joyportHeading.SetVisible (isOffered);
+    m_joyportHeading.SetRect    (MakeRect (x, pillMidY - rowH / 2, labelWidth, rowH));
+    m_joyportHeading.SetText    (L"Joyport");
+
+    m_joyportAppleLabel.SetVisible (isOffered);
+    m_joyportAppleLabel.SetRect    (MakeRect (pillRight + gap, (int) std::lround (apple.thumbCenter.y) - rowH / 2, rowWidth, rowH));
+    m_joyportAppleLabel.SetText    (ControllersPageState::GetJoyportPositionLabel (false));
+    m_joyportAppleLabel.SetDpi     (dpi);
+
+    m_joyportAtariLabel.SetVisible (isOffered);
+    m_joyportAtariLabel.SetRect    (MakeRect (pillRight + gap, (int) std::lround (atari.thumbCenter.y) - rowH / 2, rowWidth, rowH));
+    m_joyportAtariLabel.SetText    (ControllersPageState::GetJoyportPositionLabel (true));
+    m_joyportAtariLabel.SetDpi     (dpi);
 }
 
 

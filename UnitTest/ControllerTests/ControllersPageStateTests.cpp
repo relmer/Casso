@@ -88,12 +88,12 @@ namespace ControllerTests
         }
 
 
-        //  The Joyport section shows the unit's Apple / Atari switch, labeled
-        //  with the position in effect.
-        TEST_METHOD (JoyportSwitchLabel_ShowsThePositionInEffect)
+        //  The Joyport section labels both positions of the unit's Apple /
+        //  Atari switch by the end of the unit the knob points to.
+        TEST_METHOD (JoyportPositionLabel_GivesTheEndOfTheUnit)
         {
-            Assert::AreEqual (std::wstring (L"Atari mode"), ControllersPageState::GetJoyportSwitchLabel (true));
-            Assert::AreEqual (std::wstring (L"Apple mode"), ControllersPageState::GetJoyportSwitchLabel (false));
+            Assert::AreEqual (std::wstring (L"Atari (front)"), ControllersPageState::GetJoyportPositionLabel (true));
+            Assert::AreEqual (std::wstring (L"Apple (rear)"),  ControllersPageState::GetJoyportPositionLabel (false));
         }
 
 

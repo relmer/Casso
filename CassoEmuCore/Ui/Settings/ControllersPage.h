@@ -192,6 +192,7 @@ private:
     void                 OnJoyportSwitch    (bool isAtariMode);
     void                 ApplyJoyportMode   (bool isAtariMode);
     void                 SyncJoyportSwitch  ();
+    void                 LayOutJoyportSection (int x, int y, bool isOffered, const DxuiDpiScaler & scaler);
     bool                 IsTargetShown      (size_t target) const;
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
     void                 PollSwitchLights   (const GamePortContribution * reading);
@@ -219,9 +220,13 @@ private:
     // The Joyport's Apple / Atari switch, shown where the machine can take
     // one. The last value read from isOn is kept apart from the switch, so a
     // flip on the page is not taken for a change from the picker before the
-    // command it posts has been handled.
+    // command it posts has been handled. "Joyport" sits to the left of the
+    // switch, and each position is labeled to its right, level with the
+    // knob's place there.
     DxuiLabel                   m_joyportHeading;
     DxuiToggle                  m_joyportSwitch;
+    DxuiLabel                   m_joyportAppleLabel;
+    DxuiLabel                   m_joyportAtariLabel;
     std::function<bool()>       m_isJoyportOn;
     std::function<bool()>       m_isJoyportOffered;
     std::function<void (bool)>  m_setJoyport;

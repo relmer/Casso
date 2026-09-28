@@ -202,3 +202,20 @@ place a player on a jack.
 | Full unit suite | x64 Release | 5,827 of 5,827 |
 | Scenario suite (`RunTests.ps1 -Build -Scenario`) | x64 Release | 28 of 28 |
 | V18 in the running app | manual | not run: needs two controllers; left for Phase 14 |
+
+## Controllers page: both switch positions labeled (GH #156)
+
+| Check | Kind | Result |
+|---|---|---|
+| "Apple (rear)" and "Atari (front)" are both shown in either mode, each centered on the knob's position at its end of the switch as `DxuiToggle::GetTrackAndThumb` gives it, both to the right of the pill, and the switch's bounds stop short of them (`JoyportPositionLabels_AreLevelWithTheKnobsTwoPositions`) | automated | pass |
+| "Joyport" sits to the left of the switch, centered on the pill top to bottom (`JoyportHeading_SitsLeftOfTheSwitchCenteredOnIt`) | automated | pass |
+| `GetTrackAndThumb` gives the thumb where the paint draws it in each position (`GetTrackAndThumb_IsWhereThePaintPutsIt`); a hidden toggle label paints no text and stays the accessible name (`HiddenLabel_PaintsNoText`); the position labels (`JoyportPositionLabel_GivesTheEndOfTheUnit`) | automated | pass |
+| The reported content height still reaches Reset profile and its padding in both modes, with and without Multiplayer (`ContentHeight_ReachesResetProfileAndItsPadding_InEveryMode`, unchanged) | automated | pass |
+| Mutation: "Apple (rear)" placed at the knob's down position | automated | 1 test went red: `JoyportPositionLabels_AreLevelWithTheKnobsTwoPositions` (`Expected:<99> Actual:<117> - Apple (rear) level with the knob's up position`) |
+| Mutation: "Joyport" back at the top of the section | automated | 1 test went red: `JoyportHeading_SitsLeftOfTheSwitchCenteredOnIt` (`Expected:<100> Actual:<108> - centered on the switch top to bottom`) |
+| Mutation: the switch left laid out across the row | automated | 1 test went red: `JoyportPositionLabels_AreLevelWithTheKnobsTwoPositions` (`the switch takes clicks on the pill, not on its labels`) |
+| Mutation: the paint taking the other position's geometry | automated | 1 test went red: `GetTrackAndThumb_IsWhereThePaintPutsIt` (`Expected:<63> Actual:<81> - up: the painted thumb`) |
+| Mutation: a hidden label painted anyway | automated | 1 test went red: `HiddenLabel_PaintsNoText` (`hidden: nothing is painted`) |
+| Mutation: the position labels back to "Apple mode" / "Atari mode" | automated | 2 tests went red: `JoyportPositionLabel_GivesTheEndOfTheUnit` (`Expected:<Atari (front)> Actual:<Atari mode>`) and `JoyportPositionLabels_AreLevelWithTheKnobsTwoPositions` |
+| Full unit suite | x64 Release | 5,839 of 5,839 |
+| The section on screen in Apple mode and in Atari mode | manual | pass: each label level with the knob at its end, "Joyport" centered on the switch; the two labels are 18 DIP apart, the pill's own travel, so the lines sit close |

@@ -173,8 +173,8 @@ public:
     static bool               IsJoyportTarget         (PaddleTarget target);
     static std::wstring       GetJoyportRowLabel      (PaddleTarget target);
 
-    // The label beside the Joyport's Apple / Atari switch on the page.
-    static std::wstring       GetJoyportSwitchLabel   (bool isAtariMode);
+    // The label beside one position of the Joyport's Apple / Atari switch.
+    static std::wstring       GetJoyportPositionLabel (bool isAtariMode);
 
 
     // What one slot may map to on this machine, less what the other holds.

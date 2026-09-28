@@ -188,4 +188,68 @@ public:
             Assert::IsTrue    (checked ? thumb->y > kMiddleY : thumb->y < kMiddleY, checked ? L"on: toward the bottom" : L"off: toward the top");
         }
     }
-};
+
+
+    //  GetTrackAndThumb gives the pill where the paint puts it, so a layout
+    //  can place labels against either end of it: the thumb it gives for
+    //  each position is the circle painted in that position.
+    TEST_METHOD (GetTrackAndThumb_IsWhereThePaintPutsIt)
+    {
+        constexpr uint32_t  kThumbArgb = 0xFFFFFFFF;
+
+
+
+        for (bool checked : { false, true })
+        {
+            DxuiToggle                 toggle;
+            MockDxuiPainter            painter;
+            MockDxuiTextRenderer       text;
+            const RecordedPaintCall  * thumb = nullptr;
+            DxuiToggle::TrackAndThumb  geometry;
+
+            toggle.SetRect        ({ 30, 50, 230, 94 });
+            toggle.SetOnDirection (DxuiToggle::OnDirection::Down);
+            toggle.SetChecked     (checked);
+            toggle.Paint          (painter, text);
+
+            geometry = toggle.GetTrackAndThumb (checked);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                if (call.kind == RecordedPaintKind::FillCircle && call.argb == kThumbArgb)
+                {
+                    thumb = &call;
+                }
+            }
+
+            Assert::IsNotNull (thumb, L"the thumb is painted");
+            Assert::AreEqual  (geometry.thumbCenter.x, thumb->x, kTolerance, L"across");
+            Assert::AreEqual  (geometry.thumbCenter.y, thumb->y, kTolerance, checked ? L"down: the painted thumb" : L"up: the painted thumb");
+        }
+    }
+
+
+    //  A hidden label paints no text at all, not even the On / Off an
+    //  unlabeled toggle narrates, and stays the accessible name.
+    TEST_METHOD (HiddenLabel_PaintsNoText)
+    {
+        DxuiToggle            toggle;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+
+
+
+        toggle.SetRect         ({ 0, 0, 200, 40 });
+        toggle.SetOnDirection  (DxuiToggle::OnDirection::Down);
+        toggle.SetLabel        (L"Joyport");
+        toggle.Paint           (painter, text);
+
+        Assert::AreEqual (size_t (1), text.Calls().size(), L"shown: the label is painted");
+
+        text.Reset();
+        toggle.SetLabelVisible (false);
+        toggle.Paint           (painter, text);
+
+        Assert::IsTrue   (text.Calls().empty(),                                      L"hidden: nothing is painted");
+        Assert::AreEqual (std::wstring (L"Joyport"), toggle.GetAccessibleName(), L"hidden: still the accessible name");
+    }};

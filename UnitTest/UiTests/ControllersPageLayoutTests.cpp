@@ -29,13 +29,15 @@ TEST_CLASS (ControllersPageLayoutTests)
 {
 public:
 
-    static constexpr UINT    kDpi        = 96;
-    static constexpr int     kPagePadPx  = 16;     // the page's own padding at 96 DPI
-    static constexpr int     kLeftPx     = 20;
-    static constexpr int     kTopPx      = 70;
-    static constexpr int     kRightPx    = 780;
-    static constexpr int     kBottomPx   = 600;
-    static constexpr size_t  kPaddleAxes = 4;
+    static constexpr UINT    kDpi              = 96;
+    static constexpr int     kPagePadPx        = 16;     // the page's own padding at 96 DPI
+    static constexpr int     kLeftPx           = 20;
+    static constexpr int     kTopPx            = 70;
+    static constexpr int     kRightPx          = 780;
+    static constexpr int     kBottomPx         = 600;
+    static constexpr size_t  kPaddleAxes       = 4;
+    static constexpr float   kLevelTolerancePx = 1.0f;   // a rect's middle rounds to whole pixels
+    static constexpr float   kHalf             = 0.5f;
 
 
     static ControllerDeviceInfo MakeStick()
@@ -98,6 +100,123 @@ public:
         return lowest;
     }
 
+
+    //  The shown label with the given text, or null.
+    static const DxuiLabel * FindLabel (const ControllersPage & page, const std::wstring & text)
+    {
+        const DxuiLabel  * label = nullptr;
+        const DxuiLabel  * found = nullptr;
+        size_t             i     = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            label = dynamic_cast<const DxuiLabel *> (page.GetChild (i));
+
+            if (label != nullptr && label->IsVisible() && label->GetText() == text)
+            {
+                found = label;
+            }
+        }
+
+        return found;
+    }
+
+
+    //  The Joyport's switch, the page's only toggle.
+    static const DxuiToggle * FindSwitch (const ControllersPage & page)
+    {
+        const DxuiToggle  * toggle = nullptr;
+        const DxuiToggle  * found  = nullptr;
+        size_t              i      = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            toggle = dynamic_cast<const DxuiToggle *> (page.GetChild (i));
+
+            if (toggle != nullptr)
+            {
+                found = toggle;
+            }
+        }
+
+        return found;
+    }
+
+
+    static float GetMiddleY (const RECT & rect)
+    {
+        return (float) (rect.top + rect.bottom) * kHalf;
+    }
+
+
+    static void AssertPositionLabelsLevelWithTheKnob (bool isAtariMode, const wchar_t * mode)
+    {
+        ControllersPage             page;
+        ControllersPageState        state;
+        const DxuiToggle          * joyportSwitch = nullptr;
+        const DxuiLabel           * apple         = nullptr;
+        const DxuiLabel           * atari         = nullptr;
+        DxuiToggle::TrackAndThumb   up;
+        DxuiToggle::TrackAndThumb   down;
+
+
+
+        LayOutPage (page, state, isAtariMode, false);
+
+        joyportSwitch = FindSwitch (page);
+        apple         = FindLabel  (page, L"Apple (rear)");
+        atari         = FindLabel  (page, L"Atari (front)");
+
+        Assert::IsNotNull (joyportSwitch, mode);
+        Assert::IsNotNull (apple,         L"Apple (rear) is shown in either mode");
+        Assert::IsNotNull (atari,         L"Atari (front) is shown in either mode");
+
+        up   = joyportSwitch->GetTrackAndThumb (false);
+        down = joyportSwitch->GetTrackAndThumb (true);
+
+        Assert::AreEqual (up.thumbCenter.y,   GetMiddleY (apple->GetBounds()), kLevelTolerancePx, L"Apple (rear) level with the knob's up position");
+        Assert::AreEqual (down.thumbCenter.y, GetMiddleY (atari->GetBounds()), kLevelTolerancePx, L"Atari (front) level with the knob's down position");
+        Assert::IsTrue    (up.thumbCenter.y < down.thumbCenter.y,                                  L"the knob's up position is above its down position");
+        Assert::IsTrue    ((float) apple->GetBounds().left >= up.track.right,                      L"Apple (rear) to the right of the switch");
+        Assert::IsTrue    ((float) atari->GetBounds().left >= up.track.right,                      L"Atari (front) to the right of the switch");
+        Assert::IsTrue    (joyportSwitch->GetBounds().right <= apple->GetBounds().left,           L"the switch takes clicks on the pill, not on its labels");
+    }
+
+
+    TEST_METHOD (JoyportPositionLabels_AreLevelWithTheKnobsTwoPositions)
+    {
+        AssertPositionLabelsLevelWithTheKnob (false, L"Apple mode");
+        AssertPositionLabelsLevelWithTheKnob (true,  L"Atari mode");
+    }
+
+
+    TEST_METHOD (JoyportHeading_SitsLeftOfTheSwitchCenteredOnIt)
+    {
+        ControllersPage             page;
+        ControllersPageState        state;
+        const DxuiToggle          * joyportSwitch = nullptr;
+        const DxuiLabel           * heading       = nullptr;
+        DxuiToggle::TrackAndThumb   pill;
+
+
+
+        LayOutPage (page, state, false, false);
+
+        joyportSwitch = FindSwitch (page);
+        heading       = FindLabel  (page, L"Joyport");
+
+        Assert::IsNotNull (joyportSwitch, L"the switch");
+        Assert::IsNotNull (heading,       L"the section's label");
+
+        pill = joyportSwitch->GetTrackAndThumb (false);
+
+        Assert::AreEqual (GetMiddleY (heading->GetBounds()), (pill.track.top + pill.track.bottom) * kHalf, kLevelTolerancePx, L"centered on the switch top to bottom");
+        Assert::IsTrue   (heading->GetBounds().right <= joyportSwitch->GetBounds().left,                                   L"to the left of the switch");
+    }
 
     static void AssertHeightReachesLastRow (bool isAtariMode, bool isMultiplayer, const wchar_t * mode)
     {
