@@ -958,50 +958,6 @@ MultiplayerSetup PlayerSlotPolicy::MakeSetupView (const PlayerEntries & entries,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplySetupView
-//
-//  What changed on the page becomes the entries: a controller chosen for a
-//  player is a pick, a slot emptied is Automatic, and a target changed is set
-//  by hand. What did not change is left as the entry had it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-PlayerEntries PlayerSlotPolicy::ApplySetupView (
-    const PlayerEntries     & entries,
-    const PlayerSlots       & slots,
-    const MultiplayerSetup  & setup)
-{
-    PlayerEntries     result  = entries;
-    MultiplayerSetup  current = MakeSetupView (entries, slots);
-    size_t            player  = 0;
-
-
-
-    for (player = 0; player < kPlayerCount; player++)
-    {
-        const MultiplayerSlot  & edited = setup.players[player];
-
-        if (edited.unit != current.players[player].unit)
-        {
-            result[player].kind = edited.unit.has_value() ? PlayerEntryKind::Controller : PlayerEntryKind::Automatic;
-            result[player].unit = edited.unit;
-        }
-
-        if (edited.target != current.players[player].target)
-        {
-            result[player].target = edited.target;
-        }
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  IsAttached
 //
 ////////////////////////////////////////////////////////////////////////////////

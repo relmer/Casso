@@ -996,6 +996,47 @@ ProfileEditResult ControllerProfileStore::ResetProfile (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryAdoptLegacyProfile
+//
+//  A machine's own active profile is from before each controller carried its
+//  own. It passes to the machine's saved controller once, when that
+//  controller has no normal-mode choice recorded, a choice of the Default
+//  included, and is written back to no machine after. False when nothing
+//  passed: no legacy name, no saved controller, or a choice already there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerProfileStore::TryAdoptLegacyProfile (
+    std::map<std::string, std::string>      & normalProfiles,
+    const std::optional<ControllerUnitKey>  & selection,
+    const std::string                       & legacyName)
+{
+    std::string  token;
+
+
+
+    if (legacyName.empty() || !selection.has_value())
+    {
+        return false;
+    }
+
+    token = ControllerTokens::UnitToToken (selection.value());
+
+    if (normalProfiles.count (token) != 0)
+    {
+        return false;
+    }
+
+    normalProfiles[token] = legacyName;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadModels
 //
 //  One model at a time. A model whose token cannot be read is dropped whole,

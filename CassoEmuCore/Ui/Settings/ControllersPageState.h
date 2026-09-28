@@ -5,7 +5,9 @@
 #include "Controllers/ControlCapture.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerSelectionPolicy.h"
+#include "Controllers/InputModeRules.h"
 #include "Controllers/MappingEvaluator.h"
+#include "Controllers/PlayerSlotPolicy.h"
 
 
 
@@ -63,12 +65,11 @@ enum class CalibrationStep
 //  press OK, and Cancel puts every copy back as it was, calibrations
 //  included.
 //
-//  THE MULTIPLAYER SETUP IS THE ONE EXCEPTION, and deliberately so. Which
-//  controller each player holds and what it maps to is a MACHINE INPUT
-//  setting, the same kind of choice the toolbar's paddle picker makes, not an
-//  edit to a profile. Those take effect when they are made and are saved for
-//  the machine, so these do too: a change here reaches the service at once
-//  and Cancel does not take it back.
+//  THE PLAYERS ARE THE ONE EXCEPTION, and deliberately so. Each player's
+//  entry, what it maps to, and the Multiplayer checkbox are the same choices
+//  the command bar's picker makes, not edits to a profile. Those take effect
+//  when they are made, so these do too: a pick here reaches the service at
+//  once and Cancel does not take it back.
 //
 //  Edits go to the chosen profile of the selected controller's model, which
 //  starts as the machine's active profile. A name the model has no profile
@@ -131,15 +132,35 @@ public:
     void                                  SelectController   (size_t index);
     bool                                  IsCalibratable     () const;
 
-    // The machine's two-player setup and how many paddle axes it has. Applied
-    // at once rather than on OK; see the note above.
-    using MultiplayerChangedFn = std::function<void (const MultiplayerSetup &)>;
+    static constexpr size_t  kPlayerCount = PlayerSlotPolicy::kPlayerCount;
+    static constexpr size_t  kPlayerTwo   = 1;
 
-    void                      SetMultiplayer          (const MultiplayerSetup & setup, size_t axisCount);
-    void                      SetOnMultiplayerChanged (MultiplayerChangedFn onChanged);
-    const MultiplayerSetup &  GetMultiplayer          () const;
-    size_t                    GetAxisCount            () const;
-    bool                      IsMultiplayerEnabled    () const;
+    // The players as the service holds them -- each one's entry and what each
+    // slot plays -- and how many paddle axes the machine has. A pick made on
+    // the page is applied at once rather than on OK; see the note above.
+    using PlayerPickedFn = std::function<void (size_t player, const PlayerEntry & entry)>;
+
+    void                   SetPlayers            (const PlayerEntries & entries, const PlayerSlots & slots, size_t axisCount);
+    void                   SetOnPlayerPicked     (PlayerPickedFn onPicked);
+    const PlayerEntries &  GetPlayerEntries      () const;
+    const PlayerSlots &    GetPlayerSlots        () const;
+    size_t                 GetAxisCount          () const;
+
+    // Whether two people are playing, which decides what the rest of the
+    // page edits, and the controller each player plays, if any.
+    bool                              IsMultiplayerEnabled  () const;
+    std::optional<ControllerUnitKey>  GetPlayerUnit         (size_t player) const;
+
+    // The Multiplayer checkbox: Player 2's entry seen another way.
+    bool                   IsMultiplayerChecked  () const;
+    void                   SetMultiplayerChecked (bool isChecked);
+
+    // One player's entry, or their target; no target follows the profile.
+    void                   PickPlayerEntry       (size_t player, PlayerEntry entry);
+    void                   SetPlayerTarget       (size_t player, std::optional<PlayerAxisTarget> target);
+
+    // What one player's entry drop-down lists.
+    std::vector<InputModeRules::PlayerChoice>  GetEntryChoices (size_t player) const;
 
     // The Joyport jack the controller in Editing drives, for the page's
     // switch lights, and the heading the page shows above them.
@@ -155,10 +176,6 @@ public:
     // The label beside the Joyport's Apple / Atari switch on the page.
     static std::wstring       GetJoyportSwitchLabel   (bool isAtariMode);
 
-    // One player's controller, or their target. Both normalize, so a slot that
-    // cannot be played beside the other one is emptied rather than kept.
-    void  SetMultiplayerUnit   (size_t player, const std::optional<ControllerUnitKey> & unit);
-    void  SetMultiplayerTarget (size_t player, PlayerAxisTarget target);
 
     // What one slot may map to on this machine, less what the other holds.
     std::vector<PlayerAxisTarget>  GetTargetChoices (size_t player) const;
@@ -302,6 +319,8 @@ private:
     ControllerProfileKind            GetEditedBuiltInKind () const;
     bool                             IsNameOfOtherMode    (const std::string & name) const;
     bool                             FindCommittedMapping (ControlMapping & mapping) const;
+    MultiplayerSetup                 MakePlayView         () const;
+    void                             ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
 
     static std::vector<AxisBinding> *    FindAxisList    (ControlMapping & mapping, PaddleTarget target);
@@ -309,6 +328,7 @@ private:
     static bool                          IsAxisTarget    (PaddleTarget target);
 
     std::vector<ControllerEntry>                    m_controllers;
+    std::vector<ControllerDeviceInfo>               m_devices;
     std::optional<size_t>                           m_selected;
     bool                                            m_hasPb2       = true;
     std::wstring                                    m_machineName;
@@ -344,16 +364,17 @@ private:
     // the page, which the committed settings do not have yet.
     std::map<std::string, std::map<std::string, std::string>>  m_committedNames;
 
-    // The machine's mode, applied as it is edited rather than on OK, so it
-    // has no baseline and takes no part in IsDirty or Revert.
+    // The players, applied as they are picked rather than on OK, so they have
+    // no baseline and take no part in IsDirty or Revert.
     //
-    // THE MODE AS PLAYED, not as saved. The page shows the settings for the
-    // mode the machine is actually in, so it never disagrees with the toolbar
-    // picker: a machine that fell back to one controller because none of its
-    // players is attached shows the single-player settings (FR-040).
-    MultiplayerSetup                                m_multiplayer;
+    // THE SLOTS ARE AS PLAYED, not as chosen. The page shows the settings for
+    // what the machine is actually playing, so it never disagrees with the
+    // picker: a machine that fell back to one controller because a player's
+    // is not attached shows the single-player settings.
+    PlayerEntries                                   m_entries;
+    PlayerSlots                                     m_slots;
     size_t                                          m_axisCount = GamePortContribution::kAxisCount;
-    MultiplayerChangedFn                            m_onMultiplayerChanged;
+    PlayerPickedFn                                  m_onPlayerPicked;
 
     ControlCapture                                  m_capture;
     PaddleTarget                                    m_captureTarget = PaddleTarget::Pdl0;

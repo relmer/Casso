@@ -7,6 +7,7 @@
 #include "Ui/Settings/JoyportSwitchView.h"
 #include "Ui/Settings/ProfileDialogOverlay.h"
 
+#include "Core/DxuiSlide.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -33,6 +34,8 @@ class DxuiHwndSource;
 //
 //      * Joyport            (DxuiToggle: the unit's Apple / Atari switch, on a
 //                            machine that can take one)
+//      * Players            (Player 1's entry and target; a Multiplayer
+//                            checkbox; Player 2's, while it is ticked)
 //      * Controller         (DxuiComboBox: every attached controller)
 //      * Profile            (DxuiComboBox: the model's profiles, with New,
 //                            Rename and Delete)
@@ -62,6 +65,7 @@ public:
     static constexpr size_t  kButtonCount = 3;
     static constexpr size_t  kMaxRows     = 4;
     static constexpr size_t  kPlayerCount = MultiplayerSetup::kPlayerCount;
+    static constexpr size_t  kPlayerTwo   = ControllersPageState::kPlayerTwo;
 
     using SampleSource = std::function<std::optional<ControllerSample> (const ControllerUnitKey &)>;
     using InspectFn    = std::function<void (const std::optional<ControllerUnitKey> &)>;
@@ -116,6 +120,14 @@ public:
     // The page's rows came or went, which changes what Tab reaches.
     void          SetOnLayoutChanged (std::function<void ()> onLayoutChanged);
 
+    // A slide started or finished, for the sheet to poll the page often
+    // enough to draw it.
+    void          SetOnSlideChanged  (std::function<void (bool isSliding)> onSlideChanged);
+
+    // What the target drop-down lists first: no target of the player's own,
+    // so the slot follows the profile.
+    static constexpr const wchar_t *  kpszFollowProfile = L"Follow the profile";
+
     // The profile dialog, for the sheet to show over the page and route input
     // to while it is open.
     bool                    IsProfileDialogOpen () const { return m_profileDialog.IsOpen(); }
@@ -149,9 +161,13 @@ private:
 
     void                 RebuildChoices     ();
     void                 RefreshRows        ();
-    void                 RefreshMultiplayer ();
-    void                 OnPlayerControllerSelect (size_t player, int item);
-    void                 OnPlayerTargetSelect     (size_t player, int item);
+    void                 RefreshPlayers     ();
+    void                 OnPlayerEntrySelect  (size_t player, int item);
+    void                 OnPlayerTargetSelect (size_t player, int item);
+    void                 OnMultiplayerCheck   (bool isChecked);
+    void                 ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
+    void                 StartPlayerTwoSlide  (bool isShowing, int distancePx);
+    void                 AdvanceSlide         ();
     void                 RefreshAxisOptions ();
     void                 RefreshCalibration ();
     void                 OnRowSelect        (size_t target, size_t row, int item);
@@ -165,7 +181,7 @@ private:
     void                 OnNewProfile       ();
     void                 OpenNewProfileDialog ();
     void                 SwitchController   (size_t index);
-    void                 ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit);
+
     void                 AskToSaveProfileEdits (std::function<void ()> proceed);
     void                 OnRenameProfile    ();
     void                 OnDeleteProfile    ();
@@ -212,17 +228,25 @@ private:
     bool                        m_lastJoyportOn         = false;
     bool                        m_isJoyportSectionShown = false;
 
-    // The two player slots, shown only while the machine is in multiplayer
-    // mode. Each row's drop-downs carry what they offer, so a pick resolves
-    // to a controller and a target rather than to an index into a list that
-    // may have been rebuilt since.
-    DxuiLabel                                                                m_multiplayerHeading;
+    // The two players: Player 1's row, the Multiplayer checkbox, and Player
+    // 2's row while it is ticked. Each row's drop-downs carry what they
+    // offer, so a pick resolves to an entry and a target rather than to an
+    // index into a list that may have been rebuilt since.
+    //
+    // TICKING SLIDES THE ROWS BELOW DOWN to make room for Player 2's row,
+    // which appears once they have, and unticking takes the row away and
+    // slides them back, over the time and curve a menu opens with.
+    DxuiCheckbox                                                             m_multiplayerCheck;
     std::array<DxuiLabel, kPlayerCount>                                      m_playerLabel;
-    std::array<DxuiComboBox, kPlayerCount>                                   m_playerController;
+    std::array<DxuiComboBox, kPlayerCount>                                   m_playerEntry;
     std::array<DxuiLabel, kPlayerCount>                                      m_playerMapsLabel;
     std::array<DxuiComboBox, kPlayerCount>                                   m_playerTarget;
-    std::array<std::vector<std::optional<ControllerUnitKey>>, kPlayerCount>  m_playerUnits;
-    std::array<std::vector<PlayerAxisTarget>, kPlayerCount>                  m_playerTargets;
+    std::array<std::vector<PlayerEntry>, kPlayerCount>                       m_playerEntries;
+    std::array<std::vector<std::optional<PlayerAxisTarget>>, kPlayerCount>   m_playerTargets;
+    DxuiSlide                                                                m_slide;
+    bool                                                                     m_isSliding        = false;
+    bool                                                                     m_isPlayerTwoShown = false;
+    std::function<void (bool)>                                               m_onSlideChanged;
 
     DxuiLabel          m_controllerLabel;
     DxuiComboBox       m_controller;

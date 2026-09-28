@@ -270,6 +270,8 @@ void ControllersPageState::RetargetActiveProfiles (const std::string & modelToke
 
 void ControllersPageState::UpdateDevices (const std::vector<ControllerDeviceInfo> & devices)
 {
+    m_devices = devices;
+
     for (ControllerEntry & entry : m_controllers)
     {
         entry.isConnected = std::any_of (devices.begin(), devices.end(),
@@ -410,18 +412,20 @@ bool ControllersPageState::IsCalibratable() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetMultiplayer
+//  SetPlayers
 //
-//  The machine's mode as the service holds it. Set when the page opens and
-//  whenever the mode is turned on from the toolbar picker while it is open,
-//  so the page never shows a setup the machine is not playing.
+//  The players as the service holds them. Set when the page opens and
+//  whenever they change while it is open -- from the picker, or a controller
+//  coming or going -- so the page never shows players the machine is not
+//  playing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::SetMultiplayer (const MultiplayerSetup & setup, size_t axisCount)
+void ControllersPageState::SetPlayers (const PlayerEntries & entries, const PlayerSlots & slots, size_t axisCount)
 {
-    m_multiplayer = ControllerSelectionPolicy::Normalize (setup);
-    m_axisCount   = axisCount;
+    m_entries   = PlayerSlotPolicy::NormalizeEntries (entries);
+    m_slots     = slots;
+    m_axisCount = axisCount;
 }
 
 
@@ -430,13 +434,13 @@ void ControllersPageState::SetMultiplayer (const MultiplayerSetup & setup, size_
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetOnMultiplayerChanged
+//  SetOnPlayerPicked
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::SetOnMultiplayerChanged (MultiplayerChangedFn onChanged)
+void ControllersPageState::SetOnPlayerPicked (PlayerPickedFn onPicked)
 {
-    m_onMultiplayerChanged = std::move (onChanged);
+    m_onPlayerPicked = std::move (onPicked);
 }
 
 
@@ -445,13 +449,28 @@ void ControllersPageState::SetOnMultiplayerChanged (MultiplayerChangedFn onChang
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetMultiplayer / GetAxisCount / IsMultiplayerEnabled
+//  GetPlayerEntries
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const MultiplayerSetup & ControllersPageState::GetMultiplayer() const
+const PlayerEntries & ControllersPageState::GetPlayerEntries() const
 {
-    return m_multiplayer;
+    return m_entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlayerSlots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const PlayerSlots & ControllersPageState::GetPlayerSlots() const
+{
+    return m_slots;
 }
 
 
@@ -477,11 +496,239 @@ size_t ControllersPageState::GetAxisCount() const
 //
 //  IsMultiplayerEnabled
 //
+//  AS PLAYED, not as chosen: two people are playing while both players hold
+//  a controller, or both picked one. A machine that fell back to one
+//  controller because a player's is not attached shows the single-player
+//  settings, so the page never disagrees with the picker.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ControllersPageState::IsMultiplayerEnabled() const
 {
-    return m_multiplayer.isEnabled;
+    return MakePlayView().isEnabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlayerUnit
+//
+//  The player's pick, or the controller Automatic chose for them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<ControllerUnitKey> ControllersPageState::GetPlayerUnit (size_t player) const
+{
+    if (player >= kPlayerCount)
+    {
+        return std::nullopt;
+    }
+
+    return MakePlayView().players[player].unit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsMultiplayerChecked
+//
+//  The Multiplayer checkbox is Player 2's entry seen another way: ticked for
+//  anything but Disabled, which is why it starts ticked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsMultiplayerChecked() const
+{
+    return m_entries[kPlayerTwo].kind != PlayerEntryKind::Disabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMultiplayerChecked
+//
+//  Unticking is Player 2's Disabled entry and ticking puts Player 2 on
+//  Automatic, both keeping any target the user set for Player 2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetMultiplayerChecked (bool isChecked)
+{
+    PlayerEntry  entry;
+
+
+
+    if (isChecked == IsMultiplayerChecked())
+    {
+        return;
+    }
+
+    entry.kind   = isChecked ? PlayerEntryKind::Automatic : PlayerEntryKind::Disabled;
+    entry.target = m_entries[kPlayerTwo].target;
+
+    ApplyPlayerEntry (kPlayerTwo, entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickPlayerEntry
+//
+//  An entry from a player's drop-down, keeping the target that player set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::PickPlayerEntry (size_t player, PlayerEntry entry)
+{
+    if (player >= kPlayerCount)
+    {
+        return;
+    }
+
+    entry.target = m_entries[player].target;
+
+    ApplyPlayerEntry (player, entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPlayerTarget
+//
+//  None returns the player to following their controller's profile. A target
+//  the machine lacks or the other player holds is not taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetPlayerTarget (size_t player, std::optional<PlayerAxisTarget> target)
+{
+    std::vector<PlayerAxisTarget>  choices;
+    PlayerEntry                    entry;
+    bool                           isOffered = false;
+
+
+
+    if (player >= kPlayerCount)
+    {
+        return;
+    }
+
+    choices   = GetTargetChoices (player);
+    isOffered = !target.has_value() || std::find (choices.begin(), choices.end(), target.value()) != choices.end();
+
+    if (!isOffered || target == m_entries[player].target)
+    {
+        return;
+    }
+
+    entry        = m_entries[player];
+    entry.target = target;
+
+    ApplyPlayerEntry (player, entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyPlayerEntry
+//
+//  The page's own copy takes the pick the way the service does, so the page
+//  shows it at once, and the pick goes on to the service. Picking the other
+//  player's controller returns the other player to Automatic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::ApplyPlayerEntry (size_t player, const PlayerEntry & entry)
+{
+    m_entries = PlayerSlotPolicy::ApplyPick (m_entries, player, entry);
+
+    if (m_onPlayerPicked)
+    {
+        m_onPlayerPicked (player, entry);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEntryChoices
+//
+//  The picker's own list for the player, from the same rules, so the page
+//  and the picker offer the same entries under the same words. Player 2's
+//  Disabled is left out: the Multiplayer checkbox is where it is chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<InputModeRules::PlayerChoice> ControllersPageState::GetEntryChoices (size_t player) const
+{
+    InputModeRules::PickerSource               source;
+    std::vector<InputModeRules::PlayerChoice>  choices;
+
+
+
+    if (player >= kPlayerCount)
+    {
+        return choices;
+    }
+
+    source.entries           = m_entries;
+    source.slots             = m_slots;
+    source.devices           = m_devices;
+    source.isJoyportInEffect = m_profileMode == ProfileMode::Joyport;
+
+    for (const ControllerEntry & entry : m_controllers)
+    {
+        source.knownDescriptions[ControllerTokens::UnitToToken (entry.unit)] = entry.description;
+    }
+
+    for (const InputModeRules::PlayerChoice & choice : InputModeRules::BuildPicker (source).rows[player].choices)
+    {
+        if (choice.entry.kind != PlayerEntryKind::Disabled)
+        {
+            choices.push_back (choice);
+        }
+    }
+
+    return choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakePlayView
+//
+//  The players as they play, one controller and one target each: the pick,
+//  or what Automatic chose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MultiplayerSetup ControllersPageState::MakePlayView() const
+{
+    return PlayerSlotPolicy::MakeSetupView (m_entries, m_slots);
 }
 
 
@@ -502,12 +749,13 @@ bool ControllersPageState::IsMultiplayerEnabled() const
 JoyportJack ControllersPageState::GetJoyportJack() const
 {
     const ControllerEntry  * selected = GetSelected();
+    MultiplayerSetup         view     = MakePlayView();
     JoyportJack              jack     = JoyportJack::None;
     size_t                   player   = 0;
 
 
 
-    if (selected != nullptr && !m_multiplayer.isEnabled)
+    if (selected != nullptr && !view.isEnabled)
     {
         jack = JoyportJack::Both;
     }
@@ -515,7 +763,7 @@ JoyportJack ControllersPageState::GetJoyportJack() const
     {
         for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
         {
-            const std::optional<ControllerUnitKey>  & unit = m_multiplayer.players[player].unit;
+            const std::optional<ControllerUnitKey>  & unit = view.players[player].unit;
 
             if (unit.has_value() && unit.value() == selected->unit)
             {
@@ -645,105 +893,13 @@ std::wstring ControllersPageState::GetJoyportSwitchLabel (bool isAtariMode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetMultiplayerUnit
-//
-//  The controller one player holds.
-//
-//  FILLING A SLOT MOVES IT OFF A PADDLE THE OTHER PLAYER HOLDS rather than
-//  refusing it. Both slots start on joystick 0, so a user who picks a
-//  controller for the second player is asking for two players, not for the
-//  paddles the first one already has; leaving the choice to be emptied by
-//  normalization read as the drop-down ignoring the pick.
-//
-//  PICKING THE OTHER PLAYER'S CONTROLLER SWAPS THE TWO. The other player takes
-//  the controller this one gave up, or none if this one held none. Leaving
-//  that controller out of the list, as the page once did, meant two players
-//  could never trade controllers, and emptying the other slot made every
-//  trade two steps.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPageState::SetMultiplayerUnit (size_t player, const std::optional<ControllerUnitKey> & unit)
-{
-    std::vector<PlayerAxisTarget>     choices;
-    std::optional<ControllerUnitKey>  previous;
-    size_t                            other    = 0;
-
-
-
-    if (player >= MultiplayerSetup::kPlayerCount)
-    {
-        return;
-    }
-
-    previous = m_multiplayer.players[player].unit;
-    other    = (player == 0) ? 1 : 0;
-
-    if (unit.has_value() && m_multiplayer.players[other].unit == unit)
-    {
-        m_multiplayer.players[other].unit = previous;
-    }
-
-    m_multiplayer.players[player].unit = unit;
-
-    if (unit.has_value())
-    {
-        choices = ControllerSelectionPolicy::GetTargetChoices (m_multiplayer, player, m_axisCount);
-
-        if (!choices.empty() &&
-            std::find (choices.begin(), choices.end(), m_multiplayer.players[player].target) == choices.end())
-        {
-            m_multiplayer.players[player].target = choices.front();
-        }
-    }
-
-    m_multiplayer = ControllerSelectionPolicy::Normalize (m_multiplayer);
-
-    if (m_onMultiplayerChanged)
-    {
-        m_onMultiplayerChanged (m_multiplayer);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetMultiplayerTarget
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPageState::SetMultiplayerTarget (size_t player, PlayerAxisTarget target)
-{
-    if (player >= MultiplayerSetup::kPlayerCount)
-    {
-        return;
-    }
-
-    m_multiplayer.players[player].target = target;
-    m_multiplayer                        = ControllerSelectionPolicy::Normalize (m_multiplayer);
-
-    if (m_onMultiplayerChanged)
-    {
-        m_onMultiplayerChanged (m_multiplayer);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  GetTargetChoices
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<PlayerAxisTarget> ControllersPageState::GetTargetChoices (size_t player) const
 {
-    return ControllerSelectionPolicy::GetTargetChoices (m_multiplayer, player, m_axisCount);
+    return ControllerSelectionPolicy::GetTargetChoices (MakePlayView(), player, m_axisCount);
 }
 
 
@@ -767,7 +923,7 @@ std::optional<size_t> ControllersPageState::FindEditedPlayer() const
         return std::nullopt;
     }
 
-    return ControllerSelectionPolicy::FindPlayer (m_multiplayer, selected->unit);
+    return ControllerSelectionPolicy::FindPlayer (MakePlayView(), selected->unit);
 }
 
 
@@ -794,11 +950,12 @@ std::optional<size_t> ControllersPageState::FindEditedPlayer() const
 bool ControllersPageState::IsTargetInPlay (PaddleTarget target) const
 {
     std::optional<size_t>  player = FindEditedPlayer();
+    MultiplayerSetup       view   = MakePlayView();
     size_t                 axes   = 0;
 
 
 
-    if (!m_multiplayer.isEnabled)
+    if (!view.isEnabled)
     {
         return true;
     }
@@ -808,7 +965,7 @@ bool ControllersPageState::IsTargetInPlay (PaddleTarget target) const
         return false;
     }
 
-    axes = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player.value(), m_axisCount).count();
+    axes = ControllerSelectionPolicy::GetAxesForPlayer (view, player.value(), m_axisCount).count();
 
     switch (target)
     {
@@ -840,6 +997,7 @@ std::wstring ControllersPageState::GetTargetPlayLabel (PaddleTarget target) cons
 {
     static constexpr const wchar_t *  s_kPaddleNames[] = { L"PDL0:", L"PDL1:", L"PDL2:", L"PDL3:" };
     std::optional<size_t>             player           = FindEditedPlayer();
+    MultiplayerSetup                  view             = MakePlayView();
     MultiplayerSetup::AxisSet         axes;
     size_t                            axis             = 0;
     size_t                            nth              = 0;
@@ -848,7 +1006,7 @@ std::wstring ControllersPageState::GetTargetPlayLabel (PaddleTarget target) cons
 
     // Outside the mode the controller drives the port on its own, so its own
     // targets are what to call them.
-    if (!m_multiplayer.isEnabled || !player.has_value())
+    if (!view.isEnabled || !player.has_value())
     {
         return L"";
     }
@@ -868,7 +1026,7 @@ std::wstring ControllersPageState::GetTargetPlayLabel (PaddleTarget target) cons
 
     // The slot's paddles take the mapping's axis targets in ascending order,
     // so PDL0 is the first paddle the player holds and PDL1 the second.
-    axes = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player.value(), m_axisCount);
+    axes = ControllerSelectionPolicy::GetAxesForPlayer (view, player.value(), m_axisCount);
     nth  = (target == PaddleTarget::Pdl0) ? 0 : 1;
 
     for (axis = 0; axis < axes.size(); axis++)

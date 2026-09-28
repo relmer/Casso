@@ -464,20 +464,23 @@ HRESULT SettingsSheet::OpenModeless (
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
 
-            // The machine's mode and its axis budget. Unlike the mappings,
-            // these are not copies the page edits and OK commits: they are
-            // machine input settings, so an edit goes to the service and to
-            // the machine's prefs as it is made, exactly as a pick from the
-            // toolbar's paddle picker does.
-            m_controllersState.SetMultiplayer (PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots), snapshot.axisCount);
+            // The players and the machine's axis budget. Unlike the mappings,
+            // these are not copies the page edits and OK commits: a pick on
+            // the page goes through the same path as a pick from the command
+            // bar's picker, so it applies and is saved as it is made, and the
+            // page is handed the players as the service then plays them.
+            m_controllersState.SetPlayers (snapshot.entries, snapshot.slots, snapshot.axisCount);
 
-            m_controllersState.SetOnMultiplayerChanged ([this, service] (const MultiplayerSetup & setup)
+            m_controllersState.SetOnPlayerPicked ([this, service] (size_t player, const PlayerEntry & entry)
             {
-                ControllerInputService::Snapshot  current = service->GetSnapshot();
+                ControllerInputService::Snapshot  current;
 
-                service->SetPlayerEntries (PlayerSlotPolicy::ApplySetupView (current.entries, current.slots, setup));
-                m_emuShell->PersistInputModeForMachine();
-                m_emuShell->SyncPaddleSourceList();
+
+
+                m_emuShell->PickPlayer (player, entry);
+
+                current = service->GetSnapshot();
+                m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
             });
 
             m_controllersPage->SetSampleSource ([service] (const ControllerUnitKey & unit)
@@ -515,6 +518,14 @@ HRESULT SettingsSheet::OpenModeless (
         {
             RefreshFocusOrder (m_controllersPage);
             Invalidate();
+        });
+
+        // The rows below the players slide over a menu's open time, which
+        // the sheet's ordinary tick is far too slow to draw, so it ticks at
+        // frame rate until the slide is done.
+        m_controllersPage->SetOnSlideChanged ([this] (bool isSliding)
+        {
+            SetDialogTickIntervalMs (isSliding ? kSlideTickMs : DxuiWindow::kDefaultDialogTickMs);
         });
         m_apply.BindControllers (&m_controllersState, service);
 
@@ -685,7 +696,7 @@ bool SettingsSheet::TrySyncControllersPlayers()
     // Laid out again rather than merely re-synced: the section is not a value
     // on the page, it is rows that come and go, and every row below it moves
     // with them.
-    m_controllersState.SetMultiplayer (PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots), snapshot.axisCount);
+    m_controllersState.SetPlayers (snapshot.entries, snapshot.slots, snapshot.axisCount);
     m_controllersPage->Relayout();
     return true;
 }
@@ -770,21 +781,16 @@ void SettingsSheet::OnDialogTick()
 
         m_controllersState.UpdateDevices (snapshot.devices);
 
-        // The mode can be turned on from the picker while the sheet is open,
-        // which is exactly what the picker's Multiplayer... row does: it turns
-        // the mode on and opens this page. Without this the page would go on
-        // showing the mode it opened in, and the player slots would stay
-        // hidden until the sheet was closed and opened again.
-        // AS PLAYED, so a player's controller coming or going moves the page
-        // between the two-player and single-player settings the same way it
-        // moves the toolbar picker, even though it never touches the saved
-        // setup (FR-040).
-        MultiplayerSetup  live = PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots);
-
-        if (m_controllersState.GetMultiplayer() != live ||
-            m_controllersState.GetAxisCount()   != snapshot.axisCount)
+        // The players can change from the picker while the sheet is open, and
+        // a player's controller coming or going moves the page between the
+        // two-player and single-player settings the same way it moves the
+        // picker. Without this the page would go on showing the players it
+        // opened with until the sheet was closed and opened again.
+        if (m_controllersState.GetPlayerEntries() != snapshot.entries ||
+            m_controllersState.GetPlayerSlots()   != snapshot.slots   ||
+            m_controllersState.GetAxisCount()     != snapshot.axisCount)
         {
-            m_controllersState.SetMultiplayer (live, snapshot.axisCount);
+            m_controllersState.SetPlayers (snapshot.entries, snapshot.slots, snapshot.axisCount);
 
             // The section comes and goes with the mode, which moves every row
             // below it, so the page is laid out again rather than merely

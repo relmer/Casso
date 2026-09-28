@@ -288,11 +288,13 @@ protected:
     virtual bool  OnOverlayKey      (WPARAM vk)                 { UNREFERENCED_PARAMETER (vk); return false; }
 
     //
-    //  Tune the dialog repaint / tick cadence (ms) before
-    //  ShowModalDialog / ShowModelessDialog. The default suits caret
+    //  Tune the dialog repaint / tick cadence (ms). The default suits caret
     //  blink; a poller (e.g. download progress) sets a faster interval.
+    //  Set while a dialog is showing, it takes effect at once.
     //
-    void  SetDialogTickIntervalMs (UINT ms) { m_dialogTickMs = ms; }
+    static constexpr UINT  kDefaultDialogTickMs = 250;
+
+    void  SetDialogTickIntervalMs (UINT ms);
 
     //
     //  Tear down the backend (HWND + swap chain). Safe to call from a
@@ -353,7 +355,7 @@ private:
     bool                               m_modalDone       = false;
     int                                m_modalResult     = 0;
     int                                m_defaultButtonId = 0;
-    UINT                               m_dialogTickMs    = 250;   // dialog repaint / tick cadence (caret-blink default)
+    UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
 };

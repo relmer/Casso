@@ -1782,6 +1782,88 @@ namespace ControllerTests
         }
 
 
+        //  A remembered profile that no longer exists plays the built-in
+        //  profile of the mode in effect: with the Joyport on, the Joyport
+        //  profile, which steers with the D-pad and fires with X, not the
+        //  Default, which does neither.
+        TEST_METHOD (ActiveProfileMissing_PlaysTheBuiltInProfileOfTheModeInEffect)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    device = MakeXboxDevice();
+            std::string             token  = ControllerTokens::UnitToToken (device.unit);
+            ControllerSample        sample = MakeRestSample();
+
+
+
+            sample.hats[0] = ControllerSample::kHatRight;
+            sample.buttons.set (2);
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, sample);
+            service.SetModelSettings (MakeProfilesOfEachMode (device));
+            service.SetActiveProfiles (ProfileMode::Joyport, { { token, "Gone" } });
+            service.SetJoyportAttached (true);
+            Pick (service, device.unit);
+            service.Tick();
+
+            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"the Joyport profile steers with the D-pad");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),     L"and fires with X");
+            Assert::AreEqual (std::string ("Gone"), service.GetActiveProfile (device.unit), L"the remembered name is kept as it was");
+        }
+
+
+        //  Deleting the profile a controller plays makes the built-in profile
+        //  of the deleted profile's mode play in its place, in either mode.
+        TEST_METHOD (DeletingTheActiveProfile_PlaysTheBuiltInProfileOfItsMode)
+        {
+            FakeControllerBackend                           backend;
+            GamePortInputMixer                              mixer;
+            RecordingGamePortSink                           sink;
+            ControllerInputService                          service (backend, mixer);
+            ControllerDeviceInfo                            device = MakeXboxDevice();
+            ControllerSample                                sample = MakeRestSample();
+            std::map<std::string, ControllerModelSettings>  models = MakeProfilesOfEachMode (device);
+
+
+
+            sample.hats[0] = ControllerSample::kHatRight;
+            sample.buttons.set (2);
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, sample);
+            service.SetModelSettings (models);
+            Pick (service, device.unit);
+
+            service.SetActiveProfile (device.unit, "Dpad");
+            service.Tick();
+            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"Dpad steers with the D-pad");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (0),     L"and binds no fire");
+
+            models.begin()->second.DeleteProfile ("Dpad");
+            service.SetModelSettings (models);
+            service.Tick();
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"with Dpad deleted, the Default plays, which leaves the D-pad unbound");
+
+            service.SetJoyportAttached (true);
+            service.SetActiveProfile (device.unit, "Atari");
+            service.Tick();
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"Atari binds fire and no steering");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0));
+
+            models.begin()->second.DeleteProfile ("Atari");
+            service.SetModelSettings (models);
+            service.Tick();
+            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"with Atari deleted, the Joyport profile plays and steers");
+        }
+
+
         TEST_METHOD (UnrecognizedUnit_PlaysItsModelsSavedProfile)
         {
             FakeControllerBackend   backend;

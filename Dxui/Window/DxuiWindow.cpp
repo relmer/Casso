@@ -845,6 +845,34 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDialogTickIntervalMs
+//
+//  Re-arming a timer under the same id replaces it, so a dialog already
+//  showing moves to the new cadence at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetDialogTickIntervalMs (UINT ms)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_dialogTickMs = ms;
+
+    if (m_dialogActive && m_source != nullptr)
+    {
+        hr = m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnModalLoopTick
 //
 //  Fires while the OS runs its modal move / size loop for this window (the user

@@ -297,6 +297,12 @@ public:
                                       const std::vector<ControlId>    & controls,
                                       const std::string               & name);
 
+    // A machine's active profile saved by an earlier build, handed to that
+    // machine's saved controller as its normal-mode choice.
+    static bool        TryAdoptLegacyProfile (std::map<std::string, std::string>     & normalProfiles,
+                                              const std::optional<ControllerUnitKey> & selection,
+                                              const std::string                      & legacyName);
+
 private:
 
     void              ReadModels        (const JsonValue & modelsObj, std::vector<std::string> & outRejected);

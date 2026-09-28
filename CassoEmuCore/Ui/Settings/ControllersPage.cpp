@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -56,12 +57,16 @@ ControllersPage::ControllersPage (std::wstring title)
 
     Adopt (m_joyportHeading);
     Adopt (m_joyportSwitch);
-    Adopt (m_multiplayerHeading);
 
     for (target = 0; target < kPlayerCount; target++)
     {
+        if (target == kPlayerTwo)
+        {
+            Adopt (m_multiplayerCheck);
+        }
+
         Adopt (m_playerLabel[target]);
-        Adopt (m_playerController[target]);
+        Adopt (m_playerEntry[target]);
         Adopt (m_playerMapsLabel[target]);
         Adopt (m_playerTarget[target]);
     }
@@ -163,13 +168,21 @@ void ControllersPage::SetState (ControllersPageState * state)
         }
     });
 
+    m_multiplayerCheck.SetOnChange ([this] (bool isChecked)
+    {
+        if (!m_isSyncing)
+        {
+            OnMultiplayerCheck (isChecked);
+        }
+    });
+
     for (size_t target = 0; target < kPlayerCount; target++)
     {
-        m_playerController[target].SetSelect ([this, target] (int item)
+        m_playerEntry[target].SetSelect ([this, target] (int item)
         {
             if (!m_isSyncing)
             {
-                OnPlayerControllerSelect (target, item);
+                OnPlayerEntrySelect (target, item);
             }
         });
 
@@ -331,8 +344,8 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
     for (target = 0; target < kPlayerCount; target++)
     {
-        m_playerController[target].SetPopupHost (host);
-        m_playerTarget[target].SetPopupHost     (host);
+        m_playerEntry[target].SetPopupHost  (host);
+        m_playerTarget[target].SetPopupHost (host);
     }
 
     for (target = 0; target < kTargetCount; target++)
@@ -394,8 +407,10 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     axesX       = x + stickSize + sectionGap;
     int     stickTop    = 0;
     int     axesBottom  = 0;
-    int     playerX     = 0;
+    int     playerStep  = rowH + gap;
     bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
+    bool    isTwoShown  = m_state == nullptr || m_state->IsMultiplayerChecked();
+    bool    hadLayout   = m_hasLayout;
     bool    isOffered   = IsJoyportOffered();
     bool    isJoyport   = IsJoyportMode();
     size_t  target      = 0;
@@ -428,53 +443,58 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         y += rowH + switchH + sectionGap;
     }
 
-    // The two player slots lead the page while the machine is in that mode,
-    // since who is playing decides what everything below it edits. With the
-    // mode off there are no slots to fill, so the section is not there at all
-    // rather than sitting empty on every machine.
-    playerX = x + indent;
-
-    m_multiplayerHeading.SetVisible (isTwoPlayer);
-    m_multiplayerHeading.SetRect    (MakeRect (x, y, wideWidth, rowH));
-    m_multiplayerHeading.SetText    (L"Multiplayer");
-
-    if (isTwoPlayer)
+    // The players lead the page after the Joyport, since who is playing
+    // decides what everything below edits: Player 1's row, the Multiplayer
+    // checkbox, and Player 2's row while it is ticked. A change of the box,
+    // from the page or the picker, slides everything below.
+    if (hadLayout && isTwoShown != m_isPlayerTwoShown)
     {
-        y += rowH;
+        StartPlayerTwoSlide (isTwoShown, playerStep);
     }
 
+    m_isPlayerTwoShown = isTwoShown;
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        m_playerLabel[player].SetVisible (isTwoPlayer);
-        m_playerLabel[player].SetRect    (MakeRect (playerX, y, labelWidth, rowH));
+        // Player 2's row appears only once the rows below have made room
+        // for it, so nothing is drawn over it on the way.
+        bool  isShown = player != kPlayerTwo || (isTwoShown && !m_isSliding);
+
+        if (player == kPlayerTwo)
+        {
+            m_multiplayerCheck.SetRect    (MakeRect (x, y, wideWidth, rowH));
+            m_multiplayerCheck.SetLabel   (L"Multiplayer");
+            m_multiplayerCheck.SetVisible (m_state != nullptr);
+            y += playerStep;
+        }
+
+        m_playerLabel[player].SetVisible (isShown);
+        m_playerLabel[player].SetRect    (MakeRect (x, y, labelWidth, rowH));
         m_playerLabel[player].SetText    (player == 0 ? L"Player 1:" : L"Player 2:");
 
-        m_playerController[player].SetVisible (isTwoPlayer);
-        m_playerController[player].SetRect    (MakeRect (playerX + labelWidth, y, rowWidth, rowH));
+        m_playerEntry[player].SetVisible (isShown);
+        m_playerEntry[player].SetRect    (MakeRect (x + labelWidth, y, rowWidth, rowH));
 
         // With the Joyport attached a player's slot is their jack, and the
         // paddles the slot maps to play no part, so the jack takes the place
         // of that choice. The choice is kept for when the Joyport comes off.
-        m_playerMapsLabel[player].SetVisible (isTwoPlayer);
-        m_playerMapsLabel[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap, y,
+        m_playerMapsLabel[player].SetVisible (isShown);
+        m_playerMapsLabel[player].SetRect    (MakeRect (x + labelWidth + rowWidth + gap, y,
                                                         isJoyport ? targetWidth : mapsWidth, rowH));
         m_playerMapsLabel[player].SetText    (isJoyport ? (player == 0 ? L"left jack" : L"right jack") : L"maps to");
 
-        m_playerTarget[player].SetVisible (isTwoPlayer && !isJoyport);
-        m_playerTarget[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
+        m_playerTarget[player].SetVisible (isShown && !isJoyport);
+        m_playerTarget[player].SetRect    (MakeRect (x + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
 
-        if (isTwoPlayer)
+        if (player != kPlayerTwo || isTwoShown)
         {
-            y += rowH + gap;
+            y += playerStep;
         }
     }
 
-    if (isTwoPlayer)
-    {
-        y += sectionGap - gap;
-    }
-
+    // Everything below the players is where the slide has it: short of its
+    // place by what is left to travel.
+    y += sectionGap - gap + (int) std::lround (m_slide.GetOffset ((int64_t) GetTickCount64()));
     m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
 
     // While two people play, this drop-down chooses whose mappings the rest
@@ -651,15 +671,15 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.SetLabel (L"Reset profile");
     m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
 
-    m_joyportHeading.SetDpi     (dpi);
-    m_multiplayerHeading.SetDpi (dpi);
+    m_joyportHeading.SetDpi   (dpi);
+    m_multiplayerCheck.SetDpi (dpi);
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        m_playerLabel[player].SetDpi      (dpi);
-        m_playerController[player].SetDpi (dpi);
-        m_playerMapsLabel[player].SetDpi  (dpi);
-        m_playerTarget[player].SetDpi     (dpi);
+        m_playerLabel[player].SetDpi     (dpi);
+        m_playerEntry[player].SetDpi     (dpi);
+        m_playerMapsLabel[player].SetDpi (dpi);
+        m_playerTarget[player].SetDpi    (dpi);
     }
 
     m_controllerLabel.SetDpi (dpi);
@@ -734,6 +754,8 @@ void ControllersPage::Poll()
     {
         return;
     }
+
+    AdvanceSlide();
 
     if (m_state->GetControllers().size() != m_lastControllerCount)
     {
@@ -1122,7 +1144,7 @@ void ControllersPage::Refresh()
     {
         const ControllersPageState::ControllerEntry &  entry = m_state->GetControllers()[index];
 
-        if (isPlayersOnly && !ControllerSelectionPolicy::FindPlayer (m_state->GetMultiplayer(), entry.unit).has_value())
+        if (isPlayersOnly && m_state->GetPlayerUnit (0) != entry.unit && m_state->GetPlayerUnit (kPlayerTwo) != entry.unit)
         {
             continue;
         }
@@ -1152,7 +1174,7 @@ void ControllersPage::Refresh()
     m_controller.SetSelected (selectedItem);
     m_controller.SetEnabled  (selected.has_value() && !m_editingIndices.empty());
 
-    RefreshMultiplayer();
+    RefreshPlayers();
     RefreshProfiles();
     RefreshRows();
     RefreshAxisOptions();
@@ -1653,72 +1675,73 @@ void ControllersPage::RefreshRows()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RefreshMultiplayer
+//  RefreshPlayers
 //
-//  Each player's two drop-downs. The controller list offers None and every
-//  controller, the other player's included: picking that one swaps the two
-//  players' controllers. The targets come from the policy, which has already
-//  left out the paddles this machine lacks and the ones the other player
-//  claimed (FR-035, FR-036).
+//  Each player's two drop-downs and the Multiplayer checkbox. The entries
+//  are the picker's own, the other player's controller included: picking
+//  that one returns the other player to Automatic. The targets start with
+//  following the profile, then come from the policy, which has already left
+//  out the paddles this machine lacks and the ones the other player holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::RefreshMultiplayer()
+void ControllersPage::RefreshPlayers()
 {
     size_t  player = 0;
     size_t  i      = 0;
 
 
 
-    if (!m_state->IsMultiplayerEnabled())
-    {
-        return;
-    }
+    m_multiplayerCheck.SetChecked (m_state->IsMultiplayerChecked());
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        const MultiplayerSlot &    slot     = m_state->GetMultiplayer().players[player];
-        std::vector<std::wstring>  items;
-        int                        selected = 0;
+        const PlayerEntry &                        current  = m_state->GetPlayerEntries()[player];
+        std::vector<InputModeRules::PlayerChoice>  choices  = m_state->GetEntryChoices (player);
+        std::vector<PlayerAxisTarget>              targets  = m_state->GetTargetChoices (player);
+        std::vector<std::wstring>                  items;
+        int                                        selected = 0;
+        bool                                       isHost   = current.kind == PlayerEntryKind::ArrowKeys || current.kind == PlayerEntryKind::MousePaddle;
 
-        m_playerUnits[player].clear();
-        m_playerUnits[player].push_back (std::nullopt);
-        items.push_back (L"None");
+        m_playerEntries[player].clear();
 
-        for (const ControllersPageState::ControllerEntry & entry : m_state->GetControllers())
+        for (i = 0; i < choices.size(); i++)
         {
-            if (slot.unit.has_value() && slot.unit.value() == entry.unit)
-            {
-                selected = (int) items.size();
-            }
-
-            m_playerUnits[player].push_back (entry.unit);
-            items.push_back (entry.isConnected ? entry.description : entry.description + L" (not connected)");
-        }
-
-        m_playerController[player].SetItems    (items);
-        m_playerController[player].SetSelected (selected);
-
-        items.clear();
-        selected                = 0;
-        m_playerTargets[player] = m_state->GetTargetChoices (player);
-
-        for (i = 0; i < m_playerTargets[player].size(); i++)
-        {
-            if (m_playerTargets[player][i] == slot.target)
+            if (choices[i].isChecked)
             {
                 selected = (int) i;
             }
 
-            items.push_back (ControllersPageState::GetTargetLabel (m_playerTargets[player][i]));
+            m_playerEntries[player].push_back (choices[i].entry);
+            items.push_back (choices[i].label);
+        }
+
+        m_playerEntry[player].SetItems    (items);
+        m_playerEntry[player].SetSelected (selected);
+
+        items.clear();
+        selected = 0;
+        m_playerTargets[player].clear();
+        m_playerTargets[player].push_back (std::nullopt);
+        items.push_back (kpszFollowProfile);
+
+        for (i = 0; i < targets.size(); i++)
+        {
+            if (current.target == targets[i])
+            {
+                selected = (int) m_playerTargets[player].size();
+            }
+
+            m_playerTargets[player].push_back (targets[i]);
+            items.push_back (ControllersPageState::GetTargetLabel (targets[i]));
         }
 
         m_playerTarget[player].SetItems    (items);
         m_playerTarget[player].SetSelected (selected);
 
-        // An empty slot plays nothing, so what it would map to is not a
-        // question yet.
-        m_playerTarget[player].SetEnabled (slot.unit.has_value() && !items.empty());
+        // The keys and the mouse play as one controller always has, so what
+        // a slot maps to is not a question for them.
+        m_playerTarget[player].SetEnabled (!isHost);
     }
 }
 
@@ -1728,43 +1751,43 @@ void ControllersPage::RefreshMultiplayer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnPlayerControllerSelect
+//  OnPlayerEntrySelect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
+void ControllersPage::OnPlayerEntrySelect (size_t player, int item)
 {
-    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerUnits[player].size())
+    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerEntries[player].size())
     {
         return;
     }
 
-    std::optional<ControllerUnitKey>  pick      = m_playerUnits[player][(size_t) item];
-    std::optional<ControllerUnitKey>  playerOne = m_state->GetMultiplayer().players[0].unit;
+    PlayerEntry                       pick      = m_playerEntries[player][(size_t) item];
+    std::optional<ControllerUnitKey>  playerOne = m_state->GetPlayerUnit (0);
     bool                              movesOne  = false;
 
 
 
     // Player one changes when its own drop-down picks something else, or
-    // when player two takes player one's controller and swaps.
-    movesOne = (player == 0) ? pick != playerOne
-                             : pick.has_value() && pick == playerOne;
+    // when player two takes player one's controller.
+    movesOne = (player == 0) ? !(pick == m_state->GetPlayerEntries()[0])
+                             : pick.unit.has_value() && pick.unit == playerOne;
 
     if (!movesOne)
     {
-        ApplyPlayerController (player, pick);
+        ApplyPlayerEntry (player, pick);
         return;
     }
 
     // ASKED BEFORE THE PICK IS APPLIED, not after. Editing follows player one,
     // so a pick that moves player one leaves the edited profile; asking first
-    // means Cancel takes back the whole gesture -- the assignment as well as
-    // the move -- rather than leaving the players swapped and Editing on a
+    // means Cancel takes back the whole gesture -- the pick as well as the
+    // move -- rather than leaving the players changed and Editing on a
     // controller that is no longer player one's. The prompt re-syncs the
     // drop-downs as it opens, so a canceled pick shows as never made.
     AskToSaveProfileEdits ([this, player, pick] ()
     {
-        ApplyPlayerController (player, pick);
+        ApplyPlayerEntry (player, pick);
         FollowPlayerOne();
     });
 }
@@ -1775,17 +1798,119 @@ void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyPlayerController
+//  ApplyPlayerEntry
 //
-//  The slots decide which rows below are in play, so the whole page follows a
-//  pick here.
+//  Who plays decides which rows below are in play, so the whole page follows
+//  a pick here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit)
+void ControllersPage::ApplyPlayerEntry (size_t player, const PlayerEntry & entry)
 {
-    m_state->SetMultiplayerUnit (player, unit);
+    m_state->PickPlayerEntry (player, entry);
     Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMultiplayerCheck
+//
+//  The box is Player 2's entry: it applies at once, and the layout that
+//  follows starts the slide.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnMultiplayerCheck (bool isChecked)
+{
+    if (m_state == nullptr)
+    {
+        return;
+    }
+
+    m_state->SetMultiplayerChecked (isChecked);
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPlayerTwoSlide
+//
+//  Everything below the players starts where it was and travels to its new
+//  place: down by Player 2's row when it is coming, up when it is going. A
+//  slide already under way starts the new one from where it has got to. With
+//  menu animations off the slide is done at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::StartPlayerTwoSlide (bool isShowing, int distancePx)
+{
+    int64_t  nowMs     = (int64_t) GetTickCount64();
+    float    currentPx = m_slide.GetOffset (nowMs);
+    float    travelPx  = (float) (isShowing ? -distancePx : distancePx);
+
+
+
+    m_slide     = DxuiSlide::Start (currentPx + travelPx, nowMs, DxuiSystemSettings::Instance().AreMenuAnimationsEnabled());
+    m_isSliding = !m_slide.IsDone (nowMs);
+
+    if (m_isSliding && m_onSlideChanged)
+    {
+        m_onSlideChanged (true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceSlide
+//
+//  Each poll while the rows slide: lay the page out where the slide has them
+//  now, and at the end, once more in place, with Player 2's row shown if it
+//  is coming.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::AdvanceSlide()
+{
+    if (!m_isSliding)
+    {
+        return;
+    }
+
+    m_isSliding = !m_slide.IsDone ((int64_t) GetTickCount64());
+
+    Relayout();
+
+    if (!m_isSliding && m_onSlideChanged)
+    {
+        m_onSlideChanged (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetOnSlideChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::SetOnSlideChanged (std::function<void (bool isSliding)> onSlideChanged)
+{
+    m_onSlideChanged = std::move (onSlideChanged);
 }
 
 
@@ -1816,11 +1941,11 @@ void ControllersPage::FollowPlayerOne()
         return;
     }
 
-    unit = m_state->GetMultiplayer().players[0].unit;
+    unit = m_state->GetPlayerUnit (0);
 
     if (!unit.has_value())
     {
-        unit = m_state->GetMultiplayer().players[1].unit;
+        unit = m_state->GetPlayerUnit (kPlayerTwo);
     }
 
     if (!unit.has_value())
@@ -1899,7 +2024,7 @@ void ControllersPage::OnPlayerTargetSelect (size_t player, int item)
         return;
     }
 
-    m_state->SetMultiplayerTarget (player, m_playerTargets[player][(size_t) item]);
+    m_state->SetPlayerTarget (player, m_playerTargets[player][(size_t) item]);
     Relayout();
 }
 

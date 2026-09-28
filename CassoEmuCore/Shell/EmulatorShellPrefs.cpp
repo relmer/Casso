@@ -359,6 +359,7 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
     std::map<std::string, std::string>   normalProfiles;
     std::optional<ControllerUnitKey>     selection;
     ControllerUnitKey                    unit;
+    bool                                 isAdopted  = false;
     const MachineDefinition            * definition = MachineDefinitions::Find (machineId);
 
 
@@ -398,11 +399,10 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
     // controller has none recorded, and is written back to no machine after.
     legacyProfile  = MachineInputPrefs::ReadProfileName (uiPrefs);
     normalProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Normal);
+    isAdopted      = ControllerProfileStore::TryAdoptLegacyProfile (normalProfiles, selection, legacyProfile);
 
-    if (!legacyProfile.empty() && selection.has_value() &&
-        normalProfiles.count (ControllerTokens::UnitToToken (selection.value())) == 0)
+    if (isAdopted)
     {
-        normalProfiles[ControllerTokens::UnitToToken (selection.value())] = legacyProfile;
         m_controllerService->SetActiveProfiles (ProfileMode::Normal, normalProfiles);
     }
 

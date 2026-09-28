@@ -451,6 +451,86 @@ namespace ControllerTests
         }
 
 
+        //  Both built-in profiles exist for every model, whatever its kind and
+        //  form factor, each in its own mode; neither can be renamed or
+        //  deleted by any case of its name; and each resets to its own
+        //  built-in mapping.
+        TEST_METHOD (BuiltInProfiles_ExistForEveryModelAndResetToTheirOwnMappings)
+        {
+            const std::vector<ControlId>             stickControls = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 }, { ControlKind::Axis, DefaultMapping::kAxisZ },
+                                                                       { ControlKind::Axis, DefaultMapping::kAxisRz }, { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
+            const ControllerModelKey                 keys[]        = { Xbox(), Stick(), Stick() };
+            const ControllerFormFactor               formFactors[] = { ControllerFormFactor::Gamepad, ControllerFormFactor::Joystick, ControllerFormFactor::Gamepad };
+            const std::vector<ControlId>             controls[]    = { XInputSampleDecoder::ListControls(), stickControls, stickControls };
+            size_t                                   i             = 0;
+
+
+
+            for (i = 0; i < std::size (keys); i++)
+            {
+                ControllerProfileStore     store;
+                ControllerModelSettings &  settings        = store.GetOrCreateModel (keys[i], formFactors[i], controls[i]);
+                ControllerProfile       *  normal          = settings.FindBuiltInProfile (ControllerProfileKind::Default);
+                ControllerProfile       *  joyport         = settings.FindBuiltInProfile (ControllerProfileKind::Joyport);
+                ControlMapping             expectedNormal  = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Default, keys[i], formFactors[i], controls[i]);
+                ControlMapping             expectedJoyport = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Joyport, keys[i], formFactors[i], controls[i]);
+
+
+
+                Assert::IsNotNull (normal,  L"every model has a Default");
+                Assert::IsNotNull (joyport, L"and a Joyport profile");
+                Assert::IsTrue    (normal->mode  == ProfileMode::Normal);
+                Assert::IsTrue    (joyport->mode == ProfileMode::Joyport);
+
+                for (const char * name : { "Default", "DEFAULT", "Joyport", "joyport" })
+                {
+                    Assert::IsTrue (settings.RenameProfile (name, "Renamed") == ProfileEditResult::IsBuiltInProfile);
+                    Assert::IsTrue (settings.DeleteProfile (name)            == ProfileEditResult::IsBuiltInProfile);
+                }
+
+                normal->mapping  = MakeFullMapping();
+                joyport->mapping = MakeFullMapping();
+
+                Assert::IsTrue (store.ResetProfile (keys[i], formFactors[i], controls[i], "Default") == ProfileEditResult::Ok);
+                Assert::IsTrue (store.ResetProfile (keys[i], formFactors[i], controls[i], "Joyport") == ProfileEditResult::Ok);
+                Assert::IsTrue (settings.FindBuiltInProfile (ControllerProfileKind::Default)->mapping == expectedNormal,  L"the Default resets to the default mapping");
+                Assert::IsTrue (settings.FindBuiltInProfile (ControllerProfileKind::Joyport)->mapping == expectedJoyport, L"the Joyport profile to the Joyport mapping");
+                Assert::IsTrue (expectedNormal != expectedJoyport, L"which differ, or the reset would prove nothing");
+            }
+        }
+
+
+        //  A machine's active profile saved by an earlier build passes to that
+        //  machine's saved controller as its normal-mode choice, once: only
+        //  while the controller has none of its own, a choice of the Default
+        //  included, and never without a saved controller.
+        TEST_METHOD (LegacyProfile_PassesOnceAsTheNormalModeChoice)
+        {
+            ControllerUnitKey                   unit;
+            std::string                         token   = StickToken ("{STICK}");
+            std::map<std::string, std::string>  profiles;
+
+
+
+            AssertSucceeded (ControllerTokens::UnitFromToken (token, unit));
+
+            Assert::IsFalse (ControllerProfileStore::TryAdoptLegacyProfile (profiles, std::nullopt, "Lode Runner"), L"no saved controller, nothing to pass to");
+            Assert::IsFalse (ControllerProfileStore::TryAdoptLegacyProfile (profiles, unit, ""),                     L"no legacy profile");
+            Assert::IsTrue  (profiles.empty());
+
+            Assert::IsTrue   (ControllerProfileStore::TryAdoptLegacyProfile (profiles, unit, "Lode Runner"));
+            Assert::AreEqual (std::string ("Lode Runner"), profiles.at (token));
+
+            profiles[token] = "Flight";
+            Assert::IsFalse  (ControllerProfileStore::TryAdoptLegacyProfile (profiles, unit, "Lode Runner"), L"a later launch passes nothing over the controller's own choice");
+            Assert::AreEqual (std::string ("Flight"), profiles.at (token));
+
+            profiles[token] = "";
+            Assert::IsFalse  (ControllerProfileStore::TryAdoptLegacyProfile (profiles, unit, "Lode Runner"), L"a choice of the Default is a choice");
+            Assert::AreEqual (std::string(), profiles.at (token));
+        }
+
+
         TEST_METHOD (ProfileNames_AreTrimmedAndOneToFortyCharacters)
         {
             ControllerProfileStore     store;

@@ -210,12 +210,9 @@ public:
     // second pick of the first player's controller, read as Automatic.
     static PlayerEntries  NormalizeEntries (PlayerEntries entries);
 
-    // The Controllers page's view of the players as a two-slot setup, and a
-    // setup edited there turned back into entries.
+    // The players as they play, as a two-slot setup: each one's controller
+    // and the target it plays.
     static MultiplayerSetup  MakeSetupView  (const PlayerEntries & entries, const PlayerSlots & slots);
-    static PlayerEntries     ApplySetupView (const PlayerEntries    & entries,
-                                             const PlayerSlots      & slots,
-                                             const MultiplayerSetup & setup);
 
 private:
 
