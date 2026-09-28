@@ -77,6 +77,10 @@ public:
     void  SetOnInspect     (InspectFn onInspect);
     void  SetPopupHost     (DxuiHwndSource * host);
 
+    // What Layout measures the player warnings with, in place of the popup
+    // host's. With neither they are sized from the banner's estimate.
+    void  SetTextRenderer  (IDxuiTextRenderer * renderer) { m_textRenderer = renderer; }
+
     // Where Save on the profile-switch prompt commits the edited model.
     void  SetOnCommitProfile (ControllersPageState::CommitFn onCommit) { m_onCommitProfile = std::move (onCommit); }
 
@@ -176,6 +180,7 @@ private:
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
     void                 PollSwitchLights   (const GamePortContribution * reading);
     ControllerKind       GetSelectedKind    () const;
+    IDxuiTextRenderer  * GetMeasuringRenderer () const;
 
     ControllersPageState                      * m_state               = nullptr;
     SampleSource                                m_sampleSource;
@@ -195,6 +200,8 @@ private:
     bool                                        m_hasLayout           = false;
     bool                                        m_isSyncing           = false;
     std::function<void ()>                      m_onLayoutChanged;
+    IDxuiTextRenderer                         * m_textRenderer        = nullptr;
+    DxuiHwndSource                            * m_popupHost           = nullptr;
 
     // The two players, each always shown: the entry, the mode and the note
     // of what the player drives, and under a player whose buttons the Joyport

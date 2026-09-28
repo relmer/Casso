@@ -73,6 +73,14 @@ public:
     //  Off by default, so every existing banner paints exactly as it did.
     void  SetCentered (bool centered) { m_centered = centered; m_fitValid = false; }
 
+    //  Inner padding above and below the text, in DIPs. For a banner that sits
+    //  in a form among rows of controls, where the default padding makes a
+    //  one-line notice taller than the rows around it.
+    //
+    //  The default padding unless set, so every existing banner measures and
+    //  paints exactly as it did.
+    void  SetVerticalPaddingDip (float padDip) { m_padYDip = padDip; }
+
     void  SetRect (const RECT & rect) { SetBounds (rect); }
     void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }   // the fit cache keys off the dpi itself
 
@@ -173,6 +181,9 @@ private:
 
     //  See SetCentered.
     bool            m_centered = false;
+
+    //  See SetVerticalPaddingDip.
+    float           m_padYDip = s_kPadYDip;
 
     //  What ResolveCenteredBoxPx last worked out, and the three inputs it
     //  depends on. Mutable because the height queries are const and are the

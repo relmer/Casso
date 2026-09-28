@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
+#include "Window/DxuiHwndSource.h"
 
 
 
@@ -26,6 +27,7 @@ static constexpr int  s_kChildIndentDp          = 18;
 static constexpr int  s_kGapDp                  = 6;
 static constexpr int  s_kSectionGapDp           = 14;
 static constexpr int  s_kPagePadDp              = 16;
+static constexpr int  s_kWarningPadYDp          = 4;
 
 static constexpr const wchar_t *  s_kTargetNames[ControllersPage::kTargetCount] =
 {
@@ -63,6 +65,9 @@ ControllersPage::ControllersPage (std::wstring title)
 
         m_playerWarning[target].SetSeverity (DxuiInfoBanner::Severity::Warning);
         m_playerWarning[target].SetVisible  (false);
+
+        // A one-line notice among the player rows, so it hugs its text.
+        m_playerWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);
     }
 
     Adopt (m_controllerLabel);
@@ -325,6 +330,8 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
 
 
+    m_popupHost = host;
+
     m_controller.SetPopupHost    (host);
     m_profile.SetPopupHost       (host);
     m_profileDialog.SetPopupHost (host);
@@ -347,6 +354,30 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
     {
         m_response[target].SetPopupHost (host);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMeasuringRenderer
+//
+//  The renderer Layout measures text with: one set for the page, else the
+//  popup host's, asked each time because the host rebuilds it when the
+//  device is lost. Null before the host has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiTextRenderer * ControllersPage::GetMeasuringRenderer() const
+{
+    if (m_textRenderer != nullptr)
+    {
+        return m_textRenderer;
+    }
+
+    return (m_popupHost != nullptr) ? m_popupHost->GetTextRenderer() : nullptr;
 }
 
 
@@ -382,35 +413,36 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
 void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT    dpi         = scaler.GetDpi();
-    int     pad         = scaler.ToPx (s_kPagePadDp);
-    int     rowH        = scaler.ToPx (s_kRowHeightDp);
-    int     labelWidth  = scaler.ToPx (s_kLabelWidthDp);
-    int     rowWidth    = scaler.ToPx (s_kRowWidthDp);
-    int     addWidth    = scaler.ToPx (s_kAddWidthDp);
-    int     stickSize   = scaler.ToPx (s_kStickSizeDp);
-    int     lightSize   = scaler.ToPx (s_kLightSizeDp);
-    int     wideWidth   = scaler.ToPx (s_kWideWidthDp);
-    int     buttonWidth = scaler.ToPx (s_kButtonWidthDp);
-    int     profileBtnW = scaler.ToPx (s_kProfileButtonWidthDp);
-    int     optionWidth = scaler.ToPx (s_kOptionWidthDp);
-    int     indent      = scaler.ToPx (s_kChildIndentDp);
-    int     gap         = scaler.ToPx (s_kGapDp);
-    int     sectionGap  = scaler.ToPx (s_kSectionGapDp);
-    int     modeWidth   = scaler.ToPx (s_kPlayerModeWidthDp);
-    int     noteWidth   = scaler.ToPx (s_kPlayerNoteWidthDp);
-    int     x           = rect.left + pad;
-    int     y           = rect.top  + pad;
-    int     axesX       = x + stickSize + sectionGap;
-    int     stickTop    = 0;
-    int     axesBottom  = 0;
-    int     contentH    = 0;
-    int     playerStep  = rowH + gap;
-    bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
-    bool    isJoyport   = IsJoyportMode();
-    size_t  target      = 0;
-    size_t  player      = 0;
-    size_t  row         = 0;
+    UINT                 dpi         = scaler.GetDpi();
+    int                  pad         = scaler.ToPx (s_kPagePadDp);
+    int                  rowH        = scaler.ToPx (s_kRowHeightDp);
+    int                  labelWidth  = scaler.ToPx (s_kLabelWidthDp);
+    int                  rowWidth    = scaler.ToPx (s_kRowWidthDp);
+    int                  addWidth    = scaler.ToPx (s_kAddWidthDp);
+    int                  stickSize   = scaler.ToPx (s_kStickSizeDp);
+    int                  lightSize   = scaler.ToPx (s_kLightSizeDp);
+    int                  wideWidth   = scaler.ToPx (s_kWideWidthDp);
+    int                  buttonWidth = scaler.ToPx (s_kButtonWidthDp);
+    int                  profileBtnW = scaler.ToPx (s_kProfileButtonWidthDp);
+    int                  optionWidth = scaler.ToPx (s_kOptionWidthDp);
+    int                  indent      = scaler.ToPx (s_kChildIndentDp);
+    int                  gap         = scaler.ToPx (s_kGapDp);
+    int                  sectionGap  = scaler.ToPx (s_kSectionGapDp);
+    int                  modeWidth   = scaler.ToPx (s_kPlayerModeWidthDp);
+    int                  noteWidth   = scaler.ToPx (s_kPlayerNoteWidthDp);
+    int                  x           = rect.left + pad;
+    int                  y           = rect.top  + pad;
+    int                  axesX       = x + stickSize + sectionGap;
+    int                  stickTop    = 0;
+    int                  axesBottom  = 0;
+    int                  contentH    = 0;
+    int                  playerStep  = rowH + gap;
+    bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
+    bool                 isJoyport   = IsJoyportMode();
+    size_t               target      = 0;
+    size_t               player      = 0;
+    size_t               row         = 0;
+    IDxuiTextRenderer  * text        = GetMeasuringRenderer();
 
 
 
@@ -446,7 +478,18 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
             continue;
         }
 
-        warnH = (int) std::ceil (m_playerWarning[player].GetPreferredHeightPx ((float) warnW, scaler));
+        // Measured whenever there is a renderer to measure with: the estimate
+        // is generous, and a line it reserves that the text does not use
+        // shows as a blank band inside the border.
+        if (text != nullptr)
+        {
+            warnH = (int) std::ceil (m_playerWarning[player].GetMeasuredHeightPx (*text, (float) warnW, scaler));
+        }
+        else
+        {
+            warnH = (int) std::ceil (m_playerWarning[player].GetPreferredHeightPx ((float) warnW, scaler));
+        }
+
         m_playerWarning[player].SetRect (MakeRect (x + labelWidth, y, warnW, warnH));
 
         y += warnH + gap;

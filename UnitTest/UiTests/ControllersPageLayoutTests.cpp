@@ -2,6 +2,7 @@
 
 #include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/ControllersPageState.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -318,6 +319,36 @@ public:
         Assert::AreEqual (size_t (0), rows.second, L"every row it shows can be edited");
     }
 
+
+    //  Given the sheet's renderer, the warning is as tall as its measured
+    //  line plus the compact padding, not the banner's generous estimate, and
+    //  the page's height still reaches its last row.
+    TEST_METHOD (PlayerWarning_WithARenderer_HugsItsMeasuredLine)
+    {
+        constexpr int                          kLineHeightPx = 18;
+        constexpr int                          kPadYPx       = 4;
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        MockDxuiTextRenderer                   text;
+        std::vector<const DxuiInfoBanner *>    warnings;
+        int                                    heightPx      = 0;
+        RECT                                   bounds        = {};
+
+
+
+        text.SetCannedMetrics (kpszCutWarning, SIZE { 500, kLineHeightPx });
+        page.SetTextRenderer  (&text);
+
+        heightPx = LayOutPage (page, state, MakeBesideTheJoyport (PlayerMode::Paddle), MakeTwoPlaying(), 1);
+        warnings = FindWarnings (page);
+
+        Assert::AreEqual (size_t (1), warnings.size());
+
+        bounds = warnings[0]->GetBounds();
+
+        Assert::AreEqual (kLineHeightPx + 2 * kPadYPx, (int) (bounds.bottom - bounds.top), L"one line and the compact padding");
+        Assert::AreEqual (GetLowestVisibleBottom (page) + kPagePadPx - kTopPx, heightPx, L"the content height follows it");
+    }
 
     static void AssertHeightReachesLastRow (const PlayerEntries & entries, size_t edited, const wchar_t * mode)
     {

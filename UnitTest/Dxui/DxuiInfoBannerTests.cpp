@@ -167,6 +167,37 @@ namespace DxuiInfoBannerTests
                             L"an empty banner keeps a positive, icon-clearing height");
         }
 
+
+        //  The vertical padding comes off both edges of both heights, and a
+        //  banner that never set it keeps the default.
+        TEST_METHOD (VerticalPadding_ComesOffTheTopAndTheBottom)
+        {
+            constexpr float  kDefaultPadDip = 9.0f;
+            constexpr float  kCompactPadDip = 3.0f;
+            constexpr float  kTolerance     = 0.01f;
+            DxuiDpiScaler    scaler         = Scaler96();
+            DxuiInfoBanner        normal  (L"a short warning");
+            DxuiInfoBanner        compact (L"a short warning");
+            MockDxuiTextRenderer  text;
+            SIZE                  oneLine = { 200, 20 };
+            float                 saved   = 2.0f * (kDefaultPadDip - kCompactPadDip);
+
+
+
+            text.SetCannedMetrics (L"a short warning", oneLine);
+            compact.SetVerticalPaddingDip (kCompactPadDip);
+
+            Assert::AreEqual (normal.GetMeasuredHeightPx (text, 400.0f, scaler) - saved,
+                              compact.GetMeasuredHeightPx (text, 400.0f, scaler),
+                              kTolerance, L"measured");
+            Assert::AreEqual (normal.GetPreferredHeightPx (400.0f, scaler) - saved,
+                              compact.GetPreferredHeightPx (400.0f, scaler),
+                              kTolerance, L"estimated");
+            Assert::AreEqual ((float) oneLine.cy + 2.0f * kDefaultPadDip,
+                              normal.GetMeasuredHeightPx (text, 400.0f, scaler),
+                              kTolerance, L"the default is unchanged");
+        }
+
         TEST_METHOD (MeasuredHeight_UsesTheRendererInsteadOfTheEstimate)
         {
             // PreferredHeightPx has no renderer, so it rounds up and never
