@@ -8,17 +8,38 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsPaddleMapping
+//  GetModeTarget
 //
-//  A mapping that binds PDL0 and leaves PDL1 alone is a paddle: one knob, one
-//  axis. Anything else, including a mapping that binds neither, is played as a
-//  joystick.
+//  As the game port is wired. Player 1 takes joystick 0, or in Paddle mode
+//  paddle 0. Player 2 takes joystick 1, or in Paddle mode the lowest paddle
+//  Player 1 leaves free: paddle 1 beside Player 1's paddle, and paddle 2
+//  beside Player 1's joystick, which holds paddles 0 and 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PlayerTargetRules::IsPaddleMapping (const ControlMapping & mapping)
+PlayerAxisTarget PlayerTargetRules::GetModeTarget (
+    size_t  player,
+    bool    isPaddle,
+    bool    isPlayerOnePaddle)
 {
-    return !mapping.pdl0.empty() && mapping.pdl1.empty();
+    PlayerAxisTarget  target = PlayerAxisTarget::Joystick0;
+
+
+
+    if (player == 0)
+    {
+        target = isPaddle ? PlayerAxisTarget::Paddle0 : PlayerAxisTarget::Joystick0;
+    }
+    else if (!isPaddle)
+    {
+        target = PlayerAxisTarget::Joystick1;
+    }
+    else
+    {
+        target = isPlayerOnePaddle ? PlayerAxisTarget::Paddle1 : PlayerAxisTarget::Paddle2;
+    }
+
+    return target;
 }
 
 
@@ -27,51 +48,13 @@ bool PlayerTargetRules::IsPaddleMapping (const ControlMapping & mapping)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetAutomaticTarget
-//
-//  What a player's slot maps to when the user has not set it: the player's
-//  active profile says joystick or paddle, and the player says which one.
-//  Player 1 takes joystick 0, or paddle 0. Player 2 takes joystick 1, or the
-//  lowest paddle the other player does not hold, so two paddle profiles make
-//  a two-paddle game with nothing set by hand.
+//  IsPaddleTarget
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PlayerAxisTarget PlayerTargetRules::GetAutomaticTarget (
-    size_t                  player,
-    const ControlMapping &  mapping,
-    PlayerAxisTarget        otherTarget)
+bool PlayerTargetRules::IsPaddleTarget (PlayerAxisTarget target)
 {
-    static constexpr PlayerAxisTarget  kPaddles[] = { PlayerAxisTarget::Paddle0,
-                                                      PlayerAxisTarget::Paddle1,
-                                                      PlayerAxisTarget::Paddle2,
-                                                      PlayerAxisTarget::Paddle3 };
-    MultiplayerSetup::AxisSet          taken;
-    bool                               isPaddle = IsPaddleMapping (mapping);
-
-
-
-    if (player == 0)
-    {
-        return isPaddle ? PlayerAxisTarget::Paddle0 : PlayerAxisTarget::Joystick0;
-    }
-
-    if (!isPaddle)
-    {
-        return PlayerAxisTarget::Joystick1;
-    }
-
-    taken = ControllerSelectionPolicy::GetTargetAxes (otherTarget, GamePortContribution::kAxisCount);
-
-    for (PlayerAxisTarget paddle : kPaddles)
-    {
-        if ((ControllerSelectionPolicy::GetTargetAxes (paddle, GamePortContribution::kAxisCount) & taken).none())
-        {
-            return paddle;
-        }
-    }
-
-    return PlayerAxisTarget::Paddle3;
+    return target != PlayerAxisTarget::Joystick0 && target != PlayerAxisTarget::Joystick1;
 }
 
 
@@ -157,6 +140,30 @@ PlayerTargetRules::Route PlayerTargetRules::GetSingleRoute (size_t axisCount)
     }
 
     return route;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLoneRoute
+//
+//  One player playing on its own, by its mode: a joystick drives what a
+//  single controller always has, and a paddle drives paddle 0 and its line,
+//  PB0, whichever player's slot it holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerTargetRules::Route PlayerTargetRules::GetLoneRoute (PlayerAxisTarget target, size_t axisCount)
+{
+    if (IsPaddleTarget (target))
+    {
+        return GetTargetRoute (PlayerAxisTarget::Paddle0, axisCount);
+    }
+
+    return GetSingleRoute (axisCount);
 }
 
 

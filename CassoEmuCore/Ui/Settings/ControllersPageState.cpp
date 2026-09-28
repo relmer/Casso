@@ -38,9 +38,6 @@ void ControllersPageState::Load (
     m_activeProfiles         = {};
     m_baselineActiveProfiles = {};
 
-    m_activeProfiles[GetModeIndex (m_profileMode)]         = activeProfiles;
-    m_baselineActiveProfiles[GetModeIndex (m_profileMode)] = activeProfiles;
-
     m_committedNames.clear();
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
@@ -61,6 +58,12 @@ void ControllersPageState::Load (
             m_selected = i;
         }
     }
+
+    // The choices handed in are for the kind of the controller the page
+    // opens on.
+    m_profileMode                                          = GetEditedPlayerProfileMode();
+    m_activeProfiles[GetModeIndex (m_profileMode)]         = activeProfiles;
+    m_baselineActiveProfiles[GetModeIndex (m_profileMode)] = activeProfiles;
 
     LoadEditedProfile();
 }
@@ -128,17 +131,41 @@ void ControllersPageState::SetActiveProfiles (ProfileMode mode, const std::map<s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetProfileMode
+//  SetJoyportInEffect
 //
-//  After Load, the list and the edited profile follow the kind at once: each
-//  controller goes to its choice for the new kind, or with none, to that
-//  kind's built-in profile. Edits on the profile left stay pending there, as
-//  they do when another profile is selected.
+//  Every player's profiles are Joyport profiles while the Joyport is in
+//  effect, so the page moves to that kind, or back to the edited player's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::SetProfileMode (ProfileMode mode)
+void ControllersPageState::SetJoyportInEffect (bool isInEffect)
 {
+    m_isJoyportInEffect = isInEffect;
+    SyncProfileMode();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncProfileMode
+//
+//  The kind of the controller in Editing, as it stands: the list and the
+//  edited profile follow it at once, each controller going to its choice for
+//  the new kind, or with none, to that kind's built-in profile. Edits on the
+//  profile left stay pending there, as they do when another profile is
+//  selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SyncProfileMode()
+{
+    ProfileMode  mode = GetEditedPlayerProfileMode();
+
+
+
     if (mode == m_profileMode)
     {
         return;
@@ -149,6 +176,41 @@ void ControllersPageState::SetProfileMode (ProfileMode mode)
 
     m_capture.Cancel();
     m_liveEvaluator.ResetRate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEditedPlayerProfileMode
+//
+//  The kind of profile the controller in Editing plays: Joyport while the
+//  Joyport is in effect, and otherwise the mode of the player whose slot
+//  holds it. A controller in no slot drives nothing, and is edited as a
+//  joystick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileMode ControllersPageState::GetEditedPlayerProfileMode() const
+{
+    const ControllerEntry  * selected = GetSelected();
+    PlayerMode               mode     = PlayerMode::Joystick;
+    size_t                   player   = 0;
+
+
+
+    for (player = 0; selected != nullptr && player < kPlayerCount; player++)
+    {
+        if (m_slots[player].holder == selected->unit)
+        {
+            mode = m_entries[player].mode;
+            break;
+        }
+    }
+
+    return ControllerModelSettings::GetPlayerProfileMode (mode, m_isJoyportInEffect);
 }
 
 
@@ -222,10 +284,10 @@ size_t ControllersPageState::GetModeIndex (ProfileMode mode)
 //
 //  LoadEditedProfile
 //
-//  m_editedProfile is the edited controller's entry in m_activeProfiles: read
-//  from the map when Editing moves to a controller, written back to it each
-//  time it changes. An entry naming a profile of the other mode is no
-//  choice, so the mode's built-in profile is edited.
+//  m_editedProfile is the edited controller's entry in the map of the page's
+//  kind: read from the map when Editing moves to a controller, written back
+//  to it each time it changes. An entry that holds a profile of another kind is
+//  no choice, so the kind's built-in profile is edited.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -433,7 +495,9 @@ void ControllersPageState::SelectController (size_t index)
     m_calibrationStep = CalibrationStep::None;
     m_liveEvaluator.ResetRate();
 
-    // The Profile drop-down shows this controller's own active profile.
+    // The Profile drop-down shows this controller's own active profile, of
+    // the kind its player plays.
+    m_profileMode = GetEditedPlayerProfileMode();
     LoadEditedProfile();
 }
 
@@ -479,6 +543,8 @@ void ControllersPageState::SetPlayers (const PlayerEntries & entries, const Play
     m_entries   = PlayerSlotPolicy::NormalizeEntries (entries);
     m_slots     = slots;
     m_axisCount = axisCount;
+
+    SyncProfileMode();
 }
 
 
@@ -494,6 +560,21 @@ void ControllersPageState::SetPlayers (const PlayerEntries & entries, const Play
 void ControllersPageState::SetOnPlayerPicked (PlayerPickedFn onPicked)
 {
     m_onPlayerPicked = std::move (onPicked);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetOnPlayerModeSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetOnPlayerModeSet (PlayerModeFn onModeSet)
+{
+    m_onPlayerModeSet = std::move (onModeSet);
 }
 
 
@@ -610,7 +691,7 @@ bool ControllersPageState::IsMultiplayerChecked() const
 //  SetMultiplayerChecked
 //
 //  Unticking is Player 2's Disabled entry and ticking puts Player 2 on
-//  Automatic, both keeping any target the user set for Player 2.
+//  Automatic, both keeping Player 2's mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -625,8 +706,7 @@ void ControllersPageState::SetMultiplayerChecked (bool isChecked)
         return;
     }
 
-    entry.kind   = isChecked ? PlayerEntryKind::Automatic : PlayerEntryKind::Disabled;
-    entry.target = m_entries[kPlayerTwo].target;
+    entry.kind = isChecked ? PlayerEntryKind::Automatic : PlayerEntryKind::Disabled;
 
     ApplyPlayerEntry (kPlayerTwo, entry);
 }
@@ -639,7 +719,7 @@ void ControllersPageState::SetMultiplayerChecked (bool isChecked)
 //
 //  PickPlayerEntry
 //
-//  An entry from a player's drop-down, keeping the target that player set.
+//  An entry from a player's drop-down; the player keeps its mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -650,8 +730,6 @@ void ControllersPageState::PickPlayerEntry (size_t player, PlayerEntry entry)
         return;
     }
 
-    entry.target = m_entries[player].target;
-
     ApplyPlayerEntry (player, entry);
 }
 
@@ -661,38 +739,29 @@ void ControllersPageState::PickPlayerEntry (size_t player, PlayerEntry entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetPlayerTarget
+//  SetPlayerMode
 //
-//  None returns the player to following their controller's profile. A target
-//  the machine lacks or the other player holds is not taken.
+//  Applied at once, as a pick is, through the same path the picker uses.
+//  Paddle mode is not a choice while the Joyport is in effect, where both
+//  players are Atari sticks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::SetPlayerTarget (size_t player, std::optional<PlayerAxisTarget> target)
+void ControllersPageState::SetPlayerMode (size_t player, PlayerMode mode)
 {
-    std::vector<PlayerAxisTarget>  choices;
-    PlayerEntry                    entry;
-    bool                           isOffered = false;
-
-
-
-    if (player >= kPlayerCount)
+    if (player >= kPlayerCount || m_isJoyportInEffect || m_entries[player].mode == mode)
     {
         return;
     }
 
-    choices   = GetTargetChoices (player);
-    isOffered = !target.has_value() || std::find (choices.begin(), choices.end(), target.value()) != choices.end();
+    m_entries = PlayerSlotPolicy::ApplyMode (m_entries, player, mode);
 
-    if (!isOffered || target == m_entries[player].target)
+    if (m_onPlayerModeSet)
     {
-        return;
+        m_onPlayerModeSet (player, mode);
     }
 
-    entry        = m_entries[player];
-    entry.target = target;
-
-    ApplyPlayerEntry (player, entry);
+    SyncProfileMode();
 }
 
 
@@ -717,6 +786,8 @@ void ControllersPageState::ApplyPlayerEntry (size_t player, const PlayerEntry & 
     {
         m_onPlayerPicked (player, entry);
     }
+
+    SyncProfileMode();
 }
 
 
@@ -748,7 +819,7 @@ std::vector<InputModeRules::PlayerChoice> ControllersPageState::GetEntryChoices 
     source.entries           = m_entries;
     source.slots             = m_slots;
     source.devices           = m_devices;
-    source.isJoyportInEffect = m_profileMode == ProfileMode::Joyport;
+    source.isJoyportInEffect = m_isJoyportInEffect;
 
     for (const ControllerEntry & entry : m_controllers)
     {
@@ -945,20 +1016,6 @@ std::wstring ControllersPageState::GetJoyportPositionLabel (bool isAtariMode)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetTargetChoices
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<PlayerAxisTarget> ControllersPageState::GetTargetChoices (size_t player) const
-{
-    return ControllerSelectionPolicy::GetTargetChoices (MakePlayView(), player, m_axisCount);
-}
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -988,47 +1045,46 @@ std::optional<size_t> ControllersPageState::FindEditedPlayer() const
 //
 //  IsTargetInPlay
 //
-//  What the page grays out while two people play. A row left in play is one
-//  the controller being edited actually drives; the rest keep their bindings
-//  and show them, because a binding the user cannot see is one they cannot
-//  understand losing.
+//  Which of the edited controller's rows the page shows. A row left in play
+//  is one the controller being edited actually drives; the rest keep their
+//  bindings in the profile.
 //
-//  THE PADDLE COUNT DECIDES THE AXIS ROWS. A slot mapped to a joystick plays
-//  the controller's PDL0 and PDL1; one mapped to a single paddle plays PDL0
-//  alone, since the slot's paddles take the mapping's targets in ascending
-//  order. A player whose paddles this machine does not have plays nothing at
-//  all, so nothing of theirs is in play either.
+//  THE PLAYER'S ROUTE DECIDES. The player's paddles take the mapping's axis
+//  targets in ascending order, so a player in Paddle mode plays PDL0 alone,
+//  and its button bindings reach the lines its place is wired to: PB0 and
+//  PB1 for joystick 0, PB2 alone for joystick 1, one line for a paddle. A
+//  player whose paddles this machine does not have plays nothing at all, so
+//  nothing of theirs is in play either. A controller in no slot while two
+//  play drives nothing; with one playing or none it is edited whole.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ControllersPageState::IsTargetInPlay (PaddleTarget target) const
 {
-    std::optional<size_t>  player = FindEditedPlayer();
-    MultiplayerSetup       view   = MakePlayView();
-    size_t                 axes   = 0;
+    std::optional<size_t>     player = FindHoldingPlayer();
+    PlayerTargetRules::Route  route;
 
 
-
-    if (!view.isEnabled)
-    {
-        return true;
-    }
 
     if (!player.has_value())
+    {
+        return !MakePlayView().isEnabled;
+    }
+
+    route = PlayerSlotPolicy::GetPlayerRoute (m_slots, m_entries, player.value(), m_axisCount);
+
+    if (PlayerTargetRules::CountPaddles (route) == 0)
     {
         return false;
     }
 
-    axes = ControllerSelectionPolicy::GetAxesForPlayer (view, player.value(), m_axisCount).count();
-
     switch (target)
     {
-        case PaddleTarget::Pdl0:  return axes >= 1;
-        case PaddleTarget::Pdl1:  return axes >= 2;
-
-        // Each player drives ONE button line, and it is their PB0 bindings
-        // that drive it whichever line that is (FR-039).
-        case PaddleTarget::Pb0:   return axes >= 1;
+        case PaddleTarget::Pdl0:  return route.paddles[0].has_value();
+        case PaddleTarget::Pdl1:  return route.paddles[1].has_value();
+        case PaddleTarget::Pb0:   return route.buttons[0].has_value();
+        case PaddleTarget::Pb1:   return route.buttons[1].has_value();
+        case PaddleTarget::Pb2:   return route.buttons[2].has_value();
 
         default:                  return false;
     }
@@ -1040,65 +1096,58 @@ bool ControllersPageState::IsTargetInPlay (PaddleTarget target) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetTargetLabel
+//  GetTargetPlayLabel
 //
-//  Zero-based throughout, matching what the machine's own software calls
-//  these: a paddle game reads PDL(0).
+//  What the guest reads a row on, when that differs from the row's own
+//  target: a player on joystick 1 drives PDL2 and PDL3, and its PB0
+//  bindings drive PB2. Zero-based throughout, matching what the machine's own
+//  software calls these: a paddle game reads PDL(0). Empty where the guest
+//  reads the row on its own target, and for a controller in no slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ControllersPageState::GetTargetPlayLabel (PaddleTarget target) const
 {
     static constexpr const wchar_t *  s_kPaddleNames[] = { L"PDL0:", L"PDL1:", L"PDL2:", L"PDL3:" };
-    std::optional<size_t>             player           = FindEditedPlayer();
-    MultiplayerSetup                  view             = MakePlayView();
-    MultiplayerSetup::AxisSet         axes;
-    size_t                            axis             = 0;
-    size_t                            nth              = 0;
+    static constexpr const wchar_t *  s_kButtonNames[] = { L"PB0:", L"PB1:", L"PB2:" };
+    constexpr size_t                  kPb2             = 2;
+    std::optional<size_t>             player           = FindHoldingPlayer();
+    PlayerTargetRules::Route          route;
+    std::optional<size_t>             line;
+    size_t                            own              = 0;
+    bool                              isAxis           = target == PaddleTarget::Pdl0 || target == PaddleTarget::Pdl1;
 
 
 
-    // Outside the mode the controller drives the port on its own, so its own
-    // targets are what to call them.
-    if (!view.isEnabled || !player.has_value())
+    if (!player.has_value())
     {
         return L"";
     }
 
-    // A player's PB0 bindings drive their own line: player one's is PB0 and
-    // player two's is PB1 (FR-039), so the row is named for the line the
-    // guest reads rather than for the target the profile holds.
-    if (target == PaddleTarget::Pb0)
+    route = PlayerSlotPolicy::GetPlayerRoute (m_slots, m_entries, player.value(), m_axisCount);
+
+    switch (target)
     {
-        return (player.value() == 0) ? L"PB0:" : L"PB1:";
+        case PaddleTarget::Pdl0:  own = 0;     line = route.paddles[own];  break;
+        case PaddleTarget::Pdl1:  own = 1;     line = route.paddles[own];  break;
+        case PaddleTarget::Pb0:   own = 0;     line = route.buttons[own];  break;
+        case PaddleTarget::Pb1:   own = 1;     line = route.buttons[own];  break;
+        case PaddleTarget::Pb2:   own = kPb2;  line = route.buttons[own];  break;
+
+        default:                                                           break;
     }
 
-    if (target != PaddleTarget::Pdl0 && target != PaddleTarget::Pdl1)
+    if (!line.has_value() || line.value() == own)
     {
         return L"";
     }
 
-    // The slot's paddles take the mapping's axis targets in ascending order,
-    // so PDL0 is the first paddle the player holds and PDL1 the second.
-    axes = ControllerSelectionPolicy::GetAxesForPlayer (view, player.value(), m_axisCount);
-    nth  = (target == PaddleTarget::Pdl0) ? 0 : 1;
-
-    for (axis = 0; axis < axes.size(); axis++)
+    if (isAxis)
     {
-        if (!axes.test (axis))
-        {
-            continue;
-        }
-
-        if (nth == 0)
-        {
-            return s_kPaddleNames[axis];
-        }
-
-        nth--;
+        return (line.value() < std::size (s_kPaddleNames)) ? s_kPaddleNames[line.value()] : L"";
     }
 
-    return L"";
+    return (line.value() < std::size (s_kButtonNames)) ? s_kButtonNames[line.value()] : L"";
 }
 
 
@@ -1107,24 +1156,29 @@ std::wstring ControllersPageState::GetTargetPlayLabel (PaddleTarget target) cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetTargetLabel
+//  FindHoldingPlayer
 //
-//  Zero-based throughout, matching what the machine's own software calls
-//  these: a paddle game reads PDL(0).
+//  The player whose slot holds the controller in Editing, whatever its
+//  state, or none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ControllersPageState::GetTargetLabel (PlayerAxisTarget target)
+std::optional<size_t> ControllersPageState::FindHoldingPlayer() const
 {
-    switch (target)
+    const ControllerEntry  * selected = GetSelected();
+    size_t                   player   = 0;
+
+
+
+    for (player = 0; selected != nullptr && player < kPlayerCount; player++)
     {
-        case PlayerAxisTarget::Joystick0:  return L"Joystick 0 (paddles 0 and 1)";
-        case PlayerAxisTarget::Joystick1:  return L"Joystick 1 (paddles 2 and 3)";
-        case PlayerAxisTarget::Paddle0:    return L"Paddle 0";
-        case PlayerAxisTarget::Paddle1:    return L"Paddle 1";
-        case PlayerAxisTarget::Paddle2:    return L"Paddle 2";
-        default:                           return L"Paddle 3";
+        if (m_slots[player].holder == selected->unit)
+        {
+            return player;
+        }
     }
+
+    return std::nullopt;
 }
 
 
@@ -1717,9 +1771,9 @@ ProfileEditResult ControllersPageState::CheckProfileName (const std::string & na
 //
 //  CreateProfile
 //
-//  The new profile belongs to the page's mode and becomes the edited one.
-//  Only that mode's own starting points are accepted, so a built-in mapping
-//  of the other mode, or a copy of the other mode's profile, is refused and
+//  The new profile belongs to the page's kind and becomes the edited one.
+//  Only that kind's own starting points are accepted, so a built-in mapping
+//  of another kind, or a copy of another kind's profile, is refused and
 //  nothing changes. Edits on the profile it was created from stay pending
 //  there.
 //

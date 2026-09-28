@@ -191,8 +191,8 @@ std::wstring InputModeRules::DescribePlaying (
 //  driving nothing until it is turned off, so it stays listed while it is
 //  the checked one.
 //
-//  A choice keeps the player's own target, so moving to another controller
-//  does not undo what the user set the slot to map to.
+//  A choice carries no mode: the player keeps its own through any pick
+//  (PlayerSlotPolicy::ApplyPick).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -213,9 +213,8 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
 
 
 
-    automatic.label        = kpszAutomatic;
-    automatic.entry.target = current.target;
-    automatic.isChecked    = current.kind == PlayerEntryKind::Automatic;
+    automatic.label     = kpszAutomatic;
+    automatic.isChecked = current.kind == PlayerEntryKind::Automatic;
 
     if (automatic.isChecked && slot.holder.has_value())
     {
@@ -228,12 +227,11 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
     {
         PlayerChoice  choice;
 
-        choice.label        = device.description;
-        choice.entry.kind   = PlayerEntryKind::Controller;
-        choice.entry.unit   = device.unit;
-        choice.entry.target = current.target;
-        choice.isChecked    = current.kind == PlayerEntryKind::Controller && current.unit == device.unit;
-        isListed            = isListed || choice.isChecked;
+        choice.label      = device.description;
+        choice.entry.kind = PlayerEntryKind::Controller;
+        choice.entry.unit = device.unit;
+        choice.isChecked  = current.kind == PlayerEntryKind::Controller && current.unit == device.unit;
+        isListed          = isListed || choice.isChecked;
 
         choices.push_back (choice);
     }

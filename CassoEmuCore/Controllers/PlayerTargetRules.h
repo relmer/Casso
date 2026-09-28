@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "Controllers/ControlMapping.h"
 #include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/ControllerTypes.h"
 
@@ -14,9 +13,10 @@
 //
 //  PlayerTargetRules
 //
-//  What a player's controller reaches on the game port: which paddles its own
-//  PDL0.. bindings land on and which of its button bindings reach which line.
-//  Pure lookups, so every row of the wiring can be asserted on its own.
+//  What a player's controller reaches on the game port: what the players'
+//  modes give each one, which paddles its own PDL0.. bindings land on and
+//  which of its button bindings reach which line. Pure lookups, so every row
+//  of the wiring can be asserted on its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,12 +40,15 @@ public:
         bool operator== (const Route &) const = default;
     };
 
-    static bool              IsPaddleMapping    (const ControlMapping & mapping);
-    static PlayerAxisTarget  GetAutomaticTarget (size_t                  player,
-                                                 const ControlMapping &  mapping,
-                                                 PlayerAxisTarget        otherTarget);
+    // What a player in Paddle mode or Joystick mode drives, beside Player 1
+    // in either mode.
+    static PlayerAxisTarget  GetModeTarget      (size_t      player,
+                                                 bool        isPaddle,
+                                                 bool        isPlayerOnePaddle);
+    static bool              IsPaddleTarget     (PlayerAxisTarget target);
     static ButtonRoute       GetButtonRoute     (PlayerAxisTarget target);
     static Route             GetSingleRoute     (size_t axisCount);
+    static Route             GetLoneRoute       (PlayerAxisTarget target, size_t axisCount);
     static Route             GetTargetRoute     (PlayerAxisTarget target, size_t axisCount);
     static size_t            CountPaddles       (const Route & route);
 };

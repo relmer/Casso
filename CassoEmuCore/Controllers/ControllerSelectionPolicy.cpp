@@ -138,35 +138,6 @@ MultiplayerSetup::AxisSet ControllerSelectionPolicy::GetTargetAxes (
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetAxesForPlayer
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MultiplayerSetup::AxisSet ControllerSelectionPolicy::GetAxesForPlayer (
-    const MultiplayerSetup &  setup,
-    size_t                    player,
-    size_t                    axisCount)
-{
-    MultiplayerSetup::AxisSet  axes;
-    bool                       isPlaying = setup.isEnabled
-                                           && player < MultiplayerSetup::kPlayerCount
-                                           && setup.players[player].unit.has_value();
-
-
-
-    if (!isPlaying)
-    {
-        return axes;
-    }
-
-    return GetTargetAxes (setup.players[player].target, axisCount);
-}
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -243,66 +214,6 @@ MultiplayerSetup ControllerSelectionPolicy::Normalize (MultiplayerSetup setup)
     return setup;
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetTargetChoices
-//
-//  What the settings page offers one slot: every target the machine has the
-//  paddles for, less the ones the other player is already holding. A slot with
-//  no controller in the other player's hands is offered everything the machine
-//  can play.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<PlayerAxisTarget> ControllerSelectionPolicy::GetTargetChoices (
-    const MultiplayerSetup &  setup,
-    size_t                    player,
-    size_t                    axisCount)
-{
-    static constexpr PlayerAxisTarget  kAllTargets[] = { PlayerAxisTarget::Joystick0,
-                                                         PlayerAxisTarget::Joystick1,
-                                                         PlayerAxisTarget::Paddle0,
-                                                         PlayerAxisTarget::Paddle1,
-                                                         PlayerAxisTarget::Paddle2,
-                                                         PlayerAxisTarget::Paddle3 };
-    std::vector<PlayerAxisTarget>      choices;
-    MultiplayerSetup::AxisSet          taken;
-    size_t                             other   = 0;
-
-
-
-    if (player >= MultiplayerSetup::kPlayerCount)
-    {
-        return choices;
-    }
-
-    other = (player == 0) ? 1 : 0;
-
-    if (setup.players[other].unit.has_value())
-    {
-        taken = GetTargetAxes (setup.players[other].target, axisCount);
-    }
-
-    for (PlayerAxisTarget target : kAllTargets)
-    {
-        MultiplayerSetup::AxisSet  axes = GetTargetAxes (target, axisCount);
-
-        // A target the machine cannot play in full is not offered: half a
-        // joystick is not a choice the user made.
-        if (axes != GetTargetAxes (target, GamePortContribution::kAxisCount) || (axes & taken).any())
-        {
-            continue;
-        }
-
-        choices.push_back (target);
-    }
-
-    return choices;
-}
 
 
 

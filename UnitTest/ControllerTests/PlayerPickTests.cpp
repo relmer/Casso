@@ -152,5 +152,69 @@ namespace ControllerTests
             Assert::IsFalse (shell->IsArrowsJoystick(), L"and the keys have let the stick go");
             Assert::IsTrue  (shell->GetPointerMode() == InputMappingMode::Paddle);
         }
+
+
+        //  A stick attached at startup, Player 1 on `from`, then Player 1's
+        //  mode set to `mode`.
+        static void RunModeChange (TestShell & shell, FakeControllerBackend & backend, PlayerEntryKind from, PlayerMode mode, Recorder & recorder)
+        {
+            backend.AddDevice (MakeStick());
+            shell.InstallControllerService (backend);
+            shell.StartOn (from);
+            shell.GetService().Tick();
+
+            shell.GetService().SetSlotsChangedFn ([&recorder] (const ControllerInputService::SlotsChange & change)
+            {
+                recorder.playerOne.push_back (change.entries[0].kind);
+                recorder.notices.insert (recorder.notices.end(), change.notices.begin(), change.notices.end());
+            });
+
+            shell.SetPlayerMode (0, mode);
+        }
+
+
+        //  The keys are a joystick, so Paddle mode turns them off, and Player
+        //  1 goes to Automatic in its new mode.
+        TEST_METHOD (PaddleMode_TurnsTheKeysOff)
+        {
+            FakeControllerBackend       backend;
+            Recorder                    recorder;
+            std::unique_ptr<TestShell>  shell    = std::make_unique<TestShell>();
+
+
+
+            RunModeChange (*shell, backend, PlayerEntryKind::ArrowKeys, PlayerMode::Paddle, recorder);
+
+            Assert::IsFalse (shell->IsArrowsJoystick(), L"the keys have let the stick go");
+            Assert::IsTrue  (shell->GetService().GetPlayerEntries()[0].kind == PlayerEntryKind::Automatic, L"Player 1 is on Automatic");
+            Assert::IsTrue  (shell->GetService().GetPlayerEntries()[0].mode == PlayerMode::Paddle,         L"in Paddle mode");
+
+            for (PlayerEntryKind kind : recorder.playerOne)
+            {
+                Assert::IsTrue (kind != PlayerEntryKind::ArrowKeys, L"and the keys are not picked again on the way");
+            }
+        }
+
+
+        //  The mouse is a paddle, so Joystick mode turns it off.
+        TEST_METHOD (JoystickMode_TurnsTheMouseOff)
+        {
+            FakeControllerBackend       backend;
+            Recorder                    recorder;
+            std::unique_ptr<TestShell>  shell    = std::make_unique<TestShell>();
+
+
+
+            RunModeChange (*shell, backend, PlayerEntryKind::MousePaddle, PlayerMode::Joystick, recorder);
+
+            Assert::IsTrue (shell->GetPointerMode() == InputMappingMode::Off, L"the mouse has let the paddle go");
+            Assert::IsTrue (shell->GetService().GetPlayerEntries()[0].kind == PlayerEntryKind::Automatic, L"Player 1 is on Automatic");
+            Assert::IsTrue (shell->GetService().GetPlayerEntries()[0].mode == PlayerMode::Joystick,       L"in Joystick mode");
+
+            for (PlayerEntryKind kind : recorder.playerOne)
+            {
+                Assert::IsTrue (kind != PlayerEntryKind::MousePaddle, L"and the mouse is not picked again on the way");
+            }
+        }
     };
 }

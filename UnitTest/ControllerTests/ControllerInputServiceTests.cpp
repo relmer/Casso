@@ -127,9 +127,9 @@ namespace ControllerTests
         }
 
 
-        static PlayerEntry MakePick (const ControllerUnitKey & unit, std::optional<PlayerAxisTarget> target = std::nullopt)
+        static PlayerEntry MakePick (const ControllerUnitKey & unit, PlayerMode mode = PlayerMode::Joystick)
         {
-            return { PlayerEntryKind::Controller, unit, target };
+            return { PlayerEntryKind::Controller, unit, mode };
         }
 
 
@@ -139,13 +139,38 @@ namespace ControllerTests
         }
 
 
-        // Two players, each picked, on a paddle of their own: the first on
-        // PDL0 and the second on PDL1.
+        // Two players, each picked, both in Paddle mode: the first on PDL0
+        // and the second on PDL1.
         static PlayerEntries MakeTwoPlayers (const ControllerUnitKey &  first,
-                                             const ControllerUnitKey &  second,
-                                             PlayerAxisTarget           secondTarget = PlayerAxisTarget::Paddle1)
+                                             const ControllerUnitKey &  second)
         {
-            return { MakePick (first, PlayerAxisTarget::Paddle0), MakePick (second, secondTarget) };
+            return { MakePick (first, PlayerMode::Paddle), MakePick (second, PlayerMode::Paddle) };
+        }
+
+
+        // Each device's Paddle choice: a user Paddle profile, Knob, that reads
+        // axis 0 as it stands and fires with button 0, so a push reads at
+        // once rather than at the built-in Paddles profile's rate.
+        static void UsePaddleKnobs (ControllerInputService & service, std::initializer_list<ControllerDeviceInfo> devices)
+        {
+            std::map<std::string, ControllerModelSettings>  models;
+            std::map<std::string, std::string>              choices;
+            ControlMapping                                  knob;
+
+            knob.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
+            knob.pb0.push_back  ({ { ControlKind::Button, 0 } });
+
+            for (const ControllerDeviceInfo & device : devices)
+            {
+                ControllerModelSettings &  settings = models[ControllerTokens::ModelToToken (device.unit.model)];
+
+                settings.EnsureBuiltInProfiles (device.unit.model, device.formFactor, device.controls);
+                settings.AddProfile ("Knob", knob, ProfileMode::Paddle);
+                choices[ControllerTokens::UnitToToken (device.unit)] = "Knob";
+            }
+
+            service.SetModelSettings  (models);
+            service.SetActiveProfiles (ProfileMode::Paddle, choices);
         }
 
 
@@ -175,6 +200,7 @@ namespace ControllerTests
             backend.SetSample (xbox.unit,  xboxSample);
             backend.SetSample (stick.unit, stickSample);
             SkipCalibration (service, { stick.unit });
+            UsePaddleKnobs  (service, { xbox, stick });
 
             service.SetPlayerEntries (MakeTwoPlayers (xbox.unit, stick.unit));
             service.Tick();
@@ -304,6 +330,8 @@ namespace ControllerTests
         }
 
 
+        //  Player 2 moving from Paddle mode to Joystick mode leaves paddle 1
+        //  for joystick 1, playing its Joystick profile there.
         TEST_METHOD (TwoPlayers_MovingAPlayerFreesThePaddleTheyLeft)
         {
             FakeControllerBackend   backend;
@@ -312,47 +340,18 @@ namespace ControllerTests
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    xbox;
             ControllerDeviceInfo    stick;
-            PlayerEntries           entries;
 
             mixer.SetSink (&sink);
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
 
-            entries           = service.GetPlayerEntries();
-            entries[1].target = PlayerAxisTarget::Paddle3;
-            service.SetPlayerEntries (entries);
+            service.SetPlayerMode (1, PlayerMode::Joystick);
             service.Tick();
 
             Assert::AreEqual (kCenter,   sink.writes.back().state.paddle[1],     L"the paddle player two left centers");
-            Assert::AreEqual (kFullLow,  sink.writes.back().state.paddle[kPdl3], L"and they play the one they moved to");
+            Assert::AreEqual (kFullLow,  sink.writes.back().state.paddle[kPdl2], L"and they play joystick 1, which they moved to");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (kPb2),      L"with its line, PB2");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (1),         L"and paddle 1's line released");
             Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0],     L"player one is untouched by it");
-        }
-
-
-        TEST_METHOD (TwoPlayers_AnOverlappingSlotIsRefusedRatherThanPlayed)
-        {
-            FakeControllerBackend   backend;
-            GamePortInputMixer      mixer;
-            RecordingGamePortSink   sink;
-            ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
-            ControllerDeviceInfo    stick;
-            PlayerEntries           entries;
-
-            mixer.SetSink (&sink);
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
-
-            // Player two asks for the paddle player one is already playing.
-            entries           = service.GetPlayerEntries();
-            entries[1].target = PlayerAxisTarget::Paddle0;
-            service.SetPlayerEntries (entries);
-            service.Tick();
-
-            Assert::IsFalse  (service.GetPlayerSlots()[1].holder.has_value(),
-                L"the slot is emptied rather than left claiming a paddle it cannot have (FR-036)");
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"player one keeps playing it");
-            Assert::IsFalse  (sink.writes.back().state.buttons.test (1),     L"player two's button line is released");
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[1],
-                L"and player one, now playing alone, drives PDL1 as a single controller always has");
         }
 
 
@@ -475,12 +474,19 @@ namespace ControllerTests
             service.SetPlayerEntries (entries);
             service.Tick();
 
+            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"player one, alone in Paddle mode, drives PDL0");
+            Assert::AreEqual (kCenter,   sink.writes.back().state.paddle[1], L"and not PDL1, which the stick released");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),     L"and PB0");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (1),     L"the stick drives nothing, so nothing holds PB1");
+
+            service.SetPlayerMode (0, PlayerMode::Joystick);
+            service.Tick();
+
             Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0],
-                L"player one drives PDL0 and PDL1 on its own again");
+                L"in Joystick mode player one drives PDL0 and PDL1 on its own");
             Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[1],
                 L"including the Y that player two was holding a moment ago");
             Assert::IsTrue   (sink.writes.back().state.buttons.test (0), L"and it drives PB0-PB2 as it always has");
-            Assert::IsFalse  (sink.writes.back().state.buttons.test (1), L"the stick drives nothing, so nothing holds PB1");
         }
 
 
@@ -571,7 +577,7 @@ namespace ControllerTests
 
             knob.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
             knob.pb0.push_back  ({ { ControlKind::Button, 0 } });
-            models = MakeModelSettings (first, "Knob", knob);
+            models = MakeModelSettings (first, "Knob", knob, ProfileMode::Paddle);
 
             right.axes[0] = 1.0f;
             right.buttons.set (0);
@@ -586,10 +592,10 @@ namespace ControllerTests
             backend.SetSample (second.unit, left);
             SkipCalibration (service, { first.unit, second.unit });
 
-            service.SetModelSettings (models);
-            service.SetActiveProfile (first.unit,  "Knob");
-            service.SetActiveProfile (second.unit, "Knob");
-            service.SetPlayerEntries ({ MakePick (first.unit), MakePick (second.unit) });
+            service.SetModelSettings  (models);
+            service.SetActiveProfiles (ProfileMode::Paddle, { { ControllerTokens::UnitToToken (first.unit),  "Knob" },
+                                                              { ControllerTokens::UnitToToken (second.unit), "Knob" } });
+            service.SetPlayerEntries  ({ MakePick (first.unit, PlayerMode::Paddle), MakePick (second.unit, PlayerMode::Paddle) });
             service.Tick();
 
             Assert::AreEqual ((int) PlayerAxisTarget::Paddle1, (int) service.GetPlayerSlots()[1].target, L"player two sits beside player one's paddle 0");
@@ -600,9 +606,9 @@ namespace ControllerTests
         }
 
 
-        //  A slot that follows the profile takes the target the new profile
-        //  implies, and so does a switch of the Joyport.
-        TEST_METHOD (Target_FollowsTheActiveProfile)
+        //  The player's mode decides the target, and which kind of profile
+        //  its controller plays; the Joyport makes both players joysticks.
+        TEST_METHOD (Target_FollowsThePlayersMode)
         {
             FakeControllerBackend                           backend;
             GamePortInputMixer                              mixer;
@@ -627,17 +633,20 @@ namespace ControllerTests
             backend.SetSample (stick.unit, stickSample);
             SkipCalibration (service, { stick.unit });
 
-            service.SetModelSettings (MakeModelSettings (stick, "Knob", knob));
+            service.SetModelSettings (MakeModelSettings (stick, "Knob", knob, ProfileMode::Paddle));
             service.SetPlayerEntries ({ MakePick (xbox.unit), MakePick (stick.unit) });
             service.Tick();
 
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) service.GetPlayerSlots()[1].target, L"a joystick profile plays joystick 1");
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) service.GetPlayerSlots()[1].target, L"Joystick mode plays joystick 1");
 
+            service.SetPlayerMode    (1, PlayerMode::Paddle);
             service.SetActiveProfile (stick.unit, "Knob");
             service.Tick();
 
             Assert::AreEqual ((int) PlayerAxisTarget::Paddle2, (int) service.GetPlayerSlots()[1].target,
-                L"a paddle profile beside player one's joystick plays paddle 2");
+                L"Paddle mode beside player one's joystick plays paddle 2");
+            Assert::AreEqual (std::string ("Knob"), service.GetActiveProfiles (ProfileMode::Paddle).at (ControllerTokens::UnitToToken (stick.unit)),
+                L"the choice is recorded as the stick's Paddle profile");
             Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[kPdl2], L"its knob on PDL2");
             Assert::IsTrue   (sink.writes.back().state.buttons.test (kPb2),     L"and its button on paddle 2's line, PB2");
 
@@ -645,7 +654,55 @@ namespace ControllerTests
             service.Tick();
 
             Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) service.GetPlayerSlots()[1].target,
-                L"the Joyport plays its own profile, a joystick, and the target follows");
+                L"with the Joyport both players are joysticks");
+            Assert::AreEqual (std::string(), service.GetActiveProfile (stick.unit), L"and play their Joyport choice, none here");
+        }
+
+
+        //  A controller plays the profile chosen for its player's kind, and
+        //  moves to the other kind's choice when the mode changes, releasing
+        //  what the old profile held.
+        TEST_METHOD (Profile_FollowsThePlayersMode)
+        {
+            FakeControllerBackend                           backend;
+            GamePortInputMixer                              mixer;
+            RecordingGamePortSink                           sink;
+            ControllerInputService                          service (backend, mixer);
+            ControllerDeviceInfo                            stick  = MakeStickDevice();
+            ControllerSample                                pushed = MakeRestSample();
+            std::string                                     token  = ControllerTokens::UnitToToken (stick.unit);
+            ControlMapping                                  knob;
+            ControlMapping                                  upward;
+            std::map<std::string, ControllerModelSettings>  models;
+
+            knob.pdl0.push_back   ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
+            upward.pdl1.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
+            models = MakeModelSettings (stick, "Knob", knob, ProfileMode::Paddle);
+            models.begin()->second.AddProfile ("Upward", upward, ProfileMode::Joystick);
+
+            pushed.axes[0] = -1.0f;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, pushed);
+            SkipCalibration (service, { stick.unit });
+
+            service.SetModelSettings  (models);
+            service.SetActiveProfiles (ProfileMode::Joystick, { { token, "Upward" } });
+            service.SetActiveProfiles (ProfileMode::Paddle,   { { token, "Knob" } });
+            service.Tick();
+
+            Assert::AreEqual (std::string ("Upward"), service.GetActiveProfile (stick.unit), L"Joystick mode plays the Joystick choice");
+            Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[1], L"which drives PDL1");
+
+            service.SetPlayerMode (0, PlayerMode::Paddle);
+            service.Tick();
+
+            Assert::AreEqual (std::string ("Knob"), service.GetActiveProfile (stick.unit), L"Paddle mode plays the Paddle choice");
+            Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[0], L"which drives PDL0");
+            Assert::AreEqual (kCenter,  sink.writes.back().state.paddle[1], L"and what the Joystick profile held is released");
+            Assert::IsTrue   (service.GetSnapshot().profileModes.at (token) == ProfileMode::Paddle, L"the picker is told the kind it plays");
         }
 
 
@@ -1376,7 +1433,8 @@ namespace ControllerTests
         // profile with the given mapping.
         static std::map<std::string, ControllerModelSettings> MakeModelSettings (const ControllerDeviceInfo & device,
                                                                                  const char                 * pszName,
-                                                                                 const ControlMapping       & mapping)
+                                                                                 const ControlMapping       & mapping,
+                                                                                 ProfileMode                  mode = ProfileMode::Joystick)
         {
             std::map<std::string, ControllerModelSettings>  models;
             ControllerProfileStore                          store;
@@ -1384,7 +1442,7 @@ namespace ControllerTests
 
 
 
-            settings.AddProfile (pszName, mapping, ProfileMode::Joystick);
+            settings.AddProfile (pszName, mapping, mode);
             models[ControllerTokens::ModelToToken (device.unit.model)] = settings;
             return models;
         }
@@ -1657,16 +1715,16 @@ namespace ControllerTests
             backend.SetSample (second.unit, MakePushedSample());
             service.SetModelSettings (MakeModelSettings (first, "Swapped", MakeButtonOneToPb1Mapping()));
 
-            service.SetPlayerEntries (MakeTwoPlayers (first.unit, second.unit));
+            service.SetPlayerEntries ({ MakePick (first.unit), MakePick (second.unit) });
             service.SetActiveProfile (second.unit, "Swapped");
             service.Tick();
 
             Assert::IsTrue   (service.GetActiveProfile (first.unit).empty(),                L"player one's pad keeps the Default");
             Assert::AreEqual (std::string ("Swapped"), service.GetActiveProfile (second.unit));
-            Assert::IsTrue   (sink.writes.back().state.paddle[0] > kCenter,                 L"player one's Default drives their paddle");
-            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),                    L"and their button line");
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[1],                  L"player two's profile binds no stick, so their paddle rests");
-            Assert::IsFalse  (sink.writes.back().state.buttons.test (1),                    L"and binds no first button, so their line stays up");
+            Assert::IsTrue   (sink.writes.back().state.paddle[0] > kCenter,                 L"player one's Default drives their stick");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),                    L"and their first button line");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[kPdl2],              L"player two's profile binds no stick, so their joystick rests");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (kPb2),                 L"and binds no first button, so their line stays up");
         }
 
 
@@ -1989,9 +2047,11 @@ namespace ControllerTests
             ControllerDeviceInfo    stick;
             JoyportJacks            jacks;
 
-            //  Slot 1 plays PDL0 and slot 2 PDL1 here: single paddles, not
-            //  joysticks, which must not matter to the jacks.
+            //  Both players were left in Paddle mode, which must not matter
+            //  to the jacks: with the Joyport on they are Atari sticks.
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            service.SetJoyportAttached (true);
+            service.Tick();
             jacks = mixer.GetTargetState().jacks;
 
             Assert::IsTrue (jacks.jack[JoyportJacks::kLeftJack]  == MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Down, JoystickSwitch::Fire }),
@@ -2036,9 +2096,9 @@ namespace ControllerTests
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    xbox  = MakeXboxDevice();
             ControllerDeviceInfo    stick = MakeStickDevice();
-            PlayerEntries           setup = MakeTwoPlayers (xbox.unit, stick.unit, PlayerAxisTarget::Paddle0);
+            PlayerEntries           setup = MakeTwoPlayers (xbox.unit, stick.unit);
 
-            setup[0].target = PlayerAxisTarget::Joystick1;
+            setup[0].mode = PlayerMode::Joystick;
 
             mixer.SetAxisOwner (AxisOwner::Controller);
             backend.AddDevice (xbox, true);
@@ -2066,6 +2126,8 @@ namespace ControllerTests
             JoyportJacks            jacks;
 
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            service.SetJoyportAttached (true);
+            service.Tick();
 
             backend.RemoveDevice (stick.unit);
             service.OnDevicesChanged();
@@ -2096,7 +2158,8 @@ namespace ControllerTests
 
             //  Player 2's controller has never connected, so Player 1 plays
             //  alone.
-            service.SetPlayerEntries (MakeTwoPlayers (xbox.unit, absent));
+            service.SetPlayerEntries   (MakeTwoPlayers (xbox.unit, absent));
+            service.SetJoyportAttached (true);
             service.Tick();
             jacks = mixer.GetTargetState().jacks;
 

@@ -70,7 +70,7 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_playerLabel[target]);
         Adopt (m_playerEntry[target]);
         Adopt (m_playerMapsLabel[target]);
-        Adopt (m_playerTarget[target]);
+        Adopt (m_playerMode[target]);
     }
 
     Adopt (m_controllerLabel);
@@ -188,11 +188,11 @@ void ControllersPage::SetState (ControllersPageState * state)
             }
         });
 
-        m_playerTarget[target].SetSelect ([this, target] (int item)
+        m_playerMode[target].SetSelect ([this, target] (int item)
         {
             if (!m_isSyncing)
             {
-                OnPlayerTargetSelect (target, item);
+                OnPlayerModeSelect (target, item);
             }
         });
     }
@@ -346,8 +346,8 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
     for (target = 0; target < kPlayerCount; target++)
     {
-        m_playerEntry[target].SetPopupHost  (host);
-        m_playerTarget[target].SetPopupHost (host);
+        m_playerEntry[target].SetPopupHost (host);
+        m_playerMode[target].SetPopupHost  (host);
     }
 
     for (target = 0; target < kTargetCount; target++)
@@ -483,10 +483,10 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_playerMapsLabel[player].SetVisible (isShown);
         m_playerMapsLabel[player].SetRect    (MakeRect (x + labelWidth + rowWidth + gap, y,
                                                         isJoyport ? targetWidth : mapsWidth, rowH));
-        m_playerMapsLabel[player].SetText    (isJoyport ? (player == 0 ? L"left jack" : L"right jack") : L"maps to");
+        m_playerMapsLabel[player].SetText    (isJoyport ? (player == 0 ? L"left jack" : L"right jack") : L"mode");
 
-        m_playerTarget[player].SetVisible (isShown && !isJoyport);
-        m_playerTarget[player].SetRect    (MakeRect (x + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
+        m_playerMode[player].SetVisible (isShown && !isJoyport);
+        m_playerMode[player].SetRect    (MakeRect (x + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
 
         if (player != kPlayerTwo || isTwoShown)
         {
@@ -682,7 +682,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_playerLabel[player].SetDpi     (dpi);
         m_playerEntry[player].SetDpi     (dpi);
         m_playerMapsLabel[player].SetDpi (dpi);
-        m_playerTarget[player].SetDpi    (dpi);
+        m_playerMode[player].SetDpi      (dpi);
     }
 
     m_controllerLabel.SetDpi (dpi);
@@ -1045,7 +1045,7 @@ void ControllersPage::ApplyJoyportMode (bool isAtariMode)
 {
     if (m_state != nullptr)
     {
-        m_state->SetProfileMode (isAtariMode ? ProfileMode::Joyport : ProfileMode::Joystick);
+        m_state->SetJoyportInEffect (isAtariMode);
     }
 
     m_capturing.reset();
@@ -1751,9 +1751,8 @@ void ControllersPage::RefreshRows()
 //
 //  Each player's two drop-downs and the Multiplayer checkbox. The entries
 //  are the picker's own, the other player's controller included: picking
-//  that one returns the other player to Automatic. The targets start with
-//  following the profile, then come from the policy, which has already left
-//  out the paddles this machine lacks and the ones the other player holds.
+//  that one returns the other player to Automatic. The mode is Joystick or
+//  Paddle, in that order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1770,10 +1769,8 @@ void ControllersPage::RefreshPlayers()
     {
         const PlayerEntry &                        current  = m_state->GetPlayerEntries()[player];
         std::vector<InputModeRules::PlayerChoice>  choices  = m_state->GetEntryChoices (player);
-        std::vector<PlayerAxisTarget>              targets  = m_state->GetTargetChoices (player);
         std::vector<std::wstring>                  items;
         int                                        selected = 0;
-        bool                                       isHost   = current.kind == PlayerEntryKind::ArrowKeys || current.kind == PlayerEntryKind::MousePaddle;
 
         m_playerEntries[player].clear();
 
@@ -1791,29 +1788,9 @@ void ControllersPage::RefreshPlayers()
         m_playerEntry[player].SetItems    (items);
         m_playerEntry[player].SetSelected (selected);
 
-        items.clear();
-        selected = 0;
-        m_playerTargets[player].clear();
-        m_playerTargets[player].push_back (std::nullopt);
-        items.push_back (kpszFollowProfile);
-
-        for (i = 0; i < targets.size(); i++)
-        {
-            if (current.target == targets[i])
-            {
-                selected = (int) m_playerTargets[player].size();
-            }
-
-            m_playerTargets[player].push_back (targets[i]);
-            items.push_back (ControllersPageState::GetTargetLabel (targets[i]));
-        }
-
-        m_playerTarget[player].SetItems    (items);
-        m_playerTarget[player].SetSelected (selected);
-
-        // The keys and the mouse play as one controller always has, so what
-        // a slot maps to is not a question for them.
-        m_playerTarget[player].SetEnabled (!isHost);
+        m_playerMode[player].SetItems    ({ kpszJoystickMode, kpszPaddleMode });
+        m_playerMode[player].SetSelected (current.mode == PlayerMode::Paddle ? kPaddleModeItem : kJoystickModeItem);
+        m_playerMode[player].SetEnabled  (!m_state->IsJoyportInEffect());
     }
 }
 
@@ -2085,18 +2062,24 @@ void ControllersPage::StartNewProfile (const ControllerUnitKey & unit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnPlayerTargetSelect
+//  OnPlayerModeSelect
+//
+//  The player's mode applies at once, and changes which rows the controller
+//  in Editing drives and which kind of profile the page lists, so the page
+//  is laid out again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::OnPlayerTargetSelect (size_t player, int item)
+void ControllersPage::OnPlayerModeSelect (size_t player, int item)
 {
-    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerTargets[player].size())
+    if (m_state == nullptr || player >= kPlayerCount || item < 0)
     {
         return;
     }
 
-    m_state->SetPlayerTarget (player, m_playerTargets[player][(size_t) item]);
+    m_state->SetPlayerMode (player, item == kPaddleModeItem ? PlayerMode::Paddle : PlayerMode::Joystick);
+    m_capturing.reset();
+    m_hasExtraRow = {};
     Relayout();
 }
 

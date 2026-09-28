@@ -212,6 +212,10 @@ struct ControllerModelSettings
     // made them, and Joystick otherwise.
     static ProfileMode            ClassifyLegacyProfile (const ControlMapping & mapping);
 
+    // The kind of profile a player in `mode` plays: Joyport while the
+    // Joyport is in effect, whatever the mode.
+    static ProfileMode            GetPlayerProfileMode  (PlayerMode mode, bool isJoyportInEffect);
+
     bool operator== (const ControllerModelSettings &) const = default;
 };
 

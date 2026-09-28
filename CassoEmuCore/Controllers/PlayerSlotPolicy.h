@@ -36,11 +36,33 @@ enum class PlayerEntryKind
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlayerMode
+//
+//  What a player stands in for on the game port: a joystick, two paddles
+//  wired to one stick, or a single paddle. The two players' modes alone
+//  decide which paddles and button lines each drives, as the hardware wires
+//  them. While the Joyport is on both players are Atari sticks, whatever
+//  their modes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class PlayerMode
+{
+    Joystick,
+    Paddle
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlayerEntry
 //
 //  One player's choice. `unit` is set only for Controller: the picked
-//  controller, attached or not. `target` is set only when the user chose what
-//  the slot maps to; absent, the slot follows the controller's active profile.
+//  controller, attached or not. `mode` is the player's own, kept whatever
+//  the entry: the keys play in Joystick mode and the mouse in Paddle mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +70,7 @@ struct PlayerEntry
 {
     PlayerEntryKind                   kind = PlayerEntryKind::Automatic;
     std::optional<ControllerUnitKey>  unit;
-    std::optional<PlayerAxisTarget>   target;
+    PlayerMode                        mode = PlayerMode::Joystick;
 
     bool operator== (const PlayerEntry &) const = default;
 };
@@ -94,6 +116,7 @@ enum class PlayerSlotState
 //
 //  What one player is playing right now, as opposed to what they chose.
 //  `holder` is the controller in the slot, including a held one that is gone.
+//  `target` is what the two players' modes give this one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,15 +192,13 @@ public:
 
     static constexpr size_t  kPlayerCount = MultiplayerSetup::kPlayerCount;
 
-    // Each attached controller's mapping for its active profile, by unit
-    // token: what decides a slot's target when the user has not set it.
-    using MappingsByUnit = std::map<std::string, ControlMapping>;
-
+    // While the Joyport is in effect both players play as Atari sticks,
+    // which the targets treat as Joystick mode.
     static PlayerSlots  Evaluate           (const PlayerEntries                      & entries,
                                             const std::vector<ControllerDeviceInfo>  & devices,
                                             PlayerOrderLogs                          & logs,
                                             const PlayerSlots                        & previous,
-                                            const MappingsByUnit                     & mappings);
+                                            bool                                       isJoyportInEffect = false);
 
     static bool         IsRealInput        (const ControllerSample       & sample,
                                             const ControllerCalibration  * calibration,
@@ -199,19 +220,37 @@ public:
 
     // What a player's controller reaches on this machine, or nothing when
     // its slot plays no controller. One player playing alone reaches what a
-    // single controller always has; two each reach their own target.
+    // single controller of its mode always has; two each reach their own
+    // target.
     static std::optional<PlayerTargetRules::Route>  GetDriverRoute (const PlayerSlots    & slots,
                                                                     const PlayerEntries  & entries,
                                                                     size_t                 player,
                                                                     size_t                 axisCount);
 
+    // The same whether or not the player drives, which is what the settings
+    // show for a player waiting for a controller.
+    static PlayerTargetRules::Route                 GetPlayerRoute (const PlayerSlots    & slots,
+                                                                    const PlayerEntries  & entries,
+                                                                    size_t                 player,
+                                                                    size_t                 axisCount);
+
     // A pick, and picking a controller the other player holds returns the
-    // other player to Automatic.
+    // other player to Automatic. The player keeps its mode, except that the
+    // keys set Joystick mode and the mouse Paddle mode.
     static PlayerEntries  ApplyPick (PlayerEntries entries, size_t player, const PlayerEntry & entry);
 
+    // A player's mode. Player 1's keys in Paddle mode and mouse in Joystick
+    // mode are entries that mode cannot have, and return to Automatic.
+    static PlayerEntries  ApplyMode (PlayerEntries entries, size_t player, PlayerMode mode);
+
     // Entries as they can be played: an entry its player cannot have, and a
-    // second pick of the first player's controller, read as Automatic.
+    // second pick of the first player's controller, read as Automatic; the
+    // keys play in Joystick mode and the mouse in Paddle mode.
     static PlayerEntries  NormalizeEntries (PlayerEntries entries);
+
+    // The mode a player plays in: Joystick while the Joyport is in effect,
+    // and its own otherwise.
+    static PlayerMode     GetEffectiveMode (const PlayerEntry & entry, bool isJoyportInEffect);
 
     // The players as they play, as a two-slot setup: each one's controller
     // and the target it plays.

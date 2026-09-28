@@ -452,7 +452,7 @@ HRESULT SettingsSheet::OpenModeless (
 
             // The page opens on the machine's selected controller, with every
             // controller's own active profile.
-            m_controllersState.SetProfileMode (snapshot.profileMode);
+            m_controllersState.SetJoyportInEffect (snapshot.isJoyportAttached);
             m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
@@ -482,6 +482,18 @@ HRESULT SettingsSheet::OpenModeless (
 
 
                 m_emuShell->PickPlayer (player, entry);
+
+                current = service->GetSnapshot();
+                m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
+            });
+
+            m_controllersState.SetOnPlayerModeSet ([this, service] (size_t player, PlayerMode mode)
+            {
+                ControllerInputService::Snapshot  current;
+
+
+
+                m_emuShell->SetPlayerMode (player, mode);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);

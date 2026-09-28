@@ -28,7 +28,7 @@ struct PlayerSlotPolicy::Context
     const std::vector<ControllerDeviceInfo>                           & devices;
     const PlayerOrderLogs                                             & logs;
     const PlayerSlots                                                 & previous;
-    const MappingsByUnit                                              & mappings;
+    bool                                                                isJoyportInEffect = false;
     std::array<std::optional<ControllerUnitKey>, kPlayerCount>          picks;
     std::array<std::optional<ControllerUnitKey>, kPlayerCount>          rawPicks;
 };
@@ -54,7 +54,8 @@ struct PlayerSlotPolicy::Context
 //       controllers have arrived while Casso runs, otherwise in the order
 //       they were first used; a lone controller with nothing used yet is
 //       Player 1 at once
-//    6. targets, and a second slot that would overlap the first is refused
+//    6. targets from the two players' modes, and a second slot that would
+//       repeat the first one's controller is refused
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +64,9 @@ PlayerSlots PlayerSlotPolicy::Evaluate (
     const std::vector<ControllerDeviceInfo>  & devices,
     PlayerOrderLogs                          & logs,
     const PlayerSlots                        & previous,
-    const MappingsByUnit                     & mappings)
+    bool                                       isJoyportInEffect)
 {
-    Context                          context   = { entries, devices, logs, previous, mappings, {}, {} };
+    Context                          context   = { entries, devices, logs, previous, isJoyportInEffect, {}, {} };
     PlayerSlots                      slots;
     std::array<bool, kPlayerCount>   isLeaving = {};
     size_t                           player    = 0;
@@ -510,49 +511,28 @@ void PlayerSlotPolicy::FillAutomatic (const Context & context, PlayerSlots & slo
 //
 //  SetTargets
 //
-//  A target the user set is kept; otherwise the holder's active profile says
-//  joystick or paddle, and Player 2's comes to rest beside Player 1's. The
-//  keys and the mouse play joystick 0. A second slot that repeats the first
-//  one's controller or overlaps its paddles is refused rather than played.
+//  The two players' modes alone decide, as the game port is wired: Player 1
+//  in Joystick mode takes joystick 0 and in Paddle mode paddle 0, and Player
+//  2 takes joystick 1, or the lowest paddle beside Player 1. While the
+//  Joyport is in effect both are Atari sticks, played as joysticks. A second
+//  slot that repeats the first one's controller is refused rather than
+//  played; the modes never give the two overlapping paddles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlayerSlotPolicy::SetTargets (const Context & context, PlayerSlots & slots)
 {
-    static const ControlMapping  kNoMapping;
-    MultiplayerSetup             setup;
-    size_t                       player = 0;
+    MultiplayerSetup  setup;
+    bool              isOnePaddle = GetEffectiveMode (context.entries[0], context.isJoyportInEffect) == PlayerMode::Paddle;
+    size_t            player      = 0;
 
 
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        const PlayerEntry     & entry   = context.entries[player];
-        const ControlMapping  * mapping = &kNoMapping;
-        PlayerAxisTarget        other   = (player == 0) ? PlayerAxisTarget::Joystick0 : slots[0].target;
+        bool  isPaddle = GetEffectiveMode (context.entries[player], context.isJoyportInEffect) == PlayerMode::Paddle;
 
-        if (slots[player].holder.has_value())
-        {
-            auto  found = context.mappings.find (ControllerTokens::UnitToToken (slots[player].holder.value()));
-
-            if (found != context.mappings.end())
-            {
-                mapping = &found->second;
-            }
-        }
-
-        if (IsHostInput (entry))
-        {
-            slots[player].target = PlayerAxisTarget::Joystick0;
-        }
-        else if (entry.target.has_value())
-        {
-            slots[player].target = entry.target.value();
-        }
-        else
-        {
-            slots[player].target = PlayerTargetRules::GetAutomaticTarget (player, *mapping, other);
-        }
+        slots[player].target = PlayerTargetRules::GetModeTarget (player, isPaddle, isOnePaddle);
     }
 
     if (!slots[1].holder.has_value() || (!slots[0].holder.has_value() && !IsHostInput (context.entries[0])))
@@ -811,7 +791,8 @@ std::vector<std::wstring> PlayerSlotPolicy::RecordHolders (
 //  GetDriverRoute
 //
 //  A player whose target has none of its paddles on this machine is not read
-//  at all, so neither its paddles nor its lines reach it.
+//  at all, so neither its paddles nor its lines reach it: a second joystick
+//  on the //c drives nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -830,8 +811,7 @@ std::optional<PlayerTargetRules::Route> PlayerSlotPolicy::GetDriverRoute (
         return std::nullopt;
     }
 
-    route = IsOnePlaying (slots, entries) ? PlayerTargetRules::GetSingleRoute (axisCount)
-                                          : PlayerTargetRules::GetTargetRoute (slots[player].target, axisCount);
+    route = GetPlayerRoute (slots, entries, player, axisCount);
 
     if (PlayerTargetRules::CountPaddles (route) == 0)
     {
@@ -847,16 +827,57 @@ std::optional<PlayerTargetRules::Route> PlayerSlotPolicy::GetDriverRoute (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetPlayerRoute
+//
+//  The player driving alone reaches what one controller of its mode always
+//  has; any other player, driving or not, reaches its own target.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerTargetRules::Route PlayerSlotPolicy::GetPlayerRoute (
+    const PlayerSlots    & slots,
+    const PlayerEntries  & entries,
+    size_t                 player,
+    size_t                 axisCount)
+{
+    bool  isDriving = false;
+
+
+
+    if (player >= kPlayerCount)
+    {
+        return PlayerTargetRules::Route();
+    }
+
+    isDriving = IsDrivingSlot (slots[player]) || (player == 0 && IsHostInput (entries[player]));
+
+    if (isDriving && IsOnePlaying (slots, entries))
+    {
+        return PlayerTargetRules::GetLoneRoute (slots[player].target, axisCount);
+    }
+
+    return PlayerTargetRules::GetTargetRoute (slots[player].target, axisCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplyPick
 //
 //  A controller can play for one player only, so picking the one the other
-//  player picked sends the other player back to Automatic.
+//  player picked sends the other player back to Automatic. The mode belongs
+//  to the player rather than to what it picked, so a pick keeps it; the keys
+//  and the mouse set their own when the entries are normalized.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 PlayerEntries PlayerSlotPolicy::ApplyPick (PlayerEntries entries, size_t player, const PlayerEntry & entry)
 {
-    size_t  other = (player == 0) ? 1 : 0;
+    size_t      other = (player == 0) ? 1 : 0;
+    PlayerMode  mode  = PlayerMode::Joystick;
 
 
 
@@ -865,7 +886,9 @@ PlayerEntries PlayerSlotPolicy::ApplyPick (PlayerEntries entries, size_t player,
         return entries;
     }
 
-    entries[player] = entry;
+    mode                 = entries[player].mode;
+    entries[player]      = entry;
+    entries[player].mode = mode;
 
     if (entry.kind == PlayerEntryKind::Controller         &&
         entries[other].kind == PlayerEntryKind::Controller &&
@@ -884,12 +907,52 @@ PlayerEntries PlayerSlotPolicy::ApplyPick (PlayerEntries entries, size_t player,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplyMode
+//
+//  The keys are a joystick and the mouse a paddle, so Player 1 on either
+//  leaves it for Automatic when its mode changes to the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerEntries PlayerSlotPolicy::ApplyMode (PlayerEntries entries, size_t player, PlayerMode mode)
+{
+    PlayerEntryKind  kind       = PlayerEntryKind::Automatic;
+    bool             isStandIn  = false;
+
+
+
+    if (player >= kPlayerCount)
+    {
+        return entries;
+    }
+
+    kind      = entries[player].kind;
+    isStandIn = (kind == PlayerEntryKind::ArrowKeys   && mode == PlayerMode::Paddle) ||
+                (kind == PlayerEntryKind::MousePaddle && mode == PlayerMode::Joystick);
+
+    entries[player].mode = mode;
+
+    if (isStandIn)
+    {
+        entries[player].kind = PlayerEntryKind::Automatic;
+    }
+
+    return NormalizeEntries (entries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NormalizeEntries
 //
 //  The keys and the mouse are Player 1's, and Disabled is Player 2's; a pick
 //  with no controller is no pick. Each of those reads as Automatic, and so
 //  does Player 2 picking the controller Player 1 picked, since one controller
-//  cannot play for both.
+//  cannot play for both. The keys play in Joystick mode and the mouse in
+//  Paddle mode, whatever mode was saved with them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -914,6 +977,15 @@ PlayerEntries PlayerSlotPolicy::NormalizeEntries (PlayerEntries entries)
         {
             entry.unit.reset();
         }
+
+        if (entry.kind == PlayerEntryKind::ArrowKeys)
+        {
+            entry.mode = PlayerMode::Joystick;
+        }
+        else if (entry.kind == PlayerEntryKind::MousePaddle)
+        {
+            entry.mode = PlayerMode::Paddle;
+        }
     }
 
     if (entries[0].kind == PlayerEntryKind::Controller &&
@@ -925,6 +997,21 @@ PlayerEntries PlayerSlotPolicy::NormalizeEntries (PlayerEntries entries)
     }
 
     return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEffectiveMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerMode PlayerSlotPolicy::GetEffectiveMode (const PlayerEntry & entry, bool isJoyportInEffect)
+{
+    return isJoyportInEffect ? PlayerMode::Joystick : entry.mode;
 }
 
 

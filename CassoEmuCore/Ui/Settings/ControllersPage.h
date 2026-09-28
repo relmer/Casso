@@ -124,9 +124,11 @@ public:
     // enough to draw it.
     void          SetOnSlideChanged  (std::function<void (bool isSliding)> onSlideChanged);
 
-    // What the target drop-down lists first: no target of the player's own,
-    // so the slot follows the profile.
-    static constexpr const wchar_t *  kpszFollowProfile = L"Follow the profile";
+    // What each player's mode drop-down lists, in this order.
+    static constexpr const wchar_t *  kpszJoystickMode  = L"Joystick";
+    static constexpr const wchar_t *  kpszPaddleMode    = L"Paddle";
+    static constexpr int              kJoystickModeItem = 0;
+    static constexpr int              kPaddleModeItem   = 1;
 
     // The profile dialog, for the sheet to show over the page and route input
     // to while it is open.
@@ -163,7 +165,7 @@ private:
     void                 RefreshRows        ();
     void                 RefreshPlayers     ();
     void                 OnPlayerEntrySelect  (size_t player, int item);
-    void                 OnPlayerTargetSelect (size_t player, int item);
+    void                 OnPlayerModeSelect   (size_t player, int item);
     void                 OnMultiplayerCheck   (bool isChecked);
     void                 ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
     void                 StartPlayerTwoSlide  (bool isShowing, int distancePx);
@@ -245,9 +247,8 @@ private:
     std::array<DxuiLabel, kPlayerCount>                                      m_playerLabel;
     std::array<DxuiComboBox, kPlayerCount>                                   m_playerEntry;
     std::array<DxuiLabel, kPlayerCount>                                      m_playerMapsLabel;
-    std::array<DxuiComboBox, kPlayerCount>                                   m_playerTarget;
+    std::array<DxuiComboBox, kPlayerCount>                                   m_playerMode;
     std::array<std::vector<PlayerEntry>, kPlayerCount>                       m_playerEntries;
-    std::array<std::vector<std::optional<PlayerAxisTarget>>, kPlayerCount>   m_playerTargets;
     DxuiSlide                                                                m_slide;
     bool                                                                     m_isSliding        = false;
     bool                                                                     m_isPlayerTwoShown = false;

@@ -69,10 +69,12 @@ public:
         PlayerEntries                          entries;
         PlayerSlots                            slots;
 
-        // Each controller's active profile for the mode being played, by unit
-        // token; a missing or empty entry means that mode's built-in profile.
+        // Each attached controller's kind of profile, from its player's mode
+        // or the Joyport, and its active profile of that kind, by unit token;
+        // a missing or empty entry means that kind's built-in profile.
+        std::map<std::string, ProfileMode>     profileModes;
         std::map<std::string, std::string>     activeProfiles;
-        ProfileMode                            profileMode          = ProfileMode::Joystick;
+        bool                                   isJoyportAttached    = false;
         size_t                                 axisCount            = GamePortContribution::kAxisCount;
 
         // Whether any controller that drives the game port reads.
@@ -141,6 +143,10 @@ public:
     // returns the other player to Automatic.
     void           PickPlayerEntry  (size_t player, const PlayerEntry & entry);
 
+    // One player's mode, which decides what the player drives and which
+    // kind of profile its controller plays.
+    void           SetPlayerMode    (size_t player, PlayerMode mode);
+
     PlayerSlots    GetPlayerSlots   () const;
 
     // The controller that last held each slot, set from the saved prefs
@@ -178,23 +184,24 @@ public:
     void                                            SetModelSettings (std::map<std::string, ControllerModelSettings> models);
     std::map<std::string, ControllerModelSettings>  GetModelSettings () const;
 
-    // Each controller's active profile for the mode being played, by name;
-    // empty means that mode's built-in profile. The choice belongs to the
+    // Each controller's active profile of the kind it plays, by name; empty
+    // means that kind's built-in profile. The kind comes from the mode of the
+    // player whose slot holds the controller, Joystick for one in no slot,
+    // or Joyport while the Joyport is attached. The choice belongs to the
     // controller, not the machine or the player, so a controller plays its
-    // profile on any machine and keeps it through a swap between players. A
-    // name its model does not have plays the built-in profile, and so does a
-    // profile of the other mode, which cannot be chosen. A change takes
-    // effect on the next reading, releasing whatever the old profile held,
-    // and a slot that follows the profile moves to the target it implies.
-    // The whole maps, one per mode, are set from and saved to the prefs;
-    // what is read back to save leaves out choices of the other mode.
+    // profile on any machine. A name its model does not have plays the
+    // built-in profile, and so does a profile of another kind, which cannot
+    // be chosen. A change takes effect on the next reading, releasing
+    // whatever the old profile held. The whole maps, one per kind, are set
+    // from and saved to the prefs; what is read back to save leaves out
+    // choices of another kind.
     void                                SetActiveProfile  (const ControllerUnitKey & unit, const std::string & name);
     std::string                         GetActiveProfile  (const ControllerUnitKey & unit) const;
     void                                SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles);
     std::map<std::string, std::string>  GetActiveProfiles (ProfileMode mode) const;
 
-    // Whether the machine's Joyport is attached, which decides the mode whose
-    // chosen profiles are played.
+    // Whether the machine's Joyport is attached, which makes every player an
+    // Atari stick playing its Joyport profile.
     void                                SetJoyportAttached (bool isAttached);
 
     // Every DirectInput unit's calibration, by unit token. Set once from the
@@ -247,6 +254,10 @@ private:
         // What its last reading asked for, on its own PDL0-PDL3 before its
         // slot places them. Absent while it contributes nothing.
         std::optional<GamePortContribution>  logical;
+
+        // The kind of profile the mapping was resolved for. A change of the
+        // player's mode, or of the Joyport, resolves it again.
+        ProfileMode                          mode        = ProfileMode::Joystick;
     };
 
     // One controller's work for one tick, copied out of the lock, and what
@@ -268,6 +279,7 @@ private:
     // All of these assume m_mutex is already held.
     const ControllerDeviceInfo *    FindDeviceLocked         (const ControllerUnitKey & unit) const;
     std::string                     GetActiveProfileLocked   (const ControllerUnitKey & unit) const;
+    ProfileMode                     GetUnitModeLocked        (const ControllerUnitKey & unit) const;
     std::optional<size_t>           FindPlayerLocked         (const ControllerUnitKey & unit) const;
     void                            SyncDriversLocked        ();
     void                            ResolveMappingLocked     (DriverState & driver);
@@ -284,9 +296,6 @@ private:
     // play. Assumes m_mutex is held.
     std::optional<PlayerTargetRules::Route>  GetDriverRouteLocked (const ControllerUnitKey & unit) const;
 
-    // The active profiles for the mode being played. Assumes m_mutex is held.
-    std::map<std::string, std::string>        &  GetModeProfilesLocked ();
-    const std::map<std::string, std::string>  &  GetModeProfilesLocked () const;
 
     // Places each player's switches on the Joyport jacks the players' states
     // give them. Assumes m_mutex is held.
@@ -317,7 +326,7 @@ private:
 
     std::map<std::string, ControllerCalibration>         m_calibrations;
     ControllerProfileStore                               m_profiles;
-    ProfileMode                                          m_profileMode = ProfileMode::Joystick;
+    bool                                                 m_isJoyportAttached = false;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;

@@ -87,7 +87,6 @@ public:
     static InputMappingMode  ModeFromToken (const std::string & token,
                                             InputMappingMode    fallback);
 
-    static const char *      TargetToToken   (PlayerAxisTarget    target);
     static PlayerAxisTarget  TargetFromToken (const std::string & token,
                                               PlayerAxisTarget    fallback);
 };

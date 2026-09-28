@@ -356,6 +356,25 @@ void ControllerInputService::PickPlayerEntry (size_t player, const PlayerEntry &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetPlayerMode
+//
+//  Takes effect at once, as a pick does: the player's controller moves to
+//  what the new mode drives and to its choice of the new mode's kind of
+//  profile, releasing what it held.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetPlayerMode (size_t player, PlayerMode mode)
+{
+    SetPlayerEntries (PlayerSlotPolicy::ApplyMode (GetPlayerEntries(), player, mode));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetPlayerSlots
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -462,8 +481,7 @@ void ControllerInputService::SetModelSettings (std::map<std::string, ControllerM
     m_profiles.models = std::move (models);
 
     // A controller in use picks the new settings up now rather than at its
-    // next connect, so OK on the Controllers page takes effect at once, and a
-    // slot that follows the profile moves with it.
+    // next connect, so OK on the Controllers page takes effect at once.
     UnresolveDriversLocked();
     change = EvaluateSlotsLocked();
     SyncDriversLocked();
@@ -505,11 +523,10 @@ std::map<std::string, ControllerModelSettings> ControllerInputService::GetModelS
 //  again at once, the rate paddles return to center, and every controller's
 //  contribution is released, so a button the new profile does not bind comes
 //  up and an axis it does not drive centers before the next reading submits
-//  what the new profile asks for (FR-030). A slot that follows the profile
-//  takes the target the new one implies.
+//  what the new profile asks for (FR-030).
 //
-//  A profile of the other mode cannot be chosen, so it leaves the choice as
-//  it was.
+//  The choice is recorded for the kind the controller plays. A profile of
+//  another kind cannot be chosen, so it leaves the choice as it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -517,11 +534,11 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
 {
     std::unique_lock<std::mutex>  lock        (m_mutex);
     std::string                   token       = ControllerTokens::UnitToToken (unit);
-    auto &                        active      = GetModeProfilesLocked();
+    ProfileMode                   mode        = GetUnitModeLocked (unit);
+    auto &                        active      = m_profiles.GetActiveProfiles (mode);
     auto                          found       = active.find (token);
     bool                          isSame      = false;
-    bool                          isOtherMode = IsOfOtherModeLocked (unit.model, name, m_profileMode);
-    std::optional<SlotsChange>    change;
+    bool                          isOtherMode = IsOfOtherModeLocked (unit.model, name, mode);
 
 
 
@@ -539,13 +556,11 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
     active[token]      = name;
     m_rateResetPending = true;
     UnresolveDriversLocked();
-    change = EvaluateSlotsLocked();
     SyncDriversLocked();
 
     lock.unlock();
 
     ReleaseContribution();
-    AnnounceSlots (change);
 }
 
 
@@ -556,9 +571,9 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
 //
 //  GetActiveProfile
 //
-//  The profile chosen for the mode being played. Empty for that mode's
-//  built-in profile, and for a controller that has never had one chosen in
-//  it.
+//  The profile chosen for the kind the controller plays. Empty for that
+//  kind's built-in profile, and for a controller that has never had one
+//  chosen for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -583,7 +598,7 @@ std::string ControllerInputService::GetActiveProfile (const ControllerUnitKey & 
 
 std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnitKey & unit) const
 {
-    const auto &  active = GetModeProfilesLocked();
+    const auto &  active = m_profiles.GetActiveProfiles (GetUnitModeLocked (unit));
     auto          found  = active.find (ControllerTokens::UnitToToken (unit));
 
 
@@ -597,30 +612,22 @@ std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnit
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetModeProfilesLocked
+//  GetUnitModeLocked
 //
-//  The active profiles for the mode being played.
+//  The kind of profile a controller plays: its player's mode, Joystick for a
+//  controller in no slot, and Joyport for every controller while the Joyport
+//  is attached.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<std::string, std::string> & ControllerInputService::GetModeProfilesLocked()
+ProfileMode ControllerInputService::GetUnitModeLocked (const ControllerUnitKey & unit) const
 {
-    return m_profiles.GetActiveProfiles (m_profileMode);
-}
+    std::optional<size_t>  player = FindPlayerLocked (unit);
+    PlayerMode             mode   = player.has_value() ? m_entries[player.value()].mode : PlayerMode::Joystick;
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetModeProfilesLocked
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const std::map<std::string, std::string> & ControllerInputService::GetModeProfilesLocked() const
-{
-    return m_profiles.GetActiveProfiles (m_profileMode);
+    return ControllerModelSettings::GetPlayerProfileMode (mode, m_isJoyportAttached);
 }
 
 
@@ -631,7 +638,7 @@ const std::map<std::string, std::string> & ControllerInputService::GetModeProfil
 //
 //  SetActiveProfiles
 //
-//  The whole map for one mode, by unit token: set once from the saved prefs,
+//  The whole map for one kind, by unit token: set once from the saved prefs,
 //  and read back to save them.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -639,7 +646,6 @@ const std::map<std::string, std::string> & ControllerInputService::GetModeProfil
 void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles)
 {
     std::unique_lock<std::mutex>  lock (m_mutex);
-    std::optional<SlotsChange>    change;
 
 
 
@@ -647,13 +653,11 @@ void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::
 
     m_rateResetPending = true;
     UnresolveDriversLocked();
-    change = EvaluateSlotsLocked();
     SyncDriversLocked();
 
     lock.unlock();
 
     ReleaseContribution();
-    AnnounceSlots (change);
 }
 
 
@@ -664,26 +668,26 @@ void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::
 //
 //  SetJoyportAttached
 //
-//  Every controller switches to the profile chosen for the new mode, or with
-//  none chosen, to that mode's built-in profile, released as for a profile
-//  change, and a slot that follows the profile follows it here too.
+//  Every controller switches to its Joyport choice, or back to the choice of
+//  its player's kind, or with none chosen to that kind's built-in profile,
+//  released as for a profile change. Both players play as Atari sticks while
+//  it is attached, so the slots take their targets again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::SetJoyportAttached (bool isAttached)
 {
     std::unique_lock<std::mutex>  lock   (m_mutex);
-    ProfileMode                   mode   = isAttached ? ProfileMode::Joyport : ProfileMode::Joystick;
     std::optional<SlotsChange>    change;
 
 
 
-    if (m_profileMode == mode)
+    if (m_isJoyportAttached == isAttached)
     {
         return;
     }
 
-    m_profileMode      = mode;
+    m_isJoyportAttached = isAttached;
     m_rateResetPending = true;
     UnresolveDriversLocked();
     change = EvaluateSlotsLocked();
@@ -703,8 +707,8 @@ void ControllerInputService::SetJoyportAttached (bool isAttached)
 //
 //  GetActiveProfiles
 //
-//  What is saved, so a choice of the other mode's profile, which can come
-//  only from the prefs, is dropped here rather than written back.
+//  What is saved, so a choice of another kind's profile, which can come only
+//  from the prefs, is dropped here rather than written back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1412,12 +1416,24 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
 
 
 
-    snapshot.devices        = m_devices;
-    snapshot.entries        = m_entries;
-    snapshot.slots          = m_slots;
-    snapshot.activeProfiles = GetModeProfilesLocked();
-    snapshot.profileMode    = m_profileMode;
-    snapshot.axisCount      = m_axisCount;
+    snapshot.devices           = m_devices;
+    snapshot.entries           = m_entries;
+    snapshot.slots             = m_slots;
+    snapshot.isJoyportAttached = m_isJoyportAttached;
+    snapshot.axisCount         = m_axisCount;
+
+    for (const ControllerDeviceInfo & device : m_devices)
+    {
+        std::string  token = ControllerTokens::UnitToToken (device.unit);
+        std::string  name  = GetActiveProfileLocked (device.unit);
+
+        snapshot.profileModes[token] = GetUnitModeLocked (device.unit);
+
+        if (!name.empty())
+        {
+            snapshot.activeProfiles[token] = name;
+        }
+    }
 
     for (const auto & [token, driver] : m_drivers)
     {
@@ -1641,35 +1657,25 @@ std::vector<std::wstring> ControllerInputService::FindDepartedLocked (const std:
 //  EvaluateSlotsLocked
 //
 //  The players again from what is attached, the entries and the two logs,
-//  with each attached controller's active profile deciding the target of a
-//  slot that follows it. A picked controller found under another identity is
-//  followed there, so the entry holds the controller that is playing. Each
-//  slot's holder is recorded as its last holder, with a notice for each slot
-//  Automatic gave a different controller. Empty when nothing changed.
+//  with the players' modes deciding each slot's target. A picked controller
+//  found under another identity is followed there, so the entry holds the
+//  controller that is playing. Each slot's holder is recorded as its last
+//  holder, with a notice for each slot Automatic gave a different
+//  controller. Empty when nothing changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<ControllerInputService::SlotsChange> ControllerInputService::EvaluateSlotsLocked (std::vector<std::wstring> departed)
 {
-    PlayerSlotPolicy::MappingsByUnit  mappings;
-    PlayerSlots                       previous        = m_slots;
-    PlayerEntries                     previousEntries = m_entries;
-    PlayerLastHolders                 previousHolders = m_lastHolders;
-    SlotsChange                       change;
-    size_t                            player          = 0;
+    PlayerSlots        previous        = m_slots;
+    PlayerEntries      previousEntries = m_entries;
+    PlayerLastHolders  previousHolders = m_lastHolders;
+    SlotsChange        change;
+    size_t             player          = 0;
 
 
 
-    for (const ControllerDeviceInfo & device : m_devices)
-    {
-        ControlMapping  mapping;
-        float           deadzone = 0.0f;
-
-        ResolveUnitLocked (device, mapping, deadzone);
-        mappings[ControllerTokens::UnitToToken (device.unit)] = mapping;
-    }
-
-    m_slots = PlayerSlotPolicy::Evaluate (m_entries, m_devices, m_logs, previous, mappings);
+    m_slots = PlayerSlotPolicy::Evaluate (m_entries, m_devices, m_logs, previous, m_isJoyportAttached);
 
     for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
     {
@@ -1682,7 +1688,7 @@ std::optional<ControllerInputService::SlotsChange> ControllerInputService::Evalu
         }
     }
 
-    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders, m_entries, m_profileMode == ProfileMode::Joyport);
+    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders, m_entries, m_isJoyportAttached);
 
     if (m_slots == previous && m_entries == previousEntries && m_lastHolders == previousHolders && departed.empty())
     {
@@ -1880,7 +1886,9 @@ std::optional<PlayerTargetRules::Route> ControllerInputService::GetDriverRouteLo
 //  them play. A controller that stopped playing drops whatever it held; one
 //  that started gets its rate paddles centered on the next tick; one that
 //  plays on is left exactly as it was, so a change to another controller
-//  never interrupts it (SC-012).
+//  never interrupts it (SC-012). One whose kind of profile changed, with its
+//  player's mode or a move to the other player, drops what it held and is
+//  resolved again for the new kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1903,6 +1911,14 @@ void ControllerInputService::SyncDriversLocked()
         }
 
         found->second.isDriving = GetDriverRouteLocked (device.unit).has_value();
+
+        if (found->second.isResolved && found->second.mode != GetUnitModeLocked (device.unit))
+        {
+            found->second.mapping    = ControlMapping();
+            found->second.isResolved = false;
+            found->second.logical.reset();
+            m_rateResetTokens.push_back (token);
+        }
 
         if (found->second.isDriving && !wasDriving)
         {
@@ -1945,6 +1961,7 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
     }
 
     ResolveUnitLocked (*device, driver.mapping, driver.deadzone);
+    driver.mode       = GetUnitModeLocked (driver.unit);
     driver.isResolved = true;
 }
 
@@ -1956,10 +1973,11 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
 //
 //  ResolveUnitLocked
 //
-//  One controller's mapping and deadzone for its active profile. THIS
-//  CONTROLLER'S profile, not the machine's: two players on two pads of one
-//  model can each play their own. A choice of the other mode's profile, which
-//  only the prefs can hold, is no choice.
+//  One controller's mapping and deadzone for its active profile of the kind
+//  it plays. THIS CONTROLLER'S profile, not the machine's: two players on two
+//  pads of one model can each play their own, and two players in different
+//  modes their own kinds. A choice of another kind's profile, which only the
+//  prefs can hold, is no choice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1969,13 +1987,14 @@ void ControllerInputService::ResolveUnitLocked (
     float                       & outDeadzone) const
 {
     const ControllerProfile  * profile    = nullptr;
+    ProfileMode                mode       = GetUnitModeLocked (device.unit);
     std::string                active     = GetActiveProfileLocked (device.unit);
-    ControllerProfileKind      kind       = ControllerModelSettings::GetAutomaticKind (m_profileMode);
+    ControllerProfileKind      kind       = ControllerModelSettings::GetAutomaticKind (mode);
     ControllerProfileKind      chosenKind = ControllerProfileKind::User;
 
 
 
-    if (IsOfOtherModeLocked (device.unit.model, active, m_profileMode))
+    if (IsOfOtherModeLocked (device.unit.model, active, mode))
     {
         active.clear();
     }
@@ -1991,9 +2010,10 @@ void ControllerInputService::ResolveUnitLocked (
     }
 
     // The deadzone belongs to the model, whichever profile is active. With no
-    // profile chosen for this mode, or one the model no longer has, the
-    // controller plays the Joyport profile while a Joyport is attached and
-    // the Default otherwise.
+    // profile chosen for this kind, or one the model no longer has, the
+    // controller plays the kind's built-in profile: the Joyport profile while
+    // a Joyport is attached, and otherwise Paddles for a player in Paddle
+    // mode and the Default for the rest.
     m_profiles.GetBuiltInSettings (kind, device.unit.model, device.formFactor, device.controls, outMapping, outDeadzone);
 
     if (active.empty())

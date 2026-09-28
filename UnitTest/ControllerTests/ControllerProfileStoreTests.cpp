@@ -1389,10 +1389,9 @@ namespace ControllerTests
             std::vector<std::string>  rejected;
             PlayerEntries             entries;
 
-            entries[0].kind   = PlayerEntryKind::Controller;
-            entries[0].unit   = StickUnit ("{A}");
-            entries[0].target = PlayerAxisTarget::Paddle0;
-            entries[1].target = PlayerAxisTarget::Joystick1;
+            entries[0].kind = PlayerEntryKind::Controller;
+            entries[0].unit = StickUnit ("{A}");
+            entries[0].mode = PlayerMode::Paddle;
 
             store.players        = entries;
             store.lastHolders[0] = StickUnit ("{A}");
@@ -1405,7 +1404,7 @@ namespace ControllerTests
 
             Assert::IsTrue  (rejected.empty());
             Assert::IsTrue  (readBack.players.has_value(), L"saved players mark the adoption done");
-            Assert::IsTrue  (readBack.players.value() == entries, L"a pick, its target, and an Automatic player's target come back");
+            Assert::IsTrue  (readBack.players.value() == entries, L"a pick, its mode, and an Automatic player's mode come back");
             Assert::IsTrue  (readBack.lastHolders[0] == StickUnit ("{A}"), L"the last holder comes back");
             Assert::IsFalse (readBack.lastHolders[1].has_value(), L"and a slot nobody held stays empty");
 
@@ -1424,10 +1423,57 @@ namespace ControllerTests
             Assert::IsTrue (readBack.players.value() == entries, L"the keys for Player 1 and Disabled for Player 2 come back");
 
             entries[0].kind = PlayerEntryKind::MousePaddle;
+            entries[0].mode = PlayerMode::Paddle;
             store.players   = entries;
             readBack.FromJson (store.ToJson (JsonValue()), rejected);
 
             Assert::IsTrue (readBack.players.value() == entries, L"and so does the mouse");
+        }
+
+
+        //  Each player's mode is saved under `mode`. A player saved before
+        //  players had modes carries the paddles its slot mapped to, under
+        //  `maps`, and a single paddle there reads as Paddle mode; a player
+        //  with neither, or a mode this build does not know, is in Joystick
+        //  mode. The keys play in Joystick mode and the mouse in Paddle mode,
+        //  whatever the file holds.
+        TEST_METHOD (Players_TheModeIsSavedAndALegacyTargetReadsAsIt)
+        {
+            std::vector<std::string>  rejected;
+            ControllerProfileStore    store;
+            JsonValue                 written;
+            const JsonValue         * players = nullptr;
+            std::string               mode;
+
+            store.players                  = PlayerEntries();
+            store.players.value()[1].mode  = PlayerMode::Paddle;
+            written                        = store.ToJson (JsonValue());
+
+            Assert::IsTrue   (written.HasArray ("players", players) && players != nullptr);
+            Assert::IsTrue   (players->GetArrayElement (0).HasString ("mode", mode), L"Joystick mode is written");
+            Assert::AreEqual (std::string ("joystick"), mode);
+            Assert::IsTrue   (players->GetArrayElement (1).HasString ("mode", mode), L"and Paddle mode");
+            Assert::AreEqual (std::string ("paddle"), mode);
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"maps\":\"joystick0\"},"
+                                              "{\"entry\":\"automatic\",\"maps\":\"paddle2\"}]}", rejected);
+
+            Assert::IsTrue (store.players.value()[0].mode == PlayerMode::Joystick, L"a joystick target reads as Joystick mode");
+            Assert::IsTrue (store.players.value()[1].mode == PlayerMode::Paddle,   L"a single paddle as Paddle mode");
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"mode\":\"sideways\"},"
+                                              "{\"entry\":\"automatic\",\"mode\":\"paddle\",\"maps\":\"joystick1\"}]}", rejected);
+
+            Assert::IsTrue (store.players.value()[0].mode == PlayerMode::Joystick, L"an unknown mode reads as Joystick");
+            Assert::IsTrue (store.players.value()[1].mode == PlayerMode::Paddle,   L"and a mode outranks an old target");
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"keys\",\"mode\":\"paddle\"},{\"entry\":\"automatic\"}]}", rejected);
+
+            Assert::IsTrue (store.players.value()[0].mode == PlayerMode::Joystick, L"the keys play in Joystick mode");
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"mouse\",\"mode\":\"joystick\"},{\"entry\":\"automatic\"}]}", rejected);
+
+            Assert::IsTrue (store.players.value()[0].mode == PlayerMode::Paddle, L"and the mouse in Paddle mode");
         }
 
 
@@ -1478,12 +1524,12 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Players_AnUnreadableEntryKeepsTheTargetItSet)
+        TEST_METHOD (Players_AnUnreadableEntryKeepsTheModeItSet)
         {
             std::vector<std::string>  rejected;
-            ControllerProfileStore    store = ReadSection ("{\"players\":[{\"entry\":\"joystick\",\"maps\":\"paddle1\"},{\"entry\":\"automatic\"}]}", rejected);
+            ControllerProfileStore    store = ReadSection ("{\"players\":[{\"entry\":\"joystick\",\"mode\":\"paddle\"},{\"entry\":\"automatic\"}]}", rejected);
 
-            Assert::IsTrue (store.players.value()[0].target == PlayerAxisTarget::Paddle1, L"only the entry was unreadable");
+            Assert::IsTrue (store.players.value()[0].mode == PlayerMode::Paddle, L"only the entry was unreadable");
         }
 
 
@@ -1525,7 +1571,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Players_ARepeatedControllerOrOverlappingTargetsIsNormalized)
+        TEST_METHOD (Players_ARepeatedControllerIsNormalized)
         {
             std::vector<std::string>  rejected;
             std::string               stick = StickToken ("{A}");
@@ -1535,17 +1581,6 @@ namespace ControllerTests
 
             Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) store.players.value()[0].kind);
             Assert::AreEqual ((int) PlayerEntryKind::Automatic,  (int) store.players.value()[1].kind, L"one controller cannot play for both");
-
-            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"maps\":\"joystick0\"},"
-                                              "{\"entry\":\"automatic\",\"maps\":\"paddle1\"}]}", rejected);
-
-            Assert::IsTrue  (store.players.value()[0].target == PlayerAxisTarget::Joystick0);
-            Assert::IsFalse (store.players.value()[1].target.has_value(), L"a second target on Player 1's paddles is dropped");
-
-            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"maps\":\"paddle0\"},"
-                                              "{\"entry\":\"automatic\",\"maps\":\"paddle1\"}]}", rejected);
-
-            Assert::IsTrue (store.players.value()[1].target == PlayerAxisTarget::Paddle1, L"two single paddles do not overlap");
         }
 
 

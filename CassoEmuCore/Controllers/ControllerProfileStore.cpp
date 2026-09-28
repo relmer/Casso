@@ -56,6 +56,7 @@ static constexpr const char *  s_kpszLastHoldersKey = "lastHolders";
 static constexpr const char *  s_kpszEntryKey       = "entry";
 static constexpr const char *  s_kpszControllerKey  = "controller";
 static constexpr const char *  s_kpszMapsKey        = "maps";
+static constexpr const char *  s_kpszPlayerModeKey  = "mode";
 static constexpr const char *  s_kpszAutomaticEntry = "automatic";
 static constexpr const char *  s_kpszPickEntry      = "controller";
 static constexpr const char *  s_kpszKeysEntry      = "keys";
@@ -677,6 +678,34 @@ ProfileMode ControllerModelSettings::ClassifyLegacyProfile (const ControlMapping
 
 
     return isPaddle ? ProfileMode::Paddle : ProfileMode::Joystick;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::GetPlayerProfileMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileMode ControllerModelSettings::GetPlayerProfileMode (PlayerMode mode, bool isJoyportInEffect)
+{
+    ProfileMode  kind = ProfileMode::Joystick;
+
+
+
+    if (isJoyportInEffect)
+    {
+        kind = ProfileMode::Joyport;
+    }
+    else if (mode == PlayerMode::Paddle)
+    {
+        kind = ProfileMode::Paddle;
+    }
+
+    return kind;
 }
 
 
@@ -1408,12 +1437,12 @@ void ControllerProfileStore::ReadActiveProfiles (
 //  Player 1 then Player 2. A player whose entry cannot be played -- not an
 //  object, an unknown entry, an entry that player cannot have, or a pick
 //  whose controller cannot be read -- plays on Automatic and is reported,
-//  keeping any target it set. An array of the wrong length is reported and
-//  read as far as it goes.
+//  keeping its mode. An array of the wrong length is reported and read as
+//  far as it goes.
 //
 //  The pair is then normalized as a hand-edited file could not make it: a
-//  second pick of Player 1's controller is Automatic, and a second target
-//  that overlaps Player 1's paddles is dropped.
+//  second pick of Player 1's controller is Automatic, and the keys and the
+//  mouse play in their own modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1422,10 +1451,8 @@ void ControllerProfileStore::ReadPlayers (
     PlayerEntries             & outEntries,
     std::vector<std::string>  & outRejected)
 {
-    size_t                     count   = playersArr.GetArraySize();
-    size_t                     player  = 0;
-    MultiplayerSetup::AxisSet  first;
-    MultiplayerSetup::AxisSet  second;
+    size_t  count  = playersArr.GetArraySize();
+    size_t  player = 0;
 
 
 
@@ -1447,19 +1474,6 @@ void ControllerProfileStore::ReadPlayers (
     }
 
     outEntries = PlayerSlotPolicy::NormalizeEntries (outEntries);
-
-    if (!outEntries[0].target.has_value() || !outEntries[1].target.has_value())
-    {
-        return;
-    }
-
-    first  = ControllerSelectionPolicy::GetTargetAxes (outEntries[0].target.value(), GamePortContribution::kAxisCount);
-    second = ControllerSelectionPolicy::GetTargetAxes (outEntries[1].target.value(), GamePortContribution::kAxisCount);
-
-    if ((first & second).any())
-    {
-        outEntries[1].target.reset();
-    }
 }
 
 
@@ -1470,8 +1484,11 @@ void ControllerProfileStore::ReadPlayers (
 //
 //  TryReadPlayer
 //
-//  One player's entry and the target it set. False when the entry cannot be
-//  played by this player; the target is read first, so it survives that.
+//  One player's entry and its mode. False when the entry cannot be played by
+//  this player; the mode is read first, so it survives that. A mode this
+//  build does not know is Joystick. A player saved before players had modes
+//  carries the paddles its slot mapped to instead, under `maps`, and a
+//  single paddle there reads as Paddle mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1479,10 +1496,12 @@ bool ControllerProfileStore::TryReadPlayer (const JsonValue & playerObj, size_t 
 {
     HRESULT            hr     = S_OK;
     std::string        kind;
+    std::string        mode;
     std::string        maps;
     std::string        token;
     ControllerUnitKey  unit;
     bool               isOne  = player == 0;
+    PlayerAxisTarget   target = PlayerAxisTarget::Joystick0;
 
 
 
@@ -1493,9 +1512,14 @@ bool ControllerProfileStore::TryReadPlayer (const JsonValue & playerObj, size_t 
         return false;
     }
 
-    if (playerObj.HasString (s_kpszMapsKey, maps))
+    if (playerObj.HasString (s_kpszPlayerModeKey, mode))
     {
-        outEntry.target = MachineInputPrefs::TargetFromToken (maps, PlayerAxisTarget::Joystick0);
+        outEntry.mode = (mode == s_kpszPaddleMode) ? PlayerMode::Paddle : PlayerMode::Joystick;
+    }
+    else if (playerObj.HasString (s_kpszMapsKey, maps))
+    {
+        target        = MachineInputPrefs::TargetFromToken (maps, PlayerAxisTarget::Joystick0);
+        outEntry.mode = PlayerTargetRules::IsPaddleTarget (target) ? PlayerMode::Paddle : PlayerMode::Joystick;
     }
 
     if (!playerObj.HasString (s_kpszEntryKey, kind))
@@ -2235,8 +2259,7 @@ JsonValue ControllerProfileStore::WriteCalibration (const ControllerCalibration 
 //
 //  WritePlayers
 //
-//  Both players, always: the controller only for a pick, and the target only
-//  when the user set one.
+//  Both players, always, each with its mode: the controller only for a pick.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2269,10 +2292,7 @@ JsonValue ControllerProfileStore::WritePlayers (const PlayerEntries & entries)
             obj.emplace_back (s_kpszControllerKey, JsonValue (ControllerTokens::UnitToToken (entry.unit.value())));
         }
 
-        if (entry.target.has_value())
-        {
-            obj.emplace_back (s_kpszMapsKey, JsonValue (std::string (MachineInputPrefs::TargetToToken (entry.target.value()))));
-        }
+        obj.emplace_back (s_kpszPlayerModeKey, JsonValue (std::string (entry.mode == PlayerMode::Paddle ? s_kpszPaddleMode : s_kpszJoystickMode)));
 
         arr.emplace_back (std::move (obj));
     }

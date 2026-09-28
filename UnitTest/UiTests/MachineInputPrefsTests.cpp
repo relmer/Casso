@@ -376,7 +376,6 @@ public:
         // Every machine with a game port has PDL0 and PDL1, so a target a
         // newer build wrote degrades to one this machine can play.
         Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) setup.players[0].target);
-        Assert::AreEqual (std::string ("paddle2"), std::string (MachineInputPrefs::TargetToToken (PlayerAxisTarget::Paddle2)));
         Assert::AreEqual ((int) PlayerAxisTarget::Paddle3,
                           (int) MachineInputPrefs::TargetFromToken ("paddle3", PlayerAxisTarget::Joystick0));
     }
@@ -560,10 +559,10 @@ private:
 
         Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) entries[0].kind, L"Player 1's slot outranks the keys");
         Assert::IsTrue   (entries[0].unit == MakeStickUnit ("{A}"));
-        Assert::IsTrue   (entries[0].target == PlayerAxisTarget::Paddle0, L"with its target set by hand");
+        Assert::IsTrue   (entries[0].mode == PlayerMode::Paddle, L"a single paddle there is Paddle mode");
         Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) entries[1].kind);
         Assert::IsTrue   (entries[1].unit == MakeStickUnit ("{B}"));
-        Assert::IsTrue   (entries[1].target == PlayerAxisTarget::Paddle1);
+        Assert::IsTrue   (entries[1].mode == PlayerMode::Paddle);
         Assert::IsTrue   (lastHolders[0] == MakeStickUnit ("{C}"), L"the saved controller is still only the last holder");
         Assert::IsFalse  (lastHolders[1].has_value());
     }

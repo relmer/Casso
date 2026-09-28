@@ -12,8 +12,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  PlayerTargetRulesTests
 //
-//  What each player's controller reaches: the target a profile implies, and
-//  the lines each target is wired to on the hardware. The button table is
+//  What each player's controller reaches: the target the players' modes give
+//  it, and the lines each target is wired to on the hardware. The button table is
 //  checked by sweeping every target, so a target the table forgot fails
 //  rather than quietly reaching nothing.
 //
@@ -34,59 +34,55 @@ namespace ControllerTests
         static constexpr size_t  kPdl3     = 3;
 
 
-        static ControlMapping MakeJoystickMapping()
+        //  FR-039's table: Player 1 takes joystick 0, or paddle 0 in Paddle
+        //  mode; Player 2 takes joystick 1, or in Paddle mode paddle 1
+        //  beside Player 1's paddle and paddle 2 beside Player 1's joystick.
+        TEST_METHOD (ModeTarget_EveryRowOfTheWiringTable)
         {
-            ControlMapping  mapping;
+            struct Row
+            {
+                size_t            player;
+                bool              isPaddle;
+                bool              isPlayerOnePaddle;
+                PlayerAxisTarget  expected;
+            };
 
-            mapping.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
-            mapping.pdl1.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 1 } });
-            return mapping;
+            const Row  kRows[] =
+            {
+                { 0, false, false, PlayerAxisTarget::Joystick0 },
+                { 0, false, true,  PlayerAxisTarget::Joystick0 },
+                { 0, true,  false, PlayerAxisTarget::Paddle0   },
+                { 0, true,  true,  PlayerAxisTarget::Paddle0   },
+                { 1, false, false, PlayerAxisTarget::Joystick1 },
+                { 1, false, true,  PlayerAxisTarget::Joystick1 },
+                { 1, true,  true,  PlayerAxisTarget::Paddle1   },
+                { 1, true,  false, PlayerAxisTarget::Paddle2   },
+            };
+
+            for (const Row & row : kRows)
+            {
+                Assert::AreEqual ((int) row.expected,
+                                  (int) PlayerTargetRules::GetModeTarget (row.player, row.isPaddle, row.isPlayerOnePaddle),
+                                  std::format (L"player {}, {} mode, beside a {}", row.player + 1,
+                                               row.isPaddle ? L"Paddle" : L"Joystick",
+                                               row.isPlayerOnePaddle ? L"paddle" : L"joystick").c_str());
+            }
         }
 
 
-        static ControlMapping MakePaddleMapping()
+        //  One player on its own: a joystick drives what a single controller
+        //  always has, and a paddle drives PDL0 and PB0 from whichever slot it
+        //  holds.
+        TEST_METHOD (LoneRoute_FollowsTheMode)
         {
-            ControlMapping  mapping;
+            PlayerTargetRules::Route  joystick = PlayerTargetRules::GetLoneRoute (PlayerAxisTarget::Joystick1, kFourAxes);
+            PlayerTargetRules::Route  paddle   = PlayerTargetRules::GetLoneRoute (PlayerAxisTarget::Paddle2,   kFourAxes);
 
-            mapping.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
-            return mapping;
+            Assert::IsTrue (joystick == PlayerTargetRules::GetSingleRoute (kFourAxes), L"a lone joystick drives PDL0, PDL1 and PB0-PB2");
+            Assert::IsTrue (paddle.paddles[0] == 0 && !paddle.paddles[1].has_value(), L"a lone paddle drives PDL0 alone");
+            Assert::IsTrue (paddle.buttons[kPb0] == kPb0 && !paddle.buttons[kPb1].has_value() && !paddle.buttons[kPb2].has_value(),
+                            L"and PB0 alone");
         }
-
-
-        TEST_METHOD (AutomaticTarget_PlayerOneIsJoystickZeroOrPaddleZero)
-        {
-            ControlMapping  yOnly;
-
-            yOnly.pdl1.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 1 } });
-
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0,
-                              (int) PlayerTargetRules::GetAutomaticTarget (0, MakeJoystickMapping(), PlayerAxisTarget::Joystick1),
-                              L"a profile binding both axes plays joystick 0");
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle0,
-                              (int) PlayerTargetRules::GetAutomaticTarget (0, MakePaddleMapping(), PlayerAxisTarget::Joystick1),
-                              L"one binding PDL0 and not PDL1 plays paddle 0");
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0,
-                              (int) PlayerTargetRules::GetAutomaticTarget (0, ControlMapping(), PlayerAxisTarget::Joystick1),
-                              L"one binding neither is not a paddle");
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0,
-                              (int) PlayerTargetRules::GetAutomaticTarget (0, yOnly, PlayerAxisTarget::Joystick1),
-                              L"and nor is one binding PDL1 alone");
-        }
-
-
-        TEST_METHOD (AutomaticTarget_PlayerTwoComesToRestBesidePlayerOne)
-        {
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1,
-                              (int) PlayerTargetRules::GetAutomaticTarget (1, MakeJoystickMapping(), PlayerAxisTarget::Joystick0),
-                              L"a joystick profile plays joystick 1");
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle1,
-                              (int) PlayerTargetRules::GetAutomaticTarget (1, MakePaddleMapping(), PlayerAxisTarget::Paddle0),
-                              L"a paddle beside player one's paddle 0 is paddle 1");
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle2,
-                              (int) PlayerTargetRules::GetAutomaticTarget (1, MakePaddleMapping(), PlayerAxisTarget::Joystick0),
-                              L"and beside player one's joystick 0 it is paddle 2");
-        }
-
 
         //  Every target, with the lines the hardware wires it to: joystick 0
         //  to PB0 and PB1, joystick 1 to PB2 from its first button, a single

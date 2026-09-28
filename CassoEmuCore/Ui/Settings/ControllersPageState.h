@@ -66,10 +66,13 @@ enum class CalibrationStep
 //  included.
 //
 //  THE PLAYERS ARE THE ONE EXCEPTION, and deliberately so. Each player's
-//  entry, what it maps to, and the Multiplayer checkbox are the same choices
-//  the command bar's picker makes, not edits to a profile. Those take effect
-//  when they are made, so these do too: a pick here reaches the service at
-//  once and Cancel does not take it back.
+//  entry and mode are the same choices the command bar's picker makes, not
+//  edits to a profile. Those take effect when they are made, so these do
+//  too: a pick here reaches the service at once and Cancel does not take it
+//  back.
+//
+//  The profiles listed and edited are of the kind the controller in Editing
+//  plays: its player's mode, or Joyport while the Joyport is in effect.
 //
 //  Edits go to the chosen profile of the selected controller's model, which
 //  starts as the machine's active profile. A name the model has no profile
@@ -139,9 +142,11 @@ public:
     // slot plays -- and how many paddle axes the machine has. A pick made on
     // the page is applied at once rather than on OK; see the note above.
     using PlayerPickedFn = std::function<void (size_t player, const PlayerEntry & entry)>;
+    using PlayerModeFn   = std::function<void (size_t player, PlayerMode mode)>;
 
     void                   SetPlayers            (const PlayerEntries & entries, const PlayerSlots & slots, size_t axisCount);
     void                   SetOnPlayerPicked     (PlayerPickedFn onPicked);
+    void                   SetOnPlayerModeSet    (PlayerModeFn onModeSet);
     const PlayerEntries &  GetPlayerEntries      () const;
     const PlayerSlots &    GetPlayerSlots        () const;
     size_t                 GetAxisCount          () const;
@@ -155,9 +160,10 @@ public:
     bool                   IsMultiplayerChecked  () const;
     void                   SetMultiplayerChecked (bool isChecked);
 
-    // One player's entry, or their target; no target follows the profile.
+    // One player's entry, or their mode; neither is taken while the Joyport
+    // is in effect, where both players are Atari sticks.
     void                   PickPlayerEntry       (size_t player, PlayerEntry entry);
-    void                   SetPlayerTarget       (size_t player, std::optional<PlayerAxisTarget> target);
+    void                   SetPlayerMode         (size_t player, PlayerMode mode);
 
     // What one player's entry drop-down lists.
     std::vector<InputModeRules::PlayerChoice>  GetEntryChoices (size_t player) const;
@@ -177,26 +183,18 @@ public:
     static std::wstring       GetJoyportPositionLabel (bool isAtariMode);
 
 
-    // What one slot may map to on this machine, less what the other holds.
-    std::vector<PlayerAxisTarget>  GetTargetChoices (size_t player) const;
-
-    // Which player holds the controller being edited, or none.
+    // Which player holds the controller being edited while two play, or none.
     std::optional<size_t>          FindEditedPlayer () const;
 
-    // Whether a target of the controller being edited drives anything. With
-    // multiplayer off every target is in play, which is what a machine has
-    // always done. With it on, a player drives the paddles their slot maps to
-    // -- PDL0 and PDL1 for a joystick, PDL0 alone for a single paddle -- and
-    // one button line, which is their PB0 bindings whichever line it lands on
-    // (FR-039). A controller in neither slot drives nothing.
+    // Whether a target of the controller being edited drives anything: what
+    // its player's place on the game port is wired to, which the players'
+    // modes decide. A controller in no slot drives nothing while two play,
+    // and is edited whole otherwise.
     bool                           IsTargetInPlay   (PaddleTarget target) const;
 
-    static std::wstring            GetTargetLabel   (PlayerAxisTarget target);
-
-    // What one of the edited controller's targets drives on THIS machine while
-    // two people play: the paddle its slot lands on, or the player whose
-    // button line it is. Empty outside the mode, where the controller's own
-    // names are the answer.
+    // What one of the edited controller's targets drives on THIS machine: the
+    // paddle or line the guest reads it on, when that is not the target's
+    // own.
     std::wstring                   GetTargetPlayLabel (PaddleTarget target) const;
 
     const ControlMapping &                GetMapping         () const;
@@ -217,11 +215,13 @@ public:
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
 
-    // The mode whose profiles the page lists and whose active profiles it
-    // edits: with a Joyport attached or without. A controller with no
-    // profile chosen in it plays that mode's built-in profile. Set before
-    // Load, or after it to swap the list and the edited profile in place.
-    void                                  SetProfileMode           (ProfileMode mode);
+    // Whether the Joyport is in effect, which makes every player an Atari
+    // stick, set before Load or after it to swap the list and the edited
+    // profile in place. The kind whose profiles the page lists and whose
+    // active profiles it edits follows it and the edited player's mode. A
+    // controller with no profile chosen of that kind plays its built-in one.
+    void                                  SetJoyportInEffect       (bool isInEffect);
+    bool                                  IsJoyportInEffect        () const           { return m_isJoyportInEffect; }
     ProfileMode                           GetProfileMode           () const           { return m_profileMode; }
 
     // Every controller's active profile for one kind, by unit token, set
@@ -320,6 +320,9 @@ private:
     bool                             FindCommittedMapping (ControlMapping & mapping) const;
     MultiplayerSetup                 MakePlayView         () const;
     void                             ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
+    void                             SyncProfileMode      ();
+    ProfileMode                      GetEditedPlayerProfileMode () const;
+    std::optional<size_t>            FindHoldingPlayer    () const;
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
 
     static std::vector<AxisBinding> *    FindAxisList    (ControlMapping & mapping, PaddleTarget target);
@@ -344,7 +347,8 @@ private:
     // controller's entry in the kind's map, loaded when Editing moves to it
     // and written back whenever it changes.
     std::string                                     m_editedProfile;
-    ProfileMode                                     m_profileMode = ProfileMode::Joystick;
+    ProfileMode                                     m_profileMode       = ProfileMode::Joystick;
+    bool                                            m_isJoyportInEffect = false;
 
     // Every controller's active profile, by unit token, for each kind, and as
     // it was when the page opened or last committed.
@@ -376,6 +380,7 @@ private:
     PlayerSlots                                     m_slots;
     size_t                                          m_axisCount = GamePortContribution::kAxisCount;
     PlayerPickedFn                                  m_onPlayerPicked;
+    PlayerModeFn                                    m_onPlayerModeSet;
 
     ControlCapture                                  m_capture;
     PaddleTarget                                    m_captureTarget = PaddleTarget::Pdl0;

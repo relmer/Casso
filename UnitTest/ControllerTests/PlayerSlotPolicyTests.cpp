@@ -373,21 +373,187 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Target_UserSetOverlapIsRefused)
+        //
+        //  Modes
+        //
+
+        //  Two players both playing, in the given modes, on a machine with
+        //  the given number of paddles.
+        static World MakeTwoPlaying (PlayerMode first, PlayerMode second)
         {
             World                 world;
-            ControllerDeviceInfo  first  = MakePad ("{A}");
-            ControllerDeviceInfo  second = MakePad ("{B}");
+            ControllerDeviceInfo  a     = MakePad ("{A}");
+            ControllerDeviceInfo  b     = MakePad ("{B}");
 
-            world.entries[1].target = PlayerAxisTarget::Paddle1;
-            world.devices           = { first, second };
-            world.logs.firstInput   = { first.unit, second.unit };
+            world.entries[0].mode = first;
+            world.entries[1].mode = second;
+            world.devices         = { a, b };
+            world.logs.firstInput = { a.unit, b.unit };
             world.Step();
-
-            Assert::IsFalse (world.slots[1].holder.has_value(),
-                L"a slot claiming a paddle of the other player's joystick is refused rather than played (FR-036)");
+            return world;
         }
 
+
+        //  FR-039's table, through the routes the service plays: which
+        //  paddles and lines each player's own bindings reach, for every pair
+        //  of modes.
+        TEST_METHOD (Modes_EveryPairDrivesWhatTheGamePortWiresIt)
+        {
+            constexpr size_t  kStickPaddles = 2;
+            constexpr size_t  kLines        = PlayerTargetRules::kButtonCount;
+
+            struct Row
+            {
+                PlayerMode             first;
+                PlayerMode             second;
+                std::optional<size_t>  firstPaddles[kStickPaddles];
+                std::optional<size_t>  firstLines[kLines];
+                std::optional<size_t>  secondPaddles[kStickPaddles];
+                std::optional<size_t>  secondLines[kLines];
+            };
+
+            constexpr size_t  kFourAxes = 4;
+            constexpr size_t  kPdl2     = 2;
+            constexpr size_t  kPdl3     = 3;
+            constexpr size_t  kPb2      = 2;
+            const Row         kRows[]   =
+            {
+                { PlayerMode::Joystick, PlayerMode::Joystick, { 0, 1 },            { 0, 1, std::nullopt }, { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::Joystick, PlayerMode::Paddle,   { 0, 1 },            { 0, 1, std::nullopt }, { kPdl2, std::nullopt }, { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::Paddle,   PlayerMode::Joystick, { 0, std::nullopt }, { 0, std::nullopt, std::nullopt }, { kPdl2, kPdl3 }, { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::Paddle,   PlayerMode::Paddle,   { 0, std::nullopt }, { 0, std::nullopt, std::nullopt }, { 1, std::nullopt }, { 1, std::nullopt, std::nullopt } },
+            };
+            size_t            checked   = 0;
+
+            for (const Row & row : kRows)
+            {
+                World                                    world  = MakeTwoPlaying (row.first, row.second);
+                std::optional<PlayerTargetRules::Route>  first  = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 0, kFourAxes);
+                std::optional<PlayerTargetRules::Route>  second = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, kFourAxes);
+                std::wstring                             what   = std::format (L"Player 1 {}, Player 2 {}",
+                                                                               row.first  == PlayerMode::Paddle ? L"Paddle" : L"Joystick",
+                                                                               row.second == PlayerMode::Paddle ? L"Paddle" : L"Joystick");
+
+                Assert::IsTrue (first.has_value() && second.has_value(), what.c_str());
+
+                for (size_t i = 0; i < kStickPaddles; i++)
+                {
+                    Assert::IsTrue (first->paddles[i]  == row.firstPaddles[i],  (what + L": Player 1's paddles").c_str());
+                    Assert::IsTrue (second->paddles[i] == row.secondPaddles[i], (what + L": Player 2's paddles").c_str());
+                }
+
+                for (size_t i = 0; i < std::size (row.firstLines); i++)
+                {
+                    Assert::IsTrue (first->buttons[i]  == row.firstLines[i],  (what + L": Player 1's lines").c_str());
+                    Assert::IsTrue (second->buttons[i] == row.secondLines[i], (what + L": Player 2's lines").c_str());
+                }
+
+                checked++;
+            }
+
+            Assert::AreEqual (std::size (kRows), checked, L"every pair of modes was checked");
+        }
+
+
+        //  The //c's two paddles: a second joystick drives nothing, and two
+        //  players in Paddle mode each drive their own paddle.
+        TEST_METHOD (Modes_OnTheTwoPaddleMachine)
+        {
+            constexpr size_t                         kTwoAxes = 2;
+            World                                    sticks   = MakeTwoPlaying (PlayerMode::Joystick, PlayerMode::Joystick);
+            World                                    paddles  = MakeTwoPlaying (PlayerMode::Paddle,   PlayerMode::Paddle);
+            std::optional<PlayerTargetRules::Route>  second   = PlayerSlotPolicy::GetDriverRoute (paddles.slots, paddles.entries, 1, kTwoAxes);
+
+            Assert::IsTrue  (PlayerSlotPolicy::GetDriverRoute (sticks.slots, sticks.entries, 0, kTwoAxes).has_value(), L"Player 1's joystick plays");
+            Assert::IsFalse (PlayerSlotPolicy::GetDriverRoute (sticks.slots, sticks.entries, 1, kTwoAxes).has_value(), L"a second joystick drives nothing");
+            Assert::IsTrue  (second.has_value() && second->paddles[0] == size_t (1), L"a second paddle drives PDL1");
+        }
+
+
+        //  One player playing alone drives what one controller of its mode
+        //  always has, from either slot: a joystick PDL0, PDL1 and PB0-PB2, a
+        //  paddle PDL0 and PB0.
+        TEST_METHOD (Modes_ALonePlayerDrivesWhatOneControllerOfItsModeHas)
+        {
+            constexpr size_t          kFourAxes = 4;
+            constexpr size_t          kPb2      = 2;
+            World                     world;
+            ControllerDeviceInfo      pad       = MakePad ("{PAD}");
+            PlayerTargetRules::Route  route;
+
+            world.devices = { pad };
+            world.Step();
+
+            route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 0, kFourAxes).value();
+
+            Assert::IsTrue (route == PlayerTargetRules::GetSingleRoute (kFourAxes), L"a lone joystick drives PDL0, PDL1 and PB0-PB2");
+
+            world.entries[0].mode = PlayerMode::Paddle;
+            world.Step();
+            route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 0, kFourAxes).value();
+
+            Assert::IsTrue (route.paddles[0] == size_t (0) && !route.paddles[1].has_value(), L"a lone paddle drives PDL0");
+            Assert::IsTrue (route.buttons[0] == size_t (0) && !route.buttons[1].has_value() && !route.buttons[kPb2].has_value(), L"and PB0");
+
+            world.entries[0]      = PlayerEntry();
+            world.entries[1]      = MakePick (pad);
+            world.entries[1].mode = PlayerMode::Paddle;
+            world.Step();
+            route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, kFourAxes).value();
+
+            Assert::IsTrue (route.paddles[0] == size_t (0) && route.buttons[0] == size_t (0), L"Player 2 alone in Paddle mode drives PDL0 and PB0 too");
+        }
+
+
+        //  With the Joyport in effect both players are Atari sticks, whatever
+        //  mode they were left in.
+        TEST_METHOD (Modes_WithTheJoyportBothPlayAsJoysticks)
+        {
+            World  world = MakeTwoPlaying (PlayerMode::Paddle, PlayerMode::Paddle);
+
+            world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, true);
+
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) world.slots[0].target, L"Player 1 is joystick 0");
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) world.slots[1].target, L"and Player 2 joystick 1");
+            Assert::IsTrue   (world.entries[0].mode == PlayerMode::Paddle, L"the modes are kept for when it is off");
+        }
+
+
+        //  A pick keeps the player's mode; the keys are a joystick and the
+        //  mouse a paddle, and a mode that cannot have them sends Player 1
+        //  back to Automatic.
+        TEST_METHOD (Modes_PicksKeepThemAndTheKeysAndMouseSetTheirOwn)
+        {
+            ControllerDeviceInfo  pad = MakePad ("{PAD}");
+            PlayerEntries         entries;
+            PlayerEntry           keys;
+            PlayerEntry           mouse;
+
+            keys.kind  = PlayerEntryKind::ArrowKeys;
+            mouse.kind = PlayerEntryKind::MousePaddle;
+
+            entries = PlayerSlotPolicy::ApplyMode (entries, 1, PlayerMode::Paddle);
+            entries = PlayerSlotPolicy::ApplyPick (entries, 1, MakePick (pad));
+
+            Assert::IsTrue (entries[1].mode == PlayerMode::Paddle, L"a pick keeps the player's mode");
+
+            entries = PlayerSlotPolicy::ApplyPick (entries, 0, mouse);
+            Assert::IsTrue (entries[0].mode == PlayerMode::Paddle, L"the mouse plays in Paddle mode");
+
+            entries = PlayerSlotPolicy::ApplyPick (entries, 0, keys);
+            Assert::IsTrue (entries[0].mode == PlayerMode::Joystick, L"the keys play in Joystick mode");
+
+            entries = PlayerSlotPolicy::ApplyMode (entries, 0, PlayerMode::Paddle);
+            Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) entries[0].kind, L"Paddle mode sends the keys back to Automatic");
+            Assert::IsTrue   (entries[0].mode == PlayerMode::Paddle);
+
+            entries = PlayerSlotPolicy::ApplyPick (entries, 0, mouse);
+            entries = PlayerSlotPolicy::ApplyMode (entries, 0, PlayerMode::Joystick);
+            Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) entries[0].kind, L"and Joystick mode the mouse");
+
+            entries = PlayerSlotPolicy::ApplyMode (entries, 1, PlayerMode::Joystick);
+            Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) entries[1].kind, L"a controller has either mode");
+        }
 
         //
         //  What counts as a controller being used

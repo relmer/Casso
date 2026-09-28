@@ -280,47 +280,13 @@ GamePortAdapter MachineInputPrefs::ReadGamePortAdapter (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineInputPrefs::TargetToToken
-//
-//  What a player slot maps to, in its persisted spelling. Names rather than
-//  ordinals, for the same reason the mapping modes use them: inserting a
-//  target later cannot silently reinterpret a saved slot as another one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const char * MachineInputPrefs::TargetToToken (PlayerAxisTarget target)
-{
-    // Joystick 0 is both the first target and the safe spelling for one this
-    // build does not know: every machine with a game port has PDL0 and PDL1.
-    const char *  token = s_kpszTargetJoystick0;
-
-
-
-    switch (target)
-    {
-        case PlayerAxisTarget::Joystick1:  token = s_kpszTargetJoystick1; break;
-        case PlayerAxisTarget::Paddle0:    token = s_kpszTargetPaddle0;   break;
-        case PlayerAxisTarget::Paddle1:    token = s_kpszTargetPaddle1;   break;
-        case PlayerAxisTarget::Paddle2:    token = s_kpszTargetPaddle2;   break;
-        case PlayerAxisTarget::Paddle3:    token = s_kpszTargetPaddle3;   break;
-
-        case PlayerAxisTarget::Joystick0:
-        default:                                                          break;
-    }
-
-    return token;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MachineInputPrefs::TargetFromToken
 //
-//  The inverse, answering with `fallback` for an empty or unrecognized token
-//  so a file written by a newer build degrades to a playable slot.
+//  What a player slot mapped to, from the spelling an earlier build saved:
+//  names rather than ordinals, so inserting a target could not silently
+//  reinterpret a saved slot as another one. An empty or unrecognized token
+//  is `fallback`, so a file written by a newer build degrades to a playable
+//  slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -496,9 +462,10 @@ PlayerEntries MachineInputPrefs::ReadAdoptedPlayers (
             continue;
         }
 
-        entries[player].kind   = PlayerEntryKind::Controller;
-        entries[player].unit   = setup.players[player].unit;
-        entries[player].target = setup.players[player].target;
+        entries[player].kind = PlayerEntryKind::Controller;
+        entries[player].unit = setup.players[player].unit;
+        entries[player].mode = PlayerTargetRules::IsPaddleTarget (setup.players[player].target) ? PlayerMode::Paddle
+                                                                                                : PlayerMode::Joystick;
     }
 
     return PlayerSlotPolicy::NormalizeEntries (entries);

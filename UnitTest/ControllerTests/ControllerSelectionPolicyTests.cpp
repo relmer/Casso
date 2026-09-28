@@ -75,15 +75,11 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Players_DriveOnlyThePaddlesTheirSlotMapsTo)
+        TEST_METHOD (FindPlayer_OnlyWhileTwoPlay)
         {
             ControllerUnitKey  xbox   = MakeXbox().unit;
             ControllerUnitKey  stick  = MakeStick ("{A}").unit;
             MultiplayerSetup   setup  = MakeTwoPlayers (xbox, stick);
-
-            Assert::AreEqual (0x3ul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 0, 4).to_ulong(),
-                L"player one plays joystick 0, which is PDL0 and PDL1");
-            Assert::AreEqual (0xCul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 1, 4).to_ulong());
 
             Assert::IsTrue   (ControllerSelectionPolicy::FindPlayer (setup, stick).value() == 1);
             Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, MakeStick ("{OTHER}").unit).has_value(),
@@ -91,9 +87,7 @@ namespace ControllerTests
 
             setup.isEnabled = false;
 
-            Assert::AreEqual (0x0ul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 0, 4).to_ulong(),
-                L"with the mode off the slots drive nothing at all");
-            Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, stick).has_value());
+            Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, stick).has_value(), L"with one playing there are no two players to find");
         }
 
 
@@ -193,35 +187,6 @@ namespace ControllerTests
             fine                   = ControllerSelectionPolicy::Normalize (fine);
 
             Assert::IsTrue  (fine.players[1].unit.has_value(), L"a paddle nobody else holds is kept");
-        }
-
-
-        TEST_METHOD (TargetChoices_LeaveOutTheOtherPlayersAndWhatTheMachineLacks)
-        {
-            ControllerUnitKey              xbox    = MakeXbox().unit;
-            ControllerUnitKey              stick   = MakeStick ("{A}").unit;
-            MultiplayerSetup               setup   = MakeTwoPlayers (xbox, stick);
-            std::vector<PlayerAxisTarget>  choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 4);
-
-            // Player one holds joystick 0, so PDL0 and PDL1 are gone in every
-            // form they could be offered in.
-            Assert::AreEqual (size_t (3), choices.size(), L"joystick 1, paddle 2 and paddle 3 are what is left");
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) choices[0]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle2,   (int) choices[1]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle3,   (int) choices[2]);
-
-            choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 2);
-
-            Assert::AreEqual (size_t (0), choices.size(),
-                L"on a //c player one's joystick 0 is the whole game port, so player two has nothing to take");
-
-            setup.players[0].unit.reset();
-            choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 2);
-
-            Assert::AreEqual (size_t (3), choices.size(), L"with no other player, a //c offers joystick 0, paddle 0 and paddle 1");
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) choices[0]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle0,   (int) choices[1]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle1,   (int) choices[2]);
         }
 
 

@@ -726,6 +726,11 @@ public:
     // refers to.
     void    PickPlayer             (size_t player, PlayerEntry entry);
 
+    // The user set a player's mode, Joystick or Paddle. Player 1's keys and
+    // mouse are a joystick and a paddle, so a mode that cannot have them
+    // turns them off.
+    void    SetPlayerMode          (size_t player, PlayerMode mode);
+
     // Whether the running machine can take a Joyport, which is what the
     // picker's row and the Controllers page's switch are offered on.
     bool    IsJoyportOffered       () const;

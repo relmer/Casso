@@ -2950,6 +2950,48 @@ void EmulatorShell::PickPlayer (size_t player, PlayerEntry entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetPlayerMode
+//
+//  UI thread. The mode is set FIRST, and the service returns Player 1 to
+//  Automatic when the new mode cannot have the keys or the mouse; turning
+//  those off afterwards then finds Player 1 already on Automatic and picks
+//  nothing on the way. The entries are saved with the global prefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetPlayerMode (size_t player, PlayerMode mode)
+{
+    bool  isPlayerOne = player == 0;
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    m_controllerService->SetPlayerMode (player, mode);
+
+    if (isPlayerOne && mode == PlayerMode::Paddle && m_arrowsJoystick)
+    {
+        SetArrowsJoystick (false);
+    }
+
+    if (isPlayerOne && mode == PlayerMode::Joystick && m_pointerMode == InputMappingMode::Paddle)
+    {
+        SetPointerMapping (InputMappingMode::Off);
+    }
+
+    SyncGamePortAxisOwner();
+    SyncInputModeUi();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PickPlayerEntry
 //
 //  Hands one player's entry to the service and wakes its thread, so the
@@ -3049,10 +3091,10 @@ void EmulatorShell::SyncPaddleSourceList()
 //
 //  GetPickerProfileChoices
 //
-//  Each attached controller's profiles of the mode in effect, that mode's
-//  built-in profile first, which a model with nothing saved still lists, and
-//  its active one. By unit token, since two pads of one model can play
-//  different profiles.
+//  Each attached controller's profiles of the kind it plays -- its player's
+//  mode, or Joyport while the Joyport is on -- that kind's built-in profile
+//  first, which a model with nothing saved still lists, and its active one.
+//  By unit token, since two pads of one model can play different profiles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3069,10 +3111,12 @@ std::map<std::string, InputModeRules::ProfileChoices> EmulatorShell::GetPickerPr
         std::string                       token  = ControllerTokens::UnitToToken (device.unit);
         auto                              model  = models.find (ControllerTokens::ModelToToken (device.unit.model));
         auto                              active = snapshot.activeProfiles.find (token);
+        auto                              kind   = snapshot.profileModes.find (token);
+        ProfileMode                       mode   = (kind != snapshot.profileModes.end()) ? kind->second : ProfileMode::Joystick;
         InputModeRules::ProfileChoices  & entry  = choices[token];
 
-        entry.names  = (model != models.end()) ? model->second.GetProfileNames (snapshot.profileMode)
-                                               : ControllerModelSettings().GetProfileNames (snapshot.profileMode);
+        entry.names  = (model != models.end()) ? model->second.GetProfileNames (mode)
+                                               : ControllerModelSettings().GetProfileNames (mode);
         entry.active = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
     }
 

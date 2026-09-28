@@ -12,9 +12,10 @@
 //
 //  PlayerAxisTarget
 //
-//  What one player slot maps to: a joystick, meaning two paddles wired to one
+//  What one player slot drives: a joystick, meaning two paddles wired to one
 //  stick, or a single paddle. The four-axis game port offers two joysticks or
-//  four paddles, and this is the one choice a player slot carries.
+//  four paddles. The two players' modes decide which one each slot drives;
+//  it is not a choice of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,9 +98,8 @@ struct MultiplayerSetup
 //  ControllerSelectionPolicy
 //
 //  The rules the two player slots share whoever fills them: which paddles a
-//  target maps to, what the settings may offer a slot, how a repeated or
-//  overlapping pair is refused, and how a picked controller that came back
-//  under another identity is recognized. Pure: it reads no device and writes
+//  target maps to, how a repeated or overlapping pair is refused, and how a
+//  picked controller that came back under another identity is recognized. Pure: it reads no device and writes
 //  nothing, so every rule in it is reachable from the unit tests with a list
 //  of made-up devices.
 //
@@ -131,12 +131,6 @@ public:
     static MultiplayerSetup::AxisSet  GetTargetAxes (PlayerAxisTarget  target,
                                                      size_t            axisCount);
 
-    // What one player drives in a setup: nothing while it is not enabled,
-    // while the slot is empty, or while this machine has none of the slot's
-    // paddles.
-    static MultiplayerSetup::AxisSet  GetAxesForPlayer (const MultiplayerSetup & setup,
-                                                        size_t                   player,
-                                                        size_t                   axisCount);
 
     // Which player holds this controller in a setup, or none.
     static std::optional<size_t>  FindPlayer (const MultiplayerSetup &   setup,
@@ -146,12 +140,6 @@ public:
     // slot's controller, or claims a paddle it already holds, is emptied
     // rather than trusted. Every setter and the prefs reader run through this.
     static MultiplayerSetup  Normalize (MultiplayerSetup setup);
-
-    // What a slot may map to on this machine, less whatever the other slot
-    // holds. This is the list the settings page offers.
-    static std::vector<PlayerAxisTarget>  GetTargetChoices (const MultiplayerSetup & setup,
-                                                            size_t                   player,
-                                                            size_t                   axisCount);
 
 private:
 
