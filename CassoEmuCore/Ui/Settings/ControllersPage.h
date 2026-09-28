@@ -11,9 +11,9 @@
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiComboBox.h"
+#include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiSlider.h"
-#include "Widgets/DxuiToggle.h"
 
 
 class DxuiHwndSource;
@@ -31,10 +31,11 @@ class DxuiHwndSource;
 //  forwards every edit to it; the sheet's apply pipeline commits that state on
 //  OK and reverts it on Cancel.
 //
-//      * Joyport            (DxuiToggle: the unit's Apple / Atari switch, on a
-//                            machine that can take one)
-//      * Players            (each player's entry, its mode -- Joystick or
-//                            Paddle -- and a note of what it drives)
+//      * Players            (each player's entry, its mode -- Joystick, a
+//                            Joyport jack or Paddle, and Same as Player 1 for
+//                            Player 2 -- a note of what it drives, and a
+//                            warning under a player whose buttons the Joyport
+//                            has taken)
 //      * Controller         (DxuiComboBox: every attached controller)
 //      * Profile            (DxuiComboBox: the model's profiles, with New,
 //                            Rename and Delete)
@@ -79,13 +80,6 @@ public:
     // Where Save on the profile-switch prompt commits the edited model.
     void  SetOnCommitProfile (ControllersPageState::CommitFn onCommit) { m_onCommitProfile = std::move (onCommit); }
 
-    // The Joyport's Apple / Atari switch at the top of the page: whether the
-    // Joyport is in effect, whether the running machine can take one, and how
-    // to turn it on or off. While it is on, the stick and the button lights
-    // give way to the five switch lights the Joyport reads.
-    void  SetJoyportFns (std::function<bool()>      isOn,
-                         std::function<bool()>      isOffered,
-                         std::function<void (bool)> set);
 
     void  Layout           (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
@@ -119,12 +113,6 @@ public:
     // The page's rows came or went, which changes what Tab reaches.
     void          SetOnLayoutChanged (std::function<void ()> onLayoutChanged);
 
-
-    // What each player's mode drop-down lists, in this order.
-    static constexpr const wchar_t *  kpszJoystickMode  = L"Joystick";
-    static constexpr const wchar_t *  kpszPaddleMode    = L"Paddle";
-    static constexpr int              kJoystickModeItem = 0;
-    static constexpr int              kPaddleModeItem   = 1;
 
     // The profile dialog, for the sheet to show over the page and route input
     // to while it is open.
@@ -182,12 +170,8 @@ private:
     void                 OnDeleteProfile    ();
     void                 ShowDialog         ();
     void                 AfterEdit          ();
-    bool                 IsJoyportOffered   () const;
     bool                 IsJoyportMode      () const;
-    void                 OnJoyportSwitch    (bool isAtariMode);
-    void                 ApplyJoyportMode   (bool isAtariMode);
-    void                 SyncJoyportSwitch  ();
-    int                  LayOutJoyportSection (int x, int y, bool isOffered, const DxuiDpiScaler & scaler);
+    void                 SyncJoyportLayout  ();
     bool                 IsTargetShown      (size_t target) const;
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
     void                 PollSwitchLights   (const GamePortContribution * reading);
@@ -212,30 +196,19 @@ private:
     bool                                        m_isSyncing           = false;
     std::function<void ()>                      m_onLayoutChanged;
 
-    // The Joyport's Apple / Atari switch, shown where the machine can take
-    // one. The last value read from isOn is kept apart from the switch, so a
-    // flip on the page is not taken for a change from the picker before the
-    // command it posts has been handled. "Joyport" sits to the left of the
-    // switch, "Apple (rear)" above it and "Atari (front)" below it.
-    DxuiLabel                   m_joyportHeading;
-    DxuiToggle                  m_joyportSwitch;
-    DxuiLabel                   m_joyportAppleLabel;
-    DxuiLabel                   m_joyportAtariLabel;
-    std::function<bool()>       m_isJoyportOn;
-    std::function<bool()>       m_isJoyportOffered;
-    std::function<void (bool)>  m_setJoyport;
-    bool                        m_lastJoyportOn         = false;
-    bool                        m_isJoyportSectionShown = false;
-
     // The two players, each always shown: the entry, the mode and the note
-    // of what the player drives. The entry drop-down carries what it offers,
-    // so a pick resolves to an entry rather than to an index into a list that
-    // may have been rebuilt since.
+    // of what the player drives, and under a player whose buttons the Joyport
+    // has taken, a warning saying so. The entry and mode drop-downs carry
+    // what they offer, so a pick resolves to an entry or a mode rather than
+    // to an index into a list that may have been rebuilt since.
     std::array<DxuiLabel, kPlayerCount>                 m_playerLabel;
     std::array<DxuiComboBox, kPlayerCount>              m_playerEntry;
     std::array<DxuiComboBox, kPlayerCount>              m_playerMode;
     std::array<DxuiLabel, kPlayerCount>                 m_playerNote;
+    std::array<DxuiInfoBanner, kPlayerCount>            m_playerWarning;
     std::array<std::vector<PlayerEntry>, kPlayerCount>  m_playerEntries;
+    std::array<std::vector<PlayerMode>, kPlayerCount>   m_playerModes;
+    std::array<bool, kPlayerCount>                      m_isWarningShown = {};
 
     DxuiLabel          m_controllerLabel;
     DxuiComboBox       m_controller;

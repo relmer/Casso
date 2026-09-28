@@ -77,6 +77,44 @@ namespace ControllerTests
             Assert::AreEqual ((int) AxisOwner::Controller,  (int) owners[2]);
         }
 
+
+        //  While Player 2 plays the mouse keeps PDL0 alone, so it never covers
+        //  the paddle Player 2's mode gives it.
+        TEST_METHOD (MouseBesidePlayerTwo_KeepsPdl0Alone)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+
+
+            state.mousePaddle     = true;
+            state.isSecondPlaying = true;
+            owners                = InputModeRules::GetAxisOwners (state);
+
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[0], L"the mouse on PDL0");
+            Assert::AreEqual ((int) AxisOwner::Controller,  (int) owners[1], L"PDL1 left to Player 2");
+        }
+
+
+        //  The keys in a Joyport jack close its switches and take no axis, so
+        //  a controller beside them drives the paddle inputs.
+        TEST_METHOD (KeysInAJack_TakeNoAxis)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+
+
+            state.arrowsJoystick  = true;
+            state.isKeysOnJoyport = true;
+            owners                = InputModeRules::GetAxisOwners (state);
+
+            for (AxisOwner owner : owners)
+            {
+                Assert::AreEqual ((int) AxisOwner::Controller, (int) owner);
+            }
+        }
+
         TEST_METHOD (SelectingAController_TurnsOffTheArrowsAndThePaddle)
         {
             InputModeRules::State  state;

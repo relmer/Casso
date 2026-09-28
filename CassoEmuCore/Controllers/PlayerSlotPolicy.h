@@ -39,17 +39,21 @@ enum class PlayerEntryKind
 //  PlayerMode
 //
 //  What a player stands in for on the game port: a joystick, two paddles
-//  wired to one stick, or a single paddle. The two players' modes alone
-//  decide which paddles and button lines each drives, as the hardware wires
-//  them. While the Joyport is on both players are Atari sticks, whatever
-//  their modes.
+//  wired to one stick; an Atari stick in one of the Joyport's two jacks; or
+//  a single paddle. The two players' modes alone decide which paddles, button
+//  lines and jacks each drives, as the hardware wires them, and the Joyport
+//  is on while either player is in one of its jacks. SameAsPlayer1 is Player
+//  2's alone: Player 1's mode, or with Player 1 in a jack, the other jack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class PlayerMode
 {
     Joystick,
-    Paddle
+    JoyportLeft,
+    JoyportRight,
+    Paddle,
+    SameAsPlayer1
 };
 
 
@@ -62,7 +66,8 @@ enum class PlayerMode
 //
 //  One player's choice. `unit` is set only for Controller: the picked
 //  controller, attached or not. `mode` is the player's own, kept whatever
-//  the entry: the keys play in Joystick mode and the mouse in Paddle mode.
+//  the entry: the keys play in Joystick mode or a Joyport jack, and the
+//  mouse in Paddle mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,13 +197,13 @@ public:
 
     static constexpr size_t  kPlayerCount = MultiplayerSetup::kPlayerCount;
 
-    // While the Joyport is in effect both players play as Atari sticks,
-    // which the targets treat as Joystick mode.
+    // `hasJoyport` is whether the running machine has a Joyport, which
+    // decides whether a player's jack is played as one.
     static PlayerSlots  Evaluate           (const PlayerEntries                      & entries,
                                             const std::vector<ControllerDeviceInfo>  & devices,
                                             PlayerOrderLogs                          & logs,
                                             const PlayerSlots                        & previous,
-                                            bool                                       isJoyportInEffect = false);
+                                            bool                                       hasJoyport = false);
 
     static bool         IsRealInput        (const ControllerSample       & sample,
                                             const ControllerCalibration  * calibration,
@@ -207,50 +212,56 @@ public:
     static bool         IsOnePlaying       (const PlayerSlots & slots, const PlayerEntries & entries);
     static bool         IsDrivingSlot      (const PlayerSlot & slot);
     static bool         NeedsIdleWatch     (const PlayerEntries & entries, const PlayerSlots & slots);
-    static std::wstring DescribeAssignment (size_t player, const std::wstring & description);
 
     // Each slot's attached holder becomes its last holder. Returns a notice
     // for each slot Automatic gave a controller other than its last holder,
-    // in the Joyport's words while it is in effect.
+    // giving the jacks of a player in the Joyport.
     static std::vector<std::wstring>  RecordHolders (const PlayerSlots                        & slots,
                                                      const std::vector<ControllerDeviceInfo>  & devices,
                                                      PlayerLastHolders                        & lastHolders,
-                                                     const PlayerEntries                      & entries           = {},
-                                                     bool                                       isJoyportInEffect = false);
+                                                     const PlayerEntries                      & entries    = {},
+                                                     bool                                       hasJoyport = false);
 
     // What a player's controller reaches on this machine, or nothing when
     // its slot plays no controller. One player playing alone reaches what a
     // single controller of its mode always has; two each reach their own
-    // target.
+    // target. A player beside the Joyport reaches no button line.
     static std::optional<PlayerTargetRules::Route>  GetDriverRoute (const PlayerSlots    & slots,
                                                                     const PlayerEntries  & entries,
                                                                     size_t                 player,
-                                                                    size_t                 axisCount);
+                                                                    size_t                 axisCount,
+                                                                    bool                   hasJoyport = false);
 
     // The same whether or not the player drives, which is what the settings
-    // show for a player waiting for a controller.
+    // show for a player waiting for a controller, buttons included.
     static PlayerTargetRules::Route                 GetPlayerRoute (const PlayerSlots    & slots,
                                                                     const PlayerEntries  & entries,
                                                                     size_t                 player,
-                                                                    size_t                 axisCount);
+                                                                    size_t                 axisCount,
+                                                                    bool                   hasJoyport = false);
+
+    // What the two players' modes give each one, as the slots take it.
+    static std::array<PlayerAxisTarget, kPlayerCount>  GetModeTargets (const PlayerEntries & entries, bool hasJoyport);
 
     // A pick, and picking a controller the other player holds returns the
     // other player to Automatic. The player keeps its mode, except that the
-    // keys set Joystick mode and the mouse Paddle mode.
+    // keys leave Paddle mode for Joystick and the mouse takes Paddle mode.
     static PlayerEntries  ApplyPick (PlayerEntries entries, size_t player, const PlayerEntry & entry);
 
-    // A player's mode. Player 1's keys in Paddle mode and mouse in Joystick
+    // A player's mode. Player 1's keys in Paddle mode and mouse in any other
     // mode are entries that mode cannot have, and return to Automatic.
     static PlayerEntries  ApplyMode (PlayerEntries entries, size_t player, PlayerMode mode);
 
     // Entries as they can be played: an entry its player cannot have, and a
     // second pick of the first player's controller, read as Automatic; the
-    // keys play in Joystick mode and the mouse in Paddle mode.
+    // keys play in Joystick mode or a jack and the mouse in Paddle mode;
+    // Same as Player 1 is Player 2's alone, and a jack both players claim is
+    // left to Player 1, with Player 2 following into the other.
     static PlayerEntries  NormalizeEntries (PlayerEntries entries);
 
-    // The mode a player plays in: Joystick while the Joyport is in effect,
-    // and its own otherwise.
-    static PlayerMode     GetEffectiveMode (const PlayerEntry & entry, bool isJoyportInEffect);
+    // The players before anything is chosen: both on Automatic, Player 1 in
+    // Joystick mode and Player 2 on Same as Player 1.
+    static PlayerEntries  MakeDefaultEntries ();
 
     // The players as they play, as a two-slot setup: each one's controller
     // and the target it plays.

@@ -452,7 +452,7 @@ HRESULT SettingsSheet::OpenModeless (
 
             // The page opens on the machine's selected controller, with every
             // controller's own active profile.
-            m_controllersState.SetJoyportInEffect (snapshot.isJoyportAttached);
+            m_controllersState.SetJoyportAvailable (snapshot.hasJoyport);
             m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
@@ -509,21 +509,6 @@ HRESULT SettingsSheet::OpenModeless (
                 service->SetInspectedUnit (unit);
             });
 
-            // The Joyport's Apple / Atari switch applies at once, like the
-            // picker's row, through the same command; OK takes no part. So it
-            // is offered by the running machine, not the one staged on the
-            // Machine tab.
-            m_controllersPage->SetJoyportFns (
-                [this] () { return m_emuShell->IsJoyportInEffect(); },
-                [this] () { return m_emuShell->IsJoyportOffered(); },
-                [this] (bool isAtariMode)
-                {
-                    WORD  id = isAtariMode ? IDM_GAMEPORT_ADAPTER_JOYPORT : IDM_GAMEPORT_ADAPTER_NONE;
-
-
-
-                    PostMessageW (m_emuShell->GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
-                });
         }
 
         m_controllersPage->SetState (&m_controllersState);

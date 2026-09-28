@@ -3,7 +3,7 @@
 #include "Controllers/InputModeRules.h"
 
 #include "Controllers/ControllerTokens.h"
-#include "Controllers/JoyportSetting.h"
+#include "Controllers/PlayerModeRules.h"
 
 
 
@@ -34,7 +34,7 @@ InputModeRules::Picker InputModeRules::BuildPicker (const PickerSource & source)
     {
         PlayerRow &  row = picker.rows[player];
 
-        row.label    = source.labels.players[player] + L": " + DescribePlaying (source, player);
+        row.label    = PlayerModeRules::GetPlayerLabel (player) + L": " + DescribePlaying (source, player);
         row.choices  = BuildChoices (source, player);
         row.modes    = BuildModes (source, player);
         row.profiles = BuildProfileSection (source, player);
@@ -122,11 +122,9 @@ std::wstring InputModeRules::DescribeUnit (
 //  What a player's row shows after the player's label: the keys, the mouse,
 //  Disabled, the controller in the slot -- marked not connected while it is
 //  away -- or Automatic while Automatic has no controller for the player.
-//  A player whose words give an idle text reads it instead while on
-//  Automatic with no controller playing, a holder that has not given input
-//  included. A controller or Automatic in Paddle mode is marked "(paddle)";
-//  Joystick mode is the default and takes no mark, and the keys and the
-//  mouse are a joystick and a paddle already.
+//  A controller or Automatic in Paddle mode is marked "(paddle)"; the
+//  other modes take no mark, being in the player's submenu, and the keys
+//  and the mouse are a joystick and a paddle already.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +134,7 @@ std::wstring InputModeRules::DescribePlaying (
 {
     const PlayerEntry                 & entry    = source.entries[player];
     std::optional<ControllerUnitKey>    unit     = source.slots[player].holder;
-    bool                                isPaddle = PlayerSlotPolicy::GetEffectiveMode (entry, source.isJoyportInEffect) == PlayerMode::Paddle;
+    bool                                isPaddle = PlayerModeRules::ResolveMode (source.entries, player, source.hasJoyport) == PlayerMode::Paddle;
     std::wstring                        mode     = isPaddle ? kpszInPaddleMode : L"";
 
 
@@ -145,17 +143,11 @@ std::wstring InputModeRules::DescribePlaying (
     {
         case PlayerEntryKind::ArrowKeys:   return kpszKeys;
         case PlayerEntryKind::MousePaddle: return kpszMouse;
-        case PlayerEntryKind::Disabled:    return source.labels.disabledInRow;
+        case PlayerEntryKind::Disabled:    return kpszDisabled;
 
         case PlayerEntryKind::Automatic:
         case PlayerEntryKind::Controller:
         default:                           break;
-    }
-
-    if (entry.kind == PlayerEntryKind::Automatic && !source.labels.idle[player].empty() &&
-        !PlayerSlotPolicy::IsDrivingSlot (source.slots[player]) && source.slots[player].state != PlayerSlotState::Held)
-    {
-        return source.labels.idle[player];
     }
 
     if (!unit.has_value() && entry.kind == PlayerEntryKind::Controller)
@@ -191,13 +183,9 @@ std::wstring InputModeRules::DescribePlaying (
 //  Disabled for Player 2. Exactly one is checked: the player's entry.
 //
 //  The keys are a joystick and the mouse a paddle, so each is offered only
-//  in its own mode: the keys in Joystick mode, and with the Joyport in
-//  effect, where both players are Atari sticks; the mouse in Paddle mode,
-//  and never with the Joyport, which has no paddle for it to stand in for
-//  (JoyportSetting::IsMousePaddleOffered). So the mouse and the Joyport are
-//  never on together. A mouse picked before the Joyport was turned on stays
-//  Player 1's entry, driving nothing until it is turned off, so it stays
-//  listed while it is the checked one, and so do the keys.
+//  in its own mode: the keys in Joystick mode or a Joyport jack, whose
+//  switches they close, and the mouse in Paddle mode. Either stays listed
+//  while it is the checked one.
 //
 //  A choice carries no mode: the player keeps its own through any pick
 //  (PlayerSlotPolicy::ApplyPick).
@@ -263,9 +251,8 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
         mouse.label      = L"Use mouse as paddle";
         mouse.entry.kind = PlayerEntryKind::MousePaddle;
         mouse.isChecked  = current.kind == PlayerEntryKind::MousePaddle;
-        hasKeys          = keys.isChecked || current.mode == PlayerMode::Joystick || source.isJoyportInEffect;
-        hasMouse         = mouse.isChecked ||
-                           (current.mode == PlayerMode::Paddle && JoyportSetting::IsMousePaddleOffered (source.isJoyportInEffect));
+        hasKeys          = keys.isChecked  || PlayerModeRules::AreKeysOffered (source.entries, source.hasJoyport);
+        hasMouse         = mouse.isChecked || PlayerModeRules::IsMouseOffered (source.entries, source.hasJoyport);
 
         if (hasKeys)
         {
@@ -279,7 +266,7 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
     }
     else
     {
-        disabled.label      = source.labels.disabled;
+        disabled.label      = kpszDisabled;
         disabled.entry.kind = PlayerEntryKind::Disabled;
         disabled.isChecked  = current.kind == PlayerEntryKind::Disabled;
 
@@ -297,9 +284,8 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
 //
 //  BuildModes
 //
-//  Joystick then Paddle, the player's mode checked. While the Joyport is in
-//  effect both players are Atari sticks: Joystick is checked and neither can
-//  be chosen.
+//  The player's modes as the Controllers page lists them too
+//  (PlayerModeRules::BuildModeChoices).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,24 +293,7 @@ std::vector<InputModeRules::PlayerModeChoice> InputModeRules::BuildModes (
     const PickerSource  & source,
     size_t                player)
 {
-    PlayerMode                     current = PlayerSlotPolicy::GetEffectiveMode (source.entries[player], source.isJoyportInEffect);
-    std::vector<PlayerModeChoice>  modes;
-
-
-
-    for (PlayerMode mode : { PlayerMode::Joystick, PlayerMode::Paddle })
-    {
-        PlayerModeChoice  choice;
-
-        choice.label     = (mode == PlayerMode::Joystick) ? kpszJoystickMode : kpszPaddleMode;
-        choice.mode      = mode;
-        choice.isChecked = mode == current;
-        choice.isEnabled = !source.isJoyportInEffect;
-
-        modes.push_back (choice);
-    }
-
-    return modes;
+    return PlayerModeRules::BuildModeChoices (source.entries, player, source.hasJoyport);
 }
 
 
@@ -592,7 +561,12 @@ std::wstring InputModeRules::Shorten (const std::wstring & text)
 //
 //  THE ARROW KEYS NEVER TAKE THE AXES ON THEIR OWN. Arrows-to-joystick also
 //  turns X and Z into the buttons, which takes them from the guest's
-//  keyboard, so it is on only because the user turned it on.
+//  keyboard, so it is on only because the user turned it on. The keys in a
+//  Joyport jack close its switches and take no axis, which leaves the
+//  paddle inputs to a controller playing beside them.
+//
+//  THE MOUSE KEEPS PDL0 ALONE WHILE PLAYER 2 PLAYS, so it never covers the
+//  paddle Player 2's mode gives it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -601,22 +575,24 @@ InputModeRules::AxisOwners InputModeRules::GetAxisOwners (const State & state)
     static constexpr size_t  kPlayerOneAxes = 2;
     AxisOwners               owners;
     AxisOwner                playerOne      = AxisOwner::Controller;
+    size_t                   playerOneAxes  = kPlayerOneAxes;
     size_t                   axis           = 0;
 
 
 
     if (state.mousePaddle)
     {
-        playerOne = AxisOwner::MousePaddle;
+        playerOne     = AxisOwner::MousePaddle;
+        playerOneAxes = state.isSecondPlaying ? 1 : kPlayerOneAxes;
     }
-    else if (state.arrowsJoystick)
+    else if (state.arrowsJoystick && !state.isKeysOnJoyport)
     {
         playerOne = AxisOwner::ArrowKeys;
     }
 
     for (axis = 0; axis < owners.size(); axis++)
     {
-        owners[axis] = (axis < kPlayerOneAxes) ? playerOne : AxisOwner::Controller;
+        owners[axis] = (axis < playerOneAxes) ? playerOne : AxisOwner::Controller;
     }
 
     return owners;

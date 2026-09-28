@@ -376,7 +376,7 @@ GamePortState GamePortInputMixer::ComputeTargetLocked() const
         }
     }
 
-    state.jacks = ComputeJacksLocked (m_owners[0]);
+    state.jacks = ComputeJacksLocked();
 
     return state;
 }
@@ -393,16 +393,16 @@ GamePortState GamePortInputMixer::ComputeTargetLocked() const
 //  they give to Player 1 on the arrow keys takes the keys' switches, with the
 //  fire keys' PB0 as fire: so Player 1 on the keys and Player 2 on a
 //  controller split the jacks. With no placement from the controllers, the
-//  switches come from whoever owns the joystick axes: the arrow keys are one
-//  player, on both jacks. The mouse paddle drives no switches -- an Atari
-//  stick has no paddle for it to stand in for -- and with no owner every
-//  switch is open. The Apple modifier keys never reach the switches: on a
+//  keys drive the jacks their own contribution marks, which is both while
+//  Player 1 plays them in a jack and none otherwise. The mouse paddle drives
+//  no switches -- an Atari stick has no paddle for it to stand in for -- and
+//  with nothing placed every switch is open. The Apple modifier keys never reach the switches: on a
 //  //e they are Open Apple and Closed Apple, which the Joyport's lines
 //  replace.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JoyportJacks GamePortInputMixer::ComputeJacksLocked (AxisOwner owner) const
+JoyportJacks GamePortInputMixer::ComputeJacksLocked() const
 {
     const GamePortContribution  & controller = m_contributions[static_cast<size_t> (GamePortSource::Controller)];
     const GamePortContribution  & arrows     = m_contributions[static_cast<size_t> (GamePortSource::ArrowKeys)];
@@ -425,10 +425,15 @@ JoyportJacks GamePortInputMixer::ComputeJacksLocked (AxisOwner owner) const
             }
         }
     }
-    else if (owner == AxisOwner::ArrowKeys)
+    else
     {
-        jacks.jack[JoyportJacks::kLeftJack]  = keys;
-        jacks.jack[JoyportJacks::kRightJack] = keys;
+        for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
+        {
+            if (arrows.keyJacks.test (jack))
+            {
+                jacks.jack[jack] = keys;
+            }
+        }
     }
 
     return jacks;

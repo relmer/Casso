@@ -28,6 +28,13 @@ public:
     // index with the items; an empty string, or an item past the end, has
     // none. SetItems clears them, so set them after the items.
     void  SetItemGlyphs (const std::vector<std::wstring> & glyphs);
+
+    // Whether each item can be chosen, index for index with the items; an
+    // item past the end can. A disabled item is listed in the disabled text
+    // color, the keyboard passes over it and a click on it chooses nothing.
+    // SetItems clears the flags, so set them after the items.
+    void  SetItemsEnabled (const std::vector<bool> & enabled);
+    bool  IsItemEnabled   (int index) const;
     void  SetSelected (int index);
     void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
     void  SetFocused  (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
@@ -141,6 +148,7 @@ private:
     };
 
     void            Commit          (int index);
+    int             StepHighlight   (int from, int step) const;
     void            EnsureHighlightVisible ();
     void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     float           GetGlyphIndent  (float fontPx) const;
@@ -151,6 +159,7 @@ private:
 
     std::vector<std::wstring>    m_items;
     std::vector<std::wstring>    m_glyphs;
+    std::vector<bool>            m_itemsEnabled;
     SelectFn                     m_select;
     SelectFn                     m_highlightChange;
     bool                         m_open            = false;

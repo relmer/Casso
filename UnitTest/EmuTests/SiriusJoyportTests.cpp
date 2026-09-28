@@ -78,6 +78,26 @@ public:
     }
 
 
+    //  With something in the rear sockets the paddle inputs read it, attached
+    //  or not; with nothing there they read as unconnected while attached.
+    TEST_METHOD (ThePaddlesAreHeldOnlyWithNothingInTheRearSockets)
+    {
+        Fixture  fixture;
+
+
+
+        fixture.joyport.SetAttached         (true);
+        fixture.joyport.SetPaddlesConnected (true);
+        Assert::IsFalse (fixture.joyport.IsDrivingPaddles(), L"the rear sockets are read");
+
+        fixture.joyport.SetPaddlesConnected (false);
+        Assert::IsTrue  (fixture.joyport.IsDrivingPaddles(), L"nothing there: unconnected");
+
+        fixture.joyport.SetAttached (false);
+        Assert::IsFalse (fixture.joyport.IsDrivingPaddles(), L"detached, the game port as always");
+    }
+
+
     TEST_METHOD (AttachingWhileRunningNeedsNoReset)
     {
         Fixture  fixture;

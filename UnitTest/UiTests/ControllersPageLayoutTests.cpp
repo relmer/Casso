@@ -14,14 +14,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  ControllersPageLayoutTests
 //
 //  The Controllers page's layout: its reported content height, which is what
-//  lets the Settings sheet scroll it, the Joyport switch and its labels, and
-//  the two players' rows. The Joyport and the players sit above the rest, so
-//  the page runs taller than the sheet, and a height that stops short of
-//  Reset profile leaves the bottom rows under the button row with no way to
-//  reach them.
+//  lets the Settings sheet scroll it, and the two players' rows, with the
+//  warning under a player whose buttons the Joyport has taken. The players
+//  sit above the rest, so the page runs taller than the sheet, and a height
+//  that stops short of Reset profile leaves the bottom rows under the button
+//  row with no way to reach them.
 //
-//  Each page is built with its mode and its players already set before its
-//  first layout, so nothing here reads the system's animation setting.
+//  Each page is built with its players already set before its first layout,
+//  so nothing here reads the system's animation setting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,25 +29,26 @@ TEST_CLASS (ControllersPageLayoutTests)
 {
 public:
 
-    static constexpr UINT    kDpi              = 96;
-    static constexpr int     kPagePadPx        = 16;     // the page's own padding at 96 DPI
-    static constexpr int     kLeftPx           = 20;
-    static constexpr int     kTopPx            = 70;
-    static constexpr int     kRightPx          = 780;
-    static constexpr int     kBottomPx         = 600;
-    static constexpr size_t  kPaddleAxes       = 4;
-    static constexpr float   kLevelTolerancePx = 1.0f;   // a rect's middle rounds to whole pixels
-    static constexpr float   kHalf             = 0.5f;
+    static constexpr UINT    kDpi        = 96;
+    static constexpr int     kPagePadPx  = 16;     // the page's own padding at 96 DPI
+    static constexpr int     kLeftPx     = 20;
+    static constexpr int     kTopPx      = 70;
+    static constexpr int     kRightPx    = 780;
+    static constexpr int     kBottomPx   = 600;
+    static constexpr size_t  kPaddleAxes = 4;
+
+    static constexpr const wchar_t *  kpszPressToAssign = L"Press to assign...";
+    static constexpr const wchar_t *  kpszCutWarning    = L"This controller's buttons are disabled because Player 1 is using the Joyport.";
 
 
-    static ControllerDeviceInfo MakeStick()
+    static ControllerDeviceInfo MakeStick (const char * pszUnit = "{STICK}")
     {
         ControllerDeviceInfo  info;
 
 
 
         info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
-        info.unit.unitId = "{STICK}";
+        info.unit.unitId = pszUnit;
         info.unit.source = ControllerUnitSource::InstanceGuid;
         info.description = L"VKBsim Gladiator";
         info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
@@ -56,26 +57,59 @@ public:
     }
 
 
-    //  Lays the page out once in the given mode, on a machine that can take
-    //  the Joyport, with the players given, and returns its reported content
-    //  height.
-    static int LayOutPage (ControllersPage & page, ControllersPageState & state, bool isAtariMode, const PlayerEntries & entries = PlayerEntries())
+    //  Player 1 on the first stick and Player 2 on the second, both playing.
+    static PlayerSlots MakeTwoPlaying()
+    {
+        PlayerSlots  slots;
+
+
+
+        slots[0].state  = PlayerSlotState::Playing;
+        slots[0].holder = MakeStick ("{A}").unit;
+        slots[1].state  = PlayerSlotState::Playing;
+        slots[1].holder = MakeStick ("{B}").unit;
+        return slots;
+    }
+
+
+    //  Lays the page out once on a machine that can take the Joyport, with
+    //  two sticks attached and the players given, editing the controller at
+    //  `edited`, and returns its reported content height.
+    static int LayOutPage (ControllersPage       & page,
+                           ControllersPageState  & state,
+                           const PlayerEntries   & entries = PlayerEntries(),
+                           const PlayerSlots     & slots   = MakeTwoPlaying(),
+                           size_t                  edited  = 0)
     {
         DxuiDpiScaler  scaler;
 
 
 
-        state.Load ({ MakeStick() }, {}, {}, true);
-        state.SetJoyportInEffect (isAtariMode);
-        state.SetPlayers (entries, PlayerSlots(), kPaddleAxes);
+        state.Load ({ MakeStick ("{A}"), MakeStick ("{B}") }, {}, {}, true);
+        state.SetJoyportAvailable (true);
+        state.SetPlayers          (entries, slots, kPaddleAxes);
+        state.SelectController    (edited);
 
-        page.SetJoyportFns ([isAtariMode] () { return isAtariMode; }, [] () { return true; }, [] (bool) {});
-        page.SetState      (&state);
+        page.SetState (&state);
 
         scaler.SetDpi (kDpi);
         page.Layout   (RECT { kLeftPx, kTopPx, kRightPx, kBottomPx }, scaler);
 
         return page.GetContentHeightPx();
+    }
+
+
+    //  Player 1 in the Joyport's left jack and Player 2 beside it in the
+    //  given mode.
+    static PlayerEntries MakeBesideTheJoyport (PlayerMode secondMode)
+    {
+        PlayerEntries  entries;
+
+
+
+        entries[0].mode = PlayerMode::JoyportLeft;
+        entries[1].mode = secondMode;
+        return entries;
     }
 
 
@@ -125,6 +159,29 @@ public:
     }
 
 
+    //  The shown warnings, in page order.
+    static std::vector<const DxuiInfoBanner *> FindWarnings (const ControllersPage & page)
+    {
+        const DxuiInfoBanner                 * banner = nullptr;
+        std::vector<const DxuiInfoBanner *>    found;
+        size_t                                 i      = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            banner = dynamic_cast<const DxuiInfoBanner *> (page.GetChild (i));
+
+            if (banner != nullptr && banner->IsVisible())
+            {
+                found.push_back (banner);
+            }
+        }
+
+        return found;
+    }
+
+
     //  The shown drop-downs that offer the given first item, in page order.
     static std::vector<const DxuiComboBox *> FindCombos (const ControllersPage & page, const std::wstring & firstItem)
     {
@@ -148,131 +205,55 @@ public:
     }
 
 
-    //  The Joyport's switch, the page's only toggle.
-    static const DxuiToggle * FindSwitch (const ControllersPage & page)
+    //  How many shown binding rows can and cannot be edited.
+    static std::pair<size_t, size_t> CountBindingRows (const ControllersPage & page)
     {
-        const DxuiToggle  * toggle = nullptr;
-        const DxuiToggle  * found  = nullptr;
-        size_t              i      = 0;
+        std::pair<size_t, size_t>  counts;
 
 
 
-        for (i = 0; i < page.GetChildCount(); ++i)
+        for (const DxuiComboBox * row : FindCombos (page, kpszPressToAssign))
         {
-            toggle = dynamic_cast<const DxuiToggle *> (page.GetChild (i));
-
-            if (toggle != nullptr)
-            {
-                found = toggle;
-            }
+            (row->IsEnabled() ? counts.first : counts.second)++;
         }
 
-        return found;
+        return counts;
     }
 
 
-    static float GetMiddleX (const RECT & rect)
-    {
-        return (float) (rect.left + rect.right) * kHalf;
-    }
-
-
-    static float GetMiddleY (const RECT & rect)
-    {
-        return (float) (rect.top + rect.bottom) * kHalf;
-    }
-
-
-    //  "Apple (rear)" above the switch and "Atari (front)" below it, each
-    //  centered on it side to side, in either mode.
-    static void AssertPositionLabelsAboveAndBelowTheSwitch (bool isAtariMode, const wchar_t * mode)
-    {
-        ControllersPage             page;
-        ControllersPageState        state;
-        const DxuiToggle          * joyportSwitch = nullptr;
-        const DxuiLabel           * apple         = nullptr;
-        const DxuiLabel           * atari         = nullptr;
-        DxuiToggle::TrackAndThumb   pill;
-        float                       pillMidX      = 0.0f;
-
-
-
-        LayOutPage (page, state, isAtariMode);
-
-        joyportSwitch = FindSwitch (page);
-        apple         = FindLabel  (page, L"Apple (rear)");
-        atari         = FindLabel  (page, L"Atari (front)");
-
-        Assert::IsNotNull (joyportSwitch, mode);
-        Assert::IsNotNull (apple,         L"Apple (rear) is shown in either mode");
-        Assert::IsNotNull (atari,         L"Atari (front) is shown in either mode");
-
-        pill     = joyportSwitch->GetTrackAndThumb (false);
-        pillMidX = (pill.track.left + pill.track.right) * kHalf;
-
-        Assert::IsTrue   ((float) apple->GetBounds().bottom <= pill.track.top + kLevelTolerancePx,    L"Apple (rear) above the switch");
-        Assert::IsTrue   ((float) atari->GetBounds().top    >= pill.track.bottom - kLevelTolerancePx, L"Atari (front) below it");
-        Assert::AreEqual (pillMidX, GetMiddleX (apple->GetBounds()), kLevelTolerancePx, L"Apple (rear) centered on the switch");
-        Assert::AreEqual (pillMidX, GetMiddleX (atari->GetBounds()), kLevelTolerancePx, L"Atari (front) centered on the switch");
-    }
-
-
-    TEST_METHOD (JoyportPositionLabels_AreAboveAndBelowTheSwitchCenteredOnIt)
-    {
-        AssertPositionLabelsAboveAndBelowTheSwitch (false, L"Apple mode");
-        AssertPositionLabelsAboveAndBelowTheSwitch (true,  L"Atari mode");
-    }
-
-
-    TEST_METHOD (JoyportHeading_SitsLeftOfTheSwitchCenteredOnIt)
-    {
-        ControllersPage             page;
-        ControllersPageState        state;
-        const DxuiToggle          * joyportSwitch = nullptr;
-        const DxuiLabel           * heading       = nullptr;
-        DxuiToggle::TrackAndThumb   pill;
-
-
-
-        LayOutPage (page, state, false);
-
-        joyportSwitch = FindSwitch (page);
-        heading       = FindLabel  (page, L"Joyport");
-
-        Assert::IsNotNull (joyportSwitch, L"the switch");
-        Assert::IsNotNull (heading,       L"the section's label");
-
-        pill = joyportSwitch->GetTrackAndThumb (false);
-
-        Assert::AreEqual (GetMiddleY (heading->GetBounds()), (pill.track.top + pill.track.bottom) * kHalf, kLevelTolerancePx, L"centered on the switch top to bottom");
-        Assert::IsTrue   (heading->GetBounds().right <= joyportSwitch->GetBounds().left,                                   L"to the left of the switch");
-    }
-
-
-    //  Both players' rows are always there, each with a Joystick / Paddle
-    //  choice and a note of what the player drives. There is no checkbox:
-    //  Player 2's entry lists Disabled.
+    //  Both players' rows are always there, each with its mode and a note of
+    //  what the player drives. Player 1's modes start at Joystick and Player
+    //  2's at Same as Player 1. There is no checkbox: Player 2's entry lists
+    //  Disabled.
     TEST_METHOD (PlayerRows_AreBothShownWithAModeAndANote)
     {
-        ControllersPage                    page;
-        ControllersPageState               state;
-        PlayerEntries                      entries;
-        std::vector<const DxuiComboBox *>  modes;
-        const DxuiCheckbox               * checkbox = nullptr;
-        size_t                             i        = 0;
+        ControllersPage          page;
+        ControllersPageState     state;
+        PlayerEntries            entries;
+        const DxuiComboBox     * one      = nullptr;
+        const DxuiComboBox     * two      = nullptr;
+        const DxuiCheckbox     * checkbox = nullptr;
+        size_t                   i        = 0;
 
 
 
         entries[1].mode = PlayerMode::Paddle;
-        LayOutPage (page, state, false, entries);
-        modes = FindCombos (page, L"Joystick");
+        LayOutPage (page, state, entries, PlayerSlots());
 
-        Assert::AreEqual (size_t (2), modes.size(),                   L"a mode for each player");
-        Assert::AreEqual (0, modes[0]->GetSelectedIndex(),            L"Player 1 in Joystick mode");
-        Assert::AreEqual (1, modes[1]->GetSelectedIndex(),            L"Player 2 in Paddle mode");
-        Assert::IsTrue   (modes[0]->IsEnabled() && modes[1]->IsEnabled(), L"both can be chosen in Apple mode");
+        Assert::AreEqual (size_t (1), FindCombos (page, L"Joystick").size(),         L"Player 1's modes");
+        Assert::AreEqual (size_t (1), FindCombos (page, L"Same as Player 1").size(), L"Player 2's modes");
+
+        one = FindCombos (page, L"Joystick")[0];
+        two = FindCombos (page, L"Same as Player 1")[0];
+
+        Assert::IsTrue   (one->GetItems() == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle" });
+        Assert::AreEqual (0, one->GetSelectedIndex(),                  L"Player 1 in Joystick mode");
+        Assert::AreEqual (std::wstring (L"Paddle"), two->GetItems()[(size_t) two->GetSelectedIndex()], L"Player 2 in Paddle mode");
+        Assert::IsNotNull (FindLabel (page, L"Player 1:"),             L"the row shows the player, not a jack");
         Assert::IsNotNull (FindLabel (page, L"joystick 0"),            L"Player 1's note");
         Assert::IsNotNull (FindLabel (page, L"paddle 2"),              L"Player 2's note, beside a joystick");
+        Assert::IsTrue    (FindWarnings (page).empty(),                L"no Joyport, no warning");
+        Assert::AreEqual (size_t (2), FindCombos (page, L"Automatic").size(), L"each player's entries");
         Assert::AreEqual (std::wstring (L"Disabled"), FindCombos (page, L"Automatic")[1]->GetItems().back(), L"Player 2's entries end in Disabled");
 
         for (i = 0; i < page.GetChildCount(); ++i)
@@ -284,36 +265,65 @@ public:
     }
 
 
-    //  In Atari mode both players are Atari sticks: the mode shows Joystick
-    //  and cannot be chosen, the notes give the jacks, and Player 2's
-    //  Disabled reads "same as left".
-    TEST_METHOD (PlayerRows_InAtariModeGiveTheJacks)
+    //  Player 1 in the left jack: its note gives the jacks it drives, Player
+    //  2's list shows the left jack and cannot choose it, and Player 2, on
+    //  Paddle beside the Joyport, has a warning under its row and its
+    //  button rows disabled.
+    TEST_METHOD (PlayerRows_BesideTheJoyportWarnAndDisableTheButtons)
     {
-        ControllersPage                    page;
-        ControllersPageState               state;
-        PlayerEntries                      entries;
-        std::vector<const DxuiComboBox *>  modes;
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        const DxuiComboBox                   * two      = nullptr;
+        std::vector<const DxuiInfoBanner *>    warnings;
+        std::pair<size_t, size_t>              rows;
+
+
+
+        LayOutPage (page, state, MakeBesideTheJoyport (PlayerMode::Paddle), MakeTwoPlaying(), 1);
+
+        two      = FindCombos (page, L"Same as Player 1")[0];
+        warnings = FindWarnings (page);
+        rows     = CountBindingRows (page);
+
+        Assert::IsNotNull (FindLabel (page, L"both jacks"), L"Player 1 alone in the Joyport drives both jacks");
+        Assert::IsNotNull (FindLabel (page, L"paddle 0"),   L"and Player 2 plays its paddle as though alone");
+        Assert::IsFalse   (two->IsItemEnabled (2),          L"the left jack is Player 1's");
+        Assert::IsTrue    (two->IsItemEnabled (3),          L"the right jack is free");
+
+        Assert::AreEqual (size_t (1), warnings.size(), L"one warning, under Player 2");
+        Assert::AreEqual (std::wstring (kpszCutWarning), warnings[0]->GetText());
+        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Warning, L"with the warning triangle");
+        Assert::IsTrue   (warnings[0]->GetBounds().top >= FindCombos (page, L"Same as Player 1")[0]->GetBounds().bottom, L"under Player 2's row");
+
+        Assert::IsTrue (rows.first  > 0, L"its paddle row can be edited");
+        Assert::IsTrue (rows.second > 0, L"and its button row cannot");
+    }
+
+
+    //  The same player beside a Joystick Player 1 keeps its buttons.
+    TEST_METHOD (PlayerRows_WithoutTheJoyportKeepTheButtons)
+    {
+        ControllersPage            page;
+        ControllersPageState       state;
+        PlayerEntries              entries;
+        std::pair<size_t, size_t>  rows;
 
 
 
         entries[1].mode = PlayerMode::Paddle;
-        LayOutPage (page, state, true, entries);
-        modes = FindCombos (page, L"Joystick");
+        LayOutPage (page, state, entries, MakeTwoPlaying(), 1);
+        rows = CountBindingRows (page);
 
-        Assert::AreEqual (size_t (2), modes.size());
-        Assert::IsFalse  (modes[0]->IsEnabled() || modes[1]->IsEnabled(), L"the mode cannot be chosen");
-        Assert::AreEqual (0, modes[1]->GetSelectedIndex(),                 L"and shows Joystick");
-        Assert::IsNotNull (FindLabel (page, L"left jack"),                 L"Player 1's note");
-        Assert::IsNotNull (FindLabel (page, L"right jack"),                L"Player 2's note");
-        Assert::AreEqual (std::wstring (L"same as left"), FindCombos (page, L"Automatic")[1]->GetItems().back(), L"after the colon of Player 2:");
+        Assert::IsTrue   (rows.first > 0);
+        Assert::AreEqual (size_t (0), rows.second, L"every row it shows can be edited");
     }
 
 
-    static void AssertHeightReachesLastRow (bool isAtariMode, const wchar_t * mode)
+    static void AssertHeightReachesLastRow (const PlayerEntries & entries, size_t edited, const wchar_t * mode)
     {
         ControllersPage       page;
         ControllersPageState  state;
-        int                   heightPx = LayOutPage (page, state, isAtariMode);
+        int                   heightPx = LayOutPage (page, state, entries, MakeTwoPlaying(), edited);
         int                   lowest   = GetLowestVisibleBottom (page);
 
 
@@ -325,8 +335,9 @@ public:
 
     TEST_METHOD (ContentHeight_ReachesResetProfileAndItsPadding_InEveryMode)
     {
-        AssertHeightReachesLastRow (false, L"Apple mode");
-        AssertHeightReachesLastRow (true,  L"Atari mode");
+        AssertHeightReachesLastRow (PlayerEntries(),                                   0, L"both on Joystick");
+        AssertHeightReachesLastRow (MakeBesideTheJoyport (PlayerMode::SameAsPlayer1), 0, L"both in the Joyport");
+        AssertHeightReachesLastRow (MakeBesideTheJoyport (PlayerMode::Paddle),        1, L"a Paddle beside the Joyport, with its warning");
     }
 
 
@@ -334,33 +345,33 @@ public:
     {
         ControllersPage       page;
         ControllersPageState  state;
-        int                   heightPx = LayOutPage (page, state, false);
+        int                   heightPx = LayOutPage (page, state);
 
 
 
-        Assert::IsTrue (heightPx > kBottomPx - kTopPx, L"Apple mode does not fit, so the sheet has to scroll it");
+        Assert::IsTrue (heightPx > kBottomPx - kTopPx, L"both on Joystick does not fit, so the sheet has to scroll it");
     }
 
 
-    //  Atari mode drops the rows the Joyport does not read. The page is not
-    //  shorter for it: it edits the Joyport profile there, whose steering
-    //  and fire take more rows than the Default's.
-    TEST_METHOD (AtariMode_DropsPb1AndPb2)
+    //  A controller in a jack drops the rows the Joyport does not read. The
+    //  page is not shorter for it: it edits the Joyport profile there, whose
+    //  steering and fire take more rows than the Default's.
+    TEST_METHOD (InAJack_DropsPb1AndPb2)
     {
-        ControllersPage       applePage;
-        ControllersPage       atariPage;
-        ControllersPageState  appleState;
-        ControllersPageState  atariState;
+        ControllersPage       joystickPage;
+        ControllersPage       jackPage;
+        ControllersPageState  joystickState;
+        ControllersPageState  jackState;
 
 
 
-        LayOutPage (applePage, appleState, false);
-        LayOutPage (atariPage, atariState, true);
+        LayOutPage (joystickPage, joystickState, PlayerEntries(), PlayerSlots());
+        LayOutPage (jackPage,     jackState,     MakeBesideTheJoyport (PlayerMode::SameAsPlayer1));
 
-        Assert::IsNotNull (FindLabel (applePage, L"PB1:"), L"Apple mode shows PB1");
-        Assert::IsNotNull (FindLabel (applePage, L"PB2:"), L"and PB2");
-        Assert::IsNull    (FindLabel (atariPage, L"PB1:"), L"Atari mode drops PB1");
-        Assert::IsNull    (FindLabel (atariPage, L"PB2:"), L"and PB2");
-        Assert::IsNotNull (FindLabel (atariPage, L"Fire:"), L"and keeps fire");
+        Assert::IsNotNull (FindLabel (joystickPage, L"PB1:"),  L"a joystick shows PB1");
+        Assert::IsNotNull (FindLabel (joystickPage, L"PB2:"),  L"and PB2");
+        Assert::IsNull    (FindLabel (jackPage,     L"PB1:"),  L"a jack drops PB1");
+        Assert::IsNull    (FindLabel (jackPage,     L"PB2:"),  L"and PB2");
+        Assert::IsNotNull (FindLabel (jackPage,     L"Fire:"), L"and keeps fire");
     }
 };

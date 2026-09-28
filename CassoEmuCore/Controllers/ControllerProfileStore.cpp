@@ -21,6 +21,9 @@ static constexpr const char *  s_kpszProfileModeKey = "profileMode";
 static constexpr const char *  s_kpszJoyportMode    = "joyport";
 static constexpr const char *  s_kpszPaddleMode     = "paddle";
 static constexpr const char *  s_kpszJoystickMode   = "joystick";
+static constexpr const char *  s_kpszJoyportLeft    = "joyportLeft";
+static constexpr const char *  s_kpszJoyportRight   = "joyportRight";
+static constexpr const char *  s_kpszSameAsPlayer1  = "sameAsPlayer1";
 static constexpr const char *  s_kpszMappingKey     = "mapping";
 static constexpr const char *  s_kpszAnalogKey      = "analog";
 static constexpr const char *  s_kpszInvertedKey    = "inverted";
@@ -690,13 +693,13 @@ ProfileMode ControllerModelSettings::ClassifyLegacyProfile (const ControlMapping
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfileMode ControllerModelSettings::GetPlayerProfileMode (PlayerMode mode, bool isJoyportInEffect)
+ProfileMode ControllerModelSettings::GetPlayerProfileMode (PlayerMode mode)
 {
     ProfileMode  kind = ProfileMode::Joystick;
 
 
 
-    if (isJoyportInEffect)
+    if (mode == PlayerMode::JoyportLeft || mode == PlayerMode::JoyportRight)
     {
         kind = ProfileMode::Joyport;
     }
@@ -706,6 +709,74 @@ ProfileMode ControllerModelSettings::GetPlayerProfileMode (PlayerMode mode, bool
     }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerProfileStore::PlayerModeToToken
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ControllerProfileStore::PlayerModeToToken (PlayerMode mode)
+{
+    const char  * pszToken = s_kpszJoystickMode;
+
+
+
+    switch (mode)
+    {
+        case PlayerMode::JoyportLeft:    pszToken = s_kpszJoyportLeft;    break;
+        case PlayerMode::JoyportRight:   pszToken = s_kpszJoyportRight;   break;
+        case PlayerMode::Paddle:         pszToken = s_kpszPaddleMode;     break;
+        case PlayerMode::SameAsPlayer1:  pszToken = s_kpszSameAsPlayer1;  break;
+
+        case PlayerMode::Joystick:
+        default:                                                          break;
+    }
+
+    return pszToken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerProfileStore::PlayerModeFromToken
+//
+//  An unrecognized mode is Joystick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerMode ControllerProfileStore::PlayerModeFromToken (const std::string & token)
+{
+    PlayerMode  mode = PlayerMode::Joystick;
+
+
+
+    if (token == s_kpszJoyportLeft)
+    {
+        mode = PlayerMode::JoyportLeft;
+    }
+    else if (token == s_kpszJoyportRight)
+    {
+        mode = PlayerMode::JoyportRight;
+    }
+    else if (token == s_kpszPaddleMode)
+    {
+        mode = PlayerMode::Paddle;
+    }
+    else if (token == s_kpszSameAsPlayer1)
+    {
+        mode = PlayerMode::SameAsPlayer1;
+    }
+
+    return mode;
 }
 
 
@@ -1456,7 +1527,7 @@ void ControllerProfileStore::ReadPlayers (
 
 
 
-    outEntries = PlayerEntries();
+    outEntries = PlayerSlotPolicy::MakeDefaultEntries();
 
     if (count != PlayerSlotPolicy::kPlayerCount)
     {
@@ -1486,7 +1557,8 @@ void ControllerProfileStore::ReadPlayers (
 //
 //  One player's entry and its mode. False when the entry cannot be played by
 //  this player; the mode is read first, so it survives that. An
-//  unrecognized mode is Joystick. A player saved before players had modes
+//  unrecognized mode is Joystick, and a Player 2 with no mode is Same as
+//  Player 1. A player saved before players had modes
 //  carries the paddles its slot mapped to instead, under `maps`, and a
 //  single paddle there reads as Paddle mode.
 //
@@ -1512,9 +1584,14 @@ bool ControllerProfileStore::TryReadPlayer (const JsonValue & playerObj, size_t 
         return false;
     }
 
+    if (!isOne)
+    {
+        outEntry.mode = PlayerMode::SameAsPlayer1;
+    }
+
     if (playerObj.HasString (s_kpszPlayerModeKey, mode))
     {
-        outEntry.mode = (mode == s_kpszPaddleMode) ? PlayerMode::Paddle : PlayerMode::Joystick;
+        outEntry.mode = PlayerModeFromToken (mode);
     }
     else if (playerObj.HasString (s_kpszMapsKey, maps))
     {
@@ -2292,7 +2369,7 @@ JsonValue ControllerProfileStore::WritePlayers (const PlayerEntries & entries)
             obj.emplace_back (s_kpszControllerKey, JsonValue (ControllerTokens::UnitToToken (entry.unit.value())));
         }
 
-        obj.emplace_back (s_kpszPlayerModeKey, JsonValue (std::string (entry.mode == PlayerMode::Paddle ? s_kpszPaddleMode : s_kpszJoystickMode)));
+        obj.emplace_back (s_kpszPlayerModeKey, JsonValue (std::string (PlayerModeToToken (entry.mode))));
 
         arr.emplace_back (std::move (obj));
     }

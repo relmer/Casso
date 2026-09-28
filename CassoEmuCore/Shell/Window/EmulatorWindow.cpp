@@ -708,16 +708,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         [this] () { return m_machine.GetMouse() != nullptr && m_mouseConnected; },
         [this] () { ToggleInputMappingMode (InputMappingMode::Mouse); });
 
-    // The Sirius Joyport row in the paddle picker, on the machines whose game
-    // socket has the annunciators it needs; a machine builds a Joyport exactly
-    // when it has them. Checked while the Joyport is in effect.
-    m_mainMenu.GetCommands().SetJoyportFns (
-        [this] () { return IsJoyportInEffect(); },
-        [this] () { return IsJoyportOffered(); },
-        [this] ()
-        {
-            SetGamePortAdapter (IsJoyportInEffect() ? GamePortAdapter::None : GamePortAdapter::SiriusJoyport);
-        });
     m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;

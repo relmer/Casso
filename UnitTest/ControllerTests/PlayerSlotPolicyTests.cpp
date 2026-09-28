@@ -505,17 +505,60 @@ namespace ControllerTests
         }
 
 
-        //  With the Joyport in effect both players are Atari sticks, whatever
-        //  mode they were left in.
-        TEST_METHOD (Modes_WithTheJoyportBothPlayAsJoysticks)
+        //  A player in a Joyport jack drives no paddle, so the player beside
+        //  it plays what its mode gives a player alone: joystick 0, or
+        //  paddle 0. Both in jacks keep the joysticks their numbers give. On a
+        //  machine without a Joyport the jacks play as joysticks.
+        TEST_METHOD (Modes_BesideTheJoyportAPlayerPlaysAsThoughAlone)
         {
-            World  world = MakeTwoPlaying (PlayerMode::Paddle, PlayerMode::Paddle);
+            World  world = MakeTwoPlaying (PlayerMode::JoyportLeft, PlayerMode::Paddle);
+
+
+
+            world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, true);
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle0, (int) world.slots[1].target, L"Player 2's paddle is paddle 0");
+            Assert::IsTrue   (world.slots[1].holder.has_value(),                              L"and is not refused for overlapping Player 1's joystick");
+
+            world.entries[1].mode = PlayerMode::Joystick;
+            world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, true);
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) world.slots[1].target, L"Player 2's joystick is joystick 0");
+
+            world.entries[1].mode = PlayerMode::SameAsPlayer1;
+            world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, true);
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) world.slots[0].target, L"both in jacks: joystick 0");
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) world.slots[1].target, L"and joystick 1");
+
+            world.entries[1].mode = PlayerMode::Paddle;
+            world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, false);
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle2, (int) world.slots[1].target, L"no Joyport: Player 1 plays joystick 0, and a paddle beside it is paddle 2");
+        }
+
+
+        //  The Joyport owns all three button lines: a player beside it
+        //  drives its paddles and no button, and a player in a jack drives no
+        //  paddle input either, its switches reaching the jack.
+        TEST_METHOD (DriverRoute_BesideTheJoyportReachesNoButton)
+        {
+            constexpr size_t                         kFourAxes = 4;
+            World                                    world     = MakeTwoPlaying (PlayerMode::JoyportLeft, PlayerMode::Paddle);
+            std::optional<PlayerTargetRules::Route>  route;
+
+
 
             world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, true);
 
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) world.slots[0].target, L"Player 1 is joystick 0");
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) world.slots[1].target, L"and Player 2 joystick 1");
-            Assert::IsTrue   (world.entries[0].mode == PlayerMode::Paddle, L"the modes are kept for when it is off");
+            route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, kFourAxes, true);
+            Assert::IsTrue   (route.has_value());
+            Assert::IsTrue   (route->paddles[0] == std::optional<size_t> (0), L"its paddle on PDL0");
+            Assert::IsTrue   (route->buttons == PlayerTargetRules::ButtonRoute(), L"and no button line");
+            Assert::IsTrue   (PlayerSlotPolicy::GetPlayerRoute (world.slots, world.entries, 1, kFourAxes, true).buttons[0].has_value(),
+                              L"the settings still show the line it would have");
+
+            route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 0, kFourAxes, true);
+            Assert::IsTrue   (route.has_value(), L"the player in the jack is read, for its switches");
+
+            route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, kFourAxes, false);
+            Assert::IsTrue   (route->buttons[0].has_value(), L"without a Joyport the buttons reach the machine");
         }
 
 
@@ -660,12 +703,6 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (DescribeAssignment_SaysWhichPlayer)
-        {
-            Assert::AreEqual (std::wstring (L"Player 1: Pad"), PlayerSlotPolicy::DescribeAssignment (0, L"Pad"));
-            Assert::AreEqual (std::wstring (L"Player 2: Pad"), PlayerSlotPolicy::DescribeAssignment (1, L"Pad"));
-        }
-
 
         //
         //  The changed-holder notice
@@ -739,9 +776,10 @@ namespace ControllerTests
         }
 
 
-        //  While the Joyport is in effect a notice gives the jacks: both for
-        //  a controller playing alone, and its own jack once two play.
-        TEST_METHOD (Notice_WithTheJoyportGivesTheJacks)
+        //  For a player in the Joyport a notice gives the jacks after the
+        //  player: both for a controller playing alone, and its own jack once
+        //  two play.
+        TEST_METHOD (Notice_InTheJoyportGivesTheJacks)
         {
             World                      world;
             ControllerDeviceInfo       first  = MakeDescribedPad ("{A}", L"Blue pad");
@@ -752,15 +790,17 @@ namespace ControllerTests
 
 
 
+            world.entries[0].mode = PlayerMode::JoyportLeft;
+            world.entries[1].mode = PlayerMode::SameAsPlayer1;
             world.Attach (first);
             world.Step();
 
             notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders, world.entries, true);
             Assert::AreEqual ((size_t) 1, notices.size());
-            Assert::AreEqual (std::wstring (L"Joyport left and right: Blue pad"), notices[0], L"the lone pad drives both jacks");
+            Assert::AreEqual (std::wstring (L"Player 1 (Joyport left and right): Blue pad"), notices[0], L"the lone pad drives both jacks");
 
             notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, offHolders, world.entries, false);
-            Assert::AreEqual (std::wstring (L"Player 1: Blue pad"), notices[0], L"and without the Joyport, Player 1");
+            Assert::AreEqual (std::wstring (L"Player 1: Blue pad"), notices[0], L"and without the Joyport, the player alone");
 
             world.devices        = { first, second };
             world.logs.connected = { first.unit, second.unit };
@@ -771,8 +811,8 @@ namespace ControllerTests
 
             notices = PlayerSlotPolicy::RecordHolders (world.slots, world.devices, lastHolders, world.entries, true);
             Assert::AreEqual ((size_t) 2, notices.size());
-            Assert::AreEqual (std::wstring (L"Joyport left: Blue pad"), notices[0]);
-            Assert::AreEqual (std::wstring (L"Joyport right: Red pad"), notices[1]);
+            Assert::AreEqual (std::wstring (L"Player 1 (Joyport left): Blue pad"), notices[0]);
+            Assert::AreEqual (std::wstring (L"Player 2 (Joyport right): Red pad"), notices[1]);
         }
 
 

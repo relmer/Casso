@@ -228,3 +228,10 @@ place a player on a jack.
 | T127 picker with the Joyport on: no Paddle mode and no mouse, the keys in either mode, "same as left" lower case after the row's colon (`PaddleSourceRowsTests`, `ControllersPageStateTests`); mutations recorded with spec 034's T179 | automated | pass |
 | T128 Controllers page: "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it, "Joyport" left of it and centered on it; the heading "Atari joystick" with ": left jack", ": right jack" or ": both jacks"; each player's mode disabled in Atari mode (`ControllersPageLayoutTests`, `ControllersPageStateTests`); mutations recorded with spec 034's T182 | automated | pass |
 | T129 the page in Atari mode and the switch zoomed, by capture | manual, by capture | pass; see spec 034's `validation.md`, Phase 19, for the run and the capture paths |
+
+## Phase 18: a Joyport mode for each player (2026-09-28)
+
+| Check | Kind | Result |
+|---|---|---|
+| T131-T145: recorded with spec 034's Phase 20 in its `validation.md` (tests, mutations M1-M14 and the captures) | automated, and manual by capture | pass |
+| FR-016 (Controller Select switch): closed as not needed; T113-T117 dropped | n/a | n/a |

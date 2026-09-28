@@ -522,7 +522,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // The new machine's Joyport comes up detached; the global setting
         // attaches it where it is in effect, before the power cycle below opens
         // the reset window. The //c reads it as off and leaves it as it was.
-        m_shell.ApplyGamePortAdapterToMachine();
+        m_shell.ApplyJoyportToMachine();
     }
 
     // The new devices hold none of the game-port state the mixer wrote to the

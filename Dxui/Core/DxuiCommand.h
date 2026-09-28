@@ -14,7 +14,9 @@
 //
 //  A cap on how wide a surface may draw a command's label, and how a label
 //  over it is shortened. `keptSuffix` is never cut when the label ends with
-//  it, so a marker after a changing description stays whole.
+//  it, so a marker after a changing description stays whole. A label that
+//  can end in more than one marker lists the others in `keptSuffixes`; the
+//  longest one the label ends with is kept.
 //
 //  The surface fits the label once and uses that one string both to measure
 //  the entry and to paint it, so the space it reserves and the text it draws
@@ -24,9 +26,10 @@
 
 struct DxuiLabelFit
 {
-    float         maxWidthDip = 0.0f;
-    DxuiElide     mode        = DxuiElide::Tail;
-    std::wstring  keptSuffix;
+    float                      maxWidthDip = 0.0f;
+    DxuiElide                  mode        = DxuiElide::Tail;
+    std::wstring               keptSuffix;
+    std::vector<std::wstring>  keptSuffixes;
 };
 
 

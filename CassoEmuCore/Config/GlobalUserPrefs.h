@@ -120,11 +120,11 @@ struct GlobalUserPrefs
     // does not know survives a save. Null when nothing has been saved.
     JsonValue                     controllers;
 
-    // THE JOYPORT SETTING, for every machine that can take one: "none" for
-    // Apple mode or "siriusJoyport" for Atari mode. Empty means never set,
-    // which is what makes a launch adopt the launched machine's old
-    // per-machine value once (JoyportSetting::ResolveAtLaunch); written only
-    // once it is set, so it stays empty until then.
+    // THE JOYPORT SETTING THAT PER-PLAYER MODES REPLACED, read once: a saved
+    // "siriusJoyport" puts the players in the Joyport's jacks, and empty,
+    // never set, reads the launched machine's own older value instead
+    // (PlayerModeRules::MigrateAdapter). Either way it is then written as
+    // "none", which marks it read, so nothing is read from it again.
     std::string                   gamePortAdapter;
 
     // Text color used when the Color monitor is active (the monochrome

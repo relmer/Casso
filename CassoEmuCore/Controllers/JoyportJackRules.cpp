@@ -2,6 +2,8 @@
 
 #include "Controllers/JoyportJackRules.h"
 
+#include "Controllers/PlayerModeRules.h"
+
 
 
 
@@ -10,40 +12,94 @@
 //
 //  AssignJacks
 //
-//  One player driving alone is on both jacks, so a one-player game works
-//  whichever jack it reads. Two driving split them, Player 1 left and
-//  Player 2 right, whatever paddles their slots map to.
+//  Each player drives the jack its mode puts it in. A jack is free while no
+//  player is in it or its player is idle, and a player driving in the other
+//  jack then drives it too, so a one-player game works whichever jack it
+//  reads.
 //
 //  A HELD PLAYER KEEPS THEIR JACK, which reads open, and the one who stayed
 //  does not take it: in a two-player game their stick would then move both
-//  players. Player 2 set to Same as left plays nothing, so Player 1 drives
-//  both jacks whatever Player 2's controller does.
+//  players.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 JoyportJackRules::JackSources JoyportJackRules::AssignJacks (const JoyportPlayers & players)
 {
-    JoyportPlayerState  first   = players.players[0];
-    JoyportPlayerState  second  = players.isPlayer2Disabled ? JoyportPlayerState::Idle : players.players[1];
-    JackSources         sources = { JoyportJackSource::None, JoyportJackSource::None };
+    JackSources                                                  sources = { JoyportJackSource::None, JoyportJackSource::None };
+    std::array<std::optional<size_t>, JoyportJacks::kJackCount>  owners;
+    size_t                                                       player  = 0;
+    size_t                                                       jack    = 0;
 
 
 
-    if (first == JoyportPlayerState::Driving && second == JoyportPlayerState::Idle)
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
     {
-        sources = { JoyportJackSource::Player1, JoyportJackSource::Player1 };
+        if (players.jacks[player].has_value() && players.jacks[player].value() < owners.size())
+        {
+            owners[players.jacks[player].value()] = player;
+        }
     }
-    else if (first == JoyportPlayerState::Idle && second == JoyportPlayerState::Driving)
+
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
     {
-        sources = { JoyportJackSource::Player2, JoyportJackSource::Player2 };
-    }
-    else
-    {
-        sources[JoyportJacks::kLeftJack]  = first  == JoyportPlayerState::Driving ? JoyportJackSource::Player1 : JoyportJackSource::None;
-        sources[JoyportJacks::kRightJack] = second == JoyportPlayerState::Driving ? JoyportJackSource::Player2 : JoyportJackSource::None;
+        std::optional<size_t>  owner = owners[jack];
+        std::optional<size_t>  other = owners[JoyportJacks::kJackCount - 1 - jack];
+
+        if (owner.has_value() && players.players[owner.value()] == JoyportPlayerState::Driving)
+        {
+            sources[jack] = GetSource (owner.value());
+        }
+        else if (owner.has_value() && players.players[owner.value()] == JoyportPlayerState::Held)
+        {
+            continue;
+        }
+        else if (other.has_value() && players.players[other.value()] == JoyportPlayerState::Driving)
+        {
+            sources[jack] = GetSource (other.value());
+        }
     }
 
     return sources;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoyportJackSource JoyportJackRules::GetSource (size_t player)
+{
+    return (player == 0) ? JoyportJackSource::Player1 : JoyportJackSource::Player2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlayerJacks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::bitset<JoyportJacks::kJackCount> JoyportJackRules::GetPlayerJacks (const JackSources & sources, size_t player)
+{
+    std::bitset<JoyportJacks::kJackCount>  jacks;
+    size_t                                 jack  = 0;
+
+
+
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
+    {
+        jacks.set (jack, sources[jack] == GetSource (player));
+    }
+
+    return jacks;
 }
 
 
@@ -93,7 +149,7 @@ JoyportPlayerState JoyportJackRules::ReducePlayerState (size_t player, const Pla
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JoyportPlayers JoyportJackRules::ReducePlayers (const PlayerSlots & slots, const PlayerEntries & entries)
+JoyportPlayers JoyportJackRules::ReducePlayers (const PlayerSlots & slots, const PlayerEntries & entries, bool hasJoyport)
 {
     JoyportPlayers  players;
     size_t          player  = 0;
@@ -103,9 +159,12 @@ JoyportPlayers JoyportJackRules::ReducePlayers (const PlayerSlots & slots, const
     for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
     {
         players.players[player] = ReducePlayerState (player, slots[player], entries[player]);
-    }
 
-    players.isPlayer2Disabled = entries[1].kind == PlayerEntryKind::Disabled;
+        if (PlayerModeRules::IsOnJoyport (entries, player, hasJoyport))
+        {
+            players.jacks[player] = PlayerModeRules::GetJack (PlayerModeRules::ResolveMode (entries, player, hasJoyport));
+        }
+    }
 
     return players;
 }

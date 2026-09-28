@@ -292,13 +292,12 @@
     <ClCompile Include="ControllerTests\ControllerProfileStoreTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerSelectionPolicyTests.cpp" />
     <ClCompile Include="ControllerTests\InputModeRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerModeRulesTests.cpp" />
     <ClCompile Include="ControllerTests\PlayerSlotPolicyTests.cpp" />
     <ClCompile Include="ControllerTests\PlayerTargetRulesTests.cpp" />
     <ClCompile Include="ControllerTests\PaddleSourceRowsTests.cpp" />
     <ClCompile Include="ControllerTests\PlayerPickTests.cpp" />
     <ClCompile Include="ControllerTests\JoyportJackRulesTests.cpp" />
-    <ClCompile Include="ControllerTests\JoyportLabelsTests.cpp" />
-    <ClCompile Include="ControllerTests\JoyportSettingTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerInputServiceTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerDescriptionsTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
@@ -520,6 +519,7 @@
     <ClCompile Include="Dxui\DxuiPropertySheetTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
+    <ClCompile Include="Dxui\DxuiComboBoxItemEnabledTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />

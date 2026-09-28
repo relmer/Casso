@@ -5,6 +5,7 @@
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 #include "Controllers/JoyportJackRules.h"
+#include "Controllers/PlayerModeRules.h"
 
 
 
@@ -614,20 +615,25 @@ std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnit
 //
 //  GetUnitModeLocked
 //
-//  The kind of profile a controller plays: its player's mode, Joystick for a
-//  controller in no slot, and Joyport for every controller while the Joyport
-//  is attached.
+//  The kind of profile a controller plays: its player's mode as it plays,
+//  either Joyport jack being the Joyport kind, and Joystick for a controller
+//  in no slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ProfileMode ControllerInputService::GetUnitModeLocked (const ControllerUnitKey & unit) const
 {
     std::optional<size_t>  player = FindPlayerLocked (unit);
-    PlayerMode             mode   = player.has_value() ? m_entries[player.value()].mode : PlayerMode::Joystick;
+    PlayerMode             mode   = PlayerMode::Joystick;
 
 
 
-    return ControllerModelSettings::GetPlayerProfileMode (mode, m_isJoyportAttached);
+    if (player.has_value())
+    {
+        mode = PlayerModeRules::ResolveMode (m_entries, player.value(), m_hasJoyport);
+    }
+
+    return ControllerModelSettings::GetPlayerProfileMode (mode);
 }
 
 
@@ -666,28 +672,29 @@ void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetJoyportAttached
+//  SetJoyportAvailable
 //
-//  Every controller switches to its Joyport choice, or back to the choice of
-//  its player's kind, or with none chosen to that kind's built-in profile,
-//  released as for a profile change. Both players play as Atari sticks while
-//  it is attached, so the slots take their targets again.
+//  Set when a machine is built. A player in a jack plays it only on a
+//  machine that has a Joyport, so every controller whose player's mode now
+//  plays differently switches to its choice for the new kind, or with none
+//  chosen to that kind's built-in profile, released as for a profile change,
+//  and the slots take their targets again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetJoyportAttached (bool isAttached)
+void ControllerInputService::SetJoyportAvailable (bool hasJoyport)
 {
     std::unique_lock<std::mutex>  lock   (m_mutex);
     std::optional<SlotsChange>    change;
 
 
 
-    if (m_isJoyportAttached == isAttached)
+    if (m_hasJoyport == hasJoyport)
     {
         return;
     }
 
-    m_isJoyportAttached = isAttached;
+    m_hasJoyport = hasJoyport;
     m_rateResetPending = true;
     UnresolveDriversLocked();
     change = EvaluateSlotsLocked();
@@ -1419,7 +1426,8 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.devices           = m_devices;
     snapshot.entries           = m_entries;
     snapshot.slots             = m_slots;
-    snapshot.isJoyportAttached = m_isJoyportAttached;
+    snapshot.isJoyportAttached = PlayerModeRules::IsJoyportOn (m_entries, m_hasJoyport);
+    snapshot.hasJoyport        = m_hasJoyport;
     snapshot.axisCount         = m_axisCount;
 
     for (const ControllerDeviceInfo & device : m_devices)
@@ -1675,7 +1683,7 @@ std::optional<ControllerInputService::SlotsChange> ControllerInputService::Evalu
 
 
 
-    m_slots = PlayerSlotPolicy::Evaluate (m_entries, m_devices, m_logs, previous, m_isJoyportAttached);
+    m_slots = PlayerSlotPolicy::Evaluate (m_entries, m_devices, m_logs, previous, m_hasJoyport);
 
     for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
     {
@@ -1688,7 +1696,7 @@ std::optional<ControllerInputService::SlotsChange> ControllerInputService::Evalu
         }
     }
 
-    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders, m_entries, m_isJoyportAttached);
+    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders, m_entries, m_hasJoyport);
 
     if (m_slots == previous && m_entries == previousEntries && m_lastHolders == previousHolders && departed.empty())
     {
@@ -1871,7 +1879,7 @@ std::optional<PlayerTargetRules::Route> ControllerInputService::GetDriverRouteLo
         return std::nullopt;
     }
 
-    return PlayerSlotPolicy::GetDriverRoute (m_slots, m_entries, player.value(), m_axisCount);
+    return PlayerSlotPolicy::GetDriverRoute (m_slots, m_entries, player.value(), m_axisCount, m_hasJoyport);
 }
 
 
@@ -2011,9 +2019,9 @@ void ControllerInputService::ResolveUnitLocked (
 
     // The deadzone belongs to the model, whichever profile is active. With no
     // profile chosen for this kind, or one the model no longer has, the
-    // controller plays the kind's built-in profile: the Joyport profile while
-    // a Joyport is attached, and otherwise Paddles for a player in Paddle
-    // mode and the Default for the rest.
+    // controller plays the kind's built-in profile: the Joyport profile for a
+    // player in a Joyport jack, Paddles for a player in Paddle mode and the
+    // Default for the rest.
     m_profiles.GetBuiltInSettings (kind, device.unit.model, device.formFactor, device.controls, outMapping, outDeadzone);
 
     if (active.empty())
@@ -2079,11 +2087,13 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
 
     for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
     {
-        std::optional<PlayerTargetRules::Route>  route   = PlayerSlotPolicy::GetDriverRoute (m_slots, m_entries, player, m_axisCount);
+        std::optional<PlayerTargetRules::Route>  route   = PlayerSlotPolicy::GetDriverRoute (m_slots, m_entries, player, m_axisCount, m_hasJoyport);
         auto                                     found   = m_drivers.end();
         const GamePortContribution             * logical = nullptr;
 
-        if (!route.has_value())
+        // A player in a jack closes the jack's switches, added below, and
+        // reaches no paddle input and no button line.
+        if (!route.has_value() || PlayerModeRules::IsOnJoyport (m_entries, player, m_hasJoyport))
         {
             continue;
         }
@@ -2141,7 +2151,7 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
 
 void ControllerInputService::AddJoyportSwitchesLocked (GamePortContribution & merged) const
 {
-    JoyportJackRules::JackSources          sources   = JoyportJackRules::AssignJacks (JoyportJackRules::ReducePlayers (m_slots, m_entries));
+    JoyportJackRules::JackSources          sources   = JoyportJackRules::AssignJacks (JoyportJackRules::ReducePlayers (m_slots, m_entries, m_hasJoyport));
     bool                                   isKeys    = m_entries[0].kind == PlayerEntryKind::ArrowKeys;
     JoyportJacks                           jacks;
     std::bitset<JoyportJacks::kJackCount>  keyJacks;

@@ -8,6 +8,7 @@
 #include "Controllers/DeadzoneShaper.h"
 #include "Controllers/XInputSampleDecoder.h"
 #include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1473,6 +1474,64 @@ namespace ControllerTests
             store = ReadSection ("{\"players\":[{\"entry\":\"mouse\",\"mode\":\"joystick\"},{\"entry\":\"automatic\"}]}", rejected);
 
             Assert::IsTrue (store.players.value()[0].mode == PlayerMode::Paddle, L"and the mouse in Paddle mode");
+        }
+
+
+        //  The Joyport's jacks and Same as Player 1 are saved as modes too, and
+        //  read back as they were. A Player 2 saved with no mode is Same as
+        //  Player 1, its default; Player 1 on Same as Player 1 is Joystick; and
+        //  two players saved in one jack leave it to Player 1, with Player 2
+        //  following into the other.
+        TEST_METHOD (Players_TheJoyportModesRoundTrip)
+        {
+            const std::pair<PlayerMode, const char *>  kTokens[] =
+            {
+                { PlayerMode::Joystick,      "joystick"      },
+                { PlayerMode::JoyportLeft,   "joyportLeft"   },
+                { PlayerMode::JoyportRight,  "joyportRight"  },
+                { PlayerMode::Paddle,        "paddle"        },
+                { PlayerMode::SameAsPlayer1, "sameAsPlayer1" },
+            };
+            std::vector<std::string>                   rejected;
+            ControllerProfileStore                     store;
+            ControllerProfileStore                     read;
+            JsonValue                                  written;
+            const JsonValue                          * players  = nullptr;
+            std::string                                mode;
+            size_t                                     swept    = 0;
+
+
+
+            for (const auto & token : kTokens)
+            {
+                store.players                 = PlayerEntries();
+                store.players.value()[1].mode = token.first;
+                written                       = store.ToJson (JsonValue());
+
+                Assert::IsTrue   (written.HasArray ("players", players) && players != nullptr);
+                Assert::IsTrue   (players->GetArrayElement (1).HasString ("mode", mode));
+                Assert::AreEqual (std::string (token.second), mode);
+
+                read = ReadSection (JsonWriter::Write (written), rejected);
+                Assert::IsTrue (read.players.value()[1].mode == token.first, L"and reads back as it was");
+                swept++;
+            }
+
+            Assert::AreEqual (static_cast<size_t> (PlayerMode::SameAsPlayer1) + 1, swept, L"every mode has its token");
+
+            read = ReadSection ("{\"players\":[{\"entry\":\"automatic\"},{\"entry\":\"automatic\"}]}", rejected);
+            Assert::IsTrue (read.players.value()[0].mode == PlayerMode::Joystick,      L"Player 1 with no mode is Joystick");
+            Assert::IsTrue (read.players.value()[1].mode == PlayerMode::SameAsPlayer1, L"and Player 2 Same as Player 1");
+
+            read = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"mode\":\"sameAsPlayer1\"},{\"entry\":\"automatic\"}]}", rejected);
+            Assert::IsTrue (read.players.value()[0].mode == PlayerMode::Joystick, L"Player 1 has no one to follow");
+
+            read = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"mode\":\"joyportLeft\"},{\"entry\":\"automatic\",\"mode\":\"joyportLeft\"}]}", rejected);
+            Assert::IsTrue (read.players.value()[0].mode == PlayerMode::JoyportLeft,   L"one jack, two players: Player 1 keeps it");
+            Assert::IsTrue (read.players.value()[1].mode == PlayerMode::SameAsPlayer1, L"and Player 2 follows into the other");
+
+            read = ReadSection ("{\"players\":[{\"entry\":\"keys\",\"mode\":\"joyportRight\"},{\"entry\":\"automatic\"}]}", rejected);
+            Assert::IsTrue (read.players.value()[0].mode == PlayerMode::JoyportRight, L"the keys play in a jack");
         }
 
 

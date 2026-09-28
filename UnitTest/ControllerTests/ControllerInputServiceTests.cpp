@@ -139,6 +139,23 @@ namespace ControllerTests
         }
 
 
+        // Player 1 into the Joyport's left jack on a machine that has one, or
+        // back to Joystick mode, with Player 2 on Same as Player 1.
+        static void SetPlayerOneInJoyport (ControllerInputService & service, bool isInJoyport)
+        {
+            service.SetJoyportAvailable (true);
+            service.SetPlayerMode (0, isInJoyport ? PlayerMode::JoyportLeft : PlayerMode::Joystick);
+            service.SetPlayerMode (1, PlayerMode::SameAsPlayer1);
+        }
+
+
+        // Whether the last write closed one switch of the left jack.
+        static bool IsLeftSwitchClosed (const RecordingGamePortSink & sink, JoystickSwitch which)
+        {
+            return sink.writes.back().state.jacks.jack[JoyportJacks::kLeftJack].test (static_cast<size_t> (which));
+        }
+
+
         // Two players, each picked, both in Paddle mode: the first on PDL0
         // and the second on PDL1.
         static PlayerEntries MakeTwoPlayers (const ControllerUnitKey &  first,
@@ -204,6 +221,16 @@ namespace ControllerTests
 
             service.SetPlayerEntries (MakeTwoPlayers (xbox.unit, stick.unit));
             service.Tick();
+        }
+
+
+        // Player 1 into the left jack and Player 2 into the right, on a
+        // machine that has a Joyport.
+        static void SetBothInJoyport (ControllerInputService & service)
+        {
+            service.SetJoyportAvailable (true);
+            service.SetPlayerMode (0, PlayerMode::JoyportLeft);
+            service.SetPlayerMode (1, PlayerMode::JoyportRight);
         }
 
 
@@ -650,12 +677,13 @@ namespace ControllerTests
             Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[kPdl2], L"its knob on PDL2");
             Assert::IsTrue   (sink.writes.back().state.buttons.test (kPb2),     L"and its button on paddle 2's line, PB2");
 
-            service.SetJoyportAttached (true);
+            service.SetJoyportAvailable (true);
+            service.SetPlayerMode (1, PlayerMode::JoyportRight);
             service.Tick();
 
             Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) service.GetPlayerSlots()[1].target,
-                L"with the Joyport both players are joysticks");
-            Assert::AreEqual (std::string(), service.GetActiveProfile (stick.unit), L"and play their Joyport choice, none here");
+                L"in a jack, player two keeps the joystick its number gives");
+            Assert::AreEqual (std::string(), service.GetActiveProfile (stick.unit), L"and plays its Joyport choice, none here");
         }
 
 
@@ -1460,7 +1488,7 @@ namespace ControllerTests
 
 
         //  A controller with no profile chosen plays the Joyport profile while
-        //  the Joyport is attached, where the D-pad steers and X fires, and
+        //  its player is in a jack, where the D-pad steers and X fires, and
         //  the Default otherwise, where neither does anything.
         TEST_METHOD (UnchosenProfile_IsTheModesBuiltInProfile)
         {
@@ -1485,16 +1513,17 @@ namespace ControllerTests
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"the Default leaves the D-pad unbound");
             Assert::IsFalse  (sink.writes.back().state.buttons.test (0),   L"and X is not fire");
 
-            service.SetJoyportAttached (true);
+            SetPlayerOneInJoyport (service, true);
             service.Tick();
 
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"the Joyport profile steers with the D-pad");
-            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),     L"and fires with X");
+            Assert::IsTrue   (IsLeftSwitchClosed (sink, JoystickSwitch::Right), L"the Joyport profile steers with the D-pad");
+            Assert::IsTrue   (IsLeftSwitchClosed (sink, JoystickSwitch::Fire),  L"and fires with X");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],      L"and reaches no paddle input");
 
-            service.SetJoyportAttached (false);
+            SetPlayerOneInJoyport (service, false);
             service.Tick();
 
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"detaching the Joyport goes back to the Default");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"leaving the jack goes back to the Default");
         }
 
 
@@ -1522,10 +1551,10 @@ namespace ControllerTests
         }
 
 
-        //  A profile picked with the Joyport attached is that controller's
+        //  A profile picked with the player in a jack is that controller's
         //  Joyport-mode choice, and one picked without it is its normal-mode
-        //  choice. Attaching or detaching the Joyport plays the choice made
-        //  for the new mode.
+        //  choice. Moving into or out of the jack plays the choice made for
+        //  the new mode.
         TEST_METHOD (ChosenProfile_IsRememberedForEachMode)
         {
             FakeControllerBackend   backend;
@@ -1549,22 +1578,22 @@ namespace ControllerTests
 
             Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"a normal-mode profile, picked without a Joyport");
 
-            service.SetJoyportAttached (true);
+            SetPlayerOneInJoyport (service, true);
             service.SetActiveProfile (device.unit, "Atari");
             service.Tick();
 
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"a Joyport-mode profile, picked with one");
+            Assert::IsFalse (IsLeftSwitchClosed (sink, JoystickSwitch::Right), L"a Joyport-mode profile, picked in a jack");
 
-            service.SetJoyportAttached (false);
+            SetPlayerOneInJoyport (service, false);
             service.Tick();
 
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"detaching plays the normal-mode choice");
+            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"leaving the jack plays the normal-mode choice");
             Assert::AreEqual (std::string ("Dpad"), service.GetActiveProfile (device.unit));
 
-            service.SetJoyportAttached (true);
+            SetPlayerOneInJoyport (service, true);
             service.Tick();
 
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and attaching the Joyport-mode one");
+            Assert::IsFalse  (IsLeftSwitchClosed (sink, JoystickSwitch::Right), L"and going back into it the Joyport-mode one");
             Assert::AreEqual (std::string ("Atari"), service.GetActiveProfile (device.unit));
             Assert::AreEqual (std::string ("Dpad"), service.GetActiveProfiles (ProfileMode::Joystick).at (ControllerTokens::UnitToToken (device.unit)));
         }
@@ -1600,10 +1629,10 @@ namespace ControllerTests
                 SkipCalibration (service, { device.unit });
 
                 Pick (service, device.unit);
-                service.SetJoyportAttached (true);
+                SetPlayerOneInJoyport (service, true);
                 service.Tick();
 
-                Assert::AreEqual (expected[i], sink.writes.back().state.paddle[0],
+                Assert::AreEqual (expected[i] == kFullHigh, IsLeftSwitchClosed (sink, JoystickSwitch::Right),
                     i == 0 ? L"a gamepad's Z steers" : L"a joystick's Z does not");
             }
         }
@@ -1640,22 +1669,22 @@ namespace ControllerTests
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],            L"so the Default plays");
             Assert::IsFalse  (sink.writes.back().state.buttons.test (0));
 
-            service.SetJoyportAttached (true);
+            SetPlayerOneInJoyport (service, true);
             service.SetActiveProfile (device.unit, "Default");
             service.SetActiveProfile (device.unit, "Dpad");
             service.Tick();
 
-            Assert::AreEqual (std::string(), service.GetActiveProfile (device.unit), L"nor either normal-mode profile with one");
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0],         L"so the Joyport profile plays");
+            Assert::AreEqual (std::string(), service.GetActiveProfile (device.unit), L"nor either normal-mode profile in a jack");
+            Assert::IsTrue   (IsLeftSwitchClosed (sink, JoystickSwitch::Right),     L"so the Joyport profile plays");
 
             // Choices loaded from the prefs, each of the other mode's profile.
             service.SetActiveProfiles (ProfileMode::Joystick,  { { token, "Atari" } });
             service.SetActiveProfiles (ProfileMode::Joyport, { { token, "Default" } });
             service.Tick();
 
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"with the Joyport, the Joyport profile plays, not the Default");
+            Assert::IsTrue (IsLeftSwitchClosed (sink, JoystickSwitch::Right), L"in a jack, the Joyport profile plays, not the Default");
 
-            service.SetJoyportAttached (false);
+            SetPlayerOneInJoyport (service, false);
             service.Tick();
 
             Assert::IsFalse (sink.writes.back().state.buttons.test (0), L"without it, the Default plays, not Atari");
@@ -1841,7 +1870,7 @@ namespace ControllerTests
 
 
         //  A remembered profile that no longer exists plays the built-in
-        //  profile of the mode in effect: with the Joyport on, the Joyport
+        //  profile of the mode in effect: for a player in a jack, the Joyport
         //  profile, which steers with the D-pad and fires with X, not the
         //  Default, which does neither.
         TEST_METHOD (ActiveProfileMissing_PlaysTheBuiltInProfileOfTheModeInEffect)
@@ -1865,12 +1894,12 @@ namespace ControllerTests
             backend.SetSample (device.unit, sample);
             service.SetModelSettings (MakeProfilesOfEachMode (device));
             service.SetActiveProfiles (ProfileMode::Joyport, { { token, "Gone" } });
-            service.SetJoyportAttached (true);
+            SetPlayerOneInJoyport (service, true);
             Pick (service, device.unit);
             service.Tick();
 
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"the Joyport profile steers with the D-pad");
-            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),     L"and fires with X");
+            Assert::IsTrue (IsLeftSwitchClosed (sink, JoystickSwitch::Right), L"the Joyport profile steers with the D-pad");
+            Assert::IsTrue (IsLeftSwitchClosed (sink, JoystickSwitch::Fire),  L"and fires with X");
             Assert::AreEqual (std::string ("Gone"), service.GetActiveProfile (device.unit), L"the remembered name is kept as it was");
         }
 
@@ -1909,16 +1938,16 @@ namespace ControllerTests
             service.Tick();
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"with Dpad deleted, the Default plays, which leaves the D-pad unbound");
 
-            service.SetJoyportAttached (true);
+            SetPlayerOneInJoyport (service, true);
             service.SetActiveProfile (device.unit, "Atari");
             service.Tick();
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"Atari binds fire and no steering");
-            Assert::IsTrue   (sink.writes.back().state.buttons.test (0));
+            Assert::IsFalse (IsLeftSwitchClosed (sink, JoystickSwitch::Right), L"Atari binds fire and no steering");
+            Assert::IsTrue  (IsLeftSwitchClosed (sink, JoystickSwitch::Fire));
 
             models.begin()->second.DeleteProfile ("Atari");
             service.SetModelSettings (models);
             service.Tick();
-            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"with Atari deleted, the Joyport profile plays and steers");
+            Assert::IsTrue (IsLeftSwitchClosed (sink, JoystickSwitch::Right), L"with Atari deleted, the Joyport profile plays and steers");
         }
 
 
@@ -2014,6 +2043,7 @@ namespace ControllerTests
             backend.AddDevice (xbox, true);
             backend.SetSample (xbox.unit, MakePushedSample());
             Pick (service, xbox.unit);
+            SetPlayerOneInJoyport (service, true);
             service.Tick();
 
             jacks = mixer.GetTargetState().jacks;
@@ -2047,10 +2077,9 @@ namespace ControllerTests
             ControllerDeviceInfo    stick;
             JoyportJacks            jacks;
 
-            //  Both players were left in Paddle mode, which must not matter
-            //  to the jacks: with the Joyport on they are Atari sticks.
+            //  Both players start in Paddle mode and move into the jacks.
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
-            service.SetJoyportAttached (true);
+            SetBothInJoyport (service);
             service.Tick();
             jacks = mixer.GetTargetState().jacks;
 
@@ -2081,6 +2110,7 @@ namespace ControllerTests
             SkipCalibration (service, { stick.unit });
 
             service.SetPlayerEntries (MakeTwoPlayers (xbox.unit, stick.unit));
+            SetBothInJoyport (service);
             service.Tick();
             jacks = mixer.GetTargetState().jacks;
 
@@ -2089,7 +2119,39 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Joyport_TheSlotIsTheJackWhateverItsPaddles)
+        //  A player beside the Joyport drives its paddle, as a lone player of
+        //  its mode would, and none of its buttons: the Joyport owns all
+        //  three lines. The player in the jack reaches no paddle input, and,
+        //  with the other jack free, drives both jacks.
+        TEST_METHOD (Joyport_APlayerBesideItKeepsItsPaddleAndLosesItsButtons)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    stick;
+            GamePortState           state;
+            JoystickSwitches        xboxOn = MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Down, JoystickSwitch::Fire });
+
+
+
+            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            service.SetJoyportAvailable (true);
+            service.SetPlayerMode (0, PlayerMode::JoyportLeft);
+            service.Tick();
+            state = mixer.GetTargetState();
+
+            Assert::AreEqual (kFullLow, state.paddle[0],                  L"Player 2's knob on paddle 0, as though alone");
+            Assert::AreEqual (kCenter,  state.paddle[1],                  L"and Player 1's stick on no paddle input");
+            Assert::IsTrue   (state.buttons.none(),                       L"no button line from either");
+            Assert::IsTrue   (state.jacks.jack[JoyportJacks::kLeftJack]  == xboxOn, L"Player 1 in the left jack");
+            Assert::IsTrue   (state.jacks.jack[JoyportJacks::kRightJack] == xboxOn, L"and the right, which is free");
+        }
+
+
+        //  The mode is the jack, not the player's number: Player 1 in the
+        //  right jack and Player 2 in the left.
+        TEST_METHOD (Joyport_TheModeIsTheJackWhateverThePlayer)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -2098,7 +2160,8 @@ namespace ControllerTests
             ControllerDeviceInfo    stick = MakeStickDevice();
             PlayerEntries           setup = MakeTwoPlayers (xbox.unit, stick.unit);
 
-            setup[0].mode = PlayerMode::Joystick;
+            setup[0].mode = PlayerMode::JoyportRight;
+            setup[1].mode = PlayerMode::JoyportLeft;
 
             mixer.SetAxisOwner (AxisOwner::Controller);
             backend.AddDevice (xbox, true);
@@ -2107,12 +2170,13 @@ namespace ControllerTests
             backend.SetSample (stick.unit, MakeRestSample());
             SkipCalibration (service, { stick.unit });
 
+            service.SetJoyportAvailable (true);
             service.SetPlayerEntries (setup);
             service.Tick();
 
-            Assert::IsTrue (mixer.GetTargetState().jacks.jack[JoyportJacks::kLeftJack].test (static_cast<size_t> (JoystickSwitch::Right)),
-                L"slot 1 on the second joystick's paddles is still the left jack");
-            Assert::IsTrue (mixer.GetTargetState().jacks.jack[JoyportJacks::kRightJack].none());
+            Assert::IsTrue (mixer.GetTargetState().jacks.jack[JoyportJacks::kRightJack].test (static_cast<size_t> (JoystickSwitch::Right)),
+                L"Player 1 in the right jack");
+            Assert::IsTrue (mixer.GetTargetState().jacks.jack[JoyportJacks::kLeftJack].none(), L"and Player 2, at rest, in the left");
         }
 
 
@@ -2126,7 +2190,7 @@ namespace ControllerTests
             JoyportJacks            jacks;
 
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
-            service.SetJoyportAttached (true);
+            SetBothInJoyport (service);
             service.Tick();
 
             backend.RemoveDevice (stick.unit);
@@ -2159,7 +2223,7 @@ namespace ControllerTests
             //  Player 2's controller has never connected, so Player 1 plays
             //  alone.
             service.SetPlayerEntries   (MakeTwoPlayers (xbox.unit, absent));
-            service.SetJoyportAttached (true);
+            SetBothInJoyport (service);
             service.Tick();
             jacks = mixer.GetTargetState().jacks;
 
@@ -2231,6 +2295,7 @@ namespace ControllerTests
 
 
             SetUpTwoAtLaunch (backend, service, mixer, now, xbox, stick);
+            SetPlayerOneInJoyport (service, true);
 
             backend.SetSample (xbox.unit, MakePushedSample());
             now += kIdleSeconds;
@@ -2250,9 +2315,9 @@ namespace ControllerTests
         }
 
 
-        //  US3 #6: with Player 2 set to Same as left, a second controller used
-        //  changes nothing: Player 1 still drives both jacks.
-        TEST_METHOD (Joyport_SameAsLeftKeepsPlayerOneOnBothJacks)
+        //  With Player 2 Disabled, which holds no jack, a second controller
+        //  used changes nothing: Player 1 still drives both jacks.
+        TEST_METHOD (Joyport_ADisabledPlayerTwoLeavesPlayerOneOnBothJacks)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -2266,6 +2331,7 @@ namespace ControllerTests
 
 
             SetUpTwoAtLaunch (backend, service, mixer, now, xbox, stick, PlayerEntryKind::Disabled);
+            SetPlayerOneInJoyport (service, true);
 
             backend.SetSample (xbox.unit, MakePushedSample());
             now += kIdleSeconds;
@@ -2294,6 +2360,7 @@ namespace ControllerTests
 
 
             SetUpTwoJoysticks (backend, service, mixer, sink, xbox, stick);
+            SetBothInJoyport  (service);
 
             stickSample.axes[0] = -1.0f;
             backend.SetSample (stick.unit, stickSample);
@@ -2325,8 +2392,11 @@ namespace ControllerTests
 
 
             entries[0].kind  = PlayerEntryKind::ArrowKeys;
-            entries[1]       = MakePick (xbox.unit);
+            entries[0].mode  = PlayerMode::JoyportLeft;
+            entries[1]       = MakePick (xbox.unit, PlayerMode::JoyportRight);
             arrows.paddle[1] = kFullLow;
+
+            service.SetJoyportAvailable (true);
 
             mixer.SetAxisOwner (AxisOwner::ArrowKeys);
             mixer.Submit (GamePortSource::ArrowKeys, arrows);
@@ -2356,8 +2426,9 @@ namespace ControllerTests
 
 
             entries[0].kind = PlayerEntryKind::MousePaddle;
-            entries[1]      = MakePick (xbox.unit);
+            entries[1]      = MakePick (xbox.unit, PlayerMode::JoyportRight);
 
+            service.SetJoyportAvailable (true);
             mixer.SetAxisOwner (AxisOwner::MousePaddle);
             backend.AddDevice (xbox, true);
             backend.SetSample (xbox.unit, MakePushedSample());
@@ -2370,8 +2441,8 @@ namespace ControllerTests
         }
 
 
-        //  While the Joyport is in effect the notice gives the jacks: both for
-        //  a controller playing alone.
+        //  For a player in the Joyport the notice gives the jacks: both for a
+        //  controller playing alone.
         TEST_METHOD (Joyport_TheNoticeGivesTheJacks)
         {
             FakeControllerBackend      backend;
@@ -2384,25 +2455,25 @@ namespace ControllerTests
 
 
 
-            service.SetJoyportAttached (true);
             service.SetSlotsChangedFn ([&notices] (const ControllerInputService::SlotsChange & change)
             {
                 notices.insert (notices.end(), change.notices.begin(), change.notices.end());
             });
 
             SetUpTwoAtLaunch (backend, service, mixer, now, xbox, stick);
+            SetPlayerOneInJoyport (service, true);
 
             backend.SetSample (xbox.unit, MakePushedSample());
             now += kIdleSeconds;
             service.Tick();
 
             Assert::AreEqual (size_t (1), notices.size());
-            Assert::AreEqual (std::wstring (L"Joyport left and right: Xbox Controller"), notices.back(), L"the pad plays alone");
+            Assert::AreEqual (std::wstring (L"Player 1 (Joyport left and right): Xbox Controller"), notices.back(), L"the pad plays alone");
 
             UseStick (backend, service, now, stick);
 
             Assert::AreEqual (size_t (2), notices.size());
-            Assert::AreEqual (std::wstring (L"Joyport right: VKBsim Gladiator"), notices.back());
+            Assert::AreEqual (std::wstring (L"Player 2 (Joyport right): VKBsim Gladiator"), notices.back(), L"Same as Player 1: the other jack");
         }
 
         //

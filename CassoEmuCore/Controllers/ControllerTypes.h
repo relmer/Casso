@@ -225,10 +225,9 @@ struct ControllerDeviceInfo
 //
 //  GamePortAdapter
 //
-//  The device plugged into a machine's 16-pin game I/O socket. None is the
-//  game port as it has always been emulated; the Sirius Joyport reads two
-//  Atari-style joysticks through the pushbutton inputs (Atari mode, with its
-//  Controller Select switch at Center).
+//  The device plugged into a machine's 16-pin game I/O socket, as the saved
+//  Joyport setting that per-player modes replaced recorded it. It is read
+//  once, to move a Joyport that was on into the players' modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -304,8 +303,10 @@ struct JoyportJacks
 //  `switches` is the Atari joystick one controller's mapping produces, set by
 //  the evaluator whatever the machine. `jacks` is set only on the merged
 //  controller contribution, and says which controller drives which Joyport
-//  jack. `keyJacks` marks the jacks in it that Player 1's arrow keys drive,
-//  which the mixer fills from the keys.
+//  jack. `keyJacks` marks the jacks that Player 1's arrow keys drive, which
+//  the mixer fills from the keys: on the merged controller contribution, the
+//  jacks it gives the keys, and on the arrow keys' own, both jacks while
+//  Player 1 plays the keys in a jack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

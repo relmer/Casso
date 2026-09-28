@@ -38,30 +38,20 @@ class InputModeRules
 public:
 
     // What the user has chosen, plus whether the selected controller reads.
+    // `isKeysOnJoyport` is Player 1's keys in a Joyport jack, where they
+    // close its switches rather than drive the paddle inputs, and
+    // `isSecondPlaying` is Player 2 playing, which leaves the mouse PDL0
+    // alone.
     struct State
     {
         bool  arrowsJoystick       = false;
         bool  mousePaddle          = false;
         bool  hasController        = false;
         bool  isControllerAttached = false;
+        bool  isKeysOnJoyport      = false;
+        bool  isSecondPlaying      = false;
 
         bool operator== (const State &) const = default;
-    };
-
-    // The words the picker writes for the players and for Player 2's
-    // Disabled entry, kept apart from the rows so that another mode's words
-    // can take their place. `disabled` is the entry in the submenu and
-    // `disabledInRow` the same entry after the colon of the player's row.
-    // `idle` is what a player's row reads while they are on Automatic with
-    // no controller playing; empty keeps the row as it would be without it.
-    struct PlayerLabels
-    {
-        std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  players       = { L"Player 1", L"Player 2" };
-        std::wstring                                               disabled      = L"Disabled";
-        std::wstring                                               disabledInRow = L"Disabled";
-        std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  idle;
-
-        bool operator== (const PlayerLabels &) const = default;
     };
 
     // One controller's profiles of the mode in effect, that mode's built-in
@@ -98,9 +88,8 @@ public:
         bool operator== (const PlayerProfileSection &) const = default;
     };
 
-    // One of the two modes a player's submenu offers, Joystick or Paddle.
-    // Exactly one is checked; neither can be chosen while the Joyport is in
-    // effect, where both players are Atari sticks.
+    // One of the modes a player's submenu offers. Exactly one is checked; a
+    // Joyport jack the other player holds is listed and cannot be chosen.
     struct PlayerModeChoice
     {
         std::wstring  label;
@@ -147,11 +136,10 @@ public:
         std::vector<ControllerDeviceInfo>      devices;
         std::map<std::string, ProfileChoices>  profiles;
         std::map<std::string, std::wstring>    knownDescriptions;
-        PlayerLabels                           labels;
 
-        // Whether the running machine reads the Joyport, which leaves the
-        // mouse as paddle out of Player 1's submenu.
-        bool                                   isJoyportInEffect = false;
+        // Whether the running machine has a Joyport, which puts its two
+        // jacks among the modes.
+        bool                                   hasJoyport        = false;
     };
 
     // The picker: the two players' rows, and what its closed face wears.
@@ -202,10 +190,9 @@ private:
     static constexpr const wchar_t *  kpszAutomatic      = L"Automatic";
     static constexpr const wchar_t *  kpszKeys           = L"Keys";
     static constexpr const wchar_t *  kpszMouse          = L"Mouse";
+    static constexpr const wchar_t *  kpszDisabled       = L"Disabled";
     static constexpr const wchar_t *  kpszNotConnected   = L" (not connected)";
     static constexpr const wchar_t *  kpszNothingDriving = L"Controller";
-    static constexpr const wchar_t *  kpszJoystickMode   = L"Joystick";
-    static constexpr const wchar_t *  kpszPaddleMode     = L"Paddle";
     static constexpr const wchar_t *  kpszInPaddleMode   = L" (paddle)";
 
     static const ControllerDeviceInfo *         FindDevice         (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit);

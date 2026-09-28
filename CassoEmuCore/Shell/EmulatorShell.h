@@ -636,13 +636,9 @@ private:
     // until mouse software runs thanks to the firmware-live gate).
     void    ApplyDefaultPointerForMachine();
 
-    // The Joyport setting, which is global: Apple mode (None) or Atari mode
-    // (the Sirius Joyport). A change takes effect on the next button read,
-    // with no reset, and is saved at once. GetGamePortAdapter is the setting;
-    // what the running machine reads is IsJoyportInEffect, which is false on
-    // the //c whatever the setting. UI thread.
-    void             SetGamePortAdapter (GamePortAdapter adapter);
-    GamePortAdapter  GetGamePortAdapter () const;
+    // Whether the running machine's Joyport is on, which it is while a
+    // player's mode puts that player in one of its jacks. Never on the //c,
+    // which has none. UI thread.
     bool             IsJoyportInEffect  () const;
 
 private:
@@ -1488,8 +1484,10 @@ private:
     void  RefreshToolbarThemeList          ();
     void  SyncToolbarState                 ();
     void  PersistColorModeForMachine       (int settingsColorModeIndex);
-    void  ResolveGamePortAdapterAtLaunch   (const JsonValue * uiPrefs);
-    void  ApplyGamePortAdapterToMachine    ();
+    void  MigrateJoyportAtLaunch           (const JsonValue * uiPrefs);
+    void  ApplyJoyportToMachine            ();
+    void  SyncJoyport                      ();
+    bool  IsPlayerOneOnJoyport             () const;
 
     // The pure model deriving the printer LED state from the worker's live
     // signals, plus the last state pushed to the toolbar so a transition
@@ -2147,10 +2145,6 @@ private:
     // a picked controller after it is unplugged. UI thread only.
     std::map<std::string, std::wstring>      m_controllerDescriptions;
 
-    // The Joyport setting as m_globalPrefs.gamePortAdapter holds it, parsed.
-    // Written on the UI thread; read on the CPU thread too, by a machine
-    // switch applying it to the machine it builds.
-    std::atomic<GamePortAdapter>             m_gamePortAdapter { GamePortAdapter::None };
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

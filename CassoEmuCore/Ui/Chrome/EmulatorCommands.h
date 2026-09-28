@@ -170,14 +170,6 @@ public:
                            std::function<bool()> isOffered,
                            std::function<void()> toggle);
 
-    // The Joyport: a checkable "Joyport (Atari mode)" row in the paddle
-    // picker, in a group of its own below the player rows. It is not a
-    // source -- it is the mode of the game port whichever source drives --
-    // so it is not one of the entries only one of which is checked. Left out
-    // on a machine that cannot take one.
-    void  SetJoyportFns (std::function<bool()> isOn,
-                         std::function<bool()> isOffered,
-                         std::function<void()> toggle);
 
     std::vector<DxuiPopupMenuItem>  GetPlayerItems       () const;
     std::vector<DxuiPopupMenuItem>  GetPaddlePickerItems () const;
@@ -226,8 +218,6 @@ private:
     PlayerPickedFn                             m_onPlayerPicked;
     PlayerModeFn                               m_onPlayerMode;
 
-    std::shared_ptr<DxuiCommand>               m_joyportRow;
-    std::function<bool()>                      m_isJoyportOffered;
 
     ProfilePickedFn                            m_onProfilePicked;
     NewProfileFn                               m_onNewProfile;

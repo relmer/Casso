@@ -699,6 +699,14 @@ std::wstring DxuiToolbar::GetFittedButtonText (
         keptLen = fit->keptSuffix.size();
     }
 
+    for (const std::wstring & suffix : fit->keptSuffixes)
+    {
+        if (suffix.size() > keptLen && label.ends_with (suffix))
+        {
+            keptLen = suffix.size();
+        }
+    }
+
     return DxuiTextElide::ToWidth (*text, label, fontPx, DxuiTheme::kBodyFace,
                                    m_scaler.ToPxf (fit->maxWidthDip), fit->mode, keptLen);
 }

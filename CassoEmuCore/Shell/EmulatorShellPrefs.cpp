@@ -7,7 +7,7 @@
 #include "Config/MachineInputPrefs.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
-#include "Controllers/JoyportSetting.h"
+#include "Controllers/PlayerModeRules.h"
 #include "Core/JsonWriter.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -535,30 +535,36 @@ void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ResolveGamePortAdapterAtLaunch
+//  MigrateJoyportAtLaunch
 //
-//  The Joyport setting the launch starts with, applied to the machine just
-//  built. The first launch after the setting went global adopts the value the
-//  launched machine saved and saves it globally at once, so no later launch
-//  adopts again (JoyportSetting::ResolveAtLaunch).
+//  The Joyport setting that per-player modes replaced is read once: a
+//  Joyport that was on puts Player 1 in the left jack and Player 2 on Same
+//  as Player 1, and the old key is marked read and saved at once, so no
+//  later launch reads it or the machine's older value again
+//  (PlayerModeRules::MigrateAdapter). Then the machine just built takes the
+//  players' modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ResolveGamePortAdapterAtLaunch (const JsonValue * uiPrefs)
+void EmulatorShell::MigrateJoyportAtLaunch (const JsonValue * uiPrefs)
 {
-    JoyportLaunchSetting  resolved = JoyportSetting::ResolveAtLaunch (m_globalPrefs.gamePortAdapter, uiPrefs, m_machine.GetJoyport() != nullptr);
+    JoyportMigration  migration = PlayerModeRules::MigrateAdapter (m_globalPrefs.gamePortAdapter, uiPrefs, m_machine.GetJoyport() != nullptr);
 
 
 
-    m_gamePortAdapter = resolved.setting;
-
-    if (resolved.isAdopted)
+    if (migration.isJoyport && m_controllerService != nullptr)
     {
-        m_globalPrefs.gamePortAdapter = ControllerTokens::GamePortAdapterToToken (resolved.setting);
+        m_controllerService->SetPlayerEntries (PlayerModeRules::ApplyMigration (m_controllerService->GetPlayerEntries()));
+        SaveControllerPrefs();
+    }
+
+    if (migration.shouldMark)
+    {
+        m_globalPrefs.gamePortAdapter = ControllerTokens::kpszAdapterNone;
         SaveGlobalPrefs();
     }
 
-    ApplyGamePortAdapterToMachine();
+    ApplyJoyportToMachine();
 }
 
 
@@ -567,35 +573,42 @@ void EmulatorShell::ResolveGamePortAdapterAtLaunch (const JsonValue * uiPrefs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyGamePortAdapterToMachine
+//  ApplyJoyportToMachine
 //
-//  Attaches the running machine's Joyport while the setting is in effect on
-//  it, and plays the controllers' profiles of the matching mode. Runs once
-//  the machine is built: at a cold start, and on a machine switch right after
-//  the new devices are built, before the power cycle that opens the Joyport's
-//  reset window. The //c builds no Joyport, so there the setting is not in
-//  effect and is left as it was for the next machine that can use it.
+//  Attaches the running machine's Joyport while a player is in one of its
+//  jacks, connects its paddle inputs while a player beside it stands in for
+//  a paddle or a joystick in the rear sockets, and tells the controller
+//  service whether the machine has one, so the players in its jacks play
+//  their Joyport profiles. Runs once the machine is built -- at a cold start,
+//  and on a machine switch right after the new devices are built, before the
+//  power cycle that opens the Joyport's reset window -- and after every
+//  change to the players' modes. The //c builds no Joyport, so there the
+//  jacks play as joysticks and the modes are kept for the next machine that
+//  has one.
 //
 //  Takes no lock: a machine switch calls it while holding the lifetime lock
-//  exclusively.
+//  exclusively, and SyncJoyport takes it shared.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyGamePortAdapterToMachine()
+void EmulatorShell::ApplyJoyportToMachine()
 {
     SiriusJoyport  * joyport    = m_machine.GetJoyport();
-    bool             isInEffect = JoyportSetting::IsInEffect (m_gamePortAdapter, joyport != nullptr);
+    bool             hasJoyport = joyport != nullptr;
+    PlayerEntries    entries;
 
 
-
-    if (joyport != nullptr)
-    {
-        joyport->SetAttached (isInEffect);
-    }
 
     if (m_controllerService)
     {
-        m_controllerService->SetJoyportAttached (isInEffect);
+        entries = m_controllerService->GetPlayerEntries();
+        m_controllerService->SetJoyportAvailable (hasJoyport);
+    }
+
+    if (joyport != nullptr)
+    {
+        joyport->SetPaddlesConnected (PlayerModeRules::ArePaddlesConnected (entries, hasJoyport));
+        joyport->SetAttached         (PlayerModeRules::IsJoyportOn (entries, hasJoyport));
     }
 }
 
@@ -719,9 +732,9 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // and found green.
     SetColorModeLive (MonitorCatalog::GetSettingsIndex (MonitorCatalog::GetColorModeForMachineJson (doc)));
 
-    // The Joyport setting is global and applies to a machine with no block
-    // of its own too, so it is settled above the guard below.
-    ResolveGamePortAdapterAtLaunch (uiPrefs);
+    // The players' modes are global and apply to a machine with no block of
+    // its own too, so the Joyport is settled above the guard below.
+    MigrateJoyportAtLaunch (uiPrefs);
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 

@@ -2,7 +2,7 @@
 
 #include "resource.h"
 #include "Controllers/ControllerTokens.h"
-#include "Controllers/JoyportLabels.h"
+#include "Controllers/PlayerModeRules.h"
 #include "Ui/Chrome/EmulatorCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -113,6 +113,19 @@ namespace ControllerTests
         }
 
 
+        static std::vector<std::wstring> GetModeLabels (const InputModeRules::PlayerRow & row)
+        {
+            std::vector<std::wstring>  labels;
+
+            for (const InputModeRules::PlayerModeChoice & choice : row.modes)
+            {
+                labels.push_back (choice.label);
+            }
+
+            return labels;
+        }
+
+
         static size_t CountChecked (const InputModeRules::PlayerRow & row)
         {
             size_t  checked = 0;
@@ -170,68 +183,30 @@ namespace ControllerTests
         }
 
 
-        //  The labels are supplied, so another mode can put its own words on
-        //  the players and on Disabled.
-        TEST_METHOD (Rows_TakeTheirWordsFromTheLabelsGiven)
-        {
-            InputModeRules::PickerSource  source = MakeSource();
-            InputModeRules::Picker        picker;
-
-            source.labels.players       = { L"Left", L"Right" };
-            source.labels.disabled      = L"Off";
-            source.labels.disabledInRow = L"off";
-            source.entries[1]           = MakeEntry (PlayerEntryKind::Disabled);
-            picker                      = InputModeRules::BuildPicker (source);
-
-            Assert::AreEqual (std::wstring (L"Left: Automatic"), picker.rows[0].label);
-            Assert::AreEqual (std::wstring (L"Right: off"),      picker.rows[1].label, L"Player 2's Disabled entry after the row's colon");
-            Assert::AreEqual (std::wstring (L"Off"),             picker.rows[1].choices.back().label, L"and in the submenu");
-        }
-
-
-        //  With the Joyport in effect the rows are the jacks: Joyport right on
-        //  Automatic with no controller playing is the same as the left, and
-        //  Player 2's Disabled reads Same as left. Off, the players keep their
-        //  own words.
-        TEST_METHOD (Rows_WithTheJoyportAreTheJacks)
+        //  The rows are the players whatever their modes: a player in a
+        //  Joyport jack is not relabeled as the jack, and Player 2's Disabled
+        //  keeps its word. The mode is in the submenu.
+        TEST_METHOD (Rows_InTheJoyportAreStillThePlayers)
         {
             InputModeRules::PickerSource  source = MakeSource();
             InputModeRules::Picker        picker;
 
 
 
-            source.labels = JoyportLabels::GetPickerLabels (true);
-            picker        = InputModeRules::BuildPicker (source);
+            source.hasJoyport      = true;
+            source.entries[0].mode = PlayerMode::JoyportLeft;
+            source.entries[1].mode = PlayerMode::SameAsPlayer1;
+            source.slots[0]        = MakeSlot (PlayerSlotState::Playing, Stick (source));
+            picker                 = InputModeRules::BuildPicker (source);
 
-            Assert::AreEqual (std::wstring (L"Joyport left: Automatic"),     picker.rows[0].label);
-            Assert::AreEqual (std::wstring (L"Joyport right: same as left"), picker.rows[1].label, L"Automatic with no controller");
-            Assert::AreEqual (std::wstring (L"Same as left"),                picker.rows[1].choices.back().label, L"Player 2's Disabled entry");
-
-            source.slots[1] = MakeSlot (PlayerSlotState::Waiting, Stick (source));
-            picker          = InputModeRules::BuildPicker (source);
-
-            Assert::AreEqual (std::wstring (L"Joyport right: same as left"), picker.rows[1].label, L"a holder that has not given input plays nothing yet");
-
-            source.slots[1] = MakeSlot (PlayerSlotState::Playing, Stick (source));
-            picker          = InputModeRules::BuildPicker (source);
-
-            Assert::AreEqual (std::wstring (L"Joyport right: VKBsim Gladiator"), picker.rows[1].label, L"a controller playing");
+            Assert::AreEqual (std::wstring (L"Player 1: VKBsim Gladiator"), picker.rows[0].label);
+            Assert::AreEqual (std::wstring (L"Player 2: Automatic"),        picker.rows[1].label);
+            Assert::AreEqual (std::wstring (L"Disabled"),                   picker.rows[1].choices.back().label);
 
             source.entries[1] = MakeEntry (PlayerEntryKind::Disabled);
-            source.slots[1]   = PlayerSlot();
             picker            = InputModeRules::BuildPicker (source);
 
-            Assert::AreEqual (std::wstring (L"Joyport right: same as left"), picker.rows[1].label, L"Disabled is lower case after the colon");
-
-            source.entries[1] = PlayerEntry();
-
-            source.labels = JoyportLabels::GetPickerLabels (false);
-            source.slots  = PlayerSlots();
-            picker        = InputModeRules::BuildPicker (source);
-
-            Assert::AreEqual (std::wstring (L"Player 1: Automatic"), picker.rows[0].label);
-            Assert::AreEqual (std::wstring (L"Player 2: Automatic"), picker.rows[1].label);
-            Assert::AreEqual (std::wstring (L"Disabled"),            picker.rows[1].choices.back().label);
+            Assert::AreEqual (std::wstring (L"Player 2: Disabled"), picker.rows[1].label);
         }
 
 
@@ -258,10 +233,12 @@ namespace ControllerTests
         }
 
 
-        //  Each submenu offers the player's mode, Joystick then Paddle, with
-        //  the player's own checked. With the Joyport in effect both players
-        //  are Atari sticks, so Joystick is checked and neither can be chosen.
-        TEST_METHOD (Modes_EachSubmenuOffersJoystickAndPaddle)
+        //  Each submenu offers the player's modes with the player's own
+        //  checked: Joystick then Paddle on a machine without a Joyport, and
+        //  Same as Player 1 ahead of them for Player 2. With a Joyport the
+        //  two jacks come between, and a jack the other player holds cannot
+        //  be chosen.
+        TEST_METHOD (Modes_EachSubmenuOffersThePlayersModes)
         {
             InputModeRules::PickerSource  source = MakeSource();
             InputModeRules::Picker        picker;
@@ -276,20 +253,24 @@ namespace ControllerTests
             {
                 const std::vector<InputModeRules::PlayerModeChoice> &  modes = picker.rows[player].modes;
 
-                Assert::AreEqual (size_t (2), modes.size());
-                Assert::AreEqual (std::wstring (L"Joystick"), modes[0].label);
-                Assert::AreEqual (std::wstring (L"Paddle"),   modes[1].label);
-                Assert::IsTrue   (modes[0].isEnabled && modes[1].isEnabled);
+                Assert::AreEqual (size_t (2 + player), modes.size());
+                Assert::AreEqual (std::wstring (L"Joystick"), modes[player].label);
+                Assert::AreEqual (std::wstring (L"Paddle"),   modes.back().label);
+                Assert::IsTrue   (modes[player].isEnabled && modes.back().isEnabled);
             }
 
+            Assert::AreEqual (std::wstring (L"Same as Player 1"), picker.rows[1].modes[0].label);
             Assert::IsTrue (picker.rows[0].modes[0].isChecked && !picker.rows[0].modes[1].isChecked, L"Player 1 in Joystick mode");
-            Assert::IsTrue (!picker.rows[1].modes[0].isChecked && picker.rows[1].modes[1].isChecked, L"Player 2 in Paddle mode");
+            Assert::IsTrue (!picker.rows[1].modes[1].isChecked && picker.rows[1].modes[2].isChecked, L"Player 2 in Paddle mode");
 
-            source.isJoyportInEffect = true;
-            picker                   = InputModeRules::BuildPicker (source);
+            source.hasJoyport      = true;
+            source.entries[1].mode = PlayerMode::JoyportLeft;
+            picker                 = InputModeRules::BuildPicker (source);
 
-            Assert::IsTrue (picker.rows[1].modes[0].isChecked && !picker.rows[1].modes[1].isChecked, L"with the Joyport, both are joysticks");
-            Assert::IsFalse (picker.rows[1].modes[0].isEnabled || picker.rows[1].modes[1].isEnabled,  L"and neither mode can be chosen");
+            Assert::IsTrue (GetModeLabels (picker.rows[0]) == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle" });
+            Assert::IsFalse (picker.rows[0].modes[1].isEnabled, L"Player 2 holds the left jack");
+            Assert::IsTrue  (picker.rows[0].modes[2].isEnabled, L"the right jack is free");
+            Assert::IsTrue  (picker.rows[1].modes[2].isChecked, L"Player 2 in the left jack");
         }
 
 
@@ -317,10 +298,11 @@ namespace ControllerTests
 
             Assert::AreEqual (std::wstring (L"Player 1: Mouse"), picker.rows[0].label, L"the mouse is a paddle already");
 
-            source.isJoyportInEffect = true;
-            picker                   = InputModeRules::BuildPicker (source);
+            source.hasJoyport      = true;
+            source.entries[1].mode = PlayerMode::JoyportRight;
+            picker                 = InputModeRules::BuildPicker (source);
 
-            Assert::AreEqual (std::wstring (L"Player 2: Automatic"), picker.rows[1].label, L"with the Joyport both are joysticks");
+            Assert::AreEqual (std::wstring (L"Player 2: Automatic"), picker.rows[1].label, L"a jack takes no mark");
         }
 
 
@@ -636,20 +618,21 @@ namespace ControllerTests
             commands.SetPicker (MakeTwoPlaying (source));
             children = commands.GetPlayerItems()[1].children;
 
-            Assert::AreEqual (size_t (4 + 1 + 2 + 1 + 1 + 3 + 1), children.size(),
-                              L"four entries, a separator, two modes, a separator, a header, three profiles, New...");
+            Assert::AreEqual (size_t (4 + 1 + 3 + 1 + 1 + 3 + 1), children.size(),
+                              L"four entries, a separator, three modes, a separator, a header, three profiles, New...");
             Assert::IsTrue   (children[2].command->IsChecked(), L"Player 2's pick");
             Assert::IsTrue   (children[4].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::AreEqual (std::wstring (L"Joystick"),         children[5].command->label);
-            Assert::AreEqual (std::wstring (L"Paddle"),           children[6].command->label);
-            Assert::IsTrue   (children[5].command->IsChecked(),   L"the player's mode");
-            Assert::IsFalse  (children[6].command->IsChecked());
-            Assert::IsTrue   (children[7].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::IsTrue   (children[8].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), children[8].command->label);
-            Assert::AreEqual (std::wstring (L"Default"),          children[9].command->label);
-            Assert::IsTrue   (children[9].command->IsChecked(),   L"with nothing chosen, the built-in profile");
-            Assert::IsFalse  (children[10].command->IsChecked());
+            Assert::AreEqual (std::wstring (L"Same as Player 1"), children[5].command->label);
+            Assert::AreEqual (std::wstring (L"Joystick"),         children[6].command->label);
+            Assert::AreEqual (std::wstring (L"Paddle"),           children[7].command->label);
+            Assert::IsTrue   (children[6].command->IsChecked(),   L"the player's mode");
+            Assert::IsFalse  (children[5].command->IsChecked() || children[7].command->IsChecked());
+            Assert::IsTrue   (children[8].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::IsTrue   (children[9].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), children[9].command->label);
+            Assert::AreEqual (std::wstring (L"Default"),          children[10].command->label);
+            Assert::IsTrue   (children[10].command->IsChecked(),  L"with nothing chosen, the built-in profile");
+            Assert::IsFalse  (children[11].command->IsChecked());
             Assert::AreEqual (std::wstring (L"New..."),           children.back().command->label);
         }
 
@@ -678,10 +661,16 @@ namespace ControllerTests
             Assert::IsTrue   (mode == PlayerMode::Paddle);
             Assert::IsTrue   (children[kPaddleRow].command->IsEnabled());
 
-            source.isJoyportInEffect = true;
+            // With a Joyport the jacks follow Joystick, and the one Player 2
+            // holds is listed and cannot be chosen.
+            source.hasJoyport      = true;
+            source.entries[1].mode = PlayerMode::JoyportLeft;
             commands.SetPicker (InputModeRules::BuildPicker (source));
+            children = commands.GetPlayerItems()[0].children;
 
-            Assert::IsFalse (commands.GetPlayerItems()[0].children[kPaddleRow].command->IsEnabled(), L"not with the Joyport in effect");
+            Assert::AreEqual (std::wstring (L"Joyport left (Atari)"), children[kPaddleRow].command->label);
+            Assert::IsFalse  (children[kPaddleRow].command->IsEnabled(), L"Player 2's jack");
+            Assert::IsTrue   (children[kPaddleRow + 1].command->IsEnabled(), L"and the other one can be chosen");
         }
 
 
@@ -720,12 +709,12 @@ namespace ControllerTests
             commands.SetPicker (MakeTwoPlaying (source));
             children = commands.GetPlayerItems()[1].children;
 
-            children[10].command->dispatch();
+            children[11].command->dispatch();
 
             Assert::IsTrue   (unit == Stick (source), L"for the controller the section is under");
             Assert::AreEqual (std::string ("Paddles"), name);
 
-            children[9].command->dispatch();
+            children[10].command->dispatch();
 
             Assert::AreEqual (std::string(), name, L"the built-in profile is picked as the empty name");
         }
@@ -858,67 +847,10 @@ namespace ControllerTests
         }
 
 
-        //  It is a device on the game port, not one more thing that drives
-        //  it, so it has a group of its own after the player rows.
-        TEST_METHOD (Joyport_HasAGroupOfItsOwnAfterThePlayerRows)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
-            size_t                          row = 0;
-
-            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
-            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
-
-            items = commands.GetPaddlePickerItems();
-            row   = FindRow (items, L"Joyport (Atari mode)");
-
-            Assert::AreEqual (size_t (3), row, L"after the two player rows and a separator");
-            Assert::IsTrue   (items[2].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::IsTrue   (items[row + 1].kind == DxuiPopupMenuItem::Kind::Separator, L"and one below it, above Controller settings");
-        }
-
-
-        TEST_METHOD (Joyport_IsCheckedExactlyWhileAttached)
-        {
-            EmulatorCommands                commands;
-            bool                            attached = false;
-            std::vector<DxuiPopupMenuItem>  items;
-            size_t                          row      = 0;
-
-            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
-            commands.SetJoyportFns ([&attached] { return attached; }, [] { return true; }, [] {});
-
-            items = commands.GetPaddlePickerItems();
-            row   = FindRow (items, L"Joyport (Atari mode)");
-
-            Assert::IsFalse (items[row].command->IsChecked(), L"detached");
-
-            //  The check is read when the menu draws, so it follows the
-            //  attach state however it was changed, with no rebuild.
-            attached = true;
-            Assert::IsTrue (items[row].command->IsChecked(), L"attached");
-        }
-
-
-        TEST_METHOD (Joyport_PickingTheRowTogglesOnce)
-        {
-            EmulatorCommands                commands;
-            int                             toggles = 0;
-            std::vector<DxuiPopupMenuItem>  items;
-
-            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
-            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [&toggles] { toggles++; });
-
-            items = commands.GetPaddlePickerItems();
-            items[FindRow (items, L"Joyport (Atari mode)")].command->dispatch();
-
-            Assert::AreEqual (1, toggles);
-        }
-
-
-        //  The //c has no row, even with the setting on: it reads the Joyport
-        //  as off, and the row's check would show a setting it ignores.
-        TEST_METHOD (Joyport_IsLeftOutWhereItCannotBeAttached)
+        //  The Joyport has no row of its own: it is on while a player's mode,
+        //  in that player's submenu, puts the player in one of its jacks. The
+        //  picker lists the player rows and Controller settings.
+        TEST_METHOD (Picker_HasNoJoyportRow)
         {
             EmulatorCommands                commands;
             std::vector<DxuiPopupMenuItem>  items;
@@ -926,74 +858,83 @@ namespace ControllerTests
 
 
             commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
-            commands.SetJoyportFns ([] { return true; }, [] { return false; }, [] {});
-
             items = commands.GetPaddlePickerItems();
 
-            Assert::AreEqual (items.size(), FindRow (items, L"Joyport (Atari mode)"), L"the //c has no row");
+            Assert::AreEqual (items.size(), FindRow (items, L"Joyport (Atari mode)"), L"no Joyport row");
+            Assert::IsTrue   (items[2].kind == DxuiPopupMenuItem::Kind::Separator, L"the player rows, then a separator");
+            Assert::AreEqual (size_t (4), items.size(), L"and Controller settings");
         }
 
 
-        //  The row is the unit's own Apple / Atari switch, and its label is the
-        //  position it turns on.
-        TEST_METHOD (Joyport_RowReadsJoyportAtariMode)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
-            size_t                          row = 0;
-
-
-
-            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
-            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
-
-            items = commands.GetPaddlePickerItems();
-            row   = FindRow (items, L"Joyport (Atari mode)");
-
-            Assert::IsTrue   (row < items.size(), L"the row is listed");
-            Assert::AreEqual (std::wstring (L"Joyport (Atari mode)"), items[row].command->label);
-        }
-
-
-        //  An Atari stick has no paddle for the mouse to stand in for, so
-        //  Player 1's submenu leaves the mouse out while the Joyport is in
-        //  effect, and lists it again once it is not.
-        TEST_METHOD (MousePaddle_IsLeftOutWhileTheJoyportIsInEffect)
+        //  The mouse is a paddle, so Player 1's submenu lists it only in
+        //  Paddle mode: not in a Joyport jack, where the keys are offered.
+        TEST_METHOD (MousePaddle_IsOfferedOnlyInPaddleMode)
         {
             InputModeRules::PickerSource  source = MakeSource();
 
 
 
-            source.entries[0].mode   = PlayerMode::Paddle;
-            source.isJoyportInEffect = true;
+            source.hasJoyport      = true;
+            source.entries[0].mode = PlayerMode::JoyportLeft;
 
             Assert::IsTrue (GetChoiceLabels (InputModeRules::BuildPicker (source).rows[0]) == std::vector<std::wstring> {
                                 L"Automatic", L"Xbox Controller (045e:0b13)", L"VKBsim Gladiator", L"Use keys as joystick" },
-                            L"no mouse while the Joyport is in effect, even left in Paddle mode, and the keys whatever the mode");
+                            L"in a jack, the keys and no mouse");
 
-            source.isJoyportInEffect = false;
+            source.entries[0].mode = PlayerMode::Paddle;
 
             Assert::IsTrue (GetChoiceLabels (InputModeRules::BuildPicker (source).rows[0]).back() == L"Use mouse as paddle",
-                            L"and the mouse again once it is not");
+                            L"and the mouse in Paddle mode");
         }
 
 
-        //  The mouse picked before the Joyport was turned on stays Player 1's
-        //  entry, driving nothing until it is turned off, so the submenu keeps
-        //  it listed and checked rather than showing no entry at all.
-        TEST_METHOD (MousePaddle_AlreadyPickedStaysCheckedWhileTheJoyportIsInEffect)
+        //  The mouse picked plays in Paddle mode, beside Player 2 in a jack
+        //  as anywhere, and stays listed and checked.
+        TEST_METHOD (MousePaddle_PickedStaysCheckedBesideTheJoyport)
         {
             InputModeRules::PickerSource  source = MakeSource();
             InputModeRules::Picker        picker;
 
 
 
-            source.isJoyportInEffect = true;
-            source.entries[0]        = MakeEntry (PlayerEntryKind::MousePaddle);
-            picker                   = InputModeRules::BuildPicker (source);
+            source.hasJoyport      = true;
+            source.entries         = PlayerSlotPolicy::NormalizeEntries ({ MakeEntry (PlayerEntryKind::MousePaddle), PlayerEntry() });
+            source.entries[1].mode = PlayerMode::JoyportRight;
+            picker                 = InputModeRules::BuildPicker (source);
 
             Assert::AreEqual (size_t (1), CountChecked (picker.rows[0]));
             Assert::IsTrue   (FindChecked (picker.rows[0])->entry.kind == PlayerEntryKind::MousePaddle);
         }
-    };
+
+
+        //  The face while Player 1's slot is held ends in "(disconnected) +1",
+        //  and the command's fit keeps that whole suffix when the toolbar
+        //  cuts the description in the middle, not only its " +1".
+        TEST_METHOD (PickerCommand_KeepsTheDisconnectedSuffixWhole)
+        {
+            EmulatorCommands                    commands;
+            std::shared_ptr<const DxuiCommand>  paddle = commands.Find (EmulatorCommands::kIdPaddle);
+            InputModeRules::PickerSource        source = MakeSource();
+            ControllerDeviceInfo                gone   = MakeStick ("{GONE}", L"Gone Stick (231d:0121)");
+            InputModeRules::Picker              picker;
+            bool                                isKept = false;
+
+
+
+            source.entries[1]                                                   = MakeEntry (PlayerEntryKind::Controller, Pad (source));
+            source.slots[0]                                                     = MakeSlot (PlayerSlotState::Held, gone.unit);
+            source.slots[1]                                                     = MakeSlot (PlayerSlotState::Playing, Pad (source));
+            source.knownDescriptions[ControllerTokens::UnitToToken (gone.unit)] = gone.description;
+            picker                                                              = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Gone Stick (disconnected) +1"), picker.label);
+            Assert::IsTrue   (paddle != nullptr && paddle->labelFit.has_value());
+
+            for (const std::wstring & suffix : paddle->labelFit->keptSuffixes)
+            {
+                isKept = isKept || (suffix == L" (disconnected) +1" && picker.label.ends_with (suffix));
+            }
+
+            Assert::IsTrue (isKept, L"the whole suffix is kept");
+        }    };
 }

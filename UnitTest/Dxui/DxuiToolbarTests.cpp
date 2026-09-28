@@ -373,6 +373,35 @@ public:
     }
 
 
+    //
+    //  A label that can end in more than one marker keeps the longest one it
+    //  ends with whole: "(disconnected) +1" is not cut down to "+1".
+    //
+    TEST_METHOD (LabelFit_KeepsTheLongestKeptSuffixWhole)
+    {
+        Fixture             f;
+        const std::wstring  suffix = L" (disconnected) +1";
+        bool                isKept = false;
+
+
+        f.alpha->label    = L"Alpha Beta Gamma Delta" + suffix;
+        f.alpha->labelFit = DxuiLabelFit { 210.0f, DxuiElide::Middle, L" +1", { suffix } };
+        f.Build();
+        f.LayoutAt (FullWidthWithAlpha (f, f.alpha->label.c_str()));
+        f.bar.Paint (f.painter, f.text, f.theme);
+
+        for (const RecordedTextCall & c : f.text.Calls())
+        {
+            size_t  ellipsis = c.text.find (L'\x2026');
+
+            isKept = isKept || (c.kind == RecordedTextKind::DrawString && ellipsis != std::wstring::npos &&
+                                c.text.ends_with (suffix) && ellipsis < c.text.size() - suffix.size());
+        }
+
+        Assert::IsTrue (isKept, L"the description loses its middle and the whole suffix stays");
+    }
+
+
     TEST_METHOD (LabelFit_AbsentMeasuresAndPaintsTheWholeLabel)
     {
         Fixture          f;

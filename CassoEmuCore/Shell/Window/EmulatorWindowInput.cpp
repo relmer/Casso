@@ -8,8 +8,7 @@
 #include "Controllers/InputModeRules.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
-#include "Controllers/JoyportLabels.h"
-#include "Controllers/JoyportSetting.h"
+#include "Controllers/PlayerModeRules.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -2483,6 +2482,14 @@ void EmulatorShell::UpdateJoystickAxesFromKeys()
 
     contribution.paddle[0] = x;
     contribution.paddle[1] = y;
+
+    // Player 1's keys in a jack close its switches, on both jacks until the
+    // controllers place the players.
+    if (IsPlayerOneOnJoyport())
+    {
+        contribution.keyJacks.set();
+    }
+
     m_gamePortMixer.Submit (GamePortSource::ArrowKeys, contribution);
 }
 
@@ -2701,67 +2708,30 @@ void EmulatorShell::ReleaseArrowKeySources()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetGamePortAdapter
+//  SyncJoyport
 //
-//  The picker row and the Controllers page's Apple / Atari switch: turns the
-//  Joyport setting to Atari mode or Apple mode now, for every machine, and
-//  saves it with the global prefs. On the running machine it takes effect on
-//  the next button read, with no reset, where it is in effect: the //c reads
-//  it as off and keeps the setting for the next machine that can use it. The
-//  fire keys are resubmitted because the Alt keys drop out of them while the
-//  Joyport is in effect.
+//  UI thread, after the players' modes may have changed: the running
+//  machine's Joyport follows them on the next button read, with no reset.
+//  The keys are resubmitted, since Player 1's keys in a jack close its
+//  switches rather than drive the paddle inputs, and the Alt keys drop out
+//  of the fire keys while the Joyport is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
+void EmulatorShell::SyncJoyport()
 {
-    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock());
-    SiriusJoyport                      * joyport    = m_machine.GetJoyport();
-    bool                                 isInEffect = JoyportSetting::IsInEffect (adapter, joyport != nullptr);
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
 
 
 
-    m_gamePortAdapter = adapter;
-
-    if (joyport != nullptr)
-    {
-        joyport->SetAttached (isInEffect);
-    }
-
+    ApplyJoyportToMachine();
     lifetime.unlock();
-
-    if (m_controllerService)
-    {
-        m_controllerService->SetJoyportAttached (isInEffect);
-    }
-
-    m_globalPrefs.gamePortAdapter = ControllerTokens::GamePortAdapterToToken (adapter);
-    SaveGlobalPrefs();
 
     if (m_arrowsJoystick)
     {
+        UpdateJoystickAxesFromKeys();
         UpdateJoystickButtonsFromKeys();
     }
-
-    SyncSelectorState();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetGamePortAdapter
-//
-//  The setting, not what the running machine reads: on the //c the two
-//  differ. IsJoyportInEffect answers the second.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-GamePortAdapter EmulatorShell::GetGamePortAdapter() const
-{
-    return m_gamePortAdapter;
 }
 
 
@@ -2772,15 +2742,48 @@ GamePortAdapter EmulatorShell::GetGamePortAdapter() const
 //
 //  IsJoyportInEffect
 //
-//  Whether the running machine reads the Joyport. A machine builds a Joyport
-//  exactly when it has the annunciators to drive one, so the machine's
-//  Joyport answers whether it has them.
+//  Whether the running machine reads the Joyport: a player is in one of its
+//  jacks, on a machine that has one. A machine builds a Joyport exactly when
+//  it has the annunciators to drive one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::IsJoyportInEffect() const
 {
-    return JoyportSetting::IsInEffect (m_gamePortAdapter, m_machine.GetJoyport() != nullptr);
+    PlayerEntries  entries;
+
+
+
+    if (m_controllerService != nullptr)
+    {
+        entries = m_controllerService->GetPlayerEntries();
+    }
+
+    return PlayerModeRules::IsJoyportOn (entries, m_machine.GetJoyport() != nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPlayerOneOnJoyport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsPlayerOneOnJoyport() const
+{
+    PlayerEntries  entries;
+
+
+
+    if (m_controllerService != nullptr)
+    {
+        entries = m_controllerService->GetPlayerEntries();
+    }
+
+    return PlayerModeRules::IsOnJoyport (entries, 0, m_machine.GetJoyport() != nullptr);
 }
 
 
@@ -2940,6 +2943,7 @@ void EmulatorShell::PickPlayer (size_t player, PlayerEntry entry)
         SetPointerMapping (InputMappingMode::Off);
     }
 
+    SyncJoyport();
     SyncGamePortAxisOwner();
     SyncInputModeUi();
 }
@@ -2955,7 +2959,8 @@ void EmulatorShell::PickPlayer (size_t player, PlayerEntry entry)
 //  UI thread. The mode is set FIRST, and the service returns Player 1 to
 //  Automatic when the new mode cannot have the keys or the mouse; turning
 //  those off afterwards then finds Player 1 already on Automatic and picks
-//  nothing on the way. The entries are saved with the global prefs.
+//  nothing on the way. The machine's Joyport follows the new modes, and the
+//  entries are saved with the global prefs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2977,11 +2982,12 @@ void EmulatorShell::SetPlayerMode (size_t player, PlayerMode mode)
         SetArrowsJoystick (false);
     }
 
-    if (isPlayerOne && mode == PlayerMode::Joystick && m_pointerMode == InputMappingMode::Paddle)
+    if (isPlayerOne && mode != PlayerMode::Paddle && m_pointerMode == InputMappingMode::Paddle)
     {
         SetPointerMapping (InputMappingMode::Off);
     }
 
+    SyncJoyport();
     SyncGamePortAxisOwner();
     SyncInputModeUi();
 }
@@ -3058,10 +3064,7 @@ void EmulatorShell::SyncPaddleSourceList()
     source.devices           = snapshot.devices;
     source.profiles          = GetPickerProfileChoices (snapshot);
     source.knownDescriptions = m_controllerDescriptions;
-    source.isJoyportInEffect = IsJoyportInEffect();
-
-    // While the Joyport is on the players are the jacks they drive.
-    source.labels            = JoyportLabels::GetPickerLabels (source.isJoyportInEffect);
+    source.hasJoyport        = IsJoyportOffered();
 
     m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
 
@@ -3092,8 +3095,9 @@ void EmulatorShell::SyncPaddleSourceList()
 //  GetPickerProfileChoices
 //
 //  Each attached controller's profiles of the kind it plays -- its player's
-//  mode, or Joyport while the Joyport is on -- that kind's built-in profile
-//  first, which a model with nothing saved still lists, and its active one.
+//  mode, either Joyport jack being the Joyport kind -- that kind's built-in
+//  profile first, which a model with nothing saved still lists, and its
+//  active one.
 //  By unit token, since two pads of one model can play different profiles.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3338,10 +3342,12 @@ std::wstring EmulatorShell::GetStandInBannerText() const
 //  SyncGamePortAxisOwner
 //
 //  Who owns each axis: Player 1's keys or mouse own PDL0 and PDL1 while one of
-//  them is picked, and the controller source owns the rest, and all four
-//  otherwise. The rule itself is in InputModeRules so it can be asserted
-//  without a machine. Which controller drives which axis is settled inside the
-//  controller source, which leaves an axis it does not drive at center.
+//  them is picked -- the keys only outside the Joyport's jacks, and the mouse
+//  PDL0 alone while Player 2 plays -- and the controller source owns the rest,
+//  and all four otherwise. The rule itself is in InputModeRules so it can be
+//  asserted without a machine. Which controller drives which axis is settled
+//  inside the controller source, which leaves an axis it does not drive at
+//  center.
 //
 //  THE KEYS AND THE MOUSE ARE PLAYER 1'S ENTRY, so the players follow them:
 //  a controller then plays as Player 2 beside them rather than as Player 1.
@@ -3350,11 +3356,12 @@ std::wstring EmulatorShell::GetStandInBannerText() const
 
 void EmulatorShell::SyncGamePortAxisOwner()
 {
-    InputModeRules::State       state;
-    InputModeRules::AxisOwners  owners;
-    PlayerEntry                 playerOne;
-    PlayerEntryKind             wanted    = PlayerEntryKind::Automatic;
-    size_t                      axis      = 0;
+    InputModeRules::State             state;
+    InputModeRules::AxisOwners        owners;
+    ControllerInputService::Snapshot  snapshot;
+    PlayerEntry                       playerOne;
+    PlayerEntryKind                   wanted    = PlayerEntryKind::Automatic;
+    size_t                            axis      = 0;
 
 
 
@@ -3363,8 +3370,12 @@ void EmulatorShell::SyncGamePortAxisOwner()
 
     if (m_controllerService != nullptr)
     {
-        playerOne = m_controllerService->GetPlayerEntries()[0];
+        snapshot  = m_controllerService->GetSnapshot();
+        playerOne = snapshot.entries[0];
         wanted    = playerOne.kind;
+
+        state.isKeysOnJoyport = PlayerModeRules::IsOnJoyport (snapshot.entries, 0, m_machine.GetJoyport() != nullptr);
+        state.isSecondPlaying = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[1]);
 
         if (state.mousePaddle)
         {

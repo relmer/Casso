@@ -439,8 +439,6 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { route = WindowCommandRoute::ExternalDrive; }
     else if (id == IDM_MOUSE_CONNECT ||
              id == IDM_MOUSE_DISCONNECT)                                   { route = WindowCommandRoute::MouseConnect; }
-    else if (id == IDM_GAMEPORT_ADAPTER_NONE ||
-             id == IDM_GAMEPORT_ADAPTER_JOYPORT)                           { route = WindowCommandRoute::GamePort; }
 
     return route;
 }
@@ -480,7 +478,6 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
         case WindowCommandRoute::Help:                OnHelpCommand (id);          break;
         case WindowCommandRoute::ExternalDrive:       OnExternalDriveCommand (id); break;
         case WindowCommandRoute::MouseConnect:        OnMouseConnectCommand (id);  break;
-        case WindowCommandRoute::GamePort:            OnGamePortCommand (id);      break;
         case WindowCommandRoute::None:                                             break;
     }
 
@@ -535,26 +532,6 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
             m_shell.SyncSelectorState();
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnGamePortCommand
-//
-//  The Controllers page's Apple / Atari switch: Atari mode turns the Joyport
-//  on and Apple mode turns it off, for every machine that can take one, at
-//  once and with no reset, and saves the setting.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WindowCommandManager::OnGamePortCommand (int id)
-{
-    m_shell.SetGamePortAdapter (id == IDM_GAMEPORT_ADAPTER_JOYPORT ? GamePortAdapter::SiriusJoyport
-                                                                   : GamePortAdapter::None);
 }
 
 

@@ -219,8 +219,10 @@ EmulatorCommands::EmulatorCommands()
             paddle->labelText = [this] () { return GetPickerLabel(); };
 
             // Past the cap the description loses its middle, and the mark for
-            // a second player stays whole.
-            paddle->labelFit  = DxuiLabelFit { kPickerLabelMaxDip, DxuiElide::Middle, InputModeRules::kpszSecondPlayerSuffix };
+            // a second player stays whole, with the disconnected mark before
+            // it while Player 1's slot is held.
+            paddle->labelFit  = DxuiLabelFit { kPickerLabelMaxDip, DxuiElide::Middle, InputModeRules::kpszSecondPlayerSuffix,
+                                               { std::wstring (InputModeRules::kpszDisconnected) + InputModeRules::kpszSecondPlayerSuffix } };
 
             // A labeled slot shows only an explicit tip, so the word for what
             // the picker is for moves there once the face wears the answer.
@@ -911,33 +913,6 @@ void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorCommands::SetJoyportFns
-//
-//  The row is the Joyport's Apple / Atari switch, labeled for the position
-//  it turns on. Its check is asked each time the menu draws, so it shows
-//  whether the Joyport is in effect however it came to be -- from this row
-//  or from the Controllers page.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorCommands::SetJoyportFns (std::function<bool()> isOn,
-                                      std::function<bool()> isOffered,
-                                      std::function<void()> toggle)
-{
-    m_joyportRow = std::make_shared<DxuiCommand>();
-
-    m_joyportRow->label     = L"Joyport (Atari mode)";
-    m_joyportRow->isChecked = std::move (isOn);
-    m_joyportRow->dispatch  = std::move (toggle);
-    m_isJoyportOffered      = std::move (isOffered);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  EmulatorCommands::GetPickerLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1008,28 +983,18 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPlayerItems() const
 //
 //  What the paddle picker lists: the player rows, then Controller settings...
 //  below a separator, so the settings for the controllers in play are one
-//  click from where they were chosen.
-//
-//  The Joyport row has a group of its own after the player rows, on a
-//  machine that can take one. It is not something that drives the game port
-//  but the mode the game port is in, whichever player drives, so beside the
-//  players it would read as one more of them.
+//  click from where they were chosen. The Joyport has no row of its own: it
+//  is on while a player's mode, in that player's submenu, puts the player in
+//  one of its jacks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
 {
-    std::vector<DxuiPopupMenuItem>      items     = GetPlayerItems();
-    std::shared_ptr<const DxuiCommand>  settings  = Find (IDM_VIEW_CONTROLLER_SETTINGS);
-    bool                                isJoyport = m_joyportRow != nullptr && m_isJoyportOffered && m_isJoyportOffered();
+    std::vector<DxuiPopupMenuItem>      items    = GetPlayerItems();
+    std::shared_ptr<const DxuiCommand>  settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
 
 
-
-    if (isJoyport)
-    {
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        items.push_back (DxuiPopupMenuItem::ForCommand (m_joyportRow));
-    }
 
     if (settings != nullptr)
     {

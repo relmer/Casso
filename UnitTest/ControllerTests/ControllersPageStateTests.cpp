@@ -79,6 +79,23 @@ namespace ControllerTests
         }
 
 
+        //  The controller in Editing as Player 1, alone, in the Joyport's left
+        //  jack on a machine that has one, so the page lists and edits
+        //  Joyport profiles; or back in Joystick mode.
+        static void SetJoyportPlayer (ControllersPageState & page, bool isInJoyport)
+        {
+            PlayerEntries  entries;
+            PlayerSlots    slots;
+
+            entries[0].mode = isInJoyport ? PlayerMode::JoyportLeft : PlayerMode::Joystick;
+            entries[1].mode = PlayerMode::SameAsPlayer1;
+            slots[0].state  = PlayerSlotState::Playing;
+            slots[0].holder = page.GetControllers()[page.GetSelectedIndex().value()].unit;
+            page.SetJoyportAvailable (true);
+            page.SetPlayers (entries, slots, GamePortContribution::kAxisCount);
+        }
+
+
         TEST_METHOD (Load_OpensOnTheMachinesSelectedController)
         {
             ControllersPageState  page;
@@ -102,14 +119,6 @@ namespace ControllerTests
             Assert::IsTrue (page.GetSelectedIndex() == std::optional<size_t> (0), L"selected controller not attached");
         }
 
-
-        //  The Joyport section labels both positions of the unit's Apple /
-        //  Atari switch by the end of the unit the knob points to.
-        TEST_METHOD (JoyportPositionLabel_GivesTheEndOfTheUnit)
-        {
-            Assert::AreEqual (std::wstring (L"Atari (front)"), ControllersPageState::GetJoyportPositionLabel (true));
-            Assert::AreEqual (std::wstring (L"Apple (rear)"),  ControllersPageState::GetJoyportPositionLabel (false));
-        }
 
 
         //  How the page is opened on one controller: New... in a player's
@@ -564,7 +573,7 @@ namespace ControllerTests
         }
 
 
-        //  With the Joyport attached, a controller with no profile chosen edits
+        //  For a player in a jack, a controller with no profile chosen edits
         //  the Joyport profile. Choosing it records no choice, and the Default,
         //  a normal-mode profile, cannot be chosen. Reset puts the Joyport
         //  profile back to its own mapping, and it can be neither renamed nor
@@ -575,8 +584,8 @@ namespace ControllerTests
             ControllerModelKey      model    = MakeStick().unit.model;
             std::vector<ControlId>  controls = MakeStick().controls;
 
-            page.SetJoyportInEffect (true);
             page.Load ({ MakeStick() }, {}, {}, true);
+            SetJoyportPlayer (page, true);
 
             Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName());
             Assert::IsTrue   (page.GetMapping() == DefaultMapping::MakeJoyport (model, ControllerFormFactor::Gamepad, controls));
@@ -590,7 +599,7 @@ namespace ControllerTests
             Assert::IsTrue   (page.DeleteProfile() == ProfileEditResult::IsBuiltInProfile);
 
             page.SelectProfile ("Default");
-            Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"the Default is not chosen with the Joyport on");
+            Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"the Default is not chosen in a jack");
             Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName());
 
             page.SelectProfile ("Joyport");
@@ -631,10 +640,10 @@ namespace ControllerTests
             joystick.controls   = gamepad.controls;
             joystick.formFactor = ControllerFormFactor::Joystick;
 
-            gamepadPage.SetJoyportInEffect (true);
             gamepadPage.Load ({ gamepad }, {}, {}, true);
-            joystickPage.SetJoyportInEffect (true);
+            SetJoyportPlayer (gamepadPage, true);
             joystickPage.Load ({ joystick }, {}, {}, true);
+            SetJoyportPlayer (joystickPage, true);
 
             Assert::IsTrue   (gamepadPage.GetControllers()[0].formFactor == ControllerFormFactor::Gamepad, L"the entry keeps the device's form factor");
             Assert::IsTrue   (gamepadPage.GetMapping() == DefaultMapping::MakeJoyport (gamepad.unit.model, ControllerFormFactor::Gamepad, gamepad.controls));
@@ -650,8 +659,8 @@ namespace ControllerTests
 
             normal.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
 
-            joyport.SetJoyportInEffect (true);
             joyport.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+            SetJoyportPlayer (joyport, true);
 
             Assert::IsTrue (normal.GetProfileNames()  == std::vector<std::string> { "Default", "Swapped" }, L"normal mode: the Default first, and no Joyport-mode profile");
             Assert::IsTrue (joyport.GetProfileNames() == std::vector<std::string> { "Joyport", "Atari" },   L"Joyport mode: the Joyport profile first, and no normal-mode profile");
@@ -669,8 +678,8 @@ namespace ControllerTests
 
             normal.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
 
-            joyport.SetJoyportInEffect (true);
             joyport.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+            SetJoyportPlayer (joyport, true);
 
             Assert::IsTrue (normal.GetCopySourceNames()  == std::vector<std::string> { "Swapped" }, L"normal mode: its own profiles, less the unedited Default");
             Assert::IsTrue (joyport.GetCopySourceNames() == std::vector<std::string> { "Atari" },   L"Joyport mode: its own profiles, less the unedited Joyport profile");
@@ -704,8 +713,8 @@ namespace ControllerTests
             ControllersPageState  page;
             std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
 
-            page.SetJoyportInEffect (true);
             page.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+            SetJoyportPlayer (page, true);
 
             Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Swapped") == ProfileEditResult::NotFound, L"a normal-mode profile in Joyport mode");
             Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Default") == ProfileEditResult::NotFound, L"the Default in Joyport mode");
@@ -773,20 +782,20 @@ namespace ControllerTests
             page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
             page.BeginCapture (PaddleTarget::Pb0, Rest());
 
-            page.SetJoyportInEffect (true);
+            SetJoyportPlayer (page, true);
 
             Assert::IsTrue   (page.GetProfileNames() == std::vector<std::string> { "Joyport", "Atari" });
             Assert::AreEqual (std::string ("Atari"), page.GetEditedProfileName(), L"the controller's Joyport-mode choice");
             Assert::IsFalse  (page.IsCapturing(), L"a capture belongs to the profile it was started on");
 
-            page.SetJoyportInEffect (false);
+            SetJoyportPlayer (page, false);
 
             Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName(), L"and back to its normal-mode choice");
             Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(),             L"with its edit still pending");
             Assert::IsTrue   (page.HasUnappliedProfileEdits());
 
             page.SetActiveProfiles (ProfileMode::Joyport, {});
-            page.SetJoyportInEffect (true);
+            SetJoyportPlayer (page, true);
 
             Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName(), L"with no choice for the mode, its built-in profile");
         }
@@ -800,7 +809,7 @@ namespace ControllerTests
             std::string           token = ControllerTokens::UnitToToken (stick.unit);
 
             page.Load ({ stick }, MakeSavedWithBothModes(), {}, true, std::string(), stick.unit);
-            page.SetJoyportInEffect (true);
+            SetJoyportPlayer (page, true);
             page.SelectProfile ("Atari");
 
             Assert::IsTrue   (page.HasActiveProfileChanged (ProfileMode::Joyport));
@@ -824,8 +833,8 @@ namespace ControllerTests
             std::string             token    = ControllerTokens::ModelToToken (model);
             ControlMapping          joyport  = DefaultMapping::MakeJoyport (model, ControllerFormFactor::Gamepad, controls);
 
-            page.SetJoyportInEffect (true);
             page.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+            SetJoyportPlayer (page, true);
 
             Assert::IsTrue (page.CreateProfile ("From Joyport", ProfileSource::JoyportMapping, std::string()) == ProfileEditResult::Ok);
             Assert::IsTrue (page.GetMapping() == joyport);
@@ -855,13 +864,13 @@ namespace ControllerTests
             ControllersPageState  page;
             std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
 
-            page.SetJoyportInEffect (true);
             page.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
+            SetJoyportPlayer (page, true);
 
             Assert::IsTrue (page.CreateProfile ("A", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::NotFound, L"the default mapping in Joyport mode");
             Assert::IsTrue (page.CreateProfile ("B", ProfileSource::PaddleMapping,        std::string()) == ProfileEditResult::NotFound, L"Paddles in Joyport mode");
 
-            page.SetJoyportInEffect (false);
+            SetJoyportPlayer (page, false);
 
             Assert::IsTrue  (page.CreateProfile ("C", ProfileSource::JoyportMapping, std::string()) == ProfileEditResult::NotFound, L"the Joyport mapping for a Joystick profile");
             Assert::IsTrue  (page.CreateProfile ("D", ProfileSource::PaddleMapping,  std::string()) == ProfileEditResult::NotFound, L"the Paddles mapping for a Joystick profile");
@@ -1515,16 +1524,90 @@ namespace ControllerTests
             page.PickPlayerEntry (1, pick);
             Assert::IsTrue (page.GetPlayerEntries()[1].mode == PlayerMode::Paddle, L"a new entry keeps the mode");
 
-            page.SetJoyportInEffect (true);
-            page.SetPlayerMode (1, PlayerMode::Joystick);
-            Assert::AreEqual (size_t (1), sets.size(), L"no mode is set while the Joyport is in effect");
+            page.SetJoyportAvailable (true);
+            page.SetPlayerMode (0, PlayerMode::JoyportLeft);
+            page.SetPlayerMode (1, PlayerMode::JoyportLeft);
+            Assert::AreEqual (size_t (2), sets.size(),                             L"a jack the other player holds is not set");
+            Assert::IsTrue   (page.GetPlayerEntries()[1].mode == PlayerMode::Paddle, L"and the player keeps its mode");
+
+            page.SetPlayerMode (1, PlayerMode::JoyportRight);
+            Assert::AreEqual (size_t (3), sets.size(), L"the free jack is");
+        }
+
+
+        //  The mode drop-down lists the picker's modes: the jacks on a
+        //  machine that has a Joyport, Same as Player 1 first for Player 2,
+        //  and the jack the other player holds disabled.
+        TEST_METHOD (ModeChoices_AreThePickersWithTheTakenJackDisabled)
+        {
+            ControllersPageState                           page;
+            PlayerEntries                                  entries;
+            std::vector<InputModeRules::PlayerModeChoice>  two;
+
+
+
+            entries[0].mode = PlayerMode::JoyportLeft;
+            entries[1].mode = PlayerMode::SameAsPlayer1;
+
+            page.SetJoyportAvailable (true);
+            page.SetPlayers (entries, PlayerSlots(), 4);
+            two = page.GetModeChoices (1);
+
+            Assert::AreEqual (size_t (5), two.size());
+            Assert::IsTrue   (two[0].mode == PlayerMode::SameAsPlayer1 && two[0].isChecked);
+            Assert::IsTrue   (two[2].mode == PlayerMode::JoyportLeft && !two[2].isEnabled, L"Player 1 holds the left jack");
+            Assert::IsTrue   (two[3].mode == PlayerMode::JoyportRight && two[3].isEnabled);
+            Assert::AreEqual (size_t (4), page.GetModeChoices (0).size(), L"Player 1 has no Same as Player 1");
+
+            page.SetJoyportAvailable (false);
+            Assert::AreEqual (size_t (2), page.GetModeChoices (0).size(), L"no jacks on the //c");
+        }
+
+
+        //  A player beside the Joyport keeps its paddles and loses its
+        //  buttons: the page disables its button rows and shows a warning
+        //  under it that gives the player in the Joyport.
+        TEST_METHOD (ButtonsCut_BesideTheJoyport)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            PlayerEntries         entries;
+
+
+
+            entries[0].mode = PlayerMode::JoyportLeft;
+            entries[1].mode = PlayerMode::Paddle;
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetJoyportAvailable (true);
+            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
+
+            Assert::AreEqual (std::wstring(), page.GetButtonsCutNotice (0), L"the Joyport player fires through its jack");
+            Assert::AreEqual (std::wstring (L"This controller's buttons are disabled because Player 1 is using the Joyport."), page.GetButtonsCutNotice (1));
+
+            page.SelectController (1);
+            Assert::IsTrue  (page.AreEditedButtonsCut(), L"Player 2's controller in Editing");
+            Assert::IsFalse (page.IsEditedOnJoyport());
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pdl0), L"its paddle stays in play");
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pb0),  L"and its button row stays on the page, to be disabled");
+
+            page.SelectController (0);
+            Assert::IsFalse (page.AreEditedButtonsCut());
+            Assert::IsTrue  (page.IsEditedOnJoyport(), L"Player 1's controller in Editing is in a jack");
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pb0),  L"fire");
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pb1),  L"which reads no PB1");
+
+            entries[1].mode = PlayerMode::SameAsPlayer1;
+            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
+            Assert::AreEqual (std::wstring(), page.GetButtonsCutNotice (1), L"both in jacks, nothing cut");
         }
 
 
         //  The page lists and edits the profiles of the kind the controller
-        //  in Editing plays: its player's mode, or Joyport with the Joyport
-        //  on. Changing either swaps the list and the edited profile.
-        TEST_METHOD (ProfileKind_FollowsTheEditedPlayersModeAndTheJoyport)
+        //  in Editing plays: its player's mode, either Joyport jack being the
+        //  Joyport kind. Changing it swaps the list and the edited profile.
+        TEST_METHOD (ProfileKind_FollowsTheEditedPlayersMode)
         {
             ControllersPageState                            page;
             ControllerDeviceInfo                            first  = MakeStick ("{A}");
@@ -1553,8 +1636,12 @@ namespace ControllerTests
             page.SelectController (0);
             Assert::IsTrue   (page.GetProfileMode() == ProfileMode::Joystick, L"Player 1 is still in Joystick mode");
 
-            page.SetJoyportInEffect (true);
-            Assert::IsTrue   (page.GetProfileMode() == ProfileMode::Joyport, L"with the Joyport on, every player's are Joyport profiles");
+            page.SetJoyportAvailable (true);
+            page.SetPlayerMode (0, PlayerMode::JoyportLeft);
+            Assert::IsTrue   (page.GetProfileMode() == ProfileMode::Joyport, L"in a jack, Joyport profiles");
+
+            page.SelectController (1);
+            Assert::IsTrue   (page.GetProfileMode() == ProfileMode::Paddle, L"and only for the player in the jack");
         }
 
         //  Two people cannot share one controller, so picking the one the
@@ -1587,8 +1674,7 @@ namespace ControllerTests
 
 
         //  Each player's drop-down lists what the picker's submenu lists,
-        //  Player 2's Disabled included, which follows the colon of "Player
-        //  2:" and so reads "same as left" with the Joyport in effect.
+        //  Player 2's Disabled included.
         TEST_METHOD (EntryChoices_AreThePickers)
         {
             ControllersPageState                       page;
@@ -1615,16 +1701,17 @@ namespace ControllerTests
             one = page.GetEntryChoices (0);
             Assert::IsTrue   (one.back().entry.kind == PlayerEntryKind::MousePaddle, L"in Paddle mode, the mouse in place of the keys");
 
-            page.SetJoyportInEffect (true);
+            page.SetJoyportAvailable (true);
+            page.SetPlayerMode (0, PlayerMode::JoyportLeft);
             one = page.GetEntryChoices (0);
-            Assert::IsTrue   (one.back().entry.kind == PlayerEntryKind::ArrowKeys, L"no mouse as paddle while the Joyport is in effect, and the keys");
-            Assert::AreEqual (std::wstring (L"same as left"), page.GetEntryChoices (1).back().label, L"Player 2's Disabled with the Joyport");
+            Assert::IsTrue   (one.back().entry.kind == PlayerEntryKind::ArrowKeys, L"in a jack, the keys and no mouse as paddle");
+            Assert::AreEqual (std::wstring (L"Disabled"), page.GetEntryChoices (1).back().label, L"Player 2's Disabled keeps its word");
         }
 
 
         //  The note beside each player's row: the joystick or paddle its mode
         //  gives it, nothing on a machine without it, the paddles the mouse
-        //  drives, the jacks while the Joyport is in effect, and no note for
+        //  drives, the jacks of a player in the Joyport, and no note for
         //  Player 2 Disabled.
         TEST_METHOD (PlayerNote_SaysWhatThePlayerDrives)
         {
@@ -1657,14 +1744,31 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"paddles 0 and 1"), page.GetPlayerNote (0), L"the mouse drives both of Player 1's paddles");
             Assert::AreEqual (std::wstring(),                    page.GetPlayerNote (1), L"and Disabled drives nothing");
 
-            entries[0] = PlayerEntry();
+            entries[1].kind = PlayerEntryKind::Automatic;
             page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
-            page.SetJoyportInEffect (true);
+            Assert::AreEqual (std::wstring (L"paddle 0"), page.GetPlayerNote (0), L"while Player 2 plays, the mouse drives paddle 0 alone");
+
+            entries[0]      = PlayerEntry();
+            entries[0].mode = PlayerMode::JoyportLeft;
+            entries[1].kind = PlayerEntryKind::Disabled;
+            entries[1].mode = PlayerMode::SameAsPlayer1;
+            page.SetJoyportAvailable (true);
+            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
             Assert::AreEqual (std::wstring (L"both jacks"), page.GetPlayerNote (0), L"with Player 2 Disabled, Player 1 drives both jacks");
 
-            page.SetPlayers (PlayerEntries(), MakeTwoPlaying (first.unit, second.unit), 4);
+            entries[1].kind = PlayerEntryKind::Automatic;
+            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
             Assert::AreEqual (std::wstring (L"left jack"),  page.GetPlayerNote (0));
-            Assert::AreEqual (std::wstring (L"right jack"), page.GetPlayerNote (1));
+            Assert::AreEqual (std::wstring (L"right jack"), page.GetPlayerNote (1), L"Same as Player 1 is the other jack");
+
+            entries[1].mode = PlayerMode::Joystick;
+            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
+            Assert::AreEqual (std::wstring (L"both jacks"), page.GetPlayerNote (0), L"the right jack is free");
+            Assert::AreEqual (std::wstring (L"joystick 0"), page.GetPlayerNote (1), L"beside the Joyport a joystick plays as though alone");
+
+            entries[1].mode = PlayerMode::Paddle;
+            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
+            Assert::AreEqual (std::wstring (L"paddle 0"), page.GetPlayerNote (1), L"and a paddle too");
         }
 
 
@@ -1706,6 +1810,7 @@ namespace ControllerTests
             ControllersPageState  page;
 
             page.Load ({ MakeStick() }, {}, {}, true);
+            SetJoyportPlayer (page, true);
 
             Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Both);
             Assert::AreEqual (std::wstring (L"Atari joystick: both jacks"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
@@ -1718,16 +1823,21 @@ namespace ControllerTests
             ControllerDeviceInfo  first  = MakeStick ("{A}");
             ControllerDeviceInfo  second = MakeStick ("{B}");
 
-            //  Players in Paddle mode, which must not matter.
+            //  Player 1 in the right jack and Player 2 in the left: the modes,
+            //  not the numbers, give the jacks.
             page.Load ({ first, second }, {}, {}, true);
-            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Paddle, PlayerMode::Paddle);
+            page.SetJoyportAvailable (true);
+            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::JoyportRight, PlayerMode::JoyportLeft);
 
             page.SelectController (0);
-            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Left,  L"player 1 is the left jack");
+            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Right, L"player 1 is the right jack");
 
             page.SelectController (1);
-            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Right, L"and player 2, once Editing moves to them, the right");
-            Assert::AreEqual (std::wstring (L"Atari joystick: right jack"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Left, L"and player 2, once Editing moves to them, the left");
+            Assert::AreEqual (std::wstring (L"Atari joystick: left jack"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+
+            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::JoyportLeft, PlayerMode::Paddle);
+            Assert::IsTrue (page.GetJoyportJack() == JoyportJack::None, L"a player on Paddle is in no jack");
         }
 
 

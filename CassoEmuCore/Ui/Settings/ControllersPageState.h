@@ -157,30 +157,35 @@ public:
     std::optional<ControllerUnitKey>  GetPlayerUnit         (size_t player) const;
 
 
-    // One player's entry, or their mode; neither is taken while the Joyport
-    // is in effect, where both players are Atari sticks.
+    // One player's entry, or their mode; a Joyport jack the other player
+    // holds is not taken.
     void                   PickPlayerEntry       (size_t player, PlayerEntry entry);
     void                   SetPlayerMode         (size_t player, PlayerMode mode);
 
-    // What one player's entry drop-down lists, Player 2's Disabled among
-    // them, and the note of what the player drives: "joystick 0",
-    // "paddle 1", "left jack" and the like.
-    std::vector<InputModeRules::PlayerChoice>  GetEntryChoices (size_t player) const;
-    std::wstring                               GetPlayerNote   (size_t player) const;
+    // What one player's entry and mode drop-downs list, Player 2's Disabled
+    // and Same as Player 1 among them; the note of what the player drives:
+    // "joystick 0", "paddle 1", "left jack" and the like; and the notice
+    // under a player whose buttons the Joyport has taken, empty otherwise.
+    std::vector<InputModeRules::PlayerChoice>      GetEntryChoices     (size_t player) const;
+    std::vector<InputModeRules::PlayerModeChoice>  GetModeChoices      (size_t player) const;
+    std::wstring                                   GetPlayerNote       (size_t player) const;
+    std::wstring                                   GetButtonsCutNotice (size_t player) const;
+
+    // Whether the controller in Editing plays for a player in a Joyport
+    // jack, and whether the Joyport has taken its player's buttons.
+    bool                      IsEditedOnJoyport       () const;
+    bool                      AreEditedButtonsCut     () const;
 
     // The Joyport jack the controller in Editing drives, for the page's
     // switch lights, and the heading the page shows above them.
     JoyportJack               GetJoyportJack          () const;
     static std::wstring       GetJoyportHeading       (JoyportJack jack);
 
-    // What a row drives while the Joyport is attached: PDL0 the left and
+    // What a row drives for a player in a Joyport jack: PDL0 the left and
     // right switches, PDL1 up and down, PB0 fire. PB1 and PB2 drive nothing,
     // so the page leaves them out; their bindings stay in the profile.
     static bool               IsJoyportTarget         (PaddleTarget target);
     static std::wstring       GetJoyportRowLabel      (PaddleTarget target);
-
-    // The label beside one position of the Joyport's Apple / Atari switch.
-    static std::wstring       GetJoyportPositionLabel (bool isAtariMode);
 
 
     // Which player holds the controller being edited while two play, or none.
@@ -215,13 +220,15 @@ public:
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
 
-    // Whether the Joyport is in effect, which makes every player an Atari
-    // stick, set before Load or after it to swap the list and the edited
-    // profile in place. The kind whose profiles the page lists and whose
-    // active profiles it edits follows it and the edited player's mode. A
+    // Whether the running machine has a Joyport, which puts its jacks among
+    // the players' modes, set before Load or after it to swap the list and
+    // the edited profile in place. The kind whose profiles the page lists and
+    // whose active profiles it edits follows the edited player's mode. A
     // controller with no profile chosen of that kind plays its built-in one.
-    void                                  SetJoyportInEffect       (bool isInEffect);
-    bool                                  IsJoyportInEffect        () const           { return m_isJoyportInEffect; }
+    // The Joyport is on while a player is in one of its jacks.
+    void                                  SetJoyportAvailable      (bool hasJoyport);
+    bool                                  HasJoyport               () const           { return m_hasJoyport; }
+    bool                                  IsJoyportInEffect        () const;
     ProfileMode                           GetProfileMode           () const           { return m_profileMode; }
 
     // Every controller's active profile for one kind, by unit token, set
@@ -354,7 +361,7 @@ private:
     // and written back whenever it changes.
     std::string                                     m_editedProfile;
     ProfileMode                                     m_profileMode       = ProfileMode::Joystick;
-    bool                                            m_isJoyportInEffect = false;
+    bool                                            m_hasJoyport        = false;
 
     // Every controller's active profile, by unit token, for each kind, and as
     // it was when the page opened or last committed.

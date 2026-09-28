@@ -75,6 +75,7 @@ public:
         std::map<std::string, ProfileMode>     profileModes;
         std::map<std::string, std::string>     activeProfiles;
         bool                                   isJoyportAttached    = false;
+        bool                                   hasJoyport           = false;
         size_t                                 axisCount            = GamePortContribution::kAxisCount;
 
         // Whether any controller that drives the game port reads.
@@ -200,9 +201,10 @@ public:
     void                                SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles);
     std::map<std::string, std::string>  GetActiveProfiles (ProfileMode mode) const;
 
-    // Whether the machine's Joyport is attached, which makes every player an
-    // Atari stick playing its Joyport profile.
-    void                                SetJoyportAttached (bool isAttached);
+    // Whether the running machine has a Joyport. It is on while a player's
+    // mode puts it in one of the jacks, and that player plays its Joyport
+    // profile.
+    void                                SetJoyportAvailable (bool hasJoyport);
 
     // Every DirectInput unit's calibration, by unit token. Set once from the
     // saved prefs; read back to save them, including what automatic
@@ -309,7 +311,7 @@ private:
     // Automatic fills them in. m_hasEnumerated separates the controllers
     // present at startup, which are no arrival, from the ones that connect
     // later.
-    PlayerEntries                                        m_entries;
+    PlayerEntries                                        m_entries       = PlayerSlotPolicy::MakeDefaultEntries();
     PlayerSlots                                          m_slots;
     PlayerOrderLogs                                      m_logs;
     PlayerLastHolders                                    m_lastHolders;
@@ -326,7 +328,7 @@ private:
 
     std::map<std::string, ControllerCalibration>         m_calibrations;
     ControllerProfileStore                               m_profiles;
-    bool                                                 m_isJoyportAttached = false;
+    bool                                                 m_hasJoyport        = false;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;

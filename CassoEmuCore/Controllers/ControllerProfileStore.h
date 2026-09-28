@@ -212,9 +212,9 @@ struct ControllerModelSettings
     // made them, and Joystick otherwise.
     static ProfileMode            ClassifyLegacyProfile (const ControlMapping & mapping);
 
-    // The kind of profile a player in `mode` plays: Joyport while the
-    // Joyport is in effect, whatever the mode.
-    static ProfileMode            GetPlayerProfileMode  (PlayerMode mode, bool isJoyportInEffect);
+    // The kind of profile a player plays in `mode`, as it plays: Joyport for
+    // either jack.
+    static ProfileMode            GetPlayerProfileMode  (PlayerMode mode);
 
     bool operator== (const ControllerModelSettings &) const = default;
 };
@@ -333,6 +333,10 @@ private:
     static void       ReadLastHolders   (const JsonValue & holdersArr, PlayerLastHolders & outHolders, std::vector<std::string> & outRejected);
     static JsonValue  WritePlayers      (const PlayerEntries & entries);
     static JsonValue  WriteLastHolders  (const PlayerLastHolders & holders);
+
+    // A player's mode as the prefs save it.
+    static const char *  PlayerModeToToken   (PlayerMode mode);
+    static PlayerMode    PlayerModeFromToken (const std::string & token);
 
     static bool       ReadProfile       (const JsonValue & profileObj, ControllerProfile & outProfile);
     static bool       ReadMapping       (const JsonValue & mappingObj, ControlMapping & outMapping);
