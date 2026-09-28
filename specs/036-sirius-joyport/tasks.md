@@ -380,6 +380,19 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 
 ---
 
+## Phase 17: Three profile kinds and each player's mode beside the Joyport (Priority: P1; 2026-09-27, later)
+
+**Goal**: FR-001, FR-009, FR-015, FR-019 and FR-020 as changed later on 2026-09-27: profiles are Joystick, Paddle or Joyport, and each player's list follows its mode, or Joyport while the Joyport is on; Paddle mode, and so mouse-as-paddle, cannot be chosen while the Joyport is on; the switch's labels sit above and below it; the heading above the switch lights reads "Atari joystick"; "same as left" is lower case after a colon. Spec 034's Phase 19 carries the player modes themselves. This supersedes Phase 9's two modes and Phase 16's normal-mode starting points (Paddles now starts a Paddle profile only).
+
+**Independent Test**: the profile store and the page's starting points per kind; the picker with the Joyport on offers no Paddle mode and no mouse; the Controllers page lays the switch labels out from the toggle's geometry.
+
+- [X] T126 [P] [US7] Profile kinds, tested and built with spec 034's T171-T173: `ProfileMode` is `Joystick`, `Paddle` or `Joyport`; the built-in Paddles profile; each kind's own starting points and chosen profiles; legacy profiles and choices classified
+- [ ] T127 [P] [US4] Tests in `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp` and `JoyportLabelsTests.cpp`: with the Joyport on, no Paddle mode and no mouse in either submenu, keys offered in either mode; Player 2's Disabled reads "same as left", and so does the Automatic row after "Joyport right:". Then implement in `InputModeRules` and `JoyportLabels`. Mutation: offer the mouse with the Joyport on
+- [ ] T128 [P] [US5] Tests in `UnitTest/UiTests/ControllersPageLayoutTests.cpp` and `ControllersPageStateTests.cpp`: "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it, "Joyport" left of it and centered on it; the heading "Atari joystick" followed by ": left jack", ": right jack" or ": both jacks"; each player's mode choice disabled in Atari mode. Then implement in `ControllersPage` and `ControllersPageState`. Mutation: leave the labels to the right of the switch
+- [ ] T129 [US5] Build; capture the Controllers page in Atari mode and the switch zoomed; record in `validation.md`; commit with spec 034's T184
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies

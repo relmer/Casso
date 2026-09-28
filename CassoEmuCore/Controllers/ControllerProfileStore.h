@@ -15,9 +15,9 @@
 //
 //  ControllerProfileKind
 //
-//  Every model has one Default and one Joyport profile, which cannot be
-//  renamed or deleted and reset to their own built-in mappings. Everything
-//  else is the user's.
+//  Every model has one Default, one Paddles and one Joyport profile, which
+//  cannot be renamed or deleted and reset to their own built-in mappings.
+//  Everything else is the user's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +26,7 @@ enum class ControllerProfileKind
     User,
     Default,
     Joyport,
+    Paddles,
 };
 
 
@@ -36,17 +37,21 @@ enum class ControllerProfileKind
 //
 //  ProfileMode
 //
-//  Play without a Joyport is normal mode, and play with one is Joyport mode.
-//  Every profile belongs to one of them, fixed when it is created, and is
-//  listed and played only in that mode. Each controller's chosen profile is
-//  kept once per mode, so attaching or detaching the Joyport switches to the
-//  profile last chosen for the new mode.
+//  The kind of a profile: what a controller playing it stands in for. A
+//  player in Joystick mode plays Joystick profiles and one in Paddle mode
+//  plays Paddle profiles, while the Joyport is off; with it on, every player
+//  plays Joyport profiles. Every profile belongs to one kind, fixed when it
+//  is created, and is listed and played only for that kind. Each
+//  controller's chosen profile is kept once per kind, so a change of the
+//  player's mode or of the Joyport switches to the profile last chosen for
+//  the new kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class ProfileMode
 {
-    Normal,
+    Joystick,
+    Paddle,
     Joyport,
 };
 
@@ -58,23 +63,24 @@ enum class ProfileMode
 //
 //  ControllerProfile
 //
-//  One named mapping for a controller model, belonging to one mode: the mode
-//  in effect when it was created. The Default belongs to normal mode and the
-//  Joyport profile to Joyport mode, each leading its mode's list. A
-//  controller with no profile chosen for the mode it is playing in plays that
-//  mode's built-in profile.
+//  One named mapping for a controller model, belonging to one kind: the kind
+//  in effect for the player it was created for. The Default is a Joystick
+//  profile, Paddles a Paddle profile and Joyport a Joyport profile, each
+//  leading its kind's list. A controller with no profile chosen for the kind
+//  it is playing plays that kind's built-in profile.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ControllerProfile
 {
     static constexpr const char *  kpszDefaultName = "Default";
+    static constexpr const char *  kpszPaddlesName = "Paddles";
     static constexpr const char *  kpszJoyportName = "Joyport";
 
     std::string            name;
     ControllerProfileKind  kind = ControllerProfileKind::User;
     ControlMapping         mapping;
-    ProfileMode            mode = ProfileMode::Normal;
+    ProfileMode            mode = ProfileMode::Joystick;
 
     bool operator== (const ControllerProfile &) const = default;
 };
@@ -110,10 +116,10 @@ enum class ProfileEditResult
 //
 //  ProfileSource
 //
-//  What a new profile's mapping starts from. Only the mode's own starting
-//  points are accepted: the Joyport mapping in Joyport mode, the default
-//  mapping and Paddles in normal mode, and a copy of a profile of the mode the
-//  new profile belongs to.
+//  What a new profile's mapping starts from. Only the kind's own starting
+//  points are accepted: the default mapping for a Joystick profile, the
+//  Paddles mapping for a Paddle profile, the Joyport mapping for a Joyport
+//  profile, and a copy of a profile of the kind the new profile belongs to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,7 +128,7 @@ enum class ProfileSource
     DefaultMapping,
     JoyportMapping,
     CopyOfProfile,
-    Paddles,
+    PaddleMapping,
 };
 
 
@@ -156,12 +162,12 @@ struct ControllerModelSettings
     // changes only case is not a duplicate of itself.
     ProfileEditResult          CheckProfileName    (const std::string & name, const ControllerProfile * excluding = nullptr) const;
 
-    // The mode's built-in profile first, then the mode's own profiles in the
+    // The kind's built-in profile first, then the kind's own profiles in the
     // order they are kept.
     std::vector<std::string>   GetProfileNames     (ProfileMode mode) const;
 
-    // Whether a name is a profile of the mode other than `mode`: a built-in
-    // profile by its name, or a saved profile made in that mode. A name the
+    // Whether a name is a profile of a kind other than `mode`: a built-in
+    // profile by its name, or a saved profile of another kind. A name the
     // model has no profile for is not.
     bool                       IsOfOtherMode       (const std::string & name, ProfileMode mode) const;
 
@@ -190,15 +196,21 @@ struct ControllerModelSettings
     // which one a name is, ignoring case; User for any other name.
     static ControllerProfileKind  GetAutomaticKind      (ProfileMode mode);
     static ControllerProfileKind  GetBuiltInKind        (const std::string & name);
+    static const char *           GetBuiltInName        (ControllerProfileKind kind);
 
-    // The mode a built-in profile belongs to, and the built-in profile whose
+    // The kind a built-in profile belongs to, and the built-in profile whose
     // mapping a profile resets to: its own for a built-in profile, and its
-    // mode's for a user's.
+    // kind's for a user's.
     static ProfileMode            GetBuiltInMode        (ControllerProfileKind kind);
     static ControllerProfileKind  GetResetKind          (const ControllerProfile & profile);
 
-    // Whether a built-in starting point is the other mode's.
+    // Whether a built-in starting point is another kind's.
     static bool                   IsSourceOfOtherMode   (ProfileSource source, ProfileMode mode);
+
+    // The kind a profile saved before profiles had three kinds belongs to:
+    // Paddle when it binds PDL0 and not PDL1, as the Paddles starting point
+    // made them, and Joystick otherwise.
+    static ProfileMode            ClassifyLegacyProfile (const ControlMapping & mapping);
 
     bool operator== (const ControllerModelSettings &) const = default;
 };
@@ -231,17 +243,19 @@ class ControllerProfileStore
 {
 public:
 
-    static constexpr float  kMinMaxSpeed = 16.0f;
-    static constexpr float  kMaxMaxSpeed = 1024.0f;
+    static constexpr float   kMinMaxSpeed      = 16.0f;
+    static constexpr float   kMaxMaxSpeed      = 1024.0f;
+    static constexpr size_t  kProfileModeCount = 3;
 
     std::map<std::string, ControllerModelSettings>  models;
     std::map<std::string, ControllerCalibration>    calibrations;
 
-    // Each controller's active profile, by unit token, once for play without
-    // a Joyport and once for play with one; an empty name is that mode's
-    // built-in profile. Global rather than per machine, so a profile made
-    // for one machine can be played on any of them.
+    // Each controller's active profile, by unit token, once for each kind;
+    // an empty name is that kind's built-in profile. Global rather than per
+    // machine, so a profile made for one machine can be played on any of
+    // them.
     std::map<std::string, std::string>              activeProfiles;
+    std::map<std::string, std::string>              paddleActiveProfiles;
     std::map<std::string, std::string>              joyportActiveProfiles;
 
     // The two players' entries and the controller that last held each slot,
@@ -251,7 +265,8 @@ public:
     std::optional<PlayerEntries>                    players;
     PlayerLastHolders                               lastHolders;
 
-    std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) { return mode == ProfileMode::Joyport ? joyportActiveProfiles : activeProfiles; }
+    std::map<std::string, std::string>       &  GetActiveProfiles (ProfileMode mode);
+    const std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) const;
 
     void       FromJson (const JsonValue & controllers, std::vector<std::string> & outRejected);
     JsonValue  ToJson   (const JsonValue & controllers) const;
@@ -283,8 +298,8 @@ public:
                                                  ControllerFormFactor            formFactor,
                                                  const std::vector<ControlId>  & controls);
 
-    // The new profile belongs to `mode`, the mode in effect. A starting point
-    // of the other mode is refused as not found.
+    // The new profile belongs to `mode`, the kind in effect. A starting point
+    // of another kind is refused as not found.
     ProfileEditResult  CreateProfile (const ControllerModelKey        & model,
                                       ControllerFormFactor              formFactor,
                                       const std::vector<ControlId>    & controls,
@@ -298,7 +313,7 @@ public:
                                       const std::string               & name);
 
     // A machine's active profile saved by an earlier build, handed to that
-    // machine's saved controller as its normal-mode choice.
+    // machine's saved controller as its Joystick choice.
     static bool        TryAdoptLegacyProfile (std::map<std::string, std::string>     & normalProfiles,
                                               const std::optional<ControllerUnitKey> & selection,
                                               const std::string                      & legacyName);
@@ -308,6 +323,7 @@ private:
     void              ReadModels        (const JsonValue & modelsObj, std::vector<std::string> & outRejected);
     void              ReadCalibrations  (const JsonValue & calibrationObj, std::vector<std::string> & outRejected);
     static void       ReadActiveProfiles(const JsonValue & activeObj, std::map<std::string, std::string> & outProfiles, std::vector<std::string> & outRejected);
+    void              MoveLegacyPaddleChoices();
     static void       ReadPlayers       (const JsonValue & playersArr, PlayerEntries & outEntries, std::vector<std::string> & outRejected);
     static bool       TryReadPlayer     (const JsonValue & playerObj, size_t player, PlayerEntry & outEntry);
     static void       ReadLastHolders   (const JsonValue & holdersArr, PlayerLastHolders & outHolders, std::vector<std::string> & outRejected);
@@ -321,6 +337,7 @@ private:
     static bool       ReadCalibration   (const std::string & token, const JsonValue & entry, ControllerCalibration & outCalibration);
 
     static JsonValue  WriteModel        (const ControllerModelSettings & settings);
+    static const char * GetModeToken    (ProfileMode mode);
     static JsonValue  WriteMapping      (const ControlMapping & mapping);
     static JsonValue  WriteCalibration  (const ControllerCalibration & calibration);
     static bool       HasAnythingToSave (const ControllerCalibration & calibration);

@@ -93,6 +93,7 @@ HRESULT SettingsApplyController::CommitControllerSettings (const std::map<std::s
     store.models                = models;
     store.calibrations          = calibrations;
     store.activeProfiles        = existing.activeProfiles;
+    store.paddleActiveProfiles  = existing.paddleActiveProfiles;
     store.joyportActiveProfiles = existing.joyportActiveProfiles;
     m_prefs->controllers        = store.ToJson (m_prefs->controllers);
 
@@ -470,17 +471,18 @@ void SettingsApplyController::CommitApply()
         HRESULT                   hrSave        = S_OK;
         bool                      profileChange = m_controllersState->HasActiveProfileChanged();
         ProfileMode               pageMode      = m_controllersState->GetProfileMode();
-        const ProfileMode         kModes[]      = { ProfileMode::Normal, ProfileMode::Joyport };
+        const ProfileMode         kModes[]      = { ProfileMode::Joystick, ProfileMode::Paddle, ProfileMode::Joyport };
 
-        // The page edits the active profiles of the mode it is in, and holds
-        // the other mode's too, since its mode can change while it is open.
-        // The other mode's are written back as saved unless the page changed
+        // The page edits the active profiles of the kind it is in, and holds
+        // the other kinds' too, since its kind can change while it is open.
+        // The other kinds' are written back as saved unless the page changed
         // them.
         existing.FromJson (m_prefs->controllers, unreadable);
 
         store.models                = m_controllersState->GetModels();
         store.calibrations          = m_controllersState->GetCalibrations();
         store.activeProfiles        = existing.activeProfiles;
+        store.paddleActiveProfiles  = existing.paddleActiveProfiles;
         store.joyportActiveProfiles = existing.joyportActiveProfiles;
 
         for (ProfileMode mode : kModes)

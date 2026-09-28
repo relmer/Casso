@@ -35,11 +35,12 @@ void ControllersPageState::Load (
     m_calibrations           = calibrations;
     m_baselineModels         = models;
     m_baselineCalibrations   = calibrations;
-    m_activeProfiles         = activeProfiles;
-    m_baselineActiveProfiles = activeProfiles;
+    m_activeProfiles         = {};
+    m_baselineActiveProfiles = {};
 
-    m_otherActiveProfiles.clear();
-    m_baselineOtherActiveProfiles.clear();
+    m_activeProfiles[GetModeIndex (m_profileMode)]         = activeProfiles;
+    m_baselineActiveProfiles[GetModeIndex (m_profileMode)] = activeProfiles;
+
     m_committedNames.clear();
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
@@ -103,14 +104,22 @@ void ControllersPageState::Load (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetOtherModeActiveProfiles
+//  SetActiveProfiles
+//
+//  One kind's choices as the service holds them, after Load. The kind the
+//  page is in reloads the edited profile from them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::SetOtherModeActiveProfiles (const std::map<std::string, std::string> & activeProfiles)
+void ControllersPageState::SetActiveProfiles (ProfileMode mode, const std::map<std::string, std::string> & activeProfiles)
 {
-    m_otherActiveProfiles         = activeProfiles;
-    m_baselineOtherActiveProfiles = activeProfiles;
+    m_activeProfiles[GetModeIndex (mode)]         = activeProfiles;
+    m_baselineActiveProfiles[GetModeIndex (mode)] = activeProfiles;
+
+    if (mode == m_profileMode)
+    {
+        LoadEditedProfile();
+    }
 }
 
 
@@ -121,9 +130,9 @@ void ControllersPageState::SetOtherModeActiveProfiles (const std::map<std::strin
 //
 //  SetProfileMode
 //
-//  After Load, the list and the edited profile follow the mode at once: each
-//  controller goes to its choice for the new mode, or with none, to that
-//  mode's built-in profile. Edits on the profile left stay pending there, as
+//  After Load, the list and the edited profile follow the kind at once: each
+//  controller goes to its choice for the new kind, or with none, to that
+//  kind's built-in profile. Edits on the profile left stay pending there, as
 //  they do when another profile is selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,9 +143,6 @@ void ControllersPageState::SetProfileMode (ProfileMode mode)
     {
         return;
     }
-
-    std::swap (m_activeProfiles,         m_otherActiveProfiles);
-    std::swap (m_baselineActiveProfiles, m_baselineOtherActiveProfiles);
 
     m_profileMode = mode;
     LoadEditedProfile();
@@ -157,7 +163,55 @@ void ControllersPageState::SetProfileMode (ProfileMode mode)
 
 const std::map<std::string, std::string> & ControllersPageState::GetActiveProfiles (ProfileMode mode) const
 {
-    return mode == m_profileMode ? m_activeProfiles : m_otherActiveProfiles;
+    return m_activeProfiles[GetModeIndex (mode)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveProfiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::map<std::string, std::string> & ControllersPageState::GetActiveProfiles() const
+{
+    return GetActiveProfiles (m_profileMode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModeProfiles
+//
+//  The choices of the kind the page is in, which the edited profile is read
+//  from and written back to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, std::string> & ControllersPageState::GetModeProfiles()
+{
+    return m_activeProfiles[GetModeIndex (m_profileMode)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModeIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ControllersPageState::GetModeIndex (ProfileMode mode)
+{
+    return static_cast<size_t> (mode);
 }
 
 
@@ -177,7 +231,7 @@ const std::map<std::string, std::string> & ControllersPageState::GetActiveProfil
 
 void ControllersPageState::LoadEditedProfile()
 {
-    auto  found = m_activeProfiles.end();
+    auto  found = GetModeProfiles().end();
 
 
 
@@ -188,9 +242,9 @@ void ControllersPageState::LoadEditedProfile()
         return;
     }
 
-    found = m_activeProfiles.find (ControllerTokens::UnitToToken (m_controllers[m_selected.value()].unit));
+    found = GetModeProfiles().find (ControllerTokens::UnitToToken (m_controllers[m_selected.value()].unit));
 
-    if (found != m_activeProfiles.end() && !IsNameOfOtherMode (found->second))
+    if (found != GetModeProfiles().end() && !IsNameOfOtherMode (found->second))
     {
         m_editedProfile = found->second;
     }
@@ -213,7 +267,7 @@ void ControllersPageState::StoreEditedProfile()
         return;
     }
 
-    m_activeProfiles[ControllerTokens::UnitToToken (m_controllers[m_selected.value()].unit)] = m_editedProfile;
+    GetModeProfiles()[ControllerTokens::UnitToToken (m_controllers[m_selected.value()].unit)] = m_editedProfile;
 }
 
 
@@ -233,15 +287,14 @@ void ControllersPageState::StoreEditedProfile()
 
 void ControllersPageState::RetargetActiveProfiles (const std::string & modelToken, const std::string & from, const std::string & to)
 {
-    std::map<std::string, std::string> *  maps[] = { &m_activeProfiles, &m_otherActiveProfiles };
-    ControllerUnitKey                     unit;
-    HRESULT                               hr     = S_OK;
+    ControllerUnitKey  unit;
+    HRESULT            hr   = S_OK;
 
 
 
-    for (std::map<std::string, std::string> * map : maps)
+    for (std::map<std::string, std::string> & map : m_activeProfiles)
     {
-        for (auto & entry : *map)
+        for (auto & entry : map)
         {
             hr = ControllerTokens::UnitFromToken (entry.first, unit);
 
@@ -1555,8 +1608,7 @@ std::string ControllersPageState::GetEditedProfileName() const
         return profile->name;
     }
 
-    return GetEditedBuiltInKind() == ControllerProfileKind::Joyport ? ControllerProfile::kpszJoyportName
-                                                                    : ControllerProfile::kpszDefaultName;
+    return ControllerModelSettings::GetBuiltInName (GetEditedBuiltInKind());
 }
 
 
@@ -1704,9 +1756,9 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
         return ProfileEditResult::NotFound;
     }
 
-    if (source == ProfileSource::Paddles)
+    if (source == ProfileSource::PaddleMapping)
     {
-        mapping = DefaultMapping::MakePaddles (selected->unit.model, selected->controls);
+        mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerProfileKind::Paddles, selected->unit.model, selected->formFactor, selected->controls);
     }
     else if (source == ProfileSource::JoyportMapping)
     {
@@ -2017,7 +2069,9 @@ Error:
 
 bool ControllersPageState::HasActiveProfileChanged() const
 {
-    return HasActiveProfileChanged (ProfileMode::Normal) || HasActiveProfileChanged (ProfileMode::Joyport);
+    return HasActiveProfileChanged (ProfileMode::Joystick) ||
+           HasActiveProfileChanged (ProfileMode::Paddle)   ||
+           HasActiveProfileChanged (ProfileMode::Joyport);
 }
 
 
@@ -2036,7 +2090,7 @@ bool ControllersPageState::HasActiveProfileChanged() const
 bool ControllersPageState::HasActiveProfileChanged (ProfileMode mode) const
 {
     const std::map<std::string, std::string> &  active   = GetActiveProfiles (mode);
-    const std::map<std::string, std::string> &  baseline = mode == m_profileMode ? m_baselineActiveProfiles : m_baselineOtherActiveProfiles;
+    const std::map<std::string, std::string> &  baseline = m_baselineActiveProfiles[GetModeIndex (mode)];
 
 
 
@@ -2136,9 +2190,10 @@ bool ControllersPageState::TryDescribeNameError (ProfileEditResult result, std::
 //
 //  GetStartingPoints
 //
-//  Only the mode's own: the Default mapping and Paddles in normal mode, the
-//  Joyport mapping in Joyport mode, and in either a copy of one of the mode's
-//  profiles, offered only when there is one to copy.
+//  Only the kind's own: its built-in mapping -- the Default mapping for a
+//  Joystick profile, the Paddles mapping for a Paddle profile and the Joyport
+//  mapping for a Joyport profile -- and a copy of one of the kind's profiles,
+//  offered only when there is one to copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2148,14 +2203,13 @@ std::vector<ProfileSource> ControllersPageState::GetStartingPoints (ProfileMode 
 
 
 
-    if (mode == ProfileMode::Joyport)
+    switch (mode)
     {
-        sources.push_back (ProfileSource::JoyportMapping);
-    }
-    else
-    {
-        sources.push_back (ProfileSource::DefaultMapping);
-        sources.push_back (ProfileSource::Paddles);
+        case ProfileMode::Paddle:    sources.push_back (ProfileSource::PaddleMapping);   break;
+        case ProfileMode::Joyport:   sources.push_back (ProfileSource::JoyportMapping);  break;
+
+        case ProfileMode::Joystick:
+        default:                     sources.push_back (ProfileSource::DefaultMapping);  break;
     }
 
     if (canCopy)
@@ -2188,7 +2242,7 @@ std::wstring ControllersPageState::GetStartingPointLabel (ProfileSource source)
     {
         case ProfileSource::JoyportMapping:  pszLabel = L"Joyport mapping";  break;
         case ProfileSource::CopyOfProfile:   pszLabel = L"Copy of";          break;
-        case ProfileSource::Paddles:         pszLabel = L"Paddles";          break;
+        case ProfileSource::PaddleMapping:   pszLabel = L"Paddles mapping";  break;
 
         case ProfileSource::DefaultMapping:
         default:                                                             break;
@@ -2662,8 +2716,7 @@ void ControllersPageState::Revert()
 {
     m_models              = m_baselineModels;
     m_calibrations        = m_baselineCalibrations;
-    m_activeProfiles      = m_baselineActiveProfiles;
-    m_otherActiveProfiles = m_baselineOtherActiveProfiles;
+    m_activeProfiles = m_baselineActiveProfiles;
     m_calibrationStep     = CalibrationStep::None;
 
     LoadEditedProfile();
@@ -2687,8 +2740,7 @@ void ControllersPageState::MarkCommitted()
 {
     m_baselineModels              = m_models;
     m_baselineCalibrations        = m_calibrations;
-    m_baselineActiveProfiles      = m_activeProfiles;
-    m_baselineOtherActiveProfiles = m_otherActiveProfiles;
+    m_baselineActiveProfiles = m_activeProfiles;
 
     m_committedNames.clear();
 }

@@ -329,7 +329,7 @@ namespace ControllerTests
             ControllersPageState  page;
 
             page.Load ({ MakeStick() }, {}, {}, true);
-            page.CreateProfile ("Game", ProfileSource::Paddles, std::string());
+            page.CreateProfile ("Game", ProfileSource::DefaultMapping, std::string());
             page.RemoveBinding (PaddleTarget::Pb0, 0);
             page.SetDeadzone (0.6f);
             page.ResetProfile();
@@ -525,23 +525,26 @@ namespace ControllerTests
             Assert::IsTrue  (page.GetMapping() == DefaultMapping::For (model, controls));
             Assert::AreEqual (std::string ("From default"), page.GetEditedProfileName(), L"a new profile is the one edited");
 
-            Assert::IsTrue  (page.CreateProfile ("Paddles", ProfileSource::Paddles, std::string()) == ProfileEditResult::Ok);
-            Assert::IsTrue  (page.GetMapping() == DefaultMapping::MakePaddles (model, controls));
-
             page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
-            Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Paddles") == ProfileEditResult::Ok);
+            Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "From default") == ProfileEditResult::Ok);
             Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(), L"a copy takes the source's pending edits");
 
-            Assert::AreEqual (size_t (4), page.GetProfileNames().size(), L"the Default and the three normal-mode profiles, and no Joyport profile");
-            Assert::AreEqual (std::string ("Default"), page.GetProfileNames()[0], L"Default is listed first");
-            Assert::AreEqual (std::string ("From default"), page.GetProfileNames()[1]);
-            Assert::IsTrue   (page.IsDirty());
-            Assert::IsTrue   (models.empty(), L"nothing reaches the settings the page was opened with");
+            Assert::IsTrue   (page.GetProfileNames() == std::vector<std::string> { "Default", "From default", "Copy" },
+                              L"the Default first, then the new Joystick profiles, and no Paddle or Joyport profile");
+
+            page.SetProfileMode (ProfileMode::Paddle);
+
+            Assert::IsTrue  (page.CreateProfile ("Pong", ProfileSource::PaddleMapping, std::string()) == ProfileEditResult::Ok);
+            Assert::IsTrue  (page.GetMapping() == DefaultMapping::MakePaddles (model, controls), L"the Paddles mapping, for a Paddle profile");
+            Assert::IsTrue  (page.GetModels().begin()->second.FindProfile ("Pong")->mode == ProfileMode::Paddle);
+            Assert::IsTrue  (page.GetProfileNames() == std::vector<std::string> { "Paddles", "Pong" }, L"Paddles first, then the Paddle profiles");
+            Assert::IsTrue  (page.IsDirty());
+            Assert::IsTrue  (models.empty(), L"nothing reaches the settings the page was opened with");
 
             page.Revert();
 
-            Assert::AreEqual (size_t (1), page.GetProfileNames().size(), L"Cancel takes the new profiles away");
-            Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
+            Assert::IsTrue   (page.GetProfileNames() == std::vector<std::string> { "Paddles" }, L"Cancel takes the new profiles away");
+            Assert::AreEqual (std::string ("Paddles"), page.GetEditedProfileName());
             Assert::IsFalse  (page.IsDirty());
         }
 
@@ -700,15 +703,20 @@ namespace ControllerTests
         {
             using Sources = std::vector<ProfileSource>;
 
-            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Normal, true)
-                            == Sources { ProfileSource::DefaultMapping, ProfileSource::Paddles, ProfileSource::CopyOfProfile },
-                            L"normal mode: the Default mapping, Paddles, or a copy");
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Joystick, true)
+                            == Sources { ProfileSource::DefaultMapping, ProfileSource::CopyOfProfile },
+                            L"a Joystick profile: the Default mapping, or a copy");
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Paddle, true)
+                            == Sources { ProfileSource::PaddleMapping, ProfileSource::CopyOfProfile },
+                            L"a Paddle profile: the Paddles mapping, or a copy");
             Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Joyport, true)
                             == Sources { ProfileSource::JoyportMapping, ProfileSource::CopyOfProfile },
-                            L"Joyport mode: the Joyport mapping, or a copy");
-            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Normal, false)
-                            == Sources { ProfileSource::DefaultMapping, ProfileSource::Paddles },
+                            L"a Joyport profile: the Joyport mapping, or a copy");
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Joystick, false)
+                            == Sources { ProfileSource::DefaultMapping },
                             L"no copy with nothing to copy");
+            Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Paddle, false)
+                            == Sources { ProfileSource::PaddleMapping });
             Assert::IsTrue (ControllersPageState::GetStartingPoints (ProfileMode::Joyport, false)
                             == Sources { ProfileSource::JoyportMapping });
         }
@@ -721,7 +729,7 @@ namespace ControllerTests
                 { ProfileSource::DefaultMapping, L"Default mapping" },
                 { ProfileSource::JoyportMapping, L"Joyport mapping" },
                 { ProfileSource::CopyOfProfile,  L"Copy of"         },
-                { ProfileSource::Paddles,        L"Paddles"         },
+                { ProfileSource::PaddleMapping,  L"Paddles mapping" },
             };
             int                                              swept = 0;
 
@@ -731,7 +739,7 @@ namespace ControllerTests
                 swept |= 1 << (int) label.first;
             }
 
-            Assert::AreEqual ((1 << ((int) ProfileSource::Paddles + 1)) - 1, swept, L"every source has its label");
+            Assert::AreEqual ((1 << ((int) ProfileSource::PaddleMapping + 1)) - 1, swept, L"every source has its label");
         }
 
 
@@ -746,7 +754,7 @@ namespace ControllerTests
             std::string           token = ControllerTokens::UnitToToken (stick.unit);
 
             page.Load ({ stick }, MakeSavedWithBothModes(), {}, true, std::map<std::string, std::string> { { token, "Swapped" } }, stick.unit);
-            page.SetOtherModeActiveProfiles ({ { token, "Atari" } });
+            page.SetActiveProfiles (ProfileMode::Joyport, { { token, "Atari" } });
             page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
             page.BeginCapture (PaddleTarget::Pb0, Rest());
 
@@ -756,14 +764,14 @@ namespace ControllerTests
             Assert::AreEqual (std::string ("Atari"), page.GetEditedProfileName(), L"the controller's Joyport-mode choice");
             Assert::IsFalse  (page.IsCapturing(), L"a capture belongs to the profile it was started on");
 
-            page.SetProfileMode (ProfileMode::Normal);
+            page.SetProfileMode (ProfileMode::Joystick);
 
             Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName(), L"and back to its normal-mode choice");
             Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(),             L"with its edit still pending");
             Assert::IsTrue   (page.HasUnappliedProfileEdits());
 
-            page.SetOtherModeActiveProfiles ({});
-            page.SetProfileMode (ProfileMode::Joyport);
+            page.SetActiveProfiles (ProfileMode::Joyport, {});
+            page.SetProfileMode    (ProfileMode::Joyport);
 
             Assert::AreEqual (std::string ("Joyport"), page.GetEditedProfileName(), L"with no choice for the mode, its built-in profile");
         }
@@ -781,9 +789,9 @@ namespace ControllerTests
             page.SelectProfile ("Atari");
 
             Assert::IsTrue   (page.HasActiveProfileChanged (ProfileMode::Joyport));
-            Assert::IsFalse  (page.HasActiveProfileChanged (ProfileMode::Normal));
+            Assert::IsFalse  (page.HasActiveProfileChanged (ProfileMode::Joystick));
             Assert::AreEqual (std::string ("Atari"), page.GetActiveProfiles (ProfileMode::Joyport).at (token));
-            Assert::IsTrue   (page.GetActiveProfiles (ProfileMode::Normal).find (token) == page.GetActiveProfiles (ProfileMode::Normal).end());
+            Assert::IsTrue   (page.GetActiveProfiles (ProfileMode::Joystick).find (token) == page.GetActiveProfiles (ProfileMode::Joystick).end());
 
             page.Revert();
 
@@ -824,9 +832,9 @@ namespace ControllerTests
         }
 
 
-        //  Each mode accepts only its own built-in starting points: the
-        //  default mapping and Paddles in normal mode, the Joyport mapping in
-        //  Joyport mode.
+        //  Each kind accepts only its own built-in starting point: the default
+        //  mapping for a Joystick profile, the Paddles mapping for a Paddle
+        //  profile and the Joyport mapping for a Joyport profile.
         TEST_METHOD (CreateProfile_ABuiltInStartingPointOfTheOtherMode_IsRefused)
         {
             ControllersPageState  page;
@@ -836,14 +844,21 @@ namespace ControllerTests
             page.Load ({ MakeStick() }, MakeSavedWithBothModes(), {}, true);
 
             Assert::IsTrue (page.CreateProfile ("A", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::NotFound, L"the default mapping in Joyport mode");
-            Assert::IsTrue (page.CreateProfile ("B", ProfileSource::Paddles,        std::string()) == ProfileEditResult::NotFound, L"Paddles in Joyport mode");
+            Assert::IsTrue (page.CreateProfile ("B", ProfileSource::PaddleMapping,        std::string()) == ProfileEditResult::NotFound, L"Paddles in Joyport mode");
 
-            page.SetProfileMode (ProfileMode::Normal);
+            page.SetProfileMode (ProfileMode::Joystick);
 
-            Assert::IsTrue  (page.CreateProfile ("C", ProfileSource::JoyportMapping, std::string()) == ProfileEditResult::NotFound, L"the Joyport mapping in normal mode");
+            Assert::IsTrue  (page.CreateProfile ("C", ProfileSource::JoyportMapping, std::string()) == ProfileEditResult::NotFound, L"the Joyport mapping for a Joystick profile");
+            Assert::IsTrue  (page.CreateProfile ("D", ProfileSource::PaddleMapping,  std::string()) == ProfileEditResult::NotFound, L"the Paddles mapping for a Joystick profile");
+
+            page.SetProfileMode (ProfileMode::Paddle);
+
+            Assert::IsTrue  (page.CreateProfile ("E", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::NotFound, L"the default mapping for a Paddle profile");
             Assert::IsTrue  (page.GetModels().at (token).FindProfile ("A") == nullptr, L"nothing is created");
             Assert::IsTrue  (page.GetModels().at (token).FindProfile ("B") == nullptr);
             Assert::IsTrue  (page.GetModels().at (token).FindProfile ("C") == nullptr);
+            Assert::IsTrue  (page.GetModels().at (token).FindProfile ("D") == nullptr);
+            Assert::IsTrue  (page.GetModels().at (token).FindProfile ("E") == nullptr);
             Assert::IsFalse (page.IsDirty());
         }
 

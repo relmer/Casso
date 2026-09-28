@@ -1384,7 +1384,7 @@ namespace ControllerTests
 
 
 
-            settings.AddProfile (pszName, mapping, ProfileMode::Normal);
+            settings.AddProfile (pszName, mapping, ProfileMode::Joystick);
             models[ControllerTokens::ModelToToken (device.unit.model)] = settings;
             return models;
         }
@@ -1458,7 +1458,7 @@ namespace ControllerTests
 
             atari.pb0.push_back ({ { ControlKind::Button, 2 } });
 
-            settings.AddProfile ("Dpad",  dpad,  ProfileMode::Normal);
+            settings.AddProfile ("Dpad",  dpad,  ProfileMode::Joystick);
             settings.AddProfile ("Atari", atari, ProfileMode::Joyport);
             return store.models;
         }
@@ -1508,7 +1508,7 @@ namespace ControllerTests
 
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and attaching the Joyport-mode one");
             Assert::AreEqual (std::string ("Atari"), service.GetActiveProfile (device.unit));
-            Assert::AreEqual (std::string ("Dpad"), service.GetActiveProfiles (ProfileMode::Normal).at (ControllerTokens::UnitToToken (device.unit)));
+            Assert::AreEqual (std::string ("Dpad"), service.GetActiveProfiles (ProfileMode::Joystick).at (ControllerTokens::UnitToToken (device.unit)));
         }
 
 
@@ -1591,7 +1591,7 @@ namespace ControllerTests
             Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0],         L"so the Joyport profile plays");
 
             // Choices loaded from the prefs, each of the other mode's profile.
-            service.SetActiveProfiles (ProfileMode::Normal,  { { token, "Atari" } });
+            service.SetActiveProfiles (ProfileMode::Joystick,  { { token, "Atari" } });
             service.SetActiveProfiles (ProfileMode::Joyport, { { token, "Default" } });
             service.Tick();
 
@@ -1601,7 +1601,7 @@ namespace ControllerTests
             service.Tick();
 
             Assert::IsFalse (sink.writes.back().state.buttons.test (0), L"without it, the Default plays, not Atari");
-            Assert::IsTrue  (service.GetActiveProfiles (ProfileMode::Normal).empty(),  L"and neither choice is saved back");
+            Assert::IsTrue  (service.GetActiveProfiles (ProfileMode::Joystick).empty(),  L"and neither choice is saved back");
             Assert::IsTrue  (service.GetActiveProfiles (ProfileMode::Joyport).empty());
         }
 
@@ -1728,7 +1728,7 @@ namespace ControllerTests
             // any reading: only the switch's own reset can bring the paddle
             // back.
             models = MakeModelSettings (device, "Rate A", mapping);
-            models.begin()->second.AddProfile ("Rate B", mapping, ProfileMode::Normal);
+            models.begin()->second.AddProfile ("Rate B", mapping, ProfileMode::Joystick);
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);

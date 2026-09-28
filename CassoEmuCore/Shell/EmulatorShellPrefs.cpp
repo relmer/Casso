@@ -203,8 +203,9 @@ void EmulatorShell::LoadControllerPrefs()
     store.FromJson (m_globalPrefs.controllers, rejected);
     m_controllerService->SetModelSettings  (store.models);
     m_controllerService->SetCalibrations   (store.calibrations);
-    m_controllerService->SetActiveProfiles (ProfileMode::Normal,  store.activeProfiles);
-    m_controllerService->SetActiveProfiles (ProfileMode::Joyport, store.joyportActiveProfiles);
+    m_controllerService->SetActiveProfiles (ProfileMode::Joystick, store.activeProfiles);
+    m_controllerService->SetActiveProfiles (ProfileMode::Paddle,   store.paddleActiveProfiles);
+    m_controllerService->SetActiveProfiles (ProfileMode::Joyport,  store.joyportActiveProfiles);
 
     if (store.players.has_value())
     {
@@ -263,7 +264,8 @@ void EmulatorShell::SaveControllerPrefs()
 
     store.models                = m_controllerService->GetModelSettings();
     store.calibrations          = m_controllerService->GetCalibrations();
-    store.activeProfiles        = m_controllerService->GetActiveProfiles (ProfileMode::Normal);
+    store.activeProfiles        = m_controllerService->GetActiveProfiles (ProfileMode::Joystick);
+    store.paddleActiveProfiles  = m_controllerService->GetActiveProfiles (ProfileMode::Paddle);
     store.joyportActiveProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Joyport);
     store.players               = m_controllerService->GetPlayerEntries();
     store.lastHolders           = m_controllerService->GetLastHolders();
@@ -398,12 +400,12 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const 
     // its own. It passes to the machine's saved controller once, when that
     // controller has none recorded, and is written back to no machine after.
     legacyProfile  = MachineInputPrefs::ReadProfileName (uiPrefs);
-    normalProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Normal);
+    normalProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Joystick);
     isAdopted      = ControllerProfileStore::TryAdoptLegacyProfile (normalProfiles, selection, legacyProfile);
 
     if (isAdopted)
     {
-        m_controllerService->SetActiveProfiles (ProfileMode::Normal, normalProfiles);
+        m_controllerService->SetActiveProfiles (ProfileMode::Joystick, normalProfiles);
     }
 
     // A rate binding's paddle position belongs to the machine it was moved on.

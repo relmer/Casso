@@ -72,7 +72,7 @@ public:
         // Each controller's active profile for the mode being played, by unit
         // token; a missing or empty entry means that mode's built-in profile.
         std::map<std::string, std::string>     activeProfiles;
-        ProfileMode                            profileMode          = ProfileMode::Normal;
+        ProfileMode                            profileMode          = ProfileMode::Joystick;
         size_t                                 axisCount            = GamePortContribution::kAxisCount;
 
         // Whether any controller that drives the game port reads.
@@ -317,9 +317,7 @@ private:
 
     std::map<std::string, ControllerCalibration>         m_calibrations;
     ControllerProfileStore                               m_profiles;
-    std::map<std::string, std::string>                   m_activeProfiles;
-    std::map<std::string, std::string>                   m_joyportActiveProfiles;
-    ProfileMode                                          m_profileMode = ProfileMode::Normal;
+    ProfileMode                                          m_profileMode = ProfileMode::Joystick;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;

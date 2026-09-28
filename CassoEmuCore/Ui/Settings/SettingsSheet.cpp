@@ -459,8 +459,12 @@ HRESULT SettingsSheet::OpenModeless (
                                      !m_emuShell->MachineHasCaseSwitches(),
                                      snapshot.activeProfiles,
                                      snapshot.slots[0].holder);
-            m_controllersState.SetOtherModeActiveProfiles (service->GetActiveProfiles (snapshot.profileMode == ProfileMode::Joyport ? ProfileMode::Normal
-                                                                                                                                    : ProfileMode::Joyport));
+
+            for (ProfileMode mode : { ProfileMode::Joystick, ProfileMode::Paddle, ProfileMode::Joyport })
+            {
+                m_controllersState.SetActiveProfiles (mode, service->GetActiveProfiles (mode));
+            }
+
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
 

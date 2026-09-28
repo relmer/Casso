@@ -427,6 +427,44 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
+## Phase 19: A Joystick or Paddle Mode for Each Player (FR-008, FR-008b, FR-037, FR-039, FR-043; 2026-09-27, later)
+
+**Goal**: each player has a mode, Joystick or Paddle, saved with its entry, and the two modes alone decide what each player drives (FR-039). The per-slot "maps to" target, its drop-downs, "Follow the profile" and the rule that a slot's target follows its profile are removed. Profiles have three kinds, Joystick, Paddle and Joyport, each with a built-in profile (Default, Paddles, Joyport), and each player's profile lists hold only the kind of its mode. The picker offers each player's mode, and the Controllers page drops the Multiplayer checkbox for two always-shown player rows. This supersedes T125's `GetAutomaticTarget`, T158's checkbox and target tests, T161's optional target and T162's checkbox and slide.
+
+**Independent Test**: profile store round trips and legacy reads; `PlayerSlotPolicy` routes for every row of the FR-039 table, the //c included; the service plays each controller's profile of its player's kind; the picker rows per mode; the Controllers page's rows and content height laid out headlessly.
+
+### Profile kinds
+
+- [X] T171 [P] [US6] Extend `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`: three built-in profiles, none renamed or deleted, each resetting to its own mapping, Paddles to the old Paddles starting point; every profile saved with its kind (`joystick`, `paddle`, `joyport`) and read back as it; a profile with no kind classified by its mapping (PDL0 and not PDL1 is Paddle, anything else Joystick) and a Joyport profile kept; a Joystick choice of a now-Paddle profile moved to the Paddle map unless one is there; each kind's choices round trip, the Joystick map under its old key; each starting point accepted only for its kind; a user profile called Paddles becomes the built-in one. Extend `ControllersPageStateTests.cpp` with the per-kind starting points and a Paddle profile created on the page. Mutations: classify every legacy profile as Joystick; skip the move of legacy choices; write no kind for a Joystick profile; leave Paddles out of the built-in profiles; offer the default mapping for a Paddle profile
+- [X] T172 [US6] In `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp`, give `ProfileMode` the values `Joystick`, `Paddle` and `Joyport`; add the built-in `ControllerProfileKind::Paddles` ("Paddles", `DefaultMapping::MakePaddles`); rename `ProfileSource::Paddles` to `PaddleMapping`, the Paddle kind's built-in mapping; add `paddleActiveProfiles` (key `paddleActiveProfiles`); write every profile's kind; classify a profile read with none; move legacy Paddle choices out of the Joystick map
+- [X] T173 [US6] Carry the three maps through `ControllerInputService`, `ControllersPageState` (one map per kind, `SetActiveProfiles (mode, map)` in place of `SetOtherModeActiveProfiles`), `SettingsSheet`, `SettingsApplyController` and `EmulatorShellPrefs`; the page's starting points per kind, the Paddles mapping labeled "Paddles mapping"
+- [X] T174 [US6] Build; run `-Filter Controller`; record the mutations in `validation.md`; commit: `feat(controllers): give profiles a Paddle kind beside Joystick and Joyport`
+
+### Per-player mode and routing
+
+- [ ] T175 [P] [US7] Tests first. `PlayerSlotPolicyTests.cpp`: every row of FR-039 for both players and both modes, the //c's second joystick driving nothing, a lone Joystick player driving PDL0, PDL1 and PB0-PB2 and a lone Paddle player PDL0 and PB0; the keys set Joystick mode and the mouse Paddle mode; a mode change returns an entry the new mode cannot have to Automatic. `ControllerProfileStoreTests.cpp`: each player's mode round trips under `mode`, defaults to Joystick, and a legacy `maps` target reads as its mode. `ControllerInputServiceTests.cpp`: a controller plays its player's kind of profile, and moves to the other kind's choice when the mode changes; with the Joyport on it plays its Joyport choice. `ControllersPageStateTests.cpp`: the page's kind follows the edited player's mode and the Joyport; what each player drives, as the row's note gives it. Delete `PlayerTargetRulesTests.cpp`'s automatic-target tests and the page's target and checkbox tests. Mutations: route Player 2's Paddle mode to PDL2 beside a Paddle Player 1; resolve every controller's profile as Joystick; leave the page's kind on Joystick for a Paddle player
+- [ ] T176 [US7] Remove the per-slot target: `PlayerEntry::target`, `PlayerSlotPolicy::MappingsByUnit`, `PlayerTargetRules::GetAutomaticTarget` and `IsPaddleMapping`, `ControllerSelectionPolicy::GetTargetChoices`, `ControllersPageState::SetPlayerTarget`, `GetTargetChoices`, `GetTargetLabel`, `IsMultiplayerChecked` and `SetMultiplayerChecked`
+- [ ] T177 [US7] Add `PlayerMode` to `PlayerEntry`; set each slot's target from the two modes; give `PlayerSlotPolicy` the route a player has whether or not it drives; resolve each controller's profile by its player's kind in `ControllerInputService`, re-resolving when it changes; `SetPlayerMode` on the service and the shell, turning off the keys or the mouse when the new mode cannot have them; save the mode with the players
+- [ ] T178 [US7] Build; run `-Filter Controller` and `-Filter MachineInputPrefs`; commit: `feat(controllers): give each player a joystick or paddle mode`
+
+### Picker
+
+- [ ] T179 [P] [US7] Extend `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp`: each submenu offers Joystick and Paddle with the player's mode checked, disabled with the Joyport on; Use keys as joystick only in Joystick mode or with the Joyport on, Use mouse as paddle only in Paddle mode; a row in Paddle mode reads "(paddle)" after what is playing; "same as left" in lower case after a colon; the face reads Player 1's description and "(disconnected) +1" while Player 1's slot is held and Player 2 plays. Mutations: offer the mouse in Joystick mode; drop "(disconnected)"
+- [ ] T180 [US7] Implement in `InputModeRules`, `JoyportLabels`, `EmulatorCommands` and `EmulatorWindowInput.cpp`
+- [ ] T181 [US7] Build; run `-Filter PaddleSourceRows`, `-Filter JoyportLabels`, `-Filter Chrome`; capture the picker with a player's submenu open; commit: `feat(controllers): offer each player's mode in the picker`
+
+### Controllers page
+
+- [ ] T182 [P] [US7] Extend `UnitTest/UiTests/ControllersPageLayoutTests.cpp`: no checkbox; both player rows always shown with an entry, a Joystick / Paddle choice and a note of what the player drives; the choice disabled in Atari mode; "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it; the content height still reaches Reset profile. Mutation: lay the labels out beside the switch
+- [ ] T183 [US7] Rework `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`: drop the Multiplayer checkbox and its slide (keeping `DxuiSlide`, which the notice stack uses); Player 2's entry list with Disabled, reading "same as left" with the Joyport on; the mode choice and the note; the switch labels; the heading "Atari joystick" with the jack of the controller in Editing
+- [ ] T184 [US7] Build; run `-Filter ControllersPage`; capture the page in Apple mode with one player in Paddle mode, in Atari mode, and the switch zoomed; commit: `feat(settings): show each player's mode on the Controllers page`
+
+### Documents
+
+- [ ] T185 Update `plan.md`, `research.md`, `data-model.md`, `contracts/` and `quickstart.md` of specs 034 and 036 for the modes and kinds, marking the superseded decisions; commit: `docs(specs): record the per-player mode in the plans`
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies

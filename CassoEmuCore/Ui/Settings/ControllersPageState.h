@@ -224,10 +224,9 @@ public:
     void                                  SetProfileMode           (ProfileMode mode);
     ProfileMode                           GetProfileMode           () const           { return m_profileMode; }
 
-    // Every controller's active profile in the mode the page is not in, by
-    // unit token, set after Load; the page edits it once SetProfileMode
-    // switches to that mode.
-    void                                  SetOtherModeActiveProfiles (const std::map<std::string, std::string> & activeProfiles);
+    // Every controller's active profile for one kind, by unit token, set
+    // after Load; the page edits it while it is in that kind.
+    void                                  SetActiveProfiles        (ProfileMode mode, const std::map<std::string, std::string> & activeProfiles);
 
     // The selected model's profiles of the page's mode, its built-in profile
     // first; the ones of them a new profile can be a copy of; and the one
@@ -263,7 +262,7 @@ public:
     // token, for the page's mode or for either, which becomes the service's
     // on OK; whether any differs from when the page opened; and the edited
     // controller's, empty for the mode's built-in profile.
-    const std::map<std::string, std::string> &  GetActiveProfiles () const { return m_activeProfiles; }
+    const std::map<std::string, std::string> &  GetActiveProfiles () const;
     const std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) const;
     bool                                  HasActiveProfileChanged  () const;
     bool                                  HasActiveProfileChanged  (ProfileMode mode) const;
@@ -338,24 +337,26 @@ private:
     std::map<std::string, ControllerModelSettings>  m_baselineModels;
     std::map<std::string, ControllerCalibration>    m_baselineCalibrations;
 
+    using ProfilesByMode = std::array<std::map<std::string, std::string>, ControllerProfileStore::kProfileModeCount>;
+
     // The edited controller's active profile as chosen, empty for none, which
     // plays the built-in profile of m_profileMode. It is that
-    // controller's entry in m_activeProfiles, loaded when Editing moves to it
+    // controller's entry in the kind's map, loaded when Editing moves to it
     // and written back whenever it changes.
     std::string                                     m_editedProfile;
-    ProfileMode                                     m_profileMode = ProfileMode::Normal;
+    ProfileMode                                     m_profileMode = ProfileMode::Joystick;
 
-    // Every controller's active profile, by unit token, and as it was when
-    // the page opened or last committed: for the page's mode, and set aside
-    // for the other mode until SetProfileMode swaps them.
-    std::map<std::string, std::string>              m_activeProfiles;
-    std::map<std::string, std::string>              m_baselineActiveProfiles;
-    std::map<std::string, std::string>              m_otherActiveProfiles;
-    std::map<std::string, std::string>              m_baselineOtherActiveProfiles;
+    // Every controller's active profile, by unit token, for each kind, and as
+    // it was when the page opened or last committed.
+    ProfilesByMode                                  m_activeProfiles;
+    ProfilesByMode                                  m_baselineActiveProfiles;
 
-    void  LoadEditedProfile      ();
-    void  StoreEditedProfile     ();
-    void  RetargetActiveProfiles (const std::string & modelToken, const std::string & from, const std::string & to);
+    void                                  LoadEditedProfile      ();
+    void                                  StoreEditedProfile     ();
+    void                                  RetargetActiveProfiles (const std::string & modelToken, const std::string & from, const std::string & to);
+    std::map<std::string, std::string> &  GetModeProfiles        ();
+
+    static size_t                         GetModeIndex           (ProfileMode mode);
 
     static bool  IsEachPlayedAlike (const std::map<std::string, std::string> & from, const std::map<std::string, std::string> & in);
 

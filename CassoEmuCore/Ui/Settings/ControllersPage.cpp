@@ -1045,7 +1045,7 @@ void ControllersPage::ApplyJoyportMode (bool isAtariMode)
 {
     if (m_state != nullptr)
     {
-        m_state->SetProfileMode (isAtariMode ? ProfileMode::Joyport : ProfileMode::Normal);
+        m_state->SetProfileMode (isAtariMode ? ProfileMode::Joyport : ProfileMode::Joystick);
     }
 
     m_capturing.reset();

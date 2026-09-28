@@ -605,7 +605,7 @@ std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnit
 
 std::map<std::string, std::string> & ControllerInputService::GetModeProfilesLocked()
 {
-    return m_profileMode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
+    return m_profiles.GetActiveProfiles (m_profileMode);
 }
 
 
@@ -620,7 +620,7 @@ std::map<std::string, std::string> & ControllerInputService::GetModeProfilesLock
 
 const std::map<std::string, std::string> & ControllerInputService::GetModeProfilesLocked() const
 {
-    return m_profileMode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
+    return m_profiles.GetActiveProfiles (m_profileMode);
 }
 
 
@@ -643,7 +643,7 @@ void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::
 
 
 
-    (mode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles) = std::move (activeProfiles);
+    m_profiles.GetActiveProfiles (mode) = std::move (activeProfiles);
 
     m_rateResetPending = true;
     UnresolveDriversLocked();
@@ -673,7 +673,7 @@ void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::
 void ControllerInputService::SetJoyportAttached (bool isAttached)
 {
     std::unique_lock<std::mutex>  lock   (m_mutex);
-    ProfileMode                   mode   = isAttached ? ProfileMode::Joyport : ProfileMode::Normal;
+    ProfileMode                   mode   = isAttached ? ProfileMode::Joyport : ProfileMode::Joystick;
     std::optional<SlotsChange>    change;
 
 
@@ -711,7 +711,7 @@ void ControllerInputService::SetJoyportAttached (bool isAttached)
 std::map<std::string, std::string> ControllerInputService::GetActiveProfiles (ProfileMode mode) const
 {
     std::lock_guard<std::mutex>                 lock    (m_mutex);
-    const std::map<std::string, std::string> &  all     = mode == ProfileMode::Joyport ? m_joyportActiveProfiles : m_activeProfiles;
+    const std::map<std::string, std::string> &  all     = m_profiles.GetActiveProfiles (mode);
     std::map<std::string, std::string>          choices;
     ControllerUnitKey                           unit;
     HRESULT                                     hr      = S_OK;
