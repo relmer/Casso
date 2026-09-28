@@ -170,7 +170,7 @@ Paddles template (`DefaultMapping::MakePaddles`): one player's paddle. PDL0 = ax
 
 ### ControllerProfileStore
 
-Owns `std::map<ModelToken, ModelSettings>`, `std::map<UnitToken, ControllerCalibration>`, and `activeProfiles`, a `std::map<UnitToken, std::string>` giving each controller's active profile; an empty name or no entry is the Default (FR-029). Since 2026-09-27 there is one such map per profile kind: `activeProfiles` (Joystick), `paddleActiveProfiles` (Paddle) and `joyportActiveProfiles` (Joyport); an empty name or no entry is that kind's built-in profile. A controller plays its choice for the kind in effect for its player (its player's mode, Joystick for a controller in no slot, Joyport while the Joyport is attached). On read, a Joystick choice of a profile that is now a Paddle profile moves to the Paddle map unless that controller has a Paddle choice already (`MoveLegacyPaddleChoices`).
+Owns `std::map<ModelToken, ModelSettings>`, `std::map<UnitToken, ControllerCalibration>`, and `activeProfiles`, a `std::map<UnitToken, std::string>` giving each controller's active profile; an empty name or no entry is the Default (FR-029). Since 2026-09-27 there is one such map per profile kind: `activeProfiles` (Joystick), `paddleActiveProfiles` (Paddle) and `joyportActiveProfiles` (Joyport); an empty name or no entry is that kind's built-in profile. A controller plays its choice for the kind in effect for its player (its player's mode, Joystick for a controller in no slot, Joyport while the Joyport is attached; since 2026-09-28, Joyport only for a controller whose player is on a jack). On read, a Joystick choice of a profile that is now a Paddle profile moves to the Paddle map unless that controller has a Paddle choice already (`MoveLegacyPaddleChoices`).
 
 | Operation | Rule |
 |---|---|
@@ -264,10 +264,10 @@ Two player slots, always present and global (FR-037). Research [R16-R25](researc
 | kind | `PlayerEntryKind` | Default `Automatic` for both players (FR-037) |
 | unit | `std::optional<ControllerUnitKey>` | Set only for `Controller`: the picked controller, attached or not (FR-011, FR-041) |
 | target | `std::optional<PlayerAxisTarget>` | (Superseded 2026-09-27: removed; the player's `mode` replaced the per-slot target and the rule that it followed the active profile.) Set only when the user chose the target on the Controllers page; absent = follow the active profile (FR-043, R18) |
-| mode | `PlayerMode` | `Joystick` (default) or `Paddle` (FR-037, FR-039). Saved globally with the entry |
+| mode | `PlayerMode` | `Joystick`, `JoyportLeft`, `JoyportRight`, `Paddle` or `SameAsPlayer1` (Player 2 only), in that order (FR-037, FR-039; 2026-09-28). Player 1 defaults to `Joystick` and Player 2 to `SameAsPlayer1`. Saved globally with the entry. (Superseded 2026-09-28: `Joystick` (default) or `Paddle`.) |
 
 - `PlayerEntries` is `std::array<PlayerEntry, 2>`. Player 2's `Disabled` entry is how two-player play is turned off. (Superseded 2026-09-27: the Multiplayer checkbox, which was `entries[1].kind != Disabled`, is gone.)
-- `ApplyPick` keeps the player's mode. `NormalizeEntries` makes the keys play in Joystick mode and the mouse in Paddle mode. `ApplyMode (entries, player, mode)` sets a mode and returns Player 1 to `Automatic` when it holds the keys and the mode becomes Paddle, or holds the mouse and the mode becomes Joystick. `GetEffectiveMode (entry, isJoyport)` is the entry's mode, or Joystick while the Joyport is in effect.
+- `ApplyPick` keeps the player's mode. `NormalizeEntries` makes the keys play in Joystick mode and the mouse in Paddle mode. `ApplyMode (entries, player, mode)` sets a mode and returns Player 1 to `Automatic` when it holds the keys and the mode becomes Paddle, or holds the mouse and the mode becomes Joystick. `GetEffectiveMode (entry, isJoyport)` is the entry's mode, or Joystick while the Joyport is in effect. (Superseded 2026-09-28: `GetEffectiveMode` is removed; `PlayerModeRules::ResolveMode` gives the mode a player plays, and the keys play in Joystick or a Joyport mode.)
 - The two entries may not pick the same controller (FR-036). Picking a controller the other entry holds sets the other entry to `Automatic` (FR-041).
 
 ### PlayerSlotState (enum)
@@ -304,7 +304,7 @@ Both are cleared of every controller that holds no slot when Automatic starts ov
 
 ### PlayerSlotPolicy (pure)
 
-Inputs: `PlayerEntries`, attached devices, `PlayerOrderLogs`, the previous slots (for `Held`), the axis count, and whether the Joyport is in effect (`isJoyportInEffect`; both players are Joystick while it is). Before 2026-09-27 it took each candidate's active profile mapping for targets (superseded: targets come from the modes). Output: `std::array<PlayerSlot, 2>`, plus the assignment notices to show and whether `LastHolders` changed.
+Inputs: `PlayerEntries`, attached devices, `PlayerOrderLogs`, the previous slots (for `Held`), the axis count, and whether the Joyport is in effect (`isJoyportInEffect`; both players are Joystick while it is; superseded 2026-09-28: `hasJoyport`, whether the machine has one, and each player plays its resolved mode). Before 2026-09-27 it took each candidate's active profile mapping for targets (superseded: targets come from the modes). Output: `std::array<PlayerSlot, 2>`, plus the assignment notices to show and whether `LastHolders` changed.
 
 | Operation | Rule |
 |---|---|
@@ -313,7 +313,7 @@ Inputs: `PlayerEntries`, attached devices, `PlayerOrderLogs`, the previous slots
 | `GetDriverRoute (slots, entries, ...)` | The route of the one player driving the port alone, if there is one |
 | `IsRealInput (sample, calibration, deadzone)` | A button or D-pad press, a trigger past its threshold, or any axis outside its deadzone after calibration (R16) |
 | `IsOnePlaying (slots)` | Exactly one slot `Playing` or `Provisional` (or Player 1 on keys/mouse) and the other `Empty` or `Waiting`, not `Held` |
-| `DescribeAssignment (player, description)` | "Player 1: description"; spec 036 substitutes its Joyport labels here |
+| `DescribeAssignment (player, description)` | "Player 1: description"; spec 036 substitutes its Joyport labels here. (Superseded 2026-09-28: `PlayerModeRules::DescribeAssignment (player, description, jacks)` adds "(Joyport left)", "(Joyport right)" or "(Joyport left and right)" after the player.) |
 | `NeedsIdleWatch (entries, slots)` | Whether any Automatic player is `Empty`, `Waiting` or `Provisional`, which turns on R23's watch |
 
 ### PlayerTargetRules (pure)
@@ -337,7 +337,7 @@ Routing by mode (FR-039). Only the modes decide; the profile does not. A player'
 | Joystick, alone | -- | PDL0, PDL1, PB0-PB2 | -- |
 | Paddle, alone | -- | PDL0, PB0 | -- |
 
-What a machine lacks plays nothing (FR-035): on the //c, with no PDL2/PDL3, a second player in Joystick mode drives nothing. While the Joyport is in effect both players route as Joystick.
+What a machine lacks plays nothing (FR-035): on the //c, with no PDL2/PDL3, a second player in Joystick mode drives nothing. While the Joyport is in effect both players route as Joystick. (Superseded 2026-09-28: see "Joyport modes" below.)
 
 ### State transitions (one slot on Automatic)
 
@@ -384,3 +384,26 @@ Sliding --duration passes--> Showing at its new place
 ## Saved state added (2026-09-27)
 
 In the global `controllers` section ([contracts/prefs-schema.md](contracts/prefs-schema.md)): `players` (two `PlayerEntry` records, each with its `mode`; its presence marks the one-time adoption as done) and `lastHolders` (two unit tokens or null). Later the same day: `paddleActiveProfiles` and `joyportActiveProfiles` beside `activeProfiles`, and each profile's `profileMode`. Per machine: `controller` and `multiplayer` are no longer written and are read only by the adoption and the legacy profile move; `arrowsToJoystick` and a `pointerMapping` of `paddle` are read only by the adoption; a `pointerMapping` of `mouse` (the //c IOU mouse) stays per machine.
+
+2026-09-28: each player's `mode` may also be `joyportLeft`, `joyportRight` or (Player 2) `sameAsPlayer1`. The global `gamePortAdapter` is read once by the migration and then written as `"none"` to mark it done.
+
+## Joyport modes (2026-09-28)
+
+Research R27; spec 036 data-model holds `PlayerModeRules`' full table and the jack assignment.
+
+`PlayerModeRules` (`CassoEmuCore/Controllers/PlayerModeRules.h/.cpp`, pure) resolves each player's mode (`ResolveMode`: `SameAsPlayer1` is Player 1's mode, or the other jack while Player 1 is on one; a jack is `Joystick` on a machine without a Joyport) and provides `IsJoyportOn`, `GetJack`, `IsModeTaken`, `AreButtonsCut`, `ArePaddlesConnected`, `AreKeysOffered`, `IsMouseOffered`, `BuildModeChoices`, `GetModeLabel`, `GetPlayerLabel`, `DescribeAssignment` and the migration.
+
+Routing with a player on a jack (FR-039):
+
+| Player 1 resolved | Player 2 resolved | Player 1 drives | Player 2 drives |
+|---|---|---|---|
+| a jack | a jack | its jack (both while Player 2 is idle) | its jack (both while Player 1 is idle) |
+| a jack | Joystick | its jack and, the other being free, both | PDL0, PDL1; no button line |
+| a jack | Paddle | as above | PDL0; no button line |
+| Joystick | a jack | PDL0, PDL1; no button line | its jack and, the other being free, both |
+| Paddle | a jack | PDL0; no button line | as above |
+| a jack, alone | -- | both jacks | -- |
+
+Player 1 on the keys in a jack mode drives its jack or jacks from the arrow and fire keys and no paddle; Player 1 on the mouse (Paddle) drives PDL0 alone while Player 2 plays. The paddle inputs read as no paddle connected only while every playing player is on a jack.
+
+Each controller plays the profile kind of its own player's resolved mode: Joyport for a jack, otherwise Joystick or Paddle.

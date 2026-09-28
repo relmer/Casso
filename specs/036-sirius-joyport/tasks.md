@@ -344,15 +344,15 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 
 ---
 
-## Phase 15 (optional): User Story 6 - The Controller Select switch -- BLOCKED on the FR-016 decision
+## Phase 15 (optional): User Story 6 - The Controller Select switch -- BLOCKED on the FR-016 decision (DROPPED 2026-09-28)
 
-**Status**: blocked. FR-016 carries an open clarification marker that only the owner can resolve. Do not start any task in this phase until the owner has decided to emulate the switch; if the decision is no, delete this phase. The tasks record the shape research R24 describes so the decision can be made against it.
+**Status**: dropped 2026-09-28. FR-016 is closed as not needed: putting a player on Joyport left or Joyport right covers what the switch did for the manual's test program. The tasks are kept as the record. (Superseded: blocked. FR-016 carries an open clarification marker that only the owner can resolve. Do not start any task in this phase until the owner has decided to emulate the switch; if the decision is no, delete this phase. The tasks record the shape research R24 describes so the decision can be made against it.)
 
-- [ ] T113 [P] [US6] (Blocked on FR-016.) Extend `UnitTest/EmuTests/SiriusJoyportTests.cpp`: at Left or Right every read comes from that jack whatever AN0 selects; at Center AN0 chooses; a change takes effect on the next read
-- [ ] T114 [US6] (Blocked on FR-016.) Add `enum class JoyportControllerSelect { Left, Center, Right }` and `SetControllerSelect` to `CassoEmuCore/Machines/Apple2/Common/SiriusJoyport.h/.cpp`, read on each `TryReadButton`
-- [ ] T115 [US6] (Blocked on FR-016.) Save the position globally as `joyportControllerSelect` in `CassoEmuCore/Config/GlobalUserPrefs.h/.cpp`, default Center, with tests in `UnitTest/UiTests/GlobalUserPrefsTests.cpp`, and apply it at launch and on machine switch beside T082 and T083
-- [ ] T116 [US6] (Blocked on FR-016.) Create a three-position Dxui control in the toggle's style in `Dxui/Widgets/` with a geometry test in `UnitTest/Dxui/`, and show it beside the Joyport switch in `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, positions left to right, disabled in Apple mode
-- [ ] T117 [US6] (Blocked on FR-016.) Run the manual's test program with two controllers for SC-008 and record it in `validation.md`
+- [-] T113 DROPPED 2026-09-28: FR-016 closed as not needed. [P] [US6] (Blocked on FR-016.) Extend `UnitTest/EmuTests/SiriusJoyportTests.cpp`: at Left or Right every read comes from that jack whatever AN0 selects; at Center AN0 chooses; a change takes effect on the next read
+- [-] T114 DROPPED 2026-09-28: FR-016 closed as not needed. [US6] (Blocked on FR-016.) Add `enum class JoyportControllerSelect { Left, Center, Right }` and `SetControllerSelect` to `CassoEmuCore/Machines/Apple2/Common/SiriusJoyport.h/.cpp`, read on each `TryReadButton`
+- [-] T115 DROPPED 2026-09-28: FR-016 closed as not needed. [US6] (Blocked on FR-016.) Save the position globally as `joyportControllerSelect` in `CassoEmuCore/Config/GlobalUserPrefs.h/.cpp`, default Center, with tests in `UnitTest/UiTests/GlobalUserPrefsTests.cpp`, and apply it at launch and on machine switch beside T082 and T083
+- [-] T116 DROPPED 2026-09-28: FR-016 closed as not needed. [US6] (Blocked on FR-016.) Create a three-position Dxui control in the toggle's style in `Dxui/Widgets/` with a geometry test in `UnitTest/Dxui/`, and show it beside the Joyport switch in `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, positions left to right, disabled in Apple mode
+- [-] T117 DROPPED 2026-09-28: FR-016 closed as not needed. [US6] (Blocked on FR-016.) Run the manual's test program with two controllers for SC-008 and record it in `validation.md`
 
 ---
 
@@ -393,6 +393,32 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 
 ---
 
+## Phase 18: A Joyport mode for each player (Priority: P1; 2026-09-28)
+
+**Goal**: the owner's decision of 2026-09-28. The global Apple / Atari switch gives way to per-player modes: Joystick, Joyport left (Atari), Joyport right (Atari), Paddle, and Same as Player 1 for Player 2. The Joyport is on while either player's resolved mode is a jack; a taken jack is disabled for the other player; a player off the Joyport beside a Joyport player drives its paddle inputs and no button; the old setting migrates once. Spec 034's Phase 20 carries the same work from the controller side; the tasks below are the Joyport's part of it and share its commits. FR-016 is closed.
+
+**Independent Test**: quickstart V23-V30.
+
+- [X] T130 Update `spec.md` (Session 2026-09-28; FR-001, FR-002, FR-008, FR-009, FR-010, FR-012, FR-015, FR-016, FR-018-FR-022; US3, US4, US6; edge cases; SC-007, SC-008, SC-011), `plan.md`, `research.md` (R27), `data-model.md`, `contracts/` and `quickstart.md` (V23-V30), marking what is superseded
+- [X] T131 [P] [US4] Tests first, `UnitTest/ControllerTests/PlayerModeRulesTests.cpp`: `ResolveMode` for Same as Player 1 beside each Player 1 mode, including the other jack, and a jack as Joystick with no Joyport; `IsJoyportOn` for every pair of modes, off without a Joyport; `GetJack`; `IsModeTaken`, with a Disabled Player 2 holding no jack; `AreButtonsCut`; `ArePaddlesConnected`; `AreKeysOffered` and `IsMouseOffered`; `BuildModeChoices` order, checked and enabled flags, no jacks on the //c; `GetModeLabel` for every mode and `GetPlayerLabel`; `DescribeAssignment` with no jack, each jack and both; `MigrateAdapter` and `ApplyMigration` for a global `siriusJoyport`, an empty global with the launched machine's `siriusJoyport`, and a global `none`. Confirm they fail against a stub
+- [X] T132 [US4] Create `CassoEmuCore/Controllers/PlayerModeRules.h/.cpp`; add `JoyportLeft`, `JoyportRight` and `SameAsPlayer1` to `PlayerMode` in `PlayerSlotPolicy.h`
+- [X] T133 [P] [US3] Tests first, `UnitTest/ControllerTests/JoyportJackRulesTests.cpp`: `ReducePlayers` gives each player its state and the jack of its resolved mode; `AssignJacks` puts a lone Joyport player on both jacks while the other jack is free, splits two Joyport players by their jacks either way round, keeps a held jack open and away from the other player, and assigns nothing with both players off the Joyport; the `isPlayer2Disabled` tests are removed. Mutation: a free jack not given to the lone Joyport player
+- [X] T134 [US3] Rework `CassoEmuCore/Controllers/JoyportJackRules.h/.cpp`: `JoyportPlayers::jacks` in place of `isPlayer2Disabled`; `ReducePlayers`, `GetPlayerJacks`
+- [X] T135 [P] [US3] Tests first, `ControllerInputServiceTests.cpp`: the service with `SetJoyportAvailable` derives whether the Joyport is on from the entries; a player on Joystick beside a Joyport player drives PDL0 and PDL1 and no button line, one on Paddle drives PDL0; each controller plays the profile kind of its own player's resolved mode, the Joyport kind only for a player on a jack. Mutation: a Joyport player's paddles placed on the paddle inputs
+- [X] T136 [US3] `ControllerInputService` and `PlayerSlotPolicy`: `SetJoyportAvailable` in place of the attached flag; routes and buttons cut from `PlayerModeRules`; remove `GetEffectiveMode`; the notice text from `DescribeAssignment`
+- [X] T137 [P] [US1] Tests first, `GamePortInputMixerTests.cpp`: the keys drive the jacks their contribution marks (`keyJacks`) and no paddle on a Joyport mode, and own PDL0 and PDL1 otherwise; the mouse owns PDL0 only while Player 2 plays. Then implement in `GamePortInputMixer` and the shell's key and mouse contributions. Mutation: the keys' switches on every jack whatever their contribution marks
+- [X] T138 [P] [US1] Tests first, `UnitTest/EmuTests/SiriusJoyportTests.cpp`: attached with the paddle inputs connected, `IsDrivingPaddles` is false and the buttons still come from the jacks; disconnected, it is true. Then implement in `SiriusJoyport`, and have the shell attach the Joyport and connect its paddle inputs after every entry change and on machine switch
+- [X] T139 [P] [US4] Saved tokens: `joystick`, `joyportLeft`, `joyportRight`, `paddle`, `sameAsPlayer1` round trip; a Player 2 with no mode reads Same as Player 1; an unrecognized token reads Joystick; tests in `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`. The migration runs once at launch and writes the global `gamePortAdapter` as `none`; its rules are tested in `PlayerModeRulesTests.cpp`
+- [X] T140 [P] [US4] Picker, tests first in `PaddleSourceRowsTests.cpp`: each submenu's mode rows in order with Same as Player 1 first for Player 2; a taken jack disabled; no jacks on the //c; no Joyport row; keys and mouse by `AreKeysOffered` and `IsMouseOffered`; rows read "Player N: ...". Then implement in `InputModeRules`, `EmulatorCommands` and `EmulatorWindow.cpp`. Mutation: leave a taken jack enabled
+- [X] T141 [P] [US4] `DxuiComboBox` per-item enabled flags, tests first in `UnitTest/Dxui/DxuiComboBoxItemEnabledTests.cpp`: a disabled item is drawn in the disabled text color, skipped by the arrow keys and not committed by a click. Mutation: commit a click on a disabled item
+- [X] T142 [P] [US5] Controllers page, tests first in `ControllersPageStateTests.cpp` and `ControllersPageLayoutTests.cpp`: each player's mode drop-down lists the modes with a taken jack disabled; the note reads "left jack", "right jack", "both jacks", "joystick 0", "paddle 1" and so on; a player with its buttons cut has its button binding rows disabled and, under its row, the warning badge and "This controller's buttons are disabled because Player N is using the Joyport."; no switch section. Then implement in `ControllersPage` and `ControllersPageState`. Mutation: leave the button rows enabled
+- [X] T143 [US4] Remove the Controllers page's switch section, the picker's Joyport row, `IDM_GAMEPORT_ADAPTER_JOYPORT` and its route and routing-test row, `EmulatorShell::SetGamePortAdapter` / `GetGamePortAdapter`, `JoyportSetting`, `JoyportLabels`, `JoyportSettingTests.cpp` and `JoyportLabelsTests.cpp`. `DxuiToggle`'s orientation option and label-visibility API stay as library code
+- [X] T144 Mutation checks for Phase 18, recorded in `validation.md` under a new "Phase 18" heading: the mutations listed in T133, T135, T137, T140, T141 and T142
+- [X] T145 Build x64 Debug and Release, run the full Release suite and the scenario suite, capture the Controllers page with both players on Joystick, with Player 1 on Joyport left and Player 2 on Paddle (the warning notice showing), and with both on the Joyport, and the picker with a player's mode submenu open; record in `validation.md`; commit with spec 034's Phase 20
+
+**Checkpoint**: each player chooses its own jack or mode, and the global switch is gone.
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies
@@ -414,7 +440,8 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 - **Phase 12 (the switch and the picker)**: after Phases 9 and 11.
 - **Phase 13 (jacks and labels)**: T100-T103 after Phase 11; T104-T106 after spec 034's player slots, submenus and notice stack.
 - **Phase 14 (validation and gate)**: after Phases 9-13.
-- **Phase 15**: blocked on the owner's FR-016 decision; independent of Phases 9-14 if adopted.
+- **Phase 15**: blocked on the owner's FR-016 decision; independent of Phases 9-14 if adopted. (Dropped 2026-09-28: FR-016 closed as not needed.)
+- **Phase 18** (2026-09-28): after Phases 13 and 17; built with spec 034's Phase 20.
 - **Phase 16 (new profile starting points)**: after Phase 9; independent of Phases 10-15.
 
 ### Within Each Story
@@ -488,7 +515,7 @@ Each phase ends with a commit and leaves the build and suite green.
 2. Phase 11 then Phase 12: the global setting and the Apple / Atari switch (US4).
 3. Phase 13: jacks and labels, finished once spec 034's players land (US3).
 4. Phase 14: validation and the gate.
-5. Phase 15 only if the owner adopts FR-016.
+5. Phase 15 only if the owner adopts FR-016. (Dropped 2026-09-28: FR-016 closed as not needed.)
 
 ---
 

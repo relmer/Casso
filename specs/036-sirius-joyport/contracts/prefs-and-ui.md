@@ -6,6 +6,10 @@ Covers FR-001, FR-002, FR-012, FR-015 and User Stories 4 and 5.
 > was removed, and the Controllers page gained the Apple / Atari switch and
 > per-mode profile lists. The sections below the rule are the 2026-09-24
 > contract as built; where the 2026-09-27 section at the end differs, it wins.
+>
+> **2026-09-28**: the global setting, the Apple / Atari switch and the
+> picker's Joyport row are removed; each player's mode puts it on a jack. The
+> 2026-09-28 section at the very end wins over both sections above it.
 
 ## Pref
 
@@ -262,3 +266,94 @@ bool             IsJoyportInEffect  () const;                    // JoyportSetti
 ### Controller Select (FR-016)
 
 Not part of this contract. Deferred pending the owner's decision (R24).
+
+---
+
+## 2026-09-28: per-player Joyport modes
+
+Research R27. Replaces the global pref, the `EmulatorShell` functions, the
+picker row, the commands and the Controllers page's Joyport section above.
+
+### Prefs
+
+```jsonc
+{
+  "gamePortAdapter": "none",   // global: only a marker that the migration ran
+  "controllers": {
+    "players": [
+      { "entry": "automatic", "mode": "joyportLeft" },
+      { "entry": "automatic", "mode": "sameAsPlayer1" }
+    ]
+  }
+}
+```
+
+- Mode tokens: `"joystick"`, `"joyportLeft"`, `"joyportRight"`, `"paddle"`,
+  `"sameAsPlayer1"` (spec 034 contracts/prefs-schema.md). A Player 2 with no
+  saved mode key is Same as Player 1. An unrecognized token reads as
+  Joystick, and `"sameAsPlayer1"` on Player 1 reads as Joystick.
+- Migration at cold boot, `PlayerModeRules::MigrateAdapter (globalToken,
+  launchedUiPrefs, launchedHasAnnunciators)`: a global `"siriusJoyport"`, or
+  an empty global token and the launched machine's `"siriusJoyport"`, gives
+  `isJoyport`, and the shell applies `ApplyMigration` (Player 1 on
+  `joyportLeft`, Player 2 on `sameAsPlayer1`). Whenever `shouldMark`, the
+  shell writes the global token as `"none"` and saves, so no later launch
+  reads a machine's old value. The per-machine key is never written.
+
+### EmulatorShell
+
+- Removed: `SetGamePortAdapter`, `GetGamePortAdapter`, `IsJoyportInEffect`'s
+  use of the setting, and `IDM_GAMEPORT_ADAPTER_JOYPORT` with its route and
+  its row in `ChromeCommandRoutingTests.cpp`.
+- `EmulatorShell::ApplyJoyportToMachine` (at machine build, and after each
+  mode change through `SyncJoyport` on the UI thread) and
+  `MigrateJoyportAtLaunch` replace `ApplyGamePortAdapterToMachine` and
+  `ResolveGamePortAdapterAtLaunch`.
+- After every change to the players' entries (a pick, a mode, a start-over,
+  a machine switch), the shell attaches the machine's Joyport when
+  `PlayerModeRules::IsJoyportOn`, connects or disconnects its paddle inputs
+  from `ArePaddlesConnected` (`SiriusJoyport::SetPaddlesConnected`), and passes `ControllerInputService::SetJoyportAvailable`
+  whether the machine has one. None of this resets the machine.
+
+### Picker
+
+- The Joyport row is removed.
+- Each player's row reads "Player N: <what plays>", ending in " (paddle)" for a controller or Automatic in Paddle mode; no other mode adds a suffix. Its submenu lists the
+  modes from `PlayerModeRules::BuildModeChoices`, in the order Joystick,
+  Joyport left (Atari), Joyport right (Atari), Paddle, with Same as Player 1
+  first for Player 2; the resolved mode's entry is checked and a jack the
+  other player holds is disabled. The //c lists no jack.
+- Use keys as joystick is listed when `AreKeysOffered` (Player 1 in Joystick
+  or a jack) and Use mouse as paddle when `IsMouseOffered` (Player 1 in
+  Paddle); a checked one stays listed.
+- The notice for a controller Automatic gave a player is
+  `PlayerModeRules::DescribeAssignment`.
+
+### Controllers page
+
+- The Joyport section, its toggle and its labels are removed. `DxuiToggle`
+  keeps `OnDirection` and its label-visibility API as library code.
+- Each player's mode drop-down lists `BuildModeChoices`; a taken jack is a
+  disabled item, through `DxuiComboBox`'s new per-item enabled flags
+  (disabled items drawn in the disabled text color, skipped by the keyboard,
+  not committed by a click).
+- The note beside each row gives what the player drives: "left jack", "right
+  jack", "both jacks", "joystick 0", "joystick 1", "paddle 0", "paddle 1" and
+  so on.
+- A player with `AreButtonsCut` has its button binding rows disabled, and
+  under its row Dxui's warning badge with "This controller's buttons are
+  disabled because Player N is using the Joyport.", N being the other player.
+- The profile list follows the kind of the edited player's resolved mode.
+  The switch lights show while the controller in Editing plays on a jack; a
+  controller whose player is on Joystick or Paddle shows its stick and button
+  lights.
+
+### Tests
+
+`PlayerModeRulesTests.cpp` (every function above, including the migration's
+three cases), `PaddleSourceRowsTests.cpp` (mode rows, taken jacks, keys and
+mouse offers, no Joyport row), `ControllersPageStateTests.cpp` and
+`ControllersPageLayoutTests.cpp` (mode list, disabled jack, note, warning
+notice, disabled button rows, no switch section), `DxuiComboBoxTests.cpp`
+(disabled items), `MachineInputPrefsTests.cpp` or the store tests (mode
+tokens round trip).

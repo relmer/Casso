@@ -302,6 +302,9 @@ kept as written.
 
 ## R14. The Joyport setting is global, and adopts the old per-machine value once
 
+> **Superseded by R27 (2026-09-28).** There is no Joyport setting; the
+> global and per-machine values are read once by R27's migration.
+
 - **Decision**: `GlobalUserPrefs` gains `std::string gamePortAdapter`, holding
   the existing tokens `"none"` or `"siriusJoyport"` (R8), empty meaning never
   set. It is read at launch and written by every change from the picker or the
@@ -334,6 +337,10 @@ kept as written.
 
 ## R15. Apple / Atari is the control that turns the Joyport on; the Machine tab drops it
 
+> **Superseded by R27 (2026-09-28).** The switch section, the picker row and
+> the commands are removed; a player's mode turns the Joyport on. The Machine
+> tab removal stands.
+
 - **Decision**: the Joyport is turned on and off in two places, both of which
   call one shell function, `EmulatorShell::SetGamePortAdapter`, which sets the
   live machine's Joyport, the controller service's mode and the global pref,
@@ -365,6 +372,10 @@ kept as written.
   Casso's own Settings plumbing for this one setting, not Dxui library code.
 
 ## R16. The //c reads the Joyport as off and keeps the setting
+
+> **Superseded by R27 (2026-09-28).** `JoyportSetting::IsInEffect` is
+> replaced by `PlayerModeRules::IsJoyportOn`; on the //c a Joyport mode
+> plays as Joystick and is kept.
 
 - **Decision**: one pure rule,
   `JoyportSetting::IsInEffect (GamePortAdapter setting, bool hasAnnunciators)`,
@@ -490,6 +501,11 @@ kept as written.
 
 ## R20. One controller is never an analog joystick and an Atari stick at once
 
+> **Amended by R27 (2026-09-28).** A player is one or the other. A player on
+> Joystick or Paddle beside a Joyport player drives its paddle inputs with no
+> buttons, so the paddle inputs read as no paddle connected only while every
+> playing player is on a jack.
+
 - **Decision**: unchanged mechanism, recorded because the spec now states it as
   a requirement (FR-009): while the Joyport is in effect, `IsDrivingPaddles`
   makes `$C064`-`$C067` read as no paddle connected (R3), controllers drive the
@@ -505,6 +521,10 @@ kept as written.
   hardware's Apple / Atari switch never connects both either.
 
 ## R21. Which controller drives which jack, from spec 034's players
+
+> **Amended by R27 (2026-09-28).** The jacks come from the players' resolved
+> modes, not from Player 1 left and Player 2 right; `isPlayer2Disabled` and
+> the Same as left row are gone.
 
 - **Decision**: a pure `JoyportJackRules::AssignJacks (const JoyportPlayers &)`
   returns, for each jack, which player's switches it carries. Its input is a
@@ -550,6 +570,10 @@ kept as written.
 
 ## R22. Joyport labels in the picker and the notices
 
+> **Superseded by R27 (2026-09-28).** `JoyportLabels` is removed; the players
+> keep Player 1 and Player 2, and `PlayerModeRules` gives the mode labels and
+> the notice text.
+
 - **Decision**: a pure `JoyportLabels` helper (in `CassoEmuCore/Controllers/`)
   returns the player row label, Player 2's Disabled entry label, the Automatic
   row text and the notice text for a given player and `IsInEffect` state:
@@ -572,6 +596,9 @@ kept as written.
   FR-044). The helper and its tests do not wait; the hookup does.
 
 ## R23. The Controllers page's Joyport section and per-mode lists
+
+> **Amended by R27 (2026-09-28).** The Joyport section and its switch are
+> removed; the per-kind lists follow each player's own mode.
 
 - **Decision**: the page gains a **Joyport** section, above the controller
   list, shown only when `SettingsMachineInfo::supportsGamePortAdapter` is true
@@ -626,6 +653,10 @@ kept as written.
 
 ## R26. Player modes while the Joyport is in effect (2026-09-27)
 
+> **Superseded by R27 (2026-09-28).** The Joyport jacks are modes; the mode
+> list is never disabled for the Joyport, and only a Joyport player plays its
+> Joyport-kind choice.
+
 - **Decision**: while the Joyport is in effect both players are Atari sticks.
   `PlayerSlotPolicy::GetEffectiveMode` reports Joystick for both, every
   controller plays its Joyport-kind choice, and the mode cannot be chosen: the
@@ -637,6 +668,9 @@ kept as written.
   The keys are offered with the Joyport on in either saved mode.
 
 ## R24. The Controller Select switch: deferred
+
+> **Closed 2026-09-28 (R27).** FR-016 is closed as not needed; the tasks of
+> the optional phase are marked dropped.
 
 - **Decision**: not planned. FR-016 carries an open clarification marker that
   the owner has not resolved, so the emulator keeps the switch at Center, as
@@ -651,3 +685,69 @@ kept as written.
   manual's test program as the check for SC-008. The earlier pass through that
   program closed switches on both jacks for its one-stick sections, which is
   why it passed without this switch (validation.md).
+
+## R27. A Joyport mode for each player (2026-09-28)
+
+- **Decision**: the global Apple / Atari setting goes. `PlayerMode` gains
+  `JoyportLeft`, `JoyportRight` and `SameAsPlayer1`, in the order `Joystick`,
+  `JoyportLeft`, `JoyportRight`, `Paddle`, `SameAsPlayer1`, saved as
+  `"joystick"`, `"joyportLeft"`, `"joyportRight"`, `"paddle"` and
+  `"sameAsPlayer1"`; a Player 2 with no saved mode is Same as Player 1. A new
+  pure `PlayerModeRules` (`CassoEmuCore/Controllers/`) replaces
+  `JoyportSetting` and `JoyportLabels`:
+  - `ResolveMode` gives Player 1's mode for Same as Player 1, or the other
+    jack when Player 1 is on one; on a machine with no Joyport a jack plays as
+    Joystick.
+  - `IsJoyportOn` is true while any player's resolved mode is a jack on a
+    machine that has a Joyport; `GetJack` gives a mode's jack;
+    `IsModeTaken` reports a jack the other player's resolved mode holds (a
+    Disabled Player 2 holds none).
+  - `AreButtonsCut` is true for a player off the Joyport while the other is on
+    it; `ArePaddlesConnected` is false only while every playing player is on a
+    jack.
+  - `AreKeysOffered` (Player 1 in Joystick or a Joyport mode) and
+    `IsMouseOffered` (Player 1 in Paddle mode).
+  - `BuildModeChoices` lists the modes with checked and enabled flags;
+    `GetModeLabel` and `GetPlayerLabel` give the labels; `DescribeAssignment`
+    gives "Player N: description", or with the jacks it drives "Player N
+    (Joyport left): description", "(Joyport right)" or "(Joyport left and
+    right)".
+  - `MigrateAdapter` reads the old global `gamePortAdapter`, or the launched
+    machine's value where the global one was never set, and `ApplyMigration`
+    puts Player 1 on Joyport left and Player 2 on Same as Player 1 when it was
+    the Joyport. The caller then writes the global key as `"none"`, which only
+    marks the migration as done, so no machine's old value is read again.
+- **Jacks**: `JoyportJackRules::ReducePlayers` gives each player its state
+  (`Driving`, `Held`, `Idle`) and the jack its resolved mode holds, if any;
+  `AssignJacks` puts each Driving player on its jack and also on the other jack
+  while that jack is free (no player's mode on it, or its player Idle). A Held
+  player's jack reads open and is not handed to the other player.
+  `isPlayer2Disabled` is gone.
+- **Service and shell**: `ControllerInputService::SetJoyportAvailable` takes
+  whether the machine has a Joyport (it replaces `SetJoyportAttached`), and
+  the service derives whether it is on from the entries. After every entry
+  change the shell attaches the machine's Joyport when `IsJoyportOn` and
+  connects or disconnects its paddle inputs from `ArePaddlesConnected`. Each
+  controller plays the profile kind of its own player's resolved mode.
+- **Mixer**: the keys-to-jacks fallback follows the jacks the arrow-keys
+  contribution marks (`keyJacks`), not the axis owner. The arrow keys own
+  PDL0 and PDL1 only while Player 1 is not on a Joyport mode, and the mouse
+  owns PDL0 only while Player 2 plays (spec 034 research R27).
+- **UI**: the picker's Joyport row, its menu command
+  (`IDM_GAMEPORT_ADAPTER_JOYPORT`), `EmulatorShell::SetGamePortAdapter` /
+  `GetGamePortAdapter` and the Controllers page's switch section are removed.
+  Each player's submenu and row list the modes; a taken jack is disabled,
+  which on the page needs per-item enabled flags on `DxuiComboBox`. A player
+  whose buttons are cut has its button binding rows disabled and, under its
+  row, Dxui's warning badge with "This controller's buttons are disabled
+  because Player N is using the Joyport." `DxuiToggle` keeps its orientation
+  option and label-visibility API as library code.
+- **FR-016**: closed as not needed. The manual's test program picks a jack for
+  its one-stick sections with the Controller Select switch; putting a player
+  on that jack does the same.
+- **Rationale**: the switch made both players Atari sticks at once, which ruled
+  out a player on a rear-socket joystick or paddle beside an Atari stick, and
+  took one control on the page and one row in the picker to express what a
+  player's mode already carries.
+- **Alternatives considered**: keeping the switch and adding a jack choice per
+  player. Rejected; two controls would then set whether the Joyport is on.

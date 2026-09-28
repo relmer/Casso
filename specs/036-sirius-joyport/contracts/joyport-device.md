@@ -48,6 +48,13 @@ exactly what it did before this feature.
 True while attached, reset window or not. A caller reads bit 7 set for
 `$C064`-`$C067` (the timer never expires: no pot on an Atari stick).
 
+(2026-09-28: true only while attached and the paddle inputs are disconnected.
+The shell connects them from `PlayerModeRules::ArePaddlesConnected` after
+every entry change, so a player on Joystick or Paddle beside a Joyport player
+still drives `$C064`-`$C067`; they read as no paddle connected only while
+every playing player is on a jack. The setter is `SiriusJoyport::SetPaddlesConnected (bool isConnected)`,
+UI thread; `IsDrivingPaddles` is attached and not paddles connected. Research R27.)
+
 ## Reading devices
 
 | Device | Address | Change |
@@ -88,12 +95,15 @@ so a power cycle stamps the zeroed counter. A machine switch builds a new
 Joyport, applies the machine's saved adapter, and then runs `PowerCycle`.
 (2026-09-27: it applies the global setting through
 `JoyportSetting::IsInEffect` instead; research R14, R16.)
+(2026-09-28: the shell attaches it when `PlayerModeRules::IsJoyportOn` holds
+for the players' entries on the new machine; research R27.)
 
 ## Controller Select (FR-016)
 
 The device models the switch at Center only: AN0 chooses the jack on every
 read. Emulating Left and Right is undecided (spec FR-016) and is not part of
 this contract; research R24 records the shape it would take.
+(2026-09-28: FR-016 is closed as not needed; the switch stays at Center.)
 
 ## Tests (UnitTest/EmuTests/)
 
@@ -111,3 +121,6 @@ this contract; research R24 records the shape it would take.
   times; an Open Apple hold through reset still reboots (SC-003); paddles read
   255; detached, the existing `KeyboardTests` and `GamePortTests` expectations
   hold (SC-006).
+- (2026-09-28) `SiriusJoyportTests.cpp`: attached with the paddle inputs
+  connected, `IsDrivingPaddles` is false and the buttons still come from the
+  jacks; disconnected, it is true.

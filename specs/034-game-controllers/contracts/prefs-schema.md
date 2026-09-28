@@ -107,12 +107,13 @@ Two keys join the `controllers` section (research R19, R21):
 | `players` | Array of exactly two objects, Player 1 then Player 2 | Absent = the one-time adoption has not run (below). Written in full whenever an entry or a mode changes |
 | `players[n].entry` | `automatic`, `controller`, `keys`, `mouse` or `disabled` | `keys` and `mouse` valid for Player 1 only, `disabled` for Player 2 only; an invalid or unknown value reads as `automatic` and is reported once |
 | `players[n].controller` | Unit token | Required for `controller`; an unreadable token reads as `automatic` and is reported |
-| `players[n].mode` | `joystick` or `paddle` | The player's mode (FR-037, FR-039). Absent or unrecognized reads as `joystick`, except that a legacy `maps` (below) is read in its place |
+| `players[n].mode` | `joystick`, `joyportLeft`, `joyportRight`, `paddle`, or for Player 2 `sameAsPlayer1` | The player's mode (FR-037, FR-039). An unrecognized value reads as `joystick`; a Player 2 with no `mode` key reads as `sameAsPlayer1`, and a Player 1 with none as `joystick`; except that a legacy `maps` (below) is read in its place; `sameAsPlayer1` on Player 1 reads as `joystick`. A mode that puts both players on one jack is normalized: Player 2 returns to `sameAsPlayer1`. (Superseded 2026-09-28: `joystick` or `paddle`, absent reading as `joystick` for both players.) |
 | `players[n].maps` | Target token as in the per-machine block below | (Superseded 2026-09-27: no longer written.) Read only when `mode` is absent: a single paddle (`paddle0`-`paddle3`) reads as Paddle mode, anything else as Joystick. It was: absent = follow the active profile (FR-043), kept for paddles the machine lacks (FR-035) |
 | `lastHolders` | Array of two unit tokens or `null` | Only for the notice rule (FR-044); an unreadable entry reads as `null`, which means the next Automatic assignment to that slot shows a notice |
 
 - Both entries picking one controller are normalized on load: Player 2's entry becomes `automatic` (FR-036). (Superseded 2026-09-27: two overlapping user-set targets no longer exist, since the modes place the players.)
-- Entries are also normalized for their mode: Player 1's `keys` plays in Joystick mode and `mouse` in Paddle mode.
+- Entries are also normalized for their mode: Player 1's `keys` plays in Joystick mode and `mouse` in Paddle mode. (2026-09-28: `keys` plays in Joystick or a Joyport mode.)
+- (2026-09-28) Migration from the Joyport setting: at launch, a global `gamePortAdapter` of `siriusJoyport`, or where it is absent the launched machine's `$cassoUiPrefs.gamePortAdapter` of `siriusJoyport`, sets Player 1's `mode` to `joyportLeft` and Player 2's to `sameAsPlayer1`. The global key is then written as `none`, which only marks the migration as done (spec 036 FR-002).
 - `players` never holds what Automatic chose; that lives only in `lastHolders` and never assigns a controller (FR-011).
 
 ### One-time adoption from the launched machine
@@ -169,3 +170,4 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 - Each rule in the table above, including that a rejected entry is reported rather than silently replaced.
 - Profile lookup by model token and name, the interface GH #78 will use.
 - (2026-09-27) `players` and `lastHolders` round trip; each invalid value in the players table reads as documented and is reported; a repeated controller is normalized; `mode` round trips and a legacy `maps` reads as the mode; `profileMode`, `paddles` and the three active-profile maps round trip; a profile without `profileMode` is classified as above; a Joystick choice of a Paddle profile moves to `paddleActiveProfiles` unless one is there; every row of the adoption table, including that adoption runs once and that other machines' keys are left in their files.
+- (2026-09-28) Every `mode` token round trips; a Player 2 with no `mode` reads `sameAsPlayer1`; both players on one jack is normalized; the migration's three cases (global `siriusJoyport`, absent global with a machine's `siriusJoyport`, global `none`) and that it runs once.

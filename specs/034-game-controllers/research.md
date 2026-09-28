@@ -127,7 +127,7 @@ Each entry gives the decision, why, and what was rejected. Items marked **UNVERI
 
 ## 2026-09-27: two always-present player slots (GH #156)
 
-R16-R25 plan the spec's Session 2026-09-27 clarifications. They replace single-source and multiplayer modes with two global player slots. Where an earlier entry is superseded, that entry carries a pointer here. Spec 036 owns the Joyport labels, the picker's "Joyport (Atari mode)" row and which mode a profile belongs to; these entries reference that work and do not plan it.
+R16-R25 plan the spec's Session 2026-09-27 clarifications. They replace single-source and multiplayer modes with two global player slots. Where an earlier entry is superseded, that entry carries a pointer here. Spec 036 owns the Joyport labels, the picker's "Joyport (Atari mode)" row and which mode a profile belongs to; these entries reference that work and do not plan it. (Superseded 2026-09-28 by R27: the labels and the row are removed, and the modes are planned here.)
 
 ## R16. Automatic ordering, and when a slot counts as playing (FR-032, FR-042)
 
@@ -222,6 +222,8 @@ R16-R25 plan the spec's Session 2026-09-27 clarifications. They replace single-s
 
 ## R26. Each player has a mode, Joystick or Paddle; profiles have three kinds (FR-008, FR-008b, FR-037, FR-038, FR-039, FR-043)
 
+> **Amended by R27 (2026-09-28).** The modes gain the two Joyport jacks and Same as Player 1; the Joyport no longer disables the mode choice or makes both players Joystick, and the "same as left" labels are gone. The profile kinds, the migration and the keys-and-mouse rules otherwise stand.
+
 Added 2026-09-27 (commit `80c34651` for the spec). Replaces R18's target-from-profile rule, the user-set target, and the Multiplayer checkbox.
 
 - **Decision**: each `PlayerEntry` has a `mode`, `PlayerMode::Joystick` (default) or `PlayerMode::Paddle`, saved globally with the entry as `"mode"`. The mode alone decides what the player drives, as the hardware wires the game port. `PlayerTargetRules::GetModeTarget (player, isPaddle, isPlayerOnePaddle)` sets the internal `PlayerAxisTarget`: Player 1 Joystick 0 or Paddle 0; Player 2 Joystick 1, or Paddle 1 beside a Paddle Player 1 and Paddle 2 beside a Joystick Player 1. `PlayerSlotPolicy::Evaluate (..., isJoyportInEffect)` sets both to Joystick while the Joyport is in effect. A lone player takes `GetLoneRoute`: Joystick mode PDL0, PDL1 and PB0-PB2; Paddle mode PDL0 and PB0. R18's button table still gives each target's lines. What a machine lacks plays nothing: on the //c a second player in Joystick mode drives nothing.
@@ -232,3 +234,18 @@ Added 2026-09-27 (commit `80c34651` for the spec). Replaces R18's target-from-pr
 - **Controllers page**: both player rows are always shown, each with its entry drop-down (Player 2's includes Disabled, "same as left" in Atari mode), a Joystick / Paddle drop-down (disabled and showing Joystick in Atari mode) and a note of what it drives: "joystick 0", "joystick 1", "paddle 0/1/2", "paddles 0 and 1" for the mouse, "nothing on this machine", or the Joyport jack. The profile list is that of the kind of the controller in Editing. The rows in play follow the player's route, so joystick 0 shows PB0 and PB1 while two play and a lone Paddle player shows PDL0 and PB0.
 - **Rationale**: the per-slot target and the target-from-profile rule were hard to understand; a mode per player is what the hardware wires, and a profile list per mode keeps the choices short.
 - **Alternatives**: keeping the per-slot target beside the mode (rejected: two settings for one fact); deriving the mode from the profile (the R18 rule this replaces).
+
+## R27. A Joyport mode for each player (2026-09-28)
+
+Added 2026-09-28 for the owner's decision recorded in the spec's Session 2026-09-28 and spec 036's. Amends R26; spec 036 research R27 holds the Joyport side.
+
+- **Decision**: `PlayerMode` is `Joystick`, `JoyportLeft`, `JoyportRight`, `Paddle`, `SameAsPlayer1`, in that order, saved under `"mode"` as `"joystick"`, `"joyportLeft"`, `"joyportRight"`, `"paddle"` and `"sameAsPlayer1"`. A Player 2 with no saved mode is Same as Player 1. A new pure `PlayerModeRules` resolves Same as Player 1 (Player 1's mode, or the other jack while Player 1 is on one), and provides every rule the service, the machine, the picker and the page apply to the modes: whether the Joyport is on, which jack a mode drives, whether a mode is taken, whether a player's buttons are cut, whether the paddle inputs are connected, whether the keys and the mouse are offered, the mode list with checked and enabled flags, the labels and the assignment notice. It replaces spec 036's `JoyportSetting` and `JoyportLabels`.
+- **Routing**: while neither player is on a jack, R26's routes stand. A player on a jack drives its jack or jacks through `JoyportJackRules` and no paddle input. A player off the Joyport while the other is on it takes `GetLoneRoute` for its mode with its button lines removed, since the Joyport owns PB0-PB2.
+- **Profile kind**: each controller plays the kind of its own player's resolved mode; `GetEffectiveMode`, which made every player Joystick and every controller Joyport-kind while the Joyport was on, is removed.
+- **Keys and mouse**: `AreKeysOffered` is Player 1 in Joystick or a jack, `IsMouseOffered` Player 1 in Paddle. The arrow-keys contribution marks the jacks it drives (`keyJacks`) and owns PDL0 and PDL1 only while Player 1 is not on a jack; the mixer's keys-to-jacks fallback follows `keyJacks`. The mouse owns PDL0 alone while Player 2 plays, which settles the open question in contracts/game-port-mixer.md: a Paddle Player 2 beside it takes PDL1 with no overlap.
+- **Taken choices**: a jack the other player's resolved mode holds is disabled in the picker's submenu and in the page's drop-down. `DxuiComboBox` gains per-item enabled flags for this: a disabled item is drawn in the disabled text color, skipped by the keyboard, and not committed by a click. A controller the other player holds stays choosable and returns that player to Automatic (FR-041).
+- **Picker**: rows read "Player N: <what plays>", ending in " (paddle)" for a controller or Automatic in Paddle mode, as before; no other mode adds a suffix. The Joyport row and the relabeling go.
+- **Controllers page**: the mode drop-down, the note of what the player drives ("left jack", "right jack", "both jacks", "joystick 0", "paddle 1", ...), and for a player with its buttons cut, disabled button binding rows and a warning notice with Dxui's warning badge: "This controller's buttons are disabled because Player N is using the Joyport."
+- **Label shortening**: `DxuiElide::Middle` already keeps the " +1" whole; a test pins that the whole "(disconnected) +1" suffix survives too.
+- **Rationale**: one switch for both players ruled out one player on the Joyport beside another on a rear-socket joystick or paddle, which the hardware allows, and duplicated in a second control what a player's mode already holds.
+- **Alternatives**: keeping the global switch and adding a jack per player (rejected: two controls for whether the Joyport is on); disabling the other player entirely while one is on the Joyport (rejected: the hardware reads the rear sockets' paddles in Atari mode).

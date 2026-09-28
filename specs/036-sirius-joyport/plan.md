@@ -80,6 +80,56 @@ update plans the difference.
 - **Deferred**: the Controller Select switch (FR-016) is not decided by the
   owner and is not planned (R24). Casso keeps it at Center.
 
+(Superseded 2026-09-28: the global Apple / Atari setting, the switch on the
+Controllers page, the relabeled picker row, `JoyportSetting`, `JoyportLabels`
+and the Joyport labels on the players all go; see the update below. The
+Controller Select switch is closed as not needed.)
+
+### 2026-09-28 update: a Joyport mode for each player (GH #156)
+
+The owner replaced the global Apple / Atari switch with per-player Joyport
+modes (spec Clarifications 2026-09-28; research R27). Spec 034's plan carries
+the picker, service and mixer side of the same change.
+
+- **Modes**: `PlayerMode` gains `JoyportLeft`, `JoyportRight` and
+  `SameAsPlayer1`, in the order `Joystick`, `JoyportLeft`, `JoyportRight`,
+  `Paddle`, `SameAsPlayer1`, saved as `"joystick"`, `"joyportLeft"`,
+  `"joyportRight"`, `"paddle"` and `"sameAsPlayer1"`. A Player 2 with no saved
+  mode is Same as Player 1.
+- **`PlayerModeRules`** (new, pure, `CassoEmuCore/Controllers/`) replaces
+  `JoyportSetting` and `JoyportLabels`. It resolves Same as Player 1; reports
+  whether the Joyport is on (any player's resolved mode is a jack, on a machine
+  that has a Joyport); which jack a mode drives; whether a mode is taken by the
+  other player; whether a player's buttons are cut; whether the paddle inputs
+  are connected; whether the keys and the mouse are offered; the mode list with
+  checked and enabled flags; the mode labels; the assignment notice text; and
+  the one-time migration from the old `gamePortAdapter` value.
+- **Jacks**: `JoyportJackRules` assigns each jack from the players' resolved
+  modes and their states (`Driving`, `Held`, `Idle`); `isPlayer2Disabled` is
+  gone. A lone Joyport player drives both jacks while the other jack is free.
+- **Service and shell**: `ControllerInputService::SetJoyportAvailable` takes
+  whether the machine has a Joyport, and the service derives whether it is on
+  from the entries. After every entry change the shell attaches the machine's
+  Joyport and connects or disconnects its paddle inputs from
+  `PlayerModeRules::ArePaddlesConnected` (`SiriusJoyport::SetPaddlesConnected`),
+  through `EmulatorShell::ApplyJoyportToMachine` via `SyncJoyport` on the UI
+  thread; `MigrateJoyportAtLaunch` runs the migration. These replace
+  `ApplyGamePortAdapterToMachine` and `ResolveGamePortAdapterAtLaunch`. Each
+  controller's profile kind
+  follows its own player's resolved mode.
+- **Buttons cut**: while either player is on a jack, a player on Joystick or
+  Paddle drives its paddle inputs as a lone player would and no button line.
+- **Removed**: `EmulatorShell::SetGamePortAdapter` / `GetGamePortAdapter`,
+  `IDM_GAMEPORT_ADAPTER_JOYPORT`, the picker's Joyport row, the Controllers
+  page's switch section, `JoyportSetting`, `JoyportLabels` and their tests.
+  `DxuiToggle` keeps its vertical orientation and label-visibility API as
+  library code.
+- **Controllers page**: each player's row gets the mode list, with a taken jack
+  disabled through new per-item enabled flags on `DxuiComboBox`; a player whose
+  buttons are cut has its button binding rows disabled and a warning notice
+  under its row.
+- **FR-016** is closed as not needed; Phase 15's tasks are marked dropped.
+
 ## Technical Context
 
 **Language/Version**: C++ stdcpplatest, MSVC v145
@@ -129,6 +179,19 @@ annunciators
 - **Unknowns**: none left for planning. FR-016 is an owner decision, not a
   planning unknown, and is deferred (R24). Spec items found underspecified
   are listed under Open Items below; none blocks the plan.
+
+**2026-09-28 changes**:
+
+- **Storage**: the players' modes in the global `controllers.players`
+  (spec 034 contracts/prefs-schema.md). The global `gamePortAdapter` is read
+  once by the migration and then written as `"none"` as its marker; the
+  per-machine key is read only when the global one was never set.
+- **Testing**: a new `PlayerModeRulesTests`; `JoyportJackRulesTests`,
+  `ControllerInputServiceTests`, `PaddleSourceRowsTests`,
+  `ControllersPageStateTests`, `ControllersPageLayoutTests`,
+  `SiriusJoyportTests` and `DxuiComboBoxTests` extended.
+  `JoyportSettingTests` and `JoyportLabelsTests` are deleted with their
+  classes.
 
 ## Constitution Check
 
@@ -284,6 +347,13 @@ paddleActiveProfiles; PlayerSlotPolicy::GetEffectiveMode reports Joystick for bo
 players while the Joyport is in effect; ControllersPageState::SetJoyportInEffect
 replaces SetProfileMode, and the page drops the Multiplayer checkbox.
 
+(2026-09-28) PlayerModeRules.h/.cpp is new in Controllers/ and replaces
+JoyportSetting.h/.cpp and JoyportLabels.h/.cpp, which are deleted with their
+tests; JoyportJackRules takes resolved modes (ReducePlayers); SiriusJoyport's
+paddle inputs are connected or disconnected through SetPaddlesConnected; DxuiComboBox gains per-item enabled flags; the Controllers
+page's switch section, the picker's Joyport row and IDM_GAMEPORT_ADAPTER_JOYPORT
+are removed.
+
 UnitTest/
 ├── Dxui/DxuiToggleTests.cpp                # new
 ├── ControllerTests/
@@ -320,13 +390,20 @@ commit per phase).
 | 12 | **Where it is turned on**: `DxuiToggle` orientation, the Controllers page section and in-place list swap, picker row relabel, mouse-as-paddle hidden, Machine tab and sheet plumbing removed | 9, 11 | US4 sc. 1, 2; FR-001, FR-009, FR-012 |
 | 13 | **Jacks and labels from spec 034's players**: `JoyportJackRules`, `JoyportLabels`, and their hookups | 11; spec 034's player work for the hookups | US3; FR-008, FR-019, SC-009 |
 | 14 | **Validation and gate**: quickstart V11-V20, CHANGELOG and README for approval, the full gate | 9-13 | SC-007, SC-009, SC-010 |
-| (15) | **Optional, blocked on the FR-016 decision**: the Controller Select switch | owner decision | US6, FR-016, SC-008 |
+| (15) | **Optional, blocked on the FR-016 decision**: the Controller Select switch (dropped 2026-09-28: FR-016 closed as not needed) | owner decision | US6, FR-016, SC-008 |
+
+### 2026-09-28 slices
+
+| Phase | Slice | Depends on | Covers |
+|---|---|---|---|
+| 18 | **A Joyport mode for each player**: `PlayerModeRules`, jacks from resolved modes, buttons cut, paddle inputs connected, per-player profile kind, migration, picker and Controllers page mode lists with taken jacks disabled, the warning notice, removal of the switch, the row, the command, `JoyportSetting` and `JoyportLabels` (built with spec 034's Phase 20) | 13, 17 | US3, US4 sc. 6-10; FR-001, FR-002, FR-008, FR-009, FR-012, FR-019-FR-022, SC-011 |
 
 ## Open Items (2026-09-27)
 
 Found while planning; recorded, not resolved here.
 
 - **FR-016**: the owner's decision on the Controller Select switch (R24).
+  (Resolved 2026-09-28: closed as not needed.)
 - **Mouse-as-paddle already chosen** when the Joyport is turned on: FR-009
   hides the entry, but the spec does not state what Player 1 plays meanwhile.
   The plan keeps today's behavior (the mixer's MousePaddle owner leaves every
@@ -337,7 +414,9 @@ Found while planning; recorded, not resolved here.
 - **Arrow keys as Player 1 beside a controller as Player 2** (R21): whether
   spec 034's players allow that pairing decides whether the mixer must compose
   the jacks from two sources. The plan supports it; if 034 rules it out, the
-  composition reduces to today's owner table.
+  composition reduces to today's owner table. (2026-09-28: allowed; the
+  mixer's keys-to-jacks fallback follows the jacks the arrow-keys contribution
+  marks, `keyJacks`, so the keys drive Player 1's jack or jacks.)
 - **A profile saved by this build read by an older build**: the older build
   ignores `"profileMode"` and lists a Joyport-mode profile as an ordinary one.
   Accepted; nothing is lost. Since 2026-09-27 every profile carries

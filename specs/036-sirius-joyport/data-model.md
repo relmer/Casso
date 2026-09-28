@@ -116,9 +116,13 @@ Research R14-R23. The spec's entities map as follows.
 | Joyport profile | the `ControllerProfileKind::Joyport` built-in (already built), now Joyport-mode |
 | Chosen profile per mode | `ControllerProfileStore::activeProfiles` / `joyportActiveProfiles` (already built), now restricted to the mode's own profiles. (Superseded 2026-09-27: one map per kind, `activeProfiles` for Joystick, `paddleActiveProfiles` for Paddle and `joyportActiveProfiles` for Joyport.) |
 | Paddles profile (2026-09-27) | the `ControllerProfileKind::Paddles` built-in, Paddle kind, from `DefaultMapping::MakePaddles` |
-| Controller Select position | not modeled; FR-016 is undecided (R24) |
+| Controller Select position | not modeled; FR-016 is undecided (R24). (2026-09-28: closed as not needed.) |
 
 ### Joyport setting (global)
+
+> **Superseded (2026-09-28)**: removed with `JoyportSetting`; see the
+> 2026-09-28 section at the end. The global token is read once by the
+> migration and then kept as `"none"`.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -197,6 +201,9 @@ DirectInput gamepad; none on a joystick or wheel (R18).
 
 ### Jack assignment
 
+> **Amended (2026-09-28)**: `JoyportPlayers` carries each player's jack from
+> its resolved mode in place of `isPlayer2Disabled`; see the end.
+
 `JoyportJackRules` (`CassoEmuCore/Controllers/JoyportJackRules.h/.cpp`):
 
 | Type | Fields |
@@ -212,6 +219,9 @@ player.
 
 ### Labels
 
+> **Superseded (2026-09-28)**: `JoyportLabels` is removed; the labels and the
+> notice text come from `PlayerModeRules`.
+
 `JoyportLabels` (`CassoEmuCore/Controllers/JoyportLabels.h/.cpp`) returns the
 strings of FR-019 from a player index, `IsInEffect`, and whether the notice is
 for a controller playing alone (R22). Player 2's Disabled entry is "Same as
@@ -219,6 +229,8 @@ left" in the submenu and "same as left" in lower case after a colon (the row
 "Joyport right: same as left" and the Controllers page's Player 2 drop-down).
 
 ### Player mode with the Joyport (2026-09-27)
+
+> **Superseded (2026-09-28)**: the Joyport jacks are modes; see the end.
 
 `PlayerSlotPolicy::GetEffectiveMode (const PlayerEntry &, bool
 isJoyportInEffect)` returns Joystick while the Joyport is in effect and the
@@ -239,3 +251,75 @@ plays its Joyport-kind choice while the Joyport is in effect (R26).
 `SettingsPanelState::SetGamePortAdapter` / `ObserveLiveGamePortAdapter`, the
 `HardwarePage` Game port group and its helpers (R15). The per-machine key is
 no longer written (R14).
+
+---
+
+## 2026-09-28 changes (GH #156)
+
+Research R27. Per-player Joyport modes replace the global setting.
+
+| Spec entity | Where it lives |
+|---|---|
+| Player mode | `PlayerEntry::mode`, a `PlayerMode` (spec 034 data-model) |
+| Joyport on | `PlayerModeRules::IsJoyportOn (entries, hasJoyport)`, derived, not saved |
+| Joyport setting | removed; the old `gamePortAdapter` is read once by `PlayerModeRules::MigrateAdapter` |
+
+### PlayerMode (changed)
+
+| Value | Token | Notes |
+|---|---|---|
+| `Joystick` | `"joystick"` | |
+| `JoyportLeft` | `"joyportLeft"` | the left jack; plays as `Joystick` on a machine with no Joyport |
+| `JoyportRight` | `"joyportRight"` | the right jack; as above |
+| `Paddle` | `"paddle"` | |
+| `SameAsPlayer1` | `"sameAsPlayer1"` | Player 2 only, and its default when no mode is saved |
+
+### PlayerModeRules
+
+`CassoEmuCore/Controllers/PlayerModeRules.h/.cpp`, static members only.
+
+| Function | Returns |
+|---|---|
+| `ResolveMode (entries, player, hasJoyport)` | the mode the player plays: Same as Player 1 is Player 1's mode, or the other jack when Player 1 is on one; a jack is `Joystick` without a Joyport |
+| `IsJoyportMode (mode)` / `GetJack (mode)` | whether a mode is a jack, and which (0 left, 1 right) |
+| `IsOnJoyport (entries, player, hasJoyport)` | whether that player's resolved mode is a jack |
+| `IsJoyportOn (entries, hasJoyport)` | whether either player's resolved mode is a jack |
+| `AreButtonsCut (entries, player, hasJoyport)` | true for a player off the Joyport while the other is on it |
+| `ArePaddlesConnected (entries, hasJoyport)` | false only while every playing player is on a jack |
+| `IsModeTaken (entries, player, mode, hasJoyport)` | whether the other player's resolved mode holds that jack; a Disabled Player 2 holds none |
+| `AreKeysOffered` / `IsMouseOffered (entries, hasJoyport)` | Player 1 in Joystick or a jack; Player 1 in Paddle |
+| `BuildModeChoices (entries, player, hasJoyport)` | the mode list with checked and enabled flags; no jacks without a Joyport |
+| `GetModeLabel (mode)` / `GetPlayerLabel (player)` | "Joystick", "Joyport left (Atari)", "Joyport right (Atari)", "Paddle", "Same as Player 1"; "Player 1", "Player 2" |
+| `DescribeAssignment (player, description, jacks)` | "Player N: description", or "Player N (Joyport left): ...", "(Joyport right)", "(Joyport left and right)" |
+| `MigrateAdapter (globalToken, launchedUiPrefs, launchedHasAnnunciators)` | a `JoyportMigration { isJoyport; shouldMark; }` |
+| `ApplyMigration (entries)` | Player 1 on `JoyportLeft`, Player 2 on `SameAsPlayer1` |
+
+Migration transitions of the old key:
+
+```text
+ global token empty   --launched machine's value-->  migrate; write "none"
+ global "siriusJoyport" ------------------------->   migrate; write "none"
+ global "none"         ------------------------->    nothing (already migrated or never on)
+```
+
+### JoyportPlayers (changed)
+
+| Field | Type | Notes |
+|---|---|---|
+| `players` | `std::array<JoyportPlayerState, 2>` | `Driving`, `Held` or `Idle` |
+| `jacks` | `std::array<std::optional<size_t>, 2>` | the jack each player's resolved mode holds; none for Joystick, Paddle or Disabled |
+
+`isPlayer2Disabled` is removed. `JoyportJackRules::ReducePlayers (slots,
+entries, hasJoyport)` builds the value; `AssignJacks` puts a Driving player on
+its jack, and also on the other jack while no player's mode holds it or its
+player is Idle. Invariant: a Held player's jack is `None` and is never handed
+to the other player.
+
+### Removed
+
+`JoyportSetting`, `JoyportLabels` and their tests;
+`EmulatorShell::SetGamePortAdapter` / `GetGamePortAdapter`;
+`IDM_GAMEPORT_ADAPTER_JOYPORT`; the picker's Joyport row; the Controllers
+page's switch section. `GamePortAdapter` and its tokens stay for the
+migration. `DxuiToggle`'s `OnDirection` and label-visibility API stay as
+library code.

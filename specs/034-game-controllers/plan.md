@@ -37,9 +37,24 @@ Phase 19 of [tasks.md](tasks.md); research [R26](research.md#r26-each-player-has
 - **The picker** offers Joystick and Paddle in each player's submenu, lists the keys only in Joystick mode and the mouse only in Paddle mode, marks a Paddle row " (paddle)", and reads "(disconnected) +1" while Player 1's slot is held.
 - **The Controllers page** always shows both rows, each with an entry drop-down, a Joystick / Paddle drop-down and a note of what the player drives; its profile list is the kind of the controller in Editing.
 
+(Superseded in part 2026-09-28: the Joyport's global switch, which made both players Joystick while it was on, gives way to Joyport modes per player; see below.)
+
+### 2026-09-28: a Joyport mode for each player (GH #156)
+
+Phase 20 of [tasks.md](tasks.md); research [R27](research.md#r27-a-joyport-mode-for-each-player-2026-09-28). Spec 036's plan carries the Joyport device side of the same change.
+
+- **Modes**: `PlayerMode` is `Joystick`, `JoyportLeft`, `JoyportRight`, `Paddle`, `SameAsPlayer1`, in that order, saved as `"joystick"`, `"joyportLeft"`, `"joyportRight"`, `"paddle"`, `"sameAsPlayer1"`. A Player 2 with no saved mode is Same as Player 1.
+- **`PlayerModeRules`** (new, pure, `CassoEmuCore/Controllers/`) replaces spec 036's `JoyportSetting` and `JoyportLabels`: it resolves Same as Player 1, reports whether the Joyport is on (any resolved mode is a jack, on a machine with a Joyport), which jack a mode drives, whether a mode is taken by the other player, whether a player's buttons are cut, whether the paddle inputs are connected, and whether the keys and the mouse are offered; it builds the mode list with checked and enabled flags, the mode labels and the assignment notice text, and migrates the old `gamePortAdapter` value once.
+- **Routing**: `PlayerSlotPolicy` routes a player off the Joyport beside a Joyport player as a lone player in its mode, with no button lines; `GetEffectiveMode` is removed. `JoyportJackRules` assigns the jacks from the resolved modes and states, with `isPlayer2Disabled` gone.
+- **Service**: `ControllerInputService::SetJoyportAvailable` takes whether the machine has a Joyport and derives whether it is on from the entries. Each controller plays the profile kind of its own player's resolved mode. The shell attaches the machine's Joyport and connects or disconnects its paddle inputs after every entry change.
+- **Mixer and axis owners**: the keys-to-jacks fallback follows the jacks the arrow-keys contribution marks (`keyJacks`) rather than the axis owner; the arrow keys own PDL0 and PDL1 only while Player 1 is not on a Joyport mode; the mouse owns PDL0 alone while Player 2 plays.
+- **Picker**: each player's submenu lists the modes with a taken jack disabled; the Joyport row, its command `IDM_GAMEPORT_ADAPTER_JOYPORT` and the relabeling of the players are removed. Rows read "Player N: <what plays>". The face's "(disconnected) +1" is kept whole by the middle ellipsis.
+- **Controllers page**: each row's mode drop-down lists the modes, a taken jack disabled through new per-item enabled flags on `DxuiComboBox`; the note gives what the player drives; a player with its buttons cut has its button binding rows disabled and a warning notice, with Dxui's warning badge, under its row. The Apple / Atari switch section is removed; `DxuiToggle` keeps its vertical orientation and label-visibility API as library code.
+- **Removed**: `EmulatorShell::SetGamePortAdapter` / `GetGamePortAdapter`, the picker's Joyport row, the menu command, the page's switch section, `JoyportSetting`, `JoyportLabels` and their tests.
+
 ### Ownership
 
-- **Spec 036** owns the picker's "Joyport (Atari mode)" row, the Joyport labels on the player rows and notices, and which mode each profile belongs to. The hooks it needs (`PlayerSlotPolicy::DescribeAssignment`, the row model, the profile section's list for the mode in effect) are planned here and filled there.
+- **Spec 036** owns the picker's "Joyport (Atari mode)" row, the Joyport labels on the player rows and notices, and which mode each profile belongs to. The hooks it needs (`PlayerSlotPolicy::DescribeAssignment`, the row model, the profile section's list for the mode in effect) are planned here and filled there. (Superseded 2026-09-28: the row and the labels are removed. Spec 036 owns the Joyport device, the jacks and the migration; the mode list, the notice text and the per-player profile kind are planned here, in `PlayerModeRules`.)
 
 ## Technical Context
 
@@ -256,6 +271,7 @@ Each slice matches a phase in [tasks.md](tasks.md), leaves the build green, and 
 | 17 | **Controllers page**: player entries, Multiplayer checkbox and slide, user-set targets; 034 checks of the built Joyport profile work | 12 (slide), 15 | FR-019, FR-024, FR-026, FR-029, FR-037 |
 | 18 | **Validation and gates** | 12-17 | quickstart 16-28, SC-005, SC-007 |
 | 19 | **A mode for each player** (2026-09-27, later): Paddle profile kind, player modes and routing, picker mode choices, Controllers page rows; replaces the user-set target and the Multiplayer checkbox of phases 13 and 17 | 13-17 | FR-008, FR-008b, FR-037, FR-039, FR-043, quickstart 29-34 |
+| 20 | **A Joyport mode for each player** (2026-09-28): `PlayerModeRules`, jacks from resolved modes, buttons cut, per-player profile kind, mixer and axis owners, picker and Controllers page mode lists with disabled taken jacks, `DxuiComboBox` disabled items, the warning notice, removal of the Joyport switch, row, command, `JoyportSetting` and `JoyportLabels`; the "(disconnected) +1" shortening check (with spec 036's Phase 18) | 19 | FR-008, FR-008b, FR-035-FR-037, FR-039, FR-042-FR-044, SC-015, quickstart 35-41 |
 
 ## Complexity Tracking
 
