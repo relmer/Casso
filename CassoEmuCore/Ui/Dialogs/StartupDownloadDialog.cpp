@@ -417,7 +417,7 @@ void StartupDownloadDialog::PaintGroupHeader (
     hdrLabel.SetText (groupLabel);
     hdrLabel.SetRect ({ (LONG) m.x, (LONG) y,
                         (LONG) (m.x + m.fullW), (LONG) (y + m.headerH) });
-    hdrLabel.Paint   (*ctx.painter, *ctx.text);
+    hdrLabel.Paint   (*ctx.text);
 }
 
 
@@ -463,14 +463,14 @@ void StartupDownloadDialog::PaintEntryRow (
     sourceLabel.SetText (entry.source);
     sourceLabel.SetRect ({ (LONG) (m.x + cbAvailW + m.colGap), (LONG) y,
                            (LONG) (m.x + cbAvailW + m.colGap + m.sourceW), (LONG) (y + m.rowH) });
-    sourceLabel.Paint   (*ctx.painter, *ctx.text);
+    sourceLabel.Paint   (*ctx.text);
 
     if (showStatus && entry.selected)
     {
         statusLabel.SetText (status);
         statusLabel.SetRect ({ (LONG) (m.x + m.fullW - m.statusW), (LONG) y,
                                (LONG) (m.x + m.fullW),             (LONG) (y + m.rowH) });
-        statusLabel.Paint   (*ctx.painter, *ctx.text);
+        statusLabel.Paint   (*ctx.text);
     }
 }
 

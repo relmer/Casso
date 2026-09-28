@@ -69,7 +69,7 @@ public:
     float                GetFontSizeDip () const { return m_fontDip; }
 
     // Legacy theme-less paint; draws with the color pinned by SetColor.
-    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  Paint (IDxuiTextRenderer & text) const;
 
     //
     //  IDxuiControl overrides — additive shims so DxuiLabel slots
@@ -89,7 +89,7 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
-    void  DrawResolved (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
+    void  DrawResolved (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
 
 
     static constexpr float  s_kFallbackFontDip = 13.0f;

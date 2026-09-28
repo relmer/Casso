@@ -21,9 +21,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiLabel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiLabel::Paint (IDxuiTextRenderer & text) const
 {
-    DrawResolved (painter, text, m_argb, (m_fontDip > 0.0f) ? m_fontDip : s_kFallbackFontDip);
+    DrawResolved (text, m_argb, (m_fontDip > 0.0f) ? m_fontDip : s_kFallbackFontDip);
 }
 
 
@@ -41,14 +41,14 @@ void DxuiLabel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiLabel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+void DxuiLabel::Paint (IDxuiPainter & /*painter*/, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     uint32_t  argb = m_useThemeRole ? (uint32_t) theme.TextColor (m_role) : m_argb;
     float     dip  = (m_fontDip > 0.0f) ? m_fontDip : theme.BodyFont().sizeDip;
 
 
 
-    DrawResolved (painter, text, argb, dip);
+    DrawResolved (text, argb, dip);
 }
 
 
@@ -61,13 +61,11 @@ void DxuiLabel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiLabel::DrawResolved (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t argb, float fontDip) const
+void DxuiLabel::DrawResolved (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const
 {
     HRESULT  hr = S_OK;
 
 
-
-    UNREFERENCED_PARAMETER (painter);
 
     hr = text.DrawString (m_text.c_str(),
                           (float) m_boundsDip.left,
