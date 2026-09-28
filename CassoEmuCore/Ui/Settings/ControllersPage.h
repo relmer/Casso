@@ -178,6 +178,8 @@ private:
     void                 SyncJoyportLayout  ();
     bool                 IsTargetShown      (size_t target) const;
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
+    std::wstring         GetTargetLabel     (PaddleTarget target) const;
+    std::wstring         MakeSharedNotice   () const;
     void                 PollSwitchLights   (const GamePortContribution * reading);
     ControllerKind       GetSelectedKind    () const;
     IDxuiTextRenderer  * GetMeasuringRenderer () const;
@@ -246,7 +248,7 @@ private:
     std::array<DxuiComboBox, kAxisCount>  m_response;
     std::array<DxuiSlider, kAxisCount>    m_speed;
 
-    DxuiLabel          m_sharedWarning;
+    DxuiInfoBanner     m_sharedWarning;
 
     DxuiLabel          m_deadzoneLabel;
     DxuiSlider         m_deadzone;

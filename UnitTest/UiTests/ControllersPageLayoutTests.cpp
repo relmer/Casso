@@ -406,4 +406,66 @@ public:
         Assert::IsNull    (FindLabel (jackPage,     L"PB2:"),  L"and PB2");
         Assert::IsNotNull (FindLabel (jackPage,     L"Fire:"), L"and keeps fire");
     }
+
+
+    //  No control on two targets, no warning.
+    TEST_METHOD (SharedWarning_IsHiddenWhileNothingIsShared)
+    {
+        ControllersPage       page;
+        ControllersPageState  state;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+
+        Assert::IsTrue (FindWarnings (page).empty());
+    }
+
+
+    //  A button on PB0 and PB1 gets a warning banner giving the other
+    //  target, and the page's height takes it in.
+    TEST_METHOD (SharedWarning_IsAWarningGivingTheOtherTarget)
+    {
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        std::vector<const DxuiInfoBanner *>    warnings;
+        int                                    heightPx = 0;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+        state.AddButtonBinding (PaddleTarget::Pb1, { { ControlKind::Button, 0 } });   // button 0 is already PB0
+        page.Refresh();
+
+        warnings = FindWarnings (page);
+        heightPx = page.GetContentHeightPx();
+
+        Assert::AreEqual (size_t (1), warnings.size());
+        Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB1."), warnings[0]->GetText());
+        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Warning, L"as a warning");
+        Assert::AreEqual (GetLowestVisibleBottom (page) + kPagePadPx - kTopPx, heightPx, L"the content height follows it");
+    }
+
+
+    //  Two other targets are joined with "and", and each shared control has
+    //  a sentence of its own, one to a line.
+    TEST_METHOD (SharedWarning_GivesEachSharedControlASentence)
+    {
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        std::vector<const DxuiInfoBanner *>    warnings;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+        state.AddButtonBinding (PaddleTarget::Pb1, { { ControlKind::Button, 0 } });
+        state.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 0 } });
+        state.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 1 } });   // button 1 is already PB1
+        page.Refresh();
+
+        warnings = FindWarnings (page);
+
+        Assert::AreEqual (size_t (1), warnings.size(), L"one banner");
+        Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB1 and PB2.\nButton 2 is also assigned to PB2."), warnings[0]->GetText());
+    }
 };

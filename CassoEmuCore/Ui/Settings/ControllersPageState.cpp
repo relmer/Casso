@@ -2488,15 +2488,18 @@ std::wstring ControllersPageState::GetStartingPointLabel (ProfileSource source)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetSharedControls
+//  ListControlUses
+//
+//  Every control on every target of the edited mapping, in the page's row
+//  order: PDL0, PDL1, PB0, PB1, then PB2 on a machine that has it. A D-pad
+//  pair on an axis row counts as both of its directions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ControlId> ControllersPageState::GetSharedControls() const
+std::vector<std::pair<ControlId, PaddleTarget>> ControllersPageState::ListControlUses() const
 {
     const ControlMapping &                           mapping = GetMapping();
     std::vector<std::pair<ControlId, PaddleTarget>>  uses;
-    std::vector<ControlId>                           shared;
 
 
 
@@ -2534,19 +2537,102 @@ std::vector<ControlId> ControllersPageState::GetSharedControls() const
         addButtons (mapping.pb2, PaddleTarget::Pb2);
     }
 
-    for (const auto & use : uses)
-    {
-        bool  isOnAnotherTarget = std::any_of (uses.begin(), uses.end(),
-            [&use] (const auto & other) { return other.first == use.first && other.second != use.second; });
-        bool  isListed          = std::find (shared.begin(), shared.end(), use.first) != shared.end();
+    return uses;
+}
 
-        if (isOnAnotherTarget && !isListed)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetControlTargets
+//
+//  Each target once, however many of its rows hold the control.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<PaddleTarget> ControllersPageState::GetControlTargets (const ControlId & control) const
+{
+    std::vector<PaddleTarget>  targets;
+
+
+
+    for (const auto & use : ListControlUses())
+    {
+        bool  isListed = std::find (targets.begin(), targets.end(), use.second) != targets.end();
+
+        if (use.first == control && !isListed)
+        {
+            targets.push_back (use.second);
+        }
+    }
+
+    return targets;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSharedControls
+//
+//  Every control on more than one target, in the order of its first row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ControlId> ControllersPageState::GetSharedControls() const
+{
+    std::vector<ControlId>  shared;
+
+
+
+    for (const auto & use : ListControlUses())
+    {
+        bool  isListed = std::find (shared.begin(), shared.end(), use.first) != shared.end();
+
+        if (!isListed && GetControlTargets (use.first).size() > 1)
         {
             shared.push_back (use.first);
         }
     }
 
     return shared;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JoinWithAnd
+//
+//  Commas between the items and "and" before the last, with no comma ahead
+//  of it. Empty for no items.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::JoinWithAnd (const std::vector<std::wstring> & items)
+{
+    std::wstring  joined;
+    size_t        i      = 0;
+
+
+
+    for (i = 0; i < items.size(); i++)
+    {
+        if (i > 0)
+        {
+            joined += (i + 1 == items.size()) ? L" and " : L", ";
+        }
+
+        joined += items[i];
+    }
+
+    return joined;
 }
 
 

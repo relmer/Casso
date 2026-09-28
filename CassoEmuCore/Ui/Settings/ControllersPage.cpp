@@ -107,6 +107,12 @@ ControllersPage::ControllersPage (std::wstring title)
     }
 
     Adopt (m_sharedWarning);
+
+    // A warning between the rows and the deadzone, compact like the players'.
+    m_sharedWarning.SetSeverity           (DxuiInfoBanner::Severity::Warning);
+    m_sharedWarning.SetVisible            (false);
+    m_sharedWarning.SetVerticalPaddingDip ((float) s_kWarningPadYDp);
+
     Adopt (m_deadzoneLabel);
     Adopt (m_deadzone);
     Adopt (m_calibrationLabel);
@@ -437,6 +443,9 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  axesBottom  = 0;
     int                  contentH    = 0;
     int                  playerStep  = rowH + gap;
+    int                  sharedW     = wideWidth + labelWidth + buttonWidth;
+    int                  sharedH     = 0;
+    std::wstring         sharedText;
     bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool                 isJoyport   = IsJoyportMode();
     size_t               target      = 0;
@@ -643,9 +652,27 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         }
     }
 
-    m_sharedWarning.SetRect  (MakeRect (x, y, wideWidth + labelWidth + buttonWidth, rowH));
-    m_sharedWarning.SetColor (0xFFF0A030);   // amber caution, as the sheet's restart notice
-    y += rowH + gap;
+    // Only while a control is on more than one shown target, and as tall as
+    // its sentences, one to a line.
+    sharedText = MakeSharedNotice();
+    m_sharedWarning.SetText    (sharedText);
+    m_sharedWarning.SetVisible (!sharedText.empty());
+    m_sharedWarning.SetDpi     (dpi);
+
+    if (!sharedText.empty())
+    {
+        if (text != nullptr)
+        {
+            sharedH = (int) std::ceil (m_sharedWarning.GetMeasuredHeightPx (*text, (float) sharedW, scaler));
+        }
+        else
+        {
+            sharedH = (int) std::ceil (m_sharedWarning.GetPreferredHeightPx ((float) sharedW, scaler));
+        }
+
+        m_sharedWarning.SetRect (MakeRect (x, y, sharedW, sharedH));
+        y += sharedH + gap;
+    }
 
     m_deadzoneLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
     m_deadzoneLabel.SetText (L"Deadzone:");
@@ -1010,6 +1037,94 @@ std::wstring ControllersPage::GetRowLabel (size_t target, const std::wstring & p
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTargetLabel
+//
+//  A target as its row's label shows it, without the trailing colon, for
+//  use inside a sentence: "Fire", "PDL0 (X)", "PB2".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPage::GetTargetLabel (PaddleTarget target) const
+{
+    std::wstring  label;
+    std::wstring  playLabel;
+    size_t        index     = 0;
+    size_t        i         = 0;
+
+
+
+    for (i = 0; i < kTargetCount; i++)
+    {
+        if (TargetAt (i) == target)
+        {
+            index = i;
+        }
+    }
+
+    playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (target) : std::wstring();
+    label     = GetRowLabel (index, playLabel, IsJoyportMode());
+
+    if (!label.empty() && label.back() == L':')
+    {
+        label.pop_back();
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeSharedNotice
+//
+//  One sentence for each control assigned to more than one target, a line
+//  each: the control as its rows show it, then every target it is on after
+//  the first, as in "B is also assigned to Fire and PB1." Empty when no
+//  control is shared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPage::MakeSharedNotice() const
+{
+    ControllerKind             kind   = GetSelectedKind();
+    std::wstring               notice;
+    std::vector<PaddleTarget>  targets;
+    std::vector<std::wstring>  others;
+    size_t                     i      = 0;
+
+
+
+    if (m_state == nullptr)
+    {
+        return notice;
+    }
+
+    for (const ControlId & control : m_state->GetSharedControls())
+    {
+        targets = m_state->GetControlTargets (control);
+        others.clear();
+
+        for (i = 1; i < targets.size(); i++)
+        {
+            others.push_back (GetTargetLabel (targets[i]));
+        }
+
+        notice += notice.empty() ? L"" : L"\n";
+        notice += ControlLabels::For (kind, control) + L" is also assigned to " + ControllersPageState::JoinWithAnd (others) + L".";
+    }
+
+    return notice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Refresh
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1081,6 +1196,14 @@ void ControllersPage::Refresh()
     m_reset.SetEnabled    (selected.has_value());
 
     m_isSyncing = false;
+
+    // The shared-control warning's height follows its sentences, so a change
+    // to them is a change to the page's layout. Layout sets the text before
+    // it refreshes, so this cannot loop.
+    if (m_hasLayout && MakeSharedNotice() != m_sharedWarning.GetText())
+    {
+        Relayout();
+    }
 }
 
 
@@ -1485,11 +1608,10 @@ void ControllersPage::RebuildChoices()
 
 void ControllersPage::RefreshRows()
 {
-    ControllerKind          kind    = GetSelectedKind();
-    bool                    hasUnit = m_state->GetSelectedIndex().has_value();
-    std::vector<ControlId>  shared  = m_state->GetSharedControls();
-    size_t                  target  = 0;
-    size_t                  row     = 0;
+    ControllerKind  kind    = GetSelectedKind();
+    bool            hasUnit = m_state->GetSelectedIndex().has_value();
+    size_t          target  = 0;
+    size_t          row     = 0;
 
 
 
@@ -1550,22 +1672,6 @@ void ControllersPage::RefreshRows()
 
         m_addRow[target].SetVisible (isInPlay);
         m_addRow[target].SetEnabled (isEditable && count > 0 && shown < kMaxRows && !m_hasExtraRow[target]);
-    }
-
-    if (shared.empty())
-    {
-        m_sharedWarning.SetText (L"");
-    }
-    else
-    {
-        std::wstring  names;
-
-        for (const ControlId & control : shared)
-        {
-            names += (names.empty() ? L"" : L", ") + ControlLabels::For (kind, control);
-        }
-
-        m_sharedWarning.SetText (L"Assigned to more than one target: " + names);
     }
 }
 

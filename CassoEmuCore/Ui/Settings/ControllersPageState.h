@@ -287,6 +287,12 @@ public:
     // Every control assigned to more than one target (FR-025).
     std::vector<ControlId>                GetSharedControls  () const;
 
+    // The targets one control is assigned to, in the page's row order.
+    std::vector<PaddleTarget>             GetControlTargets  (const ControlId & control) const;
+
+    // Items joined into one run of English: "A", "A and B", "A, B and C".
+    static std::wstring                   JoinWithAnd        (const std::vector<std::wstring> & items);
+
     // Press-to-assign on one target. Feeding a reading that activates a
     // control ends the wait and puts the control on the row `replaceIndex`
     // names, or adds it as a new row when that is absent.
@@ -332,6 +338,9 @@ private:
     ProfileMode                      GetEditedPlayerProfileMode () const;
     std::optional<size_t>            FindHoldingPlayer    () const;
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
+
+    // Every control on every target of the edited mapping, a pair per row.
+    std::vector<std::pair<ControlId, PaddleTarget>>  ListControlUses() const;
 
     static constexpr size_t  kPaddlesPerJoystick = 2;
 

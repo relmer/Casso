@@ -278,6 +278,33 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (ControlTargets_ListEachTargetOnceInRowOrder)
+        {
+            ControllersPageState       page;
+            std::vector<PaddleTarget>  targets;
+
+
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 0 } });
+            page.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, 0 } });   // a second PB0 row
+            page.AddButtonBinding (PaddleTarget::Pb1, { { ControlKind::Button, 0 } });
+
+            targets = page.GetControlTargets ({ ControlKind::Button, 0 });
+
+            Assert::IsTrue (targets == std::vector<PaddleTarget> { PaddleTarget::Pb0, PaddleTarget::Pb1, PaddleTarget::Pb2 });
+        }
+
+
+        TEST_METHOD (JoinWithAnd_JoinsOneTwoAndThreeItems)
+        {
+            Assert::AreEqual (std::wstring (L""),                         ControllersPageState::JoinWithAnd ({}));
+            Assert::AreEqual (std::wstring (L"Fire"),                     ControllersPageState::JoinWithAnd ({ L"Fire" }));
+            Assert::AreEqual (std::wstring (L"Fire and PB1"),             ControllersPageState::JoinWithAnd ({ L"Fire", L"PB1" }));
+            Assert::AreEqual (std::wstring (L"PDL0 (X), Fire and PB1"),   ControllersPageState::JoinWithAnd ({ L"PDL0 (X)", L"Fire", L"PB1" }));
+        }
+
+
         TEST_METHOD (AddingABinding_NeverRemovesAnother)
         {
             ControllersPageState  page;
