@@ -127,6 +127,7 @@ public:
 
     const std::vector<ControllerEntry> &  GetControllers     () const;
     std::optional<size_t>                 GetSelectedIndex   () const;
+    std::optional<size_t>                 FindController     (const ControllerUnitKey & unit) const;
     void                                  SelectController   (size_t index);
     bool                                  IsCalibratable     () const;
 

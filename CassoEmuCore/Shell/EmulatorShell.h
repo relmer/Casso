@@ -589,11 +589,6 @@ private:
     // The players' slots changed, or a controller came or went: the axis
     // owner, the picker and the prefs follow on the UI thread.
     void    ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged, bool haveLastHoldersChanged);
-    // BY VALUE, not by reference. The entry arrives from a picker row's
-    // dispatch, and picking rebuilds the rows -- turning the arrows and the
-    // paddle off each re-syncs the picker -- so a reference into the row
-    // would outlive the row it refers to.
-    void    PickPlayer             (size_t player, PlayerEntry entry);
     void    PickPlayerEntry        (size_t player, const PlayerEntry & entry);
     void    LoadControllerPrefs        ();
     void    SaveControllerPrefs        ();
@@ -606,8 +601,8 @@ private:
     void    PickControllerProfile  (ControllerUnitKey unit, std::string profileName);
 
     // Opens Settings on the Controllers page with the New Profile dialog up,
-    // for the controller Editing opens on.
-    void    StartNewControllerProfile ();
+    // for the given controller. BY VALUE for the same reason as PickPlayer.
+    void    StartNewControllerProfile (ControllerUnitKey unit);
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from
@@ -621,6 +616,12 @@ private:
     void    SetInputMappingMode (InputMappingMode mode);
     void    SetArrowsJoystick   (bool on);
     void    SetPointerMapping   (InputMappingMode pointer);   // Off/Paddle/Mouse
+
+    // What each setter does to the OTHER stand-in, with no sync: the setter
+    // that calls it syncs once, with both already changed.
+    void    DropPaddleMode         ();
+    void    DropArrowsJoystick     ();
+    void    ReleaseArrowKeySources ();
 
     // The single mode the legacy toggle button displays: the pointer
     // mapping when active, else Joystick when the keys mapping is on.
@@ -719,6 +720,12 @@ public:
     // Radio-group toggle for the Machine-menu items: selects `target`, or
     // turns mapping Off if `target` is already the active mode.
     void    ToggleInputMappingMode (InputMappingMode target);
+
+    // The user picked an entry in a player's submenu. BY VALUE, not by
+    // reference. The entry arrives from a picker row's dispatch, and picking
+    // rebuilds the rows, so a reference into the row would outlive the row it
+    // refers to.
+    void    PickPlayer             (size_t player, PlayerEntry entry);
 
     // //c mouse mode. True while Mouse mode is selected AND the
     // current machine has the IOU mouse — every runtime consumer guards on
@@ -2091,6 +2098,14 @@ private:
     WPARAM          m_lastHorizontalArrowVk = 0;
     WPARAM          m_lastVerticalArrowVk   = 0;
 
+protected:
+
+    //  Reachable by a test subclass: Player 1's stand-ins, the mixer and the
+    //  controller service are what a pick in the picker changes, and a test
+    //  installs a service over a scripted backend to watch the entries it is
+    //  handed. Declared here, in their original order, so the teardown order
+    //  below is unchanged.
+
     // How host arrow / pointer input is mapped onto the emulated game
     // port (Off / Joystick / Paddle). Mirrors
     // GlobalUserPrefs (split model) and is cycled via the Machine
@@ -2109,6 +2124,8 @@ private:
     std::unique_ptr<Win32ControllerBackend>  m_controllerBackend;
     std::unique_ptr<ControllerInputService>  m_controllerService;
     std::unique_ptr<ControllerInputThread>   m_controllerThread;
+
+private:
 
     // Written by the controller thread when the players' slots change,
     // read on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting

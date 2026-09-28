@@ -544,6 +544,31 @@ namespace ControllerTests
         }
 
 
+        //  New... belongs to its section: it opens the New profile dialog for
+        //  the controller the section is under, not whichever one Settings
+        //  happens to open on.
+        TEST_METHOD (NewProfile_IsForTheControllerOfItsOwnSection)
+        {
+            EmulatorCommands                   commands;
+            InputModeRules::PickerSource       source = MakeSource();
+            std::vector<ControllerUnitKey>     units;
+            std::vector<DxuiPopupMenuItem>     players;
+
+
+
+            commands.SetNewProfileFn ([&units] (const ControllerUnitKey & unit) { units.push_back (unit); });
+            commands.SetPicker (MakeTwoPlaying (source));
+            players = commands.GetPlayerItems();
+
+            players[1].children.back().command->dispatch();
+            players[0].children.back().command->dispatch();
+
+            Assert::AreEqual (size_t (2), units.size());
+            Assert::IsTrue   (units[0] == Stick (source), L"Player 2's New... is for Player 2's controller");
+            Assert::IsTrue   (units[1] == Pad (source),   L"and Player 1's for Player 1's");
+        }
+
+
         //  The list is rebuilt whenever a controller comes or goes, and that
         //  changes its length: an entry from a list built a moment earlier
         //  still picks what it showed.

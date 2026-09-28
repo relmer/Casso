@@ -228,17 +228,6 @@ EmulatorCommands::EmulatorCommands()
         }
     }
 
-    // The New... row at the foot of every profile section.
-    m_newProfileRow         = std::make_shared<DxuiCommand>();
-    m_newProfileRow->label  = L"New...";
-    m_newProfileRow->dispatch = [this] ()
-    {
-        if (m_onNewProfile)
-        {
-            m_onNewProfile();
-        }
-    };
-
     for (size_t i = 0; i < std::size (s_kMonitorColorRows); i++)
     {
         std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
@@ -780,13 +769,19 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::BuildPlayerSubmenu (
 //  profile leads the list, and picking it records no choice, so the
 //  controller plays it until another is picked.
 //
+//  Each section has its own New..., which carries the section's controller:
+//  a new profile belongs to that controller's model, not to whichever
+//  controller Settings would otherwise open on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorCommands::AddProfileSection (
     const InputModeRules::PlayerProfileSection  & section,
     std::vector<DxuiPopupMenuItem>              & items)
 {
-    size_t  i = 0;
+    std::shared_ptr<DxuiCommand>  newProfile  = std::make_shared<DxuiCommand>();
+    ControllerUnitKey             sectionUnit = section.unit;
+    size_t                        i           = 0;
 
 
 
@@ -817,7 +812,16 @@ void EmulatorCommands::AddProfileSection (
         items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
     }
 
-    items.push_back (DxuiPopupMenuItem::ForCommand (m_newProfileRow));
+    newProfile->label    = L"New...";
+    newProfile->dispatch = [this, sectionUnit] ()
+    {
+        if (m_onNewProfile)
+        {
+            m_onNewProfile (sectionUnit);
+        }
+    };
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (newProfile));
 }
 
 

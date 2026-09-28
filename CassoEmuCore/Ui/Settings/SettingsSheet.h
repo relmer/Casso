@@ -82,10 +82,10 @@ public:
     void    ShowControllersPage ();
 
     //
-    //  The New Profile dialog on the Controllers page, for the Profiles
-    //  submenu's New... The caller has already brought the page forward.
+    //  The Controllers page on one controller with the New Profile dialog up,
+    //  for New... in a player's profile section.
     //
-    void    StartNewControllerProfile ();
+    void    StartNewControllerProfile (const ControllerUnitKey & unit);
 
 protected:
     void     OnBuildPages () override;
@@ -130,6 +130,11 @@ private:
 
     //  A profile dialog from the Controllers page is open over the sheet.
     bool  IsProfileDialogOpen () const;
+
+    //  The players as they stand now on the Controllers page, and the page
+    //  brought to the front.
+    bool  TrySyncControllersPlayers ();
+    void  ActivateControllersPage   ();
 
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
     // verbatim from SettingsPanel: push the current volumes / pan / mechanism

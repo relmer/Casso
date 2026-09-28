@@ -1647,7 +1647,7 @@ void ControllersPage::ApplyPlayerController (size_t player, const std::optional<
 void ControllersPage::FollowPlayerOne()
 {
     std::optional<ControllerUnitKey>  unit;
-    size_t                            index = 0;
+    std::optional<size_t>             index;
 
 
 
@@ -1668,20 +1668,58 @@ void ControllersPage::FollowPlayerOne()
         return;
     }
 
-    for (index = 0; index < m_state->GetControllers().size(); index++)
-    {
-        if (m_state->GetControllers()[index].unit == unit.value())
-        {
-            break;
-        }
-    }
+    index = m_state->FindController (unit.value());
 
-    if (index >= m_state->GetControllers().size() || m_state->GetSelectedIndex() == std::optional<size_t> (index))
+    if (!index.has_value() || m_state->GetSelectedIndex() == index)
     {
         return;
     }
 
-    AskToSaveProfileEdits ([this, index] () { SwitchController (index); });
+    AskToSaveProfileEdits ([this, index] () { SwitchController (index.value()); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartNewProfile
+//
+//  New... from a player's profile section in the picker: Editing moves to
+//  that player's controller and the New profile dialog opens for it. Leaving
+//  a profile with unapplied edits asks once, before either, exactly as New
+//  on the page does; Cancel leaves the page as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::StartNewProfile (const ControllerUnitKey & unit)
+{
+    std::optional<size_t>  index;
+
+
+
+    if (m_state == nullptr)
+    {
+        return;
+    }
+
+    index = m_state->FindController (unit);
+
+    if (!index.has_value())
+    {
+        return;
+    }
+
+    AskToSaveProfileEdits ([this, index] ()
+    {
+        if (m_state->GetSelectedIndex() != index)
+        {
+            SwitchController (index.value());
+        }
+
+        OpenNewProfileDialog();
+    });
 }
 
 

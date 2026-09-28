@@ -329,6 +329,36 @@ std::optional<size_t> ControllersPageState::GetSelectedIndex() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindController
+//
+//  The row the page lists a controller on, or none when it does not list
+//  it, for opening the page on a controller picked somewhere else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<size_t> ControllersPageState::FindController (const ControllerUnitKey & unit) const
+{
+    size_t  index = 0;
+
+
+
+    for (index = 0; index < m_controllers.size(); index++)
+    {
+        if (m_controllers[index].unit == unit)
+        {
+            return index;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SelectController
 //
 //  Switching controllers abandons a capture or a calibration in progress:

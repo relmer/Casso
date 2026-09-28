@@ -98,8 +98,8 @@ public:
     void  FollowPlayerOne  ();
 
     // New... from a profile section in the paddle picker: the New Profile dialog
-    // for the controller being edited, after asking about unsaved edits.
-    void  StartNewProfile  () { OnNewProfile(); }
+    // for that section's controller, after asking about unsaved edits.
+    void  StartNewProfile  (const ControllerUnitKey & unit);
 
     // Press-to-assign in progress, for the sheet's prompt over the page: the
     // sentence it shows, and a way to call the wait off.

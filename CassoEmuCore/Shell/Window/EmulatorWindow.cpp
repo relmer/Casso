@@ -765,9 +765,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             PickControllerProfile (unit, profileName);
         });
 
-    m_mainMenu.GetCommands().SetNewProfileFn ([this] ()
+    m_mainMenu.GetCommands().SetNewProfileFn ([this] (const ControllerUnitKey & unit)
     {
-        StartNewControllerProfile();
+        StartNewControllerProfile (unit);
     });
 
     m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool

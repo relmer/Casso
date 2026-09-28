@@ -2611,9 +2611,13 @@ void EmulatorShell::SetArrowsJoystick (bool on)
     // Mirror of the rule in SetPointerMapping: the Keys axis drives PDL0/1,
     // so enabling it must drop an active Paddle (they fight over the same
     // game-port lines). Mouse uses a separate slot card and may coexist.
+    // Dropped WITHOUT a sync of its own, so the one below finds the keys on
+    // and the paddle off together: Player 1's entry then goes from the mouse
+    // straight to the keys, never through Automatic, which would hand Player
+    // 1 a controller for a moment and announce it.
     if (on && m_pointerMode == InputMappingMode::Paddle)
     {
-        SetPointerMapping (InputMappingMode::Off);
+        DropPaddleMode();
     }
 
     m_arrowsJoystick = on;
@@ -2627,9 +2631,64 @@ void EmulatorShell::SetArrowsJoystick (bool on)
         return;
     }
 
-    // The arrows drive nothing now: the axes go to whichever owner is left
-    // (center when none) and the fire buttons release. Alt held as Open or
-    // Solid-Apple is the modifier keys' own contribution, so it stays pressed.
+    ReleaseArrowKeySources();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropPaddleMode
+//
+//  The paddle's half of turning the keys on: the capture ends and the
+//  pointer mapping goes Off. No sync; SetArrowsJoystick runs one with both
+//  changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DropPaddleMode()
+{
+    StopPaddleCapture();
+    m_pointerMode = InputMappingMode::Off;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropArrowsJoystick
+//
+//  The keys' half of turning the paddle on. No sync; SetPointerMapping runs
+//  one with both changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DropArrowsJoystick()
+{
+    m_arrowsJoystick = false;
+    ReleaseArrowKeySources();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseArrowKeySources
+//
+//  The arrows drive nothing now: the axes go to whichever owner is left
+//  (center when none) and the fire buttons release. Alt held as Open or
+//  Solid-Apple is the modifier keys' own contribution, so it stays pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReleaseArrowKeySources()
+{
     m_gamePortMixer.ReleaseSource (GamePortSource::ArrowKeys);
     m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
 }
@@ -2750,10 +2809,11 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
     // axis. Mouse is a separate slot card (disjoint lines) and may coexist
     // with Joystick, so only Paddle clears it. Enforced here (not just in the
     // SetInputMappingMode presets) so the per-segment / menu toggle paths
-    // honor the same paddle-vs-joystick exclusivity.
+    // honor the same paddle-vs-joystick exclusivity. Dropped without a sync
+    // of its own, for the reason SetArrowsJoystick gives.
     if (pointer == InputMappingMode::Paddle && m_arrowsJoystick)
     {
-        SetArrowsJoystick (false);
+        DropArrowsJoystick();
     }
 
     if (prev == InputMappingMode::Paddle && pointer != InputMappingMode::Paddle)
@@ -2820,8 +2880,10 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 //  PDL1 over and take the pointer, and record Player 1's entry through the
 //  axis owner. Any other entry for Player 1 gives them up. The entry is set
 //  FIRST, so the setters that give them up find Player 1 already on it and
-//  do not pass through Automatic on the way. The entries are saved with the
-//  global prefs.
+//  do not pass through Automatic on the way. From the keys to the mouse, or
+//  back, the setter turns the other off and syncs once with both changed, so
+//  Player 1's entry is set once, straight to the new one. The entries are
+//  saved with the global prefs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3033,18 +3095,19 @@ void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string p
 //  StartNewControllerProfile
 //
 //  New... at the foot of a player's profile section. Settings opens on the
-//  Controllers page, and the New Profile dialog comes up for the controller
-//  Editing opens on.
+//  Controllers page with Editing on that section's controller, and the New
+//  Profile dialog comes up for it. Opened without the Controllers page's own
+//  landing, which would move Editing to player one's controller first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StartNewControllerProfile()
+void EmulatorShell::StartNewControllerProfile (ControllerUnitKey unit)
 {
-    OpenSettings (true);
+    OpenSettings (false);
 
     if (m_settingsSheet != nullptr)
     {
-        m_settingsSheet->StartNewControllerProfile();
+        m_settingsSheet->StartNewControllerProfile (unit);
     }
 }
 

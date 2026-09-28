@@ -62,6 +62,9 @@ Results are recorded as they are produced. A scenario that could not run says so
 | T150 | `DxuiToolbar::GetEntryWidthPx` measures the unfitted label | Red: `LabelFit_MeasuresAndPaintsTheSameFittedLabel` failed with `the entry is measured at the fitted width`. Restored, stamped, rebuilt, green. |
 | T151 (extra) | `InputModeRules::BuildChoices` always checks Automatic | Red: `EverySubmenu_HasExactlyOneCheckedEntry` failed with `Expected:<1> Actual:<2> - one entry checked`, and `AnAbsentPick_StaysCheckedAndIsMarkedNotConnected` with it. Restored, stamped, rebuilt, green. |
 | T151 (extra) | `InputModeRules::SetFace` never adds ` +1` after a controller | Red: `Label_EndsInPlusOneWhilePlayerTwoPlays` failed with `Expected:<VKBsim Gladiator +1> Actual:<VKBsim Gladiator>`, and `Picker_ListsThePlayerRowsThenControllerSettings`. Restored, stamped, rebuilt, green. |
+| Picker follow-up (GH #156) | `EmulatorCommands::AddProfileSection` gives every section's New... the first player's controller | Red: `NewProfile_IsForTheControllerOfItsOwnSection` failed with `Player 2's New... is for Player 2's controller`. Restored, stamped, rebuilt, green. |
+| Picker follow-up (GH #156) | `EmulatorShell::SetArrowsJoystick` turns the paddle off through `SetPointerMapping (Off)`, which syncs Player 1's entry on its own | Red: `MouseToKeys_GoesStraightFromOneToTheOther` failed with `Player 1 never reads Automatic on the way`. Restored, stamped, rebuilt, green. |
+| Picker follow-up (GH #156) | `EmulatorShell::SetPointerMapping` turns the keys off through `SetArrowsJoystick (false)`, which syncs Player 1's entry on its own | Red: `KeysToMouse_GoesStraightFromOneToTheOther` failed with `Player 1 never reads Automatic on the way`. Restored, stamped, rebuilt, green. |
 
 ## Final walk and measurements (T093)
 

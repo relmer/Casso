@@ -604,29 +604,16 @@ Error:
 
 void SettingsSheet::ShowControllersPage()
 {
-    int  index = IndexOfPage (m_controllersPage);
+    bool  isSynced = TrySyncControllersPlayers();
 
 
 
-    // The picker's Controller settings... and New... land here, so a sheet
-    // that was already open would otherwise go on showing the players as they
-    // stood when it opened.
-    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr && m_controllersPage != nullptr)
+    if (isSynced)
     {
-        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
-
-        // Laid out again rather than merely re-synced: the section is not a
-        // value on the page, it is rows that come and go, and every row below
-        // it moves with them.
-        m_controllersState.SetMultiplayer (PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots), snapshot.axisCount);
-        m_controllersPage->Relayout();
         m_controllersPage->FollowPlayerOne();
     }
 
-    if (index >= 0)
-    {
-        SetActivePage (index);
-    }
+    ActivateControllersPage();
 }
 
 
@@ -637,13 +624,80 @@ void SettingsSheet::ShowControllersPage()
 //
 //  StartNewControllerProfile
 //
+//  New... from a player's profile section in the picker: the Controllers
+//  page, on that player's controller rather than player one's, with the New
+//  profile dialog up for it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::StartNewControllerProfile()
+void SettingsSheet::StartNewControllerProfile (const ControllerUnitKey & unit)
 {
-    if (m_controllersPage != nullptr)
+    bool  isSynced = TrySyncControllersPlayers();
+
+
+
+    ActivateControllersPage();
+
+    if (isSynced)
     {
-        m_controllersPage->StartNewProfile();
+        m_controllersPage->StartNewProfile (unit);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrySyncControllersPlayers
+//
+//  The picker's Controller settings... and New... land on the Controllers
+//  page, so a sheet that was already open would otherwise go on showing the
+//  players as they stood when it opened. False with no page or no service.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::TrySyncControllersPlayers()
+{
+    ControllerInputService::Snapshot  snapshot;
+
+
+
+    if (m_emuShell == nullptr || m_emuShell->GetControllerService() == nullptr || m_controllersPage == nullptr)
+    {
+        return false;
+    }
+
+    snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+
+    // Laid out again rather than merely re-synced: the section is not a value
+    // on the page, it is rows that come and go, and every row below it moves
+    // with them.
+    m_controllersState.SetMultiplayer (PlayerSlotPolicy::MakeSetupView (snapshot.entries, snapshot.slots), snapshot.axisCount);
+    m_controllersPage->Relayout();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActivateControllersPage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::ActivateControllersPage()
+{
+    int  index = IndexOfPage (m_controllersPage);
+
+
+
+    if (index >= 0)
+    {
+        SetActivePage (index);
     }
 }
 

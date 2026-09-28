@@ -88,6 +88,23 @@ namespace ControllerTests
         }
 
 
+        //  How the page is opened on one controller: New... in a player's
+        //  profile section in the picker is for that player's controller.
+        TEST_METHOD (FindController_GivesTheRowOfAnAttachedUnitOnly)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+
+
+
+            page.Load ({ MakeXbox(), stick }, {}, {}, true);
+
+            Assert::IsTrue  (page.FindController (stick.unit)      == std::optional<size_t> (1));
+            Assert::IsTrue  (page.FindController (MakeXbox().unit) == std::optional<size_t> (0));
+            Assert::IsFalse (page.FindController (MakeStick ("{GONE}").unit).has_value(), L"a controller the page does not list");
+        }
+
+
         TEST_METHOD (Load_OnTheSelectedController_ShowsTheActiveProfileForItsModel)
         {
             ControllersPageState  page;

@@ -82,6 +82,10 @@ public:
     // mode's built-in profile.
     using ProfilePickedFn = std::function<void (const ControllerUnitKey & unit, const std::string & profileName)>;
 
+    // Raised by New... in a profile section, for the controller the section
+    // is under.
+    using NewProfileFn = std::function<void (const ControllerUnitKey & unit)>;
+
     // Ids for the toolbar entries that are not menu commands. Menu command
     // ids start at 40001, so nothing collides.
     static constexpr int  kIdTheme   = 1;
@@ -151,7 +155,7 @@ public:
     void  SetPicker          (const InputModeRules::Picker & picker);
     void  SetPlayerPickedFn  (PlayerPickedFn fn)            { m_onPlayerPicked  = std::move (fn); }
     void  SetProfilePickedFn (ProfilePickedFn fn)           { m_onProfilePicked = std::move (fn); }
-    void  SetNewProfileFn    (std::function<void ()> fn)    { m_onNewProfile    = std::move (fn); }
+    void  SetNewProfileFn    (NewProfileFn fn)              { m_onNewProfile    = std::move (fn); }
 
     // Mouse mode: a plain toggle on the strip, because it toggles one thing.
     // It is NOT in the paddle-source picker: it drives the //c's IOU mouse,
@@ -217,10 +221,8 @@ private:
     std::shared_ptr<DxuiCommand>               m_joyportRow;
     std::function<bool()>                      m_isJoyportOffered;
 
-    // Shared by every profile section.
-    std::shared_ptr<DxuiCommand>               m_newProfileRow;
     ProfilePickedFn                            m_onProfilePicked;
-    std::function<void ()>                     m_onNewProfile;
+    NewProfileFn                               m_onNewProfile;
 
     std::wstring  m_machineName;
     int           m_themeIndex = -1;
