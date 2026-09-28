@@ -106,12 +106,15 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_speed[target]);
     }
 
-    Adopt (m_sharedWarning);
+    // A warning under each target's rows, compact like the players'.
+    for (target = 0; target < kTargetCount; target++)
+    {
+        Adopt (m_sharedWarning[target]);
 
-    // A warning between the rows and the deadzone, compact like the players'.
-    m_sharedWarning.SetSeverity           (DxuiInfoBanner::Severity::Warning);
-    m_sharedWarning.SetVisible            (false);
-    m_sharedWarning.SetVerticalPaddingDip ((float) s_kWarningPadYDp);
+        m_sharedWarning[target].SetSeverity           (DxuiInfoBanner::Severity::Warning);
+        m_sharedWarning[target].SetVisible            (false);
+        m_sharedWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);
+    }
 
     Adopt (m_deadzoneLabel);
     Adopt (m_deadzone);
@@ -443,9 +446,8 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  axesBottom  = 0;
     int                  contentH    = 0;
     int                  playerStep  = rowH + gap;
-    int                  sharedW     = wideWidth + labelWidth + buttonWidth;
-    int                  sharedH     = 0;
-    std::wstring         sharedText;
+    int                  axisWarnW   = labelWidth + rowWidth + gap + optionWidth + addWidth;
+    int                  buttonWarnW = wideWidth + labelWidth + buttonWidth;
     bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool                 isJoyport   = IsJoyportMode();
     size_t               target      = 0;
@@ -458,6 +460,8 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_lastRect   = rect;
     m_lastScaler = scaler;
     m_hasLayout  = true;
+
+    m_revealedWarning.reset();
 
     // The players lead the page, since who is playing decides what
     // everything below edits. A player whose buttons the Joyport has taken
@@ -575,6 +579,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
             m_invert[target].SetVisible   (false);
             m_response[target].SetVisible (false);
             m_speed[target].SetVisible    (false);
+            LayOutSharedWarning (target, axesX, axesBottom, axisWarnW, text, scaler);
             continue;
         }
 
@@ -609,7 +614,9 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_speed[target].SetSuffix        (L"/s");
         m_speed[target].SetTickInterval  (256.0f);
 
-        axesBottom += rowH + sectionGap;
+        axesBottom += rowH + gap;
+        axesBottom += LayOutSharedWarning (target, axesX, axesBottom, axisWarnW, text, scaler);
+        axesBottom += sectionGap - gap;
     }
 
     y = std::max (stickTop + stickSize, axesBottom) + sectionGap;
@@ -650,28 +657,8 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         {
             y += (int) shown * (rowH + gap);
         }
-    }
 
-    // Only while a control is on more than one shown target, and as tall as
-    // its sentences, one to a line.
-    sharedText = MakeSharedNotice();
-    m_sharedWarning.SetText    (sharedText);
-    m_sharedWarning.SetVisible (!sharedText.empty());
-    m_sharedWarning.SetDpi     (dpi);
-
-    if (!sharedText.empty())
-    {
-        if (text != nullptr)
-        {
-            sharedH = (int) std::ceil (m_sharedWarning.GetMeasuredHeightPx (*text, (float) sharedW, scaler));
-        }
-        else
-        {
-            sharedH = (int) std::ceil (m_sharedWarning.GetPreferredHeightPx ((float) sharedW, scaler));
-        }
-
-        m_sharedWarning.SetRect (MakeRect (x, y, sharedW, sharedH));
-        y += sharedH + gap;
+        y += LayOutSharedWarning (target, x, y, buttonWarnW, text, scaler);
     }
 
     m_deadzoneLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
@@ -736,7 +723,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_speed[target].SetDpi    (dpi);
     }
 
-    m_sharedWarning.SetDpi     (dpi);
     m_deadzoneLabel.SetDpi     (dpi);
     m_deadzone.SetDpi          (dpi);
     m_calibrationLabel.SetDpi  (dpi);
@@ -1080,20 +1066,18 @@ std::wstring ControllersPage::GetTargetLabel (PaddleTarget target) const
 //
 //  MakeSharedNotice
 //
-//  One sentence for each control assigned to more than one target, a line
-//  each: the control as its rows show it, then every target it is on after
-//  the first, as in "B is also assigned to Fire and PB1." Empty when no
-//  control is shared.
+//  One sentence, a line each, for every control whose sharing warning goes
+//  under this target: the control as its rows show it, then every other
+//  target it is on, as in "B is also assigned to Fire and PB1." Empty when
+//  no warning goes here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ControllersPage::MakeSharedNotice() const
+std::wstring ControllersPage::MakeSharedNotice (PaddleTarget target) const
 {
     ControllerKind             kind   = GetSelectedKind();
     std::wstring               notice;
-    std::vector<PaddleTarget>  targets;
     std::vector<std::wstring>  others;
-    size_t                     i      = 0;
 
 
 
@@ -1104,12 +1088,19 @@ std::wstring ControllersPage::MakeSharedNotice() const
 
     for (const ControlId & control : m_state->GetSharedControls())
     {
-        targets = m_state->GetControlTargets (control);
+        if (m_state->GetSharedWarningTarget (control) != target)
+        {
+            continue;
+        }
+
         others.clear();
 
-        for (i = 1; i < targets.size(); i++)
+        for (PaddleTarget other : m_state->GetControlTargets (control))
         {
-            others.push_back (GetTargetLabel (targets[i]));
+            if (other != target)
+            {
+                others.push_back (GetTargetLabel (other));
+            }
         }
 
         notice += notice.empty() ? L"" : L"\n";
@@ -1117,6 +1108,96 @@ std::wstring ControllersPage::MakeSharedNotice() const
     }
 
     return notice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayOutSharedWarning
+//
+//  The sharing warning under one target's rows, at (x, y), shown only while
+//  it has sentences and as tall as they are. Returns the height it takes,
+//  with the gap below it, or 0 while it is hidden. A warning whose text is
+//  new is the one the sheet scrolls to after an edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::LayOutSharedWarning (
+    size_t                  target,
+    int                     x,
+    int                     y,
+    int                     width,
+    IDxuiTextRenderer     * text,
+    const DxuiDpiScaler   & scaler)
+{
+    DxuiInfoBanner  & banner   = m_sharedWarning[target];
+    std::wstring      notice   = IsTargetShown (target) ? MakeSharedNotice (TargetAt (target)) : std::wstring();
+    bool              isNew    = !notice.empty() && notice != banner.GetText();
+    int               heightPx = 0;
+
+
+
+    banner.SetText    (notice);
+    banner.SetVisible (!notice.empty());
+    banner.SetDpi     (scaler.GetDpi());
+
+    if (notice.empty())
+    {
+        return 0;
+    }
+
+    // Measured whenever there is a renderer to measure with, as the players'
+    // warnings are.
+    if (text != nullptr)
+    {
+        heightPx = (int) std::ceil (banner.GetMeasuredHeightPx (*text, (float) width, scaler));
+    }
+    else
+    {
+        heightPx = (int) std::ceil (banner.GetPreferredHeightPx ((float) width, scaler));
+    }
+
+    banner.SetRect (MakeRect (x, y, width, heightPx));
+
+    if (isNew)
+    {
+        m_revealedWarning = target;
+    }
+
+    return heightPx + scaler.ToPx (s_kGapDp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasSharedNoticeChanged
+//
+//  Whether any target's sharing warning would now read differently from the
+//  one laid out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::HasSharedNoticeChanged() const
+{
+    size_t  target  = 0;
+    bool    changed = false;
+
+
+
+    for (target = 0; target < kTargetCount && !changed; target++)
+    {
+        std::wstring  notice = IsTargetShown (target) ? MakeSharedNotice (TargetAt (target)) : std::wstring();
+
+        changed = notice != m_sharedWarning[target].GetText();
+    }
+
+    return changed;
 }
 
 
@@ -1197,10 +1278,10 @@ void ControllersPage::Refresh()
 
     m_isSyncing = false;
 
-    // The shared-control warning's height follows its sentences, so a change
-    // to them is a change to the page's layout. Layout sets the text before
-    // it refreshes, so this cannot loop.
-    if (m_hasLayout && MakeSharedNotice() != m_sharedWarning.GetText())
+    // A sharing warning's height follows its sentences, so a change to them
+    // is a change to the page's layout. Layout sets the text before it
+    // refreshes, so this cannot loop.
+    if (m_hasLayout && HasSharedNoticeChanged())
     {
         Relayout();
     }
@@ -2331,6 +2412,14 @@ void ControllersPage::Relayout()
     if (m_onLayoutChanged)
     {
         m_onLayoutChanged();
+    }
+
+    // A sharing warning that just appeared or changed can land below the
+    // part of the page in view; bring it in.
+    if (m_revealedWarning.has_value())
+    {
+        RequestReveal (m_sharedWarning[m_revealedWarning.value()].GetBounds());
+        m_revealedWarning.reset();
     }
 }
 

@@ -69,6 +69,15 @@ public:
     int   GetContentHeightPx        () const { return m_contentHeightPx; }
     void  SetOnContentHeightChanged (std::function<void()> fn) { m_onContentHeightChanged = std::move (fn); }
 
+    //
+    //  Asks the sheet to scroll a scrolled page just far enough to show a
+    //  rect of it, in client pixels as laid out now: a control that just
+    //  appeared below the part of the page in view, say. Ignored while the
+    //  page is not scrolled.
+    //
+    void  RequestReveal           (const RECT & rectPx);
+    void  SetOnRevealRequested    (std::function<void (const RECT &)> fn) { m_onRevealRequested = std::move (fn); }
+
 
 protected:
     std::wstring           m_title;
@@ -78,4 +87,5 @@ protected:
     RECT                   m_viewportPx      = {};
     int                    m_contentHeightPx = 0;
     std::function<void()>  m_onContentHeightChanged;
+    std::function<void (const RECT &)>  m_onRevealRequested;
 };

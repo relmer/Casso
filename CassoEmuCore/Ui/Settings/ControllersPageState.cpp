@@ -341,6 +341,7 @@ void ControllersPageState::LoadEditedProfile()
 
 
     m_editedProfile.clear();
+    m_assignedTargets.clear();
 
     if (!m_selected.has_value() || m_selected.value() >= m_controllers.size())
     {
@@ -1521,6 +1522,7 @@ bool ControllersPageState::AddAxisBinding (PaddleTarget target, const AxisBindin
     list = FindAxisList (profile->mapping, target);
     list->push_back (binding);
     list->back().maxSpeed = std::clamp (binding.maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
+    NoteAssigned (target, binding);
 
     return true;
 }
@@ -1554,6 +1556,7 @@ bool ControllersPageState::AddButtonBinding (PaddleTarget target, const ButtonBi
     }
 
     FindButtonList (profile->mapping, target)->push_back (binding);
+    NoteAssigned (target, binding.control);
 
     return true;
 }
@@ -1583,6 +1586,7 @@ bool ControllersPageState::ReplaceAxisBinding (PaddleTarget target, size_t index
     (*list)[index]          = binding;
     (*list)[index].maxSpeed = std::clamp (binding.maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
     m_liveEvaluator.ResetRate();
+    NoteAssigned (target, binding);
 
     return true;
 }
@@ -1610,6 +1614,7 @@ bool ControllersPageState::ReplaceButtonBinding (PaddleTarget target, size_t ind
     }
 
     (*list)[index] = binding;
+    NoteAssigned (target, binding.control);
 
     return true;
 }
@@ -1902,6 +1907,7 @@ void ControllersPageState::SelectProfile (const std::string & name)
     }
 
     StoreEditedProfile();
+    m_assignedTargets.clear();
 
     m_capture.Cancel();
     m_liveEvaluator.ResetRate();
@@ -2142,6 +2148,7 @@ void ControllersPageState::ResetProfile()
 
     profile->mapping = ControllerModelSettings::MakeBuiltInMapping (ControllerModelSettings::GetResetKind (*profile), selected->unit.model, selected->formFactor, selected->controls);
     m_liveEvaluator.ResetRate();
+    m_assignedTargets.clear();
 }
 
 
@@ -2234,6 +2241,7 @@ void ControllersPageState::DiscardProfileEdits()
     }
 
     m_liveEvaluator.ResetRate();
+    m_assignedTargets.clear();
 }
 
 
@@ -2605,6 +2613,86 @@ std::vector<ControlId> ControllersPageState::GetSharedControls() const
     }
 
     return shared;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSharedWarningTarget
+//
+//  Where the page puts the warning for a control on more than one target.
+//  Just after an edit that shared it, that is the target the edit put it on,
+//  so the warning shows beside the rows the user changed. A control shared
+//  when its mapping was loaded or switched to has no such target, and its
+//  warning goes under the last of its targets, below every row it is on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PaddleTarget ControllersPageState::GetSharedWarningTarget (const ControlId & control) const
+{
+    std::vector<PaddleTarget>  targets = GetControlTargets (control);
+    PaddleTarget               result  = targets.empty() ? PaddleTarget::Pdl0 : targets.back();
+
+
+
+    for (const auto & assigned : m_assignedTargets)
+    {
+        bool  isStillThere = std::find (targets.begin(), targets.end(), assigned.second) != targets.end();
+
+        if (assigned.first == control && isStillThere)
+        {
+            result = assigned.second;
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteAssigned
+//
+//  A D-pad pair records both of its directions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::NoteAssigned (PaddleTarget target, const AxisBinding & binding)
+{
+    if (binding.kind == AxisBindingKind::DigitalPair)
+    {
+        NoteAssigned (target, binding.negative);
+        NoteAssigned (target, binding.positive);
+    }
+    else
+    {
+        NoteAssigned (target, binding.analog);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteAssigned
+//
+//  One record per control, holding the latest target.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::NoteAssigned (PaddleTarget target, const ControlId & control)
+{
+    std::erase_if (m_assignedTargets, [&control] (const auto & assigned) { return assigned.first == control; });
+
+    m_assignedTargets.push_back ({ control, target });
 }
 
 

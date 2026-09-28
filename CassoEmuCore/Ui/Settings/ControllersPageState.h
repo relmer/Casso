@@ -290,6 +290,11 @@ public:
     // The targets one control is assigned to, in the page's row order.
     std::vector<PaddleTarget>             GetControlTargets  (const ControlId & control) const;
 
+    // The target a shared control's warning goes under: the one it was last
+    // assigned to on the page, while it is still there, and otherwise the
+    // last of its targets in row order.
+    PaddleTarget                          GetSharedWarningTarget (const ControlId & control) const;
+
     // Items joined into one run of English: "A", "A and B", "A, B and C".
     static std::wstring                   JoinWithAnd        (const std::vector<std::wstring> & items);
 
@@ -341,6 +346,10 @@ private:
 
     // Every control on every target of the edited mapping, a pair per row.
     std::vector<std::pair<ControlId, PaddleTarget>>  ListControlUses() const;
+
+    // Records the target a binding was just put on, for each of its controls.
+    void                                             NoteAssigned   (PaddleTarget target, const AxisBinding & binding);
+    void                                             NoteAssigned   (PaddleTarget target, const ControlId & control);
 
     static constexpr size_t  kPaddlesPerJoystick = 2;
 
@@ -407,6 +416,10 @@ private:
     ControlCapture                                  m_capture;
     PaddleTarget                                    m_captureTarget = PaddleTarget::Pdl0;
     std::optional<size_t>                           m_captureReplace;
+
+    // The target each control was last assigned to on the page, cleared
+    // whenever the edited mapping is loaded, switched or reset.
+    std::vector<std::pair<ControlId, PaddleTarget>> m_assignedTargets;
 
     CalibrationStep                                 m_calibrationStep = CalibrationStep::None;
     ControllerSample                                m_calibrationLast;

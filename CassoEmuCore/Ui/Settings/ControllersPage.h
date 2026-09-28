@@ -179,7 +179,9 @@ private:
     bool                 IsTargetShown      (size_t target) const;
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
     std::wstring         GetTargetLabel     (PaddleTarget target) const;
-    std::wstring         MakeSharedNotice   () const;
+    std::wstring         MakeSharedNotice   (PaddleTarget target) const;
+    int                  LayOutSharedWarning (size_t target, int x, int y, int width, IDxuiTextRenderer * text, const DxuiDpiScaler & scaler);
+    bool                 HasSharedNoticeChanged () const;
     void                 PollSwitchLights   (const GamePortContribution * reading);
     ControllerKind       GetSelectedKind    () const;
     IDxuiTextRenderer  * GetMeasuringRenderer () const;
@@ -248,7 +250,11 @@ private:
     std::array<DxuiComboBox, kAxisCount>  m_response;
     std::array<DxuiSlider, kAxisCount>    m_speed;
 
-    DxuiInfoBanner     m_sharedWarning;
+    // Under each target's rows, a warning for every control there that is also
+    // on another target; the one that last came into view, for the sheet to
+    // scroll to.
+    std::array<DxuiInfoBanner, kTargetCount>  m_sharedWarning;
+    std::optional<size_t>                     m_revealedWarning;
 
     DxuiLabel          m_deadzoneLabel;
     DxuiSlider         m_deadzone;

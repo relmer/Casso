@@ -178,6 +178,7 @@ private:
     void                UpdateScrollRange          ();
     void                ConfigureScrollbar         (const DxuiDpiScaler & scaler);
     void                OnPageContentHeightChanged (const DxuiPropertyPage * page);
+    void                OnPageRevealRequested      (const DxuiPropertyPage * page, const RECT & rectPx);
     DxuiPropertyPage *  FindOwningPage             (const IDxuiControl * ctl) const;
     bool                IsPage                     (const IDxuiControl * ctl) const;
 

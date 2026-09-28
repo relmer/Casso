@@ -422,18 +422,22 @@ public:
     }
 
 
-    //  A button on PB0 and PB1 gets a warning banner giving the other
-    //  target, and the page's height takes it in.
-    TEST_METHOD (SharedWarning_IsAWarningGivingTheOtherTarget)
+    //  A button already on PB0 added to PB1 gets a warning under PB1's rows,
+    //  giving PB0, and the page's height takes it in. The sheet is asked to
+    //  bring the new warning into view.
+    TEST_METHOD (SharedWarning_GoesUnderTheEditedTargetGivingTheOthers)
     {
         ControllersPage                        page;
         ControllersPageState                   state;
         std::vector<const DxuiInfoBanner *>    warnings;
+        std::optional<RECT>                    revealed;
         int                                    heightPx = 0;
 
 
 
         LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+        page.SetOnRevealRequested ([&revealed] (const RECT & rectPx) { revealed = rectPx; });
+
         state.AddButtonBinding (PaddleTarget::Pb1, { { ControlKind::Button, 0 } });   // button 0 is already PB0
         page.Refresh();
 
@@ -441,14 +445,65 @@ public:
         heightPx = page.GetContentHeightPx();
 
         Assert::AreEqual (size_t (1), warnings.size());
-        Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB1."), warnings[0]->GetText());
+        Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB0."), warnings[0]->GetText());
         Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Warning, L"as a warning");
+        Assert::IsTrue   (IsBetweenLabels (*warnings[0], page, L"PB1:", L"PB2:"), L"under PB1's rows");
         Assert::AreEqual (GetLowestVisibleBottom (page) + kPagePadPx - kTopPx, heightPx, L"the content height follows it");
+        Assert::IsTrue   (revealed.has_value(), L"and it is scrolled to");
+        Assert::AreEqual (warnings[0]->GetBounds().top,    revealed->top);
+        Assert::AreEqual (warnings[0]->GetBounds().bottom, revealed->bottom);
+    }
+
+
+    //  Added to the earlier target, the warning goes under that one.
+    TEST_METHOD (SharedWarning_GoesUnderAnEarlierTargetWhenThatWasEdited)
+    {
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        std::vector<const DxuiInfoBanner *>    warnings;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+        state.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, 1 } });   // button 1 is already PB1
+        page.Refresh();
+
+        warnings = FindWarnings (page);
+
+        Assert::AreEqual (size_t (1), warnings.size());
+        Assert::AreEqual (std::wstring (L"Button 2 is also assigned to PB1."), warnings[0]->GetText());
+        Assert::IsTrue   (IsBetweenLabels (*warnings[0], page, L"PB0:", L"PB1:"), L"under PB0's rows");
+    }
+
+
+    //  A mapping switched to with a control already shared has no edit to
+    //  follow, so the warning goes under the last of its targets, giving the
+    //  earlier ones.
+    TEST_METHOD (SharedWarning_OnASwitchGoesUnderTheLastTarget)
+    {
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        std::vector<const DxuiInfoBanner *>    warnings;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+        state.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, 1 } });
+        state.SelectController (1);
+        state.SelectController (0);
+        page.Refresh();
+
+        warnings = FindWarnings (page);
+
+        Assert::AreEqual (size_t (1), warnings.size());
+        Assert::AreEqual (std::wstring (L"Button 2 is also assigned to PB0."), warnings[0]->GetText());
+        Assert::IsTrue   (IsBetweenLabels (*warnings[0], page, L"PB1:", L"PB2:"), L"under PB1's rows");
     }
 
 
     //  Two other targets are joined with "and", and each shared control has
-    //  a sentence of its own, one to a line.
+    //  a sentence of its own, one to a line, in the warning of the target it
+    //  was last added to.
     TEST_METHOD (SharedWarning_GivesEachSharedControlASentence)
     {
         ControllersPage                        page;
@@ -466,6 +521,72 @@ public:
         warnings = FindWarnings (page);
 
         Assert::AreEqual (size_t (1), warnings.size(), L"one banner");
-        Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB1 and PB2.\nButton 2 is also assigned to PB2."), warnings[0]->GetText());
+        Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB0 and PB1.\nButton 2 is also assigned to PB1."), warnings[0]->GetText());
+    }
+
+
+    //  An axis added to PDL1 while it drives PDL0 gets its warning under
+    //  PDL1's rows and options, above the buttons.
+    TEST_METHOD (SharedWarning_GoesUnderTheEditedAxis)
+    {
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        std::vector<const DxuiInfoBanner *>    warnings;
+        AxisBinding                            binding;
+        std::wstring                           suffix   = L" is also assigned to PDL0 (X).";
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+        binding.analog = state.GetMapping().pdl0[0].analog;
+        state.AddAxisBinding (PaddleTarget::Pdl1, binding);
+        page.Refresh();
+
+        warnings = FindWarnings (page);
+
+        Assert::AreEqual (size_t (1), warnings.size());
+        Assert::IsTrue   (warnings[0]->GetText().ends_with (suffix), warnings[0]->GetText().c_str());
+        Assert::IsTrue   (IsBetweenLabels (*warnings[0], page, L"PDL1 (Y):", L"Buttons"), L"under PDL1's rows");
+    }
+
+    //  Controls shared from different targets get a warning under each.
+    TEST_METHOD (SharedWarning_HasABannerForEachTargetWithWarnings)
+    {
+        ControllersPage                        page;
+        ControllersPageState                   state;
+        std::vector<const DxuiInfoBanner *>    warnings;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+        state.AddButtonBinding (PaddleTarget::Pb1, { { ControlKind::Button, 0 } });
+        state.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+        state.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, 2 } });
+        page.Refresh();
+
+        warnings = FindWarnings (page);
+
+        Assert::AreEqual (size_t (2), warnings.size(), L"two banners");
+        Assert::AreEqual (std::wstring (L"Button 3 is also assigned to PB2."), warnings[0]->GetText());
+        Assert::IsTrue   (IsBetweenLabels (*warnings[0], page, L"PB0:", L"PB1:"), L"the first under PB0");
+        Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB0."), warnings[1]->GetText());
+        Assert::IsTrue   (IsBetweenLabels (*warnings[1], page, L"PB1:", L"PB2:"), L"the second under PB1");
+    }
+
+
+    //  Whether a banner sits below one row label and above the next.
+    static bool IsBetweenLabels (const DxuiInfoBanner  & banner,
+                                 const ControllersPage & page,
+                                 const std::wstring    & above,
+                                 const std::wstring    & below)
+    {
+        const DxuiLabel  * upper = FindLabel (page, above);
+        const DxuiLabel  * lower = FindLabel (page, below);
+
+
+
+        return upper != nullptr && lower != nullptr
+            && banner.GetBounds().top    >= upper->GetBounds().bottom
+            && banner.GetBounds().bottom <= lower->GetBounds().top;
     }
 };

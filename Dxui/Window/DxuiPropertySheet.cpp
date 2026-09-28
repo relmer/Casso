@@ -146,6 +146,7 @@ void DxuiPropertySheet::RegisterPage (DxuiPropertyPage * page)
     page->SetVisible                (m_pages.empty());
     page->SetOnDirtyChanged         ([this] () { RefreshApplyEnabled(); });
     page->SetOnContentHeightChanged ([this, page] () { OnPageContentHeightChanged (page); });
+    page->SetOnRevealRequested      ([this, page] (const RECT & rectPx) { OnPageRevealRequested (page, rectPx); });
     m_pages.push_back (page);
     m_present.push_back (true);
 
@@ -909,6 +910,29 @@ void DxuiPropertySheet::OnPageContentHeightChanged (const DxuiPropertyPage * pag
 
     ConfigureScrollbar (m_lastScaler);
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPageRevealRequested
+//
+//  The active page asked to show part of itself. Taken only outside a sheet
+//  layout, since a reveal scrolls by laying the pages out again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::OnPageRevealRequested (const DxuiPropertyPage * page, const RECT & rectPx)
+{
+    if (m_isLayingOutPages || !m_scrollable || IndexOfPage (page) != m_active)
+    {
+        return;
+    }
+
+    SetPageScrollPos (GetScrollPosToReveal (m_scrollPosPx, rectPx, m_viewportPx));
 }
 
 

@@ -88,3 +88,21 @@ void DxuiPropertyPage::SetContentHeightPx (int heightPx)
         m_onContentHeightChanged();
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestReveal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertyPage::RequestReveal (const RECT & rectPx)
+{
+    if (m_onRevealRequested)
+    {
+        m_onRevealRequested (rectPx);
+    }
+}
