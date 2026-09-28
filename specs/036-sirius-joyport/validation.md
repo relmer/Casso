@@ -176,3 +176,11 @@ place a player on a jack.
 | Mutation: the page's `CreateProfile` without the mode check | automated | 1 test went red: `CreateProfile_ACopyOfTheOtherModesProfile_IsRefused` (`a normal-mode profile in Joyport mode`) |
 | Full unit suite | x64 Release | 5,790 of 5,790 |
 | The New profile dialog on screen in both modes | manual | not run: opening it needs an attached controller and a walk through the sheet by posted input; left for the owner |
+
+## Controllers page fix: the switch follows the running machine (GH #156)
+
+| Check | Kind | Result |
+|---|---|---|
+| `EmulatorShell::IsJoyportOffered` is false for a running machine with no Joyport, the //c, and true once one is built; the picker's row and the Controllers page's switch are both offered through it, so the machine chosen on the Machine tab has no say (`JoyportSettingTests`) | automated | pass |
+| Mutation: `IsJoyportOffered` always true | automated | 1 test went red: `IsJoyportOffered_FollowsTheRunningMachine` (`a running machine with no Joyport, the //c, is not offered one`) |
+| Full unit suite, with the binding drop-downs' fix beside it | x64 Release | 5,803 of 5,803 |

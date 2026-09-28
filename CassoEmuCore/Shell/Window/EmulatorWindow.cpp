@@ -713,7 +713,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // when it has them. Checked while the Joyport is in effect.
     m_mainMenu.GetCommands().SetJoyportFns (
         [this] () { return IsJoyportInEffect(); },
-        [this] () { return m_machine.GetJoyport() != nullptr; },
+        [this] () { return IsJoyportOffered(); },
         [this] ()
         {
             SetGamePortAdapter (IsJoyportInEffect() ? GamePortAdapter::None : GamePortAdapter::SiriusJoyport);

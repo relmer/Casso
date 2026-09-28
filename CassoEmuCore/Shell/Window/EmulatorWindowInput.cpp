@@ -2788,6 +2788,25 @@ bool EmulatorShell::IsJoyportInEffect() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsJoyportOffered
+//
+//  Whether the running machine can take a Joyport, which is what the picker's
+//  row and the Controllers page's switch are offered on: both apply at once
+//  to the running machine, so a machine staged elsewhere has no say.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsJoyportOffered() const
+{
+    return m_machine.GetJoyport() != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetPointerMapping
 //
 //  Pointer axis of the split input model: Off / Paddle (capturing) /

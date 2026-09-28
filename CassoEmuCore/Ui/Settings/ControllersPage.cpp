@@ -1596,8 +1596,7 @@ void ControllersPage::RefreshRows()
             int                        choice      = FindChoice (target, row);
 
             items.push_back (isCapturing ? L"Press a control..." : L"Press to assign...");
-            items.push_back (available ? L"None"
-                                       : L"Not supported on " + (m_state->GetMachineName().empty() ? std::wstring (L"this machine") : m_state->GetMachineName()));
+            items.push_back (m_state->GetUnassignedLabel (paddleTarget));
             glyphs.resize   (items.size());
 
             for (const ControlChoice & entry : m_choices[target])

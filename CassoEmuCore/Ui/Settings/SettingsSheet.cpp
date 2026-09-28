@@ -491,10 +491,12 @@ HRESULT SettingsSheet::OpenModeless (
             });
 
             // The Joyport's Apple / Atari switch applies at once, like the
-            // picker's row, through the same command; OK takes no part.
+            // picker's row, through the same command; OK takes no part. So it
+            // is offered by the running machine, not the one staged on the
+            // Machine tab.
             m_controllersPage->SetJoyportFns (
                 [this] () { return m_emuShell->IsJoyportInEffect(); },
-                [this] () { return m_state.GetMachineInfo().supportsGamePortAdapter; },
+                [this] () { return m_emuShell->IsJoyportOffered(); },
                 [this] (bool isAtariMode)
                 {
                     WORD  id = isAtariMode ? IDM_GAMEPORT_ADAPTER_JOYPORT : IDM_GAMEPORT_ADAPTER_NONE;

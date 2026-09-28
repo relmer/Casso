@@ -1019,6 +1019,36 @@ bool ControllersPageState::IsTargetAvailable (PaddleTarget target) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetUnassignedLabel
+//
+//  What a binding drop-down shows for no control: None when a control could
+//  be assigned, or why none can be. A target the machine lacks says so first,
+//  since that holds whatever is attached; otherwise, with no controller to
+//  edit, the page says there is none rather than blaming the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetUnassignedLabel (PaddleTarget target) const
+{
+    if (!IsTargetAvailable (target))
+    {
+        return L"Not supported on " + (m_machineName.empty() ? std::wstring (L"this machine") : m_machineName);
+    }
+
+    if (!m_selected.has_value())
+    {
+        return L"No controller attached";
+    }
+
+    return L"None";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AddAxisBinding / AddButtonBinding
 //
 //  Adding to one target never takes a control away from another (FR-025):

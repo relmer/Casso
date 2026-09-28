@@ -187,6 +187,7 @@ public:
     void                                  SetDeadzone        (float deadzone);
 
     bool                                  IsTargetAvailable  (PaddleTarget target) const;
+    std::wstring                          GetUnassignedLabel (PaddleTarget target) const;
     bool                                  AddAxisBinding     (PaddleTarget target, const AxisBinding & binding);
     bool                                  AddButtonBinding   (PaddleTarget target, const ButtonBinding & binding);
     bool                                  RemoveBinding      (PaddleTarget target, size_t index);

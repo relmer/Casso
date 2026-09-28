@@ -726,6 +726,10 @@ public:
     // refers to.
     void    PickPlayer             (size_t player, PlayerEntry entry);
 
+    // Whether the running machine can take a Joyport, which is what the
+    // picker's row and the Controllers page's switch are offered on.
+    bool    IsJoyportOffered       () const;
+
     // //c mouse mode. True while Mouse mode is selected AND the
     // current machine has the IOU mouse — every runtime consumer guards on
     // this, so a persisted Mouse mode on a mouse-less machine is inert.

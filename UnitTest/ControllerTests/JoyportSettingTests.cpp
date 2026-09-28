@@ -3,6 +3,8 @@
 #include "Controllers/JoyportSetting.h"
 
 #include "Core/JsonParser.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Shell/EmulatorShell.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -118,6 +120,23 @@ namespace ControllerTests
 
             Assert::IsTrue  (resolved.setting == GamePortAdapter::None);
             Assert::IsFalse (resolved.isAdopted, L"it was set, by some build, so it is not replaced by the machine's value");
+        }
+
+
+        //  The switch applies at once to the running machine, so whether it
+        //  is offered follows the running machine: a machine builds a Joyport
+        //  exactly when it can take one, and the //c builds none. The shell
+        //  is driven without Initialize, as ShellKeyWiringTests drives it.
+        TEST_METHOD (IsJoyportOffered_FollowsTheRunningMachine)
+        {
+            std::unique_ptr<EmulatorShell>  shell = std::make_unique<EmulatorShell>();
+
+
+
+            Assert::IsFalse (shell->IsJoyportOffered(), L"a running machine with no Joyport, the //c, is not offered one");
+
+            shell->GetMachine().SetJoyport (std::make_unique<SiriusJoyport>());
+            Assert::IsTrue (shell->IsJoyportOffered(), L"a running machine that built one is offered it");
         }
     };
 }

@@ -359,6 +359,33 @@ namespace ControllerTests
         }
 
 
+        //  A binding drop-down with nothing it can assign says why: no
+        //  controller is attached, or the machine lacks the target. The
+        //  machine's lack is true whatever is attached, so it comes first.
+        TEST_METHOD (UnassignedLabel_SaysWhyNothingCanBeAssigned)
+        {
+            ControllersPageState  page;
+
+
+
+            page.SetMachineName (L"Apple //c");
+            page.Load ({}, {}, {}, false);
+            Assert::AreEqual (std::wstring (L"No controller attached"),    page.GetUnassignedLabel (PaddleTarget::Pdl0));
+            Assert::AreEqual (std::wstring (L"No controller attached"),    page.GetUnassignedLabel (PaddleTarget::Pb0));
+            Assert::AreEqual (std::wstring (L"Not supported on Apple //c"), page.GetUnassignedLabel (PaddleTarget::Pb2));
+
+            page.Load ({ MakeStick() }, {}, {}, false);
+            Assert::AreEqual (std::wstring (L"None"),                      page.GetUnassignedLabel (PaddleTarget::Pdl0));
+            Assert::AreEqual (std::wstring (L"Not supported on Apple //c"), page.GetUnassignedLabel (PaddleTarget::Pb2));
+
+            page.SetMachineName (L"");
+            Assert::AreEqual (std::wstring (L"Not supported on this machine"), page.GetUnassignedLabel (PaddleTarget::Pb2));
+
+            page.Load ({}, {}, {}, true);
+            Assert::AreEqual (std::wstring (L"No controller attached"),    page.GetUnassignedLabel (PaddleTarget::Pb2), L"a machine with PB2 and nothing attached");
+        }
+
+
         TEST_METHOD (LiveReading_UsesThePendingMapping)
         {
             ControllersPageState  page;

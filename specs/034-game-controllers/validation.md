@@ -65,6 +65,7 @@ Results are recorded as they are produced. A scenario that could not run says so
 | Picker follow-up (GH #156) | `EmulatorCommands::AddProfileSection` gives every section's New... the first player's controller | Red: `NewProfile_IsForTheControllerOfItsOwnSection` failed with `Player 2's New... is for Player 2's controller`. Restored, stamped, rebuilt, green. |
 | Picker follow-up (GH #156) | `EmulatorShell::SetArrowsJoystick` turns the paddle off through `SetPointerMapping (Off)`, which syncs Player 1's entry on its own | Red: `MouseToKeys_GoesStraightFromOneToTheOther` failed with `Player 1 never reads Automatic on the way`. Restored, stamped, rebuilt, green. |
 | Picker follow-up (GH #156) | `EmulatorShell::SetPointerMapping` turns the keys off through `SetArrowsJoystick (false)`, which syncs Player 1's entry on its own | Red: `KeysToMouse_GoesStraightFromOneToTheOther` failed with `Player 1 never reads Automatic on the way`. Restored, stamped, rebuilt, green. |
+| Controllers page fix (GH #156) | `ControllersPageState::GetUnassignedLabel` gives "Not supported on <machine>" with no controller attached, which is what the binding drop-downs showed before the fix | Red: `UnassignedLabel_SaysWhyNothingCanBeAssigned` failed with `Expected:<No controller attached> Actual:<Not supported on Apple //c>`. Restored, stamped, rebuilt, green. |
 
 ## Final walk and measurements (T093)
 
