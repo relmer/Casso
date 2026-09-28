@@ -173,6 +173,8 @@ A page gets a **page-table pointer** iff the chip that answers there is passive
 storage; it stays on the **device handler** iff the chip reacts to being
 addressed (side effects, computed reads):
 
+<p align="center"><img src="docs/memory-map.svg" alt="The Apple //e memory map from $0000 at the bottom to $FFFF at the top, with main memory, auxiliary memory, and ROM and I/O side by side. Zero page and stack are selected by ALTZP; $0200-$BFFF by RAMRD for reads and RAMWRT for writes, with PAGE2 selecting main or aux for text page 1 when 80STORE is on, and for hi-res page 1 when 80STORE and HIRES are on. $C000-$C0FF is I/O; $C100-$CFFF is slot or internal ROM, selected by INTCXROM, SLOTC3ROM and INTC8ROM; $D000-$FFFF is motherboard ROM or language-card RAM, with two $D000 banks, selected by the $C080-$C08F switches and ALTZP. Strips beside the address axis show that Casso serves RAM reads and writes through the page table, the $C000-$CFFF space through device calls, and the language card with page-table reads and device writes." width="100%" /></p>
+
 | Range | Nature | Lane |
 |---|---|---|
 | `$0000–$BFFF` | main/aux RAM | page table (read + write) |

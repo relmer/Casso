@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1090" height="848" viewBox="0 0 1090 848" role="img" aria-labelledby="title desc">
+<title id="title">The Apple //e memory map as Casso serves it</title>
+<desc id="desc">The //e address space drawn from $0000 at the bottom to $FFFF at the top, with main memory, auxiliary memory, and ROM and I/O in side-by-side columns, the soft switches that select among them, and two strips showing whether Casso serves reads and writes in each range through the page table or the device map.</desc>
+<style>
+  svg { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .bg { fill: #FFFFFF; }
+  .hdr { font-size: 13px; font-weight: 600; fill: #2C2C2A; }
+  .hsub { font-size: 11.5px; fill: #5F5E5A; }
+  .ax { font-size: 12px; fill: #444441; font-family: Consolas, "SF Mono", Menlo, monospace; }
+  .tick { stroke: #B4B2A9; stroke-width: 1; }
+  .bt { font-size: 12.5px; font-weight: 500; }
+  .bs { font-size: 11px; }
+  .ram rect { fill: #F1EFE8; stroke: #8A887F; } .ram .bt { fill: #2C2C2A; } .ram .bs { fill: #5F5E5A; }
+  .rom rect { fill: #FAEEDA; stroke: #BA7517; } .rom .bt { fill: #633806; } .rom .bs { fill: #854F0B; }
+  .io  rect { fill: #FBEAF0; stroke: #993556; } .io  .bt { fill: #72243E; } .io  .bs { fill: #993556; }
+  .pt  { fill: #1D9E75; } .dev { fill: #7F77DD; }
+  .note { font-size: 12px; fill: #444441; }
+  .nsw { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 11.5px; fill: #2C2C2A; font-weight: 600; }
+  .brk { stroke: #888780; stroke-width: 1.2; fill: none; }
+  .foot { font-size: 12px; fill: #5F5E5A; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1A1A18; }
+    .hdr { fill: #E8E6DF; } .hsub, .foot { fill: #B4B2A9; }
+    .ax { fill: #D3D1C7; } .tick { stroke: #5F5E5A; }
+    .ram rect { fill: #2C2C2A; stroke: #8A887F; } .ram .bt { fill: #E8E6DF; } .ram .bs { fill: #B4B2A9; }
+    .rom rect { fill: #412402; stroke: #EF9F27; } .rom .bt { fill: #FAC775; } .rom .bs { fill: #EF9F27; }
+    .io  rect { fill: #4B1528; stroke: #ED93B1; } .io  .bt { fill: #F4C0D1; } .io  .bs { fill: #ED93B1; }
+    .note { fill: #D3D1C7; } .nsw { fill: #E8E6DF; }
+    .brk { stroke: #888780; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="1090" height="848" stroke="none"/>
+<text class="hdr" x="294" y="44" text-anchor="middle">Main memory</text>
+<text class="hsub" x="294" y="62" text-anchor="middle">64K</text>
+<text class="hdr" x="494" y="44" text-anchor="middle">Auxiliary memory</text>
+<text class="hsub" x="494" y="62" text-anchor="middle">64K, 80-column card</text>
+<text class="hdr" x="694" y="44" text-anchor="middle">ROM and I/O</text>
+<text class="hdr" x="812" y="44">Selected by</text>
+<text class="hdr" x="128" y="44" text-anchor="middle">Casso</text>
+<text class="hsub" x="117" y="62" text-anchor="middle">R</text><text class="hsub" x="139" y="62" text-anchor="middle">W</text>
+<line class="tick" x1="80" y1="678" x2="788" y2="678" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="682" text-anchor="end">$0000</text>
+<line class="tick" x1="80" y1="634" x2="788" y2="634" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="638" text-anchor="end">$0200</text>
+<line class="tick" x1="80" y1="604" x2="788" y2="604" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="608" text-anchor="end">$0400</text>
+<line class="tick" x1="80" y1="560" x2="788" y2="560" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="564" text-anchor="end">$0800</text>
+<line class="tick" x1="80" y1="516" x2="788" y2="516" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="520" text-anchor="end">$2000</text>
+<line class="tick" x1="80" y1="462" x2="788" y2="462" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="466" text-anchor="end">$4000</text>
+<line class="tick" x1="80" y1="342" x2="788" y2="342" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="346" text-anchor="end">$C000</text>
+<line class="tick" x1="80" y1="306" x2="788" y2="306" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="310" text-anchor="end">$C100</text>
+<line class="tick" x1="80" y1="266" x2="788" y2="266" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="270" text-anchor="end">$C800</text>
+<line class="tick" x1="80" y1="232" x2="788" y2="232" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="236" text-anchor="end">$D000</text>
+<line class="tick" x1="80" y1="168" x2="788" y2="168" stroke-dasharray="2 4"/>
+<text class="ax" x="74" y="172" text-anchor="end">$E000</text>
+<text class="ax" x="74" y="88" text-anchor="end">$FFFF</text>
+<line class="tick" x1="80" y1="84" x2="788" y2="84" stroke-dasharray="2 4"/>
+<rect class="pt" x="108" y="635" width="18" height="42"/>
+<rect class="pt" x="130" y="635" width="18" height="42"/>
+<rect class="pt" x="108" y="605" width="18" height="28"/>
+<rect class="pt" x="130" y="605" width="18" height="28"/>
+<rect class="pt" x="108" y="561" width="18" height="42"/>
+<rect class="pt" x="130" y="561" width="18" height="42"/>
+<rect class="pt" x="108" y="517" width="18" height="42"/>
+<rect class="pt" x="130" y="517" width="18" height="42"/>
+<rect class="pt" x="108" y="463" width="18" height="52"/>
+<rect class="pt" x="130" y="463" width="18" height="52"/>
+<rect class="pt" x="108" y="343" width="18" height="118"/>
+<rect class="pt" x="130" y="343" width="18" height="118"/>
+<rect class="dev" x="108" y="307" width="18" height="34"/>
+<rect class="dev" x="130" y="307" width="18" height="34"/>
+<rect class="dev" x="108" y="267" width="18" height="38"/>
+<rect class="dev" x="130" y="267" width="18" height="38"/>
+<rect class="dev" x="108" y="233" width="18" height="32"/>
+<rect class="dev" x="130" y="233" width="18" height="32"/>
+<rect class="pt" x="108" y="169" width="18" height="62"/>
+<rect class="dev" x="130" y="169" width="18" height="62"/>
+<rect class="pt" x="108" y="85" width="18" height="82"/>
+<rect class="dev" x="130" y="85" width="18" height="82"/>
+<g class="ram"><rect x="202" y="636" width="184" height="40" rx="3" stroke-width="1"/>
+<text class="bt" x="294" y="660" text-anchor="middle">Zero page, stack</text></g>
+<g class="ram"><rect x="202" y="606" width="184" height="26" rx="3" stroke-width="1"/>
+<text class="bt" x="294" y="623" text-anchor="middle">RAM</text></g>
+<g class="ram"><rect x="202" y="562" width="184" height="40" rx="3" stroke-width="1"/>
+<text class="bt" x="294" y="586" text-anchor="middle">Text page 1</text></g>
+<g class="ram"><rect x="202" y="518" width="184" height="40" rx="3" stroke-width="1"/>
+<text class="bt" x="294" y="542" text-anchor="middle">RAM</text></g>
+<g class="ram"><rect x="202" y="464" width="184" height="50" rx="3" stroke-width="1"/>
+<text class="bt" x="294" y="493" text-anchor="middle">Hi-res page 1</text></g>
+<g class="ram"><rect x="202" y="344" width="184" height="116" rx="3" stroke-width="1"/>
+<text class="bt" x="294" y="406" text-anchor="middle">RAM</text></g>
+<g class="ram"><rect x="202" y="170" width="90" height="60" rx="3" stroke-width="1"/>
+<text class="bt" x="247" y="198" text-anchor="middle">LC RAM</text><text class="bs" x="247" y="213" text-anchor="middle">bank 1</text></g>
+<g class="ram"><rect x="296" y="170" width="90" height="60" rx="3" stroke-width="1"/>
+<text class="bt" x="341" y="198" text-anchor="middle">LC RAM</text><text class="bs" x="341" y="213" text-anchor="middle">bank 2</text></g>
+<g class="ram"><rect x="202" y="86" width="184" height="80" rx="3" stroke-width="1"/>
+<text class="bt" x="294" y="130" text-anchor="middle">LC RAM</text></g>
+<g class="ram"><rect x="402" y="636" width="184" height="40" rx="3" stroke-width="1"/>
+<text class="bt" x="494" y="660" text-anchor="middle">Zero page, stack</text></g>
+<g class="ram"><rect x="402" y="606" width="184" height="26" rx="3" stroke-width="1"/>
+<text class="bt" x="494" y="623" text-anchor="middle">RAM</text></g>
+<g class="ram"><rect x="402" y="562" width="184" height="40" rx="3" stroke-width="1"/>
+<text class="bt" x="494" y="580" text-anchor="middle">Text page 1</text><text class="bs" x="494" y="595" text-anchor="middle">80-column half</text></g>
+<g class="ram"><rect x="402" y="518" width="184" height="40" rx="3" stroke-width="1"/>
+<text class="bt" x="494" y="542" text-anchor="middle">RAM</text></g>
+<g class="ram"><rect x="402" y="464" width="184" height="50" rx="3" stroke-width="1"/>
+<text class="bt" x="494" y="487" text-anchor="middle">Hi-res page 1</text><text class="bs" x="494" y="502" text-anchor="middle">double hi-res half</text></g>
+<g class="ram"><rect x="402" y="344" width="184" height="116" rx="3" stroke-width="1"/>
+<text class="bt" x="494" y="406" text-anchor="middle">RAM</text></g>
+<g class="ram"><rect x="402" y="170" width="90" height="60" rx="3" stroke-width="1"/>
+<text class="bt" x="447" y="198" text-anchor="middle">LC RAM</text><text class="bs" x="447" y="213" text-anchor="middle">bank 1</text></g>
+<g class="ram"><rect x="496" y="170" width="90" height="60" rx="3" stroke-width="1"/>
+<text class="bt" x="541" y="198" text-anchor="middle">LC RAM</text><text class="bs" x="541" y="213" text-anchor="middle">bank 2</text></g>
+<g class="ram"><rect x="402" y="86" width="184" height="80" rx="3" stroke-width="1"/>
+<text class="bt" x="494" y="130" text-anchor="middle">LC RAM</text></g>
+<g class="io"><rect x="602" y="308" width="184" height="32" rx="3" stroke-width="1"/>
+<text class="bt" x="694" y="328" text-anchor="middle">I/O and soft switches</text></g>
+<g class="rom"><rect x="602" y="268" width="90" height="36" rx="3" stroke-width="1"/>
+<text class="bt" x="647" y="290" text-anchor="middle">Slot ROMs</text></g>
+<g class="rom"><rect x="696" y="268" width="90" height="36" rx="3" stroke-width="1"/>
+<text class="bt" x="741" y="290" text-anchor="middle">Internal ROM</text></g>
+<g class="rom"><rect x="602" y="234" width="184" height="30" rx="3" stroke-width="1"/>
+<text class="bt" x="694" y="253" text-anchor="middle">Internal ROM, or none</text></g>
+<g class="rom"><rect x="602" y="86" width="184" height="144" rx="3" stroke-width="1"/>
+<text class="bt" x="694" y="156" text-anchor="middle">Motherboard ROM</text><text class="bs" x="694" y="171" text-anchor="middle">Applesoft, Monitor</text></g>
+<text x="812" y="660"><tspan class="nsw">ALTZP</tspan><tspan class="note" dx="6">main or aux</tspan></text>
+<path class="brk" d="M798 345 h6 V631 h-6"/>
+<text x="812" y="398"><tspan class="nsw">RAMRD</tspan><tspan class="note" dx="6">selects reads</tspan></text>
+<text x="812" y="416"><tspan class="nsw">RAMWRT</tspan><tspan class="note" dx="6">selects writes</tspan></text>
+<text x="812" y="578" xml:space="preserve"><tspan class="note">With </tspan><tspan class="nsw">80STORE</tspan><tspan class="note"> on, </tspan><tspan class="nsw">PAGE2</tspan><tspan class="note"> selects main or aux,</tspan></text>
+<text x="812" y="594" xml:space="preserve"><tspan class="note">instead of </tspan><tspan class="nsw">RAMRD</tspan><tspan class="note"> and </tspan><tspan class="nsw">RAMWRT</tspan></text>
+<text x="812" y="475" xml:space="preserve"><tspan class="note">With </tspan><tspan class="nsw">80STORE</tspan><tspan class="note"> and </tspan><tspan class="nsw">HIRES</tspan><tspan class="note"> on,</tspan></text>
+<text x="812" y="490" xml:space="preserve"><tspan class="note"></tspan><tspan class="nsw">PAGE2</tspan><tspan class="note"> selects main or aux,</tspan></text>
+<text x="812" y="505" xml:space="preserve"><tspan class="note">instead of </tspan><tspan class="nsw">RAMRD</tspan><tspan class="note"> and </tspan><tspan class="nsw">RAMWRT</tspan></text>
+<text x="812" y="328"><tspan class="nsw"></tspan><tspan class="note" dx="0">fixed by address</tspan></text>
+<text x="812" y="290"><tspan class="nsw">INTCXROM, SLOTC3ROM</tspan><tspan class="note" dx="6">($C3xx)</tspan></text>
+<text x="812" y="253"><tspan class="nsw">INTC8ROM</tspan><tspan class="note" dx="6">set by $C3xx, cleared by $CFFF</tspan></text>
+<path class="brk" d="M798 87 h6 V229 h-6"/>
+<text x="812" y="148"><tspan class="nsw">$C080–$C08F</tspan><tspan class="note" dx="6">ROM or RAM,</tspan></text>
+<text x="812" y="166"><tspan class="nsw"></tspan><tspan class="note" dx="0">bank 1 or 2, write enable</tspan></text>
+<text x="812" y="188"><tspan class="nsw">ALTZP</tspan><tspan class="note" dx="6">main or aux RAM</tspan></text>
+<g class="ram"><rect x="30" y="706" width="22" height="16" rx="3" stroke-width="1"/></g><text class="foot" x="60" y="718">RAM</text>
+<g class="rom"><rect x="110" y="706" width="22" height="16" rx="3" stroke-width="1"/></g><text class="foot" x="140" y="718">ROM</text>
+<g class="io"><rect x="190" y="706" width="22" height="16" rx="3" stroke-width="1"/></g><text class="foot" x="220" y="718">I/O</text>
+<rect class="pt"  x="290" y="706" width="12" height="16"/><text class="foot" x="310" y="718">Casso reads or writes through the page table: one pointer load, no function call</text>
+<rect class="dev" x="290" y="730" width="12" height="16"/><text class="foot" x="310" y="742">Casso calls the device's Read or Write, which can change soft switches or other state</text>
+<text class="foot" x="30" y="778">Apple //c: reads of $C100–$CFFF, except $C3xx and $CFxx, use the page table into internal ROM. $C028 switches the 32K ROM bank.</text>
+<text class="foot" x="30" y="798">Apple ][ and ][+: main memory and ROM only. Slot and motherboard ROMs are read through the device map unless a language card is configured.</text>
+</svg>
