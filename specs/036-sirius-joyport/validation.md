@@ -131,6 +131,20 @@ place a player on a jack.
 | Full unit suite | x64 Release | 5,717 of 5,717 |
 | V16: a DirectInput gamepad and a flight stick | manual | not yet run |
 
+## Phase 11: a global Joyport setting (US4)
+
+| Check | Kind | Result |
+|---|---|---|
+| `JoyportSetting::IsInEffect` for all four combinations of setting and annunciators; `IsMousePaddleOffered` only while the Joyport is not in effect (`JoyportSettingTests`) | automated | pass |
+| `JoyportSetting::ResolveAtLaunch`: a set global token wins and is not adopted, whatever the machine block holds, the //c included; an empty token adopts the launched //e's saved Joyport, and None with no key, no block, or on the //c; an unknown token is None and not adopted (`JoyportSettingTests`) | automated | pass |
+| `GlobalUserPrefs::gamePortAdapter` round-trips both tokens and is written once; an absent key loads empty and a save leaves it unwritten (`GlobalUserPrefsTests`) | automated | pass |
+| `ReadGamePortAdapter` stays the adoption reader; a machine's input entries never write the key; a legacy key in a machine block survives a later `SaveDelta` untouched (`MachineInputPrefsTests`, `UserConfigStoreTests`) | automated | pass |
+| Mutation: `IsInEffect` ignoring `hasAnnunciators` | automated | 1 test went red: `IsInEffect_OnlyForTheJoyportOnAMachineWithAnnunciators` (`the //c reads it as off`) |
+| Mutation: `ResolveAtLaunch` adopting when the global token is set | automated | 2 tests went red: `ResolveAtLaunch_ASetGlobalTokenWinsAndIsNotAdopted` and `ResolveAtLaunch_AnUnknownTokenIsNoneAndNotAdopted` |
+| Mutation: `GlobalUserPrefs` not writing the key | automated | 1 test went red: `GamePortAdapter_ASetValueRoundTripsAndIsWrittenOnce` (`Expected:<none> Actual:<>`) |
+| Full unit suite | x64 Release | 5,796 of 5,796 |
+| V12-V14 in the running app | manual | not run in this phase; the setting's on-screen check is made with Phase 12's switch |
+
 ## Phase 16: new profile starting points (US7)
 
 | Check | Kind | Result |

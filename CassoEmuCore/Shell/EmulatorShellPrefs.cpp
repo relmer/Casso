@@ -7,6 +7,7 @@
 #include "Config/MachineInputPrefs.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/JoyportSetting.h"
 #include "Core/JsonWriter.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -532,68 +533,69 @@ void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AdoptGamePortAdapterForMachine
+//  ResolveGamePortAdapterAtLaunch
 //
-//  Attaches the running machine's Joyport if its saved setting says so. Runs
-//  once the machine is built: at a cold start from the chrome prefs, and on a
-//  machine switch right after the new devices are built, before the power
-//  cycle that opens the Joyport's reset window.
+//  The Joyport setting the launch starts with, applied to the machine just
+//  built. The first launch after the setting went global adopts the value the
+//  launched machine saved and saves it globally at once, so no later launch
+//  adopts again (JoyportSetting::ResolveAtLaunch).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::AdoptGamePortAdapterForMachine (const JsonValue * uiPrefs)
+void EmulatorShell::ResolveGamePortAdapterAtLaunch (const JsonValue * uiPrefs)
 {
-    SiriusJoyport  * joyport  = m_machine.GetJoyport();
-    GamePortAdapter  adapter  = MachineInputPrefs::ReadGamePortAdapter (uiPrefs, joyport != nullptr);
+    JoyportLaunchSetting  resolved = JoyportSetting::ResolveAtLaunch (m_globalPrefs.gamePortAdapter, uiPrefs, m_machine.GetJoyport() != nullptr);
+
+
+
+    m_gamePortAdapter = resolved.setting;
+
+    if (resolved.isAdopted)
+    {
+        m_globalPrefs.gamePortAdapter = ControllerTokens::GamePortAdapterToToken (resolved.setting);
+        SaveGlobalPrefs();
+    }
+
+    ApplyGamePortAdapterToMachine();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyGamePortAdapterToMachine
+//
+//  Attaches the running machine's Joyport while the setting is in effect on
+//  it, and plays the controllers' profiles of the matching mode. Runs once
+//  the machine is built: at a cold start, and on a machine switch right after
+//  the new devices are built, before the power cycle that opens the Joyport's
+//  reset window. The //c builds no Joyport, so there the setting is not in
+//  effect and is left as it was for the next machine that can use it.
+//
+//  Takes no lock: a machine switch calls it while holding the lifetime lock
+//  exclusively.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyGamePortAdapterToMachine()
+{
+    SiriusJoyport  * joyport    = m_machine.GetJoyport();
+    bool             isInEffect = JoyportSetting::IsInEffect (m_gamePortAdapter, joyport != nullptr);
 
 
 
     if (joyport != nullptr)
     {
-        joyport->SetAttached (adapter == GamePortAdapter::SiriusJoyport);
+        joyport->SetAttached (isInEffect);
     }
 
     if (m_controllerService)
     {
-        m_controllerService->SetJoyportAttached (joyport != nullptr && adapter == GamePortAdapter::SiriusJoyport);
+        m_controllerService->SetJoyportAttached (isInEffect);
     }
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PersistGamePortAdapterForMachine
-//
-//  Saves the game-port adapter with the running machine, so it comes back on
-//  that machine's next launch and on a switch back to it. Nothing is written
-//  for a machine that cannot take a Joyport.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PersistGamePortAdapterForMachine (GamePortAdapter adapter)
-{
-    HRESULT                                         hr         = S_OK;
-    std::vector<std::pair<std::string, JsonValue>>  entries;
-    bool                                            hasStore   = m_userConfigStore != nullptr && !m_machine.GetCurrentMachineName().empty();
-    bool                                            hasJoyport = m_machine.GetJoyport() != nullptr;
-
-
-
-    BAIL_OUT_IF (!hasStore || !hasJoyport, S_OK);
-
-    entries.push_back (MachineInputPrefs::BuildGamePortAdapterEntry (adapter));
-
-    hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs,
-                                          m_machine.GetCurrentMachineName(), entries);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-Error:
-    return;
-}
-
 
 
 
@@ -714,6 +716,10 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // and found green.
     SetColorModeLive (MonitorCatalog::GetSettingsIndex (MonitorCatalog::GetColorModeForMachineJson (doc)));
 
+    // The Joyport setting is global and applies to a machine with no block
+    // of its own too, so it is settled above the guard below.
+    ResolveGamePortAdapterAtLaunch (uiPrefs);
+
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
     // Each key below is optional: a fresh machine omits it, which the
@@ -768,7 +774,6 @@ void EmulatorShell::ApplyPersistedChromePrefs()
         m_mouseConnected = mouseConn;
     }
 
-    AdoptGamePortAdapterForMachine (uiPrefs);
 
     // Seed the per-drive user write-protect preference BEFORE the
     // command-line mount so the very first mount already re-asserts it

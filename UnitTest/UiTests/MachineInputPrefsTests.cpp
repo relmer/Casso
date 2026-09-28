@@ -406,24 +406,26 @@ public:
     }
 
 
-    TEST_METHOD (GamePortAdapter_TheEntryReadsBackAsWritten)
+    //  The setting is global now, so nothing writes the per-machine key: the
+    //  input entries a machine's block is saved with leave it out whatever
+    //  the pointer mapping.
+    TEST_METHOD (GamePortAdapter_TheMachinesInputEntriesNeverWriteIt)
     {
-        for (GamePortAdapter adapter : { GamePortAdapter::None, GamePortAdapter::SiriusJoyport })
+        for (InputMappingMode pointer : { InputMappingMode::Off, InputMappingMode::Joystick, InputMappingMode::Paddle, InputMappingMode::Mouse })
         {
-            std::pair<std::string, JsonValue>  entry = MachineInputPrefs::BuildGamePortAdapterEntry (adapter);
-            JsonValue                          block = JsonValue (std::vector<std::pair<std::string, JsonValue>> { entry });
-
-            Assert::AreEqual (std::string ("gamePortAdapter"), entry.first);
-            Assert::IsTrue (MachineInputPrefs::ReadGamePortAdapter (&block, true) == adapter);
+            for (const std::pair<std::string, JsonValue> & entry : MachineInputPrefs::BuildUiPrefEntries (pointer))
+            {
+                Assert::AreNotEqual (std::string (MachineInputPrefs::kpszGamePortAdapterKey), entry.first);
+            }
         }
     }
 
 
     TEST_METHOD (GamePortAdapter_EachMachineAdoptsOnlyItsOwnSavedValue)
     {
-        //  SC-007: what the cold-boot and machine-switch paths adopt. The //e
-        //  saved a Joyport; the ][+ saved nothing; the //c's block claims one
-        //  it cannot have, as a hand edit might.
+        //  What the one-time adoption at launch reads, from blocks an older
+        //  build wrote. The //e saved a Joyport; the ][+ saved nothing; the
+        //  //c's block claims one it cannot have, as a hand edit might.
         InMemoryFileSystem  fs;
         UserConfigStore     store (L"C:\\Casso\\User");
         JsonValue           defaultJson = ParseOrFail (R"({"$cassoMachineVersion":1})");
@@ -446,13 +448,14 @@ private:
         JsonValue  updated;
         HRESULT    hr      = S_OK;
 
-        //  For the //c this stands in for a hand edit: the shell never writes
-        //  the key for a machine without a Joyport.
+        //  What an older build wrote for the machine. For the //c this stands
+        //  in for a hand edit: no build wrote the key for a machine without a
+        //  Joyport.
         hr = store.Load (machine, defaultJson, fs, merged);
         Assert::IsTrue (SUCCEEDED (hr), L"Load");
 
         updated = UserConfigStore::SpliceUiPrefs (merged,
-            { MachineInputPrefs::BuildGamePortAdapterEntry (ControllerTokens::GamePortAdapterFromToken (token)) });
+            { { MachineInputPrefs::kpszGamePortAdapterKey, JsonValue (std::string (token)) } });
 
         hr = store.SaveDelta (machine, updated, defaultJson, fs);
         Assert::IsTrue (SUCCEEDED (hr), L"SaveDelta");

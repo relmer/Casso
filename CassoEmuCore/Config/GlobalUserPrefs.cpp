@@ -70,6 +70,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "crtOverrides",
     "monitorTilt",
     "controllers",
+    "gamePortAdapter",
     "window",
     "printOutputDpi",
     "printDotStyle",
@@ -1110,6 +1111,13 @@ JsonValue GlobalUserPrefs::ToJson() const
         root.emplace_back ("controllers", controllers);
     }
 
+    // gamePortAdapter: only once set, so a file that never had it keeps
+    // reading as never set and the one-time adoption can still happen.
+    if (!gamePortAdapter.empty())
+    {
+        root.emplace_back ("gamePortAdapter", JsonValue (gamePortAdapter));
+    }
+
     // recentDisks: most-recent-first absolute paths, cap enforced by
     // DiskMru itself before we get here.
     root.emplace_back ("recentDisks", RecentDisksToJson (recentDisks));
@@ -1299,6 +1307,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             controllers = *controllersObj;
         }
     }
+
+    gamePortAdapter = GetStringOpt (v, "gamePortAdapter", gamePortAdapter);
 
     if (v.HasObject ("window", windowSub))
     {

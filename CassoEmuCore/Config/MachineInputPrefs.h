@@ -76,11 +76,12 @@ public:
     static PlayerEntries  ReadAdoptedPlayers (const JsonValue   * uiPrefs,
                                               PlayerLastHolders & outLastHolders);
 
-    // The device on the machine's game socket: None, or the Sirius Joyport.
-    // Always None on a machine with no annunciators to drive one.
-    static GamePortAdapter                    ReadGamePortAdapter       (const JsonValue * uiPrefs,
-                                                                         bool              hasAnnunciators);
-    static std::pair<std::string, JsonValue>  BuildGamePortAdapterEntry (GamePortAdapter adapter);
+    // The Joyport setting as builds before it became global saved it with
+    // the machine: None, or the Sirius Joyport. Read once, by the launch that
+    // adopts it; nothing writes it any more. Always None on a machine with
+    // no annunciators to drive one.
+    static GamePortAdapter  ReadGamePortAdapter (const JsonValue * uiPrefs,
+                                                 bool              hasAnnunciators);
 
     static const char *      ModeToToken   (InputMappingMode    mode);
     static InputMappingMode  ModeFromToken (const std::string & token,

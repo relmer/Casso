@@ -492,7 +492,7 @@ HRESULT SettingsSheet::OpenModeless (
 
             m_controllersPage->SetJoyportAttachedFn ([this] ()
             {
-                return m_emuShell->GetGamePortAdapter() == GamePortAdapter::SiriusJoyport;
+                return m_emuShell->IsJoyportInEffect();
             });
         }
 

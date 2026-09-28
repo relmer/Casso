@@ -709,14 +709,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         [this] () { ToggleInputMappingMode (InputMappingMode::Mouse); });
 
     // The Sirius Joyport row in the paddle picker, on the machines whose game
-    // socket has the annunciators it needs.
+    // socket has the annunciators it needs; a machine builds a Joyport exactly
+    // when it has them. Checked while the Joyport is in effect.
     m_mainMenu.GetCommands().SetJoyportFns (
-        [this] () { return GetGamePortAdapter() == GamePortAdapter::SiriusJoyport; },
+        [this] () { return IsJoyportInEffect(); },
         [this] () { return m_machine.GetJoyport() != nullptr; },
         [this] ()
         {
-            SetGamePortAdapter (GetGamePortAdapter() == GamePortAdapter::SiriusJoyport ? GamePortAdapter::None
-                                                                                       : GamePortAdapter::SiriusJoyport);
+            SetGamePortAdapter (IsJoyportInEffect() ? GamePortAdapter::None : GamePortAdapter::SiriusJoyport);
         });
     m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {

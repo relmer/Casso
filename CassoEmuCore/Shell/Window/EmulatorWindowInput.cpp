@@ -8,6 +8,7 @@
 #include "Controllers/InputModeRules.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/JoyportSetting.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -2533,7 +2534,7 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
     }
 
     buttons = InputModeRules::GetFireKeyButtons (xDown, zDown, leftAltDown, rightAltDown,
-                                                 GetGamePortAdapter() == GamePortAdapter::SiriusJoyport);
+                                                 IsJoyportInEffect());
 
     contribution.buttons.set (0, buttons.test (0));
     contribution.buttons.set (1, buttons.test (1));
@@ -2701,55 +2702,39 @@ void EmulatorShell::ReleaseArrowKeySources()
 //
 //  SetGamePortAdapter
 //
-//  The picker row: attach or detach the Sirius Joyport now, and save the
-//  choice with the running machine.
+//  The picker row: turns the Joyport setting to Atari mode or Apple mode now,
+//  for every machine, and saves it with the global prefs. On the running
+//  machine it takes effect on the next button read, with no reset, where it
+//  is in effect: the //c reads it as off and keeps the setting for the next
+//  machine that can use it. The fire keys are resubmitted because the Alt
+//  keys drop out of them while the Joyport is in effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
 {
-    ApplyGamePortAdapterLive         (adapter);
-    PersistGamePortAdapterForMachine (adapter);
-}
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock());
+    SiriusJoyport                      * joyport    = m_machine.GetJoyport();
+    bool                                 isInEffect = JoyportSetting::IsInEffect (adapter, joyport != nullptr);
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyGamePortAdapterLive
-//
-//  Attaches or detaches the Sirius Joyport on the running machine, with no
-//  reset: the next button read answers from it, or from the machine's own
-//  lines again. A machine with no Joyport to attach (the //c) stays at None.
-//  The fire keys are resubmitted because the Alt keys drop out of them while
-//  the Joyport is attached.
-//
-//  Saves nothing. The Settings sheet reaches this through its OK, and the
-//  sheet saves the machine's block itself; a second save from here could
-//  land on a different machine when the same OK switches machines.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
-{
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
-    SiriusJoyport                      * joyport  = m_machine.GetJoyport();
-
-
+    m_gamePortAdapter = adapter;
 
     if (joyport != nullptr)
     {
-        joyport->SetAttached (adapter == GamePortAdapter::SiriusJoyport);
+        joyport->SetAttached (isInEffect);
     }
 
     lifetime.unlock();
 
     if (m_controllerService)
     {
-        m_controllerService->SetJoyportAttached (joyport != nullptr && adapter == GamePortAdapter::SiriusJoyport);
+        m_controllerService->SetJoyportAttached (isInEffect);
     }
+
+    m_globalPrefs.gamePortAdapter = ControllerTokens::GamePortAdapterToToken (adapter);
+    SaveGlobalPrefs();
 
     if (m_arrowsJoystick)
     {
@@ -2765,18 +2750,53 @@ void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplyGamePortAdapterLive
+//
+//  The Machine tab's way in, through the Settings sheet's OK. The setting is
+//  global now, so it is the same as the picker row's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
+{
+    SetGamePortAdapter (adapter);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetGamePortAdapter
+//
+//  The setting, not what the running machine reads: on the //c the two
+//  differ. IsJoyportInEffect answers the second.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 GamePortAdapter EmulatorShell::GetGamePortAdapter() const
 {
-    const SiriusJoyport  * joyport  = m_machine.GetJoyport();
-    bool                   attached = joyport != nullptr && joyport->IsAttached();
+    return m_gamePortAdapter;
+}
 
 
 
-    return attached ? GamePortAdapter::SiriusJoyport : GamePortAdapter::None;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsJoyportInEffect
+//
+//  Whether the running machine reads the Joyport. A machine builds a Joyport
+//  exactly when it has the annunciators to drive one, so the machine's
+//  Joyport answers whether it has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsJoyportInEffect() const
+{
+    return JoyportSetting::IsInEffect (m_gamePortAdapter, m_machine.GetJoyport() != nullptr);
 }
 
 
