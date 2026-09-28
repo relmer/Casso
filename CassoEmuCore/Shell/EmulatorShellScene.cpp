@@ -7,7 +7,7 @@
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
+#include "Core/DxuiTextElide.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -1048,16 +1048,12 @@ void EmulatorShell::SyncSceneDriveLabels()
                 // width this truncates to is the width it renders.
                 float  px = fontDip * (float) m_scaler.GetDpi() / 96.0f;
 
-                name = TruncateToWidth (name, (float) (rc.right - rc.left),
-                                        [text, px] (std::wstring_view run) -> float
-                {
-                    float    w  = 0.0f;
-                    float    h  = 0.0f;
-                    HRESULT  hr = text->MeasureString (std::wstring (run).c_str(), px,
-                                                       DxuiTheme::kBodyFace, w, h);
-
-                    return SUCCEEDED (hr) ? w : 0.0f;
-                });
+                name = DxuiTextElide::ToWidth (*text,
+                                               name,
+                                               px,
+                                               DxuiTheme::kBodyFace,
+                                               (float) (rc.right - rc.left),
+                                               DxuiElide::Tail);
             }
         }
 

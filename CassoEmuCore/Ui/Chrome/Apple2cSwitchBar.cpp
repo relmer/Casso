@@ -1,34 +1,9 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiColor.h"
 
 #include "Apple2cSwitchBar.h"
 #include "Core/UnicodeSymbols.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Apple2cSwitchBar::LerpArgb
-//
-//  Per-channel linear blend between two ARGB colors, clamped to 0..255.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t Apple2cSwitchBar::LerpArgb (uint32_t a, uint32_t b, float t)
-{
-    auto  chan = [] (uint32_t c, int shift) { return (int) ((c >> shift) & 0xFFu); };
-    auto  mix  = [&] (int shift)
-    {
-        int  v = chan (a, shift) + (int) ((chan (b, shift) - chan (a, shift)) * t + 0.5f);
-        return (uint32_t) (v < 0 ? 0 : (v > 255 ? 255 : v));
-    };
-
-
-
-    return (mix (24) << 24) | (mix (16) << 16) | (mix (8) << 8) | mix (0);
-}
 
 
 
@@ -97,7 +72,7 @@ void Apple2cSwitchBar::ShearGrad (
         float  t1 = (float) (i + 1) / (float) strips;
 
         ShearFill (p, xL, yTop + h * t0, w, h * (t1 - t0),
-                   tan, refBottom, LerpArgb (top, bot, (t0 + t1) * 0.5f));
+                   tan, refBottom, DxuiColor::Lerp (top, bot, (t0 + t1) * 0.5f));
     }
 }
 
@@ -133,7 +108,7 @@ void Apple2cSwitchBar::ShearGradH (
         float  t1 = (float) (i + 1) / (float) cols;
 
         ShearFill (p, xL + w * t0, yTop, w * (t1 - t0), h,
-                   tan, refBottom, LerpArgb (left, right, (t0 + t1) * 0.5f));
+                   tan, refBottom, DxuiColor::Lerp (left, right, (t0 + t1) * 0.5f));
     }
 }
 

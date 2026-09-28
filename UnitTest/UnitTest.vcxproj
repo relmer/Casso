@@ -507,6 +507,7 @@
     <ClCompile Include="Dxui\DxuiLinkFocusRingTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
     <ClCompile Include="Dxui\DxuiSystemSettingsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiColorTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourcePlacementTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceClientTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceTests.cpp" />
@@ -538,7 +539,6 @@
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
-    <ClCompile Include="DriveLabelTruncationTests.cpp" />
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
     <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />

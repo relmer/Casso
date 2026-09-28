@@ -236,7 +236,6 @@ private:
     // piece shares one shear field: a point at height y shifts right by
     // (refBottom - y) * tan. ShearFill draws one parallelogram strip; ShearGrad
     // / ShearGradH stack strips with an interpolated color for a gradient.
-    static uint32_t  LerpArgb   (uint32_t a, uint32_t b, float t);
     static void      ShearFill  (IDxuiPainter & p, float xL, float yTop, float w, float h,
                                  float tan, float refBottom, uint32_t argb);
     static void      ShearGrad  (IDxuiPainter & p, float xL, float yTop, float w, float h,
