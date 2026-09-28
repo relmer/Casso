@@ -97,7 +97,7 @@ public:
     // with player one's slot empty.
     void  FollowPlayerOne  ();
 
-    // New... from the paddle picker's Profiles submenu: the New Profile dialog
+    // New... from a profile section in the paddle picker: the New Profile dialog
     // for the controller being edited, after asking about unsaved edits.
     void  StartNewProfile  () { OnNewProfile(); }
 

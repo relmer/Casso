@@ -325,6 +325,74 @@ public:
     }
 
 
+    //  The strip width at which every entry keeps its label, with alpha's
+    //  label drawn as `alphaLabel`.
+    static int  FullWidthWithAlpha (const Fixture & f, const wchar_t * alphaLabel)
+    {
+        return f.FullWidth() - LabeledPx (L"Alpha") + LabeledPx (alphaLabel);
+    }
+
+
+    static bool  WasDrawn (const Fixture & f, const std::wstring & label)
+    {
+        for (const RecordedTextCall & c : f.text.Calls())
+        {
+            if (c.kind == RecordedTextKind::DrawString && c.text == label)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    //
+    //  A label fit of ten characters' width: "Alpha Beta Gamma Delta +1"
+    //  loses the middle of its description and keeps " +1" whole. The strip
+    //  reserves exactly the fitted string's width and paints that string.
+    //
+    TEST_METHOD (LabelFit_MeasuresAndPaintsTheSameFittedLabel)
+    {
+        Fixture             f;
+        const std::wstring  fitted = L"Alp\x2026lta +1";
+
+
+        f.alpha->label    = L"Alpha Beta Gamma Delta +1";
+        f.alpha->labelFit = DxuiLabelFit { 70.0f, DxuiElide::Middle, L" +1" };
+        f.Build();
+
+        f.LayoutAt (FullWidthWithAlpha (f, fitted.c_str()) - 1);
+        Assert::IsFalse (f.bar.IsLabeled (5), L"one pixel short of the fitted width collapses the last entry");
+
+        f.LayoutAt (FullWidthWithAlpha (f, fitted.c_str()));
+        Assert::IsTrue  (f.bar.IsLabeled (5), L"the entry is measured at the fitted width");
+
+        f.bar.Paint (f.painter, f.text, f.theme);
+        Assert::IsTrue  (WasDrawn (f, fitted), L"and painted with the same fitted text");
+    }
+
+
+    TEST_METHOD (LabelFit_AbsentMeasuresAndPaintsTheWholeLabel)
+    {
+        Fixture          f;
+        const wchar_t *  whole = L"Alpha Beta Gamma Delta +1";
+
+
+        f.alpha->label = whole;
+        f.Build();
+
+        f.LayoutAt (FullWidthWithAlpha (f, whole) - 1);
+        Assert::IsFalse (f.bar.IsLabeled (5));
+
+        f.LayoutAt (FullWidthWithAlpha (f, whole));
+        Assert::IsTrue  (f.bar.IsLabeled (5), L"without a fit the label costs its full width, as before");
+
+        f.bar.Paint (f.painter, f.text, f.theme);
+        Assert::IsTrue  (WasDrawn (f, whole));
+    }
+
+
     TEST_METHOD (Dispatch_FiresOnceOnDownAndUpOnOneEntry)
     {
         Fixture  f;

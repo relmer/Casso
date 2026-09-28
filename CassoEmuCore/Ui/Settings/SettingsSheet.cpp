@@ -608,9 +608,9 @@ void SettingsSheet::ShowControllersPage()
 
 
 
-    // The picker's Multiplayer row turns the mode on and then lands here, so
-    // a sheet that was already open would otherwise go on showing the mode as
-    // it stood when it opened, without the section the user came for.
+    // The picker's Controller settings... and New... land here, so a sheet
+    // that was already open would otherwise go on showing the players as they
+    // stood when it opened.
     if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr && m_controllersPage != nullptr)
     {
         ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();

@@ -145,6 +145,60 @@ public:
 
 
     //
+    //  Middle: keep both ends, for a device description, and never cut the
+    //  kept suffix.
+    //
+
+    std::wstring ElideMiddle (MockDxuiTextRenderer & r, const wchar_t * s, float maxWidth, size_t keptSuffix)
+    {
+        return DxuiTextElide::ToWidth (r, s, kFont, L"Segoe UI", maxWidth, DxuiElide::Middle, keptSuffix);
+    }
+
+
+    TEST_METHOD (MiddleLeavesAFittingStringUnchanged)
+    {
+        MockDxuiTextRenderer   r;
+
+        Assert::AreEqual (std::wstring (L"Pad +1"), ElideMiddle (r, L"Pad +1", 100.0f, 3));
+        Assert::AreEqual (std::wstring (L"Pad"),    ElideMiddle (r, L"Pad",    100.0f, 0));
+    }
+
+
+    // Fifteen characters' room: seven of the head, the ellipsis, seven of
+    // the tail.
+    TEST_METHOD (MiddleKeepsTheHeadAndTheTailWithOneEllipsisBetween)
+    {
+        MockDxuiTextRenderer   r;
+        std::wstring           out = ElideMiddle (r, L"Xbox Wireless Controller", 105.0f, 0);
+
+        Assert::AreEqual (std::wstring (L"Xbox Wi\x2026troller"), out);
+        Assert::AreEqual ((size_t) 1, (size_t) std::count (out.begin(), out.end(), L'\x2026'), L"one ellipsis");
+        Assert::IsTrue   ((float) out.length() * kGlyph <= 105.0f, L"and it fits");
+    }
+
+
+    TEST_METHOD (MiddleNeverCutsTheKeptSuffix)
+    {
+        MockDxuiTextRenderer   r;
+        std::wstring           out = ElideMiddle (r, L"Xbox Wireless Controller +1", 105.0f, 3);
+
+        Assert::AreEqual (std::wstring (L"Xbox W\x2026oller +1"), out, L"the description loses its middle, and \" +1\" stays whole");
+        Assert::IsTrue   ((float) out.length() * kGlyph <= 105.0f);
+    }
+
+
+    // With no room for any of the description, the ellipsis still says
+    // there is more, and the suffix is kept even where it overflows.
+    TEST_METHOD (MiddleWithNoRoomLeavesTheEllipsisAndTheSuffix)
+    {
+        MockDxuiTextRenderer   r;
+
+        Assert::AreEqual (std::wstring (L"\x2026 +1"), ElideMiddle (r, L"Xbox Wireless Controller +1", 28.0f, 3));
+        Assert::AreEqual (std::wstring (L"\x2026 +1"), ElideMiddle (r, L"Xbox Wireless Controller +1", 14.0f, 3));
+    }
+
+
+    //
     //  Degenerate inputs
     //
 

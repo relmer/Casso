@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "resource.h"
+#include "Controllers/ControllerTokens.h"
 #include "Ui/Chrome/EmulatorCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -13,12 +14,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  PaddleSourceRowsTests
 //
-//  The rows the command bar's picker is built from, and the word it wears
-//  while closed.
+//  The command bar's picker: a row for each player, what each player's
+//  submenu lists and checks, the profile section at its foot, and the word
+//  the closed picker wears. The row model is pure data from the players'
+//  entries and slots; the chrome turns it into commands.
 //
-//  EXACTLY ONE ROW IS EVER CHECKED. One game port means one thing driving it,
-//  and a picker showing two checks would be reporting a state the machine
-//  cannot be in.
+//  EXACTLY ONE ENTRY IN EACH SUBMENU IS EVER CHECKED. A player has one entry,
+//  and a submenu showing two checks would be reporting a choice the player
+//  cannot have made.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,550 +31,606 @@ namespace ControllerTests
     {
     public:
 
-        static InputModeRules::PaddleSource MakeSource (const std::wstring & label,
-                                                        const std::wstring & shortLabel,
-                                                        bool                 isChecked)
+        static ControllerDeviceInfo MakePad (const char * productId, const wchar_t * description)
         {
-            InputModeRules::PaddleSource  source;
+            ControllerDeviceInfo  info;
 
-            source.label      = label;
-            source.shortLabel = shortLabel;
-            source.isChecked  = isChecked;
+            info.unit.model.kind = ControllerKind::XInput;
+            info.unit.unitId     = productId;
+            info.unit.source     = ControllerUnitSource::XInputProduct;
+            info.description     = description;
+            info.formFactor      = ControllerFormFactor::Gamepad;
+            return info;
+        }
+
+
+        static ControllerDeviceInfo MakeStick (const char * guid, const wchar_t * description)
+        {
+            ControllerDeviceInfo  info;
+
+            info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
+            info.unit.unitId = guid;
+            info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.description = description;
+            info.formFactor  = ControllerFormFactor::Joystick;
+            return info;
+        }
+
+
+        static PlayerEntry MakeEntry (PlayerEntryKind kind, std::optional<ControllerUnitKey> unit = std::nullopt)
+        {
+            PlayerEntry  entry;
+
+            entry.kind = kind;
+            entry.unit = unit;
+            return entry;
+        }
+
+
+        static PlayerSlot MakeSlot (PlayerSlotState state, std::optional<ControllerUnitKey> holder = std::nullopt)
+        {
+            PlayerSlot  slot;
+
+            slot.state  = state;
+            slot.holder = holder;
+            return slot;
+        }
+
+
+        //  A pad and a stick attached, both players on Automatic with nothing
+        //  chosen, and each controller listing the normal-mode profiles.
+        static InputModeRules::PickerSource MakeSource()
+        {
+            InputModeRules::PickerSource  source;
+
+            source.devices = { MakePad ("045e:0b13", L"Xbox Controller (045e:0b13)"),
+                               MakeStick ("{A}",     L"VKBsim Gladiator") };
+
+            for (const ControllerDeviceInfo & device : source.devices)
+            {
+                source.profiles[ControllerTokens::UnitToToken (device.unit)] = { { "Default", "Paddles", "Swapped" }, "" };
+            }
+
             return source;
         }
 
 
-        TEST_METHOD (Rows_AreOnePerSourceInOrder)
+        static const ControllerUnitKey & Pad   (const InputModeRules::PickerSource & source) { return source.devices[0].unit; }
+        static const ControllerUnitKey & Stick (const InputModeRules::PickerSource & source) { return source.devices[1].unit; }
+
+
+        static std::vector<std::wstring> GetChoiceLabels (const InputModeRules::PlayerRow & row)
         {
-            EmulatorCommands  commands;
+            std::vector<std::wstring>  labels;
 
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false),
-                                         MakeSource (L"Use mouse as paddle", L"Mouse", false) });
+            for (const InputModeRules::PlayerChoice & choice : row.choices)
+            {
+                labels.push_back (choice.label);
+            }
 
-            Assert::AreEqual (static_cast<size_t> (3), commands.GetPaddleSourceItems().size());
+            return labels;
         }
 
 
-        TEST_METHOD (CheckedRow_IsTheOneDriving)
+        static size_t CountChecked (const InputModeRules::PlayerRow & row)
+        {
+            size_t  checked = 0;
+
+            for (const InputModeRules::PlayerChoice & choice : row.choices)
+            {
+                checked += choice.isChecked ? 1 : 0;
+            }
+
+            return checked;
+        }
+
+
+        static const InputModeRules::PlayerChoice * FindChecked (const InputModeRules::PlayerRow & row)
+        {
+            for (const InputModeRules::PlayerChoice & choice : row.choices)
+            {
+                if (choice.isChecked)
+                {
+                    return &choice;
+                }
+            }
+
+            return nullptr;
+        }
+
+
+        //
+        //  The rows
+        //
+
+        TEST_METHOD (Rows_ShowWhatIsPlayingForEachPlayer)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker;
+
+            source.slots[0] = MakeSlot (PlayerSlotState::Playing, Pad (source));
+            picker          = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Player 1: Xbox Controller (045e:0b13)"), picker.rows[0].label, L"the controller Automatic gave Player 1");
+            Assert::AreEqual (std::wstring (L"Player 2: Automatic"),                   picker.rows[1].label, L"Automatic with nothing chosen yet");
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::ArrowKeys);
+            source.entries[1] = MakeEntry (PlayerEntryKind::Disabled);
+            source.slots      = PlayerSlots();
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Player 1: Keys"),     picker.rows[0].label);
+            Assert::AreEqual (std::wstring (L"Player 2: Disabled"), picker.rows[1].label);
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::MousePaddle);
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Player 1: Mouse"), picker.rows[0].label);
+        }
+
+
+        //  The labels are supplied, so another mode can put its own words on
+        //  the players and on Disabled.
+        TEST_METHOD (Rows_TakeTheirWordsFromTheLabelsGiven)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker;
+
+            source.labels.players  = { L"Left", L"Right" };
+            source.labels.disabled = L"Off";
+            source.entries[1]      = MakeEntry (PlayerEntryKind::Disabled);
+            picker                 = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Left: Automatic"), picker.rows[0].label);
+            Assert::AreEqual (std::wstring (L"Right: Off"),      picker.rows[1].label);
+            Assert::AreEqual (std::wstring (L"Off"),             picker.rows[1].choices.back().label, L"and Player 2's Disabled entry");
+        }
+
+
+        TEST_METHOD (PlayerOneSubmenu_ListsAutomaticTheControllersTheKeysAndTheMouse)
+        {
+            InputModeRules::Picker  picker = InputModeRules::BuildPicker (MakeSource());
+
+            Assert::IsTrue (GetChoiceLabels (picker.rows[0]) == std::vector<std::wstring> {
+                                L"Automatic", L"Xbox Controller (045e:0b13)", L"VKBsim Gladiator",
+                                L"Use keys as joystick", L"Use mouse as paddle" });
+            Assert::IsTrue (picker.rows[0].choices[3].entry.kind == PlayerEntryKind::ArrowKeys);
+            Assert::IsTrue (picker.rows[0].choices[4].entry.kind == PlayerEntryKind::MousePaddle);
+        }
+
+
+        TEST_METHOD (PlayerTwoSubmenu_ListsAutomaticTheControllersAndDisabled)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker = InputModeRules::BuildPicker (source);
+
+            Assert::IsTrue (GetChoiceLabels (picker.rows[1]) == std::vector<std::wstring> {
+                                L"Automatic", L"Xbox Controller (045e:0b13)", L"VKBsim Gladiator", L"Disabled" });
+            Assert::IsTrue (picker.rows[1].choices[1].entry.kind == PlayerEntryKind::Controller);
+            Assert::IsTrue (picker.rows[1].choices[1].entry.unit == Pad (source), L"a controller's entry picks that controller");
+            Assert::IsTrue (picker.rows[1].choices[3].entry.kind == PlayerEntryKind::Disabled);
+        }
+
+
+        //  Every entry each player can have, against every slot state with and
+        //  without a controller in the slot: one check per submenu, always on
+        //  the player's own entry.
+        TEST_METHOD (EverySubmenu_HasExactlyOneCheckedEntry)
+        {
+            const PlayerSlotState         states[] = { PlayerSlotState::Empty,   PlayerSlotState::Provisional, PlayerSlotState::Waiting,
+                                                       PlayerSlotState::Playing, PlayerSlotState::Held };
+            InputModeRules::PickerSource  source   = MakeSource();
+            ControllerDeviceInfo          gone     = MakeStick ("{GONE}", L"Gone");
+            std::vector<PlayerEntry>      entries[PlayerSlotPolicy::kPlayerCount];
+            size_t                        combos   = 0;
+
+            for (size_t player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
+            {
+                entries[player] = { MakeEntry (PlayerEntryKind::Automatic),
+                                    MakeEntry (PlayerEntryKind::Controller, Pad (source)),
+                                    MakeEntry (PlayerEntryKind::Controller, gone.unit) };
+            }
+
+            entries[0].push_back (MakeEntry (PlayerEntryKind::ArrowKeys));
+            entries[0].push_back (MakeEntry (PlayerEntryKind::MousePaddle));
+            entries[1].push_back (MakeEntry (PlayerEntryKind::Disabled));
+
+            for (size_t player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
+            {
+                for (const PlayerEntry & entry : entries[player])
+                {
+                    for (PlayerSlotState state : states)
+                    {
+                        for (std::optional<ControllerUnitKey> holder : { std::optional<ControllerUnitKey>(), std::optional<ControllerUnitKey> (Stick (source)) })
+                        {
+                            InputModeRules::PickerSource  combo = source;
+                            InputModeRules::Picker        picker;
+
+                            combo.entries[player] = entry;
+                            combo.slots[player]   = MakeSlot (state, holder);
+                            picker                = InputModeRules::BuildPicker (combo);
+
+                            Assert::AreEqual (size_t (1), CountChecked (picker.rows[player]), L"one entry checked");
+                            Assert::IsTrue   (FindChecked (picker.rows[player])->entry.kind == entry.kind, L"and it is the player's own");
+                            Assert::IsTrue   (FindChecked (picker.rows[player])->entry.unit == entry.unit);
+                            combos++;
+                        }
+                    }
+                }
+            }
+
+            Assert::AreEqual (size_t ((5 + 4) * 5 * 2), combos, L"every entry of both players, in every slot state");
+        }
+
+
+        TEST_METHOD (Automatic_ShowsTheControllerItChoseOnceItHasOne)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Automatic"), picker.rows[0].choices[0].label, L"nothing chosen yet");
+
+            source.slots[0] = MakeSlot (PlayerSlotState::Provisional, Stick (source));
+            picker          = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Automatic (VKBsim Gladiator)"), picker.rows[0].choices[0].label);
+            Assert::IsTrue   (picker.rows[0].choices[0].isChecked);
+        }
+
+
+        //  A pick that is unplugged stays the pick, and the player waits for
+        //  it, so the submenu keeps it checked and says it is away.
+        TEST_METHOD (AnAbsentPick_StaysCheckedAndIsMarkedNotConnected)
+        {
+            InputModeRules::PickerSource          source  = MakeSource();
+            ControllerDeviceInfo                  gone    = MakeStick ("{GONE}", L"Old Gladiator");
+            InputModeRules::Picker                picker;
+            const InputModeRules::PlayerChoice  * checked = nullptr;
+
+            source.entries[1] = MakeEntry (PlayerEntryKind::Controller, gone.unit);
+            source.slots[1]   = MakeSlot (PlayerSlotState::Waiting, gone.unit);
+            source.knownDescriptions[ControllerTokens::UnitToToken (gone.unit)] = gone.description;
+            picker            = InputModeRules::BuildPicker (source);
+            checked           = FindChecked (picker.rows[1]);
+
+            Assert::IsNotNull (checked);
+            Assert::AreEqual  (std::wstring (L"Old Gladiator (not connected)"), checked->label);
+            Assert::IsFalse   (checked->isConnected);
+            Assert::AreEqual  (std::wstring (L"Player 2: Old Gladiator (not connected)"), picker.rows[1].label);
+            Assert::AreEqual  (size_t (5), picker.rows[1].choices.size(), L"Automatic, the two attached, the absent pick, Disabled");
+
+            source.knownDescriptions.clear();
+            picker = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Controller (231d:0121) (not connected)"), FindChecked (picker.rows[1])->label,
+                L"one never seen this session is described from its model");
+        }
+
+
+        //
+        //  The profile section
+        //
+
+        TEST_METHOD (ProfileSection_IsUnderThePlayingControllerWithTheActiveOneChecked)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker;
+
+            source.entries[1] = MakeEntry (PlayerEntryKind::Controller, Pad (source));
+            source.slots[1]   = MakeSlot  (PlayerSlotState::Playing, Pad (source));
+            source.profiles[ControllerTokens::UnitToToken (Pad (source))].active = "PADDLES";
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::IsTrue   (picker.rows[1].profiles.has_value());
+            Assert::AreEqual (std::wstring (L"Xbox Controller (045e:0b13)"), picker.rows[1].profiles->header);
+            Assert::IsTrue   (picker.rows[1].profiles->unit == Pad (source));
+            Assert::IsTrue   (picker.rows[1].profiles->names == std::vector<std::string> { "Default", "Paddles", "Swapped" });
+            Assert::AreEqual (size_t (1), picker.rows[1].profiles->checked, L"the active profile, matched ignoring case");
+
+            source.profiles[ControllerTokens::UnitToToken (Pad (source))].active = "Racing";
+            picker = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (size_t (0), picker.rows[1].profiles->checked, L"one the list lacks plays the built-in profile, which leads");
+        }
+
+
+        //  A section only while a controller is in the slot and attached,
+        //  including Automatic's choice before it has been used.
+        TEST_METHOD (ProfileSection_IsAbsentWithNoControllerPlaying)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            ControllerDeviceInfo          gone   = MakeStick ("{GONE}", L"Gone");
+            InputModeRules::Picker        picker = InputModeRules::BuildPicker (source);
+
+            Assert::IsFalse (picker.rows[0].profiles.has_value(), L"Automatic before it has chosen");
+            Assert::IsFalse (picker.rows[1].profiles.has_value());
+
+            source.slots[0] = MakeSlot (PlayerSlotState::Provisional, Stick (source));
+            source.slots[1] = MakeSlot (PlayerSlotState::Waiting,     Pad (source));
+            picker          = InputModeRules::BuildPicker (source);
+
+            Assert::IsTrue  (picker.rows[0].profiles.has_value(), L"Automatic's lone Player 1 before any input");
+            Assert::IsTrue  (picker.rows[1].profiles.has_value(), L"Automatic's choice waiting for its first input");
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::ArrowKeys);
+            source.entries[1] = MakeEntry (PlayerEntryKind::Disabled);
+            source.slots      = PlayerSlots();
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::IsFalse (picker.rows[0].profiles.has_value(), L"the keys");
+            Assert::IsFalse (picker.rows[1].profiles.has_value(), L"Disabled");
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::MousePaddle);
+            source.entries[1] = MakeEntry (PlayerEntryKind::Controller, gone.unit);
+            source.slots[1]   = MakeSlot  (PlayerSlotState::Held, gone.unit);
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::IsFalse (picker.rows[0].profiles.has_value(), L"the mouse");
+            Assert::IsFalse (picker.rows[1].profiles.has_value(), L"a pick that is not connected");
+        }
+
+
+        //
+        //  The face
+        //
+
+        TEST_METHOD (Label_IsWhatPlayerOnePlaysWithTheParentheticalDropped)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Controller"), picker.label, L"nothing drives the game port");
+            Assert::IsTrue   (picker.driver == InputModeRules::PickerDriver::None);
+
+            source.slots[0] = MakeSlot (PlayerSlotState::Provisional, Pad (source));
+            picker          = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Xbox Controller"), picker.label, L"the vendor and product are dropped");
+            Assert::IsTrue   (picker.driver == InputModeRules::PickerDriver::Controller);
+            Assert::IsTrue   (picker.formFactor == ControllerFormFactor::Gamepad);
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::ArrowKeys);
+            source.slots[0]   = PlayerSlot();
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Keys"), picker.label);
+            Assert::IsTrue   (picker.driver == InputModeRules::PickerDriver::ArrowKeys);
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::MousePaddle);
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"Mouse"), picker.label);
+            Assert::IsTrue   (picker.driver == InputModeRules::PickerDriver::MousePaddle);
+        }
+
+
+        //  " +1" while Player 2 is playing, and not while Player 2 only has a
+        //  controller waiting for its first input.
+        TEST_METHOD (Label_EndsInPlusOneWhilePlayerTwoPlays)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+
+            source.slots[0] = MakeSlot (PlayerSlotState::Playing, Stick (source));
+            source.slots[1] = MakeSlot (PlayerSlotState::Waiting, Pad (source));
+
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), InputModeRules::BuildPicker (source).label);
+
+            source.slots[1] = MakeSlot (PlayerSlotState::Playing, Pad (source));
+
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator +1"), InputModeRules::BuildPicker (source).label);
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::ArrowKeys);
+            source.slots[0]   = PlayerSlot();
+
+            Assert::AreEqual (std::wstring (L"Keys +1"), InputModeRules::BuildPicker (source).label);
+        }
+
+
+        TEST_METHOD (Label_PlayerTwoPlayingAloneShowsItsControllerWithoutTheMark)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            ControllerDeviceInfo          gone   = MakeStick ("{GONE}", L"Gone");
+            InputModeRules::Picker        picker;
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::Controller, gone.unit);
+            source.slots[0]   = MakeSlot  (PlayerSlotState::Waiting, gone.unit);
+            source.slots[1]   = MakeSlot  (PlayerSlotState::Playing, Stick (source));
+            picker            = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), picker.label);
+            Assert::IsTrue   (picker.formFactor == ControllerFormFactor::Joystick);
+        }
+
+
+        //
+        //  The chrome
+        //
+
+        static InputModeRules::Picker MakeTwoPlaying (InputModeRules::PickerSource & source)
+        {
+            source.entries[1] = MakeEntry (PlayerEntryKind::Controller, Stick (source));
+            source.slots[0]   = MakeSlot  (PlayerSlotState::Playing, Pad (source));
+            source.slots[1]   = MakeSlot  (PlayerSlotState::Playing, Stick (source));
+            return InputModeRules::BuildPicker (source);
+        }
+
+
+        TEST_METHOD (Picker_ListsThePlayerRowsThenControllerSettings)
         {
             EmulatorCommands                commands;
+            InputModeRules::PickerSource    source = MakeSource();
             std::vector<DxuiPopupMenuItem>  items;
 
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", false),
-                                         MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetPicker (MakeTwoPlaying (source));
+            items = commands.GetPaddlePickerItems();
 
-            items = commands.GetPaddleSourceItems();
-
-            Assert::IsFalse (items[0].command->IsChecked(), L"the controller is not driving");
-            Assert::IsTrue  (items[1].command->IsChecked(), L"the keys are");
+            Assert::AreEqual (size_t (4), items.size(), L"two player rows, a separator, then the settings entry");
+            Assert::IsTrue   (items[0].kind == DxuiPopupMenuItem::Kind::Submenu);
+            Assert::AreEqual (std::wstring (L"Player 1: Xbox Controller (045e:0b13)"), items[0].command->label);
+            Assert::IsTrue   (items[1].kind == DxuiPopupMenuItem::Kind::Submenu);
+            Assert::AreEqual (std::wstring (L"Player 2: VKBsim Gladiator"), items[1].command->label);
+            Assert::IsTrue   (items[2].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::AreEqual ((int) IDM_VIEW_CONTROLLER_SETTINGS, items[3].command->id);
+            Assert::AreEqual (std::wstring (L"Xbox Controller +1"), commands.GetPickerLabel());
         }
 
 
-        TEST_METHOD (Label_IsTheCheckedSourcesShortForm)
+        //  The entries, a separator, then the section: the controller's
+        //  description as a header, its profiles, and New... last.
+        TEST_METHOD (Submenu_EndsWithTheProfileSection)
         {
-            EmulatorCommands  commands;
+            EmulatorCommands                commands;
+            InputModeRules::PickerSource    source = MakeSource();
+            std::vector<DxuiPopupMenuItem>  children;
 
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
+            commands.SetPicker (MakeTwoPlaying (source));
+            children = commands.GetPlayerItems()[1].children;
 
-            Assert::AreEqual (std::wstring (L"Xbox Controller"), commands.GetCheckedPaddleSourceLabel());
-
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", false),
-                                         MakeSource (L"Use keys as joystick", L"Keys", true) });
-
-            Assert::AreEqual (std::wstring (L"Keys"), commands.GetCheckedPaddleSourceLabel(),
-                L"the strip follows the source, not the last one set");
+            Assert::AreEqual (size_t (4 + 1 + 1 + 3 + 1), children.size(), L"four entries, a separator, a header, three profiles, New...");
+            Assert::IsTrue   (children[2].command->IsChecked(), L"Player 2's pick");
+            Assert::IsTrue   (children[4].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::IsTrue   (children[5].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), children[5].command->label);
+            Assert::AreEqual (std::wstring (L"Default"),          children[6].command->label);
+            Assert::IsTrue   (children[6].command->IsChecked(),   L"with nothing chosen, the built-in profile");
+            Assert::IsFalse  (children[7].command->IsChecked());
+            Assert::AreEqual (std::wstring (L"New..."),           children.back().command->label);
         }
 
 
-        TEST_METHOD (Label_NamesThePickerWhenNothingIsDriving)
-        {
-            EmulatorCommands  commands;
-
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", false) });
-
-            Assert::AreEqual (std::wstring (L"Controller"), commands.GetCheckedPaddleSourceLabel(),
-                L"an empty strip entry would read as a rendering fault rather than as a state");
-        }
-
-
-        TEST_METHOD (Picking_RaisesTheRowThatWasPicked)
+        TEST_METHOD (PickingAnEntry_RaisesThePlayerAndTheEntry)
         {
             EmulatorCommands              commands;
-            InputModeRules::PaddleSource  picked;
-            bool                          wasPicked = false;
+            InputModeRules::PickerSource  source = MakeSource();
+            PlayerEntry                   picked;
+            size_t                        player = 99;
 
-            commands.SetPaddleSourcePickedFn ([&] (const InputModeRules::PaddleSource & source)
-            {
-                picked    = source;
-                wasPicked = true;
-            });
+            commands.SetPlayerPickedFn ([&] (size_t p, const PlayerEntry & entry) { player = p; picked = entry; });
+            commands.SetPicker (InputModeRules::BuildPicker (source));
 
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", false),
-                                         MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.GetPlayerItems()[1].children[2].command->dispatch();
 
-            commands.GetPaddleSourceItems()[0].command->dispatch();
+            Assert::AreEqual (size_t (1), player);
+            Assert::IsTrue   (picked.kind == PlayerEntryKind::Controller);
+            Assert::IsTrue   (picked.unit == Stick (source), L"the entry picks the controller it lists");
 
-            Assert::IsTrue   (wasPicked);
-            Assert::AreEqual (std::wstring (L"Gladiator"), picked.label);
+            commands.GetPlayerItems()[0].children[3].command->dispatch();
+
+            Assert::AreEqual (size_t (0), player);
+            Assert::IsTrue   (picked.kind == PlayerEntryKind::ArrowKeys);
         }
 
 
-        TEST_METHOD (RowsRebuilt_TheOldRowsAreNotDispatchedInto)
-        {
-            EmulatorCommands  commands;
-            int               pickCount = 0;
-
-            commands.SetPaddleSourcePickedFn ([&] (const InputModeRules::PaddleSource &) { pickCount++; });
-
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true) });
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
-
-            // A controller unplugging rebuilds the rows while the strip may
-            // still hold the previous list, so a row's dispatch has to stay
-            // safe rather than reaching into what it was built from.
-            commands.GetPaddleSourceItems()[0].command->dispatch();
-
-            Assert::AreEqual (1, pickCount);
-        }
-
-
-        TEST_METHOD (AStaleRowPicksTheSourceItWasBuiltFrom)
+        TEST_METHOD (PickingAProfile_RaisesTheControllerAndTheName)
         {
             EmulatorCommands                commands;
-            InputModeRules::PaddleSource    picked;
-            std::vector<DxuiPopupMenuItem>  stale;
-
-            commands.SetPaddleSourcePickedFn ([&] (const InputModeRules::PaddleSource & source) { picked = source; });
-
-            // The list the user is looking at: a controller, then the two
-            // fallbacks. "Use keys as joystick" is the middle row.
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false),
-                                         MakeSource (L"Use mouse as paddle", L"Mouse", false) });
-
-            stale = commands.GetPaddleSourceItems();
-
-            // The controller is unplugged while the menu is open, which is a
-            // quickstart scenario in its own right. The list is now shorter,
-            // and the row the user is about to click sits at a different
-            // index than the one it was built at.
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true),
-                                         MakeSource (L"Use mouse as paddle", L"Mouse", false) });
-
-            stale[1].command->dispatch();
-
-            // Resolving by index would have picked the mouse here, and the
-            // mouse takes the pointer -- so the user asks for the arrow keys
-            // and the pointer is captured instead.
-            Assert::AreEqual (std::wstring (L"Use keys as joystick"), picked.label,
-                L"a row picks the source it was built from, whatever the list did since");
-        }
-
-
-        TEST_METHOD (APickThatRebuildsTheRows_StillReadsTheSourceItPicked)
-        {
-            EmulatorCommands                commands;
-            InputModeRules::PaddleSource    stick   = MakeSource (L"VKBsim Gladiator", L"VKBsim Gladiator", false);
+            InputModeRules::PickerSource    source = MakeSource();
+            std::vector<DxuiPopupMenuItem>  children;
             ControllerUnitKey               unit;
-            std::wstring                    labelAfterRebuilds;
-            bool                            unitIntact = false;
+            std::string                     name   = "unset";
 
-            unit.model      = { ControllerKind::DirectInput, 0x231d, 0x0121 };
-            unit.unitId     = "{01661270-ADF7-11F1-8005-444553540000}";
-            unit.source     = ControllerUnitSource::InstanceGuid;
-            stick.controller = unit;
+            commands.SetProfilePickedFn ([&] (const ControllerUnitKey & u, const std::string & n) { unit = u; name = n; });
+            commands.SetPicker (MakeTwoPlaying (source));
+            children = commands.GetPlayerItems()[1].children;
 
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
-                                         stick,
-                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
+            children[7].command->dispatch();
 
-            // What the shell does on a pick: turning the arrows and the paddle
-            // off re-syncs the picker, which rebuilds the rows -- more than once
-            // -- all before the dispatch returns. The source handed in belongs
-            // to the row being rebuilt away.
-            commands.SetPaddleSourcePickedFn ([&] (const InputModeRules::PaddleSource & source)
-            {
-                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
-                commands.SetPaddleSources ({ MakeSource (L"Use mouse as paddle", L"Mouse", true) });
+            Assert::IsTrue   (unit == Stick (source), L"for the controller the section is under");
+            Assert::AreEqual (std::string ("Paddles"), name);
 
-                labelAfterRebuilds = source.label;
-                unitIntact         = source.controller.has_value() && source.controller.value() == unit;
-            });
+            children[6].command->dispatch();
 
-            commands.GetPaddleSourceItems()[1].command->dispatch();
+            Assert::AreEqual (std::string(), name, L"the built-in profile is picked as the empty name");
+        }
 
-            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), labelAfterRebuilds,
-                L"the picked source outlives the rows rebuilt during its own dispatch");
-            Assert::IsTrue (unitIntact,
-                L"and so does the controller key the selection is copied from");
+
+        //  The list is rebuilt whenever a controller comes or goes, and that
+        //  changes its length: an entry from a list built a moment earlier
+        //  still picks what it showed.
+        TEST_METHOD (AStaleEntryPicksWhatItWasBuiltFrom)
+        {
+            EmulatorCommands                commands;
+            InputModeRules::PickerSource    source = MakeSource();
+            std::vector<DxuiPopupMenuItem>  stale;
+            PlayerEntry                     picked;
+
+            commands.SetPlayerPickedFn ([&] (size_t, const PlayerEntry & entry) { picked = entry; });
+            commands.SetPicker (InputModeRules::BuildPicker (source));
+            stale = commands.GetPlayerItems()[0].children;
+
+            source.devices.clear();
+            commands.SetPicker (InputModeRules::BuildPicker (source));
+
+            stale[3].command->dispatch();
+
+            Assert::IsTrue (picked.kind == PlayerEntryKind::ArrowKeys, L"the keys, not what now sits at that index");
         }
 
 
         TEST_METHOD (RebuiltRows_AreReleasedOnceNothingHoldsThem)
         {
             EmulatorCommands                   commands;
+            InputModeRules::PickerSource       source = MakeSource();
             std::weak_ptr<const DxuiCommand>   oldRow;
 
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true) });
+            commands.SetPicker (InputModeRules::BuildPicker (source));
 
             {
-                std::vector<DxuiPopupMenuItem>  held = commands.GetPaddleSourceItems();
+                std::vector<DxuiPopupMenuItem>  held = commands.GetPlayerItems();
 
-                oldRow = held[0].command;
+                oldRow = held[0].children[0].command;
 
-                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+                commands.SetPicker (InputModeRules::BuildPicker (source));
 
                 Assert::IsFalse (oldRow.expired(), L"the held items keep the replaced row alive");
             }
 
             Assert::IsTrue   (oldRow.expired(), L"with the items dropped, nothing keeps the replaced row");
-            Assert::AreEqual (static_cast<size_t> (1), commands.GetPaddleSourceItems().size());
+            Assert::AreEqual (size_t (2), commands.GetPlayerItems().size());
         }
 
 
-        TEST_METHOD (RebuildsWhileItemsAreHeld_KeepEveryRowTheItemsHold)
+        TEST_METHOD (Glyph_FollowsTheDriver)
         {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  open;
+            EmulatorCommands              commands;
+            InputModeRules::PickerSource  source = MakeSource();
 
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
-            open = commands.GetPaddleSourceItems();
+            commands.SetPicker (InputModeRules::BuildPicker (source));
+            Assert::IsTrue (commands.GetPickerGlyph() == InputMonoGlyphKind::Gamepad, L"what could go there while nothing drives");
 
-            // An Xbox controller plugged in while the picker is open: the rows
-            // are rebuilt as it arrives, again as it is selected, and again as
-            // the selection settles.
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", false),
-                                         MakeSource (L"Use keys as joystick", L"Keys", true) });
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true) });
+            source.slots[0] = MakeSlot (PlayerSlotState::Playing, Stick (source));
+            commands.SetPicker (InputModeRules::BuildPicker (source));
+            Assert::IsTrue (commands.GetPickerGlyph() == InputMonoGlyphKind::Joystick);
 
-            Assert::AreEqual (std::wstring (L"Use keys as joystick"), open[0].command->label,
-                L"the rows the open menu paints are still there after every rebuild");
-            Assert::IsTrue   (open[0].command->IsChecked());
-            Assert::AreEqual (static_cast<size_t> (1), commands.GetPaddleSourceItems().size());
+            source.entries[0] = MakeEntry (PlayerEntryKind::ArrowKeys);
+            source.slots[0]   = PlayerSlot();
+            commands.SetPicker (InputModeRules::BuildPicker (source));
+            Assert::IsTrue (commands.GetPickerGlyph() == InputMonoGlyphKind::Keys);
+
+            source.entries[0] = MakeEntry (PlayerEntryKind::MousePaddle);
+            commands.SetPicker (InputModeRules::BuildPicker (source));
+            Assert::IsTrue (commands.GetPickerGlyph() == InputMonoGlyphKind::Paddle);
         }
 
 
-        TEST_METHOD (RowsShrinking_DropsTheSpareRowsFromTheList)
+        TEST_METHOD (PickerCommand_WearsTheLabelFittedInTheMiddleKeepingPlusOne)
         {
-            EmulatorCommands  commands;
+            EmulatorCommands                    commands;
+            std::shared_ptr<const DxuiCommand>  paddle = commands.Find (EmulatorCommands::kIdPaddle);
 
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false),
-                                         MakeSource (L"Use mouse as paddle", L"Mouse", false) });
-
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true),
-                                         MakeSource (L"Use mouse as paddle", L"Mouse", false) });
-
-            // An open menu may still hold the longer list's rows; none of
-            // them may reach a list handed out afterwards.
-            Assert::AreEqual (static_cast<size_t> (2), commands.GetPaddleSourceItems().size());
-        }
-
-        TEST_METHOD (Tip_IsThePickersPurpose)
-        {
-            EmulatorCommands  commands;
-
-            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true) });
-
-            Assert::IsTrue   (commands.Find (EmulatorCommands::kIdPaddle) != nullptr);
-            Assert::AreEqual (std::wstring (L"Joystick and paddle source"), commands.Find (EmulatorCommands::kIdPaddle)->tip,
-                L"the face already carries the answer, so the tooltip has nothing to add");
+            Assert::IsTrue   (paddle != nullptr);
+            Assert::AreEqual (std::wstring (L"Joystick and paddle source"), paddle->tip,
+                L"the face already carries the answer, so the tooltip gives the purpose");
+            Assert::IsTrue   (paddle->labelFit.has_value());
+            Assert::IsTrue   (paddle->labelFit->mode == DxuiElide::Middle);
+            Assert::AreEqual (std::wstring (L" +1"), paddle->labelFit->keptSuffix);
+            Assert::AreEqual (EmulatorCommands::kPickerLabelMaxDip, paddle->labelFit->maxWidthDip);
         }
 
 
-        TEST_METHOD (Picker_EndsWithControllerSettings)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
-
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
-
-            items = commands.GetPaddlePickerItems();
-
-            Assert::AreEqual (static_cast<size_t> (4), items.size(), L"the two sources, a separator, then the settings entry");
-            Assert::IsTrue   (items.back().command != nullptr);
-            Assert::AreEqual ((int) IDM_VIEW_CONTROLLER_SETTINGS, items.back().command->id,
-                L"the settings for a controller are one click from where it was chosen");
-            Assert::AreEqual (static_cast<size_t> (2), commands.GetPaddleSourceItems().size(),
-                L"and the source rows alone are unchanged");
-        }
-
-
-        TEST_METHOD (Picker_SeparatesTheMultiplayerRowFromTheSources)
-        {
-            EmulatorCommands                commands;
-            InputModeRules::PaddleSource    twoPlayer = MakeSource (L"Multiplayer...", L"Multiplayer", false);
-            std::vector<DxuiPopupMenuItem>  items;
-
-            twoPlayer.isMultiplayer = true;
-
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false),
-                                         twoPlayer });
-
-            items = commands.GetPaddlePickerItems();
-
-            // The rows above it are the one thing driving the game port; this
-            // is the mode where two things do, so it does not read as a third
-            // source.
-            Assert::AreEqual (static_cast<size_t> (6), items.size(),
-                L"two sources, a separator, the two-player row, a separator, then the settings entry");
-            Assert::IsTrue   (items[2].command == nullptr, L"a separator sits ahead of it");
-            Assert::AreEqual (std::wstring (L"Multiplayer..."), items[3].command->label);
-            Assert::AreEqual (static_cast<size_t> (3), commands.GetPaddleSourceItems().size(),
-                L"and the source rows alone carry no separators");
-        }
-
-
-        static ControllerUnitKey MakeUnit (const char * productId)
-        {
-            ControllerUnitKey  unit;
-
-            unit.model.kind = ControllerKind::XInput;
-            unit.unitId     = productId;
-            unit.source     = ControllerUnitSource::XInputProduct;
-
-            return unit;
-        }
-
-
-        static EmulatorCommands::ProfileSection MakeSection (const char *                      productId,
-                                                             std::vector<std::string>          names,
-                                                             const char *                      active,
-                                                             const wchar_t *                   header = L"")
-        {
-            EmulatorCommands::ProfileSection  section;
-
-            section.unit   = MakeUnit (productId);
-            section.names  = std::move (names);
-            section.active = active;
-            section.header = header;
-
-            return section;
-        }
-
-
-        // An Xbox-class model holding both built-in profiles, the normal-mode
-        // "Paddles" and "Swapped", and the Joyport-mode "Atari", kept in an
-        // order that mixes the modes.
-        static ControllerModelSettings MakeProfilesOfBothModes()
-        {
-            ControllerModelSettings  settings;
-
-            settings.EnsureBuiltInProfiles ({ ControllerKind::XInput, 0, 0 }, ControllerFormFactor::Gamepad, {});
-            settings.AddProfile ("Paddles", ControlMapping(), ProfileMode::Normal);
-            settings.AddProfile ("Atari",   ControlMapping(), ProfileMode::Joyport);
-            settings.AddProfile ("Swapped", ControlMapping(), ProfileMode::Normal);
-            return settings;
-        }
-
-
-        //  One controller in play without the Joyport: the Default first, then
-        //  the normal-mode profiles and no Joyport-mode one, then New...
-        //  below a separator, and no header, since there is nothing to tell
-        //  apart.
-        TEST_METHOD (ProfileRows_InNormalMode_TheDefaultFirstAndNoJoyportProfile)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
-
-            commands.SetProfileSections ({ MakeSection ("045e:02e0", MakeProfilesOfBothModes().GetProfileNames (ProfileMode::Normal), "") });
-
-            items = commands.GetProfileItems();
-
-            Assert::AreEqual (static_cast<size_t> (5), items.size(), L"three profiles, a separator, New...");
-            Assert::AreEqual (std::wstring (L"Default"), items[0].command->label, L"Default leads");
-            Assert::AreEqual (std::wstring (L"Paddles"), items[1].command->label);
-            Assert::AreEqual (std::wstring (L"Swapped"), items[2].command->label);
-            Assert::IsTrue   (items[3].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::AreEqual (std::wstring (L"New..."), items[4].command->label);
-            Assert::IsTrue   (items[0].command->IsChecked(), L"with nothing chosen, the Default is checked");
-        }
-
-
-        //  With the Joyport on, the Joyport profile leads and only Joyport-mode
-        //  profiles follow; the Default is not listed.
-        TEST_METHOD (ProfileRows_InJoyportMode_TheJoyportProfileFirstAndNoDefault)
-        {
-            EmulatorCommands                  commands;
-            EmulatorCommands::ProfileSection  section = MakeSection ("045e:02e0", MakeProfilesOfBothModes().GetProfileNames (ProfileMode::Joyport), "");
-            std::vector<DxuiPopupMenuItem>    items;
-
-            section.isJoyportAttached = true;
-            commands.SetProfileSections ({ section });
-
-            items = commands.GetProfileItems();
-
-            Assert::AreEqual (static_cast<size_t> (4), items.size(), L"two profiles, a separator, New...");
-            Assert::AreEqual (std::wstring (L"Joyport"), items[0].command->label, L"the Joyport profile leads");
-            Assert::AreEqual (std::wstring (L"Atari"),   items[1].command->label);
-            Assert::IsTrue   (items[0].command->IsChecked(), L"with nothing chosen, the Joyport profile is checked");
-
-            for (const DxuiPopupMenuItem & item : items)
-            {
-                Assert::IsFalse (item.command != nullptr && item.command->label == L"Default", L"the Default is not listed with the Joyport on");
-            }
-        }
-
-
-        TEST_METHOD (ProfileRows_CheckedIsTheActiveIgnoringCase)
-        {
-            EmulatorCommands  commands;
-
-            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles" }, "PADDLES") });
-
-            Assert::IsFalse (commands.GetProfileItems()[0].command->IsChecked());
-            Assert::IsTrue  (commands.GetProfileItems()[1].command->IsChecked());
-
-            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles" }, "") });
-
-            Assert::IsTrue  (commands.GetProfileItems()[0].command->IsChecked(), L"empty means Default");
-        }
-
-
-        //  A deleted active profile plays the Default, so the Default is what
-        //  the list checks.
-        TEST_METHOD (ProfileRows_AnActiveProfileTheModelLacksChecksDefault)
-        {
-            EmulatorCommands  commands;
-
-            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default" }, "Racing") });
-
-            Assert::IsTrue (commands.GetProfileItems()[0].command->IsChecked());
-        }
-
-
-        //  In multiplayer each controller in play has its own section, under a
-        //  header saying whose it is, and its own check -- which is what lets
-        //  two players on two pads of one model play different profiles.
-        TEST_METHOD (ProfileRows_EachControllerHasItsOwnSectionAndCheck)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
-            ControllerUnitKey               pickedUnit;
-            std::string                     pickedName = "unset";
-
-            commands.SetProfilePickedFn ([&] (const ControllerUnitKey & unit, const std::string & name)
-            {
-                pickedUnit = unit;
-                pickedName = name;
-            });
-
-            commands.SetProfileSections ({ MakeSection ("045e:02e0",   { "Default", "Test" }, "",     L"Player 1"),
-                                           MakeSection ("045e:02e0:2", { "Default", "Test" }, "Test", L"Player 2") });
-
-            items = commands.GetProfileItems();
-
-            // Player 1: header, Default, Test; separator; Player 2: header,
-            // Default, Test; separator; New...
-            Assert::AreEqual (static_cast<size_t> (9), items.size());
-            Assert::IsTrue   (items[0].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::AreEqual (std::wstring (L"Player 1"), items[0].command->label);
-            Assert::IsTrue   (items[1].command->IsChecked(),  L"player one plays Default");
-            Assert::IsFalse  (items[2].command->IsChecked());
-            Assert::IsTrue   (items[3].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::IsTrue   (items[4].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::IsFalse  (items[5].command->IsChecked());
-            Assert::IsTrue   (items[6].command->IsChecked(),  L"player two plays Test on a pad of the same model");
-
-            items[6].command->dispatch();
-            Assert::IsTrue   (pickedUnit == MakeUnit ("045e:02e0:2"), L"a row picks for the controller it was listed under");
-            Assert::AreEqual (std::string ("Test"), pickedName);
-        }
-
-
-        TEST_METHOD (ProfileRows_AStaleRowPicksTheProfileItWasBuiltFrom)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  stale;
-            std::string                     picked  = "unset";
-
-            commands.SetProfilePickedFn ([&] (const ControllerUnitKey &, const std::string & name) { picked = name; });
-
-            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Paddles", "Swapped" }, "") });
-            stale = commands.GetProfileItems();
-
-            // Paddles deleted while the menu is open: Swapped now sits where
-            // Paddles was.
-            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default", "Swapped" }, "") });
-
-            stale[1].command->dispatch();
-            Assert::AreEqual (std::string ("Paddles"), picked);
-
-            stale[0].command->dispatch();
-            Assert::AreEqual (std::string(), picked, L"Default is picked as the empty name");
-        }
-
-
-        //  With a Joyport attached, a controller with no profile chosen plays
-        //  the Joyport profile, so that is the row checked. Picking it records
-        //  no choice; picking a Joyport-mode profile records it by name.
-        TEST_METHOD (ProfileRows_WithAJoyportTheJoyportProfileIsTheUnchosenOne)
-        {
-            EmulatorCommands                  commands;
-            EmulatorCommands::ProfileSection  section = MakeSection ("045e:02e0", { "Joyport", "Atari" }, "");
-            std::string                       picked  = "unset";
-
-            section.isJoyportAttached = true;
-
-            commands.SetProfilePickedFn ([&] (const ControllerUnitKey &, const std::string & name) { picked = name; });
-            commands.SetProfileSections ({ section });
-
-            Assert::IsTrue   (commands.GetProfileItems()[0].command->IsChecked(), L"empty means Joyport");
-            Assert::IsFalse  (commands.GetProfileItems()[1].command->IsChecked());
-
-            commands.GetProfileItems()[0].command->dispatch();
-            Assert::AreEqual (std::string(), picked, L"Joyport is picked as the empty name");
-
-            commands.GetProfileItems()[1].command->dispatch();
-            Assert::AreEqual (std::string ("Atari"), picked, L"and a Joyport-mode profile by name");
-
-            section.active = "Atari";
-            commands.SetProfileSections ({ section });
-
-            Assert::IsFalse  (commands.GetProfileItems()[0].command->IsChecked());
-            Assert::IsTrue   (commands.GetProfileItems()[1].command->IsChecked(), L"a chosen profile stays checked");
-
-            section.active = "Default";
-            commands.SetProfileSections ({ section });
-
-            Assert::IsTrue   (commands.GetProfileItems()[0].command->IsChecked(), L"a choice of the other mode's profile checks the Joyport profile");
-        }
-
-
-        //  With no controller in play there is nothing to switch, so the
-        //  paddle picker carries no Profiles submenu; with one, the submenu
-        //  sits above Controller settings...
-        TEST_METHOD (ProfilesSubmenu_OnlyWhileAControllerIsInPlay)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
-            bool                            hasSubmenu = false;
-
-            commands.SetProfileSections ({});
-
-            for (const DxuiPopupMenuItem & item : commands.GetPaddlePickerItems())
-            {
-                hasSubmenu = hasSubmenu || item.kind == DxuiPopupMenuItem::Kind::Submenu;
-            }
-
-            Assert::IsFalse (hasSubmenu);
-            Assert::AreEqual (static_cast<size_t> (0), commands.GetProfileItems().size());
-
-            commands.SetProfileSections ({ MakeSection ("045e:02e0", { "Default" }, "") });
-            items = commands.GetPaddlePickerItems();
-
-            Assert::IsTrue   (items.size() >= 2);
-            Assert::IsTrue   (items[items.size() - 2].kind == DxuiPopupMenuItem::Kind::Submenu);
-            Assert::AreEqual (std::wstring (L"Profiles"), items[items.size() - 2].command->label);
-            Assert::AreEqual (static_cast<int> (IDM_VIEW_CONTROLLER_SETTINGS), items.back().command->id);
-        }
-
+        //
+        //  The Sirius Joyport row
+        //
 
         static size_t FindRow (const std::vector<DxuiPopupMenuItem> & items, const std::wstring & label)
         {
@@ -587,43 +646,23 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Joyport_HasAGroupOfItsOwnBelowMultiplayer)
+        //  It is a device on the game port, not one more thing that drives
+        //  it, so it has a group of its own after the player rows.
+        TEST_METHOD (Joyport_HasAGroupOfItsOwnAfterThePlayerRows)
         {
-            //  It is a device on the game port, not one more thing that
-            //  drives it, so it is kept apart from the sources.
             EmulatorCommands                commands;
-            InputModeRules::PaddleSource    twoPlayer = MakeSource (L"Multiplayer...", L"Multiplayer", false);
             std::vector<DxuiPopupMenuItem>  items;
-            size_t                          row       = 0;
+            size_t                          row = 0;
 
-            twoPlayer.isMultiplayer = true;
-
-            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false),
-                                         twoPlayer });
+            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
             commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
 
             items = commands.GetPaddlePickerItems();
             row   = FindRow (items, L"Sirius Joyport");
 
-            Assert::AreEqual (std::wstring (L"Multiplayer..."), items[row - 2].command->label, L"below Multiplayer");
-            Assert::IsTrue   (items[row - 1].command == nullptr, L"with a separator between them");
-            Assert::IsTrue   (items[row + 1].command == nullptr, L"and one below it, above Profiles and Controller settings");
-        }
-
-
-        TEST_METHOD (Joyport_IsItsOwnGroupWithNoMultiplayerRow)
-        {
-            EmulatorCommands                commands;
-            std::vector<DxuiPopupMenuItem>  items;
-
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
-            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
-
-            items = commands.GetPaddlePickerItems();
-
-            Assert::AreEqual (static_cast<size_t> (2), FindRow (items, L"Sirius Joyport"), L"after the sources and a separator");
-            Assert::IsTrue   (items[1].command == nullptr);
+            Assert::AreEqual (size_t (3), row, L"after the two player rows and a separator");
+            Assert::IsTrue   (items[2].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::IsTrue   (items[row + 1].kind == DxuiPopupMenuItem::Kind::Separator, L"and one below it, above Controller settings");
         }
 
 
@@ -634,7 +673,7 @@ namespace ControllerTests
             std::vector<DxuiPopupMenuItem>  items;
             size_t                          row      = 0;
 
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
             commands.SetJoyportFns ([&attached] { return attached; }, [] { return true; }, [] {});
 
             items = commands.GetPaddlePickerItems();
@@ -655,7 +694,7 @@ namespace ControllerTests
             int                             toggles = 0;
             std::vector<DxuiPopupMenuItem>  items;
 
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
             commands.SetJoyportFns ([] { return false; }, [] { return true; }, [&toggles] { toggles++; });
 
             items = commands.GetPaddlePickerItems();
@@ -670,7 +709,7 @@ namespace ControllerTests
             EmulatorCommands                commands;
             std::vector<DxuiPopupMenuItem>  items;
 
-            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
             commands.SetJoyportFns ([] { return false; }, [] { return false; }, [] {});
 
             items = commands.GetPaddlePickerItems();

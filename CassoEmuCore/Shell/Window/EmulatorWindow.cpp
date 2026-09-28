@@ -753,10 +753,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
-    m_mainMenu.GetCommands().SetPaddleSourcePickedFn (
-        [this] (const InputModeRules::PaddleSource & source)
+    m_mainMenu.GetCommands().SetPlayerPickedFn (
+        [this] (size_t player, const PlayerEntry & entry)
         {
-            PickPaddleSource (source);
+            PickPlayer (player, entry);
         });
 
     m_mainMenu.GetCommands().SetProfilePickedFn (

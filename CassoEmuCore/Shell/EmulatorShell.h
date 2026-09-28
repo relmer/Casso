@@ -589,18 +589,20 @@ private:
     // The players' slots changed, or a controller came or went: the axis
     // owner, the picker and the prefs follow on the UI thread.
     void    ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged, bool haveLastHoldersChanged);
-    // BY VALUE, not by reference. The source arrives from a picker row's
+    // BY VALUE, not by reference. The entry arrives from a picker row's
     // dispatch, and picking rebuilds the rows -- turning the arrows and the
     // paddle off each re-syncs the picker -- so a reference into the row
     // would outlive the row it refers to.
-    void    PickPaddleSource       (InputModeRules::PaddleSource source);
+    void    PickPlayer             (size_t player, PlayerEntry entry);
     void    PickPlayerEntry        (size_t player, const PlayerEntry & entry);
     void    LoadControllerPrefs        ();
     void    SaveControllerPrefs        ();
     void    SyncPaddleSourceList   ();
-    void    SyncProfileList        (const ControllerInputService::Snapshot & snapshot);
 
-    // BY VALUE for the same reason as PickPaddleSource. Empty for Default.
+    std::map<std::string, InputModeRules::ProfileChoices>  GetPickerProfileChoices (const ControllerInputService::Snapshot & snapshot) const;
+
+    // BY VALUE for the same reason as PickPlayer. Empty for the mode's
+    // built-in profile.
     void    PickControllerProfile  (ControllerUnitKey unit, std::string profileName);
 
     // Opens Settings on the Controllers page with the New Profile dialog up,
@@ -2115,6 +2117,10 @@ private:
     std::vector<std::wstring>                m_controllerPickNotices;
     bool                                     m_controllerPickHasEntries = false;
     bool                                     m_controllerPickHasHolders = false;
+
+    // Each controller seen this session, by unit token: how the picker shows
+    // a picked controller after it is unplugged. UI thread only.
+    std::map<std::string, std::wstring>      m_controllerDescriptions;
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

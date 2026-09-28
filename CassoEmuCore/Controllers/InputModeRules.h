@@ -5,6 +5,7 @@
 #include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/ControllerTypes.h"
 #include "Controllers/GamePortInputMixer.h"
+#include "Controllers/PlayerSlotPolicy.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -26,43 +27,15 @@
 //  `SyncGamePortAxisOwner` before, where each path enforced its own half and
 //  nothing could state the whole rule.
 //
+//  The command bar's picker is built here as data for the same reason: a
+//  row for each player, what each player's submenu lists and checks, and the
+//  word the closed picker wears, all from the players' entries and slots.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class InputModeRules
 {
 public:
-
-    // One entry in the paddle-source picker: the arrow keys, the mouse as a
-    // paddle, or one attached controller (FR-008).
-    //
-    // The //c IOU mouse is deliberately absent. It drives a slot card rather
-    // than the game port, so it is not an answer to this question and keeps
-    // its own control.
-    struct PaddleSource
-    {
-        std::wstring                      label;
-
-        // What the command bar shows while this one is driving. Short because
-        // the picker wears it on its face, and a label that grows moves every
-        // button to its right.
-        std::wstring                      shortLabel;
-
-        // What the picker draws while this one is driving. Follows the
-        // DEVICE, not the API that reads it (FR-008b).
-        ControllerFormFactor              formFactor    = ControllerFormFactor::Gamepad;
-
-        std::optional<ControllerUnitKey>  controller;   // absent for the two keyboard and mouse entries
-        bool                              isArrowKeys   = false;
-        bool                              isMousePaddle = false;
-
-        // The row that turns two-player mode on and opens its settings. Not a
-        // source in its own right: it is where the sources come from two
-        // people instead of one.
-        bool                              isMultiplayer = false;
-        bool                              isChecked     = false;
-
-        bool operator== (const PaddleSource &) const = default;
-    };
 
     // What the user has chosen, plus whether the selected controller reads.
     struct State
@@ -75,26 +48,104 @@ public:
         bool operator== (const State &) const = default;
     };
 
-    // Longest a source's short label may run on the command bar before it is
-    // cut. Fits the longest built-in entry and a typical device description.
-    static constexpr size_t  kShortLabelLimit = 18;
+    // The words the picker writes for the players and for Player 2's
+    // Disabled entry, kept apart from the rows so that another mode's words
+    // can take their place.
+    struct PlayerLabels
+    {
+        std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  players  = { L"Player 1", L"Player 2" };
+        std::wstring                                               disabled = L"Disabled";
+    };
 
+    // One controller's profiles of the mode in effect, that mode's built-in
+    // profile first, and its active one: empty, or a name the list lacks,
+    // is the built-in profile.
+    struct ProfileChoices
+    {
+        std::vector<std::string>  names;
+        std::string               active;
+    };
+
+    // One entry above the separator in a player's submenu, and the entry
+    // picking it gives that player. A picked controller that is not attached
+    // stays listed and checked, and is not connected.
+    struct PlayerChoice
+    {
+        std::wstring  label;
+        PlayerEntry   entry;
+        bool          isChecked   = false;
+        bool          isConnected = true;
+
+        bool operator== (const PlayerChoice &) const = default;
+    };
+
+    // The profiles at the foot of a player's submenu, for the controller
+    // playing there, under its description; `checked` is the active one.
+    struct PlayerProfileSection
+    {
+        ControllerUnitKey         unit;
+        std::wstring              header;
+        std::vector<std::string>  names;
+        size_t                    checked = 0;
+
+        bool operator== (const PlayerProfileSection &) const = default;
+    };
+
+    // One player's row in the picker: what is playing, the submenu's
+    // entries, and the profile section while a controller plays there.
+    struct PlayerRow
+    {
+        std::wstring                         label;
+        std::vector<PlayerChoice>            choices;
+        std::optional<PlayerProfileSection>  profiles;
+
+        bool operator== (const PlayerRow &) const = default;
+    };
+
+    using PlayerRows = std::array<PlayerRow, PlayerSlotPolicy::kPlayerCount>;
+
+    // What drives the game port for the picker's face: its drawing follows
+    // the device, not the API that reads it (FR-008b).
+    enum class PickerDriver
+    {
+        None,
+        ArrowKeys,
+        MousePaddle,
+        Controller,
+    };
+
+    // What the picker is built from. `profiles` and `knownDescriptions` are
+    // by unit token; a description is looked up among the attached devices
+    // first, then among those seen earlier, for a picked controller that is
+    // not attached.
+    struct PickerSource
+    {
+        PlayerEntries                          entries;
+        PlayerSlots                            slots;
+        std::vector<ControllerDeviceInfo>      devices;
+        std::map<std::string, ProfileChoices>  profiles;
+        std::map<std::string, std::wstring>    knownDescriptions;
+        PlayerLabels                           labels;
+    };
+
+    // The picker: the two players' rows, and what its closed face wears.
+    struct Picker
+    {
+        PlayerRows            rows;
+        std::wstring          label;
+        PickerDriver          driver     = PickerDriver::None;
+        ControllerFormFactor  formFactor = ControllerFormFactor::Gamepad;
+    };
+
+    // Ends the picker's label while Player 2 is also playing (FR-008b).
+    static constexpr const wchar_t *  kpszSecondPlayerSuffix = L" +1";
+
+    // Drops a device description's trailing vendor and product parenthetical,
+    // for the picker's face. How much of what is left fits is measured where
+    // the label is drawn.
     static std::wstring  Shorten (const std::wstring & text);
 
-    // What the picker is built from: the attached controllers, then the keys
-    // and the mouse. In multiplayer both players' controllers are checked, so
-    // neither reads as driving nothing.
-    static std::vector<PaddleSource>  BuildPaddleSources (
-        const State &                             state,
-        const std::vector<ControllerDeviceInfo> & devices,
-        const std::optional<ControllerUnitKey> &  selection,
-        const MultiplayerSetup &                  multiplayer = {},
-        size_t                                    axisCount   = GamePortContribution::kAxisCount);
-
-    // What the closed picker wears: the driving source's short label, a count
-    // while several controllers drive at once, or "Controller" when nothing
-    // drives the axes.
-    static std::wstring  GetPaddleSourceLabel (const std::vector<PaddleSource> & sources);
+    static Picker  BuildPicker (const PickerSource & source);
 
     // The line the persistent banner carries while the keys or the mouse
     // drive the game port, and empty while a controller drives or nothing
@@ -116,4 +167,19 @@ public:
                                               bool leftAltDown,
                                               bool rightAltDown,
                                               bool isJoyportAttached);
+
+private:
+
+    static constexpr const wchar_t *  kpszAutomatic      = L"Automatic";
+    static constexpr const wchar_t *  kpszKeys           = L"Keys";
+    static constexpr const wchar_t *  kpszMouse          = L"Mouse";
+    static constexpr const wchar_t *  kpszNotConnected   = L" (not connected)";
+    static constexpr const wchar_t *  kpszNothingDriving = L"Controller";
+
+    static const ControllerDeviceInfo *         FindDevice         (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit);
+    static std::wstring                         DescribeUnit        (const PickerSource & source, const ControllerUnitKey & unit);
+    static std::wstring                         DescribePlaying     (const PickerSource & source, size_t player);
+    static std::vector<PlayerChoice>            BuildChoices        (const PickerSource & source, size_t player);
+    static std::optional<PlayerProfileSection>  BuildProfileSection (const PickerSource & source, size_t player);
+    static void                                 SetFace             (const PickerSource & source, Picker & picker);
 };

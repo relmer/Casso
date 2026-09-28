@@ -2,101 +2,45 @@
 
 #include "Controllers/InputModeRules.h"
 
+#include "Controllers/ControllerTokens.h"
+
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BuildPaddleSources
+//  BuildPicker
 //
-//  The picker's entries, in the order they are shown: REAL CONTROLLERS FIRST,
-//  then the keys and the mouse. A physical stick plays these games better than
-//  either, so it is what the list should offer first; the keys and the mouse
-//  are always there to pick. It also puts the checked entry at the top
-//  whenever a controller is driving, which is the common case once one is
-//  plugged in.
+//  A row for each player, and the word the closed picker wears. Every row
+//  reports what is PLAYED, not only what was chosen: the controller Automatic
+//  gave the player, or a pick that is away and waited for (FR-040).
 //
-//  ONLY ATTACHED CONTROLLERS GET A ROW. The selection follows the controllers
-//  that are here (FR-008a), so a row for one that is gone would offer a pick
-//  that drives nothing.
-//
-//  IN MULTIPLAYER ONLY THE MULTIPLAYER ROW IS CHECKED. One game port has one
-//  thing driving it, and in that mode the answer is "two people", not either
-//  of their controllers: checking a player's row as well asked the user why
-//  two entries were checked and which of them won. Who holds which paddles is
-//  the settings page's business, not this list's.
+//  The rows are data. The chrome turns them into commands, so every rule
+//  about what is listed and what is checked can be asserted here without a
+//  menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
-    const State &                             state,
-    const std::vector<ControllerDeviceInfo> & devices,
-    const std::optional<ControllerUnitKey> &  selection,
-    const MultiplayerSetup &                  multiplayer,
-    size_t                                    axisCount)
+InputModeRules::Picker InputModeRules::BuildPicker (const PickerSource & source)
 {
-    // isControllerMode: multiplayer is a controller mode by definition, since
-    // picking the keys or the mouse turns it off, so there is no state where
-    // it is on and they drive.
-    std::vector<PaddleSource>  sources;
-    PaddleSource               arrows;
-    PaddleSource               paddle;
-    PaddleSource               twoPlayer;
-    bool                       isControllerMode = state.hasController || multiplayer.isEnabled;
+    Picker  picker;
+    size_t  player = 0;
 
 
 
-    // The machine's axis count no longer decides any row's check: in
-    // multiplayer the mode's row is the checked one whatever the players can
-    // reach, and outside it the selection answers on its own. It stays a
-    // parameter because what a player can play still belongs in this rule's
-    // vocabulary, and the callers already have it.
-    UNREFERENCED_PARAMETER (axisCount);
-
-    for (const ControllerDeviceInfo & device : devices)
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
     {
-        PaddleSource  entry;
-        bool          isDriving = !multiplayer.isEnabled
-                                  && selection.has_value()
-                                  && selection.value() == device.unit;
+        PlayerRow &  row = picker.rows[player];
 
-        entry.label      = device.description;
-        entry.shortLabel = Shorten (device.description);
-        entry.formFactor = device.formFactor;
-        entry.controller = device.unit;
-        entry.isChecked  = isControllerMode && isDriving;
-
-        sources.push_back (entry);
+        row.label    = source.labels.players[player] + L": " + DescribePlaying (source, player);
+        row.choices  = BuildChoices (source, player);
+        row.profiles = BuildProfileSection (source, player);
     }
 
-    // The built-in entries say what they DO to hardware the user already has,
-    // because neither "keys" nor "mouse" says on its own that it turns into a
-    // joystick or a paddle. A controller needs no such sentence: its own
-    // description is the whole answer.
-    arrows.label       = L"Use keys as joystick";
-    arrows.shortLabel  = L"Keys";
-    arrows.isArrowKeys = true;
-    arrows.isChecked   = state.arrowsJoystick && !isControllerMode;
+    SetFace (source, picker);
 
-    paddle.label         = L"Use mouse as paddle";
-    paddle.shortLabel    = L"Mouse";
-    paddle.isMousePaddle = true;
-    paddle.isChecked     = state.mousePaddle && !isControllerMode;
-
-    // Not a fourth source but a different answer to the question: the sources
-    // above are one person playing, and this is two. It carries the ellipsis
-    // because picking it opens the settings where the two players are set up.
-    twoPlayer.label         = L"Multiplayer...";
-    twoPlayer.shortLabel    = L"Multiplayer";
-    twoPlayer.isMultiplayer = true;
-    twoPlayer.isChecked     = multiplayer.isEnabled;
-
-    sources.push_back (arrows);
-    sources.push_back (paddle);
-    sources.push_back (twoPlayer);
-
-    return sources;
+    return picker;
 }
 
 
@@ -105,57 +49,349 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetPaddleSourceLabel
-//
-//  One controller's name while two are driving would say the second drives
-//  nothing, so several checked controllers read as a count instead.
-//
-//  THE MODE OUTRANKS THE COUNT. While two people are playing, the answer to
-//  what drives the game port is the mode, not how many controllers it has
-//  reached today: a player slot left empty, or filled with a controller this
-//  machine has no paddles for, would otherwise drop the face back to one
-//  controller's name while the machine is still in two-player mode.
+//  FindDevice
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InputModeRules::GetPaddleSourceLabel (const std::vector<PaddleSource> & sources)
+const ControllerDeviceInfo * InputModeRules::FindDevice (
+    const std::vector<ControllerDeviceInfo>  & devices,
+    const ControllerUnitKey                  & unit)
 {
-    const PaddleSource  * first       = nullptr;
-    size_t                controllers = 0;
-
-
-
-    for (const PaddleSource & source : sources)
+    for (const ControllerDeviceInfo & device : devices)
     {
-        if (!source.isChecked)
+        if (device.unit == unit)
         {
-            continue;
-        }
-
-        if (source.isMultiplayer)
-        {
-            return source.shortLabel;
-        }
-
-        if (first == nullptr)
-        {
-            first = &source;
-        }
-
-        if (source.controller.has_value())
-        {
-            controllers++;
+            return &device;
         }
     }
 
-    if (controllers > 1)
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DescribeUnit
+//
+//  An attached controller's own description. One that is away has the
+//  description it had when last seen, or else one made from its model: a
+//  pick restored at launch may not have been attached at all this session.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputModeRules::DescribeUnit (
+    const PickerSource       & source,
+    const ControllerUnitKey  & unit)
+{
+    const ControllerDeviceInfo  * device = FindDevice (source.devices, unit);
+    auto                          known  = source.knownDescriptions.find (ControllerTokens::UnitToToken (unit));
+
+
+
+    if (device != nullptr)
     {
-        return std::format (L"{} controllers", controllers);
+        return device->description;
     }
 
-    // Nothing is driving the axes, which is a state worth showing rather than
-    // leaving the picker blank.
-    return first != nullptr ? first->shortLabel : std::wstring (L"Controller");
+    if (known != source.knownDescriptions.end())
+    {
+        return known->second;
+    }
+
+    if (unit.model.kind == ControllerKind::XInput)
+    {
+        return L"Xbox Controller";
+    }
+
+    return std::format (L"Controller ({:04x}:{:04x})", unit.model.vendorId, unit.model.productId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DescribePlaying
+//
+//  What a player's row shows after the player's label: the keys, the mouse,
+//  Disabled, the controller in the slot -- marked not connected while it is
+//  away -- or Automatic while Automatic has no controller for the player.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputModeRules::DescribePlaying (
+    const PickerSource  & source,
+    size_t                player)
+{
+    const PlayerEntry                 & entry = source.entries[player];
+    std::optional<ControllerUnitKey>    unit  = source.slots[player].holder;
+
+
+
+    switch (entry.kind)
+    {
+        case PlayerEntryKind::ArrowKeys:   return kpszKeys;
+        case PlayerEntryKind::MousePaddle: return kpszMouse;
+        case PlayerEntryKind::Disabled:    return source.labels.disabled;
+
+        case PlayerEntryKind::Automatic:
+        case PlayerEntryKind::Controller:
+        default:                           break;
+    }
+
+    if (!unit.has_value() && entry.kind == PlayerEntryKind::Controller)
+    {
+        unit = entry.unit;
+    }
+
+    if (!unit.has_value())
+    {
+        return kpszAutomatic;
+    }
+
+    if (FindDevice (source.devices, unit.value()) == nullptr)
+    {
+        return DescribeUnit (source, unit.value()) + kpszNotConnected;
+    }
+
+    return DescribeUnit (source, unit.value());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildChoices
+//
+//  Automatic first, written "Automatic (description)" once it has given the
+//  player a controller; then every attached controller, the other player's
+//  included, since picking it moves it (FR-041); then a pick that is not
+//  attached, still checked; then the keys and the mouse for Player 1, or
+//  Disabled for Player 2. Exactly one is checked: the player's entry.
+//
+//  A choice keeps the player's own target, so moving to another controller
+//  does not undo what the user set the slot to map to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
+    const PickerSource  & source,
+    size_t                player)
+{
+    const PlayerEntry          & current  = source.entries[player];
+    const PlayerSlot           & slot     = source.slots[player];
+    std::vector<PlayerChoice>    choices;
+    PlayerChoice                 automatic;
+    PlayerChoice                 away;
+    PlayerChoice                 keys;
+    PlayerChoice                 mouse;
+    PlayerChoice                 disabled;
+    bool                         isListed = false;
+
+
+
+    automatic.label        = kpszAutomatic;
+    automatic.entry.target = current.target;
+    automatic.isChecked    = current.kind == PlayerEntryKind::Automatic;
+
+    if (automatic.isChecked && slot.holder.has_value())
+    {
+        automatic.label = std::format (L"{} ({})", kpszAutomatic, DescribeUnit (source, slot.holder.value()));
+    }
+
+    choices.push_back (automatic);
+
+    for (const ControllerDeviceInfo & device : source.devices)
+    {
+        PlayerChoice  choice;
+
+        choice.label        = device.description;
+        choice.entry.kind   = PlayerEntryKind::Controller;
+        choice.entry.unit   = device.unit;
+        choice.entry.target = current.target;
+        choice.isChecked    = current.kind == PlayerEntryKind::Controller && current.unit == device.unit;
+        isListed            = isListed || choice.isChecked;
+
+        choices.push_back (choice);
+    }
+
+    if (current.kind == PlayerEntryKind::Controller && current.unit.has_value() && !isListed)
+    {
+        away.label       = DescribeUnit (source, current.unit.value()) + kpszNotConnected;
+        away.entry       = current;
+        away.isChecked   = true;
+        away.isConnected = false;
+
+        choices.push_back (away);
+    }
+
+    if (player == 0)
+    {
+        keys.label       = L"Use keys as joystick";
+        keys.entry.kind  = PlayerEntryKind::ArrowKeys;
+        keys.isChecked   = current.kind == PlayerEntryKind::ArrowKeys;
+        mouse.label      = L"Use mouse as paddle";
+        mouse.entry.kind = PlayerEntryKind::MousePaddle;
+        mouse.isChecked  = current.kind == PlayerEntryKind::MousePaddle;
+
+        choices.push_back (keys);
+        choices.push_back (mouse);
+    }
+    else
+    {
+        disabled.label      = source.labels.disabled;
+        disabled.entry.kind = PlayerEntryKind::Disabled;
+        disabled.isChecked  = current.kind == PlayerEntryKind::Disabled;
+
+        choices.push_back (disabled);
+    }
+
+    return choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildProfileSection
+//
+//  Only while a controller is in the player's slot and attached: none for
+//  Automatic before it has chosen, the keys, the mouse, Disabled, or a
+//  controller that is away (FR-028). The active profile is checked, matched
+//  ignoring case; one the list lacks is played as the built-in profile,
+//  which leads the list, so that is the one checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<InputModeRules::PlayerProfileSection> InputModeRules::BuildProfileSection (
+    const PickerSource  & source,
+    size_t                player)
+{
+    using ChoicesIt = std::map<std::string, ProfileChoices>::const_iterator;
+
+    const PlayerSlot            & slot      = source.slots[player];
+    const PlayerEntry           & entry     = source.entries[player];
+    const ControllerDeviceInfo  * device    = nullptr;
+    ChoicesIt                     choices   = source.profiles.end();
+    PlayerProfileSection          section;
+    size_t                        i         = 0;
+    bool                          isEntry   = entry.kind == PlayerEntryKind::Automatic || entry.kind == PlayerEntryKind::Controller;
+    bool                          isHolding = slot.state == PlayerSlotState::Provisional ||
+                                              slot.state == PlayerSlotState::Waiting     ||
+                                              slot.state == PlayerSlotState::Playing;
+
+
+
+    if (!isEntry || !isHolding || !slot.holder.has_value())
+    {
+        return std::nullopt;
+    }
+
+    device = FindDevice (source.devices, slot.holder.value());
+
+    if (device == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    choices = source.profiles.find (ControllerTokens::UnitToToken (device->unit));
+
+    if (choices == source.profiles.end())
+    {
+        return std::nullopt;
+    }
+
+    section.unit   = device->unit;
+    section.header = device->description;
+    section.names  = choices->second.names;
+
+    for (i = 0; i < section.names.size(); i++)
+    {
+        if (_stricmp (section.names[i].c_str(), choices->second.active.c_str()) == 0)
+        {
+            section.checked = i;
+            break;
+        }
+    }
+
+    return section;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFace
+//
+//  The closed picker wears Player 1's keys, mouse or controller, ending in
+//  " +1" while Player 2 is also playing. Player 2's controller shows while
+//  it drives alone, and "Controller" while nothing drives the game port.
+//  A controller's vendor and product parenthetical is dropped; what is left
+//  is fitted to the button where it is drawn (FR-008b).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputModeRules::SetFace (
+    const PickerSource  & source,
+    Picker              & picker)
+{
+    const PlayerEntry           & first     = source.entries[0];
+    const ControllerDeviceInfo  * device    = nullptr;
+    size_t                        driving   = PlayerSlotPolicy::kPlayerCount;
+    size_t                        player    = 0;
+    bool                          isSecond  = source.slots[1].state == PlayerSlotState::Playing;
+
+
+
+    picker.label  = kpszNothingDriving;
+    picker.driver = PickerDriver::None;
+
+    if (first.kind == PlayerEntryKind::ArrowKeys || first.kind == PlayerEntryKind::MousePaddle)
+    {
+        picker.driver = (first.kind == PlayerEntryKind::ArrowKeys) ? PickerDriver::ArrowKeys : PickerDriver::MousePaddle;
+        picker.label  = (first.kind == PlayerEntryKind::ArrowKeys) ? kpszKeys : kpszMouse;
+        picker.label += isSecond ? kpszSecondPlayerSuffix : L"";
+        return;
+    }
+
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount && driving == PlayerSlotPolicy::kPlayerCount; player++)
+    {
+        if (PlayerSlotPolicy::IsDrivingSlot (source.slots[player]))
+        {
+            driving = player;
+        }
+    }
+
+    if (driving == PlayerSlotPolicy::kPlayerCount)
+    {
+        return;
+    }
+
+    device = FindDevice (source.devices, source.slots[driving].holder.value());
+
+    if (device == nullptr)
+    {
+        return;
+    }
+
+    picker.driver     = PickerDriver::Controller;
+    picker.formFactor = device->formFactor;
+    picker.label      = Shorten (device->description);
+
+    if (driving == 0 && isSecond)
+    {
+        picker.label += kpszSecondPlayerSuffix;
+    }
 }
 
 
@@ -208,8 +444,9 @@ std::wstring InputModeRules::GetStandInBannerText (const State & state)
 //
 //  Shorten
 //
-//  Cuts a device description down to what the command bar can wear. A single
-//  ellipsis, not three dots, matching the drive labels.
+//  A device description as the command bar wears it, without the vendor and
+//  product that end it. It is not cut to a character count: the toolbar fits
+//  it to a width, with a middle ellipsis, where it is drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,12 +471,7 @@ std::wstring InputModeRules::Shorten (const std::wstring & text)
         }
     }
 
-    if (shortened.size() <= kShortLabelLimit)
-    {
-        return shortened;
-    }
-
-    return shortened.substr (0, kShortLabelLimit - 1) + s_kchEllipsis;
+    return shortened;
 }
 
 
@@ -287,6 +519,7 @@ InputModeRules::AxisOwners InputModeRules::GetAxisOwners (const State & state)
 
     return owners;
 }
+
 
 
 

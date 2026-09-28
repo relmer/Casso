@@ -2810,62 +2810,49 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PickPaddleSource
+//  PickPlayer
 //
-//  UI thread. The user chose what plays for Player 1. Exactly one of the
-//  three can, so each branch hands the axes over and the setters take them
-//  from whatever had them (FR-008).
+//  UI thread. The user picked an entry in a player's submenu. A controller
+//  takes effect at once, whether or not it has been used, and one the other
+//  player picked sends that player back to Automatic (FR-041).
+//
+//  The keys and the mouse go through their own setters, which hand PDL0 and
+//  PDL1 over and take the pointer, and record Player 1's entry through the
+//  axis owner. Any other entry for Player 1 gives them up. The entry is set
+//  FIRST, so the setters that give them up find Player 1 already on it and
+//  do not pass through Automatic on the way. The entries are saved with the
+//  global prefs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
+void EmulatorShell::PickPlayer (size_t player, PlayerEntry entry)
 {
-    PlayerEntry  entry;
+    bool  isPlayerOne = player == 0;
 
 
 
-    // Two people playing needs no setup: Player 2 is turned back on if it was
-    // off, and the page where the players are shown opens.
-    if (source.isMultiplayer)
+    if (isPlayerOne && entry.kind == PlayerEntryKind::ArrowKeys)
     {
-        if (m_controllerService != nullptr &&
-            m_controllerService->GetPlayerEntries()[1].kind == PlayerEntryKind::Disabled)
-        {
-            PickPlayerEntry (1, PlayerEntry());
-        }
-
-        SyncGamePortAxisOwner();
-        SyncInputModeUi();
-        OpenSettings (true);
+        SetArrowsJoystick (true);
         return;
     }
 
-    if (source.isArrowKeys)
+    if (isPlayerOne && entry.kind == PlayerEntryKind::MousePaddle)
     {
-        SetPointerMapping (InputMappingMode::Off);
-        SetArrowsJoystick (true);
-    }
-    else if (source.isMousePaddle)
-    {
-        SetArrowsJoystick (false);
         SetPointerMapping (InputMappingMode::Paddle);
+        return;
     }
-    else if (source.controller.has_value())
+
+    PickPlayerEntry (player, entry);
+
+    if (isPlayerOne && m_arrowsJoystick)
     {
         SetArrowsJoystick (false);
+    }
+
+    if (isPlayerOne && m_pointerMode == InputMappingMode::Paddle)
+    {
         SetPointerMapping (InputMappingMode::Off);
-
-        // A pick takes effect at once, whether or not the controller has been
-        // used, and a controller Player 2 picked goes back to Automatic.
-        entry.kind = PlayerEntryKind::Controller;
-        entry.unit = source.controller;
-
-        if (m_controllerService != nullptr)
-        {
-            entry.target = m_controllerService->GetPlayerEntries()[0].target;
-        }
-
-        PickPlayerEntry (0, entry);
     }
 
     SyncGamePortAxisOwner();
@@ -2909,26 +2896,22 @@ void EmulatorShell::PickPlayerEntry (size_t player, const PlayerEntry & entry)
 //
 //  SyncPaddleSourceList
 //
-//  Rebuilds the picker's rows from what is attached and what is playing. The
-//  menu holds the rows by pointer, so the menu bar is handed the new list
-//  whenever they are rebuilt.
+//  Rebuilds the picker from what is attached and what is playing: a row for
+//  each player, the profiles of whatever controller plays there, and the
+//  word the closed picker wears. The menu holds the rows by pointer, so the
+//  strip is handed the new list whenever they are rebuilt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncPaddleSourceList()
 {
-    InputModeRules::State             state;
+    InputModeRules::PickerSource      source;
     ControllerInputService::Snapshot  snapshot;
-    MultiplayerSetup                  live;
-    std::optional<ControllerUnitKey>  playing;
-    bool                              isHostInput = false;
-    size_t                            i           = 0;
 
 
 
-    // Without the controller service there is nothing to list beyond what the
-    // cluster already knows, so the drop-down keeps its own rows rather than
-    // going empty.
+    // Without the controller service there is nothing to list, so the
+    // drop-down keeps its own rows rather than going empty.
     if (m_controllerService == nullptr)
     {
         return;
@@ -2936,46 +2919,27 @@ void EmulatorShell::SyncPaddleSourceList()
 
     snapshot = m_controllerService->GetSnapshot();
 
-    state.arrowsJoystick       = m_arrowsJoystick;
-    state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
-    state.isControllerAttached = snapshot.isAnyDriverConnected;
-    isHostInput                = state.arrowsJoystick || state.mousePaddle;
-
-    // WHAT IS PLAYED, not what is chosen: the controller driving the game
-    // port is the checked one, and two players driving at once is the
-    // Multiplayer row. With Player 1 on the keys or the mouse, they are what
-    // is checked, whatever a controller does as Player 2.
-    if (!isHostInput)
+    // A picked controller that is unplugged is still listed, under the
+    // description it had while it was here.
+    for (const ControllerDeviceInfo & device : snapshot.devices)
     {
-        for (i = 0; i < PlayerSlotPolicy::kPlayerCount; i++)
-        {
-            live.players[i].unit   = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[i]) ? snapshot.slots[i].holder : std::nullopt;
-            live.players[i].target = snapshot.slots[i].target;
-
-            if (!playing.has_value())
-            {
-                playing = live.players[i].unit;
-            }
-        }
-
-        live.isEnabled      = live.players[0].unit.has_value() && live.players[1].unit.has_value();
-        state.hasController = playing.has_value();
+        m_controllerDescriptions[ControllerTokens::UnitToToken (device.unit)] = device.description;
     }
 
-    m_mainMenu.GetCommands().SetPaddleSources (
-        InputModeRules::BuildPaddleSources (state, snapshot.devices, playing, live, snapshot.axisCount));
+    source.entries           = snapshot.entries;
+    source.slots             = snapshot.slots;
+    source.devices           = snapshot.devices;
+    source.profiles          = GetPickerProfileChoices (snapshot);
+    source.knownDescriptions = m_controllerDescriptions;
 
-    // The Profiles submenu follows the same controllers and rides inside the
-    // picker's list, so it is rebuilt before that list is handed over.
-    SyncProfileList (snapshot);
+    m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
 
-    // Straight onto the command bar's Input drop-down rather than a submenu
-    // off the Machine menu: this is a list the user picks from while playing,
-    // and a cascade puts two hovers between them and their controller.
+    // Straight onto the command bar's drop-down rather than a submenu off the
+    // Machine menu: this is a list the user picks from while playing.
     m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
                                 m_mainMenu.GetCommands().GetPaddlePickerItems());
 
-    // The picker wears the chosen source, so its width moves with the answer.
+    // The picker wears what is playing, so its width moves with the answer.
     // Without laying the strip out again the new word paints into the rect
     // the old one left behind.
     {
@@ -2994,78 +2958,38 @@ void EmulatorShell::SyncPaddleSourceList()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncProfileList
+//  GetPickerProfileChoices
 //
-//  The Profiles submenu: a section for each controller playing -- both
-//  players', each under a header saying whose it is, while two play, or the
-//  one playing, with no header, otherwise. A controller whose model has
-//  nothing saved yet still has its Default. With no controller playing the
-//  submenu is left out.
+//  Each attached controller's profiles of the mode in effect, that mode's
+//  built-in profile first, which a model with nothing saved still lists, and
+//  its active one. By unit token, since two pads of one model can play
+//  different profiles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & snapshot)
+std::map<std::string, InputModeRules::ProfileChoices> EmulatorShell::GetPickerProfileChoices (
+    const ControllerInputService::Snapshot & snapshot) const
 {
-    std::map<std::string, ControllerModelSettings>  models    = m_controllerService->GetModelSettings();
-    std::vector<EmulatorCommands::ProfileSection>   sections;
-    std::vector<ControllerUnitKey>                  units;
-    std::vector<std::wstring>                       headers;
-    bool                                            isTwoPlay = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[0]) &&
-                                                                PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[1]);
-    size_t                                          i         = 0;
+    std::map<std::string, ControllerModelSettings>         models  = m_controllerService->GetModelSettings();
+    std::map<std::string, InputModeRules::ProfileChoices>  choices;
 
 
 
-    for (i = 0; i < PlayerSlotPolicy::kPlayerCount; i++)
+    for (const ControllerDeviceInfo & device : snapshot.devices)
     {
-        if (PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[i]))
-        {
-            units.push_back   (snapshot.slots[i].holder.value());
-            headers.push_back (isTwoPlay ? L"Player " + std::to_wstring (i + 1) : std::wstring());
-        }
+        std::string                       token  = ControllerTokens::UnitToToken (device.unit);
+        auto                              model  = models.find (ControllerTokens::ModelToToken (device.unit.model));
+        auto                              active = snapshot.activeProfiles.find (token);
+        InputModeRules::ProfileChoices  & entry  = choices[token];
+
+        entry.names  = (model != models.end()) ? model->second.GetProfileNames (snapshot.profileMode)
+                                               : ControllerModelSettings().GetProfileNames (snapshot.profileMode);
+        entry.active = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
     }
 
-    for (i = 0; i < units.size(); i++)
-    {
-        EmulatorCommands::ProfileSection  section;
-        const ControllerDeviceInfo      * device = nullptr;
-        auto                              model  = models.find (ControllerTokens::ModelToToken (units[i].model));
-        auto                              active = snapshot.activeProfiles.find (ControllerTokens::UnitToToken (units[i]));
-
-        for (const ControllerDeviceInfo & candidate : snapshot.devices)
-        {
-            if (candidate.unit == units[i])
-            {
-                device = &candidate;
-            }
-        }
-
-        // An absent controller has nothing to switch, and one whose model has
-        // nothing saved has no list to switch within.
-        if (device == nullptr)
-        {
-            continue;
-        }
-
-        section.unit              = units[i];
-        section.active            = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
-        section.isJoyportAttached = snapshot.profileMode == ProfileMode::Joyport;
-
-        if (!headers[i].empty())
-        {
-            section.header = headers[i] + L" " + s_kchEmDash + L" " + device->description;
-        }
-
-        // Only the profiles of the mode in effect, its built-in profile
-        // first, which a model with nothing saved still lists.
-        section.names = (model != models.end()) ? model->second.GetProfileNames (snapshot.profileMode)
-                                                : ControllerModelSettings().GetProfileNames (snapshot.profileMode);
-
-        sections.push_back (std::move (section));
-    }
-
-    m_mainMenu.GetCommands().SetProfileSections (std::move (sections));
+    return choices;
 }
+
 
 
 
@@ -3108,9 +3032,9 @@ void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string p
 //
 //  StartNewControllerProfile
 //
-//  The Profiles submenu's New... Settings opens on the Controllers page, where
-//  Editing is already the controller the submenu lists first, and the New
-//  Profile dialog comes up for it.
+//  New... at the foot of a player's profile section. Settings opens on the
+//  Controllers page, and the New Profile dialog comes up for the controller
+//  Editing opens on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3169,6 +3093,7 @@ void EmulatorShell::ApplyControllerSlotsChange (
         ShowNotice (notice);
     }
 }
+
 
 
 
@@ -3335,6 +3260,7 @@ void EmulatorShell::SyncGamePortAxisOwner()
         m_gamePortMixer.SetAxisOwner (axis, owners[axis]);
     }
 }
+
 
 
 

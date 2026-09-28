@@ -70,7 +70,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
 // driving, because that answer is worth a permanent place on the strip and
 // having it there is what lets the input cluster stop carrying it. Its width
 // moves as a result, so the strip is laid out again whenever it changes, and
-// the source labels are capped (InputModeRules::kShortLabelLimit) so the
+// the label is fitted to a cap (EmulatorCommands::kPickerLabelMaxDip) so the
 // movement stays small.
 struct ToolbarRow
 {
@@ -216,7 +216,11 @@ EmulatorCommands::EmulatorCommands()
         if (paddle != nullptr)
         {
             paddle->shortLabel.clear();
-            paddle->labelText = [this] () { return GetCheckedPaddleSourceLabel(); };
+            paddle->labelText = [this] () { return GetPickerLabel(); };
+
+            // Past the cap the description loses its middle, and the mark for
+            // a second player stays whole.
+            paddle->labelFit  = DxuiLabelFit { kPickerLabelMaxDip, DxuiElide::Middle, InputModeRules::kpszSecondPlayerSuffix };
 
             // A labeled slot shows only an explicit tip, so the word for what
             // the picker is for moves there once the face wears the answer.
@@ -224,9 +228,7 @@ EmulatorCommands::EmulatorCommands()
         }
     }
 
-    // The paddle picker's Profiles submenu, and its New... row.
-    m_profilesRow           = std::make_shared<DxuiCommand>();
-    m_profilesRow->label    = L"Profiles";
+    // The New... row at the foot of every profile section.
     m_newProfileRow         = std::make_shared<DxuiCommand>();
     m_newProfileRow->label  = L"New...";
     m_newProfileRow->dispatch = [this] ()
@@ -674,159 +676,148 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetMonitorItems() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorCommands::SetPaddleSources
+//  EmulatorCommands::SetPicker
 //
-//  One row per entry of the paddle-source list, checked while it is the one
-//  driving. The rows carry no ids of their own: a controller comes and goes,
-//  so a row is identified by the entry it was built from, which the dispatch
+//  A submenu row for each player, labeled with what is playing for that
+//  player. The rows carry no ids of their own: controllers come and go, so
+//  each entry is identified by what it was built from, which its dispatch
 //  captures.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::PaddleSource> & sources)
+void EmulatorCommands::SetPicker (const InputModeRules::Picker & picker)
+{
+    size_t  player = 0;
+
+
+
+    m_picker = picker;
+
+    //  Dropping the previous rows frees only those nothing else holds. A menu
+    //  on screen shares ownership of its rows, and a dispatching surface holds
+    //  the row it is dispatching, so a rebuild during either leaves them alive.
+    m_playerItems.clear();
+
+    for (player = 0; player < m_picker.rows.size(); player++)
+    {
+        std::shared_ptr<DxuiCommand>  row = std::make_shared<DxuiCommand>();
+
+        row->id    = (int) player;
+        row->label = m_picker.rows[player].label;
+
+        m_playerItems.push_back (DxuiPopupMenuItem::ForSubmenu (row, BuildPlayerSubmenu (player, m_picker.rows[player])));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::BuildPlayerSubmenu
+//
+//  The player's entries, exactly one checked, then the profile section below
+//  a separator while a controller plays there.
+//
+//  EACH ENTRY CARRIES WHAT IT PICKS BY VALUE, rather than an index to look up
+//  when it is clicked. The list is rebuilt whenever a controller comes or
+//  goes, and that changes its LENGTH, so an index captured when the row was
+//  built picks a DIFFERENT entry afterwards: a user picking the keys off a
+//  list built a moment earlier landed on the mouse, which takes the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> EmulatorCommands::BuildPlayerSubmenu (
+    size_t                             player,
+    const InputModeRules::PlayerRow  & row)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    size_t                          i     = 0;
+
+
+
+    for (i = 0; i < row.choices.size(); i++)
+    {
+        std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
+        PlayerEntry                   entry     = row.choices[i].entry;
+        bool                          isChecked = row.choices[i].isChecked;
+
+        cmd->id        = (int) i;
+        cmd->label     = row.choices[i].label;
+        cmd->isChecked = [isChecked] () { return isChecked; };
+
+        cmd->dispatch  = [this, player, entry] ()
+        {
+            if (m_onPlayerPicked)
+            {
+                m_onPlayerPicked (player, entry);
+            }
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
+    }
+
+    if (row.profiles.has_value())
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddProfileSection (row.profiles.value(), items);
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::AddProfileSection
+//
+//  The controller's description as a header, its profiles of the mode in
+//  effect with the active one checked, and New... last. The mode's built-in
+//  profile leads the list, and picking it records no choice, so the
+//  controller plays it until another is picked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::AddProfileSection (
+    const InputModeRules::PlayerProfileSection  & section,
+    std::vector<DxuiPopupMenuItem>              & items)
 {
     size_t  i = 0;
 
 
 
-    m_paddleSources = sources;
+    items.push_back (DxuiPopupMenuItem::ForHeader (section.header));
 
-    //  Dropping the previous rows frees only those nothing else holds. A menu
-    //  on screen shares ownership of its rows, and a dispatching surface holds
-    //  the row it is dispatching, so a rebuild during either leaves them alive.
-    m_paddleSourceRows.clear();
-
-    for (i = 0; i < m_paddleSources.size(); i++)
+    for (i = 0; i < section.names.size(); i++)
     {
-        std::shared_ptr<DxuiCommand>  cmd    = std::make_shared<DxuiCommand>();
-        InputModeRules::PaddleSource  source = m_paddleSources[i];
+        std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
+        ControllerUnitKey             unit      = section.unit;
+        std::string                   name      = (i == 0) ? std::string() : section.names[i];
+        bool                          isChecked = i == section.checked;
 
-        cmd->id    = (int) i;
-        cmd->label = source.label;
+        cmd->id        = (int) i;
+        cmd->label     = TextEncoding::NarrowToWide (section.names[i]);
+        cmd->isChecked = [isChecked] () { return isChecked; };
 
-        //  EACH ROW CARRIES ITS OWN SOURCE BY VALUE, rather than an index to
-        //  look up when it is clicked. The list is rebuilt whenever a
-        //  controller comes or goes, and that changes its LENGTH, so an
-        //  index captured when the row was built names a DIFFERENT source
-        //  afterwards. A user picking "Use keys as joystick" off a list built
-        //  a moment earlier landed on "Use mouse as paddle", which takes the
-        //  pointer. A row now does what it says, whatever the list did since.
-        cmd->isChecked = [source] () { return source.isChecked; };
-
-        cmd->dispatch  = [this, source] ()
+        // The row carries its controller and name by value, so a row from a
+        // list rebuilt since still picks the profile it shows, for the
+        // controller it was shown for.
+        cmd->dispatch  = [this, unit, name] ()
         {
-            if (m_onPaddleSourcePicked)
+            if (m_onProfilePicked)
             {
-                m_onPaddleSourcePicked (source);
+                m_onProfilePicked (unit, name);
             }
         };
 
-        m_paddleSourceRows.push_back (std::move (cmd));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorCommands::SetProfileSections
-//
-//  Each section lists its names as given: the profiles of the mode in
-//  effect, led by that mode's built-in profile, the Default without the
-//  Joyport and the Joyport profile with it. Sections are kept apart by a
-//  separator, and New... closes the list below one more.
-//
-//  A menu on screen shares ownership of its rows, so dropping ours frees only
-//  the rows nothing else still holds.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorCommands::SetProfileSections (std::vector<ProfileSection> sections)
-{
-    const char *  pszDefault = ControllerProfile::kpszDefaultName;
-    const char *  pszJoyport = ControllerProfile::kpszJoyportName;
-
-
-
-    m_profileSections = std::move (sections);
-    m_profileItems.clear();
-
-    for (const ProfileSection & section : m_profileSections)
-    {
-        const std::vector<std::string> &  names          = section.names;
-        bool                              isActiveListed = false;
-        const char                      * pszAutomatic   = section.isJoyportAttached ? pszJoyport : pszDefault;
-
-        if (!m_profileItems.empty())
-        {
-            m_profileItems.push_back (DxuiPopupMenuItem::ForSeparator());
-        }
-
-        if (!section.header.empty())
-        {
-            m_profileItems.push_back (DxuiPopupMenuItem::ForHeader (section.header));
-        }
-
-        // An empty active name is the mode's built-in profile, and so is a
-        // name the list does not carry, which is what the service plays in
-        // that case.
-        for (const std::string & name : names)
-        {
-            isActiveListed = isActiveListed || _stricmp (name.c_str(), section.active.c_str()) == 0;
-        }
-
-        for (size_t i = 0; i < names.size(); i++)
-        {
-            std::shared_ptr<DxuiCommand>  cmd         = std::make_shared<DxuiCommand>();
-            std::string                   name        = names[i];
-            ControllerUnitKey             unit        = section.unit;
-            bool                          isAutomatic = _stricmp (name.c_str(), pszAutomatic) == 0;
-            bool                          isChecked   = isActiveListed ? _stricmp (name.c_str(), section.active.c_str()) == 0
-                                                                       : isAutomatic;
-
-            cmd->id        = (int) i;
-            cmd->label     = TextEncoding::NarrowToWide (name);
-            cmd->isChecked = [isChecked] () { return isChecked; };
-
-            // The row carries its controller and name by value rather than an
-            // index, so a row from a list rebuilt since still picks the
-            // profile it shows, for the controller it was shown for. Picking
-            // the mode's built-in profile records no choice, so the
-            // controller plays it until another is picked.
-            cmd->dispatch  = [this, unit, name, isAutomatic] ()
-            {
-                if (m_onProfilePicked)
-                {
-                    m_onProfilePicked (unit, isAutomatic ? std::string() : name);
-                }
-            };
-
-            m_profileItems.push_back (DxuiPopupMenuItem::ForCommand (cmd));
-        }
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
     }
 
-    if (!m_profileItems.empty())
-    {
-        m_profileItems.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_profileItems.push_back (DxuiPopupMenuItem::ForCommand (m_newProfileRow));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorCommands::GetProfileItems
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiPopupMenuItem> EmulatorCommands::GetProfileItems() const
-{
-    return m_profileItems;
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_newProfileRow));
 }
 
 
@@ -889,13 +880,13 @@ void EmulatorCommands::SetJoyportFns (std::function<bool()> isOn,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorCommands::GetCheckedPaddleSourceLabel
+//  EmulatorCommands::GetPickerLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EmulatorCommands::GetCheckedPaddleSourceLabel() const
+std::wstring EmulatorCommands::GetPickerLabel() const
 {
-    return InputModeRules::GetPaddleSourceLabel (m_paddleSources);
+    return m_picker.label;
 }
 
 
@@ -904,37 +895,34 @@ std::wstring EmulatorCommands::GetCheckedPaddleSourceLabel() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorCommands::GetCheckedPaddleSourceGlyph
+//  EmulatorCommands::GetPickerGlyph
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-InputMonoGlyphKind EmulatorCommands::GetCheckedPaddleSourceGlyph() const
+InputMonoGlyphKind EmulatorCommands::GetPickerGlyph() const
 {
-    for (const InputModeRules::PaddleSource & source : m_paddleSources)
+    InputMonoGlyphKind  glyph = InputMonoGlyphKind::Gamepad;
+
+
+
+    switch (m_picker.driver)
     {
-        if (!source.isChecked)
-        {
-            continue;
-        }
-
-        if (source.isArrowKeys)
-        {
-            return InputMonoGlyphKind::Keys;
-        }
-
-        if (source.isMousePaddle)
-        {
-            return InputMonoGlyphKind::Paddle;
-        }
+        case InputModeRules::PickerDriver::ArrowKeys:   glyph = InputMonoGlyphKind::Keys;   break;
+        case InputModeRules::PickerDriver::MousePaddle: glyph = InputMonoGlyphKind::Paddle; break;
 
         // A wheel draws as a joystick: an icon for a device almost nobody
         // will plug into an Apple II is not worth a drawing of its own.
-        return (source.formFactor == ControllerFormFactor::Gamepad)
-                   ? InputMonoGlyphKind::Gamepad
-                   : InputMonoGlyphKind::Joystick;
+        case InputModeRules::PickerDriver::Controller:
+            glyph = (m_picker.formFactor == ControllerFormFactor::Gamepad) ? InputMonoGlyphKind::Gamepad
+                                                                           : InputMonoGlyphKind::Joystick;
+            break;
+
+        case InputModeRules::PickerDriver::None:
+        default:
+            break;
     }
 
-    return InputMonoGlyphKind::Gamepad;
+    return glyph;
 }
 
 
@@ -943,22 +931,13 @@ InputMonoGlyphKind EmulatorCommands::GetCheckedPaddleSourceGlyph() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorCommands::GetPaddleSourceItems
+//  EmulatorCommands::GetPlayerItems
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
+std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPlayerItems() const
 {
-    std::vector<DxuiPopupMenuItem>  items;
-
-
-
-    for (const std::shared_ptr<DxuiCommand> & cmd : m_paddleSourceRows)
-    {
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
-    }
-
-    return items;
+    return m_playerItems;
 }
 
 
@@ -969,40 +948,24 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 //
 //  EmulatorCommands::GetPaddlePickerItems
 //
-//  What the paddle picker lists: every source, then Controller settings...
-//  below a separator, so the settings for the controller in use are one
-//  click from where it was chosen.
+//  What the paddle picker lists: the player rows, then Controller settings...
+//  below a separator, so the settings for the controllers in play are one
+//  click from where they were chosen.
 //
-//  The two-player row sits below a separator of its own. The rows above it
-//  are the one thing that drives the game port; it is the mode where two
-//  things do, so grouping it with them would read as a third source.
-//
-//  The Sirius Joyport row has a group of its own below them, on a machine that
-//  can take one. It is not something that drives the game port but a device
-//  on it, attached whichever source drives, so beside the sources it would
-//  read as one more of them.
+//  The Sirius Joyport row has a group of its own after the player rows, on a
+//  machine that can take one. It is not something that drives the game port
+//  but a device on it, attached whichever player drives, so beside the
+//  players it would read as one more of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
 {
-    std::vector<DxuiPopupMenuItem>      items;
-    std::vector<DxuiPopupMenuItem>      rows      = GetPaddleSourceItems();
+    std::vector<DxuiPopupMenuItem>      items     = GetPlayerItems();
     std::shared_ptr<const DxuiCommand>  settings  = Find (IDM_VIEW_CONTROLLER_SETTINGS);
-    size_t                              i         = 0;
     bool                                isJoyport = m_joyportRow != nullptr && m_isJoyportOffered && m_isJoyportOffered();
 
 
-
-    for (i = 0; i < rows.size(); i++)
-    {
-        if (i < m_paddleSources.size() && m_paddleSources[i].isMultiplayer)
-        {
-            items.push_back (DxuiPopupMenuItem::ForSeparator());
-        }
-
-        items.push_back (rows[i]);
-    }
 
     if (isJoyport)
     {
@@ -1010,20 +973,9 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
         items.push_back (DxuiPopupMenuItem::ForCommand (m_joyportRow));
     }
 
-    // The profiles of the controllers in play, one submenu away from the
-    // controllers themselves, above the settings that edit them.
-    if (!m_profileItems.empty() || settings != nullptr)
-    {
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-    }
-
-    if (!m_profileItems.empty())
-    {
-        items.push_back (DxuiPopupMenuItem::ForSubmenu (m_profilesRow, m_profileItems));
-    }
-
     if (settings != nullptr)
     {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
         items.push_back (DxuiPopupMenuItem::ForCommand (settings));
     }
 
@@ -1094,7 +1046,7 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
 
                 UNREFERENCED_PARAMETER (collapsed);
 
-                InputMonoGlyphs::Paint (painter, GetCheckedPaddleSourceGlyph(), box, theme.ButtonText());
+                InputMonoGlyphs::Paint (painter, GetPickerGlyph(), box, theme.ButtonText());
             };
         }
 
