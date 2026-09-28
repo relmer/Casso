@@ -706,8 +706,9 @@ void EmulatorCommands::SetPicker (const InputModeRules::Picker & picker)
 //
 //  EmulatorCommands::BuildPlayerSubmenu
 //
-//  The player's entries, exactly one checked, then the profile section below
-//  a separator while a controller plays there.
+//  The player's entries, exactly one checked; below a separator the
+//  player's mode, Joystick or Paddle, one of the two checked; then the
+//  profile section below another separator while a controller plays there.
 //
 //  EACH ENTRY CARRIES WHAT IT PICKS BY VALUE, rather than an index to look up
 //  when it is clicked. The list is rebuilt whenever a controller comes or
@@ -747,6 +748,12 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::BuildPlayerSubmenu (
         items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
     }
 
+    if (!row.modes.empty())
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddModeChoices (player, row.modes, items);
+    }
+
     if (row.profiles.has_value())
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
@@ -754,6 +761,52 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::BuildPlayerSubmenu (
     }
 
     return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::AddModeChoices
+//
+//  Each mode carries its player and mode by value, as the entries do, so a
+//  row from a list rebuilt since still sets what it shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::AddModeChoices (
+    size_t                                                 player,
+    const std::vector<InputModeRules::PlayerModeChoice>  & modes,
+    std::vector<DxuiPopupMenuItem>                       & items)
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < modes.size(); i++)
+    {
+        std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
+        PlayerMode                    mode      = modes[i].mode;
+        bool                          isChecked = modes[i].isChecked;
+        bool                          isEnabled = modes[i].isEnabled;
+
+        cmd->id        = (int) i;
+        cmd->label     = modes[i].label;
+        cmd->isChecked = [isChecked] () { return isChecked; };
+        cmd->isEnabled = [isEnabled] () { return isEnabled; };
+
+        cmd->dispatch  = [this, player, mode] ()
+        {
+            if (m_onPlayerMode)
+            {
+                m_onPlayerMode (player, mode);
+            }
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
+    }
 }
 
 

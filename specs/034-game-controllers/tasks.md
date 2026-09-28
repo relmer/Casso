@@ -449,9 +449,9 @@ description: "Task list for 034 physical game controllers"
 
 ### Picker
 
-- [ ] T179 [P] [US7] Extend `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp`: each submenu offers Joystick and Paddle with the player's mode checked, disabled with the Joyport on; Use keys as joystick only in Joystick mode or with the Joyport on, Use mouse as paddle only in Paddle mode; a row in Paddle mode reads "(paddle)" after what is playing; "same as left" in lower case after a colon; the face reads Player 1's description and "(disconnected) +1" while Player 1's slot is held and Player 2 plays. Mutations: offer the mouse in Joystick mode; drop "(disconnected)"
-- [ ] T180 [US7] Implement in `InputModeRules`, `JoyportLabels`, `EmulatorCommands` and `EmulatorWindowInput.cpp`
-- [ ] T181 [US7] Build; run `-Filter PaddleSourceRows`, `-Filter JoyportLabels`, `-Filter Chrome`; capture the picker with a player's submenu open; commit: `feat(controllers): offer each player's mode in the picker`
+- [X] T179 [P] [US7] Extend `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp`: each submenu offers Joystick and Paddle with the player's mode checked, disabled with the Joyport on; Use keys as joystick only in Joystick mode or with the Joyport on, Use mouse as paddle only in Paddle mode; a row in Paddle mode reads "(paddle)" after what is playing; "same as left" in lower case after a colon; the face reads Player 1's description and "(disconnected) +1" while Player 1's slot is held and Player 2 plays. Mutations: offer the mouse in Joystick mode; drop "(disconnected)"
+- [X] T180 [US7] Implement in `InputModeRules`, `JoyportLabels`, `EmulatorCommands` and `EmulatorWindow.cpp`
+- [X] T181 [US7] Build; run `-Filter PaddleSourceRows`, `-Filter JoyportLabels`, `-Filter Chrome`; commit: `feat(controllers): offer each player's mode in the picker`. The picker is captured with the Controllers page in T184
 
 ### Controllers page
 

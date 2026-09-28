@@ -113,6 +113,8 @@ std::wstring JoyportLabels::DescribeAssignment (
 //  GetPickerLabels
 //
 //  The picker's own words with the Joyport off, and the jacks' with it on.
+//  "Same as left" starts a submenu entry, and is lower case after the colon
+//  of a player's row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,9 +126,10 @@ InputModeRules::PlayerLabels JoyportLabels::GetPickerLabels (bool isJoyportInEff
 
     if (isJoyportInEffect)
     {
-        labels.players  = { kpszLeft, kpszRight };
-        labels.disabled = kpszSameAsLeft;
-        labels.idle     = { std::wstring(), kpszRightIdle };
+        labels.players       = { kpszLeft, kpszRight };
+        labels.disabled      = kpszSameAsLeft;
+        labels.disabledInRow = kpszRightIdle;
+        labels.idle          = { std::wstring(), kpszRightIdle };
     }
 
     return labels;

@@ -759,6 +759,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             PickPlayer (player, entry);
         });
 
+    m_mainMenu.GetCommands().SetPlayerModeFn (
+        [this] (size_t player, PlayerMode mode)
+        {
+            SetPlayerMode (player, mode);
+        });
+
     m_mainMenu.GetCommands().SetProfilePickedFn (
         [this] (const ControllerUnitKey & unit, const std::string & profileName)
         {

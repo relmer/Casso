@@ -37,6 +37,8 @@ private:
     static constexpr const wchar_t *  kpszRight      = L"Joyport right";
     static constexpr const wchar_t *  kpszBoth       = L"Joyport left and right";
     static constexpr const wchar_t *  kpszSameAsLeft = L"Same as left";
+
+    // After a colon, as in "Joyport right: same as left".
     static constexpr const wchar_t *  kpszRightIdle  = L"same as left";
     static constexpr const wchar_t *  kpszAutomatic  = L"Automatic";
 };

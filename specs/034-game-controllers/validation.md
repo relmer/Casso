@@ -115,6 +115,12 @@ Results are recorded as they are produced. A scenario that could not run says so
 | Mutation: `EmulatorShell::SetPlayerMode` leaves the keys on in Paddle mode | automated | 1 test went red: `PaddleMode_TurnsTheKeysOff` (`the keys have let the stick go`). Restored, stamped, rebuilt, green |
 | Mutation: `TryReadPlayer` ignores a legacy `maps` target | automated | 1 test went red: `Players_TheModeIsSavedAndALegacyTargetReadsAsIt` (`a single paddle as Paddle mode`). Restored, stamped, rebuilt, green |
 | Filtered runs: `Controller` 522, `MachineInputPrefs` 33, `ControllersPageLayout` 6, `Settings` 57 | x64 Debug | all pass |
+| T179 picker: each submenu offers Joystick and Paddle with the player's mode checked, disabled with Joystick checked while the Joyport is on; Player 1's keys only in Joystick mode or with the Joyport, the mouse only in Paddle mode and never with the Joyport; "(paddle)" after what plays for a player in Paddle mode; Player 2's Disabled lower case after the row's colon; the face "(disconnected) +1" while Player 1's slot is held and Player 2 plays; a mode row raising its player and mode (`PaddleSourceRowsTests`, `ControllersPageStateTests`) | automated | pass |
+| Mutation: the mouse offered in Joystick mode | automated | 2 tests went red: `PlayerOneSubmenu_ListsTheKeysInJoystickModeAndTheMouseInPaddleMode` (`Joystick mode: the keys and no mouse`) and `PickingAMode_RaisesThePlayerAndTheMode`. Restored, stamped, rebuilt, green |
+| Mutation: the held face without "(disconnected)" | automated | 1 test went red: `Label_ReadsDisconnectedWhilePlayerOnesSlotIsHeld` (`Expected:<Gone Stick (disconnected) +1> Actual:<Gone Stick +1>`). Restored, stamped, rebuilt, green |
+| Mutation: the row writes Player 2's Disabled as the submenu does | automated | 2 tests went red, among them `Rows_WithTheJoyportAreTheJacks` (`Expected:<Joyport right: same as left> Actual:<Joyport right: Same as left>`). Restored, stamped, rebuilt, green |
+| Mutation: the modes enabled with the Joyport in effect | automated | 2 tests went red: `Modes_EachSubmenuOffersJoystickAndPaddle` (`and neither mode can be chosen`) and `PickingAMode_RaisesThePlayerAndTheMode`. Restored, stamped, rebuilt, green |
+| Filtered runs: `Controller` 526, `JoyportLabels` 4, `Chrome` 34, `MenuBar` 25 | x64 Debug | all pass |
 
 ## Final walk and measurements (T093)
 

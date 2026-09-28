@@ -50,13 +50,15 @@ public:
 
     // The words the picker writes for the players and for Player 2's
     // Disabled entry, kept apart from the rows so that another mode's words
-    // can take their place. `idle` is what a player's row reads while they
-    // are on Automatic with no controller playing; empty keeps the row as it
-    // would be without it.
+    // can take their place. `disabled` is the entry in the submenu and
+    // `disabledInRow` the same entry after the colon of the player's row.
+    // `idle` is what a player's row reads while they are on Automatic with
+    // no controller playing; empty keeps the row as it would be without it.
     struct PlayerLabels
     {
-        std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  players  = { L"Player 1", L"Player 2" };
-        std::wstring                                               disabled = L"Disabled";
+        std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  players       = { L"Player 1", L"Player 2" };
+        std::wstring                                               disabled      = L"Disabled";
+        std::wstring                                               disabledInRow = L"Disabled";
         std::array<std::wstring, PlayerSlotPolicy::kPlayerCount>  idle;
 
         bool operator== (const PlayerLabels &) const = default;
@@ -96,12 +98,27 @@ public:
         bool operator== (const PlayerProfileSection &) const = default;
     };
 
+    // One of the two modes a player's submenu offers, Joystick or Paddle.
+    // Exactly one is checked; neither can be chosen while the Joyport is in
+    // effect, where both players are Atari sticks.
+    struct PlayerModeChoice
+    {
+        std::wstring  label;
+        PlayerMode    mode      = PlayerMode::Joystick;
+        bool          isChecked = false;
+        bool          isEnabled = true;
+
+        bool operator== (const PlayerModeChoice &) const = default;
+    };
+
     // One player's row in the picker: what is playing, the submenu's
-    // entries, and the profile section while a controller plays there.
+    // entries, the player's mode, and the profile section while a controller
+    // plays there.
     struct PlayerRow
     {
         std::wstring                         label;
         std::vector<PlayerChoice>            choices;
+        std::vector<PlayerModeChoice>        modes;
         std::optional<PlayerProfileSection>  profiles;
 
         bool operator== (const PlayerRow &) const = default;
@@ -146,8 +163,11 @@ public:
         ControllerFormFactor  formFactor = ControllerFormFactor::Gamepad;
     };
 
-    // Ends the picker's label while Player 2 is also playing (FR-008b).
+    // Ends the picker's label while Player 2 is also playing (FR-008b), and
+    // comes before that while Player 1's slot is held for a controller that
+    // left.
     static constexpr const wchar_t *  kpszSecondPlayerSuffix = L" +1";
+    static constexpr const wchar_t *  kpszDisconnected       = L" (disconnected)";
 
     // Drops a device description's trailing vendor and product parenthetical,
     // for the picker's face. How much of what is left fits is measured where
@@ -184,11 +204,16 @@ private:
     static constexpr const wchar_t *  kpszMouse          = L"Mouse";
     static constexpr const wchar_t *  kpszNotConnected   = L" (not connected)";
     static constexpr const wchar_t *  kpszNothingDriving = L"Controller";
+    static constexpr const wchar_t *  kpszJoystickMode   = L"Joystick";
+    static constexpr const wchar_t *  kpszPaddleMode     = L"Paddle";
+    static constexpr const wchar_t *  kpszInPaddleMode   = L" (paddle)";
 
     static const ControllerDeviceInfo *         FindDevice         (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit);
     static std::wstring                         DescribeUnit        (const PickerSource & source, const ControllerUnitKey & unit);
     static std::wstring                         DescribePlaying     (const PickerSource & source, size_t player);
     static std::vector<PlayerChoice>            BuildChoices        (const PickerSource & source, size_t player);
+    static std::vector<PlayerModeChoice>        BuildModes          (const PickerSource & source, size_t player);
     static std::optional<PlayerProfileSection>  BuildProfileSection (const PickerSource & source, size_t player);
     static void                                 SetFace             (const PickerSource & source, Picker & picker);
+    static void                                 SetHeldFace         (const PickerSource & source, Picker & picker);
 };

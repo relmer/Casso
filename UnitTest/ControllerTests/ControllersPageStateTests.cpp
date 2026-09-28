@@ -1657,15 +1657,19 @@ namespace ControllerTests
             one = page.GetEntryChoices (0);
             two = page.GetEntryChoices (1);
 
-            Assert::AreEqual (size_t (4), one.size(), L"Automatic, the stick, the keys and the mouse");
+            Assert::AreEqual (size_t (3), one.size(), L"Automatic, the stick and, in Joystick mode, the keys");
             Assert::IsTrue   (one[0].entry.kind == PlayerEntryKind::Automatic);
             Assert::IsTrue   (one[1].entry.unit == stick.unit);
             Assert::IsTrue   (one[2].entry.kind == PlayerEntryKind::ArrowKeys);
-            Assert::IsTrue   (one[3].entry.kind == PlayerEntryKind::MousePaddle);
             Assert::AreEqual (size_t (2), two.size(), L"Automatic and the stick, and no Disabled");
 
+            page.SetPlayerMode (0, PlayerMode::Paddle);
+            one = page.GetEntryChoices (0);
+            Assert::IsTrue   (one.back().entry.kind == PlayerEntryKind::MousePaddle, L"in Paddle mode, the mouse in place of the keys");
+
             page.SetJoyportInEffect (true);
-            Assert::AreEqual (size_t (3), page.GetEntryChoices (0).size(), L"no mouse as paddle while the Joyport is in effect");
+            one = page.GetEntryChoices (0);
+            Assert::IsTrue   (one.back().entry.kind == PlayerEntryKind::ArrowKeys, L"no mouse as paddle while the Joyport is in effect, and the keys");
         }
 
 

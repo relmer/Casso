@@ -36,6 +36,7 @@ InputModeRules::Picker InputModeRules::BuildPicker (const PickerSource & source)
 
         row.label    = source.labels.players[player] + L": " + DescribePlaying (source, player);
         row.choices  = BuildChoices (source, player);
+        row.modes    = BuildModes (source, player);
         row.profiles = BuildProfileSection (source, player);
     }
 
@@ -123,7 +124,9 @@ std::wstring InputModeRules::DescribeUnit (
 //  away -- or Automatic while Automatic has no controller for the player.
 //  A player whose words give an idle text reads it instead while on
 //  Automatic with no controller playing, a holder that has not given input
-//  included.
+//  included. A controller or Automatic in Paddle mode is marked "(paddle)";
+//  Joystick mode is what a player is unless it says otherwise, and the keys
+//  and the mouse are a joystick and a paddle already.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,8 +134,10 @@ std::wstring InputModeRules::DescribePlaying (
     const PickerSource  & source,
     size_t                player)
 {
-    const PlayerEntry                 & entry = source.entries[player];
-    std::optional<ControllerUnitKey>    unit  = source.slots[player].holder;
+    const PlayerEntry                 & entry    = source.entries[player];
+    std::optional<ControllerUnitKey>    unit     = source.slots[player].holder;
+    bool                                isPaddle = PlayerSlotPolicy::GetEffectiveMode (entry, source.isJoyportInEffect) == PlayerMode::Paddle;
+    std::wstring                        mode     = isPaddle ? kpszInPaddleMode : L"";
 
 
 
@@ -140,7 +145,7 @@ std::wstring InputModeRules::DescribePlaying (
     {
         case PlayerEntryKind::ArrowKeys:   return kpszKeys;
         case PlayerEntryKind::MousePaddle: return kpszMouse;
-        case PlayerEntryKind::Disabled:    return source.labels.disabled;
+        case PlayerEntryKind::Disabled:    return source.labels.disabledInRow;
 
         case PlayerEntryKind::Automatic:
         case PlayerEntryKind::Controller:
@@ -160,15 +165,15 @@ std::wstring InputModeRules::DescribePlaying (
 
     if (!unit.has_value())
     {
-        return kpszAutomatic;
+        return kpszAutomatic + mode;
     }
 
     if (FindDevice (source.devices, unit.value()) == nullptr)
     {
-        return DescribeUnit (source, unit.value()) + kpszNotConnected;
+        return DescribeUnit (source, unit.value()) + kpszNotConnected + mode;
     }
 
-    return DescribeUnit (source, unit.value());
+    return DescribeUnit (source, unit.value()) + mode;
 }
 
 
@@ -185,11 +190,14 @@ std::wstring InputModeRules::DescribePlaying (
 //  attached, still checked; then the keys and the mouse for Player 1, or
 //  Disabled for Player 2. Exactly one is checked: the player's entry.
 //
-//  The mouse is left out while the Joyport is in effect: an Atari stick has
-//  no paddle for it to stand in for (JoyportSetting::IsMousePaddleOffered).
-//  A mouse picked before the Joyport was turned on stays Player 1's entry,
-//  driving nothing until it is turned off, so it stays listed while it is
-//  the checked one.
+//  The keys are a joystick and the mouse a paddle, so each is offered only
+//  in its own mode: the keys in Joystick mode, and with the Joyport in
+//  effect, where both players are Atari sticks; the mouse in Paddle mode,
+//  and never with the Joyport, which has no paddle for it to stand in for
+//  (JoyportSetting::IsMousePaddleOffered). So the mouse and the Joyport are
+//  never on together. A mouse picked before the Joyport was turned on stays
+//  Player 1's entry, driving nothing until it is turned off, so it stays
+//  listed while it is the checked one, and so do the keys.
 //
 //  A choice carries no mode: the player keeps its own through any pick
 //  (PlayerSlotPolicy::ApplyPick).
@@ -209,6 +217,7 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
     PlayerChoice                 mouse;
     PlayerChoice                 disabled;
     bool                         isListed = false;
+    bool                         hasKeys  = false;
     bool                         hasMouse = false;
 
 
@@ -254,9 +263,14 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
         mouse.label      = L"Use mouse as paddle";
         mouse.entry.kind = PlayerEntryKind::MousePaddle;
         mouse.isChecked  = current.kind == PlayerEntryKind::MousePaddle;
-        hasMouse         = mouse.isChecked || JoyportSetting::IsMousePaddleOffered (source.isJoyportInEffect);
+        hasKeys          = keys.isChecked || current.mode == PlayerMode::Joystick || source.isJoyportInEffect;
+        hasMouse         = mouse.isChecked ||
+                           (current.mode == PlayerMode::Paddle && JoyportSetting::IsMousePaddleOffered (source.isJoyportInEffect));
 
-        choices.push_back (keys);
+        if (hasKeys)
+        {
+            choices.push_back (keys);
+        }
 
         if (hasMouse)
         {
@@ -273,6 +287,44 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
     }
 
     return choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildModes
+//
+//  Joystick then Paddle, the player's mode checked. While the Joyport is in
+//  effect both players are Atari sticks: Joystick is checked and neither can
+//  be chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<InputModeRules::PlayerModeChoice> InputModeRules::BuildModes (
+    const PickerSource  & source,
+    size_t                player)
+{
+    PlayerMode                     current = PlayerSlotPolicy::GetEffectiveMode (source.entries[player], source.isJoyportInEffect);
+    std::vector<PlayerModeChoice>  modes;
+
+
+
+    for (PlayerMode mode : { PlayerMode::Joystick, PlayerMode::Paddle })
+    {
+        PlayerModeChoice  choice;
+
+        choice.label     = (mode == PlayerMode::Joystick) ? kpszJoystickMode : kpszPaddleMode;
+        choice.mode      = mode;
+        choice.isChecked = mode == current;
+        choice.isEnabled = !source.isJoyportInEffect;
+
+        modes.push_back (choice);
+    }
+
+    return modes;
 }
 
 
@@ -356,8 +408,10 @@ std::optional<InputModeRules::PlayerProfileSection> InputModeRules::BuildProfile
 //  The closed picker wears Player 1's keys, mouse or controller, ending in
 //  " +1" while Player 2 is also playing. Player 2's controller shows while
 //  it drives alone, and "Controller" while nothing drives the game port.
-//  A controller's vendor and product parenthetical is dropped; what is left
-//  is fitted to the button where it is drawn (FR-008b).
+//  While Player 1's slot is held for a controller that left and Player 2
+//  plays on, the face is Player 1's controller, marked disconnected, and
+//  " +1". A controller's vendor and product parenthetical is dropped; what
+//  is left is fitted to the button where it is drawn (FR-008b).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,6 +429,12 @@ void InputModeRules::SetFace (
 
     picker.label  = kpszNothingDriving;
     picker.driver = PickerDriver::None;
+
+    if (source.slots[0].state == PlayerSlotState::Held && source.slots[0].holder.has_value() && isSecond)
+    {
+        SetHeldFace (source, picker);
+        return;
+    }
 
     if (first.kind == PlayerEntryKind::ArrowKeys || first.kind == PlayerEntryKind::MousePaddle)
     {
@@ -412,6 +472,28 @@ void InputModeRules::SetFace (
     {
         picker.label += kpszSecondPlayerSuffix;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHeldFace
+//
+//  Player 1's controller left while Player 2 plays on, and its slot is held
+//  for it: the face keeps Player 1's controller, by the description it had,
+//  marked disconnected, then " +1" for the player still playing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputModeRules::SetHeldFace (
+    const PickerSource  & source,
+    Picker              & picker)
+{
+    picker.driver = PickerDriver::Controller;
+    picker.label  = Shorten (DescribeUnit (source, source.slots[0].holder.value())) + kpszDisconnected + kpszSecondPlayerSuffix;
 }
 
 

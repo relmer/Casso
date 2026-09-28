@@ -78,6 +78,9 @@ public:
     // Raised when the user picks an entry in a player's submenu.
     using PlayerPickedFn = std::function<void (size_t player, const PlayerEntry & entry)>;
 
+    // Raised when the user picks a mode in a player's submenu.
+    using PlayerModeFn = std::function<void (size_t player, PlayerMode mode)>;
+
     // Raised when the user picks a profile for one controller. Empty for the
     // mode's built-in profile.
     using ProfilePickedFn = std::function<void (const ControllerUnitKey & unit, const std::string & profileName)>;
@@ -154,6 +157,7 @@ public:
     // through its items.
     void  SetPicker          (const InputModeRules::Picker & picker);
     void  SetPlayerPickedFn  (PlayerPickedFn fn)            { m_onPlayerPicked  = std::move (fn); }
+    void  SetPlayerModeFn    (PlayerModeFn fn)              { m_onPlayerMode    = std::move (fn); }
     void  SetProfilePickedFn (ProfilePickedFn fn)           { m_onProfilePicked = std::move (fn); }
     void  SetNewProfileFn    (NewProfileFn fn)              { m_onNewProfile    = std::move (fn); }
 
@@ -197,6 +201,9 @@ private:
     void                          RebuildActionTips    ();
 
     std::vector<DxuiPopupMenuItem>  BuildPlayerSubmenu (size_t player, const InputModeRules::PlayerRow & row);
+    void                            AddModeChoices     (size_t                                                 player,
+                                                        const std::vector<InputModeRules::PlayerModeChoice>  & modes,
+                                                        std::vector<DxuiPopupMenuItem>                       & items);
     void                            AddProfileSection  (const InputModeRules::PlayerProfileSection & section,
                                                         std::vector<DxuiPopupMenuItem>             & items);
 
@@ -217,6 +224,7 @@ private:
     InputModeRules::Picker                     m_picker;
     std::vector<DxuiPopupMenuItem>             m_playerItems;
     PlayerPickedFn                             m_onPlayerPicked;
+    PlayerModeFn                               m_onPlayerMode;
 
     std::shared_ptr<DxuiCommand>               m_joyportRow;
     std::function<bool()>                      m_isJoyportOffered;
