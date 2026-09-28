@@ -181,6 +181,11 @@ public:
     bool                      IsEditedOnJoyport       () const;
     bool                      AreEditedButtonsCut     () const;
 
+    // Whether the controller in Editing plays paddles, in Paddle or Two
+    // paddles mode, which the page shows as a bar per paddle rather than a
+    // stick.
+    bool                      IsEditedOnPaddles       () const;
+
     // The Joyport jack the controller in Editing drives, for the page's
     // switch lights, and the heading the page shows above them.
     JoyportJack               GetJoyportJack          () const;

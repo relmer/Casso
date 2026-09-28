@@ -501,7 +501,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T205a [P] [US5] Tests first: `ControllerProfileStoreTests::RateWithoutASpeed_ReadsTheDefaultSpeed` and the Paddles mapping's speed in `MappingEvaluatorTests::Paddles_TwoPaddlesOnTheTwoSticks`
 - [X] T206 [US7] Player rows: the note column removed; the entry and mode drop-downs stretched to the right edge of the Profile row at the design width and growing with a wider sheet; a label too long shortened in the middle (`DxuiComboBox::SetElide`); tests first
 - [X] T207 [US7] The heading above the input picture gives what the controller in Editing drives, in place of the notes: "Joystick 0", "Paddle 1", "Paddles 0 and 1", "Atari joystick: left jack", "Not used on this machine"; tests first
-- [ ] T208 [US7] Paddle and Two paddles show a horizontal bar per paddle with its value, "PDL1  108", in place of the stick circle; tests first
+- [X] T208 [US7] Paddle and Two paddles show a horizontal bar per paddle with its value, "PDL1  108", in place of the stick circle; tests first
 - [ ] T209 [US5] The Paddle speed drop-down sized to fit its longest item and its arrow; tests first
 - [ ] T210 Mutation checks for Phase 21, recorded in `validation.md` under a new "Phase 21" heading
 - [ ] T211 Build x64 Debug and Release; run the full Release suite and the scenario suite; capture the player rows at the design width and wider and the page in Two paddles mode with the bars; record the captures in `validation.md`

@@ -119,6 +119,7 @@ Replace every step above that sets a player's "maps to" target or ticks the Mult
 | 43 | On a //c, Player 1 on Two paddles with a second pad playing. | Player 1 drives PDL0 and PDL1; the second pad drives nothing. | FR-035, FR-039 |
 | 44 | Player 1 on the mouse in Two paddles mode, with a pad as Player 2 in Paddle mode, both used. | The mouse's X drives PDL0 and its Y PDL1; Player 2 drives PDL2. | FR-036, FR-039 |
 | 45 | (2026-09-28, later; replaces the notes of scenarios 30-32 and 35-37) Settings > Controllers at the sheet's design width, then widened. Put Player 1's controller in Editing, then Player 2's, in each mode; then on a //c with both on Joystick. | No note stands beside the player rows. The two drop-downs reach the right edge of the Delete... button at the design width and stretch with the sheet; a long controller description is shortened in the middle. The heading above the input picture reads "Joystick 0" / "Joystick 1", "Paddle 2", "Paddles 0 and 1" / "Paddles 2 and 3", "Atari joystick: left jack", and on the //c for Player 2 "Not used on this machine". | FR-037 |
+| 46 | (2026-09-28, later) Settings > Controllers with Editing on a pad whose player is on Paddle, then on Two paddles, then on Joystick; move the sticks. | Paddle shows one bar, labeled "PDL0  127" and the like, whose fill and mark follow the stick; Two paddles shows two bars, one per stick; Joystick shows the circle. | FR-023 |
 
 ## 5. Pre-merge gates
 

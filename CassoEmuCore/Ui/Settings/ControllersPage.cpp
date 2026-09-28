@@ -101,6 +101,7 @@ ControllersPage::ControllersPage (std::wstring title)
     }
 
     Adopt (m_switchView);
+    Adopt (m_paddleBars);
 
     for (target = 0; target < kAxisCount; target++)
     {
@@ -460,6 +461,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  modeX       = x + labelWidth + entryWidth + gap;
     bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool                 isJoyport   = IsJoyportMode();
+    bool                 isPaddles   = !isJoyport && IsPaddlesMode();
     size_t               target      = 0;
     size_t               player      = 0;
     size_t               row         = 0;
@@ -539,8 +541,9 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     // The heading gives what this controller drives: its joystick, paddle,
     // paddles or Joyport jack. In a jack the stick's square shows the
-    // switches it closes instead.
+    // switches it closes instead, and in a paddle mode a bar per paddle.
     m_isJoyportShown = isJoyport;
+    m_isPaddlesShown = isPaddles;
 
     m_joystickHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
     m_joystickHeading.SetText (m_state != nullptr ? m_state->GetEditedHeading() : std::wstring (L"Joystick"));
@@ -549,8 +552,11 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     stickTop   = y;
     axesBottom = y;
 
-    m_stick.SetVisible (!isJoyport);
+    m_stick.SetVisible (!isJoyport && !isPaddles);
     m_stick.Layout (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    m_paddleBars.SetVisible (isPaddles);
+    m_paddleBars.Layout     (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    PollPaddleBars (nullptr);
     m_switchView.SetVisible (isJoyport);
     m_switchView.Layout     (MakeRect (x, stickTop, stickSize, stickSize), scaler);
 
@@ -812,11 +818,13 @@ void ControllersPage::Poll()
         m_onInspect (unit);
     }
 
-    m_stick.SetActive (sample.has_value());
+    m_stick.SetActive      (sample.has_value());
+    m_paddleBars.SetActive (sample.has_value());
 
     if (!sample.has_value())
     {
         m_stick.SetValues (127, 127);
+        PollPaddleBars    (nullptr);
 
         for (light = 0; light < kButtonCount; light++)
         {
@@ -886,6 +894,7 @@ void ControllersPage::Poll()
         m_lights[light].SetLit (reading.buttons.test (light) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light)));
     }
 
+    PollPaddleBars   (&reading);
     PollSwitchLights (&reading);
 }
 
@@ -913,17 +922,89 @@ bool ControllersPage::IsJoyportMode() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsPaddlesMode
+//
+//  The page shows a bar per paddle where the stick is while the controller
+//  in Editing plays for a player in Paddle or Two paddles mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsPaddlesMode() const
+{
+    return m_state != nullptr && m_state->IsEditedOnPaddles();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollPaddleBars
+//
+//  A bar for each of the controller's paddle rows in play, named for the
+//  paddle the guest reads it on, at the value this reading gives it; at
+//  center with no reading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::PollPaddleBars (const GamePortContribution * reading)
+{
+    HRESULT                 hr        = S_OK;
+    std::vector<PaddleBar>  bars;
+    size_t                  axis      = 0;
+    bool                    isShowing = m_isPaddlesShown && m_state != nullptr;
+
+
+
+    BAIL_OUT_IF (!isShowing, S_OK);
+
+    for (axis = 0; axis < kAxisCount; axis++)
+    {
+        PaddleBar     bar;
+        std::wstring  name = m_state->GetTargetPlayLabel (TargetAt (axis));
+
+        if (!m_state->IsTargetInPlay (TargetAt (axis)))
+        {
+            continue;
+        }
+
+        if (!name.empty())
+        {
+            name.pop_back();
+        }
+
+        bar.name  = name.empty() ? std::format (L"PDL{}", axis) : name;
+        bar.value = (reading != nullptr) ? reading->paddle[axis].value_or (PaddleBar::kCenter) : PaddleBar::kCenter;
+
+        bars.push_back (bar);
+    }
+
+    m_paddleBars.SetBars (bars);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SyncJoyportLayout
 //
 //  Each poll: the page is laid out again when the controller in Editing
-//  moves into or out of a Joyport jack, or a warning under a player comes or
-//  goes, since either changes what the page shows, not just its values.
+//  moves into or out of a Joyport jack or a paddle mode, or a warning under
+//  a player comes or goes, since each changes what the page shows, not just
+//  its values.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::SyncJoyportLayout()
 {
-    bool    isChanged = IsJoyportMode() != m_isJoyportShown;
+    bool    isPaddles = !IsJoyportMode() && IsPaddlesMode();
+    bool    isChanged = IsJoyportMode() != m_isJoyportShown || isPaddles != m_isPaddlesShown;
     size_t  player    = 0;
 
 

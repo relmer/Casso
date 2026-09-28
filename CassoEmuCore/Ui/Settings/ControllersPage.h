@@ -5,6 +5,7 @@
 #include "Ui/Settings/ControllerReadoutViews.h"
 #include "Ui/Settings/ControllersPageState.h"
 #include "Ui/Settings/JoyportSwitchView.h"
+#include "Ui/Settings/PaddleBarsView.h"
 #include "Ui/Settings/ProfileDialogOverlay.h"
 
 #include "Window/DxuiPropertyPage.h"
@@ -39,7 +40,9 @@ class DxuiHwndSource;
 //      * Profile            (DxuiComboBox: the model's profiles, with New,
 //                            Rename and Delete)
 //      * Joystick           (a circle with a dot where the stick is, PDL0 and
-//                            PDL1 labeled, beside a row per mapping for each)
+//                            PDL1 labeled, beside a row per mapping for each;
+//                            in Paddle and Two paddles mode a bar per paddle,
+//                            labeled with its value)
 //      * Buttons            (PB0 .. PB2: a light, and a row per mapping)
 //      * Deadzone, Calibration, Reset profile
 //
@@ -174,6 +177,8 @@ private:
     void                 ShowDialog         ();
     void                 AfterEdit          ();
     bool                 IsJoyportMode      () const;
+    bool                 IsPaddlesMode      () const;
+    void                 PollPaddleBars     (const GamePortContribution * reading);
     void                 SyncJoyportLayout  ();
     bool                 IsTargetShown      (size_t target) const;
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
@@ -236,6 +241,10 @@ private:
     // The Joyport's switches, drawn where the stick is while it is on.
     JoyportSwitchView      m_switchView;
     bool                   m_isJoyportShown = false;
+
+    // A bar per paddle, drawn where the stick is in the paddle modes.
+    PaddleBarsView         m_paddleBars;
+    bool                   m_isPaddlesShown = false;
 
     std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;
     std::array<ButtonLightView, kButtonCount>                           m_lights;

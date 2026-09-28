@@ -332,6 +332,88 @@ public:
     }
 
 
+    //  The shown child of type T, or null.
+    template <typename T>
+    static const T * FindShown (const ControllersPage & page)
+    {
+        const T  * found = nullptr;
+        size_t     i     = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount() && found == nullptr; ++i)
+        {
+            found = dynamic_cast<const T *> (page.GetChild (i));
+            found = (found != nullptr && found->IsVisible()) ? found : nullptr;
+        }
+
+        return found;
+    }
+
+
+    //  Paddle and Two paddles show a bar per paddle where the stick's circle
+    //  was, each named for the paddle the guest reads; Joystick keeps the
+    //  circle.
+    TEST_METHOD (PaddleModes_ShowABarPerPaddleInPlaceOfTheStick)
+    {
+        ControllersPage          joystick;
+        ControllersPage          paddle;
+        ControllersPage          pairs;
+        ControllersPageState     joystickState;
+        ControllersPageState     paddleState;
+        ControllersPageState     pairsState;
+        PlayerEntries            entries;
+        PlayerSlots              slots    = MakeTwoPlaying();
+        const PaddleBarsView   * bars     = nullptr;
+
+
+
+        LayOutPage (joystick, joystickState, entries, slots, 0);
+
+        Assert::IsNotNull (FindShown<StickPositionView> (joystick), L"Joystick shows the circle");
+        Assert::IsNull    (FindShown<PaddleBarsView> (joystick),    L"and no bars");
+
+        entries[0].mode = PlayerMode::Paddle;
+        entries[1].mode = PlayerMode::Paddle;
+        slots[0].target = PlayerAxisTarget::Paddle0;
+        slots[1].target = PlayerAxisTarget::Paddle1;
+        LayOutPage (paddle, paddleState, entries, slots, 1);
+
+        bars = FindShown<PaddleBarsView> (paddle);
+
+        Assert::IsNull    (FindShown<StickPositionView> (paddle), L"Paddle shows no circle");
+        Assert::IsNotNull (bars,                                   L"but a bar");
+        Assert::IsTrue    (bars->GetBars() == std::vector<PaddleBar> { { L"PDL1", PaddleBar::kCenter } }, L"one, for paddle 1, at rest");
+
+        entries[0].mode = PlayerMode::TwoPaddles;
+        entries[1].mode = PlayerMode::TwoPaddles;
+        slots[0].target = PlayerAxisTarget::Paddles01;
+        slots[1].target = PlayerAxisTarget::Paddles23;
+        LayOutPage (pairs, pairsState, entries, slots, 1);
+
+        bars = FindShown<PaddleBarsView> (pairs);
+
+        Assert::IsNotNull (bars);
+        Assert::IsTrue    (bars->GetBars() == std::vector<PaddleBar> { { L"PDL2", PaddleBar::kCenter }, { L"PDL3", PaddleBar::kCenter } },
+                           L"Two paddles shows a bar for each of its paddles");
+        Assert::AreEqual  (std::wstring (L"PDL1  108"), PaddleBarsView::FormatLabel ({ L"PDL1", 108 }), L"each labeled with its value");
+    }
+
+
+    //  A bar's mark sits where the paddle reads along its track: 0 at the
+    //  left end, 255 at the right.
+    TEST_METHOD (PaddleBars_TheMarkFallsWhereThePaddleReads)
+    {
+        constexpr float  kLeft  = 10.0f;
+        constexpr float  kWidth = 255.0f;
+        constexpr Byte   kMid   = 127;
+
+        Assert::AreEqual (kLeft,               PaddleBarsView::GetMarkX (kLeft, kWidth, 0),    0.001f, L"0 at the left end");
+        Assert::AreEqual (kLeft + kWidth,      PaddleBarsView::GetMarkX (kLeft, kWidth, 255),  0.001f, L"255 at the right");
+        Assert::AreEqual (kLeft + (float) kMid, PaddleBarsView::GetMarkX (kLeft, kWidth, kMid), 0.001f, L"and in between in proportion");
+    }
+
+
     //  The heading above the input picture gives what the controller in
     //  Editing drives.
     TEST_METHOD (Heading_GivesWhatTheEditedControllerDrives)

@@ -901,6 +901,35 @@ bool ControllersPageState::IsEditedOnJoyport() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsEditedOnPaddles
+//
+//  Whether the controller in Editing plays for a player in Paddle or Two
+//  paddles mode. A controller no player holds is taken by the kind of
+//  profile the page edits for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsEditedOnPaddles() const
+{
+    std::optional<size_t>  player = FindHoldingPlayer();
+
+
+
+    if (!player.has_value())
+    {
+        return m_profileMode == ProfileMode::Paddle;
+    }
+
+    return !PlayerModeRules::IsOnJoyport (m_entries, player.value(), m_hasJoyport)
+           && PlayerModeRules::IsPaddleMode (PlayerModeRules::ResolveMode (m_entries, player.value(), m_hasJoyport));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AreEditedButtonsCut
 //
 //  Whether the controller in Editing plays for a player whose buttons the
