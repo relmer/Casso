@@ -7,7 +7,6 @@
 #include "Ui/Settings/JoyportSwitchView.h"
 #include "Ui/Settings/ProfileDialogOverlay.h"
 
-#include "Core/DxuiSlide.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -34,8 +33,8 @@ class DxuiHwndSource;
 //
 //      * Joyport            (DxuiToggle: the unit's Apple / Atari switch, on a
 //                            machine that can take one)
-//      * Players            (Player 1's entry and target; a Multiplayer
-//                            checkbox; Player 2's, while it is ticked)
+//      * Players            (each player's entry, its mode -- Joystick or
+//                            Paddle -- and a note of what it drives)
 //      * Controller         (DxuiComboBox: every attached controller)
 //      * Profile            (DxuiComboBox: the model's profiles, with New,
 //                            Rename and Delete)
@@ -120,9 +119,6 @@ public:
     // The page's rows came or went, which changes what Tab reaches.
     void          SetOnLayoutChanged (std::function<void ()> onLayoutChanged);
 
-    // A slide started or finished, for the sheet to poll the page often
-    // enough to draw it.
-    void          SetOnSlideChanged  (std::function<void (bool isSliding)> onSlideChanged);
 
     // What each player's mode drop-down lists, in this order.
     static constexpr const wchar_t *  kpszJoystickMode  = L"Joystick";
@@ -166,10 +162,7 @@ private:
     void                 RefreshPlayers     ();
     void                 OnPlayerEntrySelect  (size_t player, int item);
     void                 OnPlayerModeSelect   (size_t player, int item);
-    void                 OnMultiplayerCheck   (bool isChecked);
     void                 ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
-    void                 StartPlayerTwoSlide  (bool isShowing, int distancePx);
-    void                 AdvanceSlide         ();
     void                 RefreshAxisOptions ();
     void                 RefreshCalibration ();
     void                 OnRowSelect        (size_t target, size_t row, int item);
@@ -194,7 +187,7 @@ private:
     void                 OnJoyportSwitch    (bool isAtariMode);
     void                 ApplyJoyportMode   (bool isAtariMode);
     void                 SyncJoyportSwitch  ();
-    void                 LayOutJoyportSection (int x, int y, bool isOffered, const DxuiDpiScaler & scaler);
+    int                  LayOutJoyportSection (int x, int y, bool isOffered, const DxuiDpiScaler & scaler);
     bool                 IsTargetShown      (size_t target) const;
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
     void                 PollSwitchLights   (const GamePortContribution * reading);
@@ -223,8 +216,7 @@ private:
     // one. The last value read from isOn is kept apart from the switch, so a
     // flip on the page is not taken for a change from the picker before the
     // command it posts has been handled. "Joyport" sits to the left of the
-    // switch, and each position is labeled to its right, level with the
-    // knob's place there.
+    // switch, "Apple (rear)" above it and "Atari (front)" below it.
     DxuiLabel                   m_joyportHeading;
     DxuiToggle                  m_joyportSwitch;
     DxuiLabel                   m_joyportAppleLabel;
@@ -235,24 +227,15 @@ private:
     bool                        m_lastJoyportOn         = false;
     bool                        m_isJoyportSectionShown = false;
 
-    // The two players: Player 1's row, the Multiplayer checkbox, and Player
-    // 2's row while it is ticked. Each row's drop-downs carry what they
-    // offer, so a pick resolves to an entry and a target rather than to an
-    // index into a list that may have been rebuilt since.
-    //
-    // TICKING SLIDES THE ROWS BELOW DOWN to make room for Player 2's row,
-    // which appears once they have, and unticking takes the row away and
-    // slides them back, over the time and curve a menu opens with.
-    DxuiCheckbox                                                             m_multiplayerCheck;
-    std::array<DxuiLabel, kPlayerCount>                                      m_playerLabel;
-    std::array<DxuiComboBox, kPlayerCount>                                   m_playerEntry;
-    std::array<DxuiLabel, kPlayerCount>                                      m_playerMapsLabel;
-    std::array<DxuiComboBox, kPlayerCount>                                   m_playerMode;
-    std::array<std::vector<PlayerEntry>, kPlayerCount>                       m_playerEntries;
-    DxuiSlide                                                                m_slide;
-    bool                                                                     m_isSliding        = false;
-    bool                                                                     m_isPlayerTwoShown = false;
-    std::function<void (bool)>                                               m_onSlideChanged;
+    // The two players, each always shown: the entry, the mode and the note
+    // of what the player drives. The entry drop-down carries what it offers,
+    // so a pick resolves to an entry rather than to an index into a list that
+    // may have been rebuilt since.
+    std::array<DxuiLabel, kPlayerCount>                 m_playerLabel;
+    std::array<DxuiComboBox, kPlayerCount>              m_playerEntry;
+    std::array<DxuiComboBox, kPlayerCount>              m_playerMode;
+    std::array<DxuiLabel, kPlayerCount>                 m_playerNote;
+    std::array<std::vector<PlayerEntry>, kPlayerCount>  m_playerEntries;
 
     DxuiLabel          m_controllerLabel;
     DxuiComboBox       m_controller;

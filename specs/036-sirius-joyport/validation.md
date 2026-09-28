@@ -219,3 +219,12 @@ place a player on a jack.
 | Mutation: the position labels back to "Apple mode" / "Atari mode" | automated | 2 tests went red: `JoyportPositionLabel_GivesTheEndOfTheUnit` (`Expected:<Atari (front)> Actual:<Atari mode>`) and `JoyportPositionLabels_AreLevelWithTheKnobsTwoPositions` |
 | Full unit suite | x64 Release | 5,839 of 5,839 |
 | The section on screen in Apple mode and in Atari mode | manual | pass: each label level with the knob at its end, "Joyport" centered on the switch; the two labels are 18 DIP apart, the pill's own travel, so the lines sit close |
+
+## Phase 17: three profile kinds and each player's mode beside the Joyport (2026-09-27, later)
+
+| Check | Kind | Result |
+|---|---|---|
+| T126 profile kinds: recorded with spec 034's T171 in its `validation.md` | automated | pass |
+| T127 picker with the Joyport on: no Paddle mode and no mouse, the keys in either mode, "same as left" lower case after the row's colon (`PaddleSourceRowsTests`, `ControllersPageStateTests`); mutations recorded with spec 034's T179 | automated | pass |
+| T128 Controllers page: "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it, "Joyport" left of it and centered on it; the heading "Atari joystick" with ": left jack", ": right jack" or ": both jacks"; each player's mode disabled in Atari mode (`ControllersPageLayoutTests`, `ControllersPageStateTests`); mutations recorded with spec 034's T182 | automated | pass |
+| T129 the page in Atari mode and the switch zoomed, by capture | manual, by capture | pass; see spec 034's `validation.md`, Phase 19, for the run and the capture paths |

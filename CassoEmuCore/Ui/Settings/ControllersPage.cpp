@@ -4,29 +4,29 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
-#include "Core/DxuiSystemSettings.h"
 
 
 
 
 
 // Layout metrics (DIP), matching the other settings pages.
-static constexpr int  s_kRowHeightDp           = 28;
-static constexpr int  s_kLabelWidthDp          = 90;
-static constexpr int  s_kRowWidthDp            = 220;
-static constexpr int  s_kAddWidthDp            = 28;
-static constexpr int  s_kStickSizeDp           = 190;
-static constexpr int  s_kLightSizeDp           = 14;
-static constexpr int  s_kWideWidthDp           = 340;
-static constexpr int  s_kButtonWidthDp         = 130;
-static constexpr int  s_kProfileButtonWidthDp  = 90;
-static constexpr int  s_kOptionWidthDp         = 110;
-static constexpr int  s_kMapsWidthDp           = 56;
-static constexpr int  s_kPlayerTargetWidthDp   = 210;
-static constexpr int  s_kChildIndentDp         = 18;
-static constexpr int  s_kGapDp                 = 6;
-static constexpr int  s_kSectionGapDp          = 14;
-static constexpr int  s_kPagePadDp             = 16;
+static constexpr int  s_kRowHeightDp            = 28;
+static constexpr int  s_kLabelWidthDp           = 90;
+static constexpr int  s_kRowWidthDp             = 220;
+static constexpr int  s_kAddWidthDp             = 28;
+static constexpr int  s_kStickSizeDp            = 190;
+static constexpr int  s_kLightSizeDp            = 14;
+static constexpr int  s_kWideWidthDp            = 340;
+static constexpr int  s_kButtonWidthDp          = 130;
+static constexpr int  s_kProfileButtonWidthDp   = 90;
+static constexpr int  s_kOptionWidthDp          = 110;
+static constexpr int  s_kPlayerModeWidthDp      = 110;
+static constexpr int  s_kPlayerNoteWidthDp      = 170;
+static constexpr int  s_kJoyportPositionWidthDp = 120;
+static constexpr int  s_kChildIndentDp          = 18;
+static constexpr int  s_kGapDp                  = 6;
+static constexpr int  s_kSectionGapDp           = 14;
+static constexpr int  s_kPagePadDp              = 16;
 static constexpr int  s_kJoyportSwitchHeightDp  = 44;
 
 static constexpr const wchar_t *  s_kTargetNames[ControllersPage::kTargetCount] =
@@ -62,15 +62,10 @@ ControllersPage::ControllersPage (std::wstring title)
 
     for (target = 0; target < kPlayerCount; target++)
     {
-        if (target == kPlayerTwo)
-        {
-            Adopt (m_multiplayerCheck);
-        }
-
         Adopt (m_playerLabel[target]);
         Adopt (m_playerEntry[target]);
-        Adopt (m_playerMapsLabel[target]);
         Adopt (m_playerMode[target]);
+        Adopt (m_playerNote[target]);
     }
 
     Adopt (m_controllerLabel);
@@ -170,13 +165,6 @@ void ControllersPage::SetState (ControllersPageState * state)
         }
     });
 
-    m_multiplayerCheck.SetOnChange ([this] (bool isChecked)
-    {
-        if (!m_isSyncing)
-        {
-            OnMultiplayerCheck (isChecked);
-        }
-    });
 
     for (size_t target = 0; target < kPlayerCount; target++)
     {
@@ -388,6 +376,11 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 //  The height is reported last, after the page is fully laid out, since the
 //  sheet may lay the page out again in response.
 //
+//  Each player's row is its entry, its mode -- Joystick or Paddle, which
+//  cannot be chosen in Atari mode -- and a note of what the player drives.
+//  Both rows are always there: Player 2's Disabled entry is how two-player
+//  play is turned off.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
@@ -407,9 +400,8 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     indent      = scaler.ToPx (s_kChildIndentDp);
     int     gap         = scaler.ToPx (s_kGapDp);
     int     sectionGap  = scaler.ToPx (s_kSectionGapDp);
-    int     mapsWidth   = scaler.ToPx (s_kMapsWidthDp);
-    int     targetWidth = scaler.ToPx (s_kPlayerTargetWidthDp);
-    int     switchH     = scaler.ToPx (s_kJoyportSwitchHeightDp);
+    int     modeWidth   = scaler.ToPx (s_kPlayerModeWidthDp);
+    int     noteWidth   = scaler.ToPx (s_kPlayerNoteWidthDp);
     int     x           = rect.left + pad;
     int     y           = rect.top  + pad;
     int     axesX       = x + stickSize + sectionGap;
@@ -418,8 +410,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     contentH    = 0;
     int     playerStep  = rowH + gap;
     bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
-    bool    isTwoShown  = m_state == nullptr || m_state->IsMultiplayerChecked();
-    bool    hadLayout   = m_hasLayout;
     bool    isOffered   = IsJoyportOffered();
     bool    isJoyport   = IsJoyportMode();
     size_t  target      = 0;
@@ -438,65 +428,31 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // jacks, and toward the top is Apple mode, the game port with no Joyport.
     m_isJoyportSectionShown = isOffered;
 
-    LayOutJoyportSection (x, y, isOffered, scaler);
+    y = LayOutJoyportSection (x, y, isOffered, scaler);
 
     if (isOffered)
     {
-        y += switchH + sectionGap;
+        y += sectionGap;
     }
 
     // The players lead the page after the Joyport, since who is playing
-    // decides what everything below edits: Player 1's row, the Multiplayer
-    // checkbox, and Player 2's row while it is ticked. A change of the box,
-    // from the page or the picker, slides everything below.
-    if (hadLayout && isTwoShown != m_isPlayerTwoShown)
-    {
-        StartPlayerTwoSlide (isTwoShown, playerStep);
-    }
-
-    m_isPlayerTwoShown = isTwoShown;
-
+    // decides what everything below edits. The mode stays on the row in
+    // Atari mode, disabled, since both players are Atari sticks there and
+    // the mode returns when the Joyport comes off.
     for (player = 0; player < kPlayerCount; player++)
     {
-        // Player 2's row appears only once the rows below have made room
-        // for it, so nothing is drawn over it on the way.
-        bool  isShown = player != kPlayerTwo || (isTwoShown && !m_isSliding);
+        int  modeX = x + labelWidth + rowWidth + gap;
 
-        if (player == kPlayerTwo)
-        {
-            m_multiplayerCheck.SetRect    (MakeRect (x, y, wideWidth, rowH));
-            m_multiplayerCheck.SetLabel   (L"Multiplayer");
-            m_multiplayerCheck.SetVisible (m_state != nullptr);
-            y += playerStep;
-        }
+        m_playerLabel[player].SetRect (MakeRect (x, y, labelWidth, rowH));
+        m_playerLabel[player].SetText (player == 0 ? L"Player 1:" : L"Player 2:");
+        m_playerEntry[player].SetRect (MakeRect (x + labelWidth, y, rowWidth, rowH));
+        m_playerMode[player].SetRect  (MakeRect (modeX, y, modeWidth, rowH));
+        m_playerNote[player].SetRect  (MakeRect (modeX + modeWidth + gap, y, noteWidth, rowH));
 
-        m_playerLabel[player].SetVisible (isShown);
-        m_playerLabel[player].SetRect    (MakeRect (x, y, labelWidth, rowH));
-        m_playerLabel[player].SetText    (player == 0 ? L"Player 1:" : L"Player 2:");
-
-        m_playerEntry[player].SetVisible (isShown);
-        m_playerEntry[player].SetRect    (MakeRect (x + labelWidth, y, rowWidth, rowH));
-
-        // With the Joyport attached a player's slot is their jack, and the
-        // paddles the slot maps to play no part, so the jack takes the place
-        // of that choice. The choice is kept for when the Joyport comes off.
-        m_playerMapsLabel[player].SetVisible (isShown);
-        m_playerMapsLabel[player].SetRect    (MakeRect (x + labelWidth + rowWidth + gap, y,
-                                                        isJoyport ? targetWidth : mapsWidth, rowH));
-        m_playerMapsLabel[player].SetText    (isJoyport ? (player == 0 ? L"left jack" : L"right jack") : L"mode");
-
-        m_playerMode[player].SetVisible (isShown && !isJoyport);
-        m_playerMode[player].SetRect    (MakeRect (x + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
-
-        if (player != kPlayerTwo || isTwoShown)
-        {
-            y += playerStep;
-        }
+        y += playerStep;
     }
 
-    // Everything below the players is where the slide has it: short of its
-    // place by what is left to travel.
-    y += sectionGap - gap + (int) std::lround (m_slide.GetOffset ((int64_t) GetTickCount64()));
+    y += sectionGap - gap;
     m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
 
     // While two people play, this drop-down chooses whose mappings the rest
@@ -674,15 +630,14 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
     contentH = y + rowH + pad - rect.top;
 
-    m_joyportHeading.SetDpi   (dpi);
-    m_multiplayerCheck.SetDpi (dpi);
+    m_joyportHeading.SetDpi (dpi);
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        m_playerLabel[player].SetDpi     (dpi);
-        m_playerEntry[player].SetDpi     (dpi);
-        m_playerMapsLabel[player].SetDpi (dpi);
-        m_playerMode[player].SetDpi      (dpi);
+        m_playerLabel[player].SetDpi (dpi);
+        m_playerEntry[player].SetDpi (dpi);
+        m_playerMode[player].SetDpi  (dpi);
+        m_playerNote[player].SetDpi  (dpi);
     }
 
     m_controllerLabel.SetDpi (dpi);
@@ -738,11 +693,12 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 //  LayOutJoyportSection
 //
-//  The switch stands in the column the drop-downs below start at, its top at
-//  y. "Joyport" sits to its left, centered on the pill top to bottom, and
-//  each position's label sits to its right, centered on the knob's place at
-//  that end: Apple mode's at the top, Atari mode's at the bottom. Both are
-//  always shown, as they are printed on the unit.
+//  "Apple (rear)" sits above the switch and "Atari (front)" below it, each
+//  centered on it side to side, as they are printed on the unit, and both
+//  are always shown. "Joyport" sits to its left, centered on the pill top
+//  to bottom. The switch stands in the column the drop-downs below start at,
+//  under the Apple label, whose top is at y. Returns the bottom of the Atari
+//  label, which is the bottom of the section.
 //
 //  The positions come from the switch's own geometry, so the labels follow
 //  the pill wherever the toggle draws it. The switch is laid out across the
@@ -750,7 +706,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::LayOutJoyportSection (int x, int y, bool isOffered, const DxuiDpiScaler & scaler)
+int ControllersPage::LayOutJoyportSection (int x, int y, bool isOffered, const DxuiDpiScaler & scaler)
 {
     constexpr float  kHalf = 0.5f;
 
@@ -760,13 +716,16 @@ void ControllersPage::LayOutJoyportSection (int x, int y, bool isOffered, const 
     int                        rowH       = scaler.ToPx (s_kRowHeightDp);
     int                        labelWidth = scaler.ToPx (s_kLabelWidthDp);
     int                        rowWidth   = scaler.ToPx (s_kRowWidthDp);
-    int                        gap        = scaler.ToPx (s_kGapDp);
+    int                        spanWidth  = scaler.ToPx (s_kJoyportPositionWidthDp);
     int                        switchH    = scaler.ToPx (s_kJoyportSwitchHeightDp);
     int                        switchX    = x + labelWidth;
+    int                        switchY    = y + rowH;
     int                        pillRight  = 0;
+    int                        pillTop    = 0;
+    int                        pillBottom = 0;
+    int                        pillMidX   = 0;
     int                        pillMidY   = 0;
-    DxuiToggle::TrackAndThumb  apple;
-    DxuiToggle::TrackAndThumb  atari;
+    DxuiToggle::TrackAndThumb  pill;
 
 
 
@@ -774,28 +733,34 @@ void ControllersPage::LayOutJoyportSection (int x, int y, bool isOffered, const 
     m_joyportSwitch.SetOnDirection  (DxuiToggle::OnDirection::Down);
     m_joyportSwitch.SetLabel        (L"Joyport");
     m_joyportSwitch.SetLabelVisible (false);
-    m_joyportSwitch.Layout          (MakeRect (switchX, y, rowWidth, switchH), scaler);
+    m_joyportSwitch.Layout          (MakeRect (switchX, switchY, rowWidth, switchH), scaler);
 
-    apple     = m_joyportSwitch.GetTrackAndThumb (false);
-    atari     = m_joyportSwitch.GetTrackAndThumb (true);
-    pillRight = (int) std::ceil (apple.track.right);
-    pillMidY  = (int) std::lround ((apple.track.top + apple.track.bottom) * kHalf);
+    pill       = m_joyportSwitch.GetTrackAndThumb (false);
+    pillRight  = (int) std::ceil  (pill.track.right);
+    pillTop    = (int) std::floor (pill.track.top);
+    pillBottom = (int) std::ceil  (pill.track.bottom);
+    pillMidX   = (int) std::lround ((pill.track.left + pill.track.right) * kHalf);
+    pillMidY   = (int) std::lround ((pill.track.top  + pill.track.bottom) * kHalf);
 
-    m_joyportSwitch.SetRect (MakeRect (switchX, y, pillRight - switchX, switchH));
+    m_joyportSwitch.SetRect (MakeRect (switchX, switchY, pillRight - switchX, switchH));
 
     m_joyportHeading.SetVisible (isOffered);
     m_joyportHeading.SetRect    (MakeRect (x, pillMidY - rowH / 2, labelWidth, rowH));
     m_joyportHeading.SetText    (L"Joyport");
 
-    m_joyportAppleLabel.SetVisible (isOffered);
-    m_joyportAppleLabel.SetRect    (MakeRect (pillRight + gap, (int) std::lround (apple.thumbCenter.y) - rowH / 2, rowWidth, rowH));
-    m_joyportAppleLabel.SetText    (ControllersPageState::GetJoyportPositionLabel (false));
-    m_joyportAppleLabel.SetDpi     (dpi);
+    m_joyportAppleLabel.SetVisible   (isOffered);
+    m_joyportAppleLabel.SetRect      (MakeRect (pillMidX - spanWidth / 2, pillTop - rowH, spanWidth, rowH));
+    m_joyportAppleLabel.SetTextAlign (DxuiTextHAlign::Center, DxuiTextVAlign::Bottom);
+    m_joyportAppleLabel.SetText      (ControllersPageState::GetJoyportPositionLabel (false));
+    m_joyportAppleLabel.SetDpi       (dpi);
 
-    m_joyportAtariLabel.SetVisible (isOffered);
-    m_joyportAtariLabel.SetRect    (MakeRect (pillRight + gap, (int) std::lround (atari.thumbCenter.y) - rowH / 2, rowWidth, rowH));
-    m_joyportAtariLabel.SetText    (ControllersPageState::GetJoyportPositionLabel (true));
-    m_joyportAtariLabel.SetDpi     (dpi);
+    m_joyportAtariLabel.SetVisible   (isOffered);
+    m_joyportAtariLabel.SetRect      (MakeRect (pillMidX - spanWidth / 2, pillBottom, spanWidth, rowH));
+    m_joyportAtariLabel.SetTextAlign (DxuiTextHAlign::Center, DxuiTextVAlign::Top);
+    m_joyportAtariLabel.SetText      (ControllersPageState::GetJoyportPositionLabel (true));
+    m_joyportAtariLabel.SetDpi       (dpi);
+
+    return isOffered ? pillBottom + rowH : y;
 }
 
 
@@ -826,8 +791,6 @@ void ControllersPage::Poll()
     {
         return;
     }
-
-    AdvanceSlide();
 
     if (m_state->GetControllers().size() != m_lastControllerCount)
     {
@@ -1749,21 +1712,21 @@ void ControllersPage::RefreshRows()
 //
 //  RefreshPlayers
 //
-//  Each player's two drop-downs and the Multiplayer checkbox. The entries
+//  Each player's two drop-downs and the note of what it drives. The entries
 //  are the picker's own, the other player's controller included: picking
 //  that one returns the other player to Automatic. The mode is Joystick or
-//  Paddle, in that order.
+//  Paddle, in that order; in Atari mode both players are Atari sticks, so
+//  the choice shows Joystick and cannot be made.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::RefreshPlayers()
 {
-    size_t  player = 0;
-    size_t  i      = 0;
+    size_t  player    = 0;
+    size_t  i         = 0;
+    bool    isJoyport = m_state->IsJoyportInEffect();
 
 
-
-    m_multiplayerCheck.SetChecked (m_state->IsMultiplayerChecked());
 
     for (player = 0; player < kPlayerCount; player++)
     {
@@ -1789,8 +1752,10 @@ void ControllersPage::RefreshPlayers()
         m_playerEntry[player].SetSelected (selected);
 
         m_playerMode[player].SetItems    ({ kpszJoystickMode, kpszPaddleMode });
-        m_playerMode[player].SetSelected (current.mode == PlayerMode::Paddle ? kPaddleModeItem : kJoystickModeItem);
-        m_playerMode[player].SetEnabled  (!m_state->IsJoyportInEffect());
+        m_playerMode[player].SetSelected (current.mode == PlayerMode::Paddle && !isJoyport ? kPaddleModeItem : kJoystickModeItem);
+        m_playerMode[player].SetEnabled  (!isJoyport);
+
+        m_playerNote[player].SetText (m_state->GetPlayerNote (player));
     }
 }
 
@@ -1860,107 +1825,6 @@ void ControllersPage::ApplyPlayerEntry (size_t player, const PlayerEntry & entry
     Relayout();
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMultiplayerCheck
-//
-//  The box is Player 2's entry: it applies at once, and the layout that
-//  follows starts the slide.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPage::OnMultiplayerCheck (bool isChecked)
-{
-    if (m_state == nullptr)
-    {
-        return;
-    }
-
-    m_state->SetMultiplayerChecked (isChecked);
-    Relayout();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StartPlayerTwoSlide
-//
-//  Everything below the players starts where it was and travels to its new
-//  place: down by Player 2's row when it is coming, up when it is going. A
-//  slide already under way starts the new one from where it has got to. With
-//  menu animations off the slide is done at once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPage::StartPlayerTwoSlide (bool isShowing, int distancePx)
-{
-    int64_t  nowMs     = (int64_t) GetTickCount64();
-    float    currentPx = m_slide.GetOffset (nowMs);
-    float    travelPx  = (float) (isShowing ? -distancePx : distancePx);
-
-
-
-    m_slide     = DxuiSlide::Start (currentPx + travelPx, nowMs, DxuiSystemSettings::Instance().AreMenuAnimationsEnabled());
-    m_isSliding = !m_slide.IsDone (nowMs);
-
-    if (m_isSliding && m_onSlideChanged)
-    {
-        m_onSlideChanged (true);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AdvanceSlide
-//
-//  Each poll while the rows slide: lay the page out where the slide has them
-//  now, and at the end, once more in place, with Player 2's row shown if it
-//  is coming.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPage::AdvanceSlide()
-{
-    if (!m_isSliding)
-    {
-        return;
-    }
-
-    m_isSliding = !m_slide.IsDone ((int64_t) GetTickCount64());
-
-    Relayout();
-
-    if (!m_isSliding && m_onSlideChanged)
-    {
-        m_onSlideChanged (false);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetOnSlideChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPage::SetOnSlideChanged (std::function<void (bool isSliding)> onSlideChanged)
-{
-    m_onSlideChanged = std::move (onSlideChanged);
-}
 
 
 

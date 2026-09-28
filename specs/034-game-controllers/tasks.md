@@ -455,9 +455,9 @@ description: "Task list for 034 physical game controllers"
 
 ### Controllers page
 
-- [ ] T182 [P] [US7] Extend `UnitTest/UiTests/ControllersPageLayoutTests.cpp`: no checkbox; both player rows always shown with an entry, a Joystick / Paddle choice and a note of what the player drives; the choice disabled in Atari mode; "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it; the content height still reaches Reset profile. Mutation: lay the labels out beside the switch
-- [ ] T183 [US7] Rework `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`: drop the Multiplayer checkbox and its slide (keeping `DxuiSlide`, which the notice stack uses); Player 2's entry list with Disabled, reading "same as left" with the Joyport on; the mode choice and the note; the switch labels; the heading "Atari joystick" with the jack of the controller in Editing
-- [ ] T184 [US7] Build; run `-Filter ControllersPage`; capture the page in Apple mode with one player in Paddle mode, in Atari mode, and the switch zoomed; commit: `feat(settings): show each player's mode on the Controllers page`
+- [X] T182 [P] [US7] Extend `UnitTest/UiTests/ControllersPageLayoutTests.cpp`: no checkbox; both player rows always shown with an entry, a Joystick / Paddle choice and a note of what the player drives; the choice disabled in Atari mode; "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it; the content height still reaches Reset profile. Mutation: lay the labels out beside the switch
+- [X] T183 [US7] Rework `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`: drop the Multiplayer checkbox and its slide (keeping `DxuiSlide`, which the notice stack uses); Player 2's entry list with Disabled, reading "same as left" with the Joyport on; the mode choice and the note; the switch labels; the heading "Atari joystick" with the jack of the controller in Editing
+- [X] T184 [US7] Build; run `-Filter ControllersPage`; capture the page in Apple mode with one player in Paddle mode, in Atari mode, and the switch zoomed; commit: `feat(settings): show each player's mode on the Controllers page`
 
 ### Documents
 

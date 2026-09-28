@@ -4,6 +4,8 @@
 
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
+#include "Controllers/JoyportJackRules.h"
+#include "Controllers/JoyportLabels.h"
 
 
 
@@ -141,6 +143,38 @@ void ControllersPageState::SetActiveProfiles (ProfileMode mode, const std::map<s
 void ControllersPageState::SetJoyportInEffect (bool isInEffect)
 {
     m_isJoyportInEffect = isInEffect;
+    SyncPlayers();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncPlayers
+//
+//  After any change to the players or the Joyport. Each slot's target is
+//  what the two modes give it, as the service would set it, so the page
+//  shows the new targets at once, before the service's slots come back; then
+//  the profile kind follows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SyncPlayers()
+{
+    bool    isOnePaddle = PlayerSlotPolicy::GetEffectiveMode (m_entries[0], m_isJoyportInEffect) == PlayerMode::Paddle;
+    size_t  player      = 0;
+
+
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        bool  isPaddle = PlayerSlotPolicy::GetEffectiveMode (m_entries[player], m_isJoyportInEffect) == PlayerMode::Paddle;
+
+        m_slots[player].target = PlayerTargetRules::GetModeTarget (player, isPaddle, isOnePaddle);
+    }
+
     SyncProfileMode();
 }
 
@@ -544,7 +578,7 @@ void ControllersPageState::SetPlayers (const PlayerEntries & entries, const Play
     m_slots     = slots;
     m_axisCount = axisCount;
 
-    SyncProfileMode();
+    SyncPlayers();
 }
 
 
@@ -668,52 +702,6 @@ std::optional<ControllerUnitKey> ControllersPageState::GetPlayerUnit (size_t pla
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsMultiplayerChecked
-//
-//  The Multiplayer checkbox is Player 2's entry seen another way: ticked for
-//  anything but Disabled, which is why it starts ticked.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ControllersPageState::IsMultiplayerChecked() const
-{
-    return m_entries[kPlayerTwo].kind != PlayerEntryKind::Disabled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetMultiplayerChecked
-//
-//  Unticking is Player 2's Disabled entry and ticking puts Player 2 on
-//  Automatic, both keeping Player 2's mode.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPageState::SetMultiplayerChecked (bool isChecked)
-{
-    PlayerEntry  entry;
-
-
-
-    if (isChecked == IsMultiplayerChecked())
-    {
-        return;
-    }
-
-    entry.kind = isChecked ? PlayerEntryKind::Automatic : PlayerEntryKind::Disabled;
-
-    ApplyPlayerEntry (kPlayerTwo, entry);
-}
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -761,7 +749,7 @@ void ControllersPageState::SetPlayerMode (size_t player, PlayerMode mode)
         m_onPlayerModeSet (player, mode);
     }
 
-    SyncProfileMode();
+    SyncPlayers();
 }
 
 
@@ -787,7 +775,7 @@ void ControllersPageState::ApplyPlayerEntry (size_t player, const PlayerEntry & 
         m_onPlayerPicked (player, entry);
     }
 
-    SyncProfileMode();
+    SyncPlayers();
 }
 
 
@@ -799,8 +787,10 @@ void ControllersPageState::ApplyPlayerEntry (size_t player, const PlayerEntry & 
 //  GetEntryChoices
 //
 //  The picker's own list for the player, from the same rules, so the page
-//  and the picker offer the same entries under the same words. Player 2's
-//  Disabled is left out: the Multiplayer checkbox is where it is chosen.
+//  and the picker offer the same entries under the same words. The page's
+//  drop-down follows the colon of "Player 2:", so Player 2's Disabled entry
+//  is written as it is after the colon of the picker's row: "same as left"
+//  while the Joyport is in effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -820,21 +810,125 @@ std::vector<InputModeRules::PlayerChoice> ControllersPageState::GetEntryChoices 
     source.slots             = m_slots;
     source.devices           = m_devices;
     source.isJoyportInEffect = m_isJoyportInEffect;
+    source.labels            = JoyportLabels::GetPickerLabels (m_isJoyportInEffect);
 
     for (const ControllerEntry & entry : m_controllers)
     {
         source.knownDescriptions[ControllerTokens::UnitToToken (entry.unit)] = entry.description;
     }
 
-    for (const InputModeRules::PlayerChoice & choice : InputModeRules::BuildPicker (source).rows[player].choices)
+    for (InputModeRules::PlayerChoice choice : InputModeRules::BuildPicker (source).rows[player].choices)
     {
-        if (choice.entry.kind != PlayerEntryKind::Disabled)
+        if (choice.entry.kind == PlayerEntryKind::Disabled)
         {
-            choices.push_back (choice);
+            choice.label = source.labels.disabledInRow;
         }
+
+        choices.push_back (choice);
     }
 
     return choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlayerNote
+//
+//  What a player drives, for the note beside its row: its Joyport jack
+//  while the Joyport is in effect, and otherwise the joystick or paddle its
+//  place on the game port is wired to, or nothing where this machine does
+//  not have it. The mouse as paddle drives both of Player 1's paddles, and
+//  a player who is Disabled drives nothing, so has no note.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetPlayerNote (size_t player) const
+{
+    PlayerTargetRules::Route  route;
+    std::optional<size_t>     first;
+    size_t                    count = 0;
+    size_t                    i     = 0;
+
+
+
+    if (player >= kPlayerCount || m_entries[player].kind == PlayerEntryKind::Disabled)
+    {
+        return std::wstring();
+    }
+
+    if (m_isJoyportInEffect)
+    {
+        return GetJoyportJackNote (GetPlayerJack (player));
+    }
+
+    if (m_entries[player].kind == PlayerEntryKind::MousePaddle)
+    {
+        return L"paddles 0 and 1";
+    }
+
+    route = PlayerSlotPolicy::GetPlayerRoute (m_slots, m_entries, player, m_axisCount);
+
+    for (i = 0; i < route.paddles.size(); i++)
+    {
+        if (!route.paddles[i].has_value())
+        {
+            continue;
+        }
+
+        first = first.has_value() ? first : route.paddles[i];
+        count++;
+    }
+
+    if (!first.has_value())
+    {
+        return L"nothing on this machine";
+    }
+
+    if (count == 1)
+    {
+        return std::format (L"paddle {}", first.value());
+    }
+
+    return std::format (L"joystick {}", first.value() / kPaddlesPerJoystick);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlayerJack
+//
+//  The Joyport jack or jacks a player drives: both for one playing alone,
+//  its own otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoyportJack ControllersPageState::GetPlayerJack (size_t player) const
+{
+    JoyportJackRules::JackSources  sources = JoyportJackRules::AssignJacks (JoyportJackRules::ReducePlayers (m_slots, m_entries));
+    JoyportJackSource              own     = (player == 0) ? JoyportJackSource::Player1 : JoyportJackSource::Player2;
+    bool                           isLeft  = sources[JoyportJacks::kLeftJack]  == own;
+    bool                           isRight = sources[JoyportJacks::kRightJack] == own;
+
+
+
+    if (isLeft && isRight)
+    {
+        return JoyportJack::Both;
+    }
+
+    if (isLeft || isRight)
+    {
+        return isLeft ? JoyportJack::Left : JoyportJack::Right;
+    }
+
+    return (player == 0) ? JoyportJack::Left : JoyportJack::Right;
 }
 
 
@@ -908,34 +1002,55 @@ JoyportJack ControllersPageState::GetJoyportJack() const
 //
 //  GetJoyportHeading
 //
+//  The heading above the switch lights: the Atari joystick the controller
+//  in Editing is, and the jack it drives.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ControllersPageState::GetJoyportHeading (JoyportJack jack)
 {
-    std::wstring  heading = L"Joyport";
+    std::wstring  heading = L"Atari joystick";
+    std::wstring  note    = GetJoyportJackNote (jack);
+
+
+
+    if (!note.empty())
+    {
+        heading += L": " + note;
+    }
+
+    return heading;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetJoyportJackNote
+//
+//  Empty for no jack.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetJoyportJackNote (JoyportJack jack)
+{
+    std::wstring  note;
 
 
 
     switch (jack)
     {
-        case JoyportJack::Left:
-            heading = L"Joyport: left jack";
-            break;
-
-        case JoyportJack::Right:
-            heading = L"Joyport: right jack";
-            break;
-
-        case JoyportJack::Both:
-            heading = L"Joyport: both jacks";
-            break;
+        case JoyportJack::Left:   note = L"left jack";   break;
+        case JoyportJack::Right:  note = L"right jack";  break;
+        case JoyportJack::Both:   note = L"both jacks";  break;
 
         case JoyportJack::None:
-        default:
-            break;
+        default:                                         break;
     }
 
-    return heading;
+    return note;
 }
 
 

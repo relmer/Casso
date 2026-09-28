@@ -1444,65 +1444,9 @@ namespace ControllerTests
         }
 
 
-        //  The Multiplayer checkbox is Player 2's entry seen another way:
-        //  ticked by default, and unticked exactly while Player 2 is Disabled.
-        TEST_METHOD (MultiplayerCheckbox_IsTickedByDefaultAndReadsPlayerTwosEntry)
-        {
-            ControllersPageState  page;
-            PlayerEntries         entries;
-
-
-
-            Assert::IsTrue (page.IsMultiplayerChecked(), L"ticked on a page no one has set");
-
-            page.SetPlayers (entries, PlayerSlots(), 4);
-            Assert::IsTrue (page.IsMultiplayerChecked(), L"ticked with both players on Automatic");
-
-            entries[1].kind = PlayerEntryKind::Disabled;
-            page.SetPlayers (entries, PlayerSlots(), 4);
-            Assert::IsFalse (page.IsMultiplayerChecked(), L"unticked while Player 2 is Disabled");
-
-            entries[1].kind = PlayerEntryKind::Controller;
-            entries[1].unit = MakeStick().unit;
-            page.SetPlayers (entries, PlayerSlots(), 4);
-            Assert::IsTrue (page.IsMultiplayerChecked(), L"ticked for a picked controller");
-        }
-
-
-        TEST_METHOD (MultiplayerCheckbox_UntickingWritesDisabledAndTickingWritesAutomatic)
-        {
-            ControllersPageState  page;
-            Picks                 picks;
-
-
-
-            page.Load ({ MakeStick() }, {}, {}, true);
-            page.SetPlayers (PlayerEntries(), PlayerSlots(), 4);
-            page.SetOnPlayerPicked (RecordPicks (picks));
-
-            page.SetMultiplayerChecked (false);
-
-            Assert::AreEqual (size_t (1), picks.size(), L"unticking picks for Player 2 at once");
-            Assert::AreEqual (size_t (1), picks.back().first);
-            Assert::IsTrue   (picks.back().second.kind == PlayerEntryKind::Disabled);
-            Assert::IsTrue   (page.GetPlayerEntries()[1].kind == PlayerEntryKind::Disabled);
-            Assert::IsFalse  (page.IsMultiplayerChecked());
-
-            page.SetMultiplayerChecked (true);
-
-            Assert::AreEqual (size_t (2), picks.size());
-            Assert::AreEqual (size_t (1), picks.back().first);
-            Assert::IsTrue   (picks.back().second.kind == PlayerEntryKind::Automatic, L"ticking puts Player 2 on Automatic");
-            Assert::IsTrue   (page.IsMultiplayerChecked());
-
-            page.SetMultiplayerChecked (true);
-            Assert::AreEqual (size_t (2), picks.size(), L"ticking a ticked box picks nothing");
-        }
-
-
-        //  The players' entries, their modes and the checkbox apply as they
-        //  are changed, like a pick from the picker, and are no part of what
-        //  OK commits or Cancel reverts.
+        //  The players' entries and their modes apply as they are changed,
+        //  like a pick from the picker, and are no part of what OK commits
+        //  or Cancel reverts.
         TEST_METHOD (PlayerEdits_ApplyAtOnceAndAreNotUndoneByCancel)
         {
             ControllersPageState  page;
@@ -1523,7 +1467,9 @@ namespace ControllerTests
             pick.unit = second.unit;
             page.PickPlayerEntry (0, pick);
             page.SetPlayerMode (0, PlayerMode::Paddle);
-            page.SetMultiplayerChecked (false);
+            pick      = PlayerEntry();
+            pick.kind = PlayerEntryKind::Disabled;
+            page.PickPlayerEntry (1, pick);
 
             Assert::AreEqual (size_t (2), picks.size(), L"each change reaches the service as it is made");
             Assert::AreEqual (size_t (1), modes,        L"the mode as well");
@@ -1534,7 +1480,7 @@ namespace ControllerTests
             Assert::IsTrue (page.GetPlayerEntries()[0].kind == PlayerEntryKind::Controller, L"Cancel does not take back the entry");
             Assert::IsTrue (page.GetPlayerEntries()[0].unit == second.unit);
             Assert::IsTrue (page.GetPlayerEntries()[0].mode == PlayerMode::Paddle, L"nor the mode");
-            Assert::IsFalse (page.IsMultiplayerChecked(), L"nor the checkbox");
+            Assert::IsTrue  (page.GetPlayerEntries()[1].kind == PlayerEntryKind::Disabled, L"nor Player 2's Disabled");
         }
 
 
@@ -1640,9 +1586,10 @@ namespace ControllerTests
         }
 
 
-        //  Each player's drop-down lists what the picker's submenu lists, less
-        //  Player 2's Disabled, which the checkbox carries.
-        TEST_METHOD (EntryChoices_AreThePickersLessDisabled)
+        //  Each player's drop-down lists what the picker's submenu lists,
+        //  Player 2's Disabled included, which follows the colon of "Player
+        //  2:" and so reads "same as left" with the Joyport in effect.
+        TEST_METHOD (EntryChoices_AreThePickers)
         {
             ControllersPageState                       page;
             ControllerDeviceInfo                       stick = MakeStick();
@@ -1661,7 +1608,8 @@ namespace ControllerTests
             Assert::IsTrue   (one[0].entry.kind == PlayerEntryKind::Automatic);
             Assert::IsTrue   (one[1].entry.unit == stick.unit);
             Assert::IsTrue   (one[2].entry.kind == PlayerEntryKind::ArrowKeys);
-            Assert::AreEqual (size_t (2), two.size(), L"Automatic and the stick, and no Disabled");
+            Assert::AreEqual (size_t (3), two.size(), L"Automatic, the stick and Disabled");
+            Assert::AreEqual (std::wstring (L"Disabled"), two.back().label);
 
             page.SetPlayerMode (0, PlayerMode::Paddle);
             one = page.GetEntryChoices (0);
@@ -1670,6 +1618,53 @@ namespace ControllerTests
             page.SetJoyportInEffect (true);
             one = page.GetEntryChoices (0);
             Assert::IsTrue   (one.back().entry.kind == PlayerEntryKind::ArrowKeys, L"no mouse as paddle while the Joyport is in effect, and the keys");
+            Assert::AreEqual (std::wstring (L"same as left"), page.GetEntryChoices (1).back().label, L"Player 2's Disabled with the Joyport");
+        }
+
+
+        //  The note beside each player's row: the joystick or paddle its mode
+        //  gives it, nothing on a machine without it, the paddles the mouse
+        //  drives, the jacks while the Joyport is in effect, and no note for
+        //  Player 2 Disabled.
+        TEST_METHOD (PlayerNote_SaysWhatThePlayerDrives)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            PlayerEntries         entries;
+
+
+
+            page.Load ({ first, second }, {}, {}, true);
+
+            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Joystick, PlayerMode::Joystick);
+            Assert::AreEqual (std::wstring (L"joystick 0"), page.GetPlayerNote (0));
+            Assert::AreEqual (std::wstring (L"joystick 1"), page.GetPlayerNote (1));
+
+            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Joystick, PlayerMode::Paddle);
+            Assert::AreEqual (std::wstring (L"paddle 2"), page.GetPlayerNote (1), L"a paddle beside a joystick");
+
+            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Paddle, PlayerMode::Paddle);
+            Assert::AreEqual (std::wstring (L"paddle 0"), page.GetPlayerNote (0));
+            Assert::AreEqual (std::wstring (L"paddle 1"), page.GetPlayerNote (1), L"a paddle beside a paddle");
+
+            SetTwoPlaying (page, first.unit, second.unit, PlayerMode::Joystick, PlayerMode::Joystick, 2);
+            Assert::AreEqual (std::wstring (L"nothing on this machine"), page.GetPlayerNote (1), L"a second joystick on the //c");
+
+            entries[0].kind = PlayerEntryKind::MousePaddle;
+            entries[1].kind = PlayerEntryKind::Disabled;
+            page.SetPlayers (entries, PlayerSlots(), 4);
+            Assert::AreEqual (std::wstring (L"paddles 0 and 1"), page.GetPlayerNote (0), L"the mouse drives both of Player 1's paddles");
+            Assert::AreEqual (std::wstring(),                    page.GetPlayerNote (1), L"and Disabled drives nothing");
+
+            entries[0] = PlayerEntry();
+            page.SetPlayers (entries, MakeTwoPlaying (first.unit, second.unit), 4);
+            page.SetJoyportInEffect (true);
+            Assert::AreEqual (std::wstring (L"both jacks"), page.GetPlayerNote (0), L"with Player 2 Disabled, Player 1 drives both jacks");
+
+            page.SetPlayers (PlayerEntries(), MakeTwoPlaying (first.unit, second.unit), 4);
+            Assert::AreEqual (std::wstring (L"left jack"),  page.GetPlayerNote (0));
+            Assert::AreEqual (std::wstring (L"right jack"), page.GetPlayerNote (1));
         }
 
 
@@ -1713,7 +1708,7 @@ namespace ControllerTests
             page.Load ({ MakeStick() }, {}, {}, true);
 
             Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Both);
-            Assert::AreEqual (std::wstring (L"Joyport: both jacks"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+            Assert::AreEqual (std::wstring (L"Atari joystick: both jacks"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
         }
 
 
@@ -1732,7 +1727,7 @@ namespace ControllerTests
 
             page.SelectController (1);
             Assert::IsTrue (page.GetJoyportJack() == JoyportJack::Right, L"and player 2, once Editing moves to them, the right");
-            Assert::AreEqual (std::wstring (L"Joyport: right jack"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+            Assert::AreEqual (std::wstring (L"Atari joystick: right jack"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
         }
 
 
@@ -1743,7 +1738,7 @@ namespace ControllerTests
             page.Load ({}, {}, {}, true);
 
             Assert::IsTrue (page.GetJoyportJack() == JoyportJack::None);
-            Assert::AreEqual (std::wstring (L"Joyport"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
+            Assert::AreEqual (std::wstring (L"Atari joystick"), ControllersPageState::GetJoyportHeading (page.GetJoyportJack()));
         }
 
 

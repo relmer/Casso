@@ -117,10 +117,6 @@ protected:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
-    //  How often the sheet ticks while the Controllers page slides its rows:
-    //  about a frame, so the slide is drawn rather than jumped.
-    static constexpr UINT  kSlideTickMs = 16;
-
     //  Set OK to "OK (reboot)" when committing would power-cycle the machine
     //  (staged machine change or a reset-requiring hardware edit), else "OK".
     void  RefreshOkLabel ();

@@ -536,13 +536,6 @@ HRESULT SettingsSheet::OpenModeless (
             Invalidate();
         });
 
-        // The rows below the players slide over a menu's open time, which
-        // the sheet's ordinary tick is far too slow to draw, so it ticks at
-        // frame rate until the slide is done.
-        m_controllersPage->SetOnSlideChanged ([this] (bool isSliding)
-        {
-            SetDialogTickIntervalMs (isSliding ? kSlideTickMs : DxuiWindow::kDefaultDialogTickMs);
-        });
         m_apply.BindControllers (&m_controllersState, service);
 
         // Save on the profile-switch prompt commits through the same prefs

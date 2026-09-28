@@ -388,8 +388,8 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 
 - [X] T126 [P] [US7] Profile kinds, tested and built with spec 034's T171-T173: `ProfileMode` is `Joystick`, `Paddle` or `Joyport`; the built-in Paddles profile; each kind's own starting points and chosen profiles; legacy profiles and choices classified
 - [X] T127 [P] [US4] Tests in `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp` and `JoyportLabelsTests.cpp`: with the Joyport on, no Paddle mode and no mouse in either submenu, keys offered in either mode; Player 2's Disabled reads "same as left", and so does the Automatic row after "Joyport right:". Then implement in `InputModeRules` and `JoyportLabels`. Mutation: offer the mouse with the Joyport on
-- [ ] T128 [P] [US5] Tests in `UnitTest/UiTests/ControllersPageLayoutTests.cpp` and `ControllersPageStateTests.cpp`: "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it, "Joyport" left of it and centered on it; the heading "Atari joystick" followed by ": left jack", ": right jack" or ": both jacks"; each player's mode choice disabled in Atari mode. Then implement in `ControllersPage` and `ControllersPageState`. Mutation: leave the labels to the right of the switch
-- [ ] T129 [US5] Build; capture the Controllers page in Atari mode and the switch zoomed; record in `validation.md`; commit with spec 034's T184
+- [X] T128 [P] [US5] Tests in `UnitTest/UiTests/ControllersPageLayoutTests.cpp` and `ControllersPageStateTests.cpp`: "Apple (rear)" above the switch and "Atari (front)" below it, each centered on it, "Joyport" left of it and centered on it; the heading "Atari joystick" followed by ": left jack", ": right jack" or ": both jacks"; each player's mode choice disabled in Atari mode. Then implement in `ControllersPage` and `ControllersPageState`. Mutation: leave the labels to the right of the switch
+- [X] T129 [US5] Build; capture the Controllers page in Atari mode and the switch zoomed; record in `validation.md`; commit with spec 034's T184
 
 ---
 

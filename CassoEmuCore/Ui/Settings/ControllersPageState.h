@@ -156,17 +156,17 @@ public:
     bool                              IsMultiplayerEnabled  () const;
     std::optional<ControllerUnitKey>  GetPlayerUnit         (size_t player) const;
 
-    // The Multiplayer checkbox: Player 2's entry seen another way.
-    bool                   IsMultiplayerChecked  () const;
-    void                   SetMultiplayerChecked (bool isChecked);
 
     // One player's entry, or their mode; neither is taken while the Joyport
     // is in effect, where both players are Atari sticks.
     void                   PickPlayerEntry       (size_t player, PlayerEntry entry);
     void                   SetPlayerMode         (size_t player, PlayerMode mode);
 
-    // What one player's entry drop-down lists.
+    // What one player's entry drop-down lists, Player 2's Disabled among
+    // them, and the note of what the player drives: "joystick 0",
+    // "paddle 1", "left jack" and the like.
     std::vector<InputModeRules::PlayerChoice>  GetEntryChoices (size_t player) const;
+    std::wstring                               GetPlayerNote   (size_t player) const;
 
     // The Joyport jack the controller in Editing drives, for the page's
     // switch lights, and the heading the page shows above them.
@@ -320,10 +320,16 @@ private:
     bool                             FindCommittedMapping (ControlMapping & mapping) const;
     MultiplayerSetup                 MakePlayView         () const;
     void                             ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
+    void                             SyncPlayers          ();
     void                             SyncProfileMode      ();
     ProfileMode                      GetEditedPlayerProfileMode () const;
     std::optional<size_t>            FindHoldingPlayer    () const;
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
+
+    static constexpr size_t  kPaddlesPerJoystick = 2;
+
+    JoyportJack                          GetPlayerJack      (size_t player) const;
+    static std::wstring                  GetJoyportJackNote (JoyportJack jack);
 
     static std::vector<AxisBinding> *    FindAxisList    (ControlMapping & mapping, PaddleTarget target);
     static std::vector<ButtonBinding> *  FindButtonList  (ControlMapping & mapping, PaddleTarget target);
