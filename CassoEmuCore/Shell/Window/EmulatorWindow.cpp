@@ -47,7 +47,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"

@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiSystemSettings.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

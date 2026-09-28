@@ -1,7 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiTimedInfoBanner.h"
-#include "Core/DxuiDpiScaler.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

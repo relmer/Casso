@@ -1,7 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiInfoBanner.h"
-#include "Core/DxuiDpiScaler.h"
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiPainter.h"
 #include "MockDxuiTheme.h"

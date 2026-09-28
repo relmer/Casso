@@ -2,9 +2,6 @@
 
 #include "DownloadDialog.h"
 
-#include "Core/DxuiPanel.h"
-#include "Widgets/DxuiButton.h"
-
 
 
 

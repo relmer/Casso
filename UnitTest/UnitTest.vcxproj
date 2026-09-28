@@ -108,7 +108,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -125,7 +125,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -142,7 +142,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -159,7 +159,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -176,7 +176,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -193,7 +193,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -448,17 +448,17 @@
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
-    <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />
-    <ClCompile Include="UiTests\DxuiRadioGroupTests.cpp" />
-    <ClCompile Include="UiTests\DxuiSearchBoxTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextInputDegenerateTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextInputWordSelectionTests.cpp" />
-    <ClCompile Include="UiTests\DxuiOrbitControlTests.cpp" />
-    <ClCompile Include="UiTests\DxuiSliderTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTreeViewTests.cpp" />
-    <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />
+    <ClCompile Include="Dxui\DxuiRadioGroupTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSearchBoxTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextInputDegenerateTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextInputWordSelectionTests.cpp" />
+    <ClCompile Include="Dxui\DxuiOrbitControlTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSliderTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTreeViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiModalScrimTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
     <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
@@ -499,7 +499,7 @@
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
-    <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiFrameRateTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />

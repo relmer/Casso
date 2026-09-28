@@ -1,7 +1,6 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiTextInput.h"
-#include "../Dxui/MockDxuiTextRenderer.h"
+#include "MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

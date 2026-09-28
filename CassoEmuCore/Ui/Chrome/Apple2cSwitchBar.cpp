@@ -1,6 +1,4 @@
 #include "Pch.h"
-#include "Theme/DxuiTheme.h"
-#include "Theme/DxuiColor.h"
 
 #include "Apple2cSwitchBar.h"
 #include "Core/UnicodeSymbols.h"

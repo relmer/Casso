@@ -8,15 +8,6 @@
 
 #include "DialogDefinition.h"
 #include "../Chrome/CassoTheme.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Core/DxuiPanel.h"
-#include "Core/DxuiEvents.h"
-#include "Theme/DxuiTheme.h"
-#include "Render/DxuiPainter.h"
-#include "Render/DxuiTextRenderer.h"
-#include "Window/DxuiDialogWindow.h"
-#include "Widgets/DxuiButton.h"
 #include "Core/UnicodeSymbols.h"
 
 

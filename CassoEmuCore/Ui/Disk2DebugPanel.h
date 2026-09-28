@@ -1,17 +1,6 @@
 #pragma once
 
-#include "Window/DxuiWindow.h"
 #include "Disk2DebugPanelLayout.h"
-#include "Core/DxuiFocusManager.h"
-#include "Core/DxuiPanel.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiContextMenu.h"
-#include "Widgets/DxuiRadio.h"
-#include "Widgets/DxuiTextInput.h"
-#include "Widgets/DxuiTooltip.h"
 
 #include "Ui/Debug/Disk2DebugDialogState.h"
 #include "Ui/Debug/Disk2EventDisplay.h"

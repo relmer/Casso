@@ -3,7 +3,6 @@
 #include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
-#include "Ui/Chrome/MainMenu.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -277,34 +276,6 @@ public:
         lastRight = bar.GetMenuRect (bar.GetMenuCount() - 1).right;
         Assert::IsTrue   (lastRight > 0);
         Assert::AreEqual (lastRight, bar.GetMenuStripContentWidthPx());
-    }
-
-
-    TEST_METHOD (MainMenu_ProductionResizeLayout_WithZeroHeightBounds_PreservesMeasuredBounds)
-    {
-        MainMenu              menu;
-        MockDxuiTextRenderer  text;
-        DxuiDpiScaler         scaler;
-        RECT                  resizeBounds = { s_kStripX, s_kStripY, s_kResizedStripWidth, s_kStripY };
-        RECT                  fileRect     = {};
-        RECT                  editRect     = {};
-        RECT                  bounds       = {};
-
-
-        scaler.SetDpi (s_kTestDpi);
-        text.SetCannedMetrics (L"File", { 64, 16 });
-        text.SetCannedMetrics (L"Edit", { 52, 16 });
-        menu.SetTextRendererForMeasure (&text);
-
-        menu.Layout (resizeBounds, scaler);
-        fileRect = menu.GetMenuRect ((int) MainMenuId::File);
-        editRect = menu.GetMenuRect ((int) MainMenuId::Edit);
-        bounds   = menu.GetBounds();
-
-        Assert::AreEqual (fileRect.bottom, bounds.bottom);
-        Assert::AreEqual (fileRect.top,    bounds.top);
-        Assert::AreEqual ((LONG) s_kResizedStripWidth, bounds.right - bounds.left);
-        Assert::IsTrue   (editRect.left > fileRect.right);
     }
 
 

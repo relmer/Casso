@@ -1,7 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 
-#include "Widgets/DxuiOrbitControl.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

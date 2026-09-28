@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiFrameRate.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

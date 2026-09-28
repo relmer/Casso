@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Fails if changed code violates the mechanically-checkable subset of the
     Casso coding standards in .github/copilot-instructions.md.
@@ -255,9 +255,28 @@ $checks = @(
         # implements it and the Pch files are where it belongs.
         Id      = 'CS0012'
         Globs   = @('*.cpp', '*.h')
-        Pattern = '#include\s*"(?:\.\./)*(?:CassoCore/)?Ehm\.h"'
+        Pattern = '#include\s*"(?:\.\./)*(?:CassoCore/|Ehm/)?Ehm\.h"'
         Message = 'Ehm.h comes from Pch.h -- do not include it directly'
         Exclude = @('Ehm/Ehm.cpp', 'Pch.h')
+    },
+    @{
+        # A consumer of Dxui includes Dxui/Dxui.h and nothing else from it,
+        # normally through its Pch. No consumer project has ..\Dxui on its
+        # include path, so the compiler rejects "Core/DxuiPanel.h" outright;
+        # this catches the relative form ("../Dxui/Core/DxuiPanel.h") the
+        # compiler would accept, and the bare name before a build. Every Dxui
+        # header but Pch.h is named Dxui* or IDxui*; the test mocks are Mock*.
+        #
+        # Include rather than Exclude, because Exclude matches a SUFFIX and a
+        # 'Dxui/' entry would also exempt UnitTest/Dxui/, the library tests,
+        # which are consumers like any other. A new consumer project belongs
+        # in this list.
+        Id      = 'CS0022'
+        Globs   = @('*.cpp', '*.h')
+        Pattern = '^\s*#include\s*"(?:[^"]*/)?(?!Dxui\.h")I?Dxui\w*\.h"'
+        Message = 'direct Dxui header include -- consumers include only Dxui/Dxui.h, through their Pch'
+        Include = @('Casso/', 'CassoCli/', 'CassoCore/', 'CassoEmuCore/', 'Ehm/', 'MeshCreator/', 'ScenarioTests/', 'UnitTest/')
+        Exclude = @()
     },
     @{
         # IGNORE_RETURN_VALUE (result, replacement) overwrites an already-

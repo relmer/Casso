@@ -4,9 +4,6 @@
 
 #include "DialogDefinition.h"
 #include "../Chrome/CassoTheme.h"
-#include "Core/DxuiEvents.h"
-#include "Render/DxuiPainter.h"
-#include "Render/DxuiTextRenderer.h"
 
 
 

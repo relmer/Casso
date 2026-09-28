@@ -1,11 +1,9 @@
 #include "Pch.h"
-#include "Theme/DxuiTheme.h"
 
 #include "ThemePage.h"
 
 #include "../Chrome/ChromeMetrics.h"
 #include "../IDriveCommandSink.h"
-#include "Core/DxuiFormLayout.h"
 #include "Core/UnicodeSymbols.h"
 
 

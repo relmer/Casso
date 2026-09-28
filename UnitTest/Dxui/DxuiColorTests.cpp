@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Theme/DxuiColor.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

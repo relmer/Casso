@@ -6,14 +6,7 @@
 #include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/MainMenu.h"
-#include "Window/DxuiCaptionBar.h"
 #include "../IDriveCommandSink.h"
-#include "Window/DxuiPropertyPage.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiSlider.h"
 
 
 class DxuiHwndSource;

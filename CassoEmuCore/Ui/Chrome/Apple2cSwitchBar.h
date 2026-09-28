@@ -2,10 +2,6 @@
 
 #include "Pch.h"
 
-#include "Core/IDxuiControl.h"
-#include "Render/IDxuiPainter.h"
-#include "Render/IDxuiTextRenderer.h"
-#include "Theme/DxuiTheme.h"
 
 class IDxuiTheme;
 
