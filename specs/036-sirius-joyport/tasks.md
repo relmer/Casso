@@ -417,6 +417,14 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 - [X] T145 Build x64 Debug and Release, run the full Release suite and the scenario suite, capture the Controllers page with both players on Joystick, with Player 1 on Joyport left and Player 2 on Paddle (the warning notice showing), and with both on the Joyport, and the picker with a player's mode submenu open; record in `validation.md`; commit with spec 034's Phase 20
 
 **Checkpoint**: each player chooses its own jack or mode, and the global switch is gone.
+
+## Phase 19: Two paddles beside the Joyport, and the heading (2026-09-28, later)
+
+**Goal**: the owner's later decisions of 2026-09-28. Two paddles, a fifth mode, sits beside a Joyport player as Paddle does: its paddles driven, its buttons cut. The Controllers page's notes go; the heading above the input picture gives a Joyport player's jack or jacks as before. Spec 034's Phase 21 carries the rest and shares these commits.
+
+- [X] T146 Update `spec.md` (Session 2026-09-28; FR-009, FR-019, FR-021, FR-022), `data-model.md` and `contracts/prefs-and-ui.md` for Two paddles
+- [X] T147 [P] [US4] Tests first: `PlayerModeRulesTests::AreButtonsCut_ForAPlayerBesideTheJoyport` (Two paddles beside Joyport left loses its buttons), `PlayerSlotPolicyTests::Modes_BesideTheJoyportAPlayerPlaysAsThoughAlone` (Two paddles beside the Joyport on paddles 0 and 1 with no button line); then implement with spec 034's T204
+- [ ] T148 [US5] The Controllers page's note column removed; the heading keeps "Atari joystick: left jack", "right jack" and "both jacks" for a Joyport player (FR-019); with spec 034's T206-T207
 ---
 
 ## Dependencies and Execution Order

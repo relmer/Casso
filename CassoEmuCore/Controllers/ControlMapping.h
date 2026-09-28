@@ -134,7 +134,9 @@ public:
     static constexpr int  kAxisRz = 5;
 
     static ControlMapping  For         (const ControllerModelKey & model, const std::vector<ControlId> & controls);
-    static ControlMapping  MakePaddles (const ControllerModelKey & model, const std::vector<ControlId> & controls);
+    static ControlMapping  MakePaddles (const ControllerModelKey      & model,
+                                        ControllerFormFactor            formFactor,
+                                        const std::vector<ControlId>  & controls);
     static ControlMapping  MakeJoyport (const ControllerModelKey      & model,
                                         ControllerFormFactor            formFactor,
                                         const std::vector<ControlId>  & controls);

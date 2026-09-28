@@ -34,37 +34,42 @@ namespace ControllerTests
         static constexpr size_t  kPdl3     = 3;
 
 
-        //  FR-039's table: Player 1 takes joystick 0, or paddle 0 in Paddle
-        //  mode; Player 2 takes joystick 1, or in Paddle mode paddle 1
-        //  beside Player 1's paddle and paddle 2 beside Player 1's joystick.
+        //  FR-039's table: Player 1 takes joystick 0, paddle 0 in Paddle mode,
+        //  or paddles 0 and 1 in Two paddles mode; Player 2 takes joystick 1,
+        //  paddles 2 and 3 in Two paddles mode, or in Paddle mode paddle 1
+        //  beside Player 1's single paddle and paddle 2 beside anything else.
         TEST_METHOD (ModeTarget_EveryRowOfTheWiringTable)
         {
             struct Row
             {
                 size_t            player;
                 bool              isPaddle;
+                bool              isTwoPaddles;
                 bool              isPlayerOnePaddle;
                 PlayerAxisTarget  expected;
             };
 
             const Row  kRows[] =
             {
-                { 0, false, false, PlayerAxisTarget::Joystick0 },
-                { 0, false, true,  PlayerAxisTarget::Joystick0 },
-                { 0, true,  false, PlayerAxisTarget::Paddle0   },
-                { 0, true,  true,  PlayerAxisTarget::Paddle0   },
-                { 1, false, false, PlayerAxisTarget::Joystick1 },
-                { 1, false, true,  PlayerAxisTarget::Joystick1 },
-                { 1, true,  true,  PlayerAxisTarget::Paddle1   },
-                { 1, true,  false, PlayerAxisTarget::Paddle2   },
+                { 0, false, false, false, PlayerAxisTarget::Joystick0 },
+                { 0, false, false, true,  PlayerAxisTarget::Joystick0 },
+                { 0, true,  false, false, PlayerAxisTarget::Paddle0   },
+                { 0, true,  false, true,  PlayerAxisTarget::Paddle0   },
+                { 0, false, true,  false, PlayerAxisTarget::Paddles01 },
+                { 1, false, false, false, PlayerAxisTarget::Joystick1 },
+                { 1, false, false, true,  PlayerAxisTarget::Joystick1 },
+                { 1, true,  false, true,  PlayerAxisTarget::Paddle1   },
+                { 1, true,  false, false, PlayerAxisTarget::Paddle2   },
+                { 1, false, true,  true,  PlayerAxisTarget::Paddles23 },
+                { 1, false, true,  false, PlayerAxisTarget::Paddles23 },
             };
 
             for (const Row & row : kRows)
             {
                 Assert::AreEqual ((int) row.expected,
-                                  (int) PlayerTargetRules::GetModeTarget (row.player, row.isPaddle, row.isPlayerOnePaddle),
+                                  (int) PlayerTargetRules::GetModeTarget (row.player, row.isPaddle, row.isTwoPaddles, row.isPlayerOnePaddle),
                                   std::format (L"player {}, {} mode, beside a {}", row.player + 1,
-                                               row.isPaddle ? L"Paddle" : L"Joystick",
+                                               row.isTwoPaddles ? L"Two paddles" : row.isPaddle ? L"Paddle" : L"Joystick",
                                                row.isPlayerOnePaddle ? L"paddle" : L"joystick").c_str());
             }
         }
@@ -77,16 +82,22 @@ namespace ControllerTests
         {
             PlayerTargetRules::Route  joystick = PlayerTargetRules::GetLoneRoute (PlayerAxisTarget::Joystick1, kFourAxes);
             PlayerTargetRules::Route  paddle   = PlayerTargetRules::GetLoneRoute (PlayerAxisTarget::Paddle2,   kFourAxes);
+            PlayerTargetRules::Route  pair     = PlayerTargetRules::GetLoneRoute (PlayerAxisTarget::Paddles23, kFourAxes);
 
             Assert::IsTrue (joystick == PlayerTargetRules::GetSingleRoute (kFourAxes), L"a lone joystick drives PDL0, PDL1 and PB0-PB2");
             Assert::IsTrue (paddle.paddles[0] == 0 && !paddle.paddles[1].has_value(), L"a lone paddle drives PDL0 alone");
             Assert::IsTrue (paddle.buttons[kPb0] == kPb0 && !paddle.buttons[kPb1].has_value() && !paddle.buttons[kPb2].has_value(),
                             L"and PB0 alone");
+            Assert::IsTrue (pair.paddles[0] == 0 && pair.paddles[1] == 1 && !pair.paddles[kPdl2].has_value(),
+                            L"a lone pair of paddles drives PDL0 and PDL1");
+            Assert::IsTrue (pair.buttons[kPb0] == kPb0 && pair.buttons[kPb1] == kPb1 && !pair.buttons[kPb2].has_value(),
+                            L"and PB0 and PB1");
         }
 
         //  Every target, with the lines the hardware wires it to: joystick 0
         //  to PB0 and PB1, joystick 1 to PB2 from its first button, a single
-        //  paddle to its own line from its first button, and paddle 3 to none.
+        //  paddle to its own line from its first button, paddle 3 to none, and
+        //  a pair of paddles to the lines of the joystick it stands in for.
         TEST_METHOD (ButtonRoute_EveryTargetReachesTheLinesItIsWiredTo)
         {
             using Route = PlayerTargetRules::ButtonRoute;
@@ -99,7 +110,7 @@ namespace ControllerTests
             int          target = 0;
             size_t       swept  = 0;
 
-            for (target = (int) PlayerAxisTarget::Joystick0; target <= (int) PlayerAxisTarget::Paddle3; target++)
+            for (target = (int) PlayerAxisTarget::Joystick0; target <= (int) PlayerAxisTarget::Paddles23; target++)
             {
                 Route  expected = kNone;
 
@@ -111,6 +122,8 @@ namespace ControllerTests
                     case PlayerAxisTarget::Paddle1:    expected = kToPb1; break;
                     case PlayerAxisTarget::Paddle2:    expected = kToPb2; break;
                     case PlayerAxisTarget::Paddle3:    expected = kNone;  break;
+                    case PlayerAxisTarget::Paddles01:  expected = kJoy0;  break;
+                    case PlayerAxisTarget::Paddles23:  expected = kToPb2; break;
 
                     default:
                         Assert::Fail (L"a target the sweep does not know");
@@ -121,7 +134,7 @@ namespace ControllerTests
                 swept++;
             }
 
-            Assert::AreEqual ((size_t) 6, swept, L"all six targets were checked");
+            Assert::AreEqual ((size_t) 8, swept, L"all eight targets were checked");
         }
 
 

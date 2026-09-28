@@ -41,7 +41,8 @@ public:
     // `isKeysOnJoyport` is Player 1's keys in a Joyport jack, where they
     // close its switches rather than drive the paddle inputs, and
     // `isSecondPlaying` is Player 2 playing, which leaves the mouse PDL0
-    // alone.
+    // alone unless `isMouseTwoPaddles`, Player 1 in Two paddles mode, keeps
+    // both of its paddles.
     struct State
     {
         bool  arrowsJoystick       = false;
@@ -50,6 +51,7 @@ public:
         bool  isControllerAttached = false;
         bool  isKeysOnJoyport      = false;
         bool  isSecondPlaying      = false;
+        bool  isMouseTwoPaddles    = false;
 
         bool operator== (const State &) const = default;
     };
@@ -194,6 +196,7 @@ private:
     static constexpr const wchar_t *  kpszNotConnected   = L" (not connected)";
     static constexpr const wchar_t *  kpszNothingDriving = L"Controller";
     static constexpr const wchar_t *  kpszInPaddleMode   = L" (paddle)";
+    static constexpr const wchar_t *  kpszInTwoPaddles   = L" (two paddles)";
 
     static const ControllerDeviceInfo *         FindDevice         (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit);
     static std::wstring                         DescribeUnit        (const PickerSource & source, const ControllerUnitKey & unit);

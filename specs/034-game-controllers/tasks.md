@@ -487,6 +487,23 @@ description: "Task list for 034 physical game controllers"
 - [X] T199 [P] [US7] Test that a face label ending in "(disconnected) +1" keeps that whole suffix when the toolbar shortens it, with the ellipsis inside Player 1's description (`DxuiToolbarTests::LabelFit_KeepsTheLongestKeptSuffixWhole`), and that the picker command keeps that suffix (`PaddleSourceRowsTests::PickerCommand_KeepsTheDisconnectedSuffixWhole`). It did not: the command kept only " +1". Fixed with `DxuiLabelFit::keptSuffixes`, the longest one a label ends with kept whole. Mutation: keep only " +1" whole
 - [X] T200 Mutation checks for Phase 20, recorded in `validation.md` under a new "Phase 20" heading: the mutations listed in T189-T192 and T195-T199
 - [X] T201 Build x64 Debug and Release; run the full Release suite and the scenario suite; capture the Controllers page with both players on Joystick, with Player 1 on Joyport left and Player 2 on Paddle (the warning notice and the disabled button rows), and with both on the Joyport, and the picker with a player's mode submenu open; record the captures in `validation.md`; commit
+
+## Phase 21: Two Paddles, Paddle Speed and the Player Rows (FR-008, FR-021a, FR-026, FR-035-FR-039, FR-043; 2026-09-28, later)
+
+**Goal**: the owner's later decisions of 2026-09-28. A fifth player mode, Two paddles; the built-in Paddles profile binds two paddles; the default paddle speed is 768 per second; the player rows lose their note column and their drop-downs stretch; the heading above the input picture carries what the note showed; Paddle and Two paddles show a bar per paddle; the Paddle speed drop-down fits its text. Spec 036's Phase 19 carries the Joyport side and shares these commits.
+
+**Independent Test**: quickstart 42-47.
+
+- [X] T202 Update `spec.md` (Session 2026-09-28; FR-008, FR-036-FR-039, FR-043; US7 #17-20; Key Entities), `data-model.md`, `contracts/prefs-schema.md` and `contracts/game-port-mixer.md` for Two paddles
+- [X] T203 [P] [US7] Tests first: `PlayerTargetRulesTests` (the wiring table with Two paddles for either player, the lone pair on PDL0/PDL1 with PB0/PB1, the button sweep over all eight targets), `PlayerSlotPolicyTests` (every pair of modes with Two paddles, a lone Player 2 on Two paddles, the //c with Two paddles, Two paddles beside the Joyport with no button line, the mouse keeping Two paddles and the keys leaving it), `PlayerModeRulesTests` (the mode list and "Automatic (two paddles)", the keys and the mouse by mode, buttons cut beside the Joyport), `InputModeRulesTests` (the mouse keeps PDL0 and PDL1 in Two paddles mode beside Player 2), `PaddleSourceRowsTests` (" (two paddles)" on the rows, the submenus' five modes), `ControllerProfileStoreTests` (`twoPaddles` round trips) and `MappingEvaluatorTests` (the Paddles mapping's two sticks, and a joystick's PDL0 alone)
+- [X] T204 [US7] Implement: `PlayerMode::TwoPaddles`, `PlayerAxisTarget::Paddles01` and `Paddles23`, `PlayerTargetRules::GetModeTarget`, `GetButtonRoute` and `GetLoneRoute`, `PlayerModeRules::IsPaddleMode`, the mode list and labels, the token, the Paddle profile kind for Two paddles, `DefaultMapping::MakePaddles (model, formFactor, controls)`, the mouse's axes (`InputModeRules::State::isMouseTwoPaddles`) and the shell's mode setters
+- [ ] T205 [US5] Default paddle speed 768 per second (`AxisBinding::kDefaultMaxSpeed`), in `spec.md` FR-021a and `data-model.md`; tests first
+- [ ] T206 [US7] Player rows: the note column removed; the entry and mode drop-downs stretched to the right edge of the Profile row at the design width and growing with a wider sheet; a label too long shortened in the middle (`DxuiComboBox::SetElide`); tests first
+- [ ] T207 [US7] The heading above the input picture gives what the controller in Editing drives, in place of the notes: "Joystick 0", "Paddle 1", "Paddles 0 and 1", "Atari joystick: left jack", "Not used on this machine"; tests first
+- [ ] T208 [US7] Paddle and Two paddles show a horizontal bar per paddle with its value, "PDL1  108", in place of the stick circle; tests first
+- [ ] T209 [US5] The Paddle speed drop-down sized to fit its longest item and its arrow; tests first
+- [ ] T210 Mutation checks for Phase 21, recorded in `validation.md` under a new "Phase 21" heading
+- [ ] T211 Build x64 Debug and Release; run the full Release suite and the scenario suite; capture the player rows at the design width and wider and the page in Two paddles mode with the bars; record the captures in `validation.md`
 ---
 
 ## Dependencies and Execution Order

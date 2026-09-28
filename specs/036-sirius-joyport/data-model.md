@@ -273,6 +273,7 @@ Research R27. Per-player Joyport modes replace the global setting.
 | `JoyportRight` | `"joyportRight"` | the right jack; as above |
 | `Paddle` | `"paddle"` | |
 | `SameAsPlayer1` | `"sameAsPlayer1"` | Player 2 only, and its default when no mode is saved |
+| `TwoPaddles` | `"twoPaddles"` | (2026-09-28, later) two paddles on one controller; listed after `Paddle`. Beside a Joyport player it drives PDL0 and PDL1 with no button line |
 
 ### PlayerModeRules
 
@@ -287,9 +288,9 @@ Research R27. Per-player Joyport modes replace the global setting.
 | `AreButtonsCut (entries, player, hasJoyport)` | true for a player off the Joyport while the other is on it |
 | `ArePaddlesConnected (entries, hasJoyport)` | false only while every playing player is on a jack |
 | `IsModeTaken (entries, player, mode, hasJoyport)` | whether the other player's resolved mode holds that jack; a Disabled Player 2 holds none |
-| `AreKeysOffered` / `IsMouseOffered (entries, hasJoyport)` | Player 1 in Joystick or a jack; Player 1 in Paddle |
+| `AreKeysOffered` / `IsMouseOffered (entries, hasJoyport)` | Player 1 in Joystick or a jack; Player 1 in Paddle or Two paddles (`IsPaddleMode`) |
 | `BuildModeChoices (entries, player, hasJoyport)` | the mode list with checked and enabled flags; no jacks without a Joyport |
-| `GetModeLabel (mode)` / `GetPlayerLabel (player)` | "Joystick", "Joyport left (Atari)", "Joyport right (Atari)", "Paddle", "Automatic"; `GetAutomaticModeLabel (resolved)` gives Player 2's choice as "Automatic (joystick)", "Automatic (Joyport left)", "Automatic (Joyport right)" or "Automatic (paddle)"; "Player 1", "Player 2" |
+| `GetModeLabel (mode)` / `GetPlayerLabel (player)` | "Joystick", "Joyport left (Atari)", "Joyport right (Atari)", "Paddle", "Two paddles", "Automatic"; `GetAutomaticModeLabel (resolved)` gives Player 2's choice as "Automatic (joystick)", "Automatic (Joyport left)", "Automatic (Joyport right)", "Automatic (paddle)" or "Automatic (two paddles)"; "Player 1", "Player 2" |
 | `DescribeAssignment (player, description, jacks)` | "Player N: description", or "Player N (Joyport left): ...", "(Joyport right)", "(Joyport left and right)" |
 | `MigrateAdapter (hasSavedModes, globalToken, launchedUiPrefs, launchedHasAnnunciators)` | a `JoyportMigration { isJoyport; shouldRemoveKey; }` |
 | `ApplyMigration (entries)` | Player 1 on `JoyportLeft`, Player 2 on `SameAsPlayer1` |

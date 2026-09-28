@@ -96,6 +96,27 @@ namespace ControllerTests
         }
 
 
+        //  In Two paddles mode the mouse's X and Y are Player 1's two paddles,
+        //  PDL0 and PDL1, while Player 2 plays too: Player 2's paddles are
+        //  PDL2 and up beside them.
+        TEST_METHOD (MouseAsTwoPaddles_KeepsPdl0AndPdl1BesidePlayerTwo)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+
+
+            state.mousePaddle       = true;
+            state.isSecondPlaying   = true;
+            state.isMouseTwoPaddles = true;
+            owners                  = InputModeRules::GetAxisOwners (state);
+
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[0], L"the mouse's X on PDL0");
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[1], L"and its Y on PDL1");
+            Assert::AreEqual ((int) AxisOwner::Controller,  (int) owners[2], L"PDL2 left to Player 2");
+        }
+
+
         //  The keys in a Joyport jack close its switches and take no axis, so
         //  a controller beside them drives the paddle inputs.
         TEST_METHOD (KeysInAJack_TakeNoAxis)

@@ -39,11 +39,12 @@ enum class PlayerEntryKind
 //  PlayerMode
 //
 //  What a player stands in for on the game port: a joystick, two paddles
-//  wired to one stick; an Atari stick in one of the Joyport's two jacks; or
-//  a single paddle. The two players' modes alone decide which paddles, button
-//  lines and jacks each drives, as the hardware wires them, and the Joyport
-//  is on while either player is in one of its jacks. SameAsPlayer1 is Player
-//  2's alone: Player 1's mode, or with Player 1 in a jack, the other jack.
+//  wired to one stick; an Atari stick in one of the Joyport's two jacks; a
+//  single paddle; or two paddles, each a knob of its own. The two players'
+//  modes alone decide which paddles, button lines and jacks each drives, as
+//  the hardware wires them, and the Joyport is on while either player is in
+//  one of its jacks. SameAsPlayer1 is Player 2's alone: Player 1's mode, or
+//  with Player 1 in a jack, the other jack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +54,8 @@ enum class PlayerMode
     JoyportLeft,
     JoyportRight,
     Paddle,
-    SameAsPlayer1
+    SameAsPlayer1,
+    TwoPaddles
 };
 
 
@@ -67,7 +69,7 @@ enum class PlayerMode
 //  One player's choice. `unit` is set only for Controller: the picked
 //  controller, attached or not. `mode` is the player's own, kept whatever
 //  the entry: the keys play in Joystick mode or a Joyport jack, and the
-//  mouse in Paddle mode.
+//  mouse in Paddle or Two paddles mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,16 +247,17 @@ public:
 
     // A pick, and picking a controller the other player holds returns the
     // other player to Automatic. The player keeps its mode, except that the
-    // keys leave Paddle mode for Joystick and the mouse takes Paddle mode.
+    // keys leave a paddle mode for Joystick and the mouse takes Paddle mode
+    // unless it is in Two paddles mode.
     static PlayerEntries  ApplyPick (PlayerEntries entries, size_t player, const PlayerEntry & entry);
 
-    // A player's mode. Player 1's keys in Paddle mode and mouse in any other
-    // mode are entries that mode cannot have, and return to Automatic.
+    // A player's mode. Player 1's keys in a paddle mode and mouse in any
+    // other mode are entries that mode cannot have, and return to Automatic.
     static PlayerEntries  ApplyMode (PlayerEntries entries, size_t player, PlayerMode mode);
 
     // Entries as they can be played: an entry its player cannot have, and a
     // second pick of the first player's controller, read as Automatic; the
-    // keys play in Joystick mode or a jack and the mouse in Paddle mode;
+    // keys play in Joystick mode or a jack and the mouse in a paddle mode;
     // Same as Player 1 is Player 2's alone, and a jack both players claim is
     // left to Player 1, with Player 2 following into the other.
     static PlayerEntries  NormalizeEntries (PlayerEntries entries);

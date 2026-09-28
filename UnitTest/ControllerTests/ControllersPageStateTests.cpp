@@ -612,7 +612,7 @@ namespace ControllerTests
             SetPaddlePlayer (page);
 
             Assert::IsTrue  (page.CreateProfile ("Pong", ProfileSource::PaddleMapping, std::string()) == ProfileEditResult::Ok);
-            Assert::IsTrue  (page.GetMapping() == DefaultMapping::MakePaddles (model, controls), L"the Paddles mapping, for a Paddle profile");
+            Assert::IsTrue  (page.GetMapping() == DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, controls), L"the Paddles mapping, for a Paddle profile");
             Assert::IsTrue  (page.GetModels().begin()->second.FindProfile ("Pong")->mode == ProfileMode::Paddle);
             Assert::IsTrue  (page.GetProfileNames() == std::vector<std::string> { "Paddles", "Pong" }, L"Paddles first, then the Paddle profiles");
             Assert::IsTrue  (page.IsDirty());
@@ -1359,11 +1359,12 @@ namespace ControllerTests
             PlayerEntries  entries;
             PlayerSlots    slots       = MakeTwoPlaying (first, second);
             bool           isOnePaddle = firstMode == PlayerMode::Paddle;
+            bool           isOnePair   = firstMode == PlayerMode::TwoPaddles;
 
             entries[0].mode = firstMode;
             entries[1].mode = secondMode;
-            slots[0].target = PlayerTargetRules::GetModeTarget (0, isOnePaddle, isOnePaddle);
-            slots[1].target = PlayerTargetRules::GetModeTarget (1, secondMode == PlayerMode::Paddle, isOnePaddle);
+            slots[0].target = PlayerTargetRules::GetModeTarget (0, isOnePaddle, isOnePair, isOnePaddle);
+            slots[1].target = PlayerTargetRules::GetModeTarget (1, secondMode == PlayerMode::Paddle, secondMode == PlayerMode::TwoPaddles, isOnePaddle);
             page.SetPlayers (entries, slots, axisCount);
         }
 
@@ -1606,14 +1607,14 @@ namespace ControllerTests
             page.SetPlayers (entries, PlayerSlots(), 4);
             two = page.GetModeChoices (1);
 
-            Assert::AreEqual (size_t (5), two.size());
+            Assert::AreEqual (size_t (6), two.size());
             Assert::IsTrue   (two[0].mode == PlayerMode::SameAsPlayer1 && two[0].isChecked);
             Assert::IsTrue   (two[2].mode == PlayerMode::JoyportLeft && !two[2].isEnabled, L"Player 1 holds the left jack");
             Assert::IsTrue   (two[3].mode == PlayerMode::JoyportRight && two[3].isEnabled);
-            Assert::AreEqual (size_t (4), page.GetModeChoices (0).size(), L"Player 1 has no Same as Player 1");
+            Assert::AreEqual (size_t (5), page.GetModeChoices (0).size(), L"Player 1 has no Same as Player 1");
 
             page.SetJoyportAvailable (false);
-            Assert::AreEqual (size_t (2), page.GetModeChoices (0).size(), L"no jacks on the //c");
+            Assert::AreEqual (size_t (3), page.GetModeChoices (0).size(), L"no jacks on the //c");
         }
 
 

@@ -122,9 +122,10 @@ std::wstring InputModeRules::DescribeUnit (
 //  What a player's row shows after the player's label: the keys, the mouse,
 //  Disabled, the controller in the slot -- marked not connected while it is
 //  away -- or Automatic while Automatic has no controller for the player.
-//  A controller or Automatic in Paddle mode is marked "(paddle)"; the
-//  other modes take no mark, being in the player's submenu, and the keys
-//  and the mouse are a joystick and a paddle already.
+//  A controller or Automatic in Paddle mode is marked "(paddle)", and in
+//  Two paddles mode "(two paddles)"; the other modes take no mark, being in
+//  the player's submenu, and the keys and the mouse are a joystick and a
+//  paddle already.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,8 +135,10 @@ std::wstring InputModeRules::DescribePlaying (
 {
     const PlayerEntry                 & entry    = source.entries[player];
     std::optional<ControllerUnitKey>    unit     = source.slots[player].holder;
-    bool                                isPaddle = PlayerModeRules::ResolveMode (source.entries, player, source.hasJoyport) == PlayerMode::Paddle;
-    std::wstring                        mode     = isPaddle ? kpszInPaddleMode : L"";
+    PlayerMode                          resolved = PlayerModeRules::ResolveMode (source.entries, player, source.hasJoyport);
+    std::wstring                        mode     = (resolved == PlayerMode::Paddle)     ? kpszInPaddleMode
+                                                 : (resolved == PlayerMode::TwoPaddles) ? kpszInTwoPaddles
+                                                 :                                        L"";
 
 
 
@@ -184,7 +187,8 @@ std::wstring InputModeRules::DescribePlaying (
 //
 //  The keys are a joystick and the mouse a paddle, so each is offered only
 //  in its own mode: the keys in Joystick mode or a Joyport jack, whose
-//  switches they close, and the mouse in Paddle mode. Either stays listed
+//  switches they close, and the mouse in Paddle or Two paddles mode, as one
+//  paddle or two. Either stays listed
 //  while it is the checked one.
 //
 //  A choice carries no mode: the player keeps its own through any pick
@@ -566,7 +570,8 @@ std::wstring InputModeRules::Shorten (const std::wstring & text)
 //  paddle inputs to a controller playing beside them.
 //
 //  THE MOUSE KEEPS PDL0 ALONE WHILE PLAYER 2 PLAYS, so it never covers the
-//  paddle Player 2's mode gives it.
+//  paddle Player 2's mode gives it. In Two paddles mode it keeps PDL0 and
+//  PDL1, both Player 1's, and Player 2 plays paddle 2 or higher.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -583,7 +588,7 @@ InputModeRules::AxisOwners InputModeRules::GetAxisOwners (const State & state)
     if (state.mousePaddle)
     {
         playerOne     = AxisOwner::MousePaddle;
-        playerOneAxes = state.isSecondPlaying ? 1 : kPlayerOneAxes;
+        playerOneAxes = (state.isSecondPlaying && !state.isMouseTwoPaddles) ? 1 : kPlayerOneAxes;
     }
     else if (state.arrowsJoystick && !state.isKeysOnJoyport)
     {

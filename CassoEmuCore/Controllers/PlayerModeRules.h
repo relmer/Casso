@@ -44,6 +44,7 @@ public:
 
     static PlayerMode             ResolveMode         (const PlayerEntries & entries, size_t player, bool hasJoyport);
     static bool                   IsJoyportMode       (PlayerMode mode);
+    static bool                   IsPaddleMode        (PlayerMode mode);
     static std::optional<size_t>  GetJack             (PlayerMode mode);
     static bool                   IsOnJoyport         (const PlayerEntries & entries, size_t player, bool hasJoyport);
     static bool                   IsJoyportOn         (const PlayerEntries & entries, bool hasJoyport);

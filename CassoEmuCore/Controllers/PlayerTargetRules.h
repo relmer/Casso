@@ -40,12 +40,15 @@ public:
         bool operator== (const Route &) const = default;
     };
 
-    // What a player in Paddle mode or Joystick mode drives, beside Player 1
-    // in either mode.
+    // What a player in Joystick, Paddle or Two paddles mode drives, beside
+    // Player 1 in any of them. `isPlayerOnePaddle` is Player 1 on a single
+    // paddle.
     static PlayerAxisTarget  GetModeTarget      (size_t      player,
                                                  bool        isPaddle,
+                                                 bool        isTwoPaddles,
                                                  bool        isPlayerOnePaddle);
     static bool              IsPaddleTarget     (PlayerAxisTarget target);
+    static bool              IsPaddlePairTarget (PlayerAxisTarget target);
     static ButtonRoute       GetButtonRoute     (PlayerAxisTarget target);
     static Route             GetSingleRoute     (size_t axisCount);
     static Route             GetLoneRoute       (PlayerAxisTarget target, size_t axisCount);

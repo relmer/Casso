@@ -13,9 +13,10 @@
 //  PlayerAxisTarget
 //
 //  What one player slot drives: a joystick, meaning two paddles wired to one
-//  stick, or a single paddle. The four-axis game port offers two joysticks or
-//  four paddles. The two players' modes decide which one each slot drives;
-//  it is not a choice of its own.
+//  stick; a single paddle; or a pair of paddles, the same two inputs as a
+//  joystick played as two knobs. The four-axis game port offers two
+//  joysticks or four paddles. The two players' modes decide which one each
+//  slot drives; it is not a choice of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +27,9 @@ enum class PlayerAxisTarget
     Paddle0,
     Paddle1,
     Paddle2,
-    Paddle3
+    Paddle3,
+    Paddles01,   // PDL0 and PDL1, as two paddles
+    Paddles23    // PDL2 and PDL3, as two paddles
 };
 
 

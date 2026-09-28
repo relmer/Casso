@@ -489,7 +489,7 @@ namespace ControllerTests
                 Assert::IsTrue    (normal->mode  == ProfileMode::Joystick);
                 Assert::IsTrue    (joyport->mode == ProfileMode::Joyport);
                 Assert::IsTrue    (paddles->mode == ProfileMode::Paddle);
-                Assert::IsTrue    (expectedPaddles == DefaultMapping::MakePaddles (keys[i], controls[i]), L"the Paddles mapping is the old Paddles starting point");
+                Assert::IsTrue    (expectedPaddles == DefaultMapping::MakePaddles (keys[i], formFactors[i], controls[i]), L"the Paddles mapping is the old Paddles starting point");
 
                 for (const char * name : { "Default", "DEFAULT", "Joyport", "joyport", "Paddles", "PADDLES" })
                 {
@@ -596,7 +596,7 @@ namespace ControllerTests
 
             Assert::IsTrue (settings.FindProfile ("Plain")->mapping == DefaultMapping::For (Xbox(), controls));
             Assert::IsTrue (settings.FindProfile ("Flight 2")->mapping == MakeFullMapping(), L"a copy carries the source's mapping");
-            Assert::IsTrue (settings.FindProfile ("Pong")->mapping == DefaultMapping::MakePaddles (Xbox(), controls));
+            Assert::IsTrue (settings.FindProfile ("Pong")->mapping == DefaultMapping::MakePaddles (Xbox(), ControllerFormFactor::Gamepad, controls));
             Assert::IsTrue (settings.FindProfile ("Ghost") == nullptr);
 
             for (const ControllerProfile & profile : settings.profiles)
@@ -920,7 +920,7 @@ namespace ControllerTests
                     {
                         case ProfileSource::DefaultMapping: expected = DefaultMapping::For (Xbox(), controls);                                      break;
                         case ProfileSource::JoyportMapping: expected = DefaultMapping::MakeJoyport (Xbox(), ControllerFormFactor::Gamepad, controls); break;
-                        case ProfileSource::PaddleMapping:  expected = DefaultMapping::MakePaddles (Xbox(), controls);                              break;
+                        case ProfileSource::PaddleMapping:  expected = DefaultMapping::MakePaddles (Xbox(), ControllerFormFactor::Gamepad, controls);                              break;
                         case ProfileSource::CopyOfProfile:  expected = settings.FindProfile (c.pszSourceName)->mapping;                             break;
                     }
 
@@ -1221,7 +1221,7 @@ namespace ControllerTests
             Assert::IsTrue   (older.profiles[1].kind == ControllerProfileKind::Joyport);
             Assert::IsTrue   (older.profiles[1].mapping == DefaultMapping::MakeJoyport (Xbox(), ControllerFormFactor::Gamepad, controls));
             Assert::IsTrue   (older.profiles[2].kind == ControllerProfileKind::Paddles);
-            Assert::IsTrue   (older.profiles[2].mapping == DefaultMapping::MakePaddles (Xbox(), controls));
+            Assert::IsTrue   (older.profiles[2].mapping == DefaultMapping::MakePaddles (Xbox(), ControllerFormFactor::Gamepad, controls));
 
             Assert::AreEqual (size_t (3), adopted.profiles.size(), L"no second Joyport profile");
             Assert::IsTrue   (adopted.profiles[1].kind == ControllerProfileKind::Joyport);
@@ -1492,8 +1492,8 @@ namespace ControllerTests
         }
 
 
-        //  The Joyport's jacks and Same as Player 1 are saved as modes too, and
-        //  read back as they were. A Player 2 saved with no mode is Same as
+        //  The Joyport's jacks, Two paddles and Same as Player 1 are saved as
+        //  modes too, and read back as they were. A Player 2 saved with no mode is Same as
         //  Player 1, its default; Player 1 on Same as Player 1 is Joystick; and
         //  two players saved in one jack leave it to Player 1, with Player 2
         //  following into the other.
@@ -1506,6 +1506,7 @@ namespace ControllerTests
                 { PlayerMode::JoyportRight,  "joyportRight"  },
                 { PlayerMode::Paddle,        "paddle"        },
                 { PlayerMode::SameAsPlayer1, "sameAsPlayer1" },
+                { PlayerMode::TwoPaddles,    "twoPaddles"    },
             };
             std::vector<std::string>                   rejected;
             ControllerProfileStore                     store;
@@ -1532,7 +1533,7 @@ namespace ControllerTests
                 swept++;
             }
 
-            Assert::AreEqual (static_cast<size_t> (PlayerMode::SameAsPlayer1) + 1, swept, L"every mode has its token");
+            Assert::AreEqual (static_cast<size_t> (PlayerMode::TwoPaddles) + 1, swept, L"every mode has its token");
 
             read = ReadSection ("{\"players\":[{\"entry\":\"automatic\"},{\"entry\":\"automatic\"}]}", rejected);
             Assert::IsTrue (read.players.value()[0].mode == PlayerMode::Joystick,      L"Player 1 with no mode is Joystick");

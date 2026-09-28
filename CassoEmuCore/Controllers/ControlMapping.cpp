@@ -67,31 +67,44 @@ ControlMapping DefaultMapping::For (const ControllerModelKey & model, const std:
 //
 //  MakePaddles
 //
-//  One player's paddle: axis 0 (an Xbox controller's left stick X) to PDL0
+//  A player's paddles: axis 0 (an Xbox controller's left stick X) to PDL0
 //  with Rate response at the default speed, so the paddle holds where the
 //  player leaves it when a self-centering stick is released, and the first
 //  button (Xbox: A) to PB0.
 //
-//  ONE CONTROLLER IS ONE PLAYER. Two people cannot share a controller, so a
-//  two-player paddle game takes a controller each, and which paddle each one
-//  drives is that controller's assignment, not its profile. PDL1 and PB1 are
-//  therefore left unassigned rather than put on a second stick nobody holds.
+//  A player in Two paddles mode plays a second paddle on PDL1 with PB1, so
+//  the second stick's X axis, also Rate, goes there with the second button
+//  (Xbox: B). In Paddle mode only PDL0 and PB0 are played, and which paddle
+//  they reach is the player's place on the game port, not the profile.
+//
+//  The second stick is found as the Joyport's is: an Xbox-class
+//  controller's right stick, whose layout is fixed, and on a DirectInput
+//  gamepad the pair FindSecondStick picks. A DirectInput joystick or wheel
+//  gets none, since its other axes can be pedals, a twist or a throttle
+//  resting off center, so it binds PDL0 alone.
 //
 //  The D-pad is left off: a D-pad pair jumps its axis straight to either end,
 //  which would throw a paddle to the edge of the screen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, const std::vector<ControlId> & controls)
+ControlMapping DefaultMapping::MakePaddles (
+    const ControllerModelKey      & model,
+    ControllerFormFactor            formFactor,
+    const std::vector<ControlId>  & controls)
 {
-    ControlMapping  mapping;
-    ControlId       paddle  = { ControlKind::Axis, XInputSampleDecoder::kLeftStickX };
-    ControlId       button  = { ControlKind::Button, 0 };
-    AxisBinding     binding;
+    constexpr int                                   kFirstButton  = 0;
+    constexpr int                                   kSecondButton = 1;
+    bool                                            isXInput      = model.kind == ControllerKind::XInput;
+    ControlMapping                                  mapping;
+    ControlId                                       paddle        = { ControlKind::Axis, XInputSampleDecoder::kLeftStickX };
+    ControlId                                       rightX        = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
+    ControlId                                       first         = { ControlKind::Button, kFirstButton };
+    ControlId                                       second        = { ControlKind::Button, kSecondButton };
+    std::optional<std::pair<ControlId, ControlId>>  secondStick;
+    AxisBinding                                     binding;
 
 
-
-    UNREFERENCED_PARAMETER (model);
 
     binding.response = AxisResponse::Rate;
     binding.maxSpeed = AxisBinding::kDefaultMaxSpeed;
@@ -102,9 +115,30 @@ ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, co
         mapping.pdl0.push_back (binding);
     }
 
-    if (HasControl (controls, button))
+    if (isXInput && HasControl (controls, rightX))
     {
-        mapping.pb0.push_back ({ button });
+        binding.analog = rightX;
+        mapping.pdl1.push_back (binding);
+    }
+    else if (!isXInput)
+    {
+        secondStick = FindSecondStick (formFactor, controls);
+    }
+
+    if (secondStick.has_value())
+    {
+        binding.analog = secondStick->first;
+        mapping.pdl1.push_back (binding);
+    }
+
+    if (HasControl (controls, first))
+    {
+        mapping.pb0.push_back ({ first });
+    }
+
+    if (!mapping.pdl1.empty() && HasControl (controls, second))
+    {
+        mapping.pb1.push_back ({ second });
     }
 
     return mapping;

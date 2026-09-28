@@ -24,6 +24,7 @@ static constexpr const char *  s_kpszJoystickMode   = "joystick";
 static constexpr const char *  s_kpszJoyportLeft    = "joyportLeft";
 static constexpr const char *  s_kpszJoyportRight   = "joyportRight";
 static constexpr const char *  s_kpszSameAsPlayer1  = "sameAsPlayer1";
+static constexpr const char *  s_kpszTwoPaddles     = "twoPaddles";
 static constexpr const char *  s_kpszMappingKey     = "mapping";
 static constexpr const char *  s_kpszAnalogKey      = "analog";
 static constexpr const char *  s_kpszInvertedKey    = "inverted";
@@ -500,7 +501,7 @@ ControlMapping ControllerModelSettings::MakeBuiltInMapping (
 
     if (kind == ControllerProfileKind::Paddles)
     {
-        return DefaultMapping::MakePaddles (model, controls);
+        return DefaultMapping::MakePaddles (model, formFactor, controls);
     }
 
     return DefaultMapping::For (model, controls);
@@ -703,7 +704,7 @@ ProfileMode ControllerModelSettings::GetPlayerProfileMode (PlayerMode mode)
     {
         kind = ProfileMode::Joyport;
     }
-    else if (mode == PlayerMode::Paddle)
+    else if (mode == PlayerMode::Paddle || mode == PlayerMode::TwoPaddles)
     {
         kind = ProfileMode::Paddle;
     }
@@ -733,6 +734,7 @@ const char * ControllerProfileStore::PlayerModeToToken (PlayerMode mode)
         case PlayerMode::JoyportRight:   pszToken = s_kpszJoyportRight;   break;
         case PlayerMode::Paddle:         pszToken = s_kpszPaddleMode;     break;
         case PlayerMode::SameAsPlayer1:  pszToken = s_kpszSameAsPlayer1;  break;
+        case PlayerMode::TwoPaddles:     pszToken = s_kpszTwoPaddles;     break;
 
         case PlayerMode::Joystick:
         default:                                                          break;
@@ -774,6 +776,10 @@ PlayerMode ControllerProfileStore::PlayerModeFromToken (const std::string & toke
     else if (token == s_kpszSameAsPlayer1)
     {
         mode = PlayerMode::SameAsPlayer1;
+    }
+    else if (token == s_kpszTwoPaddles)
+    {
+        mode = PlayerMode::TwoPaddles;
     }
 
     return mode;

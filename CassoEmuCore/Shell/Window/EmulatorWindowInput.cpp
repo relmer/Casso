@@ -2977,12 +2977,12 @@ void EmulatorShell::SetPlayerMode (size_t player, PlayerMode mode)
 
     m_controllerService->SetPlayerMode (player, mode);
 
-    if (isPlayerOne && mode == PlayerMode::Paddle && m_arrowsJoystick)
+    if (isPlayerOne && PlayerModeRules::IsPaddleMode (mode) && m_arrowsJoystick)
     {
         SetArrowsJoystick (false);
     }
 
-    if (isPlayerOne && mode != PlayerMode::Paddle && m_pointerMode == InputMappingMode::Paddle)
+    if (isPlayerOne && !PlayerModeRules::IsPaddleMode (mode) && m_pointerMode == InputMappingMode::Paddle)
     {
         SetPointerMapping (InputMappingMode::Off);
     }
@@ -3343,7 +3343,8 @@ std::wstring EmulatorShell::GetStandInBannerText() const
 //
 //  Who owns each axis: Player 1's keys or mouse own PDL0 and PDL1 while one of
 //  them is picked -- the keys only outside the Joyport's jacks, and the mouse
-//  PDL0 alone while Player 2 plays -- and the controller source owns the rest,
+//  PDL0 alone while Player 2 plays, outside Two paddles mode -- and the
+//  controller source owns the rest,
 //  and all four otherwise. The rule itself is in InputModeRules so it can be
 //  asserted without a machine. Which controller drives which axis is settled
 //  inside the controller source, which leaves an axis it does not drive at
@@ -3374,8 +3375,9 @@ void EmulatorShell::SyncGamePortAxisOwner()
         playerOne = snapshot.entries[0];
         wanted    = playerOne.kind;
 
-        state.isKeysOnJoyport = PlayerModeRules::IsOnJoyport (snapshot.entries, 0, m_machine.GetJoyport() != nullptr);
-        state.isSecondPlaying = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[1]);
+        state.isKeysOnJoyport   = PlayerModeRules::IsOnJoyport (snapshot.entries, 0, m_machine.GetJoyport() != nullptr);
+        state.isSecondPlaying   = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[1]);
+        state.isMouseTwoPaddles = PlayerModeRules::ResolveMode (snapshot.entries, 0, m_machine.GetJoyport() != nullptr) == PlayerMode::TwoPaddles;
 
         if (state.mousePaddle)
         {

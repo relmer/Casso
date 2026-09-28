@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Controllers/PlayerSlotPolicy.h"
+#include "Controllers/PlayerModeRules.h"
 
 #include "Controllers/DeadzoneShaper.h"
 
@@ -506,10 +507,15 @@ namespace ControllerTests
             constexpr size_t  kPb2      = 2;
             const Row         kRows[]   =
             {
-                { PlayerMode::Joystick, PlayerMode::Joystick, { 0, 1 },            { 0, 1, std::nullopt }, { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
-                { PlayerMode::Joystick, PlayerMode::Paddle,   { 0, 1 },            { 0, 1, std::nullopt }, { kPdl2, std::nullopt }, { kPb2, std::nullopt, std::nullopt } },
-                { PlayerMode::Paddle,   PlayerMode::Joystick, { 0, std::nullopt }, { 0, std::nullopt, std::nullopt }, { kPdl2, kPdl3 }, { kPb2, std::nullopt, std::nullopt } },
-                { PlayerMode::Paddle,   PlayerMode::Paddle,   { 0, std::nullopt }, { 0, std::nullopt, std::nullopt }, { 1, std::nullopt }, { 1, std::nullopt, std::nullopt } },
+                { PlayerMode::Joystick,   PlayerMode::Joystick,   { 0, 1 },            { 0, 1, std::nullopt },            { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::Joystick,   PlayerMode::Paddle,     { 0, 1 },            { 0, 1, std::nullopt },            { kPdl2, std::nullopt }, { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::Paddle,     PlayerMode::Joystick,   { 0, std::nullopt }, { 0, std::nullopt, std::nullopt }, { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::Paddle,     PlayerMode::Paddle,     { 0, std::nullopt }, { 0, std::nullopt, std::nullopt }, { 1, std::nullopt },     { 1, std::nullopt, std::nullopt } },
+                { PlayerMode::Joystick,   PlayerMode::TwoPaddles, { 0, 1 },            { 0, 1, std::nullopt },            { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::TwoPaddles, PlayerMode::Joystick,   { 0, 1 },            { 0, 1, std::nullopt },            { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::TwoPaddles, PlayerMode::Paddle,     { 0, 1 },            { 0, 1, std::nullopt },            { kPdl2, std::nullopt }, { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::Paddle,     PlayerMode::TwoPaddles, { 0, std::nullopt }, { 0, std::nullopt, std::nullopt }, { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
+                { PlayerMode::TwoPaddles, PlayerMode::TwoPaddles, { 0, 1 },            { 0, 1, std::nullopt },            { kPdl2, kPdl3 },        { kPb2, std::nullopt, std::nullopt } },
             };
             size_t            checked   = 0;
 
@@ -519,8 +525,8 @@ namespace ControllerTests
                 std::optional<PlayerTargetRules::Route>  first  = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 0, kFourAxes);
                 std::optional<PlayerTargetRules::Route>  second = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, kFourAxes);
                 std::wstring                             what   = std::format (L"Player 1 {}, Player 2 {}",
-                                                                               row.first  == PlayerMode::Paddle ? L"Paddle" : L"Joystick",
-                                                                               row.second == PlayerMode::Paddle ? L"Paddle" : L"Joystick");
+                                                                               PlayerModeRules::GetModeLabel (row.first),
+                                                                               PlayerModeRules::GetModeLabel (row.second));
 
                 Assert::IsTrue (first.has_value() && second.has_value(), what.c_str());
 
@@ -558,6 +564,23 @@ namespace ControllerTests
         }
 
 
+        //  The //c's two paddles in Two paddles mode: Player 1's pair is both
+        //  of them, and a second player, whose place is past them, gets
+        //  nothing.
+        TEST_METHOD (Modes_TwoPaddlesOnTheTwoPaddleMachine)
+        {
+            constexpr size_t                         kTwoAxes = 2;
+            World                                    pairs    = MakeTwoPlaying (PlayerMode::TwoPaddles, PlayerMode::Paddle);
+            World                                    beside   = MakeTwoPlaying (PlayerMode::Paddle,     PlayerMode::TwoPaddles);
+            std::optional<PlayerTargetRules::Route>  first    = PlayerSlotPolicy::GetDriverRoute (pairs.slots, pairs.entries, 0, kTwoAxes);
+
+            Assert::IsTrue  (first.has_value() && first->paddles[0] == size_t (0) && first->paddles[1] == size_t (1), L"Player 1's two paddles play");
+            Assert::IsTrue  (first->buttons[0] == size_t (0) && first->buttons[1] == size_t (1), L"with PB0 and PB1");
+            Assert::IsFalse (PlayerSlotPolicy::GetDriverRoute (pairs.slots,  pairs.entries,  1, kTwoAxes).has_value(), L"a paddle beside them drives nothing");
+            Assert::IsFalse (PlayerSlotPolicy::GetDriverRoute (beside.slots, beside.entries, 1, kTwoAxes).has_value(), L"nor does a second pair");
+        }
+
+
         //  One player playing alone drives what one controller of its mode
         //  always has, from either slot: a joystick PDL0, PDL1 and PB0-PB2, a
         //  paddle PDL0 and PB0.
@@ -590,6 +613,13 @@ namespace ControllerTests
             route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, kFourAxes).value();
 
             Assert::IsTrue (route.paddles[0] == size_t (0) && route.buttons[0] == size_t (0), L"Player 2 alone in Paddle mode drives PDL0 and PB0 too");
+
+            world.entries[1].mode = PlayerMode::TwoPaddles;
+            world.Step();
+            route = PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, kFourAxes).value();
+
+            Assert::IsTrue (route.paddles[0] == size_t (0) && route.paddles[1] == size_t (1), L"Player 2 alone in Two paddles mode drives PDL0 and PDL1");
+            Assert::IsTrue (route.buttons[0] == size_t (0) && route.buttons[1] == size_t (1) && !route.buttons[kPb2].has_value(), L"and PB0 and PB1");
         }
 
 
@@ -619,6 +649,12 @@ namespace ControllerTests
             world.entries[1].mode = PlayerMode::Paddle;
             world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, false);
             Assert::AreEqual ((int) PlayerAxisTarget::Paddle2, (int) world.slots[1].target, L"no Joyport: Player 1 plays joystick 0, and a paddle beside it is paddle 2");
+
+            world.entries[1].mode = PlayerMode::TwoPaddles;
+            world.slots = PlayerSlotPolicy::Evaluate (world.entries, world.devices, world.logs, world.slots, true);
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddles01, (int) world.slots[1].target, L"two paddles beside the Joyport are paddles 0 and 1");
+            Assert::IsTrue   (PlayerSlotPolicy::GetDriverRoute (world.slots, world.entries, 1, GamePortContribution::kAxisCount, true)->buttons == PlayerTargetRules::ButtonRoute(),
+                              L"with no button line");
         }
 
 
@@ -684,6 +720,17 @@ namespace ControllerTests
 
             entries = PlayerSlotPolicy::ApplyMode (entries, 1, PlayerMode::Joystick);
             Assert::AreEqual ((int) PlayerEntryKind::Controller, (int) entries[1].kind, L"a controller has either mode");
+
+            entries = PlayerSlotPolicy::ApplyMode (entries, 0, PlayerMode::TwoPaddles);
+            entries = PlayerSlotPolicy::ApplyPick (entries, 0, mouse);
+            Assert::IsTrue (entries[0].mode == PlayerMode::TwoPaddles, L"the mouse keeps Two paddles mode, its X and Y the two paddles");
+
+            entries = PlayerSlotPolicy::ApplyMode (entries, 0, PlayerMode::Paddle);
+            Assert::AreEqual ((int) PlayerEntryKind::MousePaddle, (int) entries[0].kind, L"and moves between the paddle modes");
+
+            entries = PlayerSlotPolicy::ApplyPick (entries, 0, keys);
+            entries = PlayerSlotPolicy::ApplyMode (entries, 0, PlayerMode::TwoPaddles);
+            Assert::AreEqual ((int) PlayerEntryKind::Automatic, (int) entries[0].kind, L"Two paddles mode sends the keys back to Automatic");
         }
 
         //

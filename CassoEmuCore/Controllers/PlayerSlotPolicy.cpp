@@ -592,12 +592,13 @@ void PlayerSlotPolicy::SetTargets (const Context & context, PlayerSlots & slots)
 //
 //  GetModeTargets
 //
-//  As the game port is wired: Player 1 in Joystick mode takes joystick 0 and
-//  in Paddle mode paddle 0, and Player 2 takes joystick 1, or the lowest
-//  paddle beside Player 1. A player in a Joyport jack drives no paddle, so
-//  the player beside it takes what its mode gives a player alone: joystick 0,
-//  or paddle 0. A player in a jack keeps the joystick its number gives, which
-//  the rules for the jacks never read.
+//  As the game port is wired: Player 1 in Joystick mode takes joystick 0, in
+//  Paddle mode paddle 0 and in Two paddles mode paddles 0 and 1; Player 2
+//  takes joystick 1, paddles 2 and 3, or the lowest paddle beside Player 1.
+//  A player in a Joyport jack drives no paddle, so the player beside it
+//  takes what its mode gives a player alone: joystick 0, paddle 0, or
+//  paddles 0 and 1. A player in a jack keeps the joystick its number gives,
+//  which the rules for the jacks never read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -613,12 +614,14 @@ std::array<PlayerAxisTarget, PlayerSlotPolicy::kPlayerCount> PlayerSlotPolicy::G
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        size_t  other    = (player == 0) ? 1 : 0;
-        bool    isPaddle = PlayerModeRules::ResolveMode (entries, player, hasJoyport) == PlayerMode::Paddle;
-        bool    isBeside = PlayerModeRules::IsOnJoyport (entries, other, hasJoyport) && !PlayerModeRules::IsOnJoyport (entries, player, hasJoyport);
+        size_t      other        = (player == 0) ? 1 : 0;
+        PlayerMode  mode         = PlayerModeRules::ResolveMode (entries, player, hasJoyport);
+        bool        isPaddle     = mode == PlayerMode::Paddle;
+        bool        isTwoPaddles = mode == PlayerMode::TwoPaddles;
+        bool        isBeside     = PlayerModeRules::IsOnJoyport (entries, other, hasJoyport) && !PlayerModeRules::IsOnJoyport (entries, player, hasJoyport);
 
-        targets[player] = isBeside ? PlayerTargetRules::GetModeTarget (0, isPaddle, false)
-                                   : PlayerTargetRules::GetModeTarget (player, isPaddle, isOnePaddle);
+        targets[player] = isBeside ? PlayerTargetRules::GetModeTarget (0, isPaddle, isTwoPaddles, false)
+                                   : PlayerTargetRules::GetModeTarget (player, isPaddle, isTwoPaddles, isOnePaddle);
     }
 
     return targets;
@@ -977,14 +980,15 @@ PlayerEntries PlayerSlotPolicy::ApplyPick (PlayerEntries entries, size_t player,
 //  ApplyMode
 //
 //  The keys are a joystick, in Joystick mode or a jack, and the mouse a
-//  paddle, so Player 1 on either leaves it for Automatic when its mode
-//  changes to one the other stands in for.
+//  paddle or two, so Player 1 on either leaves it for Automatic when its
+//  mode changes to one the other stands in for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 PlayerEntries PlayerSlotPolicy::ApplyMode (PlayerEntries entries, size_t player, PlayerMode mode)
 {
     PlayerEntryKind  kind       = PlayerEntryKind::Automatic;
+    bool             isPaddle   = PlayerModeRules::IsPaddleMode (mode);
     bool             isStandIn  = false;
 
 
@@ -995,8 +999,8 @@ PlayerEntries PlayerSlotPolicy::ApplyMode (PlayerEntries entries, size_t player,
     }
 
     kind      = entries[player].kind;
-    isStandIn = (kind == PlayerEntryKind::ArrowKeys   && mode == PlayerMode::Paddle) ||
-                (kind == PlayerEntryKind::MousePaddle && mode != PlayerMode::Paddle);
+    isStandIn = (kind == PlayerEntryKind::ArrowKeys   && isPaddle) ||
+                (kind == PlayerEntryKind::MousePaddle && !isPaddle);
 
     entries[player].mode = mode;
 
@@ -1019,8 +1023,9 @@ PlayerEntries PlayerSlotPolicy::ApplyMode (PlayerEntries entries, size_t player,
 //  The keys and the mouse are Player 1's, and Disabled is Player 2's; a pick
 //  with no controller is no pick. Each of those reads as Automatic, and so
 //  does Player 2 picking the controller Player 1 picked, since one controller
-//  cannot play for both. The keys leave Paddle mode for Joystick and the
-//  mouse plays in Paddle mode, whatever mode was saved with them.
+//  cannot play for both. The keys leave Paddle and Two paddles mode for
+//  Joystick, and the mouse plays in Paddle mode unless it was saved in Two
+//  paddles mode.
 //
 //  Same as Player 1 is Player 2's alone, and Player 1 on it plays Joystick.
 //  Two players in one jack cannot both be played, so Player 1 keeps it and
@@ -1050,11 +1055,11 @@ PlayerEntries PlayerSlotPolicy::NormalizeEntries (PlayerEntries entries)
             entry.unit.reset();
         }
 
-        if (entry.kind == PlayerEntryKind::ArrowKeys && entry.mode == PlayerMode::Paddle)
+        if (entry.kind == PlayerEntryKind::ArrowKeys && PlayerModeRules::IsPaddleMode (entry.mode))
         {
             entry.mode = PlayerMode::Joystick;
         }
-        else if (entry.kind == PlayerEntryKind::MousePaddle)
+        else if (entry.kind == PlayerEntryKind::MousePaddle && !PlayerModeRules::IsPaddleMode (entry.mode))
         {
             entry.mode = PlayerMode::Paddle;
         }

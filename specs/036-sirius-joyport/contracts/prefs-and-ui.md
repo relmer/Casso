@@ -288,7 +288,8 @@ picker row, the commands and the Controllers page's Joyport section above.
 ```
 
 - Mode tokens: `"joystick"`, `"joyportLeft"`, `"joyportRight"`, `"paddle"`,
-  `"sameAsPlayer1"` (spec 034 contracts/prefs-schema.md). A Player 2 with no
+  `"twoPaddles"` (2026-09-28, later), `"sameAsPlayer1"` (spec 034
+  contracts/prefs-schema.md). A Player 2 with no
   saved mode key is Same as Player 1. An unrecognized token reads as
   Joystick, and `"sameAsPlayer1"` on Player 1 reads as Joystick.
 - Migration at cold boot, `PlayerModeRules::MigrateAdapter (hasSavedModes,
@@ -319,14 +320,14 @@ picker row, the commands and the Controllers page's Joyport section above.
 ### Picker
 
 - The Joyport row is removed.
-- Each player's row reads "Player N: <what plays>", ending in " (paddle)" for a controller or Automatic in Paddle mode; no other mode adds a suffix. Its submenu lists the
+- Each player's row reads "Player N: <what plays>", ending in " (paddle)" for a controller or Automatic in Paddle mode and " (two paddles)" in Two paddles mode; no other mode adds a suffix. Its submenu lists the
   modes from `PlayerModeRules::BuildModeChoices`, in the order Joystick,
-  Joyport left (Atari), Joyport right (Atari), Paddle, with Same as Player 1
+  Joyport left (Atari), Joyport right (Atari), Paddle, Two paddles, with Same as Player 1
   first for Player 2; the resolved mode's entry is checked and a jack the
   other player holds is disabled. The //c lists no jack.
 - Use keys as joystick is listed when `AreKeysOffered` (Player 1 in Joystick
   or a jack) and Use mouse as paddle when `IsMouseOffered` (Player 1 in
-  Paddle); a checked one stays listed.
+  Paddle or Two paddles); a checked one stays listed.
 - The notice for a controller Automatic gave a player is
   `PlayerModeRules::DescribeAssignment`.
 

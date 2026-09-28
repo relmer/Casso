@@ -82,6 +82,7 @@ namespace ControllerTests
         {
             Assert::IsTrue (PlayerModeRules::ResolveMode (MakeEntries (PlayerMode::Joystick,     PlayerMode::SameAsPlayer1), 1, true) == PlayerMode::Joystick);
             Assert::IsTrue (PlayerModeRules::ResolveMode (MakeEntries (PlayerMode::Paddle,       PlayerMode::SameAsPlayer1), 1, true) == PlayerMode::Paddle);
+            Assert::IsTrue (PlayerModeRules::ResolveMode (MakeEntries (PlayerMode::TwoPaddles,   PlayerMode::SameAsPlayer1), 1, true) == PlayerMode::TwoPaddles);
             Assert::IsTrue (PlayerModeRules::ResolveMode (MakeEntries (PlayerMode::JoyportLeft,  PlayerMode::SameAsPlayer1), 1, true) == PlayerMode::JoyportRight, L"the other jack");
             Assert::IsTrue (PlayerModeRules::ResolveMode (MakeEntries (PlayerMode::JoyportRight, PlayerMode::SameAsPlayer1), 1, true) == PlayerMode::JoyportLeft,  L"the other jack");
             Assert::IsTrue (PlayerModeRules::ResolveMode (MakeEntries (PlayerMode::JoyportLeft,  PlayerMode::Paddle),        1, true) == PlayerMode::Paddle,       L"an explicit mode stands");
@@ -137,6 +138,8 @@ namespace ControllerTests
             Assert::IsTrue  (PlayerModeRules::AreButtonsCut (entries, 1, true), L"the Joyport owns all three button lines");
             Assert::IsFalse (PlayerModeRules::AreButtonsCut (entries, 1, false), L"no Joyport, nothing cut");
             Assert::IsFalse (PlayerModeRules::AreButtonsCut (MakeEntries (PlayerMode::Joystick, PlayerMode::Paddle), 0, true));
+            Assert::IsTrue  (PlayerModeRules::AreButtonsCut (MakeEntries (PlayerMode::JoyportLeft, PlayerMode::TwoPaddles), 1, true),
+                             L"two paddles beside the Joyport lose their buttons too");
         }
 
 
@@ -180,8 +183,11 @@ namespace ControllerTests
             Assert::IsTrue  (PlayerModeRules::AreKeysOffered (MakeEntries (PlayerMode::Joystick,    PlayerMode::SameAsPlayer1), true));
             Assert::IsTrue  (PlayerModeRules::AreKeysOffered (MakeEntries (PlayerMode::JoyportLeft, PlayerMode::SameAsPlayer1), true));
             Assert::IsFalse (PlayerModeRules::AreKeysOffered (MakeEntries (PlayerMode::Paddle,      PlayerMode::SameAsPlayer1), true));
+            Assert::IsFalse (PlayerModeRules::AreKeysOffered (MakeEntries (PlayerMode::TwoPaddles,  PlayerMode::SameAsPlayer1), true));
 
             Assert::IsTrue  (PlayerModeRules::IsMouseOffered (MakeEntries (PlayerMode::Paddle,      PlayerMode::SameAsPlayer1), true));
+            Assert::IsTrue  (PlayerModeRules::IsMouseOffered (MakeEntries (PlayerMode::TwoPaddles,  PlayerMode::SameAsPlayer1), true),
+                             L"the mouse's X and Y are the two paddles");
             Assert::IsFalse (PlayerModeRules::IsMouseOffered (MakeEntries (PlayerMode::Joystick,    PlayerMode::SameAsPlayer1), true));
             Assert::IsFalse (PlayerModeRules::IsMouseOffered (MakeEntries (PlayerMode::JoyportLeft, PlayerMode::SameAsPlayer1), true));
         }
@@ -201,10 +207,10 @@ namespace ControllerTests
                 labels.push_back (choice.label);
             }
 
-            Assert::IsTrue (labels == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle" });
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle", L"Two paddles" });
             Assert::IsTrue (FindChoice (one, PlayerMode::JoyportLeft).isChecked);
 
-            Assert::AreEqual (size_t (5), two.size());
+            Assert::AreEqual (size_t (6), two.size());
             Assert::AreEqual (std::wstring (L"Automatic (Joyport right)"), two[0].label, L"showing the other jack, where it plays");
             Assert::IsTrue   (two[0].isChecked, L"its own mode is checked, not what it resolves to");
             Assert::IsFalse  (FindChoice (two, PlayerMode::JoyportLeft).isEnabled,  L"the jack Player 1 holds is shown disabled");
@@ -224,14 +230,15 @@ namespace ControllerTests
 
             Assert::AreEqual (std::wstring (L"Automatic (joystick)"),      getLabel (PlayerMode::Joystick,     true));
             Assert::AreEqual (std::wstring (L"Automatic (paddle)"),        getLabel (PlayerMode::Paddle,       true));
+            Assert::AreEqual (std::wstring (L"Automatic (two paddles)"),   getLabel (PlayerMode::TwoPaddles,   true));
             Assert::AreEqual (std::wstring (L"Automatic (Joyport right)"), getLabel (PlayerMode::JoyportLeft,  true));
             Assert::AreEqual (std::wstring (L"Automatic (Joyport left)"),  getLabel (PlayerMode::JoyportRight, true));
             Assert::AreEqual (std::wstring (L"Automatic (joystick)"),      getLabel (PlayerMode::JoyportLeft,  false), L"a saved jack plays as Joystick without a Joyport");
         }
 
 
-        //  Player 1 has no Automatic mode: Joystick, the two jacks and
-        //  Paddle, starting in Joystick.
+        //  Player 1 has no Automatic mode: Joystick, the two jacks, Paddle
+        //  and Two paddles, starting in Joystick.
         TEST_METHOD (PlayerOneModes_HaveNoAutomaticAndStartAtJoystick)
         {
             std::vector<InputModeRules::PlayerModeChoice>  one    = PlayerModeRules::BuildModeChoices (PlayerSlotPolicy::MakeDefaultEntries(), 0, true);
@@ -244,7 +251,7 @@ namespace ControllerTests
                 labels.push_back (choice.label);
             }
 
-            Assert::IsTrue  (labels == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle" });
+            Assert::IsTrue  (labels == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle", L"Two paddles" });
             Assert::IsFalse (IsModeListed (one, PlayerMode::SameAsPlayer1));
             Assert::IsTrue  (FindChoice (one, PlayerMode::Joystick).isChecked, L"Joystick by default");
         }
@@ -258,11 +265,12 @@ namespace ControllerTests
 
 
 
-            Assert::AreEqual (size_t (2), one.size());
+            Assert::AreEqual (size_t (3), one.size());
             Assert::IsFalse  (IsModeListed (one, PlayerMode::JoyportLeft));
             Assert::IsFalse  (IsModeListed (one, PlayerMode::JoyportRight));
+            Assert::IsTrue   (IsModeListed (one, PlayerMode::TwoPaddles), L"the //c has two paddle inputs, so it offers Two paddles");
             Assert::IsTrue   (FindChoice (one, PlayerMode::Joystick).isChecked, L"a saved jack plays as Joystick on the //c");
-            Assert::AreEqual (size_t (3), two.size());
+            Assert::AreEqual (size_t (4), two.size());
             Assert::IsTrue   (FindChoice (two, PlayerMode::SameAsPlayer1).isChecked);
         }
 

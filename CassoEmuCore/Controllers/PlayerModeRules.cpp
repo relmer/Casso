@@ -95,6 +95,24 @@ bool PlayerModeRules::IsJoyportMode (PlayerMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsPaddleMode
+//
+//  Paddle or Two paddles: the modes that play a Paddle profile, and the
+//  ones the mouse plays in and the keys do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlayerModeRules::IsPaddleMode (PlayerMode mode)
+{
+    return mode == PlayerMode::Paddle || mode == PlayerMode::TwoPaddles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetJack
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,10 +195,10 @@ bool PlayerModeRules::IsJoyportOn (const PlayerEntries & entries, bool hasJoypor
 //
 //  AreButtonsCut
 //
-//  The Joyport owns all three button lines, so a player left on Joystick
-//  or Paddle beside it keeps its paddles but not its buttons, as on the
-//  hardware, where the switch that selects the Atari jacks cuts the rear
-//  sockets' buttons off.
+//  The Joyport owns all three button lines, so a player left on Joystick,
+//  Paddle or Two paddles beside it keeps its paddles but not its buttons,
+//  as on the hardware, where the switch that selects the Atari jacks cuts
+//  the rear sockets' buttons off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -268,7 +286,7 @@ bool PlayerModeRules::IsModeTaken (const PlayerEntries & entries, size_t player,
 
 bool PlayerModeRules::AreKeysOffered (const PlayerEntries & entries, bool hasJoyport)
 {
-    return ResolveMode (entries, kPlayerOne, hasJoyport) != PlayerMode::Paddle;
+    return !IsPaddleMode (ResolveMode (entries, kPlayerOne, hasJoyport));
 }
 
 
@@ -279,13 +297,14 @@ bool PlayerModeRules::AreKeysOffered (const PlayerEntries & entries, bool hasJoy
 //
 //  IsMouseOffered
 //
-//  The mouse is a paddle: Player 1 in Paddle mode only.
+//  The mouse is a paddle, or two: Player 1 in Paddle or Two paddles mode
+//  only.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PlayerModeRules::IsMouseOffered (const PlayerEntries & entries, bool hasJoyport)
 {
-    return ResolveMode (entries, kPlayerOne, hasJoyport) == PlayerMode::Paddle;
+    return IsPaddleMode (ResolveMode (entries, kPlayerOne, hasJoyport));
 }
 
 
@@ -310,6 +329,7 @@ std::wstring PlayerModeRules::GetModeLabel (PlayerMode mode)
         case PlayerMode::JoyportLeft:    label = L"Joyport left (Atari)";   break;
         case PlayerMode::JoyportRight:   label = L"Joyport right (Atari)";  break;
         case PlayerMode::Paddle:         label = L"Paddle";                 break;
+        case PlayerMode::TwoPaddles:     label = L"Two paddles";            break;
         case PlayerMode::SameAsPlayer1:  label = L"Automatic";              break;
 
         default:                                                            break;
@@ -327,7 +347,8 @@ std::wstring PlayerModeRules::GetModeLabel (PlayerMode mode)
 //  GetAutomaticModeLabel
 //
 //  Player 2's Automatic mode with what it resolves to: "Automatic
-//  (joystick)", "Automatic (Joyport right)", "Automatic (paddle)".
+//  (joystick)", "Automatic (Joyport right)", "Automatic (paddle)",
+//  "Automatic (two paddles)".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -343,6 +364,7 @@ std::wstring PlayerModeRules::GetAutomaticModeLabel (PlayerMode resolved)
         case PlayerMode::JoyportLeft:   mode = L"Joyport left";   break;
         case PlayerMode::JoyportRight:  mode = L"Joyport right";  break;
         case PlayerMode::Paddle:        mode = L"paddle";         break;
+        case PlayerMode::TwoPaddles:    mode = L"two paddles";    break;
 
         default:                                                  break;
     }
@@ -374,9 +396,9 @@ std::wstring PlayerModeRules::GetPlayerLabel (size_t player)
 //
 //  BuildModeChoices
 //
-//  Joystick, the two jacks and Paddle, in that order, with Automatic ahead of
-//  them for Player 2, showing the mode it resolves to. Player 1 has no
-//  Automatic. The player's own mode is checked, Automatic included, and a
+//  Joystick, the two jacks, Paddle and Two paddles, in that order, with
+//  Automatic ahead of them for Player 2, showing the mode it resolves to.
+//  Player 1 has no Automatic. The player's own mode is checked, Automatic included, and a
 //  jack the other player holds is listed but cannot be chosen. A machine
 //  without a Joyport lists no jacks, and a jack saved earlier is checked as
 //  the Joystick it plays as there.
@@ -421,6 +443,7 @@ std::vector<InputModeRules::PlayerModeChoice> PlayerModeRules::BuildModeChoices 
     }
 
     modes.push_back (PlayerMode::Paddle);
+    modes.push_back (PlayerMode::TwoPaddles);
 
     for (PlayerMode mode : modes)
     {

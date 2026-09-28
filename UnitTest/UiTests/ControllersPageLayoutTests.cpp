@@ -247,7 +247,7 @@ public:
         one = FindCombos (page, L"Joystick")[0];
         two = FindCombos (page, L"Automatic (joystick)")[0];
 
-        Assert::IsTrue   (one->GetItems() == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle" });
+        Assert::IsTrue   (one->GetItems() == std::vector<std::wstring> { L"Joystick", L"Joyport left (Atari)", L"Joyport right (Atari)", L"Paddle", L"Two paddles" });
         Assert::AreEqual (0, one->GetSelectedIndex(),                  L"Player 1 in Joystick mode");
         Assert::AreEqual (std::wstring (L"Paddle"), two->GetItems()[(size_t) two->GetSelectedIndex()], L"Player 2 in Paddle mode");
         Assert::IsNotNull (FindLabel (page, L"Player 1:"),             L"the row shows the player, not a jack");

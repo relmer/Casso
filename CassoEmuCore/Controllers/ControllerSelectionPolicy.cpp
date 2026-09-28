@@ -98,7 +98,8 @@ bool ControllerSelectionPolicy::AdoptSlotKeyedPlayers (
 //
 //  GetTargetAxes
 //
-//  A joystick is two paddles wired to one stick; a paddle is one. Paddles the
+//  A joystick is two paddles wired to one stick, a pair of paddles is the
+//  same two played as knobs, and a paddle is one. Paddles the
 //  machine does not have are left out here rather than removed from the slot,
 //  so a //c plays what it can of a setup saved on a //e and the //e plays all
 //  of it again (FR-035).
@@ -122,6 +123,8 @@ MultiplayerSetup::AxisSet ControllerSelectionPolicy::GetTargetAxes (
         case PlayerAxisTarget::Paddle1:    axes.set (1);               break;
         case PlayerAxisTarget::Paddle2:    axes.set (2);               break;
         case PlayerAxisTarget::Paddle3:    axes.set (3);               break;
+        case PlayerAxisTarget::Paddles01:  axes.set (0); axes.set (1); break;
+        case PlayerAxisTarget::Paddles23:  axes.set (2); axes.set (3); break;
 
         default:                                                       break;
     }

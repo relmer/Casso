@@ -10,16 +10,19 @@
 //
 //  GetModeTarget
 //
-//  As the game port is wired. Player 1 takes joystick 0, or in Paddle mode
-//  paddle 0. Player 2 takes joystick 1, or in Paddle mode the lowest paddle
-//  Player 1 leaves free: paddle 1 beside Player 1's paddle, and paddle 2
-//  beside Player 1's joystick, which holds paddles 0 and 1.
+//  As the game port is wired. Player 1 takes joystick 0, in Paddle mode
+//  paddle 0, and in Two paddles mode paddles 0 and 1. Player 2 takes
+//  joystick 1, in Two paddles mode paddles 2 and 3, and in Paddle mode the
+//  lowest paddle Player 1 leaves free: paddle 1 beside Player 1's single
+//  paddle, and paddle 2 beside Player 1's joystick or two paddles, which
+//  hold paddles 0 and 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 PlayerAxisTarget PlayerTargetRules::GetModeTarget (
     size_t  player,
     bool    isPaddle,
+    bool    isTwoPaddles,
     bool    isPlayerOnePaddle)
 {
     PlayerAxisTarget  target = PlayerAxisTarget::Joystick0;
@@ -28,7 +31,13 @@ PlayerAxisTarget PlayerTargetRules::GetModeTarget (
 
     if (player == 0)
     {
-        target = isPaddle ? PlayerAxisTarget::Paddle0 : PlayerAxisTarget::Joystick0;
+        target = isTwoPaddles ? PlayerAxisTarget::Paddles01
+               : isPaddle     ? PlayerAxisTarget::Paddle0
+               :                PlayerAxisTarget::Joystick0;
+    }
+    else if (isTwoPaddles)
+    {
+        target = PlayerAxisTarget::Paddles23;
     }
     else if (!isPaddle)
     {
@@ -63,13 +72,30 @@ bool PlayerTargetRules::IsPaddleTarget (PlayerAxisTarget target)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsPaddlePairTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlayerTargetRules::IsPaddlePairTarget (PlayerAxisTarget target)
+{
+    return target == PlayerAxisTarget::Paddles01 || target == PlayerAxisTarget::Paddles23;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetButtonRoute
 //
 //  The lines each target has on the hardware. Joystick 0 is wired to PB0 and
 //  PB1, joystick 1 to PB2 alone, and a single paddle to its own line: PB0 for
 //  paddle 0, PB1 for paddle 1, PB2 for paddle 2, and none for paddle 3. A
-//  target with one line takes it from the controller's pb0 bindings; the
-//  bindings that have no line are kept in the profile and reach nothing.
+//  pair of paddles has the lines of its two paddles: PB0 and PB1 for paddles
+//  0 and 1, PB2 alone for paddles 2 and 3. A target with one line takes it
+//  from the controller's pb0 bindings; the bindings that have no line are
+//  kept in the profile and reach nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,11 +111,13 @@ PlayerTargetRules::ButtonRoute PlayerTargetRules::GetButtonRoute (PlayerAxisTarg
     switch (target)
     {
         case PlayerAxisTarget::Joystick0:
+        case PlayerAxisTarget::Paddles01:
             route[kPb0] = kPb0;
             route[kPb1] = kPb1;
             break;
 
         case PlayerAxisTarget::Joystick1:
+        case PlayerAxisTarget::Paddles23:
             route[kPb0] = kPb2;
             break;
 
@@ -151,13 +179,19 @@ PlayerTargetRules::Route PlayerTargetRules::GetSingleRoute (size_t axisCount)
 //  GetLoneRoute
 //
 //  One player playing on its own, by its mode: a joystick drives what a
-//  single controller always has, and a paddle drives paddle 0 and its line,
-//  PB0, whichever player's slot it holds.
+//  single controller always has, a paddle drives paddle 0 and its line, PB0,
+//  and a pair of paddles drives paddles 0 and 1 and their lines, PB0 and
+//  PB1, whichever player's slot it holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 PlayerTargetRules::Route PlayerTargetRules::GetLoneRoute (PlayerAxisTarget target, size_t axisCount)
 {
+    if (IsPaddlePairTarget (target))
+    {
+        return GetTargetRoute (PlayerAxisTarget::Paddles01, axisCount);
+    }
+
     if (IsPaddleTarget (target))
     {
         return GetTargetRoute (PlayerAxisTarget::Paddle0, axisCount);
