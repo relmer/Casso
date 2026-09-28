@@ -4,6 +4,7 @@
 #include "DxuiCaptionBar.h"
 #include "DxuiPopupHost.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Core/DxuiSystemSettings.h"
 #include "DxuiSystemButton.h"
 #include "IDxuiHostClient.h"
 #include "Theme/DxuiDwm.h"
@@ -1391,6 +1392,9 @@ bool DxuiHwndSource::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
             break;
 
         case WM_SETTINGCHANGE:
+            HandleSettingChange();
+            break;
+
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
             HandleThemeChange();
@@ -2722,6 +2726,10 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             break;
 
         case WM_SETTINGCHANGE:
+            HandleSettingChange();
+            isHandled = false;
+            break;
+
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
             HandleThemeChange();
@@ -3512,6 +3520,26 @@ void DxuiHwndSource::HandleThemeChange()
     {
         GetRootPanel()->OnThemeChanged();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleSettingChange
+//
+//  WM_SETTINGCHANGE covers the interaction settings DxuiSystemSettings caches
+//  (animations, keyboard cues, menu delay, wheel scroll, message duration) as
+//  well as the theme, so both are refreshed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::HandleSettingChange()
+{
+    DxuiSystemSettings::Instance().Refresh();
+    HandleThemeChange();
 }
 
 

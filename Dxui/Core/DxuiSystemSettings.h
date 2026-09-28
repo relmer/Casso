@@ -36,9 +36,14 @@ public:
     //  screen at a time" rather than a line count.
     static constexpr int  kWheelPageScroll = -1;
 
+    //  The system-parameters query, replaceable so a test can supply values
+    //  without touching the real settings. Null restores SystemParametersInfoW.
+    using ParameterReader = BOOL (WINAPI *) (UINT action, UINT param, PVOID pvParam, UINT winIni);
+
     static DxuiSystemSettings & Instance();
 
-    void  Refresh ();
+    void  Refresh            ();
+    void  SetParameterReader (ParameterReader reader);
 
     //  "Animation effects" in Settings > Accessibility > Visual effects.
     //  False means play no animation: jump to the finished state.
@@ -78,8 +83,9 @@ private:
     static constexpr int   kDefaultWheelChars      = 3;
     static constexpr int   kMsPerSecond            = 1000;
 
-    static bool  ReadFlag (UINT action, bool fallback);
-    static int   ReadUint (UINT action, int fallback);
+    bool  ReadFlag  (UINT action, bool fallback) const;
+    int   ReadUint  (UINT action, int fallback) const;
+    int   ReadWheel (UINT action, int fallback) const;
 
     bool  m_animations        = kDefaultAnimations;
     bool  m_menuAnimation     = kDefaultMenuAnimation;
@@ -89,4 +95,6 @@ private:
     int   m_messageDurationMs = kDefaultMessageSeconds * kMsPerSecond;
     int   m_wheelLines        = kDefaultWheelLines;
     int   m_wheelChars        = kDefaultWheelChars;
+
+    ParameterReader  m_pfnRead = SystemParametersInfoW;
 };

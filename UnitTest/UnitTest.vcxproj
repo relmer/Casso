@@ -506,6 +506,7 @@
     <ClCompile Include="Dxui\DxuiTextElideTests.cpp" />
     <ClCompile Include="Dxui\DxuiLinkFocusRingTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSystemSettingsTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourcePlacementTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceClientTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceTests.cpp" />
