@@ -2,6 +2,7 @@
 
 #include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/ControllersPageState.h"
+#include "Core/UnicodeSymbols.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -293,7 +294,9 @@ public:
 
         Assert::AreEqual (size_t (1), warnings.size(), L"one warning, under Player 2");
         Assert::AreEqual (std::wstring (kpszCutWarning), warnings[0]->GetText());
-        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Warning, L"with the warning triangle");
+        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Info, L"as an info notice");
+        Assert::IsNotNull (warnings[0]->GetIconGlyph(), L"with a glyph for its icon");
+        Assert::AreEqual  (std::wstring (s_kpszMdl2Info), std::wstring (warnings[0]->GetIconGlyph()), L"the MDL2 info glyph");
         Assert::IsTrue   (warnings[0]->GetBounds().top >= FindCombos (page, L"Same as Player 1")[0]->GetBounds().bottom, L"under Player 2's row");
 
         Assert::IsTrue (rows.first  > 0, L"its paddle row can be edited");

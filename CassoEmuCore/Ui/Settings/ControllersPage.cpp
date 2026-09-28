@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
+#include "Core/UnicodeSymbols.h"
 #include "Window/DxuiHwndSource.h"
 
 
@@ -63,8 +64,9 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_playerNote[target]);
         Adopt (m_playerWarning[target]);
 
-        m_playerWarning[target].SetSeverity (DxuiInfoBanner::Severity::Warning);
-        m_playerWarning[target].SetVisible  (false);
+        m_playerWarning[target].SetSeverity  (DxuiInfoBanner::Severity::Info);
+        m_playerWarning[target].SetIconGlyph (s_kpszMdl2Info);
+        m_playerWarning[target].SetVisible   (false);
 
         // A one-line notice among the player rows, so it hugs its text.
         m_playerWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);

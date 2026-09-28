@@ -188,3 +188,5 @@ Results are recorded as they are produced. A scenario that could not run says so
 | Mutation M18: `MigrateAdapter` ignores the saved modes | automated | red: `MigrateAdapter_ASavedJoyportIsReadOnceAndTheKeyRemoved`. Restored, stamped, rebuilt, green |
 | Mutation M19: the global key never removed | automated | red: `MigrateAdapter_ASavedJoyportIsReadOnceAndTheKeyRemoved`. Restored, stamped, rebuilt, green |
 | Mutation M20: `gamePortAdapter` written even when empty | automated | red: `GamePortAdapter_ClearedIsRemovedOnSave` (Expected 0, Actual 1). Restored, stamped, rebuilt, green |
+| Mutation M21: `DxuiInfoBanner` ignores its icon glyph and draws the badge | automated | red: `IconGlyph_ReplacesTheDrawnBadge` (Expected 1, Actual 0 glyphs drawn). Restored, stamped, rebuilt, green |
+| Mutation M21b: the page sets no icon glyph on the buttons-cut notice | automated | red: `PlayerRows_BesideTheJoyportWarnAndDisableTheButtons` ("with a glyph for its icon"). Restored, stamped, rebuilt, green |

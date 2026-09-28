@@ -406,6 +406,51 @@ void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::PaintIconGlyph
+//
+//  Draws the caller's Segoe MDL2 Assets glyph in the icon box, in place of the
+//  drawn badge: the same face the toolbar's icons use, sized so the em fills
+//  the box, and centered both ways in it. The box is already centered on the
+//  banner's height, which is where a one-line notice's text sits too.
+//
+//  The glyph takes the severity's color, so a glyph on a warning reads as a
+//  warning and one on a notice reads as the accent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBanner::PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme & theme,
+                                     float iconLeft, float iconTop, float iconBox) const
+{
+    constexpr wchar_t  kMdl2Family[] = L"Segoe MDL2 Assets";
+    HRESULT            hr            = S_OK;
+    uint32_t           argb          = theme.Accent();
+
+
+
+    if (m_severity == Severity::Warning)
+    {
+        argb = theme.WarningAccent();
+    }
+
+    hr = text.DrawString (m_iconGlyph,
+                          iconLeft,
+                          iconTop,
+                          iconBox,
+                          iconBox,
+                          argb,
+                          iconBox,
+                          kMdl2Family,
+                          DxuiTextHAlign::Center,
+                          DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::Paint
 //
 //  Draws an informational notice: an accent-tinted surface, an info badge, and
@@ -498,7 +543,11 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerBorder());
     }
 
-    if (m_severity == Severity::Warning)
+    if (m_iconGlyph != nullptr)
+    {
+        PaintIconGlyph (text, theme, iconCx - iconR, iconCy - iconR, iconBox);
+    }
+    else if (m_severity == Severity::Warning)
     {
         // The same triangle the drive widget shows on a damaged disk, so the
         // two read as one idea rather than two similar-looking marks.
