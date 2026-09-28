@@ -358,6 +358,25 @@ namespace ControllerTests
         }
 
 
+        //  A Rate binding saved without a speed plays at the default, 768 per
+        //  second: one sweep of the paddle in about a third of a second.
+        TEST_METHOD (RateWithoutASpeed_ReadsTheDefaultSpeed)
+        {
+            constexpr float           kOwnersSpeed = 768.0f;
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::string               token        = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc          = Parse (
+                "{\"models\":{\"" + token + "\":{\"profiles\":[{\"name\":\"Default\",\"default\":true,"
+                "\"mapping\":{\"pdl0\":[{\"analog\":\"axis:0\",\"response\":\"rate\"}]}}]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::AreEqual (kOwnersSpeed, AxisBinding::kDefaultMaxSpeed, 0.0001f, L"the default speed");
+            Assert::AreEqual (kOwnersSpeed, store.models.at (token).profiles[0].mapping.pdl0[0].maxSpeed, 0.0001f, L"a Rate binding with no speed saved");
+        }
+
+
         TEST_METHOD (AnUnreadableProfile_IsDroppedAndReportedWhileTheRestLoad)
         {
             ControllerProfileStore    store;

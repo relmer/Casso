@@ -120,17 +120,18 @@ namespace ControllerTests
         //  Rate at the default speed. Paddle mode plays only the first.
         TEST_METHOD (Paddles_TwoPaddlesOnTheTwoSticks)
         {
-            ControllerModelKey  model   = { ControllerKind::XInput, 0, 0 };
-            ControlMapping      mapping = DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, XInputSampleDecoder::ListControls());
+            constexpr float     kOwnersSpeed = 768.0f;
+            ControllerModelKey  model        = { ControllerKind::XInput, 0, 0 };
+            ControlMapping      mapping      = DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, XInputSampleDecoder::ListControls());
 
             Assert::AreEqual (static_cast<size_t> (1), mapping.pdl0.size());
             Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, XInputSampleDecoder::kLeftStickX }, L"PDL0 is left stick X");
             Assert::IsTrue   (mapping.pdl0[0].response == AxisResponse::Rate, L"so a released stick leaves its paddle where it was");
-            Assert::AreEqual (AxisBinding::kDefaultMaxSpeed, mapping.pdl0[0].maxSpeed, 0.0001f);
+            Assert::AreEqual (kOwnersSpeed, mapping.pdl0[0].maxSpeed, 0.0001f, L"at 768 per second, one sweep in about a third of a second");
             Assert::AreEqual (static_cast<size_t> (1), mapping.pdl1.size());
             Assert::IsTrue   (mapping.pdl1[0].analog == ControlId { ControlKind::Axis, XInputSampleDecoder::kRightStickX }, L"PDL1 is right stick X");
             Assert::IsTrue   (mapping.pdl1[0].response == AxisResponse::Rate);
-            Assert::AreEqual (AxisBinding::kDefaultMaxSpeed, mapping.pdl1[0].maxSpeed, 0.0001f);
+            Assert::AreEqual (kOwnersSpeed, mapping.pdl1[0].maxSpeed, 0.0001f);
             Assert::AreEqual (static_cast<size_t> (1), mapping.pb0.size());
             Assert::IsTrue   (mapping.pb0[0].control == ControlId { ControlKind::Button, 0 }, L"A is the first paddle's button");
             Assert::AreEqual (static_cast<size_t> (1), mapping.pb1.size());

@@ -41,7 +41,9 @@ enum class AxisBindingKind
 
 struct AxisBinding
 {
-    static constexpr float  kDefaultMaxSpeed = 256.0f;
+    // A full sweep of the paddle in about a third of a second at full
+    // deflection, chosen by feel.
+    static constexpr float  kDefaultMaxSpeed = 768.0f;
 
     AxisBindingKind  kind      = AxisBindingKind::Analog;
     ControlId        analog;

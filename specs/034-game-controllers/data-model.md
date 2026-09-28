@@ -122,7 +122,7 @@ Per model: `float` fraction of travel, [0, 0.9]. Defaults and radial/axial rule 
 | analog | `ControlId` | `Axis` or `Trigger` |
 | inverted | `bool` | Analog only |
 | response | enum `Absolute`, `Rate` | Analog only (R14) |
-| maxSpeed | `float` | Rate only: paddle units per second at full deflection, [16, 1024], default 256 |
+| maxSpeed | `float` | Rate only: paddle units per second at full deflection, [16, 1024], default 768 (`AxisBinding::kDefaultMaxSpeed`; 2026-09-28, chosen by the owner by feel, one sweep in about a third of a second; it was 256). A binding saved with a speed keeps it |
 | negative | `ControlId` | DigitalPair: drives 0 while held |
 | positive | `ControlId` | DigitalPair: drives 255 while held |
 
