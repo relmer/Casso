@@ -1535,6 +1535,26 @@ namespace ControllerTests
         }
 
 
+        //  A player saved with a mode is recorded, which is what marks the old
+        //  Joyport setting as read. Players saved before modes, or no players
+        //  at all, leave it to be read.
+        TEST_METHOD (Players_ASavedModeIsRecorded)
+        {
+            std::vector<std::string>  rejected;
+            ControllerProfileStore    store;
+
+
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\"},{\"entry\":\"automatic\",\"mode\":\"paddle\"}]}", rejected);
+            Assert::IsTrue (store.hasPlayerModes, L"a mode on either player");
+
+            store = ReadSection ("{\"players\":[{\"entry\":\"automatic\",\"maps\":\"joystick0\"},{\"entry\":\"automatic\"}]}", rejected);
+            Assert::IsFalse (store.hasPlayerModes, L"players saved before modes");
+
+            store = ReadSection ("{\"models\":{}}", rejected);
+            Assert::IsFalse (store.hasPlayerModes, L"no players");
+        }
+
         TEST_METHOD (Players_AbsentLeavesTheAdoptionToRunAndWritesNothing)
         {
             ControllerProfileStore    store;

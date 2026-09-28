@@ -201,6 +201,8 @@ void EmulatorShell::LoadControllerPrefs()
     }
 
     store.FromJson (m_globalPrefs.controllers, rejected);
+    m_hadSavedPlayerModes = store.hasPlayerModes;
+
     m_controllerService->SetModelSettings  (store.models);
     m_controllerService->SetCalibrations   (store.calibrations);
     m_controllerService->SetActiveProfiles (ProfileMode::Joystick, store.activeProfiles);
@@ -537,30 +539,36 @@ void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
 //
 //  MigrateJoyportAtLaunch
 //
-//  The Joyport setting that per-player modes replaced is read once: a
-//  Joyport that was on puts Player 1 in the left jack and Player 2 on Same
-//  as Player 1, and the old key is marked read and saved at once, so no
-//  later launch reads it or the machine's older value again
-//  (PlayerModeRules::MigrateAdapter). Then the machine just built takes the
+//  The Joyport setting that per-player modes replaced is read only while no
+//  player mode has been saved: a Joyport that was on puts Player 1 in the
+//  left jack and Player 2 on Same as Player 1, and the players' modes are
+//  saved at once, which marks it read (PlayerModeRules::MigrateAdapter). The
+//  old global key is then removed from the global prefs; each machine's own
+//  value is left for older builds. Then the machine just built takes the
 //  players' modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::MigrateJoyportAtLaunch (const JsonValue * uiPrefs)
 {
-    JoyportMigration  migration = PlayerModeRules::MigrateAdapter (m_globalPrefs.gamePortAdapter, uiPrefs, m_machine.GetJoyport() != nullptr);
+    JoyportMigration  migration = PlayerModeRules::MigrateAdapter (m_hadSavedPlayerModes, m_globalPrefs.gamePortAdapter,
+                                                                   uiPrefs, m_machine.GetJoyport() != nullptr);
 
 
 
     if (migration.isJoyport && m_controllerService != nullptr)
     {
         m_controllerService->SetPlayerEntries (PlayerModeRules::ApplyMigration (m_controllerService->GetPlayerEntries()));
-        SaveControllerPrefs();
     }
 
-    if (migration.shouldMark)
+    // Saves only what changed, so a launch with the modes already saved
+    // writes nothing here.
+    SaveControllerPrefs();
+    m_hadSavedPlayerModes = true;
+
+    if (migration.shouldRemoveKey)
     {
-        m_globalPrefs.gamePortAdapter = ControllerTokens::kpszAdapterNone;
+        m_globalPrefs.gamePortAdapter.clear();
         SaveGlobalPrefs();
     }
 

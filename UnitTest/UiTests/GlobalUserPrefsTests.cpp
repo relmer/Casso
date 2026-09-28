@@ -582,6 +582,27 @@ public:
     }
 
 
+    // The migration removes the key by clearing it: a loaded value, once
+    // cleared, is not written back, and it is not kept as an unknown key.
+    TEST_METHOD (GamePortAdapter_ClearedIsRemovedOnSave)
+    {
+        GlobalUserPrefs  prefs;
+        GlobalUserPrefs  saved;
+        JsonValue        v;
+        HRESULT          hr    = S_OK;
+
+
+
+        prefs.gamePortAdapter = "siriusJoyport";
+        hr                    = saved.FromJson (prefs.ToJson());
+        AssertSucceeded (hr);
+
+        saved.gamePortAdapter.clear();
+        v = saved.ToJson();
+
+        Assert::AreEqual ((size_t) 0, CountMembers (v, "gamePortAdapter"), L"the key is gone");
+    }
+
     // How many times `key` appears among the members of the saved global
     // object. Counted on the reparsed document rather than by searching the
     // text, because a substring hit cannot tell one member from six.

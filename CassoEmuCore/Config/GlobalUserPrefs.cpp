@@ -1111,8 +1111,8 @@ JsonValue GlobalUserPrefs::ToJson() const
         root.emplace_back ("controllers", controllers);
     }
 
-    // gamePortAdapter: only once set, so a file that never had it keeps
-    // reading as never set and the one-time adoption can still happen.
+    // gamePortAdapter: only while set. The migration clears it once read, so
+    // the key leaves the file on the next save.
     if (!gamePortAdapter.empty())
     {
         root.emplace_back ("gamePortAdapter", JsonValue (gamePortAdapter));

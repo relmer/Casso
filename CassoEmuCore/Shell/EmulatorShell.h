@@ -2119,6 +2119,11 @@ protected:
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
     bool              m_arrowsJoystick = false;                    // Keys axis
 
+    // Whether the players' modes were saved before this launch, which marks
+    // the Joyport setting they replaced as read. Taken when the controller
+    // prefs load, before the adoption can save any.
+    bool              m_hadSavedPlayerModes = false;
+
     // The single writer of the paddles and pushbuttons. Every host input
     // source submits to the mixer; only the sink touches the machine.
     GamePortInputMixer                    m_gamePortMixer;

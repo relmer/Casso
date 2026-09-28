@@ -855,7 +855,8 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
     paddleActiveProfiles.clear();
     joyportActiveProfiles.clear();
     players.reset();
-    lastHolders = PlayerLastHolders();
+    hasPlayerModes = false;
+    lastHolders    = PlayerLastHolders();
 
     if (controllers.GetType() != JsonType::Object)
     {
@@ -867,7 +868,8 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
     // again from whichever machine happens to launch next.
     if (controllers.HasArray (s_kpszPlayersKey, playersArr) && playersArr != nullptr)
     {
-        players = PlayerEntries();
+        players        = PlayerEntries();
+        hasPlayerModes = HasAnyPlayerMode (*playersArr);
         ReadPlayers (*playersArr, players.value(), outRejected);
     }
     else if (HasMember (controllers, s_kpszPlayersKey))
@@ -1545,6 +1547,37 @@ void ControllerProfileStore::ReadPlayers (
     }
 
     outEntries = PlayerSlotPolicy::NormalizeEntries (outEntries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasAnyPlayerMode
+//
+//  Whether any saved player carries a mode, readable or not. Players saved
+//  before players had modes carry none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerProfileStore::HasAnyPlayerMode (const JsonValue & playersArr)
+{
+    size_t  count  = playersArr.GetArraySize();
+    size_t  player = 0;
+
+
+
+    for (player = 0; player < count; player++)
+    {
+        if (HasMember (playersArr.GetArrayElement (player), s_kpszPlayerModeKey))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

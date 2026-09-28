@@ -269,6 +269,10 @@ public:
     std::optional<PlayerEntries>                    players;
     PlayerLastHolders                               lastHolders;
 
+    // Whether a saved player carried a mode. The saved modes are what mark
+    // the Joyport setting they replaced as read.
+    bool                                            hasPlayerModes = false;
+
     std::map<std::string, std::string>       &  GetActiveProfiles (ProfileMode mode);
     const std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) const;
 
@@ -330,6 +334,7 @@ private:
     void              MoveLegacyPaddleChoices();
     static void       ReadPlayers       (const JsonValue & playersArr, PlayerEntries & outEntries, std::vector<std::string> & outRejected);
     static bool       TryReadPlayer     (const JsonValue & playerObj, size_t player, PlayerEntry & outEntry);
+    static bool       HasAnyPlayerMode  (const JsonValue & playersArr);
     static void       ReadLastHolders   (const JsonValue & holdersArr, PlayerLastHolders & outHolders, std::vector<std::string> & outRejected);
     static JsonValue  WritePlayers      (const PlayerEntries & entries);
     static JsonValue  WriteLastHolders  (const PlayerLastHolders & holders);

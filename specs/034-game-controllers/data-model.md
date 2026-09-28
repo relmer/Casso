@@ -385,7 +385,7 @@ Sliding --duration passes--> Showing at its new place
 
 In the global `controllers` section ([contracts/prefs-schema.md](contracts/prefs-schema.md)): `players` (two `PlayerEntry` records, each with its `mode`; its presence marks the one-time adoption as done) and `lastHolders` (two unit tokens or null). Later the same day: `paddleActiveProfiles` and `joyportActiveProfiles` beside `activeProfiles`, and each profile's `profileMode`. Per machine: `controller` and `multiplayer` are no longer written and are read only by the adoption and the legacy profile move; `arrowsToJoystick` and a `pointerMapping` of `paddle` are read only by the adoption; a `pointerMapping` of `mouse` (the //c IOU mouse) stays per machine.
 
-2026-09-28: each player's `mode` may also be `joyportLeft`, `joyportRight` or (Player 2) `sameAsPlayer1`. The global `gamePortAdapter` is read once by the migration and then written as `"none"` to mark it done.
+2026-09-28: each player's `mode` may also be `joyportLeft`, `joyportRight` or (Player 2) `sameAsPlayer1`. The global `gamePortAdapter` is read by the migration only while no player has a saved `mode`, and is then removed from the global prefs.
 
 ## Joyport modes (2026-09-28)
 

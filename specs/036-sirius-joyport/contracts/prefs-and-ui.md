@@ -278,7 +278,6 @@ picker row, the commands and the Controllers page's Joyport section above.
 
 ```jsonc
 {
-  "gamePortAdapter": "none",   // global: only a marker that the migration ran
   "controllers": {
     "players": [
       { "entry": "automatic", "mode": "joyportLeft" },
@@ -292,13 +291,15 @@ picker row, the commands and the Controllers page's Joyport section above.
   `"sameAsPlayer1"` (spec 034 contracts/prefs-schema.md). A Player 2 with no
   saved mode key is Same as Player 1. An unrecognized token reads as
   Joystick, and `"sameAsPlayer1"` on Player 1 reads as Joystick.
-- Migration at cold boot, `PlayerModeRules::MigrateAdapter (globalToken,
-  launchedUiPrefs, launchedHasAnnunciators)`: a global `"siriusJoyport"`, or
+- Migration at cold boot, `PlayerModeRules::MigrateAdapter (hasSavedModes,
+  globalToken, launchedUiPrefs, launchedHasAnnunciators)`, only while no
+  player has a saved mode: a global `"siriusJoyport"`, or
   an empty global token and the launched machine's `"siriusJoyport"`, gives
   `isJoyport`, and the shell applies `ApplyMigration` (Player 1 on
-  `joyportLeft`, Player 2 on `sameAsPlayer1`). Whenever `shouldMark`, the
-  shell writes the global token as `"none"` and saves, so no later launch
-  reads a machine's old value. The per-machine key is never written.
+  `joyportLeft`, Player 2 on `sameAsPlayer1`). The shell saves the players'
+  modes, which marks the migration done, and whenever `shouldRemoveKey`
+  clears the global token, which removes the key on save. The per-machine
+  key is never written or removed.
 
 ### EmulatorShell
 

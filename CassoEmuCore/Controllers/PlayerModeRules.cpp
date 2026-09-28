@@ -450,14 +450,16 @@ std::wstring PlayerModeRules::DescribeAssignment (
 //  MigrateAdapter
 //
 //  The Joyport was once a global setting, and before that one saved with
-//  each machine. A global value other than the mark is read once: Sirius
-//  Joyport puts the players in its jacks. A global value never set reads the
-//  launched machine's own, which the //c cannot have. Either way the key is
-//  then marked, "none", so neither is read again.
+//  each machine. It is read only while no player has a saved mode, since the
+//  saved modes are what mark it read: a global value of Sirius Joyport puts
+//  the players in its jacks, and a global value never set reads the launched
+//  machine's own, which the //c cannot have. The global key is removed
+//  whenever it is present; the machines' own values are left for older builds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 JoyportMigration PlayerModeRules::MigrateAdapter (
+    bool                 hasSavedModes,
     const std::string  & globalToken,
     const JsonValue    * launchedUiPrefs,
     bool                 launchedHasAnnunciators)
@@ -467,7 +469,9 @@ JoyportMigration PlayerModeRules::MigrateAdapter (
 
 
 
-    if (globalToken == ControllerTokens::kpszAdapterNone)
+    migration.shouldRemoveKey = !globalToken.empty();
+
+    if (hasSavedModes)
     {
         return migration;
     }
@@ -475,8 +479,7 @@ JoyportMigration PlayerModeRules::MigrateAdapter (
     adapter = globalToken.empty() ? MachineInputPrefs::ReadGamePortAdapter (launchedUiPrefs, launchedHasAnnunciators)
                                   : ControllerTokens::GamePortAdapterFromToken (globalToken);
 
-    migration.isJoyport  = adapter == GamePortAdapter::SiriusJoyport;
-    migration.shouldMark = true;
+    migration.isJoyport = adapter == GamePortAdapter::SiriusJoyport;
 
     return migration;
 }

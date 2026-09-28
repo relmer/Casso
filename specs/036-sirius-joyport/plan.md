@@ -184,7 +184,7 @@ annunciators
 
 - **Storage**: the players' modes in the global `controllers.players`
   (spec 034 contracts/prefs-schema.md). The global `gamePortAdapter` is read
-  once by the migration and then written as `"none"` as its marker; the
+  once by the migration and then removed, the saved modes marking it read; the
   per-machine key is read only when the global one was never set.
 - **Testing**: a new `PlayerModeRulesTests`; `JoyportJackRulesTests`,
   `ControllerInputServiceTests`, `PaddleSourceRowsTests`,

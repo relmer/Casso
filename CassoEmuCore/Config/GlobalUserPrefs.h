@@ -123,8 +123,8 @@ struct GlobalUserPrefs
     // THE JOYPORT SETTING THAT PER-PLAYER MODES REPLACED, read once: a saved
     // "siriusJoyport" puts the players in the Joyport's jacks, and empty,
     // never set, reads the launched machine's own older value instead
-    // (PlayerModeRules::MigrateAdapter). Either way it is then written as
-    // "none", which marks it read, so nothing is read from it again.
+    // (PlayerModeRules::MigrateAdapter). The saved player modes mark it read,
+    // and the migration then clears it, which removes the key on the next save.
     std::string                   gamePortAdapter;
 
     // Text color used when the Color monitor is active (the monochrome

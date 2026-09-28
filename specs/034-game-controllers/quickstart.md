@@ -114,7 +114,7 @@ Replace every step above that sets a player's "maps to" target or ticks the Mult
 | 38 | Player 1 on the keys: Joystick, then Joyport left, then Paddle. Then Player 1 on the mouse in Paddle mode, with a pad as Player 2 in Paddle mode, both used. | The keys are listed on Joystick and Joyport left, not on Paddle; on Joyport left the arrows close Player 1's switches and move no paddle. The mouse is listed only on Paddle, and with Player 2 playing it moves PDL0 alone while Player 2 drives PDL1. | FR-008, FR-036, FR-039 |
 | 39 | Player 1 on Joyport left; switch to the //c, open the picker and the page; switch back to the //e. | The //c lists no Joyport entry and Player 1 plays as Joystick; back on the //e Player 1 is on Joyport left. | FR-035 |
 | 40 | Two players playing with a long Player 1 description; unplug Player 1's pad; narrow the window until the picker's face shortens. | The face keeps the whole "(disconnected) +1"; the ellipsis falls inside the description. | FR-008b, SC-015 |
-| 41 | Close Casso; set the global `gamePortAdapter` to `"siriusJoyport"` in a copy of `UserPrefs.json`; launch. | Player 1 is on Joyport left and Player 2 on Same as Player 1; the global key reads `"none"` afterward. | spec 036 FR-002 |
+| 41 | Close Casso; set the global `gamePortAdapter` to `"siriusJoyport"` in a copy of `UserPrefs.json`; launch. | Player 1 is on Joyport left and Player 2 on Same as Player 1; the global key is gone afterward. | spec 036 FR-002 |
 
 ## 5. Pre-merge gates
 

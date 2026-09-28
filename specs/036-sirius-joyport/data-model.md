@@ -122,7 +122,7 @@ Research R14-R23. The spec's entities map as follows.
 
 > **Superseded (2026-09-28)**: removed with `JoyportSetting`; see the
 > 2026-09-28 section at the end. The global token is read once by the
-> migration and then kept as `"none"`.
+> migration, only while no player mode is saved, and then removed.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -291,15 +291,16 @@ Research R27. Per-player Joyport modes replace the global setting.
 | `BuildModeChoices (entries, player, hasJoyport)` | the mode list with checked and enabled flags; no jacks without a Joyport |
 | `GetModeLabel (mode)` / `GetPlayerLabel (player)` | "Joystick", "Joyport left (Atari)", "Joyport right (Atari)", "Paddle", "Same as Player 1"; "Player 1", "Player 2" |
 | `DescribeAssignment (player, description, jacks)` | "Player N: description", or "Player N (Joyport left): ...", "(Joyport right)", "(Joyport left and right)" |
-| `MigrateAdapter (globalToken, launchedUiPrefs, launchedHasAnnunciators)` | a `JoyportMigration { isJoyport; shouldMark; }` |
+| `MigrateAdapter (hasSavedModes, globalToken, launchedUiPrefs, launchedHasAnnunciators)` | a `JoyportMigration { isJoyport; shouldRemoveKey; }` |
 | `ApplyMigration (entries)` | Player 1 on `JoyportLeft`, Player 2 on `SameAsPlayer1` |
 
 Migration transitions of the old key:
 
 ```text
- global token empty   --launched machine's value-->  migrate; write "none"
- global "siriusJoyport" ------------------------->   migrate; write "none"
- global "none"         ------------------------->    nothing (already migrated or never on)
+ player modes saved   ------------------------->    no migration; remove any global key
+ global token empty   --launched machine's value-->  migrate; save the modes
+ global "siriusJoyport" ------------------------->   migrate; save the modes; remove the key
+ global "none"         ------------------------->    save the modes; remove the key
 ```
 
 ### JoyportPlayers (changed)

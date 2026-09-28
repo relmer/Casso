@@ -247,30 +247,36 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (MigrateAdapter_ASavedJoyportIsReadOnceAndMarked)
+        TEST_METHOD (MigrateAdapter_ASavedJoyportIsReadOnceAndTheKeyRemoved)
         {
             JsonValue         joyport = ParseOrFail (R"({"gamePortAdapter":"siriusJoyport"})");
             JoyportMigration  migration;
 
 
 
-            migration = PlayerModeRules::MigrateAdapter ("siriusJoyport", nullptr, true);
+            migration = PlayerModeRules::MigrateAdapter (false, "siriusJoyport", nullptr, true);
             Assert::IsTrue (migration.isJoyport);
-            Assert::IsTrue (migration.shouldMark);
+            Assert::IsTrue (migration.shouldRemoveKey, L"the global key is removed once read");
 
-            migration = PlayerModeRules::MigrateAdapter ("", &joyport, true);
-            Assert::IsTrue (migration.isJoyport,  L"never set globally: the launched machine's own value");
-            Assert::IsTrue (migration.shouldMark, L"so no later launch reads it again");
+            migration = PlayerModeRules::MigrateAdapter (false, "", &joyport, true);
+            Assert::IsTrue  (migration.isJoyport,       L"never set globally: the launched machine's own value");
+            Assert::IsFalse (migration.shouldRemoveKey, L"and there is no global key to remove");
 
-            migration = PlayerModeRules::MigrateAdapter ("", &joyport, false);
+            migration = PlayerModeRules::MigrateAdapter (false, "", &joyport, false);
             Assert::IsFalse (migration.isJoyport, L"the //c cannot have saved one");
-            Assert::IsTrue  (migration.shouldMark);
 
-            migration = PlayerModeRules::MigrateAdapter (ControllerTokens::kpszAdapterNone, &joyport, true);
-            Assert::IsFalse (migration.isJoyport,  L"marked: the machine's old value is never read again");
-            Assert::IsFalse (migration.shouldMark, L"and nothing is left to save");
+            migration = PlayerModeRules::MigrateAdapter (false, ControllerTokens::kpszAdapterNone, &joyport, true);
+            Assert::IsFalse (migration.isJoyport,       L"Apple mode set globally outranks the machine's value");
+            Assert::IsTrue  (migration.shouldRemoveKey);
+
+            migration = PlayerModeRules::MigrateAdapter (true, "siriusJoyport", &joyport, true);
+            Assert::IsFalse (migration.isJoyport,       L"saved modes: neither old value is read again");
+            Assert::IsTrue  (migration.shouldRemoveKey, L"but a global key left behind is still removed");
+
+            migration = PlayerModeRules::MigrateAdapter (true, "", &joyport, true);
+            Assert::IsFalse (migration.isJoyport);
+            Assert::IsFalse (migration.shouldRemoveKey, L"nothing to do");
         }
-
 
         TEST_METHOD (ApplyMigration_PlayerOneLeftAndPlayerTwoSameAsPlayerOne)
         {

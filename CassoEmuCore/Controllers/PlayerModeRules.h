@@ -13,12 +13,11 @@
 
 // What a launch found of the Joyport setting that per-player modes replaced:
 // whether it was on, which puts the players in its jacks, and whether the
-// old key is to be marked as read, which the caller saves so that no later
-// launch reads it again.
+// old global key is to be removed from the global prefs.
 struct JoyportMigration
 {
-    bool  isJoyport  = false;
-    bool  shouldMark = false;
+    bool  isJoyport       = false;
+    bool  shouldRemoveKey = false;
 };
 
 
@@ -63,7 +62,8 @@ public:
     static std::wstring           DescribeAssignment  (size_t player, const std::wstring & description, JackSet jacks);
 
     // The Joyport setting that per-player modes replaced, read once.
-    static JoyportMigration       MigrateAdapter      (const std::string & globalToken,
+    static JoyportMigration       MigrateAdapter      (bool                hasSavedModes,
+                                                       const std::string & globalToken,
                                                        const JsonValue   * launchedUiPrefs,
                                                        bool                launchedHasAnnunciators);
     static PlayerEntries          ApplyMigration      (PlayerEntries entries);
