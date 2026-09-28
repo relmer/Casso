@@ -114,7 +114,8 @@ Research R14-R23. The spec's entities map as follows.
 | Joyport setting | `GlobalUserPrefs::gamePortAdapter` (token), read through `JoyportSetting` |
 | Profile mode | `ControllerProfile::mode` |
 | Joyport profile | the `ControllerProfileKind::Joyport` built-in (already built), now Joyport-mode |
-| Chosen profile per mode | `ControllerProfileStore::activeProfiles` / `joyportActiveProfiles` (already built), now restricted to the mode's own profiles |
+| Chosen profile per mode | `ControllerProfileStore::activeProfiles` / `joyportActiveProfiles` (already built), now restricted to the mode's own profiles. (Superseded 2026-09-27: one map per kind, `activeProfiles` for Joystick, `paddleActiveProfiles` for Paddle and `joyportActiveProfiles` for Joyport.) |
+| Paddles profile (2026-09-27) | the `ControllerProfileKind::Paddles` built-in, Paddle kind, from `DefaultMapping::MakePaddles` |
 | Controller Select position | not modeled; FR-016 is undecided (R24) |
 
 ### Joyport setting (global)
@@ -147,9 +148,18 @@ State transitions of the setting:
 
 | Field | Type | Notes |
 |---|---|---|
-| `mode` | `ProfileMode` | `Normal` or `Joyport`, fixed at creation. Built-ins: Default `Normal`, Joyport `Joyport`, forced from the kind. User profiles: saved as `"profileMode": "joyport"`, omitted for `Normal`; absent or unknown reads `Normal`. |
+| `mode` | `ProfileMode` | `Normal` or `Joyport`, fixed at creation. Built-ins: Default `Normal`, Joyport `Joyport`, forced from the kind. User profiles: saved as `"profileMode": "joyport"`, omitted for `Normal`; absent or unknown reads `Normal`. (Superseded 2026-09-27: see the three kinds below.) |
 
-Validation and rules:
+**Current (2026-09-27, R25)**: `mode` is `ProfileMode { Joystick, Paddle,
+Joyport }`, fixed at creation. Built-ins take their kind: Default `Joystick`,
+Paddles `Paddle` (saved with `"paddles": true`), Joyport `Joyport`. Every
+profile is saved with `"profileMode"` set to `"joystick"`, `"paddle"` or
+`"joyport"`. A profile saved without one is classified: PDL0 bound and PDL1
+not is `Paddle`, anything else `Joystick`; `"joyport"` stays `Joyport`. A
+legacy `activeProfiles` choice of a profile that now classifies as `Paddle`
+moves to `paddleActiveProfiles` on read.
+
+Validation and rules (read "mode" as "kind" since 2026-09-27):
 
 - Names are unique per model across both modes, ignoring case (unchanged
   `CheckProfileName`).
@@ -165,10 +175,15 @@ Validation and rules:
 |---|---|
 | `DefaultMapping` | the Default built-in mapping |
 | `JoyportMapping` | new: the Joyport built-in mapping |
-| `CopyOfProfile` | a copy of any profile of either mode |
-| `Paddles` | the Paddles template |
+| `CopyOfProfile` | a copy of any profile of either mode (superseded 2026-09-27: a copy of a profile of the same kind) |
+| `Paddles` | the Paddles template (superseded 2026-09-27: replaced by `PaddleMapping`, below) |
+| `PaddleMapping` | 2026-09-27: the Paddle kind's built-in mapping, shown as "Paddles mapping" in the New profile dialog |
 
 The new profile's mode is the mode in effect, whatever the source.
+(Superseded 2026-09-27: each kind has its own starting points. Joystick: the
+Default mapping or a copy of a Joystick profile. Paddle: the Paddles mapping
+or a copy of a Paddle profile. Joyport: the Joyport mapping or a copy of a
+Joyport profile.)
 
 ### Built-in mapping inputs (changed)
 
@@ -199,7 +214,16 @@ player.
 
 `JoyportLabels` (`CassoEmuCore/Controllers/JoyportLabels.h/.cpp`) returns the
 strings of FR-019 from a player index, `IsInEffect`, and whether the notice is
-for a controller playing alone (R22).
+for a controller playing alone (R22). Player 2's Disabled entry is "Same as
+left" in the submenu and "same as left" in lower case after a colon (the row
+"Joyport right: same as left" and the Controllers page's Player 2 drop-down).
+
+### Player mode with the Joyport (2026-09-27)
+
+`PlayerSlotPolicy::GetEffectiveMode (const PlayerEntry &, bool
+isJoyportInEffect)` returns Joystick while the Joyport is in effect and the
+player's own mode otherwise. The saved mode is not changed; every controller
+plays its Joyport-kind choice while the Joyport is in effect (R26).
 
 ### DxuiToggle (changed)
 

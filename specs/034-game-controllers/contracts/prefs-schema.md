@@ -13,8 +13,9 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
       "xinput:045e:0b13": {
         "deadzone": 0.24,
         "profiles": [
-          { "name": "Default", "default": true, "mapping": { "...": "..." } },
-          { "name": "Lode Runner (D-pad)", "mapping": { "...": "..." } }
+          { "name": "Default", "default": true, "profileMode": "joystick", "mapping": { "...": "..." } },
+          { "name": "Paddles", "paddles": true, "profileMode": "paddle", "mapping": { "...": "..." } },
+          { "name": "Lode Runner (D-pad)", "profileMode": "joystick", "mapping": { "...": "..." } }
         ]
       }
     },
@@ -27,12 +28,33 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
     "activeProfiles": {
       "xinput/product:045e:02e0":   "Lode Runner (D-pad)",
       "xinput/product:045e:02e0:2": ""
-    }
+    },
+    "paddleActiveProfiles": {
+      "xinput/product:045e:02e0":   "Breakout (triggers)"
+    },
+    "joyportActiveProfiles": {}
+  }
   }
 }
 ```
 
 `activeProfiles` maps a unit token to the name of that controller's active profile, one of its model's profiles. An empty name is the Default, the same as no entry. An entry is kept even when it names the Default, since its presence is what stops a legacy `controllerProfile` from being moved onto that controller again (below).
+
+### Profile kinds (2026-09-27)
+
+Profiles have three kinds, Joystick, Paddle and Joyport (FR-043, spec 036 FR-020), and each controller has a chosen profile per kind:
+
+| Key | Value | Rules |
+|---|---|---|
+| `profiles[n].profileMode` | `joystick`, `paddle` or `joyport` | Written for every profile. Absent (a file written before this change): a profile with the `joyport` flag stays Joyport; otherwise one whose mapping binds `pdl0` and not `pdl1` is Paddle, else Joystick. An unrecognized value is classified the same way, and the profile is kept. A built-in profile takes its kind's mode whatever the file holds |
+| `profiles[n].paddles` | `true` | Marks the built-in Paddles profile, as `default` marks Default and `joyport` marks Joyport. A user profile with the name Paddles in a file written before this change is read as the built-in one |
+| `activeProfiles` | Unit token to Joystick profile name | The key kept from before; empty name or no entry = Default |
+| `paddleActiveProfiles` | Unit token to Paddle profile name | Empty name or no entry = Paddles |
+| `joyportActiveProfiles` | Unit token to Joyport profile name | Empty name or no entry = Joyport |
+
+On read, an `activeProfiles` entry whose profile is now a Paddle profile (the built-in Paddles, or a user profile classified Paddle) moves to `paddleActiveProfiles`, unless that controller already has an entry there; either way it leaves `activeProfiles`. The rules below for `activeProfiles` apply to all three maps.
+
+(Superseded 2026-09-27: profiles had two modes, normal and Joyport, with Paddles as a normal-mode starting point and one `activeProfiles` map for normal mode.)
 
 ### Mapping object
 
@@ -73,8 +95,8 @@ Two keys join the `controllers` section (research R19, R21):
 ```json
 "controllers": {
   "players": [
-    { "entry": "controller", "controller": "xinput/product:045e:0b13", "maps": "joystick0" },
-    { "entry": "automatic" }
+    { "entry": "controller", "controller": "xinput/product:045e:0b13", "mode": "joystick" },
+    { "entry": "automatic", "mode": "paddle" }
   ],
   "lastHolders": [ "xinput/product:045e:0b13", "dinput:231d:0121/guid:{01661270}" ]
 }
@@ -82,13 +104,15 @@ Two keys join the `controllers` section (research R19, R21):
 
 | Key | Value | Rules |
 |---|---|---|
-| `players` | Array of exactly two objects, Player 1 then Player 2 | Absent = the one-time adoption has not run (below). Written in full whenever an entry or a user-set target changes |
+| `players` | Array of exactly two objects, Player 1 then Player 2 | Absent = the one-time adoption has not run (below). Written in full whenever an entry or a mode changes |
 | `players[n].entry` | `automatic`, `controller`, `keys`, `mouse` or `disabled` | `keys` and `mouse` valid for Player 1 only, `disabled` for Player 2 only; an invalid or unknown value reads as `automatic` and is reported once |
 | `players[n].controller` | Unit token | Required for `controller`; an unreadable token reads as `automatic` and is reported |
-| `players[n].maps` | Target token as in the per-machine block below | Absent = follow the active profile (FR-043). Kept for paddles the machine lacks (FR-035) |
+| `players[n].mode` | `joystick` or `paddle` | The player's mode (FR-037, FR-039). Absent or unrecognized reads as `joystick`, except that a legacy `maps` (below) is read in its place |
+| `players[n].maps` | Target token as in the per-machine block below | (Superseded 2026-09-27: no longer written.) Read only when `mode` is absent: a single paddle (`paddle0`-`paddle3`) reads as Paddle mode, anything else as Joystick. It was: absent = follow the active profile (FR-043), kept for paddles the machine lacks (FR-035) |
 | `lastHolders` | Array of two unit tokens or `null` | Only for the notice rule (FR-044); an unreadable entry reads as `null`, which means the next Automatic assignment to that slot shows a notice |
 
-- Both entries picking one controller, or two user-set targets that overlap, are normalized on load: Player 2's entry becomes `automatic`, or its `maps` is dropped (FR-036).
+- Both entries picking one controller are normalized on load: Player 2's entry becomes `automatic` (FR-036). (Superseded 2026-09-27: two overlapping user-set targets no longer exist, since the modes place the players.)
+- Entries are also normalized for their mode: Player 1's `keys` plays in Joystick mode and `mouse` in Paddle mode.
 - `players` never holds what Automatic chose; that lives only in `lastHolders` and never assigns a controller (FR-011).
 
 ### One-time adoption from the launched machine
@@ -100,7 +124,7 @@ Runs at launch when `controllers.players` is absent, reading the launched machin
 | `arrowsToJoystick: true` | Player 1 `keys` |
 | `pointerMapping: "paddle"` | Player 1 `mouse`, unless `arrowsToJoystick` already gave Player 1 the keys |
 | `controller` | Player 1's entry in `lastHolders` only; Player 1 stays `automatic` (unless it has the keys or the mouse) |
-| `multiplayer` with `enabled: true` | Each filled slot becomes that player's `controller` entry and `maps`; Player 1's slot outranks the three rows above |
+| `multiplayer` with `enabled: true` | Each filled slot becomes that player's `controller` entry, and its `maps` its mode (a single paddle is Paddle); Player 1's slot outranks the three rows above |
 | anything else, or nothing | `automatic`; Player 2 is `automatic` when the block is absent or not enabled |
 
 `lastHolders` starts as two `null`s, apart from Player 1's adopted `controller` above, and fills as slots are held, by a pick as much as by Automatic (FR-044). Other machines' `controller`, `multiplayer`, `arrowsToJoystick` and paddle `pointerMapping` values are ignored from then on and left in their files, so an older build keeps reading its own keys.
@@ -144,4 +168,4 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 - Round-trip of every field through `InMemoryFileSystem`.
 - Each rule in the table above, including that a rejected entry is reported rather than silently replaced.
 - Profile lookup by model token and name, the interface GH #78 will use.
-- (2026-09-27) `players` and `lastHolders` round trip; each invalid value in the players table reads as documented and is reported; a repeated controller or an overlapping `maps` is normalized; every row of the adoption table, including that adoption runs once and that other machines' keys are left in their files.
+- (2026-09-27) `players` and `lastHolders` round trip; each invalid value in the players table reads as documented and is reported; a repeated controller is normalized; `mode` round trips and a legacy `maps` reads as the mode; `profileMode`, `paddles` and the three active-profile maps round trip; a profile without `profileMode` is classified as above; a Joystick choice of a Paddle profile moves to `paddleActiveProfiles` unless one is there; every row of the adoption table, including that adoption runs once and that other machines' keys are left in their files.

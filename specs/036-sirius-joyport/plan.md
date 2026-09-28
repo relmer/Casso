@@ -55,7 +55,18 @@ update plans the difference.
   profiles, built-in first; creation offers the same starting points in both
   modes; reset restores the mode's built-in. This reverses the part of the
   already-built `3f0c4620` and `c00c2c7a` that let any profile be picked in
-  either mode.
+  either mode. (Superseded 2026-09-27: profiles have three kinds, Joystick,
+  Paddle and Joyport, each with its own built-in, starting points and chosen
+  profile per controller; see R25.)
+- **Player modes with the Joyport** (2026-09-27, R26): each player has a
+  Joystick or Paddle mode (spec 034). While the Joyport is in effect both
+  players play as Atari sticks with their Joyport-kind choice, and the mode
+  controls in the picker and on the Controllers page are disabled and show
+  Joystick.
+- **Controllers page labels** (2026-09-27, R19, R23): "Apple (rear)" above the
+  switch, "Atari (front)" below it, "Joyport" to its left; the heading above
+  the switch lights reads "Atari joystick: left jack", ": right jack" or
+  ": both jacks". The Multiplayer checkbox is gone from the page.
 - **The Joyport profile's DirectInput second stick** (R18): Z/Rz, else Rx/Ry,
   on a DirectInput gamepad only, using `ControllerFormFactor`.
 - **Jacks from spec 034's players** (R21): one player drives both jacks; two
@@ -63,7 +74,9 @@ update plans the difference.
   on both. **Labels** (R22) come from one helper that spec 034's picker and
   notices call.
 - **Never analog and Atari at once** (R20): the mechanism already exists; the
-  picker now leaves mouse-as-paddle out while the Joyport is on.
+  picker now leaves mouse-as-paddle out while the Joyport is on. Since
+  2026-09-27 the mouse is offered only in Paddle mode, so the mouse and the
+  Joyport are never on together; the keys stay offered in either mode.
 - **Deferred**: the Controller Select switch (FR-016) is not decided by the
   owner and is not planned (R24). Casso keeps it at Center.
 
@@ -141,7 +154,7 @@ without a new widget (R10). No violations to track.
 |---|---|---|
 | I. Code Quality | Pass | New logic is three small static-only classes (`JoyportSetting`, `JoyportJackRules`, `JoyportLabels`) and a field on `ControllerProfile`. The prefs read and write keep EHM; the rules cannot fail. |
 | II. Testing Discipline, Test Isolation | Pass | Every new rule is a pure function with a table-driven test: adoption and `IsInEffect`, jack assignment, labels, profile mode on load, create and reset, the second-stick choice, toggle geometry. Prefs through `InMemoryFileSystem`; controllers through `FakeControllerBackend`. The rework of the two built commits rewrites `ChosenProfile_IsRememberedForEachMode` to the new rule rather than deleting it. |
-| III. UX Consistency | Pass | Sentence-case labels ("Joyport (Atari mode)", "Atari mode", "Same as left"). One setting, two places that show and change it, as the mouse toggle does. No CLI change. |
+| III. UX Consistency | Pass | Sentence-case labels ("Joyport (Atari mode)", "Atari mode", "Same as left"; since 2026-09-27 "Apple (rear)", "Atari (front)", "Atari joystick: left jack", and "same as left" in lower case after a colon). One setting, two places that show and change it, as the mouse toggle does. No CLI change. |
 | IV. Performance | Pass | No new thread or timer. The jack assignment runs on the existing controller tick. |
 | V. Simplicity | Pass | The setting reuses the adapter enum and tokens. Removing the Machine tab path deletes more Settings plumbing than the Controllers page section adds. The Controller Select switch is not built (YAGNI until decided). |
 | VI. Thin Executable, Testable Core | Pass | All code in `CassoEmuCore` and `Dxui`; nothing in `Casso.exe`. The two shell call sites for adoption stay one-line forwarders to `JoyportSetting`. |
@@ -265,6 +278,12 @@ CassoEmuCore/
         ├── ControllersPage.h/.cpp          # Joyport section with the vertical toggle
         └── ControllersPageState.h/.cpp     # SetProfileMode reloads; lists per mode; create/reset by mode
 
+(2026-09-27) ControllerProfileStore gains ProfileMode::Paddle, ProfileSource::PaddleMapping,
+the Paddles built-in (ControllerProfileKind::Paddles, DefaultMapping::MakePaddles) and
+paddleActiveProfiles; PlayerSlotPolicy::GetEffectiveMode reports Joystick for both
+players while the Joyport is in effect; ControllersPageState::SetJoyportInEffect
+replaces SetProfileMode, and the page drops the Multiplayer checkbox.
+
 UnitTest/
 ├── Dxui/DxuiToggleTests.cpp                # new
 ├── ControllerTests/
@@ -312,14 +331,18 @@ Found while planning; recorded, not resolved here.
   hides the entry, but the spec does not state what Player 1 plays meanwhile.
   The plan keeps today's behavior (the mixer's MousePaddle owner leaves every
   switch open) and keeps the entry saved, so turning the Joyport off restores
-  it.
+  it. (Resolved 2026-09-27: the mouse is offered only in Paddle mode, and
+  while the Joyport is in effect both players are in Joystick mode, so the
+  mouse and the Joyport are never on together.)
 - **Arrow keys as Player 1 beside a controller as Player 2** (R21): whether
   spec 034's players allow that pairing decides whether the mixer must compose
   the jacks from two sources. The plan supports it; if 034 rules it out, the
   composition reduces to today's owner table.
 - **A profile saved by this build read by an older build**: the older build
   ignores `"profileMode"` and lists a Joyport-mode profile as an ordinary one.
-  Accepted; nothing is lost.
+  Accepted; nothing is lost. Since 2026-09-27 every profile carries
+  `"profileMode"` (`"joystick"`, `"paddle"` or `"joyport"`), and a profile
+  saved without one is classified on read (R25).
 - **Joyport profile already saved**: an existing saved Joyport profile keeps
   its mapping, so a DirectInput gamepad user gets the second stick only after
   Reset profile (R18). The spec's "keeping its mapping" rule covers only a

@@ -107,7 +107,7 @@ enum class JoyportPlayerState { Idle, Driving, Held };   // spec 034's PlayerSlo
 struct JoyportPlayers
 {
     std::array<JoyportPlayerState, 2>  players           = {};
-    bool                               isPlayer2Disabled = false;   // "Same as left" while the Joyport is on
+    bool                               isPlayer2Disabled = false;   // Player 2 Disabled: "Same as left" in the submenu, "same as left" after a colon
 };
 
 enum class JoyportJackSource { None, Player1, Player2 };
@@ -166,3 +166,13 @@ The service resolves a controller's profile for the mode in effect: the
 mode's active choice when it points at a profile of that mode, otherwise the
 mode's built-in profile. `SetActiveProfile` with a profile of the other mode
 leaves the choice unchanged. Evaluation of the chosen mapping is unchanged.
+
+(Superseded 2026-09-27: the two modes became three profile kinds, Joystick,
+Paddle and Joyport, research R25.) The service resolves each player's profile
+for that player's effective mode, `PlayerSlotPolicy::GetEffectiveMode`: while
+the Joyport is in effect both players are Joystick for routing and every
+controller plays its Joyport-kind choice (`joyportActiveProfiles`); otherwise
+a Joystick player plays its `activeProfiles` choice and a Paddle player its
+`paddleActiveProfiles` choice, each falling back to the kind's built-in
+(Default, Paddles or Joyport). Mouse-as-paddle is a Paddle-mode source only, so
+it never feeds the jacks (R26).

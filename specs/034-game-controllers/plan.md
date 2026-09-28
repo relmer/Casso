@@ -22,11 +22,23 @@ Two findings shape delivery:
 The spec's Session 2026-09-27 replaces single-source and multiplayer modes with **two global player slots that are always present**, so two controllers play two players with no setup. Phases 12-18 of [tasks.md](tasks.md) build it on top of what Phases 1-11 shipped; research [R16-R25](research.md#2026-09-27-two-always-present-player-slots-gh-156) records the decisions.
 
 - **Who plays** is computed by a new pure `PlayerSlotPolicy` from the two player entries (Automatic, a picked controller, keys/mouse for Player 1, Disabled for Player 2), the attached devices, and two logs the service keeps: the order controllers connected while Casso runs and the order they first gave real input while active (R16). A slot filled by Automatic counts as playing only after input; one controller playing drives PDL0/PDL1/PB0-PB2 as a single controller always has; a leaving player's slot is held so the other keeps only what they had (R17).
-- **What a slot drives** follows its target, and the target follows the holder's active profile unless set on the Controllers page; buttons follow the target as the hardware wires them (R18). `PlayerTargetRules` holds both as pure lookups. The mixer is unchanged; the service composes the one `Controller` contribution differently ([contracts/game-port-mixer.md](contracts/game-port-mixer.md)).
+- **What a slot drives** follows its target, and the target follows the holder's active profile unless set on the Controllers page; buttons follow the target as the hardware wires them (R18). (Superseded later on 2026-09-27 by R26: each player has a mode, Joystick or Paddle, and the two modes alone set the targets; see below.) `PlayerTargetRules` holds both as pure lookups. The mixer is unchanged; the service composes the one `Controller` contribution differently ([contracts/game-port-mixer.md](contracts/game-port-mixer.md)).
 - **Idle controllers are watched** for their first input: XInput every 100 ms by packet number, DirectInput by its existing events, only while a player on Automatic is waiting and Casso is active (R23, [contracts/controller-backend.md](contracts/controller-backend.md)).
 - **Persistence moves to global** `controllers.players` and `controllers.lastHolders`, with a one-time adoption of the launched machine's per-machine keys (R19, [contracts/prefs-schema.md](contracts/prefs-schema.md)).
 - **The picker** gets a Player 1 row and a Player 2 row with submenus and a profile section at each foot; the Profiles submenu, the Multiplayer row and "N controllers" go (R22). Its label gains " +1" and a middle ellipsis from a new `DxuiElide::Middle` (R24).
+- **The Controllers page** shows Player 2's row behind a Multiplayer checkbox that slides the rows below it. (Superseded later on 2026-09-27 by R26: both rows are always shown and the checkbox and its slide are gone.)
 - **Notices stack** in a new Dxui control, `DxuiNoticeStack`, with a shared `DxuiSlide` for the menus' open duration and easing; the shell keeps the thread hand-off and the anchor (R20, [contracts/notice-stack.md](contracts/notice-stack.md)). Assignment notices show only when a slot's holder differs from the saved last holder (R21).
+### 2026-09-27, later: a Joystick or Paddle mode for each player (GH #156)
+
+Phase 19 of [tasks.md](tasks.md); research [R26](research.md#r26-each-player-has-a-mode-joystick-or-paddle-profiles-have-three-kinds-fr-008-fr-008b-fr-037-fr-038-fr-039-fr-043).
+
+- **Each player has a mode**, `PlayerMode::Joystick` or `PlayerMode::Paddle`, on `PlayerEntry` and saved with it. `PlayerTargetRules::GetModeTarget` and `PlayerSlotPolicy::Evaluate` set each slot's internal target from the two modes (both Joystick while the Joyport is in effect); `GetLoneRoute` gives a lone player its mode's lines. The per-slot target, `GetAutomaticTarget`, `IsPaddleMapping`, `ControllerSelectionPolicy::GetTargetChoices` and `GetAxesForPlayer` are removed.
+- **Profiles have three kinds**, `ProfileMode::Joystick`, `Paddle` and `Joyport`, with built-ins Default, Paddles and Joyport, and a chosen profile per controller per kind (`activeProfiles`, `paddleActiveProfiles`, `joyportActiveProfiles`). Each controller plays the profile of its player's kind and re-resolves when the kind changes.
+- **The picker** offers Joystick and Paddle in each player's submenu, lists the keys only in Joystick mode and the mouse only in Paddle mode, marks a Paddle row " (paddle)", and reads "(disconnected) +1" while Player 1's slot is held.
+- **The Controllers page** always shows both rows, each with an entry drop-down, a Joystick / Paddle drop-down and a note of what the player drives; its profile list is the kind of the controller in Editing.
+
+### Ownership
+
 - **Spec 036** owns the picker's "Joyport (Atari mode)" row, the Joyport labels on the player rows and notices, and which mode each profile belongs to. The hooks it needs (`PlayerSlotPolicy::DescribeAssignment`, the row model, the profile section's list for the mode in effect) are planned here and filled there.
 
 ## Technical Context
@@ -174,10 +186,11 @@ Added by the 2026-09-27 work (research R16-R25):
 CassoEmuCore/
 ├── Controllers/
 │   ├── PlayerSlotPolicy.h/.cpp        # new: entries + devices + logs -> two slots, states, notices
-│   ├── PlayerTargetRules.h/.cpp       # new: target from profile, button routes by target
+│   ├── PlayerTargetRules.h/.cpp       # new: target from the players' modes (was: from profile), button routes by target
 │   ├── ControllerInputService.h/.cpp  # logs, idle watch, slot-based merge; multiplayer mode removed
-│   ├── ControllerSelectionPolicy.h/.cpp # automatic selection and replacement removed; Normalize, targets kept
-│   └── InputModeRules.h/.cpp          # player row model, " +1" label; character cut removed
+│   ├── ControllerSelectionPolicy.h/.cpp # automatic selection and replacement removed; Normalize kept (target choices removed later)
+│   ├── ControllerProfileStore.h/.cpp  # three profile kinds, active profile per kind
+│   └── InputModeRules.h/.cpp          # player row model, mode choices, " +1" label; character cut removed
 ├── Config/
 │   ├── GlobalUserPrefs.h/.cpp         # controllers.players, controllers.lastHolders
 │   └── MachineInputPrefs.h/.cpp       # read-only adoption helpers
@@ -189,8 +202,8 @@ CassoEmuCore/
 └── Ui/
     ├── Chrome/EmulatorCommands.h/.cpp # player rows with submenus and profile sections
     └── Settings/
-        ├── ControllersPageState.h/.cpp# player entries, Multiplayer checkbox, user-set targets
-        └── ControllersPage.h/.cpp     # checkbox and the slide
+        ├── ControllersPageState.h/.cpp# player entries and modes (Multiplayer checkbox and user-set targets removed)
+        └── ControllersPage.h/.cpp     # both player rows, mode drop-downs, notes (checkbox and slide removed)
 
 Dxui/
 ├── Core/
@@ -242,6 +255,7 @@ Each slice matches a phase in [tasks.md](tasks.md), leaves the build green, and 
 | 16 | **Picker**: player rows, submenus, profile sections, " +1" label with middle ellipsis; Machine menu toggles as Player 1 | 13, 15 | FR-008, FR-008b, FR-028, FR-041 |
 | 17 | **Controllers page**: player entries, Multiplayer checkbox and slide, user-set targets; 034 checks of the built Joyport profile work | 12 (slide), 15 | FR-019, FR-024, FR-026, FR-029, FR-037 |
 | 18 | **Validation and gates** | 12-17 | quickstart 16-28, SC-005, SC-007 |
+| 19 | **A mode for each player** (2026-09-27, later): Paddle profile kind, player modes and routing, picker mode choices, Controllers page rows; replaces the user-set target and the Multiplayer checkbox of phases 13 and 17 | 13-17 | FR-008, FR-008b, FR-037, FR-039, FR-043, quickstart 29-34 |
 
 ## Complexity Tracking
 

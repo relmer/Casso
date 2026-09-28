@@ -66,7 +66,7 @@ from `ApplyPersistedChromePrefs`, and on a machine switch right after
 
 - `EmulatorCommands::SetJoyportFns (isOn, isOffered, toggle)`, one checkable
   `DxuiCommand` labeled **Sirius Joyport**.
-- `GetPaddlePickerItems` places it in a group of its own, below Multiplayer
+- `GetPaddlePickerItems` places it in a group of its own, below the players
   and above Profiles and Controller settings, and only when `isOffered()` (the
   machine has annunciators: not the //c). It is a device on the game port, not
   a source, so it is kept out of the source group.
@@ -117,7 +117,10 @@ table.
 - `ControllersPageState::GetJoyportJack()` returns `Left`, `Right` or `Both`
   for the controller in Editing: `Both` in single-source mode, otherwise the
   slot it occupies. The caption reads "Left jack", "Right jack" or "Both
-  jacks".
+  jacks". (Superseded 2026-09-27: the **Joyport** heading and caption became
+  one heading, "Atari joystick: left jack", ": right jack" or ": both jacks",
+  from `ControllersPageState::GetJoyportHeading`; see the Controllers page
+  section below.)
 - Detached: the page is unchanged (FR-015).
 - Tests: `ControllersPageStateTests.cpp` for `GetJoyportJack` in each mode and
   after Editing moves to player 2.
@@ -185,6 +188,16 @@ bool             IsJoyportInEffect  () const;                    // JoyportSetti
   (FR-020), replacing "Default and Joyport lead every section".
 - Player labels, Player 2's Disabled entry and the Automatic row text come from
   `JoyportLabels` (R22) once spec 034's player submenus exist.
+- (2026-09-27) With the Joyport on, the rows read "Joyport left: ..." and
+  "Joyport right: ..."; Player 2's Disabled entry is "Same as left" in the
+  submenu, and the row reads "Joyport right: same as left" in lower case after
+  the colon. Each player's Joystick/Paddle pair is disabled and shows Joystick,
+  and every profile list holds Joyport-kind profiles. Mouse-as-paddle is
+  offered only in Paddle mode, so never with the Joyport; the keys are offered
+  with the Joyport on in either saved mode.
+- (Superseded 2026-09-27: "the mode in effect" above is now the player's
+  effective mode, `PlayerSlotPolicy::GetEffectiveMode`, which gives one of three
+  profile kinds, Joystick, Paddle or Joyport.)
 
 ### Machine tab
 
@@ -206,17 +219,40 @@ bool             IsJoyportInEffect  () const;                    // JoyportSetti
 - A **Joyport** section heads the page when offered: a `DxuiToggle` with
   `OnDirection::Down`, checked for Atari mode, labeled "Atari mode" or "Apple
   mode" by its state. Not offered (the //c): no section, profile mode Normal.
+  (Superseded 2026-09-27: the state label was replaced by "Apple (rear)" above
+  the switch and "Atari (front)" below it, each centered on it side to side
+  from the toggle's own geometry, and "Joyport" to its left, centered on it
+  top to bottom. On the //c each player plays its own mode's profile kind.)
+- The heading above the switch lights reads "Atari joystick", followed by
+  ": left jack", ": right jack" or ": both jacks" for the controller in
+  Editing, and has no suffix with no controller. (Superseded 2026-09-27: the
+  heading "Joyport: left jack".)
+- The per-player note reads "left jack", "right jack" or "both jacks" in
+  Atari mode. Each player's mode drop-down is disabled and shows Joystick while
+  the Joyport is in effect. Player 2's Disabled entry reads "same as left", in
+  lower case since it follows "Player 2:".
+- The Multiplayer checkbox and its slide are removed from the page (spec 034).
 - On a change, the page calls `set`, then
   `ControllersPageState::SetProfileMode (mode)`, which reloads the profile list
   and the edited profile for the new mode in place, the same way
-  `SelectProfile` switches profiles. The stick art (`JoyportSwitchView`)
+  `SelectProfile` switches profiles. (Superseded 2026-09-27:
+  `ControllersPageState::SetJoyportInEffect (bool)` replaced `SetProfileMode`;
+  the kind the page edits follows it and the edited player's mode.) The stick art (`JoyportSwitchView`)
   replaces the stick and button lights while the mode is Joyport, as before.
 - A change made from the picker while the sheet is open is picked up on the
   page's next poll by comparing `isOn()` with the toggle, and handled like a
   change on the page itself, minus the `set` call.
 - Profile creation offers **Default mapping**, **Joyport mapping**,
   **Paddles** and **Copy of** any profile of either mode, in both modes; the
-  new profile takes the page's mode.
+  new profile takes the page's mode. (Superseded 2026-09-27: each kind has
+  its own starting points. Joystick: **Default mapping** or a copy of a
+  Joystick profile. Paddle: **Paddles mapping** (`ProfileSource::PaddleMapping`)
+  or a copy of a Paddle profile. Joyport: **Joyport mapping** or a copy of a
+  Joyport profile.)
+- Storage (2026-09-27): every profile is saved with `"profileMode"` set to
+  `"joystick"`, `"paddle"` or `"joyport"`, and a controller's choices are kept
+  per kind in `activeProfiles` (Joystick), `paddleActiveProfiles` and
+  `joyportActiveProfiles`.
 - Tests: `ControllersPageStateTests.cpp` (the list per mode, built-in first;
   swapping in place; create stamps the mode; reset restores the mode's
   built-in; a copy from the other mode); the page's section visibility through

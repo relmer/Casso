@@ -345,6 +345,9 @@ kept as written.
     "Apple mode" beside it. It applies at once, like the page's multiplayer
     controls, through a `SetJoyportFns (isOn, isOffered, set)` on
     `ControllersPage` that `SettingsSheet` wires to the shell.
+    (Superseded 2026-09-27: the switch carries "Apple (rear)" above it and
+    "Atari (front)" below it, with "Joyport" to its left, and the page has no
+    Multiplayer checkbox any more; see R23.)
 - **Removed**: the Machine tab's Game port group (`HardwarePage::BuildGamePortGroup`,
   `SetGamePortChecks`, `ResolveGamePortToggle`, the `BuildNodes` parameters),
   `SettingsUiPrefs::gamePortAdapter`, `SettingsPanelState::SetGamePortAdapter`
@@ -380,6 +383,10 @@ kept as written.
   R7; the //c has no Joyport, so its reads fall straight through.
 
 ## R17. Each profile belongs to one mode, fixed at creation
+
+> **Superseded 2026-09-27**: the two modes Normal and Joyport below were
+> replaced by three kinds, described in R25. The rules for fixing the kind at
+> creation, resetting to the kind's built-in and listing by kind carry over.
 
 - **Decision**: `ControllerProfile` gains `ProfileMode mode = ProfileMode::Normal`.
   - Built-in profiles take their mode from their kind: Default is Normal and
@@ -470,7 +477,10 @@ kept as written.
   geometry is tested without a painter; hit testing and keyboard handling are
   unchanged. The Joyport section uses `Down`, since the unit's front is toward
   the bottom and front is Atari mode (FR-001), and sets the label to "Atari
-  mode" or "Apple mode" on each change.
+  mode" or "Apple mode" on each change. (Superseded 2026-09-27: the label
+  beside the knob was replaced by fixed labels, "Apple (rear)" above the switch
+  and "Atari (front)" below it, each centered on it side to side from the
+  toggle's own geometry, and "Joyport" to its left, centered top to bottom.)
 - **Rationale**: the spec's planning note puts the orientation on the existing
   toggle; a direction rather than a bool records which end is on, which a
   vertical switch needs and a horizontal one never did.
@@ -549,6 +559,11 @@ kept as written.
     for a controller playing alone reads "Joyport left and right:
     description", and otherwise "Joyport left: description" or "Joyport
     right: description" (FR-019).
+  - (2026-09-27) Player 2's Disabled entry reads "Same as left" as the
+    submenu entry, and "same as left" in lower case wherever it follows a
+    colon: the row "Joyport right: same as left" and the Controllers page's
+    Player 2 drop-down, which follows "Player 2:". The page's per-player note
+    reads "left jack", "right jack" or "both jacks" in Atari mode.
   Spec 034's picker and notice code calls it where it now builds those
   strings.
 - **Rationale**: one place for the strings keeps the picker and the notices
@@ -571,6 +586,55 @@ kept as written.
   Controllers page MUST swap the list in place"). `SetProfileMode` today only
   takes effect before `Load`, which is why it needs the reload.
 - **Mouse-as-paddle** is not on this page, so nothing here hides it (R20).
+- **Layout (2026-09-27)**: "Apple (rear)" above the switch and "Atari (front)"
+  below it, each centered on it side to side, and "Joyport" to its left,
+  centered on it top to bottom (R19). The heading above the switch lights reads
+  "Atari joystick", followed by ": left jack", ": right jack" or ": both jacks"
+  for the controller in Editing, with no suffix when there is no controller.
+  (Superseded 2026-09-27: the heading "Joyport: left jack" was replaced by
+  "Atari joystick: left jack".) The Multiplayer checkbox and its slide are gone
+  from the page (spec 034). While the Joyport is in effect each player's mode
+  drop-down is disabled and shows Joystick (R26).
+- (Superseded 2026-09-27: `SetProfileMode` was replaced by
+  `ControllersPageState::SetJoyportInEffect (bool)`; the profile kind the page
+  edits follows it and the edited player's mode, R25.)
+
+## R25. Three profile kinds: Joystick, Paddle, Joyport (2026-09-27)
+
+- **Decision**: `ProfileMode { Joystick, Paddle, Joyport }` replaces Normal
+  and Joyport. Built-ins: Default (Joystick), Paddles (Paddle, the new
+  `ControllerProfileKind::Paddles` from `DefaultMapping::MakePaddles`) and
+  Joyport (Joyport).
+  - `ProfileSource::Paddles` became `ProfileSource::PaddleMapping`, the Paddle
+    kind's built-in mapping, shown as "Paddles mapping" in the New profile
+    dialog. Starting points per kind: Joystick, the Default mapping or a copy of
+    a Joystick profile; Paddle, the Paddles mapping or a copy of a Paddle
+    profile; Joyport, the Joyport mapping or a copy of a Joyport profile.
+    (Superseded: Paddles as a starting point for a normal-mode profile, and
+    copies across modes.)
+  - Every profile is saved with `"profileMode"` set to `"joystick"`,
+    `"paddle"` or `"joyport"`. A profile saved without one is classified: PDL0
+    bound and PDL1 not is Paddle, anything else Joystick; `"joyport"` stays
+    Joyport. Built-ins take their kind; the built-in Paddles is saved with
+    `"paddles": true`.
+  - A controller keeps a chosen profile per kind: `activeProfiles` (Joystick,
+    the old key kept), `paddleActiveProfiles` and `joyportActiveProfiles`. A
+    legacy Joystick choice of a profile that now classifies as Paddle moves to
+    the Paddle map on read.
+- **Rationale**: spec 034 gives each player a Joystick or Paddle mode, and a
+  profile list per player that follows that mode; spec 036 FR-020.
+
+## R26. Player modes while the Joyport is in effect (2026-09-27)
+
+- **Decision**: while the Joyport is in effect both players are Atari sticks.
+  `PlayerSlotPolicy::GetEffectiveMode` reports Joystick for both, every
+  controller plays its Joyport-kind choice, and the mode cannot be chosen: the
+  picker's Joystick/Paddle pair and the Controllers page's mode drop-down are
+  disabled and show Joystick. The saved mode is kept for when the Joyport is
+  turned off.
+- **Mouse and keys**: mouse-as-paddle is offered only in Paddle mode and never
+  with the Joyport, so the mouse and the Joyport are never on together (R20).
+  The keys are offered with the Joyport on in either saved mode.
 
 ## R24. The Controller Select switch: deferred
 

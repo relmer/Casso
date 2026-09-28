@@ -461,7 +461,7 @@ description: "Task list for 034 physical game controllers"
 
 ### Documents
 
-- [ ] T185 Update `plan.md`, `research.md`, `data-model.md`, `contracts/` and `quickstart.md` of specs 034 and 036 for the modes and kinds, marking the superseded decisions; commit: `docs(specs): record the per-player mode in the plans`
+- [X] T185 Update `plan.md`, `research.md`, `data-model.md`, `contracts/` and `quickstart.md` of specs 034 and 036 for the modes and kinds, marking the superseded decisions; commit: `docs(specs): record the per-player mode in the plans`
 
 ---
 
