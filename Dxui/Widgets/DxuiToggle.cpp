@@ -158,11 +158,76 @@ void DxuiToggle::Flip()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComputeTrackAndThumb
+//
+//  The pill laid out in pill, whichever way that box is drawn: the track
+//  runs its long side along the direction of travel from the box's top-left
+//  corner, horizontal for Right and upright for Up and Down. The end caps
+//  are half the short side across, and the thumb sits inset a sixth of the
+//  short side from the edge, at the end the direction gives while checked
+//  and at the other end while not. At the toggle's 18-pixel height that is
+//  the 3-pixel inset the pill has always had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToggle::TrackAndThumb DxuiToggle::ComputeTrackAndThumb (
+    const D2D1_RECT_F  & pill,
+    OnDirection          direction,
+    bool                 checked)
+{
+    constexpr float  kThumbInsetRatio = 1.0f / 6.0f;
+    constexpr float  kHalf            = 0.5f;
+
+
+
+    TrackAndThumb  geometry;
+    float          width      = pill.right  - pill.left;
+    float          height     = pill.bottom - pill.top;
+    float          longSide   = std::max (width, height);
+    float          shortSide  = std::min (width, height);
+    bool           isUpright  = direction != OnDirection::Right;
+    bool           isAtFar    = false;
+
+
+
+    geometry.capRadius   = shortSide * kHalf;
+    geometry.thumbRadius = geometry.capRadius - shortSide * kThumbInsetRatio;
+    geometry.track       = D2D1::RectF (pill.left,
+                                        pill.top,
+                                        pill.left + (isUpright ? shortSide : longSide),
+                                        pill.top  + (isUpright ? longSide  : shortSide));
+
+    // The far end is the right for a horizontal pill and the bottom for an
+    // upright one; Up is the only direction whose on end is the near one.
+    isAtFar = (direction == OnDirection::Up) ? !checked : checked;
+
+    if (isUpright)
+    {
+        geometry.thumbCenter.x = geometry.track.left + geometry.capRadius;
+        geometry.thumbCenter.y = isAtFar ? geometry.track.bottom - geometry.capRadius
+                                         : geometry.track.top    + geometry.capRadius;
+    }
+    else
+    {
+        geometry.thumbCenter.x = isAtFar ? geometry.track.right - geometry.capRadius
+                                         : geometry.track.left  + geometry.capRadius;
+        geometry.thumbCenter.y = geometry.track.top + geometry.capRadius;
+    }
+
+    return geometry;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
-//  Pill body painted as one rect plus two end-cap circles. Thumb is a
-//  circle that sits inset from the pill edges and slides between the
-//  off (left) and on (right) end-caps.
+//  Pill body painted as one rect plus two end-cap circles, the thumb a
+//  circle at one end, all from ComputeTrackAndThumb. The pill sits at the
+//  left of the bounds, centered top to bottom, with the label beside it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,38 +242,36 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     constexpr uint32_t  s_kTextDisabled  = 0xFF707070;
     constexpr float     s_kPillWidthDip  = 36.0f;
     constexpr float     s_kPillHeightDip = 18.0f;
-    constexpr float     s_kThumbInsetDip = 3.0f;
     constexpr float     s_kLabelGapDip   = 8.0f;
     constexpr float     s_kFontDip       = 13.0f;
     constexpr float     s_kPillRatio     = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
 
 
 
-    HRESULT  hr         = S_OK;
-    float    pillW      = m_scaler.ToPxf (s_kPillWidthDip);
-    float    pillH      = m_scaler.ToPxf (s_kPillHeightDip);
-    float    thumbInset = m_scaler.ToPxf (s_kThumbInsetDip);
-    float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
-    float    fontDip    = m_scaler.ToPxf (s_kFontDip);
-    float    pillLeft   = (float) m_boundsDip.left;
-    float    pillTop    = (float) m_boundsDip.top + ((float) (m_boundsDip.bottom - m_boundsDip.top) - pillH) * 0.5f;
-    float    capR       = pillH * 0.5f;
-    float    leftCx     = pillLeft + capR;
-    float    rightCx    = pillLeft + pillW - capR;
-    float    cy         = pillTop  + capR;
-    float    thumbR     = capR - thumbInset;
-    float    thumbCx    = m_checked ? rightCx : leftCx;
-    uint32_t pillColor;
-    uint32_t accentBase = DxuiColor::ComputeAccentForWhiteContrast (accentArgb, s_kPillRatio);
-    uint32_t thumbColor = m_enabled ? s_kThumb : s_kThumbDisabled;
-    uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
+    HRESULT        hr         = S_OK;
+    float          pillW      = m_scaler.ToPxf (s_kPillWidthDip);
+    float          pillH      = m_scaler.ToPxf (s_kPillHeightDip);
+    float          labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
+    float          fontDip    = m_scaler.ToPxf (s_kFontDip);
+    bool           isUpright  = m_onDirection != OnDirection::Right;
+    float          extentH    = isUpright ? pillW : pillH;
+    float          pillLeft   = (float) m_boundsDip.left;
+    float          pillTop    = (float) m_boundsDip.top + ((float) (m_boundsDip.bottom - m_boundsDip.top) - extentH) * 0.5f;
+    TrackAndThumb  geometry   = ComputeTrackAndThumb (D2D1::RectF (pillLeft, pillTop, pillLeft + pillW, pillTop + pillH), m_onDirection, m_checked);
+    float          capR       = geometry.capRadius;
+    float          trackW     = geometry.track.right  - geometry.track.left;
+    float          trackH     = geometry.track.bottom - geometry.track.top;
+    uint32_t       pillColor;
+    uint32_t       accentBase = DxuiColor::ComputeAccentForWhiteContrast (accentArgb, s_kPillRatio);
+    uint32_t       thumbColor = m_enabled ? s_kThumb : s_kThumbDisabled;
+    uint32_t       textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
 
     // Same rule as DxuiCheckbox: no area means the control has not been laid
     // out yet (a WM_PAINT can land between OnCreate and the first Layout), and
     // the label box below is the width MINUS the pill and gap -- on a
     // {0,0,0,0} rect that is negative, which DWrite rejects outright.
-    bool     hasArea    = (m_boundsDip.right > m_boundsDip.left)
-                          && (m_boundsDip.bottom > m_boundsDip.top);
+    bool           hasArea    = (m_boundsDip.right > m_boundsDip.left)
+                                && (m_boundsDip.bottom > m_boundsDip.top);
 
 
 
@@ -227,10 +290,20 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
             pillColor = m_hover ? s_kPillOffHover : s_kPillOff;
         }
 
-        painter.FillRect   (leftCx,  pillTop, pillW - pillH, pillH, pillColor);
-        painter.FillCircle (leftCx,  cy,      capR,          pillColor);
-        painter.FillCircle (rightCx, cy,      capR,          pillColor);
-        painter.FillCircle (thumbCx, cy,      thumbR,        thumbColor);
+        if (isUpright)
+        {
+            painter.FillRect   (geometry.track.left,        geometry.track.top + capR,    trackW, trackH - trackW, pillColor);
+            painter.FillCircle (geometry.track.left + capR, geometry.track.top + capR,    capR,   pillColor);
+            painter.FillCircle (geometry.track.left + capR, geometry.track.bottom - capR, capR,   pillColor);
+        }
+        else
+        {
+            painter.FillRect   (geometry.track.left + capR,  geometry.track.top,        trackW - trackH, trackH, pillColor);
+            painter.FillCircle (geometry.track.left + capR,  geometry.track.top + capR, capR,            pillColor);
+            painter.FillCircle (geometry.track.right - capR, geometry.track.top + capR, capR,            pillColor);
+        }
+
+        painter.FillCircle (geometry.thumbCenter.x, geometry.thumbCenter.y, geometry.thumbRadius, thumbColor);
 
         // An unlabeled toggle narrates its own state instead, so the pill is
         // never left with nothing beside it.
@@ -238,9 +311,9 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                                                : m_label;
 
         hr = text.DrawString (shown.c_str(),
-                              pillLeft + pillW + labelGap,
+                              pillLeft + trackW + labelGap,
                               (float) m_boundsDip.top,
-                              (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                              (float) (m_boundsDip.right - m_boundsDip.left) - trackW - labelGap,
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               textColor,
                               fontDip,
@@ -256,10 +329,10 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         {
             DxuiFocusRing::AroundRun (painter, text, shown, fontDip, DxuiTheme::kBodyFace,
                                       pillLeft,
-                                      pillLeft + pillW + labelGap,
+                                      pillLeft + trackW + labelGap,
                                       (float) m_boundsDip.top,
                                       (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                      pillH,
+                                      trackH,
                                       m_scaler,
                                       focusArgb);
         }

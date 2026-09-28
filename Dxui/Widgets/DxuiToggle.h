@@ -12,9 +12,11 @@
 //  DxuiToggle
 //
 //  Win11-style pill toggle. Functionally a DxuiCheckbox but renders as a
-//  horizontal pill with a circular thumb that slides between off
-//  (thumb left, neutral pill) and on (thumb right, accent pill).
-//  DxuiLabel, when set, paints to the right of the pill.
+//  pill with a circular thumb that slides between off (neutral pill) and on
+//  (accent pill). The pill is horizontal by default, the thumb traveling
+//  right when it is turned on; SetOnDirection stands it on end, the thumb
+//  traveling up or down instead, for a control drawn as a physical switch.
+//  The label, when set, paints to the right of the pill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +24,27 @@ class DxuiToggle : public IDxuiControl
 {
 public:
     using ChangeFn = std::function<void (bool checked)>;
+
+    // The end the thumb travels to when the toggle is turned on.
+    enum class OnDirection
+    {
+        Right,
+        Up,
+        Down,
+    };
+
+    // The pill as painted: the track is the whole pill, its long side along
+    // the direction of travel, with end caps of capRadius; the thumb is a
+    // circle at one end of it.
+    struct TrackAndThumb
+    {
+        D2D1_RECT_F    track       = {};
+        float          capRadius   = 0.0f;
+        D2D1_POINT_2F  thumbCenter = {};
+        float          thumbRadius = 0.0f;
+    };
+
+    static TrackAndThumb  ComputeTrackAndThumb (const D2D1_RECT_F & pill, OnDirection direction, bool checked);
 
     DxuiToggle() { m_focusable = true; }
     ~DxuiToggle() override = default;
@@ -33,6 +56,10 @@ public:
     void  SetFocused (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
     void  SetDpi      (UINT dpi) { m_scaler.SetDpi (dpi); }
+
+    // Which way the thumb travels when turned on; Right by default.
+    void         SetOnDirection (OnDirection direction) { m_onDirection = direction; }
+    OnDirection  GetOnDirection () const                { return m_onDirection; }
 
     const RECT         & GetRect   () const { return m_boundsDip;    }
     const std::wstring & GetLabel  () const { return m_label;   }
@@ -69,10 +96,11 @@ private:
     void  Flip ();
     std::wstring   m_label;
     ChangeFn       m_change;
-    bool           m_checked = false;
-    bool           m_enabled = true;
-    bool           m_focused = false;
-    bool           m_hover   = false;
-    bool           m_pressed = false;
+    bool           m_checked     = false;
+    bool           m_enabled     = true;
+    bool           m_focused     = false;
+    bool           m_hover       = false;
+    bool           m_pressed     = false;
+    OnDirection    m_onDirection = OnDirection::Right;
     DxuiDpiScaler  m_scaler;
 };

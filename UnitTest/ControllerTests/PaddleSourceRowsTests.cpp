@@ -654,7 +654,7 @@ namespace ControllerTests
 
 
         //
-        //  The Sirius Joyport row
+        //  The Joyport row
         //
 
         static size_t FindRow (const std::vector<DxuiPopupMenuItem> & items, const std::wstring & label)
@@ -683,7 +683,7 @@ namespace ControllerTests
             commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
 
             items = commands.GetPaddlePickerItems();
-            row   = FindRow (items, L"Sirius Joyport");
+            row   = FindRow (items, L"Joyport (Atari mode)");
 
             Assert::AreEqual (size_t (3), row, L"after the two player rows and a separator");
             Assert::IsTrue   (items[2].kind == DxuiPopupMenuItem::Kind::Separator);
@@ -702,7 +702,7 @@ namespace ControllerTests
             commands.SetJoyportFns ([&attached] { return attached; }, [] { return true; }, [] {});
 
             items = commands.GetPaddlePickerItems();
-            row   = FindRow (items, L"Sirius Joyport");
+            row   = FindRow (items, L"Joyport (Atari mode)");
 
             Assert::IsFalse (items[row].command->IsChecked(), L"detached");
 
@@ -723,23 +723,89 @@ namespace ControllerTests
             commands.SetJoyportFns ([] { return false; }, [] { return true; }, [&toggles] { toggles++; });
 
             items = commands.GetPaddlePickerItems();
-            items[FindRow (items, L"Sirius Joyport")].command->dispatch();
+            items[FindRow (items, L"Joyport (Atari mode)")].command->dispatch();
 
             Assert::AreEqual (1, toggles);
         }
 
 
+        //  The //c has no row, even with the setting on: it reads the Joyport
+        //  as off, and the row's check would show a setting it ignores.
         TEST_METHOD (Joyport_IsLeftOutWhereItCannotBeAttached)
         {
             EmulatorCommands                commands;
             std::vector<DxuiPopupMenuItem>  items;
 
+
+
             commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
-            commands.SetJoyportFns ([] { return false; }, [] { return false; }, [] {});
+            commands.SetJoyportFns ([] { return true; }, [] { return false; }, [] {});
 
             items = commands.GetPaddlePickerItems();
 
-            Assert::AreEqual (items.size(), FindRow (items, L"Sirius Joyport"), L"the //c has no row");
+            Assert::AreEqual (items.size(), FindRow (items, L"Joyport (Atari mode)"), L"the //c has no row");
+        }
+
+
+        //  The row is the unit's own Apple / Atari switch, and its label is the
+        //  position it turns on.
+        TEST_METHOD (Joyport_RowReadsJoyportAtariMode)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+            size_t                          row = 0;
+
+
+
+            commands.SetPicker (InputModeRules::BuildPicker (MakeSource()));
+            commands.SetJoyportFns ([] { return false; }, [] { return true; }, [] {});
+
+            items = commands.GetPaddlePickerItems();
+            row   = FindRow (items, L"Joyport (Atari mode)");
+
+            Assert::IsTrue   (row < items.size(), L"the row is listed");
+            Assert::AreEqual (std::wstring (L"Joyport (Atari mode)"), items[row].command->label);
+        }
+
+
+        //  An Atari stick has no paddle for the mouse to stand in for, so
+        //  Player 1's submenu leaves the mouse out while the Joyport is in
+        //  effect, and lists it again once it is not.
+        TEST_METHOD (MousePaddle_IsLeftOutWhileTheJoyportIsInEffect)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+
+
+
+            source.isJoyportInEffect = true;
+
+            Assert::IsTrue (GetChoiceLabels (InputModeRules::BuildPicker (source).rows[0]) == std::vector<std::wstring> {
+                                L"Automatic", L"Xbox Controller (045e:0b13)", L"VKBsim Gladiator", L"Use keys as joystick" },
+                            L"no mouse while the Joyport is in effect");
+
+            source.isJoyportInEffect = false;
+
+            Assert::IsTrue (GetChoiceLabels (InputModeRules::BuildPicker (source).rows[0]).back() == L"Use mouse as paddle",
+                            L"and the mouse again once it is not");
+        }
+
+
+        //  The mouse picked before the Joyport was turned on stays Player 1's
+        //  entry, driving nothing until it is turned off, so the submenu keeps
+        //  it listed and checked rather than showing no entry at all.
+        TEST_METHOD (MousePaddle_AlreadyPickedStaysCheckedWhileTheJoyportIsInEffect)
+        {
+            InputModeRules::PickerSource  source = MakeSource();
+            InputModeRules::Picker        picker;
+
+
+
+            source.isJoyportInEffect = true;
+            source.entries[0]        = MakeEntry (PlayerEntryKind::MousePaddle);
+            picker                   = InputModeRules::BuildPicker (source);
+
+            Assert::AreEqual (size_t (1), CountChecked (picker.rows[0]));
+            Assert::IsTrue   (FindChecked (picker.rows[0])->entry.kind == PlayerEntryKind::MousePaddle);
         }
     };
 }

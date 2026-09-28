@@ -3,6 +3,7 @@
 #include "Controllers/InputModeRules.h"
 
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/JoyportSetting.h"
 
 
 
@@ -175,6 +176,12 @@ std::wstring InputModeRules::DescribePlaying (
 //  attached, still checked; then the keys and the mouse for Player 1, or
 //  Disabled for Player 2. Exactly one is checked: the player's entry.
 //
+//  The mouse is left out while the Joyport is in effect: an Atari stick has
+//  no paddle for it to stand in for (JoyportSetting::IsMousePaddleOffered).
+//  A mouse picked before the Joyport was turned on stays Player 1's entry,
+//  driving nothing until it is turned off, so it stays listed while it is
+//  the checked one.
+//
 //  A choice keeps the player's own target, so moving to another controller
 //  does not undo what the user set the slot to map to.
 //
@@ -193,6 +200,7 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
     PlayerChoice                 mouse;
     PlayerChoice                 disabled;
     bool                         isListed = false;
+    bool                         hasMouse = false;
 
 
 
@@ -239,9 +247,14 @@ std::vector<InputModeRules::PlayerChoice> InputModeRules::BuildChoices (
         mouse.label      = L"Use mouse as paddle";
         mouse.entry.kind = PlayerEntryKind::MousePaddle;
         mouse.isChecked  = current.kind == PlayerEntryKind::MousePaddle;
+        hasMouse         = mouse.isChecked || JoyportSetting::IsMousePaddleOffered (source.isJoyportInEffect);
 
         choices.push_back (keys);
-        choices.push_back (mouse);
+
+        if (hasMouse)
+        {
+            choices.push_back (mouse);
+        }
     }
     else
     {

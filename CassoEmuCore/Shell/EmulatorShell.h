@@ -640,12 +640,10 @@ private:
     // (the Sirius Joyport). A change takes effect on the next button read,
     // with no reset, and is saved at once. GetGamePortAdapter is the setting;
     // what the running machine reads is IsJoyportInEffect, which is false on
-    // the //c whatever the setting. UI thread. ApplyGamePortAdapterLive is the
-    // Machine tab's way in and does the same.
-    void             SetGamePortAdapter       (GamePortAdapter adapter);
-    void             ApplyGamePortAdapterLive (GamePortAdapter adapter);
-    GamePortAdapter  GetGamePortAdapter       () const;
-    bool             IsJoyportInEffect        () const;
+    // the //c whatever the setting. UI thread.
+    void             SetGamePortAdapter (GamePortAdapter adapter);
+    GamePortAdapter  GetGamePortAdapter () const;
+    bool             IsJoyportInEffect  () const;
 
 private:
     // Window-placement and chrome-layout helpers. Every reader is an

@@ -545,15 +545,16 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 //
 //  OnGamePortCommand
 //
-//  The Settings sheet's OK for the game-port adapter: attach or detach the
-//  Sirius Joyport, with no reset. Live only; the sheet saves the setting.
+//  The Controllers page's Apple / Atari switch: Atari mode turns the Joyport
+//  on and Apple mode turns it off, for every machine that can take one, at
+//  once and with no reset, and saves the setting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::OnGamePortCommand (int id)
 {
-    m_shell.ApplyGamePortAdapterLive (id == IDM_GAMEPORT_ADAPTER_JOYPORT ? GamePortAdapter::SiriusJoyport
-                                                                         : GamePortAdapter::None);
+    m_shell.SetGamePortAdapter (id == IDM_GAMEPORT_ADAPTER_JOYPORT ? GamePortAdapter::SiriusJoyport
+                                                                   : GamePortAdapter::None);
 }
 
 

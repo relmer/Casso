@@ -152,6 +152,9 @@ public:
     static bool               IsJoyportTarget         (PaddleTarget target);
     static std::wstring       GetJoyportRowLabel      (PaddleTarget target);
 
+    // The label beside the Joyport's Apple / Atari switch on the page.
+    static std::wstring       GetJoyportSwitchLabel   (bool isAtariMode);
+
     // One player's controller, or their target. Both normalize, so a slot that
     // cannot be played beside the other one is emptied rather than kept.
     void  SetMultiplayerUnit   (size_t player, const std::optional<ControllerUnitKey> & unit);

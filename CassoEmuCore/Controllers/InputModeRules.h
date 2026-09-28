@@ -126,6 +126,10 @@ public:
         std::map<std::string, ProfileChoices>  profiles;
         std::map<std::string, std::wstring>    knownDescriptions;
         PlayerLabels                           labels;
+
+        // Whether the running machine reads the Joyport, which leaves the
+        // mouse as paddle out of Player 1's submenu.
+        bool                                   isJoyportInEffect = false;
     };
 
     // The picker: the two players' rows, and what its closed face wears.

@@ -2702,12 +2702,13 @@ void EmulatorShell::ReleaseArrowKeySources()
 //
 //  SetGamePortAdapter
 //
-//  The picker row: turns the Joyport setting to Atari mode or Apple mode now,
-//  for every machine, and saves it with the global prefs. On the running
-//  machine it takes effect on the next button read, with no reset, where it
-//  is in effect: the //c reads it as off and keeps the setting for the next
-//  machine that can use it. The fire keys are resubmitted because the Alt
-//  keys drop out of them while the Joyport is in effect.
+//  The picker row and the Controllers page's Apple / Atari switch: turns the
+//  Joyport setting to Atari mode or Apple mode now, for every machine, and
+//  saves it with the global prefs. On the running machine it takes effect on
+//  the next button read, with no reset, where it is in effect: the //c reads
+//  it as off and keeps the setting for the next machine that can use it. The
+//  fire keys are resubmitted because the Alt keys drop out of them while the
+//  Joyport is in effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2742,24 +2743,6 @@ void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
     }
 
     SyncSelectorState();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyGamePortAdapterLive
-//
-//  The Machine tab's way in, through the Settings sheet's OK. The setting is
-//  global now, so it is the same as the picker row's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
-{
-    SetGamePortAdapter (adapter);
 }
 
 
@@ -3013,6 +2996,7 @@ void EmulatorShell::SyncPaddleSourceList()
     source.devices           = snapshot.devices;
     source.profiles          = GetPickerProfileChoices (snapshot);
     source.knownDescriptions = m_controllerDescriptions;
+    source.isJoyportInEffect = IsJoyportInEffect();
 
     m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
 

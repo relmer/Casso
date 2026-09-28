@@ -626,6 +626,25 @@ std::wstring ControllersPageState::GetJoyportRowLabel (PaddleTarget target)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetJoyportSwitchLabel
+//
+//  What the Joyport's Apple / Atari switch shows beside it: the position in
+//  effect. Atari mode is the Joyport in use, reading its Atari jacks; Apple
+//  mode is the game port with no Joyport.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetJoyportSwitchLabel (bool isAtariMode)
+{
+    return isAtariMode ? L"Atari mode" : L"Apple mode";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMultiplayerUnit
 //
 //  The controller one player holds.

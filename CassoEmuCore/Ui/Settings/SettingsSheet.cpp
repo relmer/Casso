@@ -490,10 +490,19 @@ HRESULT SettingsSheet::OpenModeless (
                 service->SetInspectedUnit (unit);
             });
 
-            m_controllersPage->SetJoyportAttachedFn ([this] ()
-            {
-                return m_emuShell->IsJoyportInEffect();
-            });
+            // The Joyport's Apple / Atari switch applies at once, like the
+            // picker's row, through the same command; OK takes no part.
+            m_controllersPage->SetJoyportFns (
+                [this] () { return m_emuShell->IsJoyportInEffect(); },
+                [this] () { return m_state.GetMachineInfo().supportsGamePortAdapter; },
+                [this] (bool isAtariMode)
+                {
+                    WORD  id = isAtariMode ? IDM_GAMEPORT_ADAPTER_JOYPORT : IDM_GAMEPORT_ADAPTER_NONE;
+
+
+
+                    PostMessageW (m_emuShell->GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
+                });
         }
 
         m_controllersPage->SetState (&m_controllersState);
@@ -750,18 +759,6 @@ void SettingsSheet::OnDialogTick()
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
 
-    // The command bar's Sirius Joyport row works while the sheet is open. The
-    // Machine tab follows it, and OK then writes what is live rather than
-    // what the sheet opened with.
-    if (m_emuShell != nullptr && m_hardwarePage != nullptr)
-    {
-        bool  isGamePortChanged = m_state.ObserveLiveGamePortAdapter (m_emuShell->GetGamePortAdapter());
-
-        if (isGamePortChanged)
-        {
-            m_hardwarePage->Rebuild();
-        }
-    }
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.

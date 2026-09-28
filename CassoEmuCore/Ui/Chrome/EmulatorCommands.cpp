@@ -860,9 +860,10 @@ void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
 //
 //  EmulatorCommands::SetJoyportFns
 //
-//  The row's check is asked each time the menu draws, so it shows whether
-//  the Joyport is attached however it came to be -- from this row or from
-//  the Machine tab.
+//  The row is the Joyport's Apple / Atari switch, labeled for the position
+//  it turns on. Its check is asked each time the menu draws, so it shows
+//  whether the Joyport is in effect however it came to be -- from this row
+//  or from the Controllers page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -872,7 +873,7 @@ void EmulatorCommands::SetJoyportFns (std::function<bool()> isOn,
 {
     m_joyportRow = std::make_shared<DxuiCommand>();
 
-    m_joyportRow->label     = L"Sirius Joyport";
+    m_joyportRow->label     = L"Joyport (Atari mode)";
     m_joyportRow->isChecked = std::move (isOn);
     m_joyportRow->dispatch  = std::move (toggle);
     m_isJoyportOffered      = std::move (isOffered);
@@ -956,9 +957,9 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPlayerItems() const
 //  below a separator, so the settings for the controllers in play are one
 //  click from where they were chosen.
 //
-//  The Sirius Joyport row has a group of its own after the player rows, on a
+//  The Joyport row has a group of its own after the player rows, on a
 //  machine that can take one. It is not something that drives the game port
-//  but a device on it, attached whichever player drives, so beside the
+//  but the mode the game port is in, whichever player drives, so beside the
 //  players it would read as one more of them.
 //
 ////////////////////////////////////////////////////////////////////////////////

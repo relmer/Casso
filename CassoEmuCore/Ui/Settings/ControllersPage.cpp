@@ -26,6 +26,7 @@ static constexpr int  s_kChildIndentDp         = 18;
 static constexpr int  s_kGapDp                 = 6;
 static constexpr int  s_kSectionGapDp          = 14;
 static constexpr int  s_kPagePadDp             = 16;
+static constexpr int  s_kJoyportSwitchHeightDp  = 44;
 
 static constexpr const wchar_t *  s_kTargetNames[ControllersPage::kTargetCount] =
 {
@@ -53,6 +54,8 @@ ControllersPage::ControllersPage (std::wstring title)
 
 
 
+    Adopt (m_joyportHeading);
+    Adopt (m_joyportSwitch);
     Adopt (m_multiplayerHeading);
 
     for (target = 0; target < kPlayerCount; target++)
@@ -385,6 +388,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     sectionGap  = scaler.ToPx (s_kSectionGapDp);
     int     mapsWidth   = scaler.ToPx (s_kMapsWidthDp);
     int     targetWidth = scaler.ToPx (s_kPlayerTargetWidthDp);
+    int     switchH     = scaler.ToPx (s_kJoyportSwitchHeightDp);
     int     x           = rect.left + pad;
     int     y           = rect.top  + pad;
     int     axesX       = x + stickSize + sectionGap;
@@ -392,7 +396,8 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     axesBottom  = 0;
     int     playerX     = 0;
     bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
-    bool    isJoyport   = IsJoyportAttached();
+    bool    isOffered   = IsJoyportOffered();
+    bool    isJoyport   = IsJoyportMode();
     size_t  target      = 0;
     size_t  player      = 0;
     size_t  row         = 0;
@@ -402,6 +407,26 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_lastRect   = rect;
     m_lastScaler = scaler;
     m_hasLayout  = true;
+
+    // The Joyport leads the page where the machine can take one, drawn as the
+    // unit's own Apple / Atari switch seen from above, its front toward the
+    // bottom: the knob toward the bottom is Atari mode, which reads the Atari
+    // jacks, and toward the top is Apple mode, the game port with no Joyport.
+    m_isJoyportSectionShown = isOffered;
+
+    m_joyportHeading.SetVisible (isOffered);
+    m_joyportHeading.SetRect    (MakeRect (x, y, wideWidth, rowH));
+    m_joyportHeading.SetText    (L"Joyport");
+
+    m_joyportSwitch.SetVisible     (isOffered);
+    m_joyportSwitch.SetOnDirection (DxuiToggle::OnDirection::Down);
+    m_joyportSwitch.SetLabel       (ControllersPageState::GetJoyportSwitchLabel (m_joyportSwitch.IsChecked()));
+    m_joyportSwitch.Layout         (MakeRect (x + indent, y + rowH, wideWidth, switchH), scaler);
+
+    if (isOffered)
+    {
+        y += rowH + switchH + sectionGap;
+    }
 
     // The two player slots lead the page while the machine is in that mode,
     // since who is playing decides what everything below it edits. With the
@@ -626,6 +651,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.SetLabel (L"Reset profile");
     m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
 
+    m_joyportHeading.SetDpi     (dpi);
     m_multiplayerHeading.SetDpi (dpi);
 
     for (player = 0; player < kPlayerCount; player++)
@@ -715,12 +741,9 @@ void ControllersPage::Poll()
         Refresh();
     }
 
-    // The Joyport can be attached or detached from the command bar while the
-    // page is open; the readout above the rows changes form with it.
-    if (IsJoyportAttached() != m_isJoyportShown)
-    {
-        Relayout();
-    }
+    // The Joyport can be turned on or off from the command bar while the page
+    // is open; the switch, the lists and the readout above the rows follow.
+    SyncJoyportSwitch();
 
     selected = m_state->GetSelectedIndex();
 
@@ -831,13 +854,151 @@ void ControllersPage::Poll()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsJoyportAttached
+//  SetJoyportFns
+//
+//  The switch starts where the setting is, and so does the last value read,
+//  so the first poll finds no change to apply.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ControllersPage::IsJoyportAttached() const
+void ControllersPage::SetJoyportFns (
+    std::function<bool()>       isOn,
+    std::function<bool()>       isOffered,
+    std::function<void (bool)>  set)
 {
-    return m_isJoyportAttached && m_isJoyportAttached();
+    m_isJoyportOn      = std::move (isOn);
+    m_isJoyportOffered = std::move (isOffered);
+    m_setJoyport       = std::move (set);
+    m_lastJoyportOn    = m_isJoyportOn && m_isJoyportOn();
+
+    m_joyportSwitch.SetChecked  (m_lastJoyportOn);
+    m_joyportSwitch.SetOnChange ([this] (bool isAtariMode) { OnJoyportSwitch (isAtariMode); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsJoyportOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsJoyportOffered() const
+{
+    return m_isJoyportOffered && m_isJoyportOffered();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsJoyportMode
+//
+//  The page shows Joyport mode while its switch is at Atari mode on a machine
+//  that can take the Joyport. The switch, not the setting, decides: a flip on
+//  the page posts its command, and the setting follows only once that has
+//  been handled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsJoyportMode() const
+{
+    return IsJoyportOffered() && m_joyportSwitch.IsChecked();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnJoyportSwitch
+//
+//  The user moved the switch: the Joyport goes on or off at once, with no OK,
+//  and the page swaps its profile list for the new mode in place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnJoyportSwitch (bool isAtariMode)
+{
+    if (m_setJoyport)
+    {
+        m_setJoyport (isAtariMode);
+    }
+
+    ApplyJoyportMode (isAtariMode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyJoyportMode
+//
+//  The page's half of a change of mode, from its own switch or the picker:
+//  the profiles listed and edited are the new mode's, and the page is laid
+//  out again, since the readout and the rows change form with the mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::ApplyJoyportMode (bool isAtariMode)
+{
+    if (m_state != nullptr)
+    {
+        m_state->SetProfileMode (isAtariMode ? ProfileMode::Joyport : ProfileMode::Normal);
+    }
+
+    m_capturing.reset();
+    m_hasExtraRow = {};
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncJoyportSwitch
+//
+//  Each poll: a change of the setting made from the picker moves the switch
+//  and is applied like a flip on the page, without turning the Joyport on or
+//  off again. A change that only brings the setting to where the switch
+//  already is -- the page's own flip, once handled -- applies nothing. A
+//  change of machine that can or cannot take the Joyport brings the section
+//  or takes it away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::SyncJoyportSwitch()
+{
+    bool  isOn      = m_isJoyportOn && m_isJoyportOn();
+    bool  isOffered = IsJoyportOffered();
+
+
+
+    if (isOn != m_lastJoyportOn)
+    {
+        m_lastJoyportOn = isOn;
+
+        if (isOn != m_joyportSwitch.IsChecked())
+        {
+            m_joyportSwitch.SetChecked (isOn);
+            ApplyJoyportMode (isOn);
+            return;
+        }
+    }
+
+    if (isOffered != m_isJoyportSectionShown || IsJoyportMode() != m_isJoyportShown)
+    {
+        Relayout();
+    }
 }
 
 

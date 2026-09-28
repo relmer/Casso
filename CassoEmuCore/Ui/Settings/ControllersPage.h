@@ -13,6 +13,7 @@
 #include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiSlider.h"
+#include "Widgets/DxuiToggle.h"
 
 
 class DxuiHwndSource;
@@ -30,6 +31,8 @@ class DxuiHwndSource;
 //  forwards every edit to it; the sheet's apply pipeline commits that state on
 //  OK and reverts it on Cancel.
 //
+//      * Joyport            (DxuiToggle: the unit's Apple / Atari switch, on a
+//                            machine that can take one)
 //      * Controller         (DxuiComboBox: every attached controller)
 //      * Profile            (DxuiComboBox: the model's profiles, with New,
 //                            Rename and Delete)
@@ -73,10 +76,13 @@ public:
     // Where Save on the profile-switch prompt commits the edited model.
     void  SetOnCommitProfile (ControllersPageState::CommitFn onCommit) { m_onCommitProfile = std::move (onCommit); }
 
-    // Whether the running machine has the Sirius Joyport attached. While it
-    // does, the stick and the button lights give way to the five switch
-    // lights the Joyport reads.
-    void  SetJoyportAttachedFn (std::function<bool()> isAttached) { m_isJoyportAttached = std::move (isAttached); }
+    // The Joyport's Apple / Atari switch at the top of the page: whether the
+    // Joyport is in effect, whether the running machine can take one, and how
+    // to turn it on or off. While it is on, the stick and the button lights
+    // give way to the five switch lights the Joyport reads.
+    void  SetJoyportFns (std::function<bool()>      isOn,
+                         std::function<bool()>      isOffered,
+                         std::function<void (bool)> set);
 
     void  Layout           (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
@@ -165,7 +171,11 @@ private:
     void                 OnDeleteProfile    ();
     void                 ShowDialog         ();
     void                 AfterEdit          ();
-    bool                 IsJoyportAttached  () const;
+    bool                 IsJoyportOffered   () const;
+    bool                 IsJoyportMode      () const;
+    void                 OnJoyportSwitch    (bool isAtariMode);
+    void                 ApplyJoyportMode   (bool isAtariMode);
+    void                 SyncJoyportSwitch  ();
     bool                 IsTargetShown      (size_t target) const;
     static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
     void                 PollSwitchLights   (const GamePortContribution * reading);
@@ -189,6 +199,18 @@ private:
     bool                                        m_hasLayout           = false;
     bool                                        m_isSyncing           = false;
     std::function<void ()>                      m_onLayoutChanged;
+
+    // The Joyport's Apple / Atari switch, shown where the machine can take
+    // one. The last value read from isOn is kept apart from the switch, so a
+    // flip on the page is not taken for a change from the picker before the
+    // command it posts has been handled.
+    DxuiLabel                   m_joyportHeading;
+    DxuiToggle                  m_joyportSwitch;
+    std::function<bool()>       m_isJoyportOn;
+    std::function<bool()>       m_isJoyportOffered;
+    std::function<void (bool)>  m_setJoyport;
+    bool                        m_lastJoyportOn         = false;
+    bool                        m_isJoyportSectionShown = false;
 
     // The two player slots, shown only while the machine is in multiplayer
     // mode. Each row's drop-downs carry what they offer, so a pick resolves
@@ -217,9 +239,8 @@ private:
     StickPositionView  m_stick;
     DxuiLabel          m_buttonsHeading;
 
-    // The Joyport's switches, drawn where the stick is while it is attached.
+    // The Joyport's switches, drawn where the stick is while it is on.
     JoyportSwitchView      m_switchView;
-    std::function<bool()>  m_isJoyportAttached;
     bool                   m_isJoyportShown = false;
 
     std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;

@@ -145,6 +145,24 @@ place a player on a jack.
 | Full unit suite | x64 Release | 5,796 of 5,796 |
 | V12-V14 in the running app | manual | not run in this phase; the setting's on-screen check is made with Phase 12's switch |
 
+## Phase 12: the Apple / Atari switch (US4)
+
+| Check | Kind | Result |
+|---|---|---|
+| `DxuiToggle::ComputeTrackAndThumb`: Right is the horizontal pill as painted before, in both states; Up and Down give a track taller than wide from either box, with the thumb at the top or the bottom as the checked state requires; the default is Right; a click and Space flip it and raise the change in every direction; the paint draws the thumb where the geometry puts it (`DxuiToggleTests`) | automated | pass |
+| `HardwarePage::BuildNodes` lists no Game port group and no Joyport row on the ][+, the //e or the //c (`HardwarePageTests`) | automated | pass |
+| `SettingsPanelState`: OK never writes `gamePortAdapter`, and a legacy key is carried through as loaded (`SettingsPanelStateTests`) | automated | pass |
+| The picker row reads exactly "Joyport (Atari mode)", is absent on the //c with the setting on, and is checked exactly while on; mouse-as-paddle is absent from Player 1's submenu while the Joyport is in effect and present otherwise, and a mouse already picked stays listed and checked (`PaddleSourceRowsTests`) | automated | pass |
+| `ControllersPageState::GetJoyportSwitchLabel`: exactly "Atari mode" and "Apple mode" (`ControllersPageStateTests`) | automated | pass |
+| Mutation: `ComputeTrackAndThumb` ignoring the direction (never upright) | automated | 3 tests went red: `UpAndDown_StandThePillOnEnd` (`a track taller than wide`), `UpAndDown_PutTheThumbAtTheirOwnEndWhileChecked`, `Paint_DrawsTheThumbWhereTheGeometryPutsIt` |
+| Mutation: Down laid out as Up | automated | 2 tests went red: `UpAndDown_PutTheThumbAtTheirOwnEndWhileChecked` (`Expected:<47> Actual:<29> - Down: on at the bottom`), `Paint_DrawsTheThumbWhereTheGeometryPutsIt` |
+| Mutation: mouse-as-paddle always offered | automated | 1 test went red: `MousePaddle_IsLeftOutWhileTheJoyportIsInEffect` |
+| Mutation: the row offered on the //c | automated | 1 test went red: `Joyport_IsLeftOutWhereItCannotBeAttached` (`Expected:<6> Actual:<3> - the //c has no row`) |
+| Full unit suite | x64 Release | 5,801 of 5,801 |
+| Scenario suite (`RunTests.ps1 -Build -Scenario`) | x64 Release | 28 of 28 |
+| The Controllers page in both positions, and the Machine tab | manual, by capture | pass. Release build launched minimized with `--title`, no disk, user prefs backed up and restored byte for byte. The launch adopted the //e Enhanced's saved Joyport into the empty global setting. The page opened in Atari mode (knob at the bottom, "Atari mode", profile Joyport, switch lights); `IDM_GAMEPORT_ADAPTER_NONE` as the picker sends it moved the switch to Apple mode (knob at the top, "Apple mode", profile Default, stick and button lights) and saved "none"; a posted click on the switch turned it back to Atari mode and saved "siriusJoyport"; the Machine tab lists no Game port group. No controller was attached. Captures: `C:\Users\relmer\AppData\Local\Temp\claude\C--Users-relmer-source-repos-relmer-Casso-worktrees-game-controller-support-96a9c2\1283beb3-b47f-4137-8976-86ef8d77ba6e\scratchpad\joyport-atari-mode.png`, `joyport-apple-mode.png`, `joyport-atari-by-switch.png`, `machine-tab-no-joyport.png` |
+| V11, V17 (page half), V20 with a controller attached | manual | not run: no controller attached |
+
 ## Phase 16: new profile starting points (US7)
 
 | Check | Kind | Result |

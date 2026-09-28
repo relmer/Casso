@@ -88,6 +88,15 @@ namespace ControllerTests
         }
 
 
+        //  The Joyport section shows the unit's Apple / Atari switch, labeled
+        //  with the position in effect.
+        TEST_METHOD (JoyportSwitchLabel_ShowsThePositionInEffect)
+        {
+            Assert::AreEqual (std::wstring (L"Atari mode"), ControllersPageState::GetJoyportSwitchLabel (true));
+            Assert::AreEqual (std::wstring (L"Apple mode"), ControllersPageState::GetJoyportSwitchLabel (false));
+        }
+
+
         //  How the page is opened on one controller: New... in a player's
         //  profile section in the picker is for that player's controller.
         TEST_METHOD (FindController_GivesTheRowOfAnAttachedUnitOnly)
