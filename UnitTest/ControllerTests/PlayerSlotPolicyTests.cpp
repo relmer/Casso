@@ -530,6 +530,11 @@ namespace ControllerTests
 
                 Assert::IsTrue (first.has_value() && second.has_value(), what.c_str());
 
+                if (!first.has_value() || !second.has_value())
+                {
+                    continue;
+                }
+
                 for (size_t i = 0; i < kStickPaddles; i++)
                 {
                     Assert::IsTrue (first->paddles[i]  == row.firstPaddles[i],  (what + L": Player 1's paddles").c_str());
@@ -575,7 +580,7 @@ namespace ControllerTests
             std::optional<PlayerTargetRules::Route>  first    = PlayerSlotPolicy::GetDriverRoute (pairs.slots, pairs.entries, 0, kTwoAxes);
 
             Assert::IsTrue  (first.has_value() && first->paddles[0] == size_t (0) && first->paddles[1] == size_t (1), L"Player 1's two paddles play");
-            Assert::IsTrue  (first->buttons[0] == size_t (0) && first->buttons[1] == size_t (1), L"with PB0 and PB1");
+            Assert::IsTrue  (first.has_value() && first->buttons[0] == size_t (0) && first->buttons[1] == size_t (1), L"with PB0 and PB1");
             Assert::IsFalse (PlayerSlotPolicy::GetDriverRoute (pairs.slots,  pairs.entries,  1, kTwoAxes).has_value(), L"a paddle beside them drives nothing");
             Assert::IsFalse (PlayerSlotPolicy::GetDriverRoute (beside.slots, beside.entries, 1, kTwoAxes).has_value(), L"nor does a second pair");
         }

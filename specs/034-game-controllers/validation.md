@@ -258,3 +258,14 @@ Results are recorded as they are produced. A scenario that could not run says so
 | Mutation M81, alone | automated | red: `AddRow_PastFourIsScrolledTo` ("and in view"). Restored, stamped, rebuilt, green |
 | T218 the Controllers page, by capture | manual, by capture | partial. Release x64 launched with `--title game-controller-support-96a9c2` and `-WindowStyle Minimized`, Settings opened by posted command and captured with `PrintWindow`; only the launched PID stopped; no disk mounted or changed; `UserPrefs.json` and `GlobalUserPrefs.json` backed up and restored byte for byte (SHA-256 checked). No controller was attached, so the page showed "No controller is attached" with one row per target: the tables sit where the rows sat, with "+" beside each. The Joyport profile's Fire table, four rows and a scrollbar and scrolled to its bottom, could not be captured without a controller, and is covered by the automated tests above. `C:\Users\relmer\AppData\Local\Temp\claude\C--Users-relmer-source-repos-relmer-Casso-worktrees-game-controller-support-96a9c2\1b8968ac-8c53-49e0-9a3d-252e99abd8b3\scratchpad\shots\t-opened.png` |
 | T218 gates | automated | full Release suite 5922 passed; `CheckStyle -Mode Staged` and `-Mode Tree` clean |
+
+
+## Final checks (2026-09-28)
+
+| Check | Kind | Result |
+|---|---|---|
+| `Build.ps1 -Target RebuildAll -RunCodeAnalysis`: x64 and ARM64, Debug and Release | automated | first run failed on x64 Debug with 24 analysis errors, all in test code on this branch: C6011 in `ControllerProfileStoreTests.cpp` (a pointer dereferenced after an assertion the analyzer cannot see throw), C26829 twice in `PlayerSlotPolicyTests.cpp` (an optional unwrapped after the same kind of assertion), and C6262 on 21 tests in `ControllersPageLayoutTests.cpp` (a `ControllersPage` is about 16 KB). Fixed with guards after the assertions and a file-level C6262 suppression, the same as the other test files that build large objects in the frame. Second run: all four configurations built, 0 warnings, 0 errors. ARM64 is build-only |
+| Full unit suite, x64 Release | automated | 5922 passed, 0 failed |
+| Full unit suite, x64 Debug | automated | 5924 passed, 0 failed |
+| Scenario suite, x64 Release | automated | 28 passed, 0 failed |
+| `CheckStyle -Mode Staged` and `-Mode Tree` | automated | clean, 1598 files |

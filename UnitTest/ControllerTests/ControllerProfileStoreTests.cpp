@@ -1484,6 +1484,12 @@ namespace ControllerTests
             written                        = store.ToJson (JsonValue());
 
             Assert::IsTrue   (written.HasArray ("players", players) && players != nullptr);
+
+            if (players == nullptr)
+            {
+                return;
+            }
+
             Assert::IsTrue   (players->GetArrayElement (0).HasString ("mode", mode), L"Joystick mode is written");
             Assert::AreEqual (std::string ("joystick"), mode);
             Assert::IsTrue   (players->GetArrayElement (1).HasString ("mode", mode), L"and Paddle mode");

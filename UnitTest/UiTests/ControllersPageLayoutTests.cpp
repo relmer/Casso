@@ -4,6 +4,11 @@
 #include "Ui/Settings/ControllersPageState.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 
+// A ControllersPage holds every control on the page, about 16 KB, and most
+// tests here build one or more in the test frame, which trips C6262. The page
+// is the system under test -- suppress for this file.
+#pragma warning (disable: 6262)
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
