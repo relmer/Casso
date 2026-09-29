@@ -539,6 +539,7 @@
     <ClCompile Include="Dxui\DxuiSlideTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiScrollPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />
     <ClCompile Include="Dxui\DxuiWidgetIDxuiControlTests.cpp" />

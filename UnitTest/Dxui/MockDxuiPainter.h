@@ -46,6 +46,8 @@ struct RecordedPaintCall
     float              radius       = 0.0f;     // the rounded kinds only
     uint32_t           argb         = 0;
     uint32_t           argbSecond   = 0;        // FillGradientRect bottom
+    bool               isClipped    = false;    // a clip was in force
+    RECT               clip         = {};
 };
 
 
@@ -70,6 +72,14 @@ public:
     void  FillEllipse       (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor) override;
     void  DrawLine          (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor) override;
 
+    // The clip in force, which each recorded call carries.
+    void  SetClipRect       (const RECT * clipPx) override        { m_hasClip = (clipPx != nullptr); m_clip = m_hasClip ? *clipPx : RECT {}; }
+    bool  GetClipRect       (RECT & clipPx) const override        { clipPx = m_clip; return m_hasClip; }
+
 private:
+    void  Record (RecordedPaintCall & call);
+
     std::vector<RecordedPaintCall>  m_calls;
+    bool                            m_hasClip = false;
+    RECT                            m_clip    = {};
 };

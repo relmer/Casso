@@ -114,6 +114,16 @@ public:
     // focus a child that is laid out under it but not drawn.
     virtual bool  IsPointClipped  (POINT clientPx) const                        { (void) clientPx; return false; }
 
+    // True for a container whose focusable descendants Tab visits together,
+    // in their own order, at the container's place in the tab order. A
+    // scrolled list lays rows out past its viewport, where their bounds would
+    // otherwise sort them among the controls below it.
+    virtual bool  IsTabGroup      () const                                      { return false; }
+
+    // Scrolls a scrolling container just far enough to show a descendant the
+    // keyboard just focused. Nothing for a container that does not scroll.
+    virtual void  RevealDescendant (const IDxuiControl & descendant)            { (void) descendant; }
+
     virtual std::wstring        GetAccessibleName () const                        { return L""; }
     virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }
 

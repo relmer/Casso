@@ -190,6 +190,7 @@
     <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />
     <ClCompile Include="Widgets\DxuiRadio.cpp" />
     <ClCompile Include="Widgets\DxuiScrollbar.cpp" />
+    <ClCompile Include="Widgets\DxuiScrollPanel.cpp" />
     <ClCompile Include="Widgets\DxuiSearchBox.cpp" />
     <ClCompile Include="Widgets\DxuiSlider.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
@@ -271,6 +272,7 @@
     <ClInclude Include="Widgets\DxuiPopupMenu.h" />
     <ClInclude Include="Widgets\DxuiRadio.h" />
     <ClInclude Include="Widgets\DxuiScrollbar.h" />
+    <ClInclude Include="Widgets\DxuiScrollPanel.h" />
     <ClInclude Include="Widgets\DxuiSearchBox.h" />
     <ClInclude Include="Widgets\DxuiSlider.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />

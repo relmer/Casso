@@ -149,7 +149,9 @@ void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxui
 //
 //  Rebuilds the tab order. Controls with explicit non-negative
 //  GetTabIndex() values sort first by ascending index. Remaining
-//  geometry-mode controls sort by (top / rowEpsilon, left).
+//  geometry-mode controls sort by (top / rowEpsilon, left) of their place,
+//  which is their own bounds or, inside a tab group, the group's; controls
+//  at the same place sort by their own top, then left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,6 +192,8 @@ void DxuiFocusManager::Rebuild()
                 int   tbIdx = b->GetTabIndex();
                 bool  aExpl = (taIdx >= 0);
                 bool  bExpl = (tbIdx >= 0);
+                RECT  pa    = {};
+                RECT  pb    = {};
                 RECT  ra    = {};
                 RECT  rb    = {};
                 int   ba    = 0;
@@ -205,13 +209,25 @@ void DxuiFocusManager::Rebuild()
                     return aExpl;  // explicit indices come first
                 }
 
-                ra = a->GetBounds();
-                rb = b->GetBounds();
-                ba = (int) ((float) ra.top / eps);
-                bb = (int) ((float) rb.top / eps);
+                pa = GetTabPlace (a);
+                pb = GetTabPlace (b);
+                ba = (int) ((float) pa.top / eps);
+                bb = (int) ((float) pb.top / eps);
                 if (ba != bb)
                 {
                     return ba < bb;
+                }
+
+                if (pa.left != pb.left)
+                {
+                    return pa.left < pb.left;
+                }
+
+                ra = a->GetBounds();
+                rb = b->GetBounds();
+                if (ra.top != rb.top)
+                {
+                    return ra.top < rb.top;
                 }
 
                 return ra.left < rb.left;
@@ -294,6 +310,65 @@ bool DxuiFocusManager::IsClippedByAncestor (const IDxuiControl * ctl, POINT poin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTabPlace
+//
+//  Where a control sorts in the tab order: at its nearest tab group's bounds
+//  when it has one, else at its own. A row scrolled out of a list's viewport
+//  keeps its place with the list rather than with whatever it lies under.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiFocusManager::GetTabPlace (const IDxuiControl * ctl)
+{
+    const IDxuiControl  * node  = ctl->GetParent();
+    RECT                  place = ctl->GetBounds();
+
+
+
+    for ( ; node != nullptr; node = node->GetParent())
+    {
+        if (node->IsTabGroup())
+        {
+            place = node->GetBounds();
+            break;
+        }
+    }
+
+    return place;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RevealInAncestors
+//
+//  A control focused from the keyboard is scrolled into view by every
+//  scrolling container it sits in, innermost first, so each outer one
+//  reveals where the inner ones left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFocusManager::RevealInAncestors (const IDxuiControl * ctl)
+{
+    IDxuiControl  * node = (ctl != nullptr) ? ctl->GetParent() : nullptr;
+
+
+
+    for ( ; node != nullptr; node = node->GetParent())
+    {
+        node->RevealDescendant (*ctl);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FocusAtPoint
 //
 //  A press gives focus to the focusable control under it, without its focus
@@ -349,6 +424,13 @@ void DxuiFocusManager::ChangeFocus (IDxuiControl * ctl, bool showCue)
     if (ctl != nullptr)
     {
         ctl->SetFocusCueVisible (showCue);
+    }
+
+    // Focus moved by the keyboard can land on a control scrolled out of its
+    // container's view. A click lands on one in view, so it scrolls nothing.
+    if (showCue)
+    {
+        RevealInAncestors (ctl);
     }
 
     // Re-focusing the already-focused control must not fire the notifications
