@@ -271,6 +271,10 @@ private:
         // The kind of profile the mapping was resolved for. A change of the
         // player's mode, or of the Joyport, resolves it again.
         ProfileMode                          mode        = ProfileMode::Joystick;
+
+        // Its axes that stay where they are left (AxisRoleRules), which are
+        // read with no center dead zone and calibrated from their limits.
+        std::bitset<ControllerSample::kAxisCount>  nonCentering;
     };
 
     // One controller's work for one tick, copied out of the lock, and what

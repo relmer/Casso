@@ -3,6 +3,7 @@
 #include "Controllers/ControllerInputService.h"
 
 #include "Controllers/AxisResponseRules.h"
+#include "Controllers/AxisRoleRules.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 #include "Controllers/JoyportJackRules.h"
@@ -24,22 +25,23 @@
 
 struct ControllerInputService::DriverRead
 {
-    ControllerUnitKey  unit;
-    std::string        token;
-    ControlMapping     mapping;
-    float              deadzone         = 0.0f;
-    size_t             logicalAxisCount = 0;
-    bool               isDriving        = false;
-    bool               isWatched        = false;
-    bool               isLogged         = false;
-    bool               needsTimedPoll   = false;
-    bool               isRead           = false;
+    ControllerUnitKey                          unit;
+    std::string                                token;
+    ControlMapping                             mapping;
+    float                                      deadzone         = 0.0f;
+    size_t                                     logicalAxisCount = 0;
+    std::bitset<ControllerSample::kAxisCount>  nonCentering;
+    bool                                       isDriving        = false;
+    bool                                       isWatched        = false;
+    bool                                       isLogged         = false;
+    bool                                       needsTimedPoll   = false;
+    bool                                       isRead           = false;
 
-    HRESULT            readResult       = S_OK;
-    ControllerSample   calibrated;
-    bool               isConnected      = false;
-    bool               hasFlipped       = false;
-    bool               hasRealInput     = false;
+    HRESULT                                    readResult       = S_OK;
+    ControllerSample                           calibrated;
+    bool                                       isConnected      = false;
+    bool                                       hasFlipped       = false;
+    bool                                       hasRealInput     = false;
 };
 
 
@@ -1071,10 +1073,11 @@ ControllerWaitSources ControllerInputService::TickDrivers()
                 continue;
             }
 
-            read.unit      = driver.unit;
-            read.token     = token;
-            read.deadzone  = driver.deadzone;
-            read.isWatched = isWatched;
+            read.unit         = driver.unit;
+            read.token        = token;
+            read.deadzone     = driver.deadzone;
+            read.nonCentering = driver.nonCentering;
+            read.isWatched    = isWatched;
             read.isLogged  = std::find (m_logs.firstInput.begin(), m_logs.firstInput.end(), driver.unit) != m_logs.firstInput.end();
 
             reads.push_back (read);
@@ -1314,6 +1317,8 @@ void ControllerInputService::EvaluateDriver (
     {
         MappingEvaluator &  evaluator = m_evaluators[read.token];
 
+        evaluator.SetNonCenteringAxes (read.nonCentering);
+
         logical      = evaluator.Evaluate (read.calibrated, read.mapping, read.deadzone, elapsedSeconds, read.logicalAxisCount);
         outNeedsPoll = outNeedsPoll || evaluator.IsRateMoving();
     }
@@ -1373,6 +1378,8 @@ ControllerSample ControllerInputService::RecordReading (
     if (isConnected && read.unit.model.kind == ControllerKind::DirectInput)
     {
         ControllerCalibration &  calibration = m_calibrations[read.token];
+
+        calibration.nonCentering = read.nonCentering;
 
         if (!wasConnected)
         {
@@ -1959,7 +1966,8 @@ void ControllerInputService::SyncDriversLocked()
             found->second.unit = device.unit;
         }
 
-        found->second.isDriving = GetDriverRouteLocked (device.unit).has_value();
+        found->second.isDriving    = GetDriverRouteLocked (device.unit).has_value();
+        found->second.nonCentering = AxisRoleRules::GetNonCenteringAxes (device.controls);
 
         if (found->second.isResolved && found->second.mode != GetUnitModeLocked (device.unit))
         {

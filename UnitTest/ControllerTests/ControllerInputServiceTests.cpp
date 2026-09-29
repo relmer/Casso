@@ -2,7 +2,9 @@
 
 #include "Controllers/ControllerInputService.h"
 
+#include "Controllers/AxisRoleRules.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/DeadzoneShaper.h"
 #include "Controllers/XInputSampleDecoder.h"
 #include "FakeControllerBackend.h"
 #include "RecordingGamePortSink.h"
@@ -57,16 +59,21 @@ namespace ControllerTests
         }
 
 
+        // The VKBsim Gladiator. Its throttle is its Z axis, which it reports
+        // with the Generic Desktop Z usage; on a joystick that is the
+        // throttle by convention, so it stays where it is left.
         static ControllerDeviceInfo MakeStickDevice()
         {
             ControllerDeviceInfo  info;
+            AxisRole              z    = AxisRoleRules::Classify (AxisRoleRules::kUsagePageGeneric, AxisRoleRules::kUsageZ, false,
+                                                                  DefaultMapping::kAxisZ, ControllerFormFactor::Joystick);
 
             info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
             info.unit.unitId = "{01661270-ADF7-11F1-8005-444553540000}";
             info.unit.source = ControllerUnitSource::InstanceGuid;
             info.formFactor  = ControllerFormFactor::Joystick;
             info.description = L"VKBsim Gladiator";
-            info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
+            info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 }, { ControlKind::Axis, DefaultMapping::kAxisZ, z },
                                  { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
             return info;
         }
@@ -755,6 +762,43 @@ namespace ControllerTests
             Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[0], L"which drives PDL0");
             Assert::AreEqual (kCenter,  sink.writes.back().state.paddle[1], L"and what the Joystick profile held is released");
             Assert::IsTrue   (service.GetSnapshot().profileModes.at (token) == ProfileMode::Paddle, L"the picker is told the kind it plays");
+        }
+
+
+        //  The Gladiator in Paddle mode, with no profile chosen, plays the
+        //  built-in Paddles profile, whose PDL0 is its throttle at Position.
+        //  Left at an end when it connects it reads that end, not center,
+        //  and a little off its middle it moves the paddle there: no center
+        //  dead zone.
+        TEST_METHOD (Gladiator_PaddleModePlaysItsThrottleAtPosition)
+        {
+            constexpr float          kOffMiddle = 0.2f;
+            FakeControllerBackend    backend;
+            GamePortInputMixer       mixer;
+            RecordingGamePortSink    sink;
+            ControllerInputService   service (backend, mixer);
+            ControllerDeviceInfo     stick      = MakeStickDevice();
+            ControllerSample         sample     = MakeRestSample();
+            PlayerEntries            entries;
+
+            sample.axes[DefaultMapping::kAxisZ] = -1.0f;
+            entries[0]      = MakePick (stick.unit, PlayerMode::Paddle);
+            entries[1].kind = PlayerEntryKind::Disabled;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, sample);
+            service.SetPlayerEntries (entries);
+            service.Tick();
+
+            Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[0], L"the throttle left at its end reads that end");
+
+            sample.axes[DefaultMapping::kAxisZ] = kOffMiddle;
+            backend.SetSample (stick.unit, sample);
+            service.Tick();
+
+            Assert::AreEqual (DeadzoneShaper::ToPaddle (kOffMiddle), sink.writes.back().state.paddle[0], L"and off its middle it reads there, with no dead zone");
         }
 
 

@@ -45,6 +45,43 @@ namespace ControllerTests
         }
 
 
+        //  An axis that stays where it is left is read across its limits,
+        //  with no captured center. Automatically it reads as the device
+        //  reports it, so a throttle left at an end when it connects reads
+        //  that end, not center, before it has moved.
+        TEST_METHOD (NonCentering_AutomaticReadsAsReportedFromConnect)
+        {
+            ControllerCalibration  calibration;
+
+
+
+            calibration.nonCentering.set (0);
+            calibration.CaptureCenter (MakeSample (-1.0f, 0.3f));
+
+            Assert::AreEqual (-1.0f, calibration.Apply (MakeSample (-1.0f, 0.3f)).axes[0], kTolerance, L"the throttle at its end reads its end");
+            Assert::AreEqual ( 0.0f, calibration.Apply (MakeSample (-1.0f, 0.3f)).axes[1], kTolerance, L"a stick axis still rests at center");
+            Assert::AreEqual ( 0.4f, calibration.Apply (MakeSample ( 0.4f, 0.3f)).axes[0], kTolerance, L"and moves as reported");
+        }
+
+
+        //  A user calibration of an axis that stays where it is left maps its
+        //  measured minimum to -1 and maximum to 1, whatever center it holds.
+        TEST_METHOD (NonCentering_UserMapsMinimumToMaximum)
+        {
+            ControllerCalibration  calibration;
+
+
+
+            calibration.mode    = CalibrationMode::User;
+            calibration.axes[0] = { -0.7f, -0.8f, 0.6f };
+            calibration.nonCentering.set (0);
+
+            Assert::AreEqual (-1.0f, calibration.Apply (MakeSample (-0.8f)).axes[0], kTolerance, L"the minimum");
+            Assert::AreEqual ( 1.0f, calibration.Apply (MakeSample ( 0.6f)).axes[0], kTolerance, L"the maximum");
+            Assert::AreEqual ( 0.0f, calibration.Apply (MakeSample (-0.1f)).axes[0], kTolerance, L"the middle of the travel, not the center");
+        }
+
+
         TEST_METHOD (Automatic_AnOffsetRestReadsCenter)
         {
             ControllerCalibration  calibration;

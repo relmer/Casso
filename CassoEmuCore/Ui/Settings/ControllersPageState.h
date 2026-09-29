@@ -365,6 +365,7 @@ private:
     std::optional<size_t>            FindHoldingPlayer    () const;
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
     AxisResponse                     GetAllowedResponse   (const AxisBinding & binding) const;
+    AxisResponse                     GetNewResponse       (const AxisBinding & binding) const;
 
     // Every control on every target of the edited mapping, a pair per row.
     std::vector<std::pair<ControlId, PaddleTarget>>  ListControlUses() const;

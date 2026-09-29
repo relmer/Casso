@@ -148,15 +148,27 @@ std::wstring ControlLabels::ForXInput (const ControlId & control)
 //  ForDirectInput
 //
 //  A device with one hat calls it the D-pad, which is what it is on nearly
-//  every gamepad; a second hat and beyond are numbered.
+//  every gamepad; a second hat and beyond are numbered. An axis that stays
+//  where it is left goes by its HID role where the device reports one --
+//  Throttle, Dial, and Slider for one outside the two slider slots, which
+//  already carry the word -- and a joystick's Z, a throttle only by
+//  convention, keeps its slot's label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ControlLabels::ForDirectInput (const ControlId & control)
 {
+    constexpr int  kFirstSliderAxis = 6;
+
+
+
     switch (control.kind)
     {
         case ControlKind::Axis:
+            if (control.role == AxisRole::Throttle)                                    { return L"Throttle"; }
+            if (control.role == AxisRole::Dial)                                        { return L"Dial";     }
+            if (control.role == AxisRole::Slider && control.index < kFirstSliderAxis)  { return L"Slider";   }
+
             if (control.index >= 0 && control.index < (int) std::size (s_kDirectInputAxisNames))
             {
                 return s_kDirectInputAxisNames[control.index];

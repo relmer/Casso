@@ -51,6 +51,11 @@ public:
     // profile or machine (FR-021a).
     void                  ResetRate    ();
 
+    // The controller's axes that stay where they are left (AxisRoleRules).
+    // Such an axis is read with no center dead zone: a flat spot in the
+    // middle of a throttle's travel would be a dead band in the paddle.
+    void                  SetNonCenteringAxes (std::bitset<ControllerSample::kAxisCount> axes) { m_nonCentering = axes; }
+
     // Whether the last evaluation moved a rate binding's paddle. The
     // controller thread keeps reading while one is moving, since a stick held
     // still sends no change events and the paddle must go on moving.
@@ -65,6 +70,7 @@ private:
     static float  EvaluateAxisBinding  (const ControllerSample & sample, const AxisBinding & binding);
     static float  EvaluateAxis         (const ControllerSample & sample, const std::vector<AxisBinding> & bindings, const AxisBinding *& outWinner);
     static bool   IsOneStick           (const std::vector<AxisBinding> & xBindings, const std::vector<AxisBinding> & yBindings);
+    bool          IsNonCentering       (const AxisBinding * winner) const;
     static void   SetDirectionSwitches (float shapedX, float shapedY, JoystickSwitches & switches);
 
     void          EvaluatePair         (const ControllerSample         & sample,
@@ -80,4 +86,5 @@ private:
     // Each axis's rate-binding paddle, in paddle units.
     std::array<float, GamePortContribution::kAxisCount>  m_rateValue    = { kRateCenter, kRateCenter, kRateCenter, kRateCenter };
     bool                                                 m_isRateMoving = false;
+    std::bitset<ControllerSample::kAxisCount>            m_nonCentering;
 };

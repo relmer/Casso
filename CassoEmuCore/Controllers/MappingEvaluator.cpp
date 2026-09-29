@@ -78,6 +78,8 @@ void MappingEvaluator::EvaluatePair (
     float                rawY    = 0.0f;
     float                shapedX = 0.0f;
     float                shapedY = 0.0f;
+    bool                 isFreeX = false;
+    bool                 isFreeY = false;
 
 
 
@@ -86,17 +88,21 @@ void MappingEvaluator::EvaluatePair (
         return;
     }
 
-    rawX = EvaluateAxis (sample, xBindings, winnerX);
-    rawY = EvaluateAxis (sample, yBindings, winnerY);
+    rawX    = EvaluateAxis (sample, xBindings, winnerX);
+    rawY    = EvaluateAxis (sample, yBindings, winnerY);
+    isFreeX = IsNonCentering (winnerX);
+    isFreeY = IsNonCentering (winnerY);
 
-    if (IsOneStick (xBindings, yBindings))
+    // An axis that stays where it is left takes no center dead zone, and is
+    // never shaped as half of a stick.
+    if (IsOneStick (xBindings, yBindings) && !isFreeX && !isFreeY)
     {
         DeadzoneShaper::ShapeStick (rawX, rawY, deadzone, shapedX, shapedY);
     }
     else
     {
-        shapedX = DeadzoneShaper::ShapeAxis (rawX, deadzone);
-        shapedY = DeadzoneShaper::ShapeAxis (rawY, deadzone);
+        shapedX = isFreeX ? std::clamp (rawX, -1.0f, 1.0f) : DeadzoneShaper::ShapeAxis (rawX, deadzone);
+        shapedY = isFreeY ? std::clamp (rawY, -1.0f, 1.0f) : DeadzoneShaper::ShapeAxis (rawY, deadzone);
     }
 
     contribution.paddle[firstAxis] = ToAxisPaddle (firstAxis, shapedX, winnerX, step);
@@ -110,6 +116,31 @@ void MappingEvaluator::EvaluatePair (
     {
         SetDirectionSwitches (shapedX, shapedY, contribution.switches);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsNonCentering
+//
+//  Whether the control that won an axis is an analog axis that stays where
+//  it is left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MappingEvaluator::IsNonCentering (const AxisBinding * winner) const
+{
+    if (winner == nullptr || winner->kind != AxisBindingKind::Analog || winner->analog.kind != ControlKind::Axis)
+    {
+        return false;
+    }
+
+    return winner->analog.index >= 0
+        && winner->analog.index < ControllerSample::kAxisCount
+        && m_nonCentering.test ((size_t) winner->analog.index);
 }
 
 

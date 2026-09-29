@@ -2,6 +2,8 @@
 
 #include "Controllers/AxisResponseRules.h"
 
+#include "Controllers/AxisRoleRules.h"
+
 
 
 
@@ -67,9 +69,15 @@ AxisResponse AxisResponseRules::GetAllowedResponse (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AxisResponse AxisResponseRules::GetNewResponse (ProfileMode mode, AxisResponse given)
+AxisResponse AxisResponseRules::GetNewResponse (
+    ProfileMode              mode,
+    const AxisBinding      & binding,
+    ControllerKind           kind,
+    ControllerFormFactor     formFactor,
+    AxisRole                 role)
 {
-    AxisResponse  response = given;
+    AxisResponse  response = binding.response;
+    bool          isKnob   = IsPositionOffered (mode, binding, kind, formFactor) && AxisRoleRules::IsNonCentering (role);
 
 
 
@@ -79,7 +87,7 @@ AxisResponse AxisResponseRules::GetNewResponse (ProfileMode mode, AxisResponse g
     }
     else if (mode == ProfileMode::Paddle)
     {
-        response = AxisResponse::Rate;
+        response = isKnob ? AxisResponse::Absolute : AxisResponse::Rate;
     }
 
     return response;

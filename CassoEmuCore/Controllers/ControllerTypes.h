@@ -143,11 +143,41 @@ struct ControllerUnitKey
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AxisRole
+//
+//  What an axis does when it is let go. A centering axis springs back: a
+//  stick, and a wheel or a pedal, which may spring back to center or to one
+//  end. The others stay where they are left, as a paddle's knob does. See
+//  AxisRoleRules for how an axis is classified.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class AxisRole
+{
+    Centering,
+    Throttle,   // HID Throttle
+    Slider,     // HID Slider, or DirectInput's slider type
+    Dial,       // HID Dial
+    JoystickZ,  // a joystick-class device's Z, by convention its throttle
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControlId
 //
 //  One control on a controller. index is the axis (0-7: X, Y, Z, Rx, Ry, Rz,
 //  slider 0, slider 1), trigger (0-1), button (0-127) or hat (0-3, for the
 //  four D-pad kinds).
+//
+//  role describes an axis as its device's enumeration found it, and is not
+//  part of the control's identity: two ControlIds are the same control when
+//  their kind and index match, so a binding read from saved prefs, which
+//  carries no role, still finds its control in the device's list. Look the
+//  role up in that list (AxisRoleRules::GetRole) rather than trusting a copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,8 +185,9 @@ struct ControlId
 {
     ControlKind  kind  = ControlKind::Button;
     int          index = 0;
+    AxisRole     role  = AxisRole::Centering;
 
-    bool operator== (const ControlId &) const = default;
+    bool operator== (const ControlId & other) const { return kind == other.kind && index == other.index; }
 };
 
 

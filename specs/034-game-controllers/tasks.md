@@ -584,6 +584,17 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
+## Phase 29: Axes That Do Not Center (FR-006, FR-007, FR-021a; 2026-09-29, later)
+
+**Goal**: a throttle, slider or dial, and a joystick's Z, plays a paddle as a real knob does: classified at enumeration, Position by default in a Paddle profile, no center dead zone, calibrated from its limits, the Paddles starting point's PDL0 on it, and its HID role in the picker; wheels and pedals stay centering.
+
+- [X] T244 Update `spec.md` (Session 2026-09-29; FR-006, FR-007, FR-021a)
+- [X] T245 Tests first: `AxisRoleRulesTests` (classification, the Gladiator fixture, `ControlId` identity, `ListControls`, picker labels, the Paddles starting point); `AxisResponseRulesTests` (a new binding on a non-centering axis, a saved Paddle speed on a throttle); `MappingEvaluatorTests::NonCenteringAxis_HasNoCenterDeadZone`; `CalibrationTests` (`NonCentering_AutomaticReadsAsReportedFromConnect`, `NonCentering_UserMapsMinimumToMaximum`); `ControllersPageStateTests` (`Calibrate_MeasuresAThrottleFromItsEnds`, `PaddleProfile_TheThrottleStartsAtPositionAndTheStickAtPaddleSpeed`); `ControllerInputServiceTests::Gladiator_PaddleModePlaysItsThrottleAtPosition`, with the Gladiator fixture given its Z axis
+- [X] T246 `AxisRole` and `ControlId::role`; `AxisRoleRules`; the DirectInput backend classifying each axis; `DefaultMapping::MakePaddles`; `AxisResponseRules::GetNewResponse`; `MappingEvaluator::SetNonCenteringAxes`; `ControllerCalibration::nonCentering`; the service and the page state carrying them; `ControlLabels`
+- [X] T247 Two mutations on the classification rule, the full Release suite and captures of the page, recorded in `validation.md` under a new "Phase 29" heading
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies

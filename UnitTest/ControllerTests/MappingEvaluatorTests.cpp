@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Controllers/MappingEvaluator.h"
+#include "Controllers/DeadzoneShaper.h"
 
 #include "Controllers/DirectInputSampleDecoder.h"
 #include "Controllers/XInputSampleDecoder.h"
@@ -59,6 +60,40 @@ namespace ControllerTests
                 { ControlKind::DpadUp, 0 }, { ControlKind::DpadDown, 0 },
                 { ControlKind::DpadLeft, 0 }, { ControlKind::DpadRight, 0 },
             };
+        }
+
+
+        //  An axis that stays where it is left takes no center dead zone: a
+        //  throttle a little off its middle moves its paddle there, where a
+        //  stick's axis at the same reading is inside the dead zone and rests.
+        TEST_METHOD (NonCenteringAxis_HasNoCenterDeadZone)
+        {
+            constexpr float                            kDeadzone = 0.5f;
+            constexpr float                            kReading  = 0.2f;
+            constexpr int                              kAxisZ    = DefaultMapping::kAxisZ;
+            ControlMapping                             mapping;
+            ControllerSample                           sample    = MakeSample();
+            MappingEvaluator                           evaluator;
+            std::bitset<ControllerSample::kAxisCount>  freeAxes;
+            AxisBinding                                throttle;
+            AxisBinding                                stick;
+            GamePortContribution                       result;
+
+
+
+            throttle.analog = { ControlKind::Axis, kAxisZ };
+            stick.analog    = { ControlKind::Axis, 0 };
+            mapping.pdl0    = { throttle };
+            mapping.pdl1    = { stick };
+            sample.axes[0]      = kReading;
+            sample.axes[kAxisZ] = kReading;
+            freeAxes.set (kAxisZ);
+
+            evaluator.SetNonCenteringAxes (freeAxes);
+            result = evaluator.Evaluate (sample, mapping, kDeadzone);
+
+            Assert::AreEqual (DeadzoneShaper::ToPaddle (kReading), result.paddle[0].value(), L"the throttle reads where it is");
+            Assert::AreEqual (kCenter,                             result.paddle[1].value(), L"the stick's axis rests in its dead zone");
         }
 
 

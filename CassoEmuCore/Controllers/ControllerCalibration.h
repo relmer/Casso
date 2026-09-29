@@ -59,6 +59,12 @@ enum class CalibrationMode
 //  USER calibration is the one the Calibrate action measured, and is used as
 //  it stands: no center capture at connect, no widening.
 //
+//  AN AXIS THAT STAYS WHERE IT IS LEFT -- a throttle, a slider -- has no rest
+//  position to capture, and one left at an end must read that end, not
+//  center. It is calibrated from its limits alone: a user calibration maps
+//  its measured minimum to -1 and maximum to 1, and automatically it reads as
+//  the device reports it, across the device's own range.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ControllerCalibration
@@ -92,6 +98,10 @@ public:
     std::array<float, ControllerSample::kAxisCount>            connectReading = {};
     std::array<bool, ControllerSample::kAxisCount>             hasMoved       = {};
 
+    // Never saved: the axes that stay where they are left, from the device's
+    // enumeration (AxisRoleRules), set before each reading is applied.
+    std::bitset<ControllerSample::kAxisCount>                  nonCentering;
+
     void              CaptureCenter     (const ControllerSample & sample);
     void              Observe           (const ControllerSample & sample);
     ControllerSample  Apply             (const ControllerSample & sample) const;
@@ -107,4 +117,5 @@ public:
 private:
 
     static float      ApplyAxis         (float value, const AxisCalibration & axis, CalibrationMode mode, bool hasMoved);
+    static float      ApplyFreeAxis     (float value, const AxisCalibration & axis, CalibrationMode mode);
 };

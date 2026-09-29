@@ -2,6 +2,7 @@
 
 #include "Seams/Win32ControllerBackend.h"
 
+#include "Controllers/AxisRoleRules.h"
 #include "Controllers/XInputSampleDecoder.h"
 
 // hidclass.h only DECLARES the HID device-interface GUID; something has to
@@ -43,6 +44,7 @@ struct EnumObjectContext
 {
     DirectInputObjectLayout  * pLayout    = nullptr;
     int                        sliderSeen = 0;
+    ControllerFormFactor       formFactor = ControllerFormFactor::Joystick;
 };
 
 
@@ -471,8 +473,9 @@ HRESULT Win32ControllerBackend::AddDirectInputDevice (const DIDEVICEINSTANCEW & 
     hr = opened.device->SetCooperativeLevel (m_notifyWindow, DISCL_BACKGROUND | DISCL_NONEXCLUSIVE);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    context.pLayout = &opened.layout;
-    hr              = opened.device->EnumObjects (EnumObjectCallback, &context, DIDFT_AXIS);
+    context.pLayout    = &opened.layout;
+    context.formFactor = opened.formFactor;
+    hr                 = opened.device->EnumObjects (EnumObjectCallback, &context, DIDFT_AXIS);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     // Every axis reports over the same range, so the decoder needs no
@@ -515,8 +518,10 @@ Error:
 //
 //  EnumObjectCallback
 //
-//  Records which axis slots the device actually reports. A device with no Z
-//  axis must not read DIJOYSTATE2's zero there as an axis resting at center.
+//  Records which axis slots the device actually reports, and whether each
+//  axis springs back, from its HID usage where the device reports one. A
+//  device with no Z axis must not read DIJOYSTATE2's zero there as an axis
+//  resting at center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -524,6 +529,8 @@ BOOL CALLBACK Win32ControllerBackend::EnumObjectCallback (const DIDEVICEOBJECTIN
 {
     constexpr int        kFirstSliderAxis = 6;
     EnumObjectContext  * pContextTyped    = (EnumObjectContext *) pContext;
+    bool                 isSliderType     = false;
+    int                  axis             = -1;
 
 
 
@@ -532,21 +539,33 @@ BOOL CALLBACK Win32ControllerBackend::EnumObjectCallback (const DIDEVICEOBJECTIN
         return DIENUM_CONTINUE;
     }
 
+    isSliderType = pObject->guidType == GUID_Slider;
+
     for (const AxisGuidSlot & entry : s_kAxisGuids)
     {
         if (pObject->guidType == *entry.pGuid)
         {
-            pContextTyped->pLayout->presentAxes.set ((size_t) entry.axisIndex);
-
-            return DIENUM_CONTINUE;
+            axis = entry.axisIndex;
         }
     }
 
-    if (pObject->guidType == GUID_Slider && pContextTyped->sliderSeen < 2)
+    if (isSliderType && pContextTyped->sliderSeen < 2)
     {
-        pContextTyped->pLayout->presentAxes.set ((size_t) (kFirstSliderAxis + pContextTyped->sliderSeen));
+        axis = kFirstSliderAxis + pContextTyped->sliderSeen;
         pContextTyped->sliderSeen++;
     }
+
+    if (axis < 0)
+    {
+        return DIENUM_CONTINUE;
+    }
+
+    pContextTyped->pLayout->presentAxes.set ((size_t) axis);
+    pContextTyped->pLayout->axisRoles[(size_t) axis] = AxisRoleRules::Classify (pObject->wUsagePage,
+                                                                                pObject->wUsage,
+                                                                                isSliderType,
+                                                                                axis,
+                                                                                pContextTyped->formFactor);
 
     return DIENUM_CONTINUE;
 }

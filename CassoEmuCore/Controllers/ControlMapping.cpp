@@ -2,6 +2,7 @@
 
 #include "Controllers/ControlMapping.h"
 
+#include "Controllers/AxisRoleRules.h"
 #include "Controllers/XInputSampleDecoder.h"
 
 
@@ -83,6 +84,10 @@ ControlMapping DefaultMapping::For (const ControllerModelKey & model, const std:
 //  gets none, since its other axes can be pedals, a twist or a throttle
 //  resting off center, so it binds PDL0 alone.
 //
+//  A DirectInput device that is not a gamepad and has an axis that stays
+//  where it is left -- a throttle, a slider, a dial -- plays PDL0 on that
+//  axis at Position instead, as a real paddle's knob plays.
+//
 //  The D-pad is left off: a D-pad pair jumps its axis straight to either end,
 //  which would throw a paddle to the edge of the screen.
 //
@@ -102,6 +107,7 @@ ControlMapping DefaultMapping::MakePaddles (
     ControlId                                       first         = { ControlKind::Button, kFirstButton };
     ControlId                                       second        = { ControlKind::Button, kSecondButton };
     std::optional<std::pair<ControlId, ControlId>>  secondStick;
+    std::optional<ControlId>                        knob;
     AxisBinding                                     binding;
 
 
@@ -109,7 +115,19 @@ ControlMapping DefaultMapping::MakePaddles (
     binding.response = AxisResponse::Rate;
     binding.maxSpeed = AxisBinding::kDefaultMaxSpeed;
 
-    if (HasControl (controls, paddle))
+    if (!isXInput && formFactor != ControllerFormFactor::Gamepad)
+    {
+        knob = AxisRoleRules::FindNonCenteringAxis (controls);
+    }
+
+    if (knob.has_value())
+    {
+        binding.analog   = { knob->kind, knob->index };
+        binding.response = AxisResponse::Absolute;
+        mapping.pdl0.push_back (binding);
+        binding.response = AxisResponse::Rate;
+    }
+    else if (HasControl (controls, paddle))
     {
         binding.analog = paddle;
         mapping.pdl0.push_back (binding);

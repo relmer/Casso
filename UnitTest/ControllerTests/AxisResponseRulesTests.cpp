@@ -72,7 +72,7 @@ namespace ControllerTests
 
             Assert::IsTrue (AxisResponseRules::GetAllowedResponse (ProfileMode::Joystick, rate, ControllerKind::XInput,      ControllerFormFactor::Gamepad)  == AxisResponse::Absolute, L"an Xbox stick");
             Assert::IsTrue (AxisResponseRules::GetAllowedResponse (ProfileMode::Joystick, rate, ControllerKind::DirectInput, ControllerFormFactor::Joystick) == AxisResponse::Absolute, L"a DirectInput stick");
-            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Joystick, AxisResponse::Rate)                                           == AxisResponse::Absolute, L"and a new binding");
+            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Joystick, rate, ControllerKind::DirectInput, ControllerFormFactor::Joystick, AxisRole::Throttle) == AxisResponse::Absolute, L"and a new binding");
         }
 
 
@@ -89,7 +89,7 @@ namespace ControllerTests
             Assert::IsTrue (AxisResponseRules::GetAllowedResponse (ProfileMode::Paddle, position, ControllerKind::DirectInput, ControllerFormFactor::Gamepad)  == AxisResponse::Rate,     L"and on a DirectInput gamepad's");
             Assert::IsTrue (AxisResponseRules::GetAllowedResponse (ProfileMode::Paddle, position, ControllerKind::DirectInput, ControllerFormFactor::Wheel)    == AxisResponse::Absolute, L"a wheel keeps Position");
             Assert::IsTrue (AxisResponseRules::GetAllowedResponse (ProfileMode::Paddle, rate,     ControllerKind::DirectInput, ControllerFormFactor::Wheel)    == AxisResponse::Rate,     L"or Paddle speed");
-            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Paddle, AxisResponse::Absolute)                                               == AxisResponse::Rate,     L"a new binding starts at Paddle speed");
+            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Paddle, position, ControllerKind::DirectInput, ControllerFormFactor::Wheel, AxisRole::Centering) == AxisResponse::Rate, L"a new binding on a centering axis starts at Paddle speed");
         }
 
 
@@ -101,8 +101,43 @@ namespace ControllerTests
 
 
             Assert::IsTrue (AxisResponseRules::GetAllowedResponse (ProfileMode::Joyport, rate, ControllerKind::XInput, ControllerFormFactor::Gamepad) == AxisResponse::Rate);
-            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Joyport, AxisResponse::Rate)                                   == AxisResponse::Rate);
-            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Joyport, AxisResponse::Absolute)                               == AxisResponse::Absolute);
+            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Joyport, rate,                                  ControllerKind::XInput, ControllerFormFactor::Gamepad, AxisRole::Centering) == AxisResponse::Rate);
+            Assert::IsTrue (AxisResponseRules::GetNewResponse     (ProfileMode::Joyport, MakeAnalog (ControlKind::Axis, AxisResponse::Absolute), ControllerKind::XInput, ControllerFormFactor::Gamepad, AxisRole::Centering) == AxisResponse::Absolute);
+        }
+
+
+        //  In a Paddle profile a new binding on an axis that stays where it is
+        //  left starts at Position where Position is offered, and at Paddle
+        //  speed elsewhere: a gamepad's slider and an Xbox stick have no
+        //  Position to start at.
+        TEST_METHOD (PaddleProfile_NewBindingOnANonCenteringAxisStartsAtPosition)
+        {
+            AxisBinding  rate = MakeAnalog (ControlKind::Axis, AxisResponse::Rate);
+
+
+
+            Assert::IsTrue (AxisResponseRules::GetNewResponse (ProfileMode::Paddle, rate, ControllerKind::DirectInput, ControllerFormFactor::Joystick, AxisRole::JoystickZ) == AxisResponse::Absolute, L"a joystick's throttle");
+            Assert::IsTrue (AxisResponseRules::GetNewResponse (ProfileMode::Paddle, rate, ControllerKind::DirectInput, ControllerFormFactor::Joystick, AxisRole::Slider)    == AxisResponse::Absolute, L"a slider");
+            Assert::IsTrue (AxisResponseRules::GetNewResponse (ProfileMode::Paddle, rate, ControllerKind::DirectInput, ControllerFormFactor::Joystick, AxisRole::Centering) == AxisResponse::Rate,     L"a joystick's stick");
+            Assert::IsTrue (AxisResponseRules::GetNewResponse (ProfileMode::Paddle, rate, ControllerKind::DirectInput, ControllerFormFactor::Gamepad,  AxisRole::Slider)    == AxisResponse::Rate,     L"a gamepad's slider");
+        }
+
+
+        //  A saved Paddle speed on a throttle stays Paddle speed: only a new
+        //  binding's starting response depends on the axis's role.
+        TEST_METHOD (PaddleProfile_KeepsASavedPaddleSpeedOnAThrottle)
+        {
+            ControlMapping  mapping;
+            AxisBinding     throttle = MakeAnalog (ControlKind::Axis, AxisResponse::Rate);
+
+
+
+            throttle.analog = { ControlKind::Axis, 2 };
+            mapping.pdl0    = { throttle };
+
+            AxisResponseRules::Normalize (mapping, ProfileMode::Paddle, ControllerKind::DirectInput, ControllerFormFactor::Joystick);
+
+            Assert::IsTrue (mapping.pdl0[0].response == AxisResponse::Rate);
         }
 
 

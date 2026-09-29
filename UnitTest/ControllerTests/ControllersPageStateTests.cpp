@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Controllers/AxisRoleRules.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 #include "Ui/Settings/ControllersPageState.h"
@@ -39,6 +40,20 @@ namespace ControllerTests
             info.description = L"VKBsim Gladiator";
             info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
                                  { ControlKind::Button, 0 }, { ControlKind::Button, 1 }, { ControlKind::Button, 2 } };
+            return info;
+        }
+
+
+        //  The Gladiator as enumeration reports it: a joystick whose Z axis,
+        //  with the Generic Desktop Z usage, is its throttle.
+        static ControllerDeviceInfo MakeGladiator()
+        {
+            ControllerDeviceInfo  info = MakeStick();
+            AxisRole              z    = AxisRoleRules::Classify (AxisRoleRules::kUsagePageGeneric, AxisRoleRules::kUsageZ, false,
+                                                                  DefaultMapping::kAxisZ, ControllerFormFactor::Joystick);
+
+            info.formFactor = ControllerFormFactor::Joystick;
+            info.controls.insert (info.controls.begin() + 2, { ControlKind::Axis, DefaultMapping::kAxisZ, z });
             return info;
         }
 
@@ -249,6 +264,62 @@ namespace ControllerTests
             Assert::AreEqual (-0.7f, measured.axes[0].minimum, 0.0001f);
             Assert::IsTrue   (ControllerCalibration::IsValid (measured.axes[3], CalibrationMode::User),
                 L"an axis the user did not move still yields a calibration that can be saved");
+        }
+
+
+        //  An axis that stays where it is left is measured from its ends: its
+        //  center is the middle of the travel shown, not where it rested.
+        TEST_METHOD (Calibrate_MeasuresAThrottleFromItsEnds)
+        {
+            constexpr size_t      kZ     = DefaultMapping::kAxisZ;
+            ControllersPageState  page;
+            ControllerSample      sample = Rest();
+            std::string           token  = ControllerTokens::UnitToToken (MakeGladiator().unit);
+
+            page.Load ({ MakeGladiator() }, {}, {}, true);
+            page.BeginCalibration();
+
+            sample.axes[kZ] = -0.9f;
+            page.FeedCalibration (sample);
+            page.AdvanceCalibration();
+
+            sample.axes[kZ] = 0.7f;
+            page.FeedCalibration (sample);
+            page.AdvanceCalibration();
+
+            const ControllerCalibration &  measured = page.GetCalibrations().at (token);
+
+            Assert::AreEqual (-0.9f, measured.axes[kZ].minimum, 0.0001f, L"the end it rested at is its minimum");
+            Assert::AreEqual ( 0.7f, measured.axes[kZ].maximum, 0.0001f, L"the other end its maximum");
+            Assert::AreEqual (-0.1f, measured.axes[kZ].center,  0.0001f, L"and its center the middle of that travel");
+        }
+
+
+        //  In a Paddle profile the Gladiator's built-in Paddles profile plays
+        //  PDL0 on its throttle at Position. A binding put on the throttle
+        //  starts at Position; one put on its stick starts at Paddle speed.
+        TEST_METHOD (PaddleProfile_TheThrottleStartsAtPositionAndTheStickAtPaddleSpeed)
+        {
+            ControllersPageState  page;
+            AxisBinding           stick;
+            AxisBinding           throttle;
+
+            stick.analog    = { ControlKind::Axis, 0 };
+            throttle.analog = { ControlKind::Axis, DefaultMapping::kAxisZ };
+            stick.response    = AxisResponse::Absolute;
+            throttle.response = AxisResponse::Rate;
+
+            page.Load ({ MakeGladiator() }, {}, {}, true);
+            SetPaddlePlayer (page);
+
+            Assert::IsTrue (page.GetMapping().pdl0.at (0).analog == throttle.analog,          L"the built-in Paddles profile plays the throttle");
+            Assert::IsTrue (page.GetMapping().pdl0.at (0).response == AxisResponse::Absolute, L"at Position");
+
+            Assert::IsTrue (page.ReplaceAxisBinding (PaddleTarget::Pdl0, 0, stick));
+            Assert::IsTrue (page.GetMapping().pdl0.at (0).response == AxisResponse::Rate, L"the stick starts at Paddle speed");
+
+            Assert::IsTrue (page.ReplaceAxisBinding (PaddleTarget::Pdl0, 0, throttle));
+            Assert::IsTrue (page.GetMapping().pdl0.at (0).response == AxisResponse::Absolute, L"the throttle at Position, whatever it was given");
         }
 
 

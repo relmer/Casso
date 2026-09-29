@@ -3,6 +3,7 @@
 #include "Ui/Settings/ControllersPageState.h"
 
 #include "Controllers/AxisResponseRules.h"
+#include "Controllers/AxisRoleRules.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 #include "Controllers/JoyportJackRules.h"
@@ -1586,7 +1587,7 @@ bool ControllersPageState::AddAxisBinding (PaddleTarget target, const AxisBindin
 
     list = FindAxisList (profile->mapping, target);
     list->push_back (binding);
-    list->back().response = AxisResponseRules::GetNewResponse (m_profileMode, binding.response);
+    list->back().response = GetNewResponse (binding);
     list->back().maxSpeed = std::clamp (binding.maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
     NoteAssigned (target, binding);
 
@@ -1650,7 +1651,7 @@ bool ControllersPageState::ReplaceAxisBinding (PaddleTarget target, size_t index
     }
 
     (*list)[index]          = binding;
-    (*list)[index].response = AxisResponseRules::GetNewResponse (m_profileMode, binding.response);
+    (*list)[index].response = GetNewResponse (binding);
     (*list)[index].maxSpeed = std::clamp (binding.maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
     m_liveEvaluator.ResetRate();
     NoteAssigned (target, binding);
@@ -1897,6 +1898,32 @@ AxisResponse ControllersPageState::GetAllowedResponse (const AxisBinding & bindi
     }
 
     return AxisResponseRules::GetAllowedResponse (m_profileMode, binding, selected->unit.model.kind, selected->formFactor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNewResponse
+//
+//  The response a binding just put on an axis starts with, given the role
+//  its control has on the edited controller: a throttle or a slider starts
+//  at Position in a Paddle profile, a stick at Paddle speed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AxisResponse ControllersPageState::GetNewResponse (const AxisBinding & binding) const
+{
+    const ControllerEntry  * selected = GetSelected();
+    ControllerKind           kind     = selected != nullptr ? selected->unit.model.kind : ControllerKind::XInput;
+    ControllerFormFactor     form     = selected != nullptr ? selected->formFactor      : ControllerFormFactor::Gamepad;
+    AxisRole                 role     = selected != nullptr ? AxisRoleRules::GetRole (selected->controls, binding.analog) : AxisRole::Centering;
+
+
+
+    return AxisResponseRules::GetNewResponse (m_profileMode, binding, kind, form, role);
 }
 
 
@@ -3120,13 +3147,18 @@ void ControllersPageState::FeedCalibration (const ControllerSample & sample)
 //  axis with nothing attached -- should read as it arrives rather than
 //  block the calibration of the stick they did move.
 //
+//  An axis that stays where it is left is calibrated from its limits alone:
+//  its center is the middle of the travel measured, wherever it rested when
+//  the user moved on from Center, and with no travel it gets the full range.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPageState::AdvanceCalibration()
 {
-    constexpr float          kMinimumSide = 0.01f;
-    const ControllerEntry *  selected     = GetSelected();
-    size_t                   i            = 0;
+    constexpr float                             kMinimumSide = 0.01f;
+    const ControllerEntry *                     selected     = GetSelected();
+    std::bitset<ControllerSample::kAxisCount>   freeAxes;
+    size_t                                      i            = 0;
 
 
 
@@ -3156,9 +3188,18 @@ void ControllersPageState::AdvanceCalibration()
         return;
     }
 
+    freeAxes = AxisRoleRules::GetNonCenteringAxes (selected->controls);
+
     for (i = 0; i < m_calibrationDraft.axes.size(); i++)
     {
         AxisCalibration &  axis = m_calibrationDraft.axes[i];
+
+        if (freeAxes.test (i))
+        {
+            axis = (axis.maximum - axis.minimum < kMinimumSide) ? AxisCalibration { 0.0f, -1.0f, 1.0f }
+                                                                : AxisCalibration { (axis.minimum + axis.maximum) * 0.5f, axis.minimum, axis.maximum };
+            continue;
+        }
 
         if (axis.center - axis.minimum < kMinimumSide)
         {
@@ -3256,6 +3297,7 @@ GamePortContribution ControllersPageState::ComputeLiveReading (const ControllerS
 {
     const ControllerEntry *  selected   = GetSelected();
     ControllerSample         calibrated = sample;
+    ControllerCalibration    user;
 
 
 
@@ -3270,9 +3312,13 @@ GamePortContribution ControllersPageState::ComputeLiveReading (const ControllerS
 
         if (found != m_calibrations.end() && found->second.mode == CalibrationMode::User)
         {
-            calibrated = found->second.Apply (sample);
+            user              = found->second;
+            user.nonCentering = AxisRoleRules::GetNonCenteringAxes (selected->controls);
+            calibrated        = user.Apply (sample);
         }
     }
+
+    m_liveEvaluator.SetNonCenteringAxes (AxisRoleRules::GetNonCenteringAxes (selected->controls));
 
     return m_liveEvaluator.Evaluate (calibrated, GetMapping(), GetDeadZone(), elapsedSeconds);
 }
