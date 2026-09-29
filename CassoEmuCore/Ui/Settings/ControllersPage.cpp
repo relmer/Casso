@@ -117,12 +117,14 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_speed[target]);
     }
 
-    // A warning under each target's rows, compact like the players'.
+    // A warning under each target's rows, compact like the players', with the
+    // outlined MDL2 warning glyph the app's other warnings show.
     for (target = 0; target < kTargetCount; target++)
     {
         Adopt (m_sharedWarning[target]);
 
         m_sharedWarning[target].SetSeverity           (DxuiInfoBanner::Severity::Warning);
+        m_sharedWarning[target].SetIconGlyph          (s_kpszMdl2Warning);
         m_sharedWarning[target].SetVisible            (false);
         m_sharedWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);
     }

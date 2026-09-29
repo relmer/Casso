@@ -976,6 +976,7 @@ public:
         Assert::AreEqual (size_t (1), warnings.size());
         Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB0."), warnings[0]->GetText());
         Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Warning, L"as a warning");
+        Assert::IsTrue   (warnings[0]->GetIconGlyph() == s_kpszMdl2Warning, L"with the outlined warning glyph");
         Assert::IsTrue   (IsBetweenLabels (*warnings[0], page, L"PB1:", L"PB2:"), L"under PB1's rows");
         Assert::AreEqual (GetLowestVisibleBottom (page) + kPagePadPx - kTopPx, heightPx, L"the content height follows it");
         Assert::IsTrue   (revealed.has_value(), L"and it is scrolled to");
