@@ -562,6 +562,17 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
+## Phase 27: Live Views at Display Rate (FR-023; 2026-09-28, later)
+
+**Goal**: the owner's report that quick presses were missed and the stick lagged: every reading between two polls counts for the button lights, a lit circle holds for a minimum time and animates in and out, the page polls at display rate only while it is shown.
+
+- [X] T236 Update `spec.md` (Session 2026-09-28; FR-023)
+- [X] T237 Tests first: `ControllerInputServiceTests::InspectedSamples_KeepEveryReadingSinceTheLastTake`; `UnitTest/UiTests/ControllersPageLiveTests.cpp` (`QuickPress_BetweenTwoPolls_LightsTheCircle`, `QuickPress_StaysLitForTheMinimumTime_ThenGoesDark`, `HeldButton_StaysLitWhileHeld`, `Press_AnimatesInQuickly`, `HiddenPage_ReadsNothingAndReleasesTheController`), each page with its animation setting pinned
+- [X] T238 `ControllerInputService::TakeInspectedSamples`; `ButtonLightView::Update` with its minimum lit time, press ramp and fade; `ControllersPage::Poll (nowMs)` latching every reading since the last poll, moving rate paddles for the real time since it, and reading nothing while hidden; `ControllersPage::GetPollIntervalMs`; `SettingsSheet::UpdateTickInterval`
+- [X] T239 Mutation checks for Phase 27, the full Release suite, `CheckStyle -Mode Tree` and a capture of the page, recorded in `validation.md` under a new "Phase 27" heading
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies

@@ -2083,6 +2083,63 @@ namespace ControllerTests
         }
 
 
+        //  Every reading of the inspected unit since the page last took them is
+        //  kept, in order, so a press and release between two of the page's
+        //  paints is not lost. Taking them empties the list; another unit
+        //  starts a new one; and a page that stops taking them holds only the
+        //  latest few, the newest last.
+        TEST_METHOD (InspectedSamples_KeepEveryReadingSinceTheLastTake)
+        {
+            constexpr size_t                 kManyTicks = ControllerInputService::kInspectedHistoryMax * 2;
+            FakeControllerBackend            backend;
+            GamePortInputMixer               mixer;
+            ControllerInputService           service (backend, mixer);
+            ControllerDeviceInfo             stick   = MakeStickDevice();
+            ControllerDeviceInfo             xbox    = MakeXboxDevice();
+            ControllerSample                 pressed = MakeRestSample();
+            ControllerSample                 rest    = MakeRestSample();
+            std::vector<ControllerSample>    taken;
+            size_t                           i       = 0;
+
+
+
+            pressed.buttons.set (0);
+            backend.AddDevice (stick, true);
+            backend.AddDevice (xbox, true);
+            service.SetInspectedUnit (stick.unit);
+
+            backend.SetSample (stick.unit, pressed);
+            service.Tick();
+            backend.SetSample (stick.unit, rest);
+            service.Tick();
+
+            taken = service.TakeInspectedSamples (stick.unit);
+
+            Assert::AreEqual ((size_t) 2, taken.size(),      L"both readings");
+            Assert::IsTrue   (taken[0].buttons.test (0),     L"the press first");
+            Assert::IsFalse  (taken[1].buttons.test (0),     L"then the release");
+            Assert::IsTrue   (service.TakeInspectedSamples (stick.unit).empty(), L"taking them empties the list");
+
+            service.Tick();
+            service.SetInspectedUnit (xbox.unit);
+            Assert::IsTrue (service.TakeInspectedSamples (xbox.unit).empty(),  L"another unit starts a new list");
+            Assert::IsTrue (service.TakeInspectedSamples (stick.unit).empty(), L"and the old unit's are gone");
+
+            service.SetInspectedUnit (stick.unit);
+
+            for (i = 0; i < kManyTicks; i++)
+            {
+                backend.SetSample (stick.unit, i + 1 == kManyTicks ? pressed : rest);
+                service.Tick();
+            }
+
+            taken = service.TakeInspectedSamples (stick.unit);
+
+            Assert::AreEqual (ControllerInputService::kInspectedHistoryMax, taken.size(), L"a page that stops taking them holds only the latest few");
+            Assert::IsTrue   (taken.back().buttons.test (0),                             L"the newest last");
+        }
+
+
         //
         //  Joyport jacks
         //

@@ -268,4 +268,10 @@ private:
 
     // Refresh the Disk tab's presence from the staged hardware config.
     void  UpdateDiskTabVisibility ();
+
+    // The dialog tick last asked for: the Controllers page's live rate while
+    // it is shown, the default otherwise.
+    UINT           m_tickMs = kDefaultDialogTickMs;
+
+    void  UpdateTickInterval ();
 };

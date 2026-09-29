@@ -854,6 +854,8 @@ void ControllerInputService::SetInspectedUnit (const std::optional<ControllerUni
             m_inspectedUnit      = unit;
             m_hasInspectedSample = false;
             shouldWake           = true;
+
+            m_inspectedHistory.clear();
         }
         else if (unit.has_value() && !m_hasInspectedSample)
         {
@@ -891,6 +893,34 @@ std::optional<ControllerSample> ControllerInputService::GetInspectedSample (cons
     }
 
     return m_inspectedSample;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeInspectedSamples
+//
+//  Hands over the readings kept since the last call and starts a new list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ControllerSample> ControllerInputService::TakeInspectedSamples (const ControllerUnitKey & unit)
+{
+    std::lock_guard<std::mutex>    lock (m_mutex);
+    std::vector<ControllerSample>  taken;
+
+
+
+    if (m_inspectedUnit == unit)
+    {
+        taken.assign (m_inspectedHistory.begin(), m_inspectedHistory.end());
+        m_inspectedHistory.clear();
+    }
+
+    return taken;
 }
 
 
@@ -938,6 +968,16 @@ ControllerWaitSources ControllerInputService::Tick()
         {
             m_inspectedSample    = sample;
             m_hasInspectedSample = SUCCEEDED (hr) && sample.connected;
+
+            if (m_hasInspectedSample)
+            {
+                m_inspectedHistory.push_back (sample);
+            }
+
+            while (m_inspectedHistory.size() > kInspectedHistoryMax)
+            {
+                m_inspectedHistory.pop_front();
+            }
         }
     }
 

@@ -8,6 +8,7 @@
 #include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Widgets/DxuiLabel.h"
 #include "Window/DxuiButtonRow.h"
 #include "resource.h"
@@ -520,6 +521,13 @@ HRESULT SettingsSheet::OpenModeless (
                 return service->GetInspectedSample (unit);
             });
 
+            m_controllersPage->SetHistorySource ([service] (const ControllerUnitKey & unit)
+            {
+                return service->TakeInspectedSamples (unit);
+            });
+
+            m_controllersPage->SetAnimationsEnabled (DxuiSystemSettings::Instance().AreAnimationsEnabled());
+
             m_controllersPage->SetOnInspect ([service] (const std::optional<ControllerUnitKey> & unit)
             {
                 service->SetInspectedUnit (unit);
@@ -843,6 +851,7 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+    UpdateTickInterval();
 
 
     // Controllers that came or went while the sheet is open, then the
@@ -886,6 +895,38 @@ void SettingsSheet::OnDialogTick()
     }
 
     UpdatePreviewCompose();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateTickInterval
+//
+//  While the Controllers page is shown the sheet ticks at its live rate, so
+//  the stick and the lights follow the controller at display rate; on any
+//  other page it drops back to the default, and the page stops reading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateTickInterval()
+{
+    UINT  wanted = kDefaultDialogTickMs;
+
+
+
+    if (m_controllersPage != nullptr && m_controllersPage->GetPollIntervalMs() > 0)
+    {
+        wanted = m_controllersPage->GetPollIntervalMs();
+    }
+
+    if (wanted != m_tickMs)
+    {
+        m_tickMs = wanted;
+        SetDialogTickIntervalMs (m_tickMs);
+    }
 }
 
 

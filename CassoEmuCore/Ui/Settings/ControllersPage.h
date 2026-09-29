@@ -73,8 +73,13 @@ public:
     static constexpr size_t  kPlayerCount = MultiplayerSetup::kPlayerCount;
     static constexpr size_t  kPlayerTwo   = ControllersPageState::kPlayerTwo;
 
-    using SampleSource = std::function<std::optional<ControllerSample> (const ControllerUnitKey &)>;
-    using InspectFn    = std::function<void (const std::optional<ControllerUnitKey> &)>;
+    // How often the page wants polling while it is shown: one frame at 60 Hz,
+    // about as fine as a Win32 timer runs.
+    static constexpr UINT    kLivePollMs  = 16;
+
+    using SampleSource  = std::function<std::optional<ControllerSample> (const ControllerUnitKey &)>;
+    using HistorySource = std::function<std::vector<ControllerSample> (const ControllerUnitKey &)>;
+    using InspectFn     = std::function<void (const std::optional<ControllerUnitKey> &)>;
 
     explicit ControllersPage (std::wstring title = L"Controllers");
 
@@ -82,6 +87,14 @@ public:
     void  SetSampleSource  (SampleSource source);
     void  SetOnInspect     (InspectFn onInspect);
     void  SetPopupHost     (DxuiHwndSource * host);
+
+    // Every reading of the controller shown since the last poll, so a press
+    // too quick for one poll to see still lights its button.
+    void  SetHistorySource (HistorySource source) { m_historySource = std::move (source); }
+
+    // Whether the button lights animate: the system's animation setting,
+    // which the sheet passes in.
+    void  SetAnimationsEnabled (bool isEnabled);
 
     // What Layout measures the player warnings with, in place of the popup
     // host's. With neither they are sized from the banner's estimate.
@@ -94,8 +107,14 @@ public:
     void  Layout           (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
     // Each dialog tick: feed the controller's latest reading to the capture,
-    // the calibration, the stick and the lights.
+    // the calibration, the stick and the lights. `nowMs` is the clock the
+    // lights time their minimum and their fade on; Poll() reads the tick count.
     void  Poll             ();
+    void  Poll             (int64_t nowMs);
+
+    // kLivePollMs while the page is shown, else 0: a hidden page reads
+    // nothing and wants no polls.
+    UINT  GetPollIntervalMs () const;
 
     // Re-sync every widget from the state.
     void  Refresh          ();
@@ -202,6 +221,8 @@ private:
 
     ControllersPageState                      * m_state               = nullptr;
     SampleSource                                m_sampleSource;
+    HistorySource                               m_historySource;
+    int64_t                                     m_lastPollMs          = 0;
     InspectFn                                   m_onInspect;
     ControllersPageState::CommitFn              m_onCommitProfile;
     std::optional<ControllerUnitKey>            m_inspected;

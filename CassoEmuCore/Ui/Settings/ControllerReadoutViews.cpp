@@ -2,6 +2,7 @@
 
 #include "Ui/Settings/ControllerReadoutViews.h"
 
+#include "Core/DxuiAnimation.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -176,13 +177,117 @@ void StickPositionView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetLit
+//  Update
+//
+//  A press begins when the button is seen down after being up. The circle
+//  stays fully lit while the button is down and for at least kMinLitMs from
+//  the press, so a press shorter than a frame is still seen. With animations
+//  on it starts at kPressStartLevel, fills over kPressRampMs, and fades over
+//  kFadeMs after that; with them off it is fully lit or dark. A press that
+//  comes while the circle is still lit or fading shows fully lit at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ButtonLightView::SetLit (bool isLit)
+void ButtonLightView::Update (bool wasPressed, bool isPressed, int64_t nowMs)
 {
-    m_isLit = isLit;
+    bool     isSeen  = wasPressed || isPressed;
+    int64_t  holdEnd = 0;
+    float    t       = 0.0f;
+
+
+
+    if (isSeen && !m_isHeld)
+    {
+        m_pressStartMs = m_level > 0.0f ? nowMs - kPressRampMs : nowMs;
+        m_hasPress     = true;
+    }
+
+    if (isSeen)
+    {
+        m_lastSeenMs = nowMs;
+    }
+
+    m_isHeld = isPressed;
+
+    if (!m_hasPress)
+    {
+        m_level = 0.0f;
+        return;
+    }
+
+    holdEnd = std::max (m_lastSeenMs, m_pressStartMs + kMinLitMs);
+
+    if (isPressed || nowMs < holdEnd)
+    {
+        t       = std::clamp ((float) (nowMs - m_pressStartMs) / (float) kPressRampMs, 0.0f, 1.0f);
+        m_level = m_isAnimated ? kPressStartLevel + (1.0f - kPressStartLevel) * DxuiAnimation::ApplyEase (DxuiTweenEase::EaseOut, t) : 1.0f;
+        return;
+    }
+
+    t       = std::clamp ((float) (nowMs - holdEnd) / (float) kFadeMs, 0.0f, 1.0f);
+    m_level = m_isAnimated ? 1.0f - DxuiAnimation::ApplyEase (DxuiTweenEase::EaseOut, t) : 0.0f;
+
+    if (m_level <= 0.0f)
+    {
+        m_level    = 0.0f;
+        m_hasPress = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Clear
+//
+//  Dark at once, as with no controller to read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ButtonLightView::Clear()
+{
+    m_hasPress = false;
+    m_isHeld   = false;
+    m_level    = 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlendColor
+//
+//  `amount` of the way from one packed color to another, channel by channel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ButtonLightView::BlendColor (uint32_t from, uint32_t to, float amount)
+{
+    constexpr int       kChannels    = 4;
+    constexpr int       kChannelBits = 8;
+    constexpr uint32_t  kChannelMask = 0xFF;
+    uint32_t            blended      = 0;
+    uint32_t            value        = 0;
+    float               a            = 0.0f;
+    float               b            = 0.0f;
+    int                 channel      = 0;
+
+
+
+    for (channel = 0; channel < kChannels; channel++)
+    {
+        a     = (float) ((from >> (channel * kChannelBits)) & kChannelMask);
+        b     = (float) ((to   >> (channel * kChannelBits)) & kChannelMask);
+        value = (uint32_t) std::lround (a + (b - a) * amount);
+
+        blended |= (value & kChannelMask) << (channel * kChannelBits);
+    }
+
+    return blended;
 }
 
 
@@ -229,9 +334,9 @@ void ButtonLightView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         return;
     }
 
-    hr = text.FillEllipse (cx, cy, radius, radius, m_isLit ? theme.Accent() : theme.BackgroundElevated());
+    hr = text.FillEllipse (cx, cy, radius, radius, BlendColor (theme.BackgroundElevated(), theme.Accent(), m_level));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawEllipse (cx, cy, radius - ring * 0.5f, radius - ring * 0.5f, ring, m_isLit ? theme.Accent() : theme.Border());
+    hr = text.DrawEllipse (cx, cy, radius - ring * 0.5f, radius - ring * 0.5f, ring, BlendColor (theme.Border(), theme.Accent(), m_level));
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

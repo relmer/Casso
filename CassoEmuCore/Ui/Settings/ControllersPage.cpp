@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
+
 #include "Window/DxuiHwndSource.h"
 
 
@@ -98,6 +99,7 @@ ControllersPage::ControllersPage (std::wstring title)
     {
         Adopt (m_lights[target]);
     }
+
 
     Adopt (m_switchView);
     Adopt (m_paddleBars);
@@ -805,26 +807,96 @@ void ControllersPage::StretchPlayerRows (int left, int right, int gap, const Dxu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Poll
+//  SetAnimationsEnabled
 //
-//  The page asks the service to read the controller it shows, whether or not
-//  that controller is the one selected, and then hands the latest reading to
-//  whatever is waiting on it.
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::SetAnimationsEnabled (bool isEnabled)
+{
+    for (ButtonLightView & light : m_lights)
+    {
+        light.SetAnimationsEnabled (isEnabled);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPollIntervalMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT ControllersPage::GetPollIntervalMs() const
+{
+    return IsVisible() ? kLivePollMs : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Poll
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::Poll()
 {
-    std::optional<size_t>             selected;
-    std::optional<ControllerUnitKey>  unit;
-    std::optional<ControllerSample>   sample;
-    GamePortContribution              reading;
-    size_t                            light    = 0;
+    Poll ((int64_t) GetTickCount64());
+}
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Poll
+//
+//  The page asks the service to read the controller it shows, whether or not
+//  that controller is the one selected, and then hands the latest reading to
+//  whatever is waiting on it. Each button's light takes every reading since
+//  the last poll, so a press that came and went in between still lights it.
+//
+//  A hidden page reads nothing, and lets the controller go so the service
+//  stops reading it for the page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::Poll (int64_t nowMs)
+{
+    constexpr float                                  kMsPerSecond = 1000.0f;
+    std::optional<size_t>                            selected;
+    std::optional<ControllerUnitKey>                 unit;
+    std::optional<ControllerSample>                  sample;
+    std::vector<ControllerSample>                    history;
+    GamePortContribution                             reading;
+    std::bitset<GamePortContribution::kButtonCount>  wasPressed;
+    float                                            elapsed      = m_lastPollMs > 0 ? (float) (nowMs - m_lastPollMs) / kMsPerSecond : 0.0f;
+    bool                                             isLive       = false;
+    size_t                                           light        = 0;
+
+
+
+    m_lastPollMs = nowMs;
 
     if (m_state == nullptr)
     {
+        return;
+    }
+
+    if (!IsVisible())
+    {
+        if (m_inspected.has_value() && m_onInspect)
+        {
+            m_inspected.reset();
+            m_onInspect (std::nullopt);
+        }
+
         return;
     }
 
@@ -875,7 +947,7 @@ void ControllersPage::Poll()
 
         for (light = 0; light < kButtonCount; light++)
         {
-            m_lights[light].SetLit (false);
+            m_lights[light].Clear();
         }
 
         PollSwitchLights (nullptr);
@@ -894,7 +966,19 @@ void ControllersPage::Poll()
         m_state->FeedCalibration (sample.value());
     }
 
-    reading = m_state->ComputeLiveReading (sample.value());
+    // The readings between polls count only for their buttons, so they move
+    // no rate paddle; the latest moves it for the time since the last poll.
+    if (m_historySource)
+    {
+        history = m_historySource (unit.value());
+    }
+
+    for (const ControllerSample & between : history)
+    {
+        wasPressed |= m_state->ComputeLiveReading (between, 0.0f).buttons;
+    }
+
+    reading = m_state->ComputeLiveReading (sample.value(), elapsed);
 
     // A target this controller does not drive reads as if it were not bound:
     // the row is grayed out, and a dot or a light that still moved with the
@@ -937,8 +1021,11 @@ void ControllersPage::Poll()
 
     for (light = 0; light < kButtonCount; light++)
     {
-        // A button the machine lacks stays dark whatever is pressed.
-        m_lights[light].SetLit (reading.buttons.test (light) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light)));
+        // A button the machine lacks, or this controller does not drive,
+        // stays dark whatever is pressed.
+        isLive = m_state->IsTargetInPlay (TargetAt (kAxisCount + light)) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light));
+
+        m_lights[light].Update (isLive && wasPressed[light], isLive && reading.buttons.test (light), nowMs);
     }
 
     PollPaddleBars   (&reading);

@@ -63,6 +63,11 @@ public:
     // not notice.
     static constexpr DWORD  kIdleWatchPeriodMs = 100;
 
+    // How many readings of the inspected controller are kept for the page
+    // between two of its polls: a second's worth at kPollPeriodMs, far more
+    // than a poll at display rate leaves waiting.
+    static constexpr size_t kInspectedHistoryMax = 128;
+
     struct Snapshot
     {
         std::vector<ControllerDeviceInfo>      devices;
@@ -168,6 +173,12 @@ public:
     // controller moves.
     void                             SetInspectedUnit   (const std::optional<ControllerUnitKey> & unit);
     std::optional<ControllerSample>  GetInspectedSample (const ControllerUnitKey & unit) const;
+
+    // Every reading of the inspected controller since the last call, oldest
+    // first, up to kInspectedHistoryMax of the latest; none for another unit.
+    // A press and release between two of the page's polls is in here even
+    // though neither poll's latest reading shows it.
+    std::vector<ControllerSample>    TakeInspectedSamples (const ControllerUnitKey & unit);
 
     // Rate bindings' paddles back to center, for a machine switch or a profile
     // change (FR-021a). Takes effect on the controller thread's next reading.
@@ -338,6 +349,7 @@ private:
     std::optional<ControllerUnitKey>                     m_inspectedUnit;
     ControllerSample                                     m_inspectedSample;
     bool                                                 m_hasInspectedSample = false;
+    std::deque<ControllerSample>                         m_inspectedHistory;
 
     TickReport                           m_lastTick;
     SlotsChangedFn                       m_onSlotsChanged;

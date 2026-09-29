@@ -3216,7 +3216,7 @@ void ControllersPageState::UseAutomaticCalibration()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-GamePortContribution ControllersPageState::ComputeLiveReading (const ControllerSample & sample)
+GamePortContribution ControllersPageState::ComputeLiveReading (const ControllerSample & sample, float elapsedSeconds)
 {
     const ControllerEntry *  selected   = GetSelected();
     ControllerSample         calibrated = sample;
@@ -3238,7 +3238,7 @@ GamePortContribution ControllersPageState::ComputeLiveReading (const ControllerS
         }
     }
 
-    return m_liveEvaluator.Evaluate (calibrated, GetMapping(), GetDeadZone(), MappingEvaluator::kMaxRateStep);
+    return m_liveEvaluator.Evaluate (calibrated, GetMapping(), GetDeadZone(), elapsedSeconds);
 }
 
 

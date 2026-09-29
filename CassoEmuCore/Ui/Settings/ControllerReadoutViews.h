@@ -57,7 +57,10 @@ private:
 //  ButtonLightView
 //
 //  One pushbutton's state: a ring that fills while the guest reads the
-//  button pressed.
+//  button pressed. A press, however brief, stays fully lit for at least
+//  kMinLitMs so it can be seen; with animations on it fills over
+//  kPressRampMs and fades over kFadeMs once released. The clock and the
+//  animation setting are passed in, so all of it is testable without either.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,13 +68,33 @@ class ButtonLightView : public IDxuiControl
 {
 public:
 
-    void  SetLit    (bool isLit);
+    static constexpr int64_t  kMinLitMs        = 90;
+    static constexpr int64_t  kPressRampMs     = 40;
+    static constexpr int64_t  kFadeMs          = 120;
+    static constexpr float    kPressStartLevel = 0.5f;
 
-    void  Layout    (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    // The button's state at `nowMs`: whether it read pressed at any time
+    // since the last update, and whether it reads pressed now.
+    void   Update               (bool wasPressed, bool isPressed, int64_t nowMs);
+    void   Clear                ();
+    void   SetAnimationsEnabled (bool isEnabled) { m_isAnimated = isEnabled; }
+
+    // How lit the circle is, 0 dark to 1 fully lit, as of the last update.
+    float  GetLevel             () const { return m_level; }
+    bool   IsLit                () const { return m_level > 0.0f; }
+
+    void   Layout               (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void   Paint                (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
 
+    static uint32_t  BlendColor (uint32_t from, uint32_t to, float amount);
+
     DxuiDpiScaler  m_scaler;
-    bool           m_isLit = false;
+    bool           m_isAnimated   = true;
+    bool           m_hasPress     = false;
+    bool           m_isHeld       = false;
+    int64_t        m_pressStartMs = 0;
+    int64_t        m_lastSeenMs   = 0;
+    float          m_level        = 0.0f;
 };

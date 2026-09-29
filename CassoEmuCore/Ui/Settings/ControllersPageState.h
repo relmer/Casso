@@ -333,8 +333,10 @@ public:
     void                                  UseAutomaticCalibration ();
 
     // What the game port would read from this reading under the edits: the
-    // pending calibration, then the pending mapping and dead zone.
-    GamePortContribution                  ComputeLiveReading (const ControllerSample & sample);
+    // pending calibration, then the pending mapping and dead zone. A rate
+    // binding's paddle moves for `elapsedSeconds`, which the evaluator caps;
+    // a reading taken only for its buttons passes 0 and moves nothing.
+    GamePortContribution                  ComputeLiveReading (const ControllerSample & sample, float elapsedSeconds = MappingEvaluator::kMaxRateStep);
 
     bool                                  IsDirty            () const;
     void                                  Revert             ();
