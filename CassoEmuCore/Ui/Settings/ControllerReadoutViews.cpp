@@ -421,8 +421,14 @@ void ButtonLightView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
     UNREFERENCED_PARAMETER (painter);
 
-    if (!IsVisible() || radius <= ring)
+    if (!IsVisible())
     {
+        return;
+    }
+
+    if (!m_isCircleShown || radius <= ring)
+    {
+        PaintFunMessage (text, theme);
         return;
     }
 

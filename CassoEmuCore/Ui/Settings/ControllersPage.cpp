@@ -672,14 +672,18 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     for (target = kAxisCount; target < kTargetCount; target++)
     {
-        int           tableH    = 0;
-        size_t        light     = target - kAxisCount;
-        bool          isInPlay  = IsTargetShown (target);
-        std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
+        int           tableH      = 0;
+        int           rowMessageX = isJoyport ? columnEnd + gap : messageX;
+        size_t        light       = target - kAxisCount;
+        bool          isInPlay    = IsTargetShown (target);
+        std::wstring  playLabel   = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_lights[light].SetVisible (isInPlay && !isJoyport);
-        m_lights[light].Layout     (MakeRect (pictureX, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
-        m_lights[light].SetMessageBounds (MakeRect (messageX, y, std::max (0, (int) rect.right - pad - messageX), rowH));
+        // The Joyport's art shows fire itself, so there the light is not
+        // drawn and its message follows the Fire table's "+" instead.
+        m_lights[light].SetVisible       (isInPlay);
+        m_lights[light].SetCircleShown   (!isJoyport);
+        m_lights[light].Layout           (MakeRect (pictureX, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
+        m_lights[light].SetMessageBounds (MakeRect (rowMessageX, y, std::max (0, (int) rect.right - pad - rowMessageX), rowH));
 
         m_targetLabel[target].SetVisible   (isInPlay);
         m_targetLabel[target].SetRect      (MakeRect (rowsX, y, labelW, rowH));

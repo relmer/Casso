@@ -93,6 +93,9 @@ public:
     std::wstring  GetFunMessage     () const;
     void          SetMessageBounds  (const RECT & bounds) { m_messageBounds = bounds; }
 
+    // Whether the circle itself is drawn; the message shows either way.
+    void          SetCircleShown    (bool isShown)      { m_isCircleShown = isShown; }
+
     // The list the messages come from, and a pick from it given a random
     // number: never `previous`, so a press never repeats the one before.
     static size_t           GetFunMessageCount ();
@@ -110,12 +113,13 @@ private:
     void             PaintFunMessage (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     DxuiDpiScaler  m_scaler;
-    bool           m_isAnimated   = true;
-    bool           m_hasPress     = false;
-    bool           m_isHeld       = false;
-    int64_t        m_pressStartMs = 0;
-    int64_t        m_lastSeenMs   = 0;
-    float          m_level        = 0.0f;
+    bool           m_isAnimated    = true;
+    bool           m_isCircleShown = true;
+    bool           m_hasPress      = false;
+    bool           m_isHeld        = false;
+    int64_t        m_pressStartMs  = 0;
+    int64_t        m_lastSeenMs    = 0;
+    float          m_level         = 0.0f;
 
     RECT                   m_messageBounds = {};
     std::optional<size_t>  m_message;
