@@ -124,7 +124,7 @@ multiplayer with paddles but only a single player with a joystick.
 
 <table align="center" width="100%">
 <tr>
-  <td valign="top" width="50%" align="center"><img src="Assets/controllers-single.png" alt="The Controllers page in Settings for one player: a VKB Gladiator joystick with its X and Y axes on PDL0 and PDL1, two buttons on PB0 and PB1, a live stick readout, the deadzone slider and automatic calibration" width="100%" /><br /><sub>One player</sub></td>
+  <td valign="top" width="50%" align="center"><img src="Assets/controllers-single.png" alt="The Controllers page in Settings for one player: a VKB Gladiator joystick with its X and Y axes on PDL0 and PDL1, two buttons on PB0 and PB1, a live stick readout, the dead zone slider and automatic calibration" width="100%" /><br /><sub>One player</sub></td>
   <td valign="top" width="50%" align="center"><img src="Assets/controllers-multiplayer.png" alt="The Controllers page in Settings for two players: an Xbox One S controller on joystick 0 and an Xbox Series X|S controller on joystick 1, with the first player's stick mapped to PDL0 and PDL1 and the A button on PB0" width="100%" /><br /><sub>Multiplayer</sub></td>
 </tr>
 </table>

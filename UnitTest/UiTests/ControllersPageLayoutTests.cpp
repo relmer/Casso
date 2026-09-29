@@ -982,4 +982,166 @@ public:
             && banner.GetBounds().top    >= upper->GetBounds().bottom
             && banner.GetBounds().bottom <= lower->GetBounds().top;
     }
+
+
+    //  One of the modes the page lays out differently: the players' entries
+    //  and slots that produce it, and the controller being edited.
+    struct ModeCase
+    {
+        const wchar_t  * pszName = nullptr;
+        PlayerEntries    entries;
+        PlayerSlots      slots;
+        size_t           edited  = 0;
+    };
+
+
+    //  Joystick, Paddle, Two paddles and Joyport.
+    static std::vector<ModeCase> MakeModeCases()
+    {
+        std::vector<ModeCase>  cases (4);
+
+
+
+        cases[0].pszName = L"Joystick";
+        cases[0].slots   = MakeTwoPlaying();
+
+        cases[1].pszName          = L"Paddle";
+        cases[1].entries[0].mode  = PlayerMode::Paddle;
+        cases[1].entries[1].mode  = PlayerMode::Paddle;
+        cases[1].slots            = MakeTwoPlaying();
+        cases[1].slots[0].target  = PlayerAxisTarget::Paddle0;
+        cases[1].slots[1].target  = PlayerAxisTarget::Paddle1;
+        cases[1].edited           = 1;
+
+        cases[2].pszName          = L"Two paddles";
+        cases[2].entries[0].mode  = PlayerMode::TwoPaddles;
+        cases[2].entries[1].mode  = PlayerMode::TwoPaddles;
+        cases[2].slots            = MakeTwoPlaying();
+        cases[2].slots[0].target  = PlayerAxisTarget::Paddles01;
+        cases[2].slots[1].target  = PlayerAxisTarget::Paddles23;
+        cases[2].edited           = 1;
+
+        cases[3].pszName = L"Joyport";
+        cases[3].entries = MakeBesideTheJoyport (PlayerMode::SameAsPlayer1);
+        cases[3].slots   = MakeTwoPlaying();
+        return cases;
+    }
+
+
+    //  The shown label on the same row as `row` and left of it, nearest it,
+    //  or null.
+    static const DxuiLabel * FindLabelBeside (const ControllersPage & page, const RECT & row)
+    {
+        const DxuiLabel  * label = nullptr;
+        const DxuiLabel  * found = nullptr;
+        size_t             i     = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            label = dynamic_cast<const DxuiLabel *> (page.GetChild (i));
+
+            if (label == nullptr || !label->IsVisible() || label->GetBounds().top != row.top || label->GetBounds().right > row.left)
+            {
+                continue;
+            }
+
+            if (found == nullptr || label->GetBounds().right > found->GetBounds().right)
+            {
+                found = label;
+            }
+        }
+
+        return found;
+    }
+
+
+    //  Each target's label sits just left of its first mapping drop-down,
+    //  right-aligned, the page's gap from it, in every mode.
+    TEST_METHOD (TargetLabels_SitJustLeftOfTheirFirstRow_InEveryMode)
+    {
+        constexpr int  kGapPx = 6;
+
+
+
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage                         page;
+            ControllersPageState                    state;
+            std::vector<const DxuiScrollPanel *>    tables;
+            std::vector<const DxuiComboBox *>       rows;
+            const DxuiLabel                       * label = nullptr;
+
+
+
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
+
+            tables = FindTables (page);
+            Assert::IsFalse (tables.empty(), mode.pszName);
+
+            for (const DxuiScrollPanel * table : tables)
+            {
+                rows = FindCombos (*table, kpszPressToAssign);
+                Assert::IsFalse (rows.empty(), mode.pszName);
+
+                label = FindLabelBeside (page, rows[0]->GetBounds());
+
+                Assert::IsNotNull (label, mode.pszName);
+                Assert::AreEqual  (rows[0]->GetBounds().left - kGapPx, label->GetBounds().right, (std::wstring (mode.pszName) + L": " + label->GetText() + L" ends a gap left of its row").c_str());
+                Assert::IsTrue    (label->GetHAlign() == DxuiTextHAlign::Right,                   (std::wstring (mode.pszName) + L": " + label->GetText() + L" is right-aligned").c_str());
+            }
+        }
+    }
+
+
+    //  The dead zone slider sits the page's section gap below the last
+    //  mapping row and the same gap above Calibration, and its track starts
+    //  at the drop-down column's left edge, in every mode.
+    TEST_METHOD (DeadZone_IsCenteredAndAlignedWithTheRowsAbove_InEveryMode)
+    {
+        constexpr int  kSectionGapPx = 14;
+        constexpr int  kHalfGapPx    = 3;     // a table reaches half a gap below its last row
+
+
+
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage                         page;
+            ControllersPageState                    state;
+            std::vector<const DxuiScrollPanel *>    tables;
+            const DxuiLabel                       * deadZone    = nullptr;
+            const DxuiLabel                       * calibration = nullptr;
+            const DxuiSlider                      * slider      = nullptr;
+            const IDxuiControl                    * child       = nullptr;
+            RECT                                    lastTable   = {};
+            size_t                                  i           = 0;
+
+
+
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
+
+            tables      = FindTables (page);
+            deadZone    = FindLabel (page, L"Dead zone:");
+            calibration = FindLabel (page, L"Calibration:");
+
+            Assert::IsFalse   (tables.empty(),  mode.pszName);
+            Assert::IsNotNull (deadZone,        mode.pszName);
+            Assert::IsNotNull (calibration,     mode.pszName);
+
+            lastTable = tables.back()->GetBounds();
+
+            for (i = 0; i < page.GetChildCount() && slider == nullptr; ++i)
+            {
+                child  = page.GetChild (i);
+                slider = dynamic_cast<const DxuiSlider *> (child);
+                slider = (slider != nullptr && slider->GetBounds().top == deadZone->GetBounds().top) ? slider : nullptr;
+            }
+
+            Assert::IsNotNull (slider, mode.pszName);
+            Assert::AreEqual  (kSectionGapPx, (int) (slider->GetBounds().top - (lastTable.bottom - kHalfGapPx)), (std::wstring (mode.pszName) + L": the gap above").c_str());
+            Assert::AreEqual  (kSectionGapPx, (int) (calibration->GetBounds().top - slider->GetBounds().bottom), (std::wstring (mode.pszName) + L": the gap below").c_str());
+            Assert::AreEqual  (lastTable.left, slider->GetBounds().left + DxuiSlider::kTrackInsetDip,              (std::wstring (mode.pszName) + L": the track starts at the drop-downs' edge").c_str());
+        }
+    }
 };

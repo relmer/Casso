@@ -25,7 +25,7 @@ rows need a person, a real controller, or a commercial disk.
 
 | Check | Kind | Result |
 |---|---|---|
-| Threshold on each direction, after the deadzone; diagonal; digital pair; rate binding opens on release; inverted; PB0 fire, PB1/PB2 nothing (`MappingEvaluatorTests`) | automated | pass |
+| Threshold on each direction, after the dead zone; diagonal; digital pair; rate binding opens on release; inverted; PB0 fire, PB1/PB2 nothing (`MappingEvaluatorTests`) | automated | pass |
 | One controller on both jacks; none closes nothing (`ControllerInputServiceTests`) | automated | pass |
 | Jacks by axis owner; Apple keys never close a switch (`GamePortInputMixerTests`) | automated | pass |
 | Picker row position, check state, toggle, absent on the //c (`PaddleSourceRowsTests`) | automated | pass |

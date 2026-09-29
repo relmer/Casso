@@ -20,7 +20,7 @@ All types live in `CassoEmuCore/Controllers/` unless stated. All are plain data 
 
 - Token form: `xinput` for every Xbox-class controller (FR-018a), `dinput:044f:b10a` for the rest.
 - An XInput key always carries vendor and product 0; the real IDs live in `ControllerDeviceInfo::description` for display. Measured reason: one controller reported 045E:02FF over USB and 045E:0B13 over Bluetooth.
-- Equality is field-wise. Used as the key for profiles and deadzone.
+- Equality is field-wise. Used as the key for profiles and dead zone.
 
 ### ControllerUnitKey
 
@@ -31,7 +31,7 @@ All types live in `CassoEmuCore/Controllers/` unless stated. All are plain data 
 | source | enum `Serial`, `InstanceGuid`, `XInputSlot`, `None` | How `unitId` was obtained |
 
 - Token form `<model token>/serial:<unitId>` or `<model token>/guid:<unitId>` for DirectInput, and `xinput/product:<vvvv>:<pppp>` for XInput, with `:<n>` appended from 2 up for a second unit of the same product; a unit with source `None` (a DirectInput unit with no identity, and an XInput unit from a file written before slots) is just its model token. The model part ends at the first `/`, so a serial containing `/` round trips. A bare `xinput` still loads, as an XInput unit with no slot, meaning whichever Xbox-class controller is connected; a slot past 3, a missing slot, a malformed product or an ordinal below 2, `xinput/serial:` and `dinput:.../slot:` are refused. `xinput/slot:<n>`, written before units were keyed by product, still loads: a player slot naming one adopts the unit in that XInput slot the first time one is there, and is saved with its product key. XInput hands out slots in connection order, so a slot key followed the slot rather than the controller, and powering two controllers on in the other order swapped the players. Two controllers of the same product still cannot be told apart and are numbered in slot order.
-- The MODEL token never carries the slot (FR-018a), so profiles, deadzone and calibration stay shared by every Xbox-class controller while two of them are two units.
+- The MODEL token never carries the slot (FR-018a), so profiles, dead zone and calibration stay shared by every Xbox-class controller while two of them are two units.
 - Used as the key for calibration and as the per-machine selection.
 
 ### ControllerDeviceInfo (enumeration result)
@@ -72,7 +72,7 @@ Every connected XInput slot is enumerated as its own device, so two Xbox control
 | hats | `std::array<Byte, 4>` | Bit set of up/down/left/right |
 | connected | `bool` | false produces a rest sample |
 
-## Calibration and deadzone
+## Calibration and dead zone
 
 ### AxisCalibration
 
@@ -108,7 +108,7 @@ Only `User` calibration and the automatic limits persist; the automatic center i
 - An automatic axis reads center until it moves more than `kMovedThreshold` (0.02) from its reading at connect. That covers an enumerated axis with no hardware behind it, pinned at a rail (research R3), and a stick held over while it connects.
 - Calibrations are held by the controller service and written to the global prefs when Casso exits, and only when they changed. An automatic axis is written only once it has shown travel.
 
-### Deadzone
+### Dead zone
 
 Per model: `float` fraction of travel, [0, 0.9]. Defaults and radial/axial rule in R8.
 
@@ -143,7 +143,7 @@ Per model: `float` fraction of travel, [0, 0.9]. Defaults and radial/axial rule 
 | pb1 | `std::vector<ButtonBinding>` | Empty = released |
 | pb2 | `std::vector<ButtonBinding>` | Empty = released; ignored on the //c (R15) |
 
-Evaluation rules (`MappingEvaluator`, pure, given the elapsed time since the previous sample): buttons OR across bindings; an axis takes the binding whose output is furthest from center; digital pair with both directions held reads center. A rate binding owns an accumulator `float` in [0, 255], advanced by `deflection * maxSpeed * elapsedSeconds` after the deadzone and clamped; the accumulator lives in the evaluator, not the profile, and resets to center on selection, profile or machine change.
+Evaluation rules (`MappingEvaluator`, pure, given the elapsed time since the previous sample): buttons OR across bindings; an axis takes the binding whose output is furthest from center; digital pair with both directions held reads center. A rate binding owns an accumulator `float` in [0, 255], advanced by `deflection * maxSpeed * elapsedSeconds` after the dead zone and clamped; the accumulator lives in the evaluator, not the profile, and resets to center on selection, profile or machine change.
 
 Default mapping (`DefaultMapping::For (ControllerModelKey, controls)`): PDL0/PDL1 = axis 0/1 absolute (Xbox: left stick); PB0/PB1 = button 0/1 (Xbox: A/B); PB2 empty. A device lacking a control leaves that target empty.
 
@@ -311,7 +311,7 @@ Inputs: `PlayerEntries`, attached devices, `PlayerOrderLogs`, the previous slots
 | `Evaluate` | R16 ordering and states; R17 held slots and start over; targets from the modes (`GetModeTarget`; per R18 before 2026-09-27, superseded); `Normalize` over the result (FR-036) |
 | `GetPlayerRoute (slots, entries, player, ...)` | The route a player's controller takes, whether or not it is driving: the lone route while it plays alone, else its target's route (FR-039) |
 | `GetDriverRoute (slots, entries, ...)` | The route of the one player driving the port alone, if there is one |
-| `IsRealInput (sample, calibration, deadzone)` | A button or D-pad press, a trigger past its threshold, or any axis outside its deadzone after calibration (R16) |
+| `IsRealInput (sample, calibration, deadzone)` | A button or D-pad press, a trigger past its threshold, or any axis outside its dead zone after calibration (R16) |
 | `IsOnePlaying (slots)` | Exactly one slot `Playing` or `Provisional` (or Player 1 on keys/mouse) and the other `Empty` or `Waiting`, not `Held` |
 | `DescribeAssignment (player, description)` | "Player 1: description"; spec 036 substitutes its Joyport labels here. (Superseded 2026-09-28: `PlayerModeRules::DescribeAssignment (player, description, jacks)` adds "(Joyport left)", "(Joyport right)" or "(Joyport left and right)" after the player.) |
 | `NeedsIdleWatch (entries, slots)` | Whether any Automatic player is `Empty`, `Waiting` or `Provisional`, which turns on R23's watch |

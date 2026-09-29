@@ -34,7 +34,7 @@ public:
     // inactive -- would otherwise jump the paddle across the screen at once.
     static constexpr float  kMaxRateStep = 0.05f;
 
-    // How far past the deadzone PDL0 or PDL1 must be deflected to close a
+    // How far past the dead zone PDL0 or PDL1 must be deflected to close a
     // Joyport direction switch, as a fraction of the travel that remains. An
     // Atari stick's switches close well before the stick reaches its stop.
     static constexpr float  kSwitchThreshold = 0.5f;

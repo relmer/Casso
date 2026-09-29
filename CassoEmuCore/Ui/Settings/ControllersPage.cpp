@@ -119,8 +119,8 @@ ControllersPage::ControllersPage (std::wstring title)
         m_sharedWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);
     }
 
-    Adopt (m_deadzoneLabel);
-    Adopt (m_deadzone);
+    Adopt (m_deadZoneLabel);
+    Adopt (m_deadZone);
     Adopt (m_calibrationLabel);
     Adopt (m_calibrationStatus);
     Adopt (m_calibrate);
@@ -241,11 +241,11 @@ void ControllersPage::SetState (ControllersPageState * state)
         });
     }
 
-    m_deadzone.SetOnChange ([this] (float percent)
+    m_deadZone.SetOnChange ([this] (float percent)
     {
         if (!m_isSyncing && m_state != nullptr)
         {
-            m_state->SetDeadzone (percent / 100.0f);
+            m_state->SetDeadZone (percent / 100.0f);
             MarkDirty (m_state->IsDirty());
         }
     });
@@ -391,7 +391,7 @@ IDxuiTextRenderer * ControllersPage::GetMeasuringRenderer() const
 //  The controller picker across the top, and under it the profile picker
 //  with New, Rename and Delete. Below them the joystick: the stick
 //  circle on the left, and to its right each paddle axis's rows followed by
-//  its options. Then the buttons, each with its light, then the deadzone,
+//  its options. Then the buttons, each with its light, then the dead zone,
 //  calibration and Reset profile.
 //
 //  Row counts change as mappings are added and removed, so everything below
@@ -431,6 +431,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  indent      = scaler.ToPx (s_kChildIndentDp);
     int                  gap         = scaler.ToPx (s_kGapDp);
     int                  sectionGap  = scaler.ToPx (s_kSectionGapDp);
+    int                  trackInset  = scaler.ToPx (DxuiSlider::kTrackInsetDip);
     int                  x           = rect.left + pad;
     int                  y           = rect.top  + pad;
     int                  axesX       = x + stickSize + sectionGap;
@@ -553,8 +554,9 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         bool          isInPlay  = IsTargetShown (target);
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_targetLabel[target].SetVisible (isInPlay);
-        m_targetLabel[target].SetRect    (MakeRect (axesX, axesBottom, labelWidth, rowH));
+        m_targetLabel[target].SetVisible   (isInPlay);
+        m_targetLabel[target].SetRect      (MakeRect (axesX, axesBottom, labelWidth - gap, rowH));
+        m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
 
         // While two play, a row is named for the paddle the guest reads it
         // on: a player holding the second joystick drives PDL2 and PDL3. With
@@ -644,10 +646,11 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
         // With the Joyport attached the button lights are gone, so the label
         // takes their place at the margin rather than indenting for nothing.
-        m_targetLabel[target].SetVisible (isInPlay);
-        m_targetLabel[target].SetRect    (isJoyport ? MakeRect (x, y, labelWidth, rowH)
-                                                    : MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
-        m_targetLabel[target].SetText    (GetRowLabel (target, playLabel, isJoyport));
+        m_targetLabel[target].SetVisible   (isInPlay);
+        m_targetLabel[target].SetRect      (isJoyport ? MakeRect (x, y, labelWidth - gap, rowH)
+                                                      : MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap * 2, rowH));
+        m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+        m_targetLabel[target].SetText      (GetRowLabel (target, playLabel, isJoyport));
 
         tableH = LayOutTable (target, x + labelWidth, y, rowWidth, isInPlay, scaler);
 
@@ -663,14 +666,18 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         y += LayOutSharedWarning (target, x, y, buttonWarnW, text, scaler);
     }
 
-    m_deadzoneLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
-    m_deadzoneLabel.SetText (L"Deadzone:");
-    m_deadzone.SetRect          (MakeRect (x + labelWidth, y, wideWidth, rowH));
-    m_deadzone.SetRange         (0.0f, 90.0f);
-    m_deadzone.SetStep          (1.0f);
-    m_deadzone.SetDecimalPlaces (0);
-    m_deadzone.SetSuffix        (L"%");
-    m_deadzone.SetTickInterval  (10.0f);
+    // A section gap above and below, and the track, not the puck's room
+    // left of it, starting at the drop-down column above.
+    y += sectionGap - gap;
+
+    m_deadZoneLabel.SetRect (MakeRect (x, y, labelWidth - trackInset, rowH));
+    m_deadZoneLabel.SetText (L"Dead zone:");
+    m_deadZone.SetRect          (MakeRect (x + labelWidth - trackInset, y, wideWidth + trackInset, rowH));
+    m_deadZone.SetRange         (0.0f, 90.0f);
+    m_deadZone.SetStep          (1.0f);
+    m_deadZone.SetDecimalPlaces (0);
+    m_deadZone.SetSuffix        (L"%");
+    m_deadZone.SetTickInterval  (10.0f);
     y += rowH + sectionGap;
 
     m_calibrationLabel.SetRect  (MakeRect (x, y, labelWidth, rowH));
@@ -724,8 +731,8 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_speed[target].SetDpi    (dpi);
     }
 
-    m_deadzoneLabel.SetDpi     (dpi);
-    m_deadzone.SetDpi          (dpi);
+    m_deadZoneLabel.SetDpi     (dpi);
+    m_deadZone.SetDpi          (dpi);
     m_calibrationLabel.SetDpi  (dpi);
     m_calibrationStatus.SetDpi (dpi);
     m_calibrate.SetDpi         (dpi);
@@ -1392,8 +1399,8 @@ void ControllersPage::Refresh()
     RefreshAxisOptions();
     RefreshCalibration();
 
-    m_deadzone.SetValue   (m_state->GetDeadzone() * 100.0f);
-    m_deadzone.SetEnabled (selected.has_value());
+    m_deadZone.SetValue   (m_state->GetDeadZone() * 100.0f);
+    m_deadZone.SetEnabled (selected.has_value());
     m_reset.SetEnabled    (selected.has_value());
 
     m_isSyncing = false;

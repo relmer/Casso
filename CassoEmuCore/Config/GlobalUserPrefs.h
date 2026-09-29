@@ -115,7 +115,7 @@ struct GlobalUserPrefs
     std::map<std::string, float>  monitorTilt;
 
     // GAME CONTROLLERS: each DirectInput unit's calibration, and later each
-    // model's profiles and deadzone. Held as the document rather than parsed
+    // model's profiles and dead zone. Held as the document rather than parsed
     // here, so ControllerProfileStore owns its layout and a member this build
     // does not know survives a save. Null when nothing has been saved.
     JsonValue                     controllers;

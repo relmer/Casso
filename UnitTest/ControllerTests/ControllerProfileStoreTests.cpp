@@ -219,7 +219,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (DefaultProfileAndDeadzone_RoundTripThroughTheGlobalPrefsFile)
+        TEST_METHOD (DefaultProfileAndDeadZone_RoundTripThroughTheGlobalPrefsFile)
         {
             InMemoryFileSystem        fs;
             GlobalUserPrefs           saved;
@@ -241,7 +241,7 @@ namespace ControllerTests
             readBack.FromJson (loaded.controllers, rejected);
 
             Assert::IsTrue   (rejected.empty());
-            Assert::AreEqual (0.3f, readBack.models.at (token).deadzone, 0.0001f, L"the model's deadzone comes back");
+            Assert::AreEqual (0.3f, readBack.models.at (token).deadzone, 0.0001f, L"the model's dead zone comes back");
             Assert::IsTrue   (readBack.models.at (token).profiles[0].mapping == MakeFullMapping(),
                 L"every binding comes back: rate response and speed, inversion, a D-pad pair, thresholds, a direction and PB2");
             Assert::IsTrue   (readBack.models.at (token).FindDefaultProfile() != nullptr);
@@ -431,7 +431,7 @@ namespace ControllerTests
             store.GetDefaultSettings (Stick(), ControllerFormFactor::Gamepad, controls, mapping, deadzone);
 
             Assert::IsTrue   (mapping == DefaultMapping::For (Stick(), controls), L"with no Default profile, the default mapping is the Default");
-            Assert::AreEqual (0.4f, deadzone, 0.0001f, L"but the model's own deadzone still applies");
+            Assert::AreEqual (0.4f, deadzone, 0.0001f, L"but the model's own dead zone still applies");
         }
 
 

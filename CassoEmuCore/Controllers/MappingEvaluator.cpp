@@ -58,7 +58,7 @@ GamePortContribution MappingEvaluator::Evaluate (
 //  EvaluatePair
 //
 //  One pair of axis targets, PDL0/PDL1 or PDL2/PDL3, into the contribution.
-//  A pair on the two axes of one stick is shaped with a round deadzone.
+//  A pair on the two axes of one stick is shaped with a round dead zone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -422,7 +422,7 @@ float MappingEvaluator::EvaluateAxis (const ControllerSample & sample, const std
 //  IsOneStick
 //
 //  True when both axes are single absolute bindings on the two axes of one
-//  physical stick, which is when a round deadzone is the right shape. A rate
+//  physical stick, which is when a round dead zone is the right shape. A rate
 //  binding moves one paddle on its own, so each is shaped on its own.
 //
 ////////////////////////////////////////////////////////////////////////////////

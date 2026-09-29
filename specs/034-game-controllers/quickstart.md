@@ -22,7 +22,7 @@ Expected coverage, by contract:
 - [contracts/controller-backend.md](contracts/controller-backend.md): decoders over synthetic DirectInput and XInput states; each read failure observed as disconnected.
 - [contracts/game-port-mixer.md](contracts/game-port-mixer.md): OR of button sources, axis owner switching, no redundant writes.
 - [contracts/prefs-schema.md](contracts/prefs-schema.md): round trip and every rejection rule.
-- Selection policy, calibration state transitions, mapping evaluation, deadzone, profile store, capture-by-press: rules in [data-model.md](data-model.md).
+- Selection policy, calibration state transitions, mapping evaluation, dead zone, profile store, capture-by-press: rules in [data-model.md](data-model.md).
 
 ## 2. Hardware check (do this first)
 

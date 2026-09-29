@@ -77,7 +77,7 @@ enum class CalibrationStep
 //  Edits go to the chosen profile of the selected controller's model, which
 //  starts as the machine's active profile. A name the model has no profile
 //  for edits its Default. A model with nothing saved starts from its built-in
-//  default mapping and deadzone, which becomes its Default profile the moment
+//  default mapping and dead zone, which becomes its Default profile the moment
 //  it is edited. Creating, renaming and deleting profiles is pending too, and
 //  the chosen profile becomes the machine's active profile on OK.
 //
@@ -213,8 +213,8 @@ public:
     std::wstring                   GetTargetPlayLabel (PaddleTarget target) const;
 
     const ControlMapping &                GetMapping         () const;
-    float                                 GetDeadzone        () const;
-    void                                  SetDeadzone        (float deadzone);
+    float                                 GetDeadZone        () const;
+    void                                  SetDeadZone        (float deadZone);
 
     bool                                  IsTargetAvailable  (PaddleTarget target) const;
     std::wstring                          GetUnassignedLabel (PaddleTarget target) const;
@@ -265,7 +265,7 @@ public:
     void                                  DiscardProfileEdits      ();
 
     // Commits the selected model's settings as edited -- every profile's
-    // mapping, the profiles created, renamed and deleted, and the deadzone --
+    // mapping, the profiles created, renamed and deleted, and the dead zone --
     // ahead of OK. `commit` receives every model and calibration as they would
     // stand committed: the other models' pending edits and all pending
     // calibrations left out. The committed model joins the baseline only when
@@ -326,7 +326,7 @@ public:
     void                                  UseAutomaticCalibration ();
 
     // What the game port would read from this reading under the edits: the
-    // pending calibration, then the pending mapping and deadzone.
+    // pending calibration, then the pending mapping and dead zone.
     GamePortContribution                  ComputeLiveReading (const ControllerSample & sample);
 
     bool                                  IsDirty            () const;

@@ -257,7 +257,7 @@ namespace ControllerTests
             MultiplayerSetup      setup  = MakeTwoPlayers (first.unit, second.unit);
 
             Assert::IsFalse (first.unit == second.unit,             L"two Xbox controllers are two units");
-            Assert::IsTrue  (first.unit.model == second.unit.model, L"and one model, so they share profiles and deadzone");
+            Assert::IsTrue  (first.unit.model == second.unit.model, L"and one model, so they share profiles and dead zone");
 
             setup = ControllerSelectionPolicy::Normalize (setup);
 

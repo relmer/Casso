@@ -765,13 +765,13 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (RealInput_AnAxisOutsideItsDeadzone)
+        TEST_METHOD (RealInput_AnAxisOutsideItsDeadZone)
         {
             ControllerSample  sample;
 
             sample.connected = true;
             sample.axes[1]   = -(kDeadzone - kNudge);
-            Assert::IsFalse (PlayerSlotPolicy::IsRealInput (sample, nullptr, kDeadzone), L"an axis just inside its deadzone is at rest");
+            Assert::IsFalse (PlayerSlotPolicy::IsRealInput (sample, nullptr, kDeadzone), L"an axis just inside its dead zone is at rest");
 
             sample.axes[1] = -(kDeadzone + kNudge);
             Assert::IsTrue  (PlayerSlotPolicy::IsRealInput (sample, nullptr, kDeadzone), L"and just outside it is in use");

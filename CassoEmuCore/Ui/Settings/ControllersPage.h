@@ -45,7 +45,7 @@ class DxuiHwndSource;
 //                            in Paddle and Two paddles mode a bar per paddle,
 //                            labeled with its value)
 //      * Buttons            (PB0 .. PB2: a light, and a row per mapping)
-//      * Deadzone, Calibration, Reset profile
+//      * Dead zone, Calibration, Reset profile
 //
 //  ONE DROP-DOWN PER MAPPING. It shows the control assigned, and lists "Press
 //  to assign...", "None" and the controller's controls. A target takes more
@@ -273,8 +273,8 @@ private:
     std::array<DxuiInfoBanner, kTargetCount>  m_sharedWarning;
     std::optional<size_t>                     m_revealedWarning;
 
-    DxuiLabel          m_deadzoneLabel;
-    DxuiSlider         m_deadzone;
+    DxuiLabel          m_deadZoneLabel;
+    DxuiSlider         m_deadZone;
 
     DxuiLabel          m_calibrationLabel;
     DxuiLabel          m_calibrationStatus;

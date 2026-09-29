@@ -179,7 +179,7 @@ public:
 
     void  SetClock (ClockFn clock);
 
-    // Each controller model's saved deadzone and profiles, by model token. A
+    // Each controller model's saved dead zone and profiles, by model token. A
     // controller plays with its model's Default profile from the next time it
     // plays or connects.
     void                                            SetModelSettings (std::map<std::string, ControllerModelSettings> models);

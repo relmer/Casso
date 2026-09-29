@@ -1981,7 +1981,7 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
 //
 //  ResolveUnitLocked
 //
-//  One controller's mapping and deadzone for its active profile of the kind
+//  One controller's mapping and dead zone for its active profile of the kind
 //  it plays. THIS CONTROLLER'S profile, not the machine's: two players on two
 //  pads of one model can each play their own, and two players in different
 //  modes their own kinds. A choice of another kind's profile, which only the
@@ -2017,7 +2017,7 @@ void ControllerInputService::ResolveUnitLocked (
         active.clear();
     }
 
-    // The deadzone belongs to the model, whichever profile is active. With no
+    // The dead zone belongs to the model, whichever profile is active. With no
     // profile chosen for this kind, or one the model no longer has, the
     // controller plays the kind's built-in profile: the Joyport profile for a
     // player in a Joyport jack, Paddles for a player in Paddle mode and the

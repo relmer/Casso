@@ -574,7 +574,7 @@ namespace ControllerTests
             ControlMapping    mapping   = MakeStickMapping();
             ControllerSample  sample    = MakeSample();
 
-            //  0.7 raw is 0.4 of the travel beyond a 0.5 deadzone: short of it.
+            //  0.7 raw is 0.4 of the travel beyond a 0.5 dead zone: short of it.
             sample.axes[0] = 0.7f;
             Assert::IsFalse (IsClosed (evaluator.Evaluate (sample, mapping, kDeadzone), JoystickSwitch::Right));
 
@@ -616,7 +616,7 @@ namespace ControllerTests
 
             sample.hats[0] = ControllerSample::kHatLeft;
             result = evaluator.Evaluate (sample, mapping, 0.9f);
-            Assert::IsTrue (IsClosed (result, JoystickSwitch::Left), L"a D-pad press needs no threshold, even under a large deadzone");
+            Assert::IsTrue (IsClosed (result, JoystickSwitch::Left), L"a D-pad press needs no threshold, even under a large dead zone");
 
             sample.hats[0] = ControllerSample::kHatLeft | ControllerSample::kHatRight;
             result = evaluator.Evaluate (sample, mapping, kNoDeadzone);

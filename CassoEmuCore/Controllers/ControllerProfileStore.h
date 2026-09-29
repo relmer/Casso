@@ -139,7 +139,7 @@ enum class ProfileSource
 //
 //  ControllerModelSettings
 //
-//  What is kept for every unit of one controller model: its deadzone and its
+//  What is kept for every unit of one controller model: its dead zone and its
 //  profiles. Names are compared ignoring case, and a name is trimmed of
 //  surrounding whitespace before it is checked or stored.
 //
@@ -279,7 +279,7 @@ public:
     void       FromJson (const JsonValue & controllers, std::vector<std::string> & outRejected);
     JsonValue  ToJson   (const JsonValue & controllers) const;
 
-    // The mapping and deadzone a controller of this model plays with: its
+    // The mapping and dead zone a controller of this model plays with: its
     // saved Default profile when it has one, and the built-in default
     // otherwise.
     void       GetDefaultSettings (const ControllerModelKey        & model,
@@ -300,7 +300,7 @@ public:
     // missing, in which case the caller plays the model's Default.
     const ControllerProfile *  FindProfile (const std::string & modelToken, const std::string & name) const;
 
-    // The model's settings, added with the default deadzone when the model
+    // The model's settings, added with the default dead zone when the model
     // has none, and always holding a Default profile.
     ControllerModelSettings &  GetOrCreateModel (const ControllerModelKey      & model,
                                                  ControllerFormFactor            formFactor,

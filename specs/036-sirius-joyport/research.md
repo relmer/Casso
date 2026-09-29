@@ -111,7 +111,7 @@ kept as written.
 
 - **Decision**: `MappingEvaluator::Evaluate` also fills a new
   `GamePortContribution::switches` field (`JoystickSwitches`, five bits). It
-  is computed from the **shaped** PDL0 and PDL1 deflections (after deadzone and
+  is computed from the **shaped** PDL0 and PDL1 deflections (after dead zone and
   calibration, before `ToAxisPaddle`) against `kSwitchThreshold = 0.5f`, and
   from the PB0 bindings for fire.
 - **Rationale**:
@@ -125,7 +125,7 @@ kept as written.
     directions held already shape to 0, which closes neither (FR-007).
   - Each axis is judged on its own, so a diagonal closes two switches (FR-005).
     The threshold is on each axis's shaped value, not on the radius.
-  - 0.5 is half the travel beyond the deadzone, which is well short of full
+  - 0.5 is half the travel beyond the dead zone, which is well short of full
     deflection (FR-006, spec Assumptions).
 - **Alternatives considered**: a threshold on the paddle byte (below 64, above
   191). Correct for Absolute bindings only; rejected because of Rate bindings.

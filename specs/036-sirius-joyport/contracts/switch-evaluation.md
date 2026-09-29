@@ -12,7 +12,7 @@ static constexpr float kSwitchThreshold = 0.5f;   // of the shaped deflection
 `Evaluate` fills `GamePortContribution::switches` on every call, whatever the
 machine or attach state:
 
-- PDL0's shaped value (after deadzone, calibration and inversion, before
+- PDL0's shaped value (after dead zone, calibration and inversion, before
   `ToAxisPaddle`) `<= -kSwitchThreshold` closes Left; `>= +kSwitchThreshold`
   closes Right. PDL1 does the same for Up and Down.
 - The shaped value is the deflection, for Rate bindings too, so a rate-bound

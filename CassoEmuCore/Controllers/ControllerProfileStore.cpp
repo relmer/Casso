@@ -1356,7 +1356,7 @@ bool ControllerProfileStore::TryAdoptLegacyProfile (
 //
 //  One model at a time. A model whose token cannot be read is dropped whole,
 //  since there is no model to rebuild. A model whose entry cannot be read is
-//  reported and rebuilt empty, which leaves it the built-in deadzone and a
+//  reported and rebuilt empty, which leaves it the built-in dead zone and a
 //  Default recreated from the default mapping. Within a readable model, each
 //  profile stands or falls on its own, and a later profile whose name matches
 //  an earlier one, ignoring case, is dropped. Only the first profile marked

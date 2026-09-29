@@ -3294,7 +3294,7 @@ void EmulatorShell::TraceControllerState()
     swprintf_s (line,
         L"[controller] devices=%zu sel=%d xinput=%d "
         L"read=0x%08X connected=%d mapping=%d appActive=%d submit=%d "
-        L"paddle=%d,%d buttons=%d%d%d deadzone=%.2f owner=%d\n",
+        L"paddle=%d,%d buttons=%d%d%d deadZone=%.2f owner=%d\n",
         snapshot.devices.size(),
         tick.hasPlayerOne, tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
         tick.hasMapping, tick.isAppActive, tick.didSubmit,

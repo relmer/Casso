@@ -636,8 +636,8 @@ std::array<PlayerAxisTarget, PlayerSlotPolicy::kPlayerCount> PlayerSlotPolicy::G
 //  IsRealInput
 //
 //  A controller counts as used on a button or D-pad press, a trigger past the
-//  point where it counts as a button, or any axis outside its deadzone once
-//  calibrated. The deadzone is what already defines rest for the controller,
+//  point where it counts as a button, or any axis outside its dead zone once
+//  calibrated. The dead zone is what already defines rest for the controller,
 //  so the same edge that moves a game's paddle is the one that claims a slot.
 //
 ////////////////////////////////////////////////////////////////////////////////

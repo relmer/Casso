@@ -158,7 +158,7 @@ namespace ControllerTests
 
             page.Load ({ MakeStick() }, models, calibrations, true);
             page.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, 2 } });
-            page.SetDeadzone (0.3f);
+            page.SetDeadZone (0.3f);
 
             Assert::IsTrue (page.IsDirty(), L"the page knows it has changes");
             Assert::IsTrue (models.empty(), L"but the settings it was opened with are copies, so nothing is applied yet");
@@ -189,13 +189,13 @@ namespace ControllerTests
             saved[token] = user;
 
             page.Load ({ MakeStick() }, {}, saved, true);
-            page.SetDeadzone (0.5f);
+            page.SetDeadZone (0.5f);
             page.UseAutomaticCalibration();
             page.Revert();
 
             Assert::IsFalse (page.IsDirty());
             Assert::IsTrue  (page.GetCalibrations().at (token) == user, L"a calibration discarded on the page comes back on Cancel");
-            Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), page.GetDeadzone(), 0.0001f);
+            Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), page.GetDeadZone(), 0.0001f);
         }
 
 
@@ -389,12 +389,12 @@ namespace ControllerTests
             ControllersPageState  page;
 
             page.Load ({ MakeStick() }, {}, {}, true);
-            page.SetDeadzone (0.4f);
+            page.SetDeadZone (0.4f);
             page.UpdateDevices ({});
 
             Assert::AreEqual (size_t (1), page.GetControllers().size(), L"its row stays");
             Assert::IsFalse  (page.GetControllers()[0].isConnected,     L"marked not connected");
-            Assert::AreEqual (0.4f, page.GetDeadzone(), 0.0001f,        L"and the edit is still there");
+            Assert::AreEqual (0.4f, page.GetDeadZone(), 0.0001f,        L"and the edit is still there");
 
             page.UpdateDevices ({ MakeStick() });
             Assert::IsTrue (page.GetControllers()[0].isConnected, L"plugged back in, it is the same row");
@@ -408,11 +408,11 @@ namespace ControllerTests
             page.Load ({ MakeStick() }, {}, {}, true);
             page.CreateProfile ("Game", ProfileSource::DefaultMapping, std::string());
             page.RemoveBinding (PaddleTarget::Pb0, 0);
-            page.SetDeadzone (0.6f);
+            page.SetDeadZone (0.6f);
             page.ResetProfile();
 
             Assert::IsTrue   (page.GetMapping() == DefaultMapping::For (MakeStick().unit.model, MakeStick().controls), L"the edited profile is back to the default mapping");
-            Assert::AreEqual (0.6f, page.GetDeadzone(), 0.0001f, L"the deadzone belongs to the model, not the profile");
+            Assert::AreEqual (0.6f, page.GetDeadZone(), 0.0001f, L"the dead zone belongs to the model, not the profile");
 
             page.RemoveBinding (PaddleTarget::Pb1, 0);
             page.SelectProfile ("Default");
@@ -482,12 +482,12 @@ namespace ControllerTests
             ControllersPageState  page;
 
             page.Load ({ MakeStick() }, {}, {}, true);
-            page.SetDeadzone (0.3f);
+            page.SetDeadZone (0.3f);
             page.MarkCommitted();
-            page.SetDeadzone (0.5f);
+            page.SetDeadZone (0.5f);
             page.Revert();
 
-            Assert::AreEqual (0.3f, page.GetDeadzone(), 0.0001f, L"Cancel after an Apply goes back to what was applied");
+            Assert::AreEqual (0.3f, page.GetDeadZone(), 0.0001f, L"Cancel after an Apply goes back to what was applied");
         }
 
 

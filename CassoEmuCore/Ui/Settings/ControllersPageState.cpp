@@ -1463,11 +1463,11 @@ const ControlMapping & ControllersPageState::GetMapping() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetDeadzone
+//  GetDeadZone
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float ControllersPageState::GetDeadzone() const
+float ControllersPageState::GetDeadZone() const
 {
     const ControllerModelSettings *  settings = FindSelectedModel();
     const ControllerEntry *          selected = GetSelected();
@@ -1488,22 +1488,22 @@ float ControllersPageState::GetDeadzone() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDeadzone
+//  SetDeadZone
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::SetDeadzone (float deadzone)
+void ControllersPageState::SetDeadZone (float deadZone)
 {
     ControllerModelSettings *  settings = EnsureSelectedModel();
 
 
 
-    if (settings == nullptr || !std::isfinite (deadzone))
+    if (settings == nullptr || !std::isfinite (deadZone))
     {
         return;
     }
 
-    settings->deadzone = std::clamp (deadzone, 0.0f, DeadzoneShaper::kMaxDeadzone);
+    settings->deadzone = std::clamp (deadZone, 0.0f, DeadzoneShaper::kMaxDeadzone);
 }
 
 
@@ -2194,7 +2194,7 @@ ProfileEditResult ControllersPageState::DeleteProfile()
 //
 //  The edited profile back to the built-in mapping (FR-024): each built-in
 //  profile to its own, and a user's to its mode's built-in profile's. Other
-//  profiles and the model's deadzone are left alone.
+//  profiles and the model's dead zone are left alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2317,7 +2317,7 @@ void ControllersPageState::DiscardProfileEdits()
 //  SaveProfileEdits
 //
 //  The whole model is committed rather than the edited profile's mapping
-//  alone. Profile names and the deadzone live in the same model settings, so
+//  alone. Profile names and the dead zone live in the same model settings, so
 //  committing part of it would leave a baseline matching neither the page nor
 //  the prefs file: a pending rename would revert to two profiles. A model
 //  with no settings entry as edited is dropped from the committed set.
@@ -3158,7 +3158,7 @@ GamePortContribution ControllersPageState::ComputeLiveReading (const ControllerS
         }
     }
 
-    return m_liveEvaluator.Evaluate (calibrated, GetMapping(), GetDeadzone(), MappingEvaluator::kMaxRateStep);
+    return m_liveEvaluator.Evaluate (calibrated, GetMapping(), GetDeadZone(), MappingEvaluator::kMaxRateStep);
 }
 
 
