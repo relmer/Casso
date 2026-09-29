@@ -101,5 +101,24 @@ namespace DxuiTests
 
             Assert::AreEqual (std::wstring (L"Paddle"), PaintSelected (combo, kNarrowPx), L"an item that fits is untouched");
         }
+
+
+        //  The width the closed box needs for its longest item: the text
+        //  inset, the item, the inset again before the arrow, and the arrow
+        //  with its margin, 8 + 12 * 7 + 8 + 10 + 10 at 96 DPI for
+        //  "Paddle speed".
+        TEST_METHOD (FitWidth_IsTheLongestItemBesideTheArrow)
+        {
+            constexpr float       kExpectedPx = 120.0f;
+            DxuiComboBox          combo;
+            MockDxuiTextRenderer  text;
+
+
+
+            combo.SetDpi   (kDpi);
+            combo.SetItems ({ L"Position", L"Paddle speed" });
+
+            Assert::AreEqual (kExpectedPx, combo.GetFitWidthPx (text), 0.001f);
+        }
     };
 }

@@ -732,6 +732,9 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 //  laid out, so when the first pass changes the scroll range, the pages are
 //  placed a second time at the corrected position.
 //
+//  Each page is also told how wide its rect would be at the design width,
+//  for a page that stretches with a wider window.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPropertySheet::LayoutPages (const RECT & pageAreaPx, const DxuiDpiScaler & scaler)
@@ -747,11 +750,19 @@ void DxuiPropertySheet::LayoutPages (const RECT & pageAreaPx, const DxuiDpiScale
 
 
 
-    m_pageAreaPx = pageAreaPx;
+    m_pageAreaPx        = pageAreaPx;
+    m_designPageWidthPx = 0;
 
     if (m_designHeightDip > 0 && IsCreated() && GetClientRect (GetHwnd(), &client) != FALSE)
     {
         deficit = scaler.ToPx (m_designHeightDip) - (client.bottom - client.top);
+    }
+
+    // The page area is the client less fixed insets, so at the design width
+    // it is narrower by the same amount the client is.
+    if (m_designWidthDip > 0 && IsCreated() && GetClientRect (GetHwnd(), &client) != FALSE)
+    {
+        m_designPageWidthPx = (pageAreaPx.right - pageAreaPx.left) - ((client.right - client.left) - scaler.ToPx (m_designWidthDip));
     }
 
     m_designContentPx = viewH + std::max (deficit, 0);
@@ -805,8 +816,9 @@ void DxuiPropertySheet::PlacePages (const DxuiDpiScaler & scaler)
     {
         pageRect.bottom = pageRect.top + std::max (m_designContentPx, m_pages[i]->GetContentHeightPx());
 
-        m_pages[i]->SetViewport (m_scrollable ? &m_viewportPx : nullptr);
-        m_pages[i]->Layout      (pageRect, scaler);
+        m_pages[i]->SetViewport      (m_scrollable ? &m_viewportPx : nullptr);
+        m_pages[i]->SetDesignWidthPx (m_designPageWidthPx);
+        m_pages[i]->Layout           (pageRect, scaler);
     }
 }
 

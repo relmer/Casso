@@ -292,13 +292,15 @@ public:
 
 
     //  The two drop-downs of each player's row reach the right edge of the
-    //  Profile row's Delete... at the design width, and stretch with a wider
-    //  page, the entry keeping the larger share. Each shortens a label too
-    //  long for it in the middle, so its end stays visible.
+    //  Profile row's Delete... at the design width, and stretch with a page
+    //  wider than that by as much, the entry keeping the larger share,
+    //  without raising the content width the sheet may grow to. Each
+    //  shortens a label too long for it in the middle, so its end stays
+    //  visible.
     TEST_METHOD (PlayerRows_StretchToTheProfileRowAndWithTheSheet)
     {
-        constexpr int          kDesignRightPx = kLeftPx + 600;
-        constexpr int          kWideRightPx   = 1000;
+        constexpr int          kDesignRightPx = kRightPx;
+        constexpr int          kWideRightPx   = kRightPx + 240;
         ControllersPage        narrow;
         ControllersPage        wide;
         ControllersPageState   narrowState;
@@ -309,6 +311,9 @@ public:
         int                    narrowEntry    = 0;
 
 
+
+        narrow.SetDesignWidthPx (kDesignRightPx - kLeftPx);
+        wide.SetDesignWidthPx   (kDesignRightPx - kLeftPx);
 
         LayOutPage (narrow, narrowState, PlayerEntries(), PlayerSlots(), 0, kDesignRightPx);
         LayOutPage (wide,   wideState,   PlayerEntries(), PlayerSlots(), 0, kWideRightPx);
@@ -327,8 +332,10 @@ public:
         mode  = FindCombos (wide, L"Joystick")[0];
         entry = FindCombos (wide, L"Automatic")[0];
 
-        Assert::AreEqual (kWideRightPx - kPagePadPx, (int) mode->GetBounds().right, L"a wider page stretches the row to its padding");
+        Assert::AreEqual ((int) deleteButton->GetBounds().right + (kWideRightPx - kDesignRightPx), (int) mode->GetBounds().right,
+                          L"a wider page stretches the row by as much");
         Assert::IsTrue   (entry->GetBounds().right - entry->GetBounds().left > narrowEntry, L"and the entry with it");
+        Assert::AreEqual (narrow.GetContentWidthPx(), wide.GetContentWidthPx(), L"and the content width stays the design one");
     }
 
 
@@ -411,6 +418,32 @@ public:
         Assert::AreEqual (kLeft,               PaddleBarsView::GetMarkX (kLeft, kWidth, 0),    0.001f, L"0 at the left end");
         Assert::AreEqual (kLeft + kWidth,      PaddleBarsView::GetMarkX (kLeft, kWidth, 255),  0.001f, L"255 at the right");
         Assert::AreEqual (kLeft + (float) kMid, PaddleBarsView::GetMarkX (kLeft, kWidth, kMid), 0.001f, L"and in between in proportion");
+    }
+
+
+    //  The Position / Paddle speed drop-down beside Invert is wide enough
+    //  for "Paddle speed" and its arrow, and still ends where the mapping
+    //  drop-down above it ends; Invert takes what is left.
+    TEST_METHOD (ResponseDropDown_FitsPaddleSpeedBesideItsArrow)
+    {
+        ControllersPage          page;
+        ControllersPageState     state;
+        MockDxuiTextRenderer     text;
+        const DxuiComboBox     * response = nullptr;
+        const DxuiComboBox     * mapping  = nullptr;
+        float                    fit      = 0.0f;
+
+
+
+        page.SetTextRenderer (&text);
+        LayOutPage (page, state);
+
+        response = FindCombos (page, L"Position")[0];
+        mapping  = FindCombos (page, kpszPressToAssign)[0];
+        fit      = response->GetFitWidthPx (text);
+
+        Assert::IsTrue   ((float) (response->GetBounds().right - response->GetBounds().left) >= fit, L"Paddle speed fits beside the arrow");
+        Assert::AreEqual ((int) mapping->GetBounds().right, (int) response->GetBounds().right, L"right-aligned with the mapping drop-down");
     }
 
 

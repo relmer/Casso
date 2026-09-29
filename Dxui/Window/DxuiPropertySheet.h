@@ -226,6 +226,7 @@ private:
     // m_contentPx is the active page's, which is taller when its content is.
     int                              m_designHeightDip   = 0;
     int                              m_designWidthDip    = 0;
+    int                              m_designPageWidthPx = 0;
     bool                             m_scrollable        = false;
     int                              m_scrollPosPx       = 0;
     int                              m_designContentPx   = 0;

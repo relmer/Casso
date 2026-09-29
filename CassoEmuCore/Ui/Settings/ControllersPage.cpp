@@ -444,7 +444,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  indent      = scaler.ToPx (s_kChildIndentDp);
     int                  gap         = scaler.ToPx (s_kGapDp);
     int                  sectionGap  = scaler.ToPx (s_kSectionGapDp);
-    int                  modeWidth   = scaler.ToPx (s_kPlayerModeWidthDp);
     int                  x           = rect.left + pad;
     int                  y           = rect.top  + pad;
     int                  axesX       = x + stickSize + sectionGap;
@@ -455,13 +454,12 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  axisWarnW   = labelWidth + rowWidth + gap + optionWidth + addWidth;
     int                  buttonWarnW = wideWidth + labelWidth + buttonWidth;
     int                  profileEnd  = x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2 + profileBtnW;
-    int                  rowsEnd     = std::max (profileEnd, (int) rect.right - pad);
-    int                  rowsWidth   = rowsEnd - (x + labelWidth) - gap;
-    int                  entryWidth  = rowsWidth * rowWidth / (rowWidth + modeWidth);
-    int                  modeX       = x + labelWidth + entryWidth + gap;
+    int                  stretch     = GetDesignWidthPx() > 0 ? std::max (0, (int) (rect.right - rect.left) - GetDesignWidthPx()) : 0;
     bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool                 isJoyport   = IsJoyportMode();
     bool                 isPaddles   = !isJoyport && IsPaddlesMode();
+    int                  responseW   = 0;
+    int                  responseX   = 0;
     size_t               target      = 0;
     size_t               player      = 0;
     size_t               row         = 0;
@@ -480,14 +478,14 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // has a warning under its row, as wide as the row's drop-downs.
     for (player = 0; player < kPlayerCount; player++)
     {
-        int           warnW   = rowsWidth + gap;
+        int           warnW   = profileEnd - (x + labelWidth);
         int           warnH   = 0;
         std::wstring  warning = m_state != nullptr ? m_state->GetButtonsCutNotice (player) : std::wstring();
 
         m_playerLabel[player].SetRect (MakeRect (x, y, labelWidth, rowH));
         m_playerLabel[player].SetText (player == 0 ? L"Player 1:" : L"Player 2:");
-        m_playerEntry[player].SetRect (MakeRect (x + labelWidth, y, entryWidth, rowH));
-        m_playerMode[player].SetRect  (MakeRect (modeX, y, rowsEnd - modeX, rowH));
+        m_playerEntry[player].SetRect (MakeRect (x + labelWidth, y, 0, rowH));
+        m_playerMode[player].SetRect  (MakeRect (x + labelWidth, y, 0, rowH));
 
         y += playerStep;
 
@@ -598,20 +596,33 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
         axesBottom += (int) shown * (rowH + gap);
 
-        m_invert[target].SetVisible (true);
-        m_invert[target].SetRect    (MakeRect (axesX + labelWidth + indent, axesBottom, optionWidth - indent, rowH));
-        m_invert[target].SetLabel   (L"Invert");
-
         // Right-aligned with the mapping drop-down above it: the two option
         // widths and the row width are the same span in DIPs, but each is
         // scaled to pixels on its own, so the rounding left the edges a pixel
         // or two apart. Taking the remainder of the row lands it exactly.
-        // Position or paddle speed decides the paddle value only. A Joyport
-        // switch follows the stick's deflection either way, so the choice and
-        // its speed are not on the page while one is attached.
+        // It is widened, leftward, to show its longest item whole beside its
+        // arrow, and Invert takes what is left. Position or paddle speed
+        // decides the paddle value only. A Joyport switch follows the stick's
+        // deflection either way, so the choice and its speed are not on the
+        // page while one is attached.
+        m_response[target].SetItems ({ L"Position", L"Paddle speed" });
+        m_response[target].SetDpi   (dpi);
+
+        responseW = rowWidth - optionWidth;
+
+        if (text != nullptr)
+        {
+            responseW = std::max (responseW, (int) std::ceil (m_response[target].GetFitWidthPx (*text)));
+        }
+
+        responseX = axesX + labelWidth + rowWidth - responseW;
+
+        m_invert[target].SetVisible (true);
+        m_invert[target].SetRect    (MakeRect (axesX + labelWidth + indent, axesBottom, responseX - (axesX + labelWidth + indent), rowH));
+        m_invert[target].SetLabel   (L"Invert");
+
         m_response[target].SetVisible (!isJoyport);
-        m_response[target].SetRect    (MakeRect (axesX + labelWidth + optionWidth, axesBottom, rowWidth - optionWidth, rowH));
-        m_response[target].SetItems   ({ L"Position", L"Paddle speed" });
+        m_response[target].SetRect    (MakeRect (responseX, axesBottom, responseW, rowH));
 
         m_speed[target].SetVisible (!isJoyport);
 
@@ -747,9 +758,52 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     RebuildChoices();
     Refresh();
 
+    // The content width is taken with the player rows at their design
+    // extent, so stretching them never raises the width the sheet may grow
+    // to.
+    StretchPlayerRows    (x + labelWidth, profileEnd, gap, scaler);
     DxuiPanel::SetBounds (rect);
     SetContentWidthPx    (GetRightmostChildEdgePx() + pad - rect.left);
+    StretchPlayerRows    (x + labelWidth, profileEnd + stretch, gap, scaler);
     SetContentHeightPx   (contentH);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StretchPlayerRows
+//
+//  Each player's entry and mode drop-downs, from `left` to `right`, split in
+//  the proportion of their design widths, and the warning under a player
+//  across the same span. Only the widths change; Layout has placed the rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::StretchPlayerRows (int left, int right, int gap, const DxuiDpiScaler & scaler)
+{
+    int     entryDesign = scaler.ToPx (s_kRowWidthDp);
+    int     modeDesign  = scaler.ToPx (s_kPlayerModeWidthDp);
+    int     entryWidth  = (right - left - gap) * entryDesign / (entryDesign + modeDesign);
+    size_t  player      = 0;
+
+
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        RECT  entry   = m_playerEntry[player].GetRect();
+        RECT  warning = m_playerWarning[player].GetBounds();
+
+        m_playerEntry[player].SetRect (MakeRect (left, entry.top, entryWidth, entry.bottom - entry.top));
+        m_playerMode[player].SetRect  (MakeRect (left + entryWidth + gap, entry.top, right - (left + entryWidth + gap), entry.bottom - entry.top));
+
+        if (m_isWarningShown[player])
+        {
+            m_playerWarning[player].SetRect (MakeRect (left, warning.top, right - left, warning.bottom - warning.top));
+        }
+    }
 }
 
 

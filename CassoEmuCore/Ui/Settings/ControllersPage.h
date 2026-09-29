@@ -154,6 +154,7 @@ private:
     void                 RebuildChoices     ();
     void                 RefreshRows        ();
     void                 RefreshPlayers     ();
+    void                 StretchPlayerRows  (int left, int right, int gap, const DxuiDpiScaler & scaler);
     void                 OnPlayerEntrySelect  (size_t player, int item);
     void                 OnPlayerModeSelect   (size_t player, int item);
     void                 ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);

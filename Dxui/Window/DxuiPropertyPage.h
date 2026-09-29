@@ -75,6 +75,16 @@ public:
     //
     void  SetContentWidthPx         (int widthPx) { m_contentWidthPx = widthPx; }
     int   GetContentWidthPx         () const { return m_contentWidthPx; }
+
+    //
+    //  How wide the rect the page is laid out in would be at the sheet's
+    //  design size, in pixels, or 0 when the sheet has none. The sheet sets
+    //  it before each layout; a page that stretches with a wider sheet
+    //  measures the stretch from it, and keeps what it reports as its content
+    //  width to what it shows at the design width.
+    //
+    void  SetDesignWidthPx          (int widthPx) { m_designWidthPx = widthPx; }
+    int   GetDesignWidthPx          () const { return m_designWidthPx; }
     void  SetOnContentHeightChanged (std::function<void()> fn) { m_onContentHeightChanged = std::move (fn); }
 
     //
@@ -104,6 +114,7 @@ protected:
     RECT                   m_viewportPx      = {};
     int                    m_contentHeightPx = 0;
     int                    m_contentWidthPx  = 0;
+    int                    m_designWidthPx   = 0;
     std::function<void()>  m_onContentHeightChanged;
     std::function<void (const RECT &)>  m_onRevealRequested;
 };
