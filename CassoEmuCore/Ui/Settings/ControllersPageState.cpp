@@ -431,13 +431,26 @@ void ControllersPageState::RetargetActiveProfiles (const std::string & modelToke
 
 void ControllersPageState::UpdateDevices (const std::vector<ControllerDeviceInfo> & devices)
 {
+    std::optional<ControllerUnitKey>  selectedUnit;
+    std::optional<size_t>             stillSelected;
+
+
+
     m_devices = devices;
 
-    for (ControllerEntry & entry : m_controllers)
+    // The edited profile goes into the pending prefs first, so a controller
+    // that leaves keeps its edits for when it comes back.
+    if (m_selected.has_value() && m_selected.value() < m_controllers.size())
     {
-        entry.isConnected = std::any_of (devices.begin(), devices.end(),
-            [&entry] (const ControllerDeviceInfo & device) { return device.unit == entry.unit; });
+        StoreEditedProfile();
+        selectedUnit = m_controllers[m_selected.value()].unit;
     }
+
+    std::erase_if (m_controllers, [&devices] (const ControllerEntry & entry)
+    {
+        return std::none_of (devices.begin(), devices.end(),
+            [&entry] (const ControllerDeviceInfo & device) { return device.unit == entry.unit; });
+    });
 
     for (const ControllerDeviceInfo & device : devices)
     {
@@ -446,13 +459,42 @@ void ControllersPageState::UpdateDevices (const std::vector<ControllerDeviceInfo
 
         if (!isKnown)
         {
-            m_controllers.push_back ({ device.unit, device.description, device.controls, device.formFactor, true });
+            m_controllers.push_back ({ device.unit, device.description, device.controls, device.formFactor });
         }
     }
 
-    if (!m_selected.has_value() && !m_controllers.empty())
+    if (selectedUnit.has_value())
+    {
+        stillSelected = FindController (selectedUnit.value());
+    }
+
+    if (stillSelected.has_value())
+    {
+        m_selected = stillSelected;
+        return;
+    }
+
+    // The edited controller left, or none was edited: the page moves to the
+    // first attached controller, or to none, as it would on opening. A
+    // capture or a calibration belonged to the controller that left.
+    if (selectedUnit.has_value())
+    {
+        m_capture.Cancel();
+        m_calibrationStep = CalibrationStep::None;
+        m_liveEvaluator.ResetRate();
+    }
+
+    m_selected.reset();
+
+    if (!m_controllers.empty())
     {
         m_selected = 0;
+    }
+
+    if (selectedUnit.has_value() || m_selected.has_value())
+    {
+        m_profileMode = GetEditedPlayerProfileMode();
+        LoadEditedProfile();
     }
 }
 

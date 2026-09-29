@@ -1587,7 +1587,7 @@ void ControllersPage::Refresh()
         }
 
         m_editingIndices.push_back (index);
-        names.push_back (entry.isConnected ? entry.description : entry.description + L" (not connected)");
+        names.push_back (entry.description);
     }
 
     if (names.empty())

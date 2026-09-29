@@ -456,20 +456,35 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (AControllerUnpluggedWhileOpen_KeepsItsEditsAndShowsDisconnected)
+        TEST_METHOD (AControllerUnpluggedWhileOpen_LeavesTheListAndKeepsItsEdits)
         {
             ControllersPageState  page;
 
             page.Load ({ MakeStick() }, {}, {}, true);
             page.SetDeadZone (0.4f);
+            page.BeginCapture (PaddleTarget::Pdl0, Rest(), 0);
             page.UpdateDevices ({});
 
-            Assert::AreEqual (size_t (1), page.GetControllers().size(), L"its row stays");
-            Assert::IsFalse  (page.GetControllers()[0].isConnected,     L"marked not connected");
-            Assert::AreEqual (0.4f, page.GetDeadZone(), 0.0001f,        L"and the edit is still there");
+            Assert::IsTrue  (page.GetControllers().empty(),     L"it leaves the list, as if the page had opened without it");
+            Assert::IsFalse (page.GetSelectedIndex().has_value(), L"nothing is left to edit");
+            Assert::IsFalse (page.IsCapturing(),                L"the capture on it is canceled");
 
             page.UpdateDevices ({ MakeStick() });
-            Assert::IsTrue (page.GetControllers()[0].isConnected, L"plugged back in, it is the same row");
+            Assert::IsTrue   (page.GetSelectedIndex() == std::optional<size_t> (0), L"plugged back in, it is edited again");
+            Assert::AreEqual (0.4f, page.GetDeadZone(), 0.0001f,                     L"with its edit still there");
+        }
+
+
+        TEST_METHOD (TheEditedControllerUnpluggedWhileOpen_MovesTheSelectionToAnAttachedOne)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeXbox(), MakeStick() }, {}, {}, true, std::string(), MakeStick().unit);
+            page.UpdateDevices ({ MakeXbox() });
+
+            Assert::AreEqual (size_t (1), page.GetControllers().size());
+            Assert::IsTrue   (page.GetSelectedIndex() == std::optional<size_t> (0));
+            Assert::IsTrue   (page.GetControllers()[0].unit == MakeXbox().unit);
         }
 
 

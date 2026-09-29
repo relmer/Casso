@@ -92,8 +92,7 @@ public:
         ControllerUnitKey       unit;
         std::wstring            description;
         std::vector<ControlId>  controls;
-        ControllerFormFactor    formFactor  = ControllerFormFactor::Gamepad;
-        bool                    isConnected = true;
+        ControllerFormFactor    formFactor = ControllerFormFactor::Gamepad;
     };
 
     // The page opens. `hasPb2` is false on a machine whose $C063 is not a
@@ -124,9 +123,10 @@ public:
     const std::wstring &  GetMachineName () const                    { return m_machineName; }
 
 
-    // Controllers came or went while the page is open. One that left keeps
-    // its row and its edits, shown as not connected, so unplugging a cable by
-    // accident does not throw away the user's work.
+    // Controllers came or went while the page is open. One that left drops
+    // out of the list, as if the page had opened without it, and the page
+    // moves to another attached controller or to none. Its edits stay in the
+    // pending prefs, so it comes back with them when it is plugged in again.
     void  UpdateDevices (const std::vector<ControllerDeviceInfo> & devices);
 
     const std::vector<ControllerEntry> &  GetControllers     () const;
