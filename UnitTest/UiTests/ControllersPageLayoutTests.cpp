@@ -1085,10 +1085,10 @@ public:
     };
 
 
-    //  Joystick, Paddle, Two paddles and Joyport.
+    //  Joystick, Paddle, Two paddles and both of the Joyport's jacks.
     static std::vector<ModeCase> MakeModeCases()
     {
-        std::vector<ModeCase>  cases (4);
+        std::vector<ModeCase>  cases (5);
 
 
 
@@ -1111,9 +1111,14 @@ public:
         cases[2].slots[1].target  = PlayerAxisTarget::Paddles23;
         cases[2].edited           = 1;
 
-        cases[3].pszName = L"Joyport";
+        cases[3].pszName = L"Joyport left";
         cases[3].entries = MakeBesideTheJoyport (PlayerMode::SameAsPlayer1);
         cases[3].slots   = MakeTwoPlaying();
+
+        cases[4].pszName         = L"Joyport right";
+        cases[4].entries[0].mode = PlayerMode::JoyportRight;
+        cases[4].entries[1].mode = PlayerMode::SameAsPlayer1;
+        cases[4].slots           = MakeTwoPlaying();
         return cases;
     }
 
@@ -1232,6 +1237,268 @@ public:
             Assert::AreEqual  (kSectionGapPx, (int) (slider->GetBounds().top - (lastTable.bottom - kHalfGapPx)), (std::wstring (mode.pszName) + L": the gap above").c_str());
             Assert::AreEqual  (kSectionGapPx, (int) (calibration->GetBounds().top - slider->GetBounds().bottom), (std::wstring (mode.pszName) + L": the gap below").c_str());
             Assert::AreEqual  (lastTable.left, slider->GetBounds().left + DxuiSlider::kTrackInsetDip,              (std::wstring (mode.pszName) + L": the track starts at the drop-downs' edge").c_str());
+        }
+    }
+
+
+    static constexpr int  kIndentPx      = 18;     // the page's child indent at 96 DPI
+    static constexpr int  kLabelWidthPx  = 90;
+    static constexpr int  kMinLightPx    = 20;     // a button's light, readable beside its row
+    static constexpr int  kMinPageWidth  = 688;    // the page area of the sheet at its 720 DIP minimum
+
+
+    //  Every shown child of type T, in page order.
+    template <typename T>
+    static std::vector<const T *> FindAllShown (const ControllersPage & page)
+    {
+        const T                * child = nullptr;
+        std::vector<const T *>   found;
+        size_t                   i     = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            child = dynamic_cast<const T *> (page.GetChild (i));
+
+            if (child != nullptr && child->IsVisible())
+            {
+                found.push_back (child);
+            }
+        }
+
+        return found;
+    }
+
+
+    //  The picture of the controller the page shows in this mode: the stick,
+    //  the Joyport's switches or the paddle bars.
+    static const IDxuiControl * FindPicture (const ControllersPage & page)
+    {
+        const IDxuiControl  * picture = FindShown<StickPositionView> (page);
+
+
+
+        if (picture == nullptr)
+        {
+            picture = FindShown<JoyportSwitchView> (page);
+        }
+
+        if (picture == nullptr)
+        {
+            picture = FindShown<PaddleBarsView> (page);
+        }
+
+        return picture;
+    }
+
+
+    //  The mapping controls sit in an indented column on the left, under the
+    //  heading, which stays at the margin; the picture sits to their right,
+    //  and each button's light is at the picture's left edge, beside its
+    //  row, large enough to read. In every mode.
+    TEST_METHOD (Columns_PutTheMappingsLeftAndThePictureRight_InEveryMode)
+    {
+        constexpr int  kMarginPx = kLeftPx + kPagePadPx;
+
+
+
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage                         page;
+            ControllersPageState                    state;
+            std::vector<const DxuiScrollPanel *>    tables;
+            const IDxuiControl                    * picture = nullptr;
+            const DxuiLabel                       * buttons = nullptr;
+            const DxuiLabel                       * label   = nullptr;
+            std::wstring                            name    = mode.pszName;
+
+
+
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
+
+            tables  = FindTables (page);
+            picture = FindPicture (page);
+            buttons = FindLabel (page, L"Buttons");
+
+            Assert::IsFalse   (tables.empty(), mode.pszName);
+            Assert::IsNotNull (picture,        mode.pszName);
+            Assert::IsNotNull (buttons,        mode.pszName);
+            Assert::AreEqual  (kMarginPx, (int) buttons->GetBounds().left, (name + L": the Buttons heading stays at the margin").c_str());
+
+            for (const DxuiScrollPanel * table : tables)
+            {
+                label = FindLabelBeside (page, FindCombos (*table, kpszPressToAssign)[0]->GetBounds());
+
+                Assert::IsNotNull (label, mode.pszName);
+                Assert::AreEqual  (kMarginPx + kIndentPx, (int) label->GetBounds().left, (name + L": " + label->GetText() + L" is indented").c_str());
+                Assert::IsTrue    (table->GetBounds().right < picture->GetBounds().left, (name + L": the rows are left of the picture").c_str());
+            }
+
+            for (const DxuiButton * add : FindAddButtons (page))
+            {
+                Assert::IsTrue (add->GetBounds().right < picture->GetBounds().left, (name + L": + is left of the picture").c_str());
+            }
+
+            for (const ButtonLightView * light : FindAllShown<ButtonLightView> (page))
+            {
+                Assert::AreEqual (picture->GetBounds().left, light->GetBounds().left, (name + L": a light is at the picture's left edge").c_str());
+                Assert::IsTrue   (light->GetBounds().right - light->GetBounds().left >= kMinLightPx, (name + L": and large enough to read").c_str());
+            }
+        }
+    }
+
+
+    //  Each button's light is no taller than the mapping drop-down beside it,
+    //  and sits within that row.
+    TEST_METHOD (ButtonLights_AreNoTallerThanTheRowBesideThem)
+    {
+        ControllersPage                       page;
+        ControllersPageState                  state;
+        std::vector<const ButtonLightView *>  lights;
+        const DxuiComboBox                  * beside = nullptr;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+
+        lights = FindAllShown<ButtonLightView> (page);
+        Assert::AreEqual ((size_t) ControllersPage::kButtonCount, lights.size(), L"a light per button");
+
+        for (const ButtonLightView * light : lights)
+        {
+            beside = nullptr;
+
+            for (const DxuiComboBox * row : FindCombos (page, kpszPressToAssign))
+            {
+                if (row->GetBounds().top <= light->GetBounds().top && row->GetBounds().bottom >= light->GetBounds().bottom)
+                {
+                    beside = row;
+                }
+            }
+
+            Assert::IsNotNull (beside, L"the light sits within its row");
+            Assert::IsTrue    (light->GetBounds().bottom - light->GetBounds().top <= beside->GetBounds().bottom - beside->GetBounds().top, L"and is no taller than it");
+        }
+    }
+
+
+    //  The mapping drop-downs, Invert's box, the paddle speed slider's track
+    //  and the dead zone slider's track share one left edge, in every mode.
+    TEST_METHOD (ConfigurationColumn_SharesOneLeftEdge_InEveryMode)
+    {
+        constexpr int  kColumnPx = kLeftPx + kPagePadPx + kIndentPx + kLabelWidthPx;
+        size_t         speeds    = 0;
+
+
+
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage       page;
+            ControllersPageState  state;
+            std::wstring          name  = mode.pszName;
+
+
+
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
+
+            Assert::IsFalse (FindCombos (page, kpszPressToAssign).empty(), mode.pszName);
+
+            for (const DxuiComboBox * row : FindCombos (page, kpszPressToAssign))
+            {
+                Assert::AreEqual (kColumnPx, (int) row->GetBounds().left, (name + L": a mapping drop-down").c_str());
+            }
+
+            for (const DxuiCheckbox * invert : FindAllShown<DxuiCheckbox> (page))
+            {
+                Assert::AreEqual (kColumnPx, (int) invert->GetBounds().left, (name + L": Invert's box").c_str());
+            }
+
+            for (const DxuiSlider * slider : FindAllShown<DxuiSlider> (page))
+            {
+                Assert::AreEqual (kColumnPx, (int) slider->GetBounds().left + DxuiSlider::kTrackInsetDip, (name + L": a slider's track").c_str());
+                Assert::IsTrue   (FindShown<StickPositionView> (page) == nullptr
+                                  || slider->GetBounds().right < FindShown<StickPositionView> (page)->GetBounds().left
+                                  || slider->GetBounds().top  >= FindShown<StickPositionView> (page)->GetBounds().bottom,
+                                  (name + L": clear of the picture").c_str());
+            }
+
+            speeds += FindAllShown<DxuiSlider> (page).size() - 1;
+        }
+
+        Assert::IsTrue (speeds > 0, L"a paddle mode showed its speed slider");
+    }
+
+
+    //  Whether two rectangles share any area.
+    static bool DoOverlap (const RECT & a, const RECT & b)
+    {
+        return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    }
+
+
+    //  At the sheet's minimum width no two shown controls overlap and none
+    //  reaches past the page's padding, in every mode, with the Position /
+    //  Paddle speed drop-down offered where a mode has one.
+    TEST_METHOD (MinimumWidth_NothingOverlapsOrClips_InEveryMode)
+    {
+        constexpr int  kRightEdgePx = kLeftPx + kMinPageWidth;
+        constexpr int  kHalfGapPx   = 3;
+
+
+
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage              page;
+            ControllersPageState         state;
+            MockDxuiTextRenderer         text;
+            std::vector<RECT>            shown;
+            std::vector<std::wstring>    kinds;
+            RECT                         bounds = {};
+            const IDxuiControl         * child  = nullptr;
+            std::wstring                 name   = mode.pszName;
+            size_t                       i      = 0;
+            size_t                       j      = 0;
+
+
+
+            page.SetTextRenderer   (&text);
+            page.SetDesignWidthPx  (kMinPageWidth);
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited, kRightEdgePx, ControllerFormFactor::Joystick);
+
+            for (i = 0; i < page.GetChildCount(); ++i)
+            {
+                child = page.GetChild (i);
+
+                if (child != nullptr && child->IsVisible())
+                {
+                    bounds = child->GetBounds();
+
+                    // A table reaches half a gap above and below its rows, room
+                    // for a row's focus rectangle and nothing drawn; its rows
+                    // are what must not overlap.
+                    if (dynamic_cast<const DxuiScrollPanel *> (child) != nullptr)
+                    {
+                        bounds.top    += kHalfGapPx;
+                        bounds.bottom -= kHalfGapPx;
+                    }
+
+                    shown.push_back (bounds);
+                    kinds.push_back (std::wstring (typeid (*child).name(), typeid (*child).name() + strlen (typeid (*child).name())));
+                }
+            }
+
+            Assert::IsTrue (shown.size() > 10, mode.pszName);
+
+            for (i = 0; i < shown.size(); ++i)
+            {
+                Assert::IsTrue (shown[i].right <= kRightEdgePx - kPagePadPx, (name + L": " + kinds[i] + L" is not clipped").c_str());
+
+                for (j = i + 1; j < shown.size(); ++j)
+                {
+                    Assert::IsFalse (DoOverlap (shown[i], shown[j]), (name + L": " + kinds[i] + L" and " + kinds[j] + L" overlap").c_str());
+                }
+            }
         }
     }
 };

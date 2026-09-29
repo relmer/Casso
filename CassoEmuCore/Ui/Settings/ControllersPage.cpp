@@ -16,7 +16,7 @@ static constexpr int  s_kLabelWidthDp           = 90;
 static constexpr int  s_kRowWidthDp             = 220;
 static constexpr int  s_kAddWidthDp             = 28;
 static constexpr int  s_kStickSizeDp            = 190;
-static constexpr int  s_kLightSizeDp            = 14;
+static constexpr int  s_kLightSizeDp            = 22;
 static constexpr int  s_kWideWidthDp            = 340;
 static constexpr int  s_kButtonWidthDp          = 130;
 static constexpr int  s_kProfileButtonWidthDp   = 90;
@@ -389,10 +389,13 @@ IDxuiTextRenderer * ControllersPage::GetMeasuringRenderer() const
 //  Layout
 //
 //  The controller picker across the top, and under it the profile picker
-//  with New, Rename and Delete. Below them the joystick: the stick
-//  circle on the left, and to its right each paddle axis's rows followed by
-//  its options. Then the buttons, each with its light, then the dead zone,
-//  calibration and Reset profile.
+//  with New, Rename and Delete. Below them the joystick: under its heading,
+//  indented, each paddle axis's rows followed by its options, and to their
+//  right the picture of the controller -- the stick circle, the Joyport's
+//  switches or the paddle bars. Then the buttons, each row indented the same
+//  and its light in the picture's column, then the dead zone, calibration
+//  and Reset profile. The mapping drop-downs, Invert, the paddle speed
+//  slider's track and the dead zone slider's track share one left edge.
 //
 //  Row counts change as mappings are added and removed, so everything below
 //  a target's rows moves with them; Relayout reruns this with the last
@@ -434,18 +437,21 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  trackInset  = scaler.ToPx (DxuiSlider::kTrackInsetDip);
     int                  x           = rect.left + pad;
     int                  y           = rect.top  + pad;
-    int                  axesX       = x + stickSize + sectionGap;
+    int                  rowsX       = x + indent;
+    int                  columnX     = rowsX + labelWidth;
+    int                  columnEnd   = columnX + rowWidth + gap + addWidth;
+    int                  pictureX    = columnEnd + sectionGap;
     int                  stickTop    = 0;
     int                  axesBottom  = 0;
     int                  contentH    = 0;
     int                  playerStep  = rowH + gap;
-    int                  axisWarnW   = labelWidth + rowWidth + gap + optionWidth + addWidth;
-    int                  buttonWarnW = wideWidth + labelWidth + buttonWidth;
+    int                  warnW       = columnEnd - rowsX;
     int                  profileEnd  = x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2 + profileBtnW;
     int                  stretch     = GetDesignWidthPx() > 0 ? std::max (0, (int) (rect.right - rect.left) - GetDesignWidthPx()) : 0;
     bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool                 isJoyport   = IsJoyportMode();
     bool                 isPaddles   = !isJoyport && IsPaddlesMode();
+    bool                 hasSpeed    = m_state != nullptr && m_state->IsPaddleSpeedOffered();
     int                  responseW   = 0;
     int                  responseX   = 0;
     size_t               target      = 0;
@@ -538,16 +544,17 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     axesBottom = y;
 
     m_stick.SetVisible (!isJoyport && !isPaddles);
-    m_stick.Layout (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    m_stick.Layout (MakeRect (pictureX, stickTop, stickSize, stickSize), scaler);
     m_paddleBars.SetVisible (isPaddles);
-    m_paddleBars.Layout     (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    m_paddleBars.Layout     (MakeRect (pictureX, stickTop, stickSize, stickSize), scaler);
     PollPaddleBars (nullptr);
     m_switchView.SetVisible (isJoyport);
-    m_switchView.Layout     (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    m_switchView.Layout     (MakeRect (pictureX, stickTop, stickSize, stickSize), scaler);
 
-    // The two axes, stacked to the right of the stick. An axis this
-    // controller's player does not drive is GONE rather than grayed: a row
-    // that cannot do anything is one more thing to read past.
+    // The two axes, stacked under the heading, indented, with the picture to
+    // their right. An axis this controller's player does not drive is GONE
+    // rather than grayed: a row that cannot do anything is one more thing to
+    // read past.
     for (target = 0; target < kAxisCount; target++)
     {
         int           tableH    = 0;
@@ -555,7 +562,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
         m_targetLabel[target].SetVisible   (isInPlay);
-        m_targetLabel[target].SetRect      (MakeRect (axesX, axesBottom, labelWidth - gap, rowH));
+        m_targetLabel[target].SetRect      (MakeRect (rowsX, axesBottom, labelWidth - gap, rowH));
         m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
 
         // While two play, a row is named for the paddle the guest reads it
@@ -563,18 +570,18 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         // the Joyport attached it is named for the switches it closes.
         m_targetLabel[target].SetText (GetRowLabel (target, playLabel, isJoyport));
 
-        tableH = LayOutTable (target, axesX + labelWidth, axesBottom, rowWidth, isInPlay, scaler);
+        tableH = LayOutTable (target, columnX, axesBottom, rowWidth, isInPlay, scaler);
 
         m_addRow[target].SetLabel   (L"+");
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].Layout     (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom, addWidth, rowH));
+        m_addRow[target].Layout     (MakeRect (columnX + rowWidth + gap, axesBottom, addWidth, rowH));
 
         if (!isInPlay)
         {
             m_invert[target].SetVisible   (false);
             m_response[target].SetVisible (false);
             m_speed[target].SetVisible    (false);
-            LayOutSharedWarning (target, axesX, axesBottom, axisWarnW, text, scaler);
+            LayOutSharedWarning (target, rowsX, axesBottom, warnW, text, scaler);
             continue;
         }
 
@@ -599,23 +606,26 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
             responseW = std::max (responseW, (int) std::ceil (m_response[target].GetFitWidthPx (*text)));
         }
 
-        responseX = axesX + labelWidth + rowWidth - responseW;
+        responseX = columnX + rowWidth - responseW;
 
         m_invert[target].SetVisible (true);
-        m_invert[target].SetRect    (MakeRect (axesX + labelWidth + indent, axesBottom, responseX - (axesX + labelWidth + indent), rowH));
+        m_invert[target].SetRect    (MakeRect (columnX, axesBottom, responseX - columnX, rowH));
         m_invert[target].SetLabel   (L"Invert");
 
         m_response[target].SetVisible (m_state != nullptr && m_state->IsPositionOffered (TargetAt (target)));
         m_response[target].SetRect    (MakeRect (responseX, axesBottom, responseW, rowH));
 
-        m_speed[target].SetVisible (m_state != nullptr && m_state->IsPaddleSpeedOffered());
+        // The speed slider takes the row under Invert, its track, not the
+        // puck's room left of it, starting at the drop-down column's edge and
+        // running to the end of the "+" column, as the dead zone's does.
+        m_speed[target].SetVisible (hasSpeed);
 
-        // The speed slider starts at the "+" above it so the column edge reads
-        // straight, and runs to where that column ends. A slider keeps a fixed
-        // readout column on its right, so at the option width its track was a
-        // stub sitting far left of everything it lines up with.
-        m_speed[target].SetRect          (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom,
-                                                    optionWidth + addWidth, rowH));
+        if (hasSpeed)
+        {
+            axesBottom += rowH + gap;
+        }
+
+        m_speed[target].SetRect          (MakeRect (columnX - trackInset, axesBottom, columnEnd - (columnX - trackInset), rowH));
         m_speed[target].SetRange         (ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
         m_speed[target].SetStep          (16.0f);
         m_speed[target].SetDecimalPlaces (0);
@@ -623,13 +633,14 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_speed[target].SetTickInterval  (256.0f);
 
         axesBottom += rowH + gap;
-        axesBottom += LayOutSharedWarning (target, axesX, axesBottom, axisWarnW, text, scaler);
+        axesBottom += LayOutSharedWarning (target, rowsX, axesBottom, warnW, text, scaler);
         axesBottom += sectionGap - gap;
     }
 
     y = std::max (stickTop + stickSize, axesBottom) + sectionGap;
 
-    // The buttons, each with a light that fills while it reads pressed.
+    // The buttons, each with a light that fills while it reads pressed, in
+    // the picture's column beside its row.
     m_buttonsHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
     m_buttonsHeading.SetText (L"Buttons");
     y += rowH;
@@ -642,37 +653,34 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
         m_lights[light].SetVisible (isInPlay && !isJoyport);
-        m_lights[light].Layout     (MakeRect (x, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
+        m_lights[light].Layout     (MakeRect (pictureX, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
 
-        // With the Joyport attached the button lights are gone, so the label
-        // takes their place at the margin rather than indenting for nothing.
         m_targetLabel[target].SetVisible   (isInPlay);
-        m_targetLabel[target].SetRect      (isJoyport ? MakeRect (x, y, labelWidth - gap, rowH)
-                                                      : MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap * 2, rowH));
+        m_targetLabel[target].SetRect      (MakeRect (rowsX, y, labelWidth - gap, rowH));
         m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
         m_targetLabel[target].SetText      (GetRowLabel (target, playLabel, isJoyport));
 
-        tableH = LayOutTable (target, x + labelWidth, y, rowWidth, isInPlay, scaler);
+        tableH = LayOutTable (target, columnX, y, rowWidth, isInPlay, scaler);
 
         m_addRow[target].SetLabel   (L"+");
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].Layout     (MakeRect (x + labelWidth + rowWidth + gap, y, addWidth, rowH));
+        m_addRow[target].Layout     (MakeRect (columnX + rowWidth + gap, y, addWidth, rowH));
 
         if (isInPlay)
         {
             y += tableH;
         }
 
-        y += LayOutSharedWarning (target, x, y, buttonWarnW, text, scaler);
+        y += LayOutSharedWarning (target, rowsX, y, warnW, text, scaler);
     }
 
     // A section gap above and below, and the track, not the puck's room
     // left of it, starting at the drop-down column above.
     y += sectionGap - gap;
 
-    m_deadZoneLabel.SetRect (MakeRect (x, y, labelWidth - trackInset, rowH));
+    m_deadZoneLabel.SetRect (MakeRect (x, y, columnX - trackInset - x, rowH));
     m_deadZoneLabel.SetText (L"Dead zone:");
-    m_deadZone.SetRect          (MakeRect (x + labelWidth - trackInset, y, wideWidth + trackInset, rowH));
+    m_deadZone.SetRect          (MakeRect (columnX - trackInset, y, columnEnd - (columnX - trackInset), rowH));
     m_deadZone.SetRange         (0.0f, 90.0f);
     m_deadZone.SetStep          (1.0f);
     m_deadZone.SetDecimalPlaces (0);

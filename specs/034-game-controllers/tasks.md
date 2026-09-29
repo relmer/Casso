@@ -551,6 +551,17 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
+## Phase 26: Mapping Controls Left, Picture Right (FR-019, FR-023; 2026-09-28, later)
+
+**Goal**: the owner's rework of the joystick and button sections: the heading at the margin, the mapping controls indented under it on the left, the picture and the button lights to their right, one left edge for the drop-downs, Invert, the paddle speed track and the dead zone track, larger lights no taller than their rows, and nothing overlapping or clipped at the sheet's minimum size.
+
+- [X] T232 Update `spec.md` (Session 2026-09-28; FR-019, FR-023)
+- [X] T233 Tests first: `ControllersPageLayoutTests` (`Columns_PutTheMappingsLeftAndThePictureRight_InEveryMode`, `ConfigurationColumn_SharesOneLeftEdge_InEveryMode`, `ButtonLights_AreNoTallerThanTheRowBesideThem`, `MinimumWidth_NothingOverlapsOrClips_InEveryMode`), and Joyport right added to the modes every "InEveryMode" test walks
+- [X] T234 `ControllersPage::Layout`: the indented mapping column, the picture and lights in the column to its right, the paddle speed slider on its own row under Invert, the dead zone slider across the mapping column, lights at 22 DIP
+- [X] T235 Mutation checks for Phase 26, the full Release suite, `CheckStyle -Mode Tree` and captures of the page at its default and minimum sizes, recorded in `validation.md` under a new "Phase 26" heading
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies
