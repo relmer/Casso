@@ -1977,6 +1977,7 @@ void EmulatorShell::DispatchShellKey (
 //
 //  Always reports Handled, including on the bail paths: once a keystroke has
 //  been classified as shell-owned it must not also reach default processing.
+//  Alt+F4 is the one exception, left unclaimed so Windows closes the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1995,6 +1996,14 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     AppleKeyboard *  keyboard  = lifetime.owns_lock() ? m_machine.GetRefs().keyboard : nullptr;
 
 
+
+    // Alt+F4 belongs to Windows, not to the guest or the chrome. Leaving it
+    // unclaimed lets DefWindowProc turn it into SC_CLOSE; claiming it, as
+    // every other keydown is, left the main window unable to close that way.
+    if (vk == VK_F4 && (lParam & s_kAltContextLParamBit) != 0)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
 
     if (!lifetime.owns_lock())
     {
