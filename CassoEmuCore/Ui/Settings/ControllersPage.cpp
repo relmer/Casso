@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/PlayerModeRules.h"
 
 #include "Widgets/DxuiTreeView.h"
 #include "Window/DxuiHwndSource.h"
@@ -75,6 +76,9 @@ ControllersPage::ControllersPage (std::wstring title)
 
     Adopt (m_controllerLabel);
     Adopt (m_controller);
+
+    // A device description keeps both ends, as the players' entries do.
+    m_controller.SetElide (DxuiElide::Middle);
     Adopt (m_profileLabel);
     Adopt (m_profile);
     Adopt (m_newProfile);
@@ -413,9 +417,9 @@ IDxuiTextRenderer * ControllersPage::GetMeasuringRenderer() const
 //  Each player's row is its entry and its mode, with a warning under it
 //  while the Joyport has taken the player's buttons. Both rows are always
 //  there: Player 2's Disabled entry is how two-player play is turned off.
-//  The two drop-downs reach the right edge of the Profile row at the design
-//  width and stretch with a wider sheet, sharing the row as their design
-//  widths do. What each player drives is the heading above the input
+//  The mode drop-down is as wide as the widest mode and ends at the right
+//  edge of the Profile row at the design width, moving right with a wider
+//  sheet; the entry, and Editing below it, take the rest of the row. What each player drives is the heading above the input
 //  picture, for the controller in Editing.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,11 +461,11 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     bool                 isPaddles   = !isJoyport && IsPaddlesMode();
     int                  responseW   = 0;
     int                  responseX   = 0;
+    int                  messageX    = pictureX + lightSize + gap;
     size_t               target      = 0;
     size_t               player      = 0;
     IDxuiTextRenderer  * text        = GetMeasuringRenderer();
 
-    int                  messageX    = pictureX + lightSize + gap;
 
 
     m_lastRect   = rect;
@@ -674,11 +678,11 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
         m_lights[light].SetVisible (isInPlay && !isJoyport);
         m_lights[light].Layout     (MakeRect (pictureX, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
+        m_lights[light].SetMessageBounds (MakeRect (messageX, y, std::max (0, (int) rect.right - pad - messageX), rowH));
 
         m_targetLabel[target].SetVisible   (isInPlay);
         m_targetLabel[target].SetRect      (MakeRect (rowsX, y, labelW, rowH));
         m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-        m_lights[light].SetMessageBounds (MakeRect (messageX, y, std::max (0, (int) rect.right - pad - messageX), rowH));
         m_targetLabel[target].SetText      (GetRowLabel (target, playLabel, isJoyport, isPaddles));
 
         tableH = LayOutTable (target, columnX, y, rowWidth, isInPlay, scaler);
@@ -791,20 +795,23 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 //  StretchPlayerRows
 //
-//  Each player's entry and mode drop-downs, from `left` to `right`, split in
-//  the proportion of their design widths, and the warning under a player
-//  across the same span. Only the widths change; Layout has placed the rows.
+//  Each player's mode drop-down as wide as the widest mode it can show,
+//  ending at `right`, and the entry from `left` to a gap short of it; the
+//  Editing drop-down as wide as the entries; and the warning under a player
+//  across the whole span. Only the widths change; Layout has placed the rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::StretchPlayerRows (int left, int right, int gap, const DxuiDpiScaler & scaler)
 {
-    int     entryDesign = scaler.ToPx (s_kRowWidthDp);
-    int     modeDesign  = scaler.ToPx (s_kPlayerModeWidthDp);
-    int     entryWidth  = (right - left - gap) * entryDesign / (entryDesign + modeDesign);
-    size_t  player      = 0;
+    int     modeWidth  = GetModeWidthPx (scaler);
+    int     entryWidth = right - left - gap - modeWidth;
+    RECT    editing    = m_controller.GetRect();
+    size_t  player     = 0;
 
 
+
+    m_controller.SetRect (MakeRect (left, editing.top, entryWidth, editing.bottom - editing.top));
 
     for (player = 0; player < kPlayerCount; player++)
     {
@@ -812,13 +819,54 @@ void ControllersPage::StretchPlayerRows (int left, int right, int gap, const Dxu
         RECT  warning = m_playerWarning[player].GetBounds();
 
         m_playerEntry[player].SetRect (MakeRect (left, entry.top, entryWidth, entry.bottom - entry.top));
-        m_playerMode[player].SetRect  (MakeRect (left + entryWidth + gap, entry.top, right - (left + entryWidth + gap), entry.bottom - entry.top));
+        m_playerMode[player].SetRect  (MakeRect (right - modeWidth, entry.top, modeWidth, entry.bottom - entry.top));
 
         if (m_isWarningShown[player])
         {
             m_playerWarning[player].SetRect (MakeRect (left, warning.top, right - left, warning.bottom - warning.top));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModeWidthPx
+//
+//  Wide enough for the longest label a mode drop-down can show -- every
+//  mode, and Player 2's Automatic with each mode it can resolve to --
+//  beside its arrow, measured in the drop-down's font. With nothing to
+//  measure with, the design width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::GetModeWidthPx (const DxuiDpiScaler & scaler) const
+{
+    constexpr PlayerMode         kModes[] = { PlayerMode::Joystick, PlayerMode::JoyportLeft, PlayerMode::JoyportRight, PlayerMode::Paddle, PlayerMode::TwoPaddles, PlayerMode::SameAsPlayer1 };
+    IDxuiTextRenderer          * text     = GetMeasuringRenderer();
+    DxuiComboBox                 measure;
+    std::vector<std::wstring>    labels;
+
+
+
+    if (text == nullptr)
+    {
+        return scaler.ToPx (s_kPlayerModeWidthDp);
+    }
+
+    for (PlayerMode mode : kModes)
+    {
+        labels.push_back (PlayerModeRules::GetModeLabel (mode));
+        labels.push_back (PlayerModeRules::GetAutomaticModeLabel (mode));
+    }
+
+    measure.SetDpi   (scaler.GetDpi());
+    measure.SetItems (labels);
+
+    return (int) std::ceil (measure.GetFitWidthPx (*text));
 }
 
 

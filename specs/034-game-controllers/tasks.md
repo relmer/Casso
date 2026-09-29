@@ -597,6 +597,7 @@ description: "Task list for 034 physical game controllers"
 
 - [X] T248 The Paddles starting point on a device with a non-centering axis: PDL0 on the primary stick's X at Paddle speed, PDL1 on that axis at Position, PB0 on the first button and PB1 unassigned. Tests first: `AxisRoleRulesTests::Paddles_BindPdl1ToANonCenteringAxisAtPosition`, `ControllersPageStateTests::PaddleProfile_TheThrottleStartsAtPositionAndTheStickAtPaddleSpeed`, `ControllerInputServiceTests::Gladiator_TwoPaddlesModePlaysItsThrottleAtPosition`; then `DefaultMapping::MakePaddles`
 - [X] T249 A message beside each lit button light, from one static table of 37, never the previous pick. Tests first: `ControllersPageLiveTests::FunMessages_PickNeverRepeatsThePrevious`, `Press_ShowsAMessageUntilTheLightGoesDark`; then `ButtonLightView` (`PickFunMessage`, `SetMessageBounds`, `PaintFunMessage`) and its row in `ControllersPage::Layout`
+- [X] T250 The top drop-downs: each mode drop-down fitted to its widest label, the entries filling to it, and Editing matching the entries. Test: `ControllersPageLayoutTests::DropDowns_FitTheWidestModeAndEditingMatchesTheEntries`; then `ControllersPage::GetModeWidthPx` and `StretchPlayerRows`
 
 ---
 

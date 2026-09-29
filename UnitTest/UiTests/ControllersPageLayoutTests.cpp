@@ -433,6 +433,70 @@ public:
     }
 
 
+    //  With a renderer, each mode drop-down is as wide as the widest mode it
+    //  can show plus its arrow, ending at Delete...'s right edge; each entry
+    //  fills from the label column to a gap left of it; and Editing is exactly
+    //  as wide as the entries.
+    TEST_METHOD (DropDowns_FitTheWidestModeAndEditingMatchesTheEntries)
+    {
+        constexpr int           kWidestPx     = 260;
+        constexpr int           kLineHeightPx = 16;
+        constexpr int           kChromeMaxPx  = 60;
+        constexpr int           kGapPx        = 6;
+        ControllersPage         page;
+        ControllersPageState    state;
+        MockDxuiTextRenderer    text;
+        const DxuiComboBox    * mode          = nullptr;
+        const DxuiComboBox    * entry         = nullptr;
+        const DxuiComboBox    * editing       = nullptr;
+        const DxuiComboBox    * combo         = nullptr;
+        const DxuiButton      * deleteButton  = nullptr;
+        size_t                  i             = 0;
+
+
+
+        text.SetCannedMetrics (L"Automatic (Joyport right)", SIZE { kWidestPx, kLineHeightPx });
+        page.SetTextRenderer  (&text);
+        page.SetDesignWidthPx (kRightPx - kLeftPx);
+
+        LayOutPage (page, state, PlayerEntries(), MakeTwoPlaying(), 0);
+
+        mode         = FindCombos (page, L"Joystick")[0];
+        deleteButton = FindButton (page, L"Delete...");
+
+        for (i = 0; i < page.GetChildCount() && entry == nullptr; ++i)
+        {
+            combo = dynamic_cast<const DxuiComboBox *> (page.GetChild (i));
+
+            if (combo != nullptr && combo->IsVisible() && combo->GetBounds().top == mode->GetBounds().top && combo != mode)
+            {
+                entry = combo;
+            }
+        }
+
+        Assert::IsNotNull (entry, L"Player 1's entry");
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            combo = dynamic_cast<const DxuiComboBox *> (page.GetChild (i));
+
+            if (combo != nullptr && combo->IsVisible() && combo != entry && combo->GetBounds().left == entry->GetBounds().left &&
+                combo->GetBounds().top > entry->GetBounds().bottom && (editing == nullptr || combo->GetBounds().top < editing->GetBounds().top))
+            {
+                editing = combo;
+            }
+        }
+
+        Assert::IsNotNull (editing, L"the Editing drop-down");
+        Assert::AreEqual  ((int) deleteButton->GetBounds().right, (int) mode->GetBounds().right, L"the mode ends at Delete...'s right edge");
+        Assert::IsTrue    (mode->GetBounds().right - mode->GetBounds().left > kWidestPx,                L"wider than the widest mode");
+        Assert::IsTrue    (mode->GetBounds().right - mode->GetBounds().left < kWidestPx + kChromeMaxPx, L"by no more than its arrow and padding");
+        Assert::AreEqual  ((int) mode->GetBounds().left - kGapPx, (int) entry->GetBounds().right,       L"the entry ends a gap left of the mode");
+        Assert::AreEqual  ((int) (entry->GetBounds().right - entry->GetBounds().left), (int) (editing->GetBounds().right - editing->GetBounds().left), L"Editing as wide as the entry");
+        Assert::IsTrue    (editing->GetElide() == DxuiElide::Middle, L"a device description shortens in the middle");
+    }
+
+
     //  The shown child of type T, or null.
     template <typename T>
     static const T * FindShown (const ControllersPage & page)
