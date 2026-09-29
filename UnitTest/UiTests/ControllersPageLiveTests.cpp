@@ -315,13 +315,14 @@ public:
     }
 
 
-    //  A press shows a message beside its light while the light is lit; the
-    //  message goes when the light goes dark, and the next press shows another.
-    TEST_METHOD (Press_ShowsAMessageUntilTheLightGoesDark)
+    //  A press shows a message beside its light that outlives the light by
+    //  kMessageFadeMs, and a press before then replaces it with another.
+    TEST_METHOD (Press_ShowsAMessageForItsFadeAfterTheLightGoesDark)
     {
         constexpr int64_t  kPressMs  = kStartMs;
         constexpr int64_t  kDarkMs   = kPressMs + ButtonLightView::kMinLitMs + 1;
-        constexpr int64_t  kSecondMs = kDarkMs + kFrameMs;
+        constexpr int64_t  kGoneMs   = kPressMs + ButtonLightView::kMinLitMs + ButtonLightView::kMessageFadeMs;
+        constexpr int64_t  kSecondMs = kGoneMs + kFrameMs;
         ButtonLightView    light;
         std::wstring       first;
 
@@ -335,8 +336,11 @@ public:
         Assert::IsFalse (first.empty(), L"a message while lit");
 
         light.Update (false, false, kDarkMs);
-        Assert::IsFalse (light.IsLit(),               L"dark");
-        Assert::IsTrue  (light.GetFunMessage().empty(), L"and the message gone");
+        Assert::IsFalse (light.IsLit(),                 L"dark");
+        Assert::AreEqual (first, light.GetFunMessage(), L"the message still showing");
+
+        light.Update (false, false, kGoneMs);
+        Assert::IsTrue  (light.GetFunMessage().empty(), L"and gone after its fade");
 
         light.Update (true, false, kSecondMs);
         Assert::IsFalse (light.GetFunMessage().empty(), L"a message for the next press");

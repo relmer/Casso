@@ -26,6 +26,7 @@ static constexpr int  s_kProfileButtonWidthDp   = 90;
 static constexpr int  s_kOptionWidthDp          = 110;
 static constexpr int  s_kPlayerModeWidthDp      = 170;
 static constexpr int  s_kGapDp                  = 6;
+static constexpr int  s_kMessageGapDp           = 4;
 static constexpr int  s_kSectionGapDp           = 14;
 static constexpr int  s_kPagePadDp              = 16;
 static constexpr int  s_kWarningPadYDp          = 4;
@@ -461,7 +462,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     bool                 isPaddles   = !isJoyport && IsPaddlesMode();
     int                  responseW   = 0;
     int                  responseX   = 0;
-    int                  messageX    = pictureX + lightSize + gap;
+    int                  messageX    = pictureX + lightSize + scaler.ToPx (s_kMessageGapDp);
     size_t               target      = 0;
     size_t               player      = 0;
     IDxuiTextRenderer  * text        = GetMeasuringRenderer();
@@ -795,21 +796,31 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 //  StretchPlayerRows
 //
-//  Each player's mode drop-down as wide as the widest mode it can show,
-//  ending at `right`, and the entry from `left` to a gap short of it; the
-//  Editing drop-down as wide as the entries; and the warning under a player
-//  across the whole span. Only the widths change; Layout has placed the rows.
+//  The entry column and the mode column each at least as wide as the longest
+//  string it can show, with any room left over shared between them in
+//  proportion to those widths; the mode drop-downs end at `right`. When both
+//  cannot fit, the mode column keeps its width and the entries elide. The
+//  Editing drop-down is as wide as the entries, and the warning under a
+//  player spans both. Only the widths change; Layout has placed the rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::StretchPlayerRows (int left, int right, int gap, const DxuiDpiScaler & scaler)
 {
     int     modeWidth  = GetModeWidthPx (scaler);
-    int     entryWidth = right - left - gap - modeWidth;
+    int     entryFit   = GetEntryFitWidthPx();
+    int     available  = right - left - gap;
+    int     entryWidth = available - modeWidth;
     RECT    editing    = m_controller.GetRect();
     size_t  player     = 0;
 
 
+
+    if (entryFit > 0 && available > entryFit + modeWidth)
+    {
+        modeWidth  = MulDiv (available, modeWidth, entryFit + modeWidth);
+        entryWidth = available - modeWidth;
+    }
 
     m_controller.SetRect (MakeRect (left, editing.top, entryWidth, editing.bottom - editing.top));
 
@@ -867,6 +878,42 @@ int ControllersPage::GetModeWidthPx (const DxuiDpiScaler & scaler) const
     measure.SetItems (labels);
 
     return (int) std::ceil (measure.GetFitWidthPx (*text));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEntryFitWidthPx
+//
+//  Wide enough for the longest entry the player and Editing drop-downs now
+//  list, beside their arrow. Zero with nothing to measure with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::GetEntryFitWidthPx() const
+{
+    IDxuiTextRenderer  * text   = GetMeasuringRenderer();
+    float                width  = 0.0f;
+    size_t               player = 0;
+
+
+
+    if (text == nullptr)
+    {
+        return 0;
+    }
+
+    width = m_controller.GetFitWidthPx (*text);
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        width = std::max (width, m_playerEntry[player].GetFitWidthPx (*text));
+    }
+
+    return (int) std::ceil (width);
 }
 
 

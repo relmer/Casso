@@ -260,16 +260,18 @@ void ButtonLightView::Update (bool wasPressed, bool isPressed, int64_t nowMs)
     if (!m_hasPress)
     {
         m_level = 0.0f;
-        m_message.reset();
+        UpdateMessage (nowMs);
         return;
     }
 
-    holdEnd = std::max (m_lastSeenMs, m_pressStartMs + kMinLitMs);
+    holdEnd       = std::max (m_lastSeenMs, m_pressStartMs + kMinLitMs);
+    m_messageEnd  = isPressed ? nowMs : holdEnd;
 
     if (isPressed || nowMs < holdEnd)
     {
         t       = std::clamp ((float) (nowMs - m_pressStartMs) / (float) kPressRampMs, 0.0f, 1.0f);
         m_level = m_isAnimated ? kPressStartLevel + (1.0f - kPressStartLevel) * DxuiAnimation::ApplyEase (DxuiTweenEase::EaseOut, t) : 1.0f;
+        UpdateMessage (nowMs);
         return;
     }
 
@@ -280,6 +282,43 @@ void ButtonLightView::Update (bool wasPressed, bool isPressed, int64_t nowMs)
     {
         m_level    = 0.0f;
         m_hasPress = false;
+    }
+
+    UpdateMessage (nowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateMessage
+//
+//  The message outlives the light so it can be read: fully shown while the
+//  light holds, then fading over kMessageFadeMs, or with animations off
+//  shown until then and gone. A new press replaces it and starts it over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ButtonLightView::UpdateMessage (int64_t nowMs)
+{
+    float  t = 0.0f;
+
+
+
+    if (!m_message.has_value())
+    {
+        m_messageLevel = 0.0f;
+        return;
+    }
+
+    t              = std::clamp ((float) (nowMs - m_messageEnd) / (float) kMessageFadeMs, 0.0f, 1.0f);
+    m_messageLevel = m_isAnimated ? 1.0f - DxuiAnimation::ApplyEase (DxuiTweenEase::EaseInOut, t) : (t < 1.0f ? 1.0f : 0.0f);
+
+    if (m_messageLevel <= 0.0f)
+    {
+        m_messageLevel = 0.0f;
         m_message.reset();
     }
 }
@@ -298,9 +337,10 @@ void ButtonLightView::Update (bool wasPressed, bool isPressed, int64_t nowMs)
 
 void ButtonLightView::Clear()
 {
-    m_hasPress = false;
-    m_isHeld   = false;
-    m_level    = 0.0f;
+    m_hasPress     = false;
+    m_isHeld       = false;
+    m_level        = 0.0f;
+    m_messageLevel = 0.0f;
 
     m_message.reset();
 }
@@ -403,9 +443,9 @@ void ButtonLightView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 //
 //  PaintFunMessage
 //
-//  The message in the page's label font, fading from the page background to
-//  the muted text color with the light, and elided at its end when the row
-//  to the light's right is too narrow for it.
+//  The message in the page's label font, fading from the muted text color to
+//  the page background on its own, slower clock, and elided at its end when
+//  the row to the light's right is too narrow for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -420,7 +460,7 @@ void ButtonLightView::PaintFunMessage (IDxuiTextRenderer & text, const IDxuiThem
 
 
 
-    if (!m_message.has_value() || m_level <= 0.0f || width <= 0.0f)
+    if (!m_message.has_value() || m_messageLevel <= 0.0f || width <= 0.0f)
     {
         return;
     }
@@ -429,7 +469,7 @@ void ButtonLightView::PaintFunMessage (IDxuiTextRenderer & text, const IDxuiThem
 
     hr = text.DrawString (shown.c_str(),
                           (float) m_messageBounds.left, (float) m_messageBounds.top, width, height,
-                          BlendColor (theme.Background(), theme.ForegroundMuted(), m_level), fontPx, font.face,
+                          BlendColor (theme.Background(), theme.ForegroundMuted(), m_messageLevel), fontPx, font.face,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, font.weight, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

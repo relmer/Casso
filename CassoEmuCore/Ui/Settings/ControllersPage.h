@@ -184,6 +184,7 @@ private:
     void                 RefreshPlayers     ();
     void                 StretchPlayerRows  (int left, int right, int gap, const DxuiDpiScaler & scaler);
     int                  GetModeWidthPx     (const DxuiDpiScaler & scaler) const;
+    int                  GetEntryFitWidthPx () const;
     void                 OnPlayerEntrySelect  (size_t player, int item);
     void                 OnPlayerModeSelect   (size_t player, int item);
     void                 ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);

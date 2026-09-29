@@ -87,7 +87,8 @@ ControlMapping DefaultMapping::For (const ControllerModelKey & model, const std:
 //  A DirectInput device that is not a gamepad and has an axis that stays
 //  where it is left -- a throttle, a slider, a dial -- keeps the stick's X
 //  on PDL0 at Rate and plays PDL1 on that axis at Position, as a real
-//  paddle's knob plays. Its buttons stay as a lone stick's: PB0 only.
+//  paddle's knob plays, with the second button on PB1 as for any second
+//  paddle.
 //
 //  The D-pad is left off: a D-pad pair jumps its axis straight to either end,
 //  which would throw a paddle to the edge of the screen.
@@ -155,7 +156,7 @@ ControlMapping DefaultMapping::MakePaddles (
         mapping.pb0.push_back ({ first });
     }
 
-    if (!knob.has_value() && !mapping.pdl1.empty() && HasControl (controls, second))
+    if (!mapping.pdl1.empty() && HasControl (controls, second))
     {
         mapping.pb1.push_back ({ second });
     }

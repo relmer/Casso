@@ -182,7 +182,7 @@ namespace ControllerTests
             Assert::IsTrue   (mapping.pdl1[0].analog == ControlId { ControlKind::Axis, kAxisZ }, L"the Gladiator's throttle");
             Assert::IsTrue   (mapping.pdl1[0].response == AxisResponse::Absolute,                 L"at Position");
             Assert::AreEqual ((size_t) 1, mapping.pb0.size(),                                     L"PB0 on the first button");
-            Assert::IsTrue   (mapping.pb1.empty(),                                                L"PB1 unassigned");
+            Assert::AreEqual ((size_t) 1, mapping.pb1.size(),                                     L"PB1 on the second button");
 
             mapping = DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, slider);
             Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, 0 },       L"a gamepad keeps its stick");
