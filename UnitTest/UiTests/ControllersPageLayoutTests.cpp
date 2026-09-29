@@ -2,7 +2,11 @@
 
 #include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/ControllersPageState.h"
+#include "Ui/Settings/DiskPage.h"
+#include "Widgets/DxuiTreeView.h"
+#include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 // A ControllersPage holds every control on the page, about 16 KB, and most
 // tests here build one or more in the test frame, which trips C6262. The page
@@ -449,26 +453,25 @@ public:
 
 
     //  Paddle and Two paddles show a bar per paddle where the stick's circle
-    //  was, each named for the paddle the guest reads; Joystick keeps the
-    //  circle.
+    //  was, one for each paddle the guest reads; Joystick keeps the circle.
     TEST_METHOD (PaddleModes_ShowABarPerPaddleInPlaceOfTheStick)
     {
-        ControllersPage          joystick;
-        ControllersPage          paddle;
-        ControllersPage          pairs;
-        ControllersPageState     joystickState;
-        ControllersPageState     paddleState;
-        ControllersPageState     pairsState;
-        PlayerEntries            entries;
-        PlayerSlots              slots    = MakeTwoPlaying();
-        const PaddleBarsView   * bars     = nullptr;
+        ControllersPage                      joystick;
+        ControllersPage                      paddle;
+        ControllersPage                      pairs;
+        ControllersPageState                 joystickState;
+        ControllersPageState                 paddleState;
+        ControllersPageState                 pairsState;
+        PlayerEntries                        entries;
+        PlayerSlots                          slots    = MakeTwoPlaying();
+        std::vector<const PaddleBarView *>   bars;
 
 
 
         LayOutPage (joystick, joystickState, entries, slots, 0);
 
         Assert::IsNotNull (FindShown<StickPositionView> (joystick), L"Joystick shows the circle");
-        Assert::IsNull    (FindShown<PaddleBarsView> (joystick),    L"and no bars");
+        Assert::IsNull    (FindShown<PaddleBarView> (joystick),     L"and no bars");
 
         entries[0].mode = PlayerMode::Paddle;
         entries[1].mode = PlayerMode::Paddle;
@@ -476,11 +479,11 @@ public:
         slots[1].target = PlayerAxisTarget::Paddle1;
         LayOutPage (paddle, paddleState, entries, slots, 1);
 
-        bars = FindShown<PaddleBarsView> (paddle);
+        bars = FindAllShown<PaddleBarView> (paddle);
 
         Assert::IsNull    (FindShown<StickPositionView> (paddle), L"Paddle shows no circle");
-        Assert::IsNotNull (bars,                                   L"but a bar");
-        Assert::IsTrue    (bars->GetBars() == std::vector<PaddleBar> { { L"PDL1", PaddleBar::kCenter } }, L"one, for paddle 1, at rest");
+        Assert::AreEqual  ((size_t) 1, bars.size(),               L"but a bar");
+        Assert::IsTrue    (bars[0]->GetBar() == PaddleBar { L"PDL1", PaddleBar::kCenter }, L"for paddle 1, at rest");
 
         entries[0].mode = PlayerMode::TwoPaddles;
         entries[1].mode = PlayerMode::TwoPaddles;
@@ -488,12 +491,12 @@ public:
         slots[1].target = PlayerAxisTarget::Paddles23;
         LayOutPage (pairs, pairsState, entries, slots, 1);
 
-        bars = FindShown<PaddleBarsView> (pairs);
+        bars = FindAllShown<PaddleBarView> (pairs);
 
-        Assert::IsNotNull (bars);
-        Assert::IsTrue    (bars->GetBars() == std::vector<PaddleBar> { { L"PDL2", PaddleBar::kCenter }, { L"PDL3", PaddleBar::kCenter } },
-                           L"Two paddles shows a bar for each of its paddles");
-        Assert::AreEqual  (std::wstring (L"PDL1  108"), PaddleBarsView::FormatLabel ({ L"PDL1", 108 }), L"each labeled with its value");
+        Assert::AreEqual  ((size_t) 2, bars.size(), L"Two paddles shows a bar for each of its paddles");
+        Assert::IsTrue    (bars[0]->GetBar() == PaddleBar { L"PDL2", PaddleBar::kCenter }, L"PDL2");
+        Assert::IsTrue    (bars[1]->GetBar() == PaddleBar { L"PDL3", PaddleBar::kCenter }, L"and PDL3");
+        Assert::AreEqual  (std::wstring (L"108"), PaddleBarView::FormatReading ({ L"PDL1", 108 }), L"each reads its value alone");
     }
 
 
@@ -505,9 +508,91 @@ public:
         constexpr float  kWidth = 255.0f;
         constexpr Byte   kMid   = 127;
 
-        Assert::AreEqual (kLeft,               PaddleBarsView::GetMarkX (kLeft, kWidth, 0),    0.001f, L"0 at the left end");
-        Assert::AreEqual (kLeft + kWidth,      PaddleBarsView::GetMarkX (kLeft, kWidth, 255),  0.001f, L"255 at the right");
-        Assert::AreEqual (kLeft + (float) kMid, PaddleBarsView::GetMarkX (kLeft, kWidth, kMid), 0.001f, L"and in between in proportion");
+        Assert::AreEqual (kLeft,               PaddleBarView::GetMarkX (kLeft, kWidth, 0),    0.001f, L"0 at the left end");
+        Assert::AreEqual (kLeft + kWidth,      PaddleBarView::GetMarkX (kLeft, kWidth, 255),  0.001f, L"255 at the right");
+        Assert::AreEqual (kLeft + (float) kMid, PaddleBarView::GetMarkX (kLeft, kWidth, kMid), 0.001f, L"and in between in proportion");
+    }
+
+
+    //  A bar draws its value and nothing else as text, right-aligned at its
+    //  right edge, with the track wholly to the reading's left: the row's
+    //  label already gives the paddle.
+    TEST_METHOD (PaddleBar_ReadsItsValueRightOfTheTrackWithNoLabel)
+    {
+        constexpr RECT                          kBounds = { 300, 100, 490, 128 };
+        PaddleBarView                           view;
+        DxuiDpiScaler                           scaler;
+        MockDxuiPainter                         painter;
+        MockDxuiTextRenderer                    text;
+        MockDxuiTheme                           theme;
+        std::vector<const RecordedTextCall *>   strings;
+
+
+
+        scaler.SetDpi (kDpi);
+        view.SetBar   ({ L"PDL1", 108 });
+        view.Layout   (kBounds, scaler);
+        view.Paint    (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString)
+            {
+                strings.push_back (&call);
+            }
+        }
+
+        Assert::AreEqual ((size_t) 1, strings.size(),                   L"one string");
+        Assert::AreEqual (std::wstring (L"108"), strings[0]->text,      L"the value alone, no paddle label");
+        Assert::AreEqual ((float) kBounds.right, strings[0]->x + strings[0]->width, 0.001f, L"ending at the view's right edge");
+        Assert::IsTrue   (strings[0]->hAlign == DxuiTextHAlign::Right,  L"right-aligned there");
+        Assert::IsFalse  (painter.Calls().empty(),                      L"the track is drawn");
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            Assert::IsTrue (call.x + call.width <= strings[0]->x, L"and wholly left of the reading");
+        }
+    }
+
+
+    //  The stick's circle and both of its readings stay inside its bounds,
+    //  and the reading beside the circle ends at the right edge,
+    //  right-aligned, where the paddle bars' readings end.
+    TEST_METHOD (StickPosition_ReadingEndsAtTheRightEdge)
+    {
+        constexpr RECT            kBounds = { 300, 100, 490, 290 };
+        StickPositionView         view;
+        DxuiDpiScaler             scaler;
+        MockDxuiPainter           painter;
+        MockDxuiTextRenderer      text;
+        MockDxuiTheme             theme;
+        const RecordedTextCall  * beside  = nullptr;
+
+
+
+        scaler.SetDpi   (kDpi);
+        view.SetValues  (108, 200);
+        view.Layout     (kBounds, scaler);
+        view.Paint      (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind != RecordedTextKind::DrawString)
+            {
+                continue;
+            }
+
+            Assert::IsTrue (call.x >= (float) kBounds.left && call.x + call.width <= (float) kBounds.right + 0.001f, (call.text + L" stays inside").c_str());
+
+            if (call.text.starts_with (L"PDL1"))
+            {
+                beside = &call;
+            }
+        }
+
+        Assert::IsNotNull (beside, L"PDL1's reading is drawn");
+        Assert::AreEqual  ((float) kBounds.right, beside->x + beside->width, 0.001f, L"ending at the right edge");
+        Assert::IsTrue    (beside->hAlign == DxuiTextHAlign::Right, L"right-aligned there");
     }
 
 
@@ -1152,13 +1237,45 @@ public:
     }
 
 
-    //  Each target's label sits just left of its first mapping drop-down,
-    //  right-aligned, the page's gap from it, in every mode.
-    TEST_METHOD (TargetLabels_SitJustLeftOfTheirFirstRow_InEveryMode)
+    //  The Disk page's "Motor volume:", a child setting under Drive audio.
+    static const DxuiLabel * FindDiskChildLabel (const DiskPage & disk)
     {
-        constexpr int  kGapPx = 6;
+        const DxuiLabel  * label = nullptr;
+        size_t             i     = 0;
 
 
+
+        for (i = 0; i < disk.GetChildCount(); ++i)
+        {
+            label = dynamic_cast<const DxuiLabel *> (disk.GetChild (i));
+
+            if (label != nullptr && label->GetText() == L"Motor volume:")
+            {
+                return label;
+            }
+        }
+
+        return nullptr;
+    }
+
+
+    //  Each target's label takes the indent the Disk page gives a child
+    //  setting such as "Motor volume:", starts there as that one does, and
+    //  ends at least the page's gap left of its first mapping drop-down, in
+    //  every mode.
+    TEST_METHOD (TargetLabels_TakeTheDiskPagesChildIndent_InEveryMode)
+    {
+        constexpr int      kGapPx      = 6;
+        DiskPage           disk        (L"Disk");
+        DxuiDpiScaler      scaler;
+        const DxuiLabel  * motor       = nullptr;
+
+
+
+        scaler.SetDpi (kDpi);
+        disk.Layout   (RECT { kLeftPx, kTopPx, kRightPx, kBottomPx }, scaler);
+        motor = FindDiskChildLabel (disk);
+        Assert::IsNotNull (motor, L"the Disk page has its Motor volume label");
 
         for (const ModeCase & mode : MakeModeCases())
         {
@@ -1167,6 +1284,7 @@ public:
             std::vector<const DxuiScrollPanel *>    tables;
             std::vector<const DxuiComboBox *>       rows;
             const DxuiLabel                       * label = nullptr;
+            std::wstring                            name  = mode.pszName;
 
 
 
@@ -1183,10 +1301,210 @@ public:
                 label = FindLabelBeside (page, rows[0]->GetBounds());
 
                 Assert::IsNotNull (label, mode.pszName);
-                Assert::AreEqual  (rows[0]->GetBounds().left - kGapPx, label->GetBounds().right, (std::wstring (mode.pszName) + L": " + label->GetText() + L" ends a gap left of its row").c_str());
-                Assert::IsTrue    (label->GetHAlign() == DxuiTextHAlign::Right,                   (std::wstring (mode.pszName) + L": " + label->GetText() + L" is right-aligned").c_str());
+                Assert::AreEqual  (motor->GetBounds().left, label->GetBounds().left,   (name + L": " + label->GetText() + L" takes the Disk page's child indent").c_str());
+                Assert::IsTrue    (label->GetHAlign() == motor->GetHAlign(),           (name + L": " + label->GetText() + L" starts there, as Motor volume does").c_str());
+                Assert::IsTrue    (label->GetBounds().right <= rows[0]->GetBounds().left - kGapPx, (name + L": " + label->GetText() + L" ends a gap left of its row").c_str());
             }
         }
+    }
+
+
+    //  The shown control of type T on the same row as the shown label with
+    //  the given text, right of it, or null.
+    template <typename T>
+    static const T * FindShownBeside (const ControllersPage & page, const std::wstring & labelText)
+    {
+        const DxuiLabel  * label = FindLabel (page, labelText);
+
+
+
+        if (label == nullptr)
+        {
+            return nullptr;
+        }
+
+        for (const T * child : FindAllShown<T> (page))
+        {
+            if (child->GetBounds().top == label->GetBounds().top && child->GetBounds().left >= label->GetBounds().right)
+            {
+                return child;
+            }
+        }
+
+        return nullptr;
+    }
+
+
+    //  Every mapping drop-down starts where the Controller and Profile
+    //  drop-downs above it start, in every mode.
+    TEST_METHOD (MappingDropDowns_AlignWithTheControllerAndProfileDropDowns_InEveryMode)
+    {
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage          page;
+            ControllersPageState     state;
+            const DxuiComboBox     * profile    = nullptr;
+            const DxuiComboBox     * controller = nullptr;
+            std::wstring             name       = mode.pszName;
+
+
+
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
+
+            profile    = FindShownBeside<DxuiComboBox> (page, L"Profile:");
+            controller = FindShownBeside<DxuiComboBox> (page, L"Editing:");
+
+            if (controller == nullptr)
+            {
+                controller = FindShownBeside<DxuiComboBox> (page, L"Controller:");
+            }
+
+            Assert::IsNotNull (profile,    mode.pszName);
+            Assert::IsNotNull (controller, mode.pszName);
+            Assert::AreEqual  (profile->GetBounds().left, controller->GetBounds().left, (name + L": Controller and Profile share an edge").c_str());
+            Assert::IsFalse   (FindCombos (page, kpszPressToAssign).empty(), mode.pszName);
+
+            for (const DxuiComboBox * row : FindCombos (page, kpszPressToAssign))
+            {
+                Assert::AreEqual (profile->GetBounds().left, row->GetBounds().left, (name + L": a mapping drop-down starts at the Profile drop-down's edge").c_str());
+            }
+        }
+    }
+
+
+    //  The pictures and their readings end at the right edge of the Delete
+    //  button and of the players' mode drop-downs, in every mode: the stick,
+    //  the Joyport's switches, and each paddle's bar.
+    TEST_METHOD (LiveViews_EndAtTheDeleteButtonsRightEdge_InEveryMode)
+    {
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage                       page;
+            ControllersPageState                  state;
+            const DxuiButton                    * deleteButton = nullptr;
+            std::vector<const IDxuiControl *>     pictures;
+            std::wstring                          name         = mode.pszName;
+
+
+
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
+
+            deleteButton = FindButton (page, L"Delete...");
+            Assert::IsNotNull (deleteButton, mode.pszName);
+
+            for (const StickPositionView * stick : FindAllShown<StickPositionView> (page))
+            {
+                pictures.push_back (stick);
+            }
+
+            for (const JoyportSwitchView * switches : FindAllShown<JoyportSwitchView> (page))
+            {
+                pictures.push_back (switches);
+            }
+
+            for (const PaddleBarView * bar : FindAllShown<PaddleBarView> (page))
+            {
+                pictures.push_back (bar);
+            }
+
+            Assert::IsFalse (pictures.empty(), mode.pszName);
+
+            for (const IDxuiControl * picture : pictures)
+            {
+                Assert::AreEqual (deleteButton->GetBounds().right, picture->GetBounds().right, (name + L": a live view ends at Delete's right edge").c_str());
+            }
+
+            for (const DxuiComboBox * modeCombo : FindCombos (page, L"Joystick"))
+            {
+                Assert::AreEqual (deleteButton->GetBounds().right, modeCombo->GetBounds().right, (name + L": as a player's mode drop-down does").c_str());
+            }
+        }
+    }
+
+
+    //  In a paddle mode each paddle's bar sits in its paddle's row, level
+    //  with its label, which gives the paddle without an axis letter.
+    TEST_METHOD (PaddleBars_SitInTheirPaddlesRows)
+    {
+        for (const ModeCase & mode : MakeModeCases())
+        {
+            ControllersPage                       page;
+            ControllersPageState                  state;
+            std::vector<const PaddleBarView *>    bars;
+            const DxuiLabel                     * label = nullptr;
+            std::wstring                          name  = mode.pszName;
+
+
+
+            LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
+
+            bars = FindAllShown<PaddleBarView> (page);
+
+            for (const PaddleBarView * bar : bars)
+            {
+                label = FindLabel (page, bar->GetBar().name + L":");
+
+                Assert::IsNotNull (label, (name + L": " + bar->GetBar().name + L" has its row").c_str());
+                Assert::AreEqual  (label->GetBounds().top,    bar->GetBounds().top,    (name + L": level with its label").c_str());
+                Assert::AreEqual  (label->GetBounds().bottom, bar->GetBounds().bottom, (name + L": and no taller than its row").c_str());
+            }
+
+            for (const DxuiLabel * shown : FindAllShown<DxuiLabel> (page))
+            {
+                Assert::IsTrue (bars.empty() || shown->GetText().find (L"(X)") == std::wstring::npos, (name + L": no (X) on a paddle's row").c_str());
+                Assert::IsTrue (bars.empty() || shown->GetText().find (L"(Y)") == std::wstring::npos, (name + L": no (Y) on a paddle's row").c_str());
+            }
+        }
+    }
+
+
+    //  A Paddle profile's speed slider has its label, "Paddle speed:", on its
+    //  row, ending before the slider's track, and both show only while the
+    //  axis plays at paddle speed: choosing Position hides them.
+    TEST_METHOD (PaddleSpeed_IsLabeledAndShownOnlyAtPaddleSpeed)
+    {
+        ControllersPage          page;
+        ControllersPageState     state;
+        const DxuiLabel        * label  = nullptr;
+        const DxuiSlider       * slider = nullptr;
+
+
+
+        LayOutPage (page, state, MakeOnePaddle(), MakePaddleSlots(), 0, kRightPx, ControllerFormFactor::Joystick);
+
+        label  = FindLabel (page, L"Paddle speed:");
+        slider = FindShownBeside<DxuiSlider> (page, L"Paddle speed:");
+
+        Assert::IsNotNull (label,  L"a Paddle profile at paddle speed labels its slider");
+        Assert::IsNotNull (slider, L"on the slider's row");
+        Assert::IsTrue    (label->GetBounds().right <= slider->GetBounds().left + DxuiSlider::kTrackInsetDip, L"ending before its track");
+        Assert::AreEqual  ((size_t) 2, CountShownSliders (page), L"the speed slider and the dead zone's");
+
+        Assert::IsTrue (state.SetResponse (PaddleTarget::Pdl0, 0, AxisResponse::Absolute, AxisBinding::kDefaultMaxSpeed), L"Position can be chosen on a knob");
+        page.Relayout();
+
+        Assert::IsNull   (FindLabel (page, L"Paddle speed:"), L"at Position the label goes");
+        Assert::AreEqual ((size_t) 1, CountShownSliders (page), L"and so does the slider");
+    }
+
+
+    //  A paddle has one axis, so Player 1's own paddle row reads "PDL0:",
+    //  where a Joystick profile's reads "PDL0 (X):".
+    TEST_METHOD (PaddleProfile_TargetLabelGivesNoAxisLetter)
+    {
+        ControllersPage       paddle;
+        ControllersPage       joystick;
+        ControllersPageState  paddleState;
+        ControllersPageState  joystickState;
+
+
+
+        LayOutPage (paddle,   paddleState,   MakeOnePaddle(), MakePaddleSlots(), 0, kRightPx, ControllerFormFactor::Joystick);
+        LayOutPage (joystick, joystickState, PlayerEntries(), PlayerSlots(),     0, kRightPx, ControllerFormFactor::Joystick);
+
+        Assert::IsNotNull (FindLabel (paddle,   L"PDL0:"),     L"the paddle's row");
+        Assert::IsNull    (FindLabel (paddle,   L"PDL0 (X):"), L"with no axis letter");
+        Assert::IsNotNull (FindLabel (joystick, L"PDL0 (X):"), L"a stick's row keeps its letter");
     }
 
 
@@ -1241,10 +1559,9 @@ public:
     }
 
 
-    static constexpr int  kIndentPx      = 18;     // the page's child indent at 96 DPI
-    static constexpr int  kLabelWidthPx  = 90;
-    static constexpr int  kMinLightPx    = 20;     // a button's light, readable beside its row
-    static constexpr int  kMinPageWidth  = 688;    // the page area of the sheet at its 720 DIP minimum
+    static constexpr int  kIndentPx      = DxuiTreeView::kIndentDip;    // a settings page's child indent, at 96 DPI
+    static constexpr int  kMinLightPx    = 20;                          // a button's light, readable beside its row
+    static constexpr int  kMinPageWidth  = 688;                         // the page area of the sheet at its 720 DIP minimum
 
 
     //  Every shown child of type T, in page order.
@@ -1286,7 +1603,7 @@ public:
 
         if (picture == nullptr)
         {
-            picture = FindShown<PaddleBarsView> (page);
+            picture = FindShown<PaddleBarView> (page);
         }
 
         return picture;
@@ -1384,39 +1701,45 @@ public:
 
 
     //  The mapping drop-downs, Invert's box, the paddle speed slider's track
-    //  and the dead zone slider's track share one left edge, in every mode.
+    //  and the dead zone slider's track share one left edge, the Profile
+    //  drop-down's, in every mode.
     TEST_METHOD (ConfigurationColumn_SharesOneLeftEdge_InEveryMode)
     {
-        constexpr int  kColumnPx = kLeftPx + kPagePadPx + kIndentPx + kLabelWidthPx;
-        size_t         speeds    = 0;
+        size_t  speeds = 0;
 
 
 
         for (const ModeCase & mode : MakeModeCases())
         {
-            ControllersPage       page;
-            ControllersPageState  state;
-            std::wstring          name  = mode.pszName;
+            ControllersPage         page;
+            ControllersPageState    state;
+            std::wstring            name      = mode.pszName;
+            const DxuiComboBox    * profile   = nullptr;
+            int                     column    = 0;
 
 
 
             LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
 
+            profile = FindShownBeside<DxuiComboBox> (page, L"Profile:");
+            Assert::IsNotNull (profile, mode.pszName);
+            column = profile->GetBounds().left;
+
             Assert::IsFalse (FindCombos (page, kpszPressToAssign).empty(), mode.pszName);
 
             for (const DxuiComboBox * row : FindCombos (page, kpszPressToAssign))
             {
-                Assert::AreEqual (kColumnPx, (int) row->GetBounds().left, (name + L": a mapping drop-down").c_str());
+                Assert::AreEqual (column, (int) row->GetBounds().left, (name + L": a mapping drop-down").c_str());
             }
 
             for (const DxuiCheckbox * invert : FindAllShown<DxuiCheckbox> (page))
             {
-                Assert::AreEqual (kColumnPx, (int) invert->GetBounds().left, (name + L": Invert's box").c_str());
+                Assert::AreEqual (column, (int) invert->GetBounds().left, (name + L": Invert's box").c_str());
             }
 
             for (const DxuiSlider * slider : FindAllShown<DxuiSlider> (page))
             {
-                Assert::AreEqual (kColumnPx, (int) slider->GetBounds().left + DxuiSlider::kTrackInsetDip, (name + L": a slider's track").c_str());
+                Assert::AreEqual (column, (int) slider->GetBounds().left + DxuiSlider::kTrackInsetDip, (name + L": a slider's track").c_str());
                 Assert::IsTrue   (FindShown<StickPositionView> (page) == nullptr
                                   || slider->GetBounds().right < FindShown<StickPositionView> (page)->GetBounds().left
                                   || slider->GetBounds().top  >= FindShown<StickPositionView> (page)->GetBounds().bottom,

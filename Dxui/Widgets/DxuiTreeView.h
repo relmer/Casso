@@ -59,6 +59,10 @@ class DxuiTreeView : public IDxuiControl
 public:
     using ToggleFn = std::function<void (const std::wstring & label, bool checked)>;
 
+    // One nesting step. The settings pages indent a child setting's label by
+    // the same amount, so it reads as nested the way a child row here does.
+    static constexpr int  kIndentDip = 18;
+
     DxuiTreeView() { m_focusable = true; }
     ~DxuiTreeView() override = default;
 
@@ -72,7 +76,7 @@ public:
     {
         m_scaler.SetDpi (dpi);
         m_rowHeightPx = m_scaler.ToPx (22);
-        m_indentPx    = m_scaler.ToPx (18);
+        m_indentPx    = m_scaler.ToPx (kIndentDip);
         m_checkboxPx  = m_scaler.ToPx (16);
         m_twistyPx    = m_scaler.ToPx (16);
     }
@@ -128,7 +132,7 @@ private:
     void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
     void  ToggleRow        (int flatRow);
     int                        m_rowHeightPx = 22;
-    int                        m_indentPx    = 18;
+    int                        m_indentPx    = kIndentDip;
     int                        m_checkboxPx  = 16;
     int                        m_twistyPx    = 16;
     int                        m_highlight   = -1;

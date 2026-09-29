@@ -3,6 +3,7 @@
 #include "DiskPage.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Widgets/DxuiTreeView.h"
 
 
 
@@ -154,7 +155,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  checkWidth   = scaler.ToPx (s_kCheckWidthDp);
     int  dropWidth    = scaler.ToPx (s_kDropdownWidthDp);
     int  sectionGap   = scaler.ToPx (s_kSectionGapDp);
-    int  childIndent  = scaler.ToPx (18);          // matches DxuiTreeView indent
+    int  childIndent  = scaler.ToPx (DxuiTreeView::kIndentDip);
     int  x            = rect.left + pad;
     int  y            = rect.top  + pad;
     int  controlsX    = x + labelWidth;
@@ -184,7 +185,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     // Mechanism is a child of Drive audio: indent the label by the
-    // same childIndent used elsewhere (matches DxuiTreeView's 18 dp).
+    // same childIndent used elsewhere (one DxuiTreeView nesting step).
     m_mechLabel.SetRect  (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_mechLabel.SetText  (L"Mechanism:");
     m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));

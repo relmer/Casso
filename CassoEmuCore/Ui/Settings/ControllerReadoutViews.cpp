@@ -96,7 +96,9 @@ void StickPositionView::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
 //  Paint
 //
 //  The circle fills the bounds less a band below for PDL0's label and a band
-//  to the right for PDL1's, so both labels sit beside the axis they name.
+//  to the right for PDL1's, so both labels sit beside the axis they give.
+//  PDL1's is right-aligned at the right edge, where the paddle bars' readings
+//  end, and the circle sits against it.
 //
 //  THE DOT STAYS INSIDE THE CIRCLE. The two paddle values are independent, so
 //  a stick pushed into a corner reads both at an end; drawn as they stand,
@@ -117,9 +119,10 @@ void StickPositionView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float     fontPx    = m_scaler.ToPxf (s_kReadoutFontDip);
     float     width     = (float) (bounds.right - bounds.left);
     float     height    = (float) (bounds.bottom - bounds.top);
-    float     diameter  = std::max (0.0f, std::min (width - band * 3.0f, height - band));
+    float     readingW  = band * 3.0f;
+    float     diameter  = std::max (0.0f, std::min (width - readingW - ring * 2.0f, height - band));
     float     radius    = diameter * 0.5f;
-    float     cx        = (float) bounds.left + radius;
+    float     cx        = (float) bounds.right - readingW - ring * 2.0f - radius;
     float     cy        = (float) bounds.top  + radius;
     float     reach     = std::max (0.0f, radius - dot - ring);
     float     dx        = (m_pdl0 / 255.0f) * 2.0f - 1.0f;
@@ -159,15 +162,15 @@ void StickPositionView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.DrawString (std::format (L"{}  {}", m_horizontal, m_pdl0).c_str(),
-                          (float) bounds.left, cy + radius, diameter, band,
+                          cx - radius, cy + radius, diameter, band,
                           theme.ForegroundMuted(), fontPx, s_kpszReadoutFont,
                           DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.DrawString (m_vertical.empty() ? L"" : std::format (L"{}  {}", m_vertical, m_pdl1).c_str(),
-                          cx + radius + ring * 2.0f, cy - band * 0.5f, band * 3.0f, band,
+                          (float) bounds.right - readingW, cy - band * 0.5f, readingW, band,
                           theme.ForegroundMuted(), fontPx, s_kpszReadoutFont,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                          DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

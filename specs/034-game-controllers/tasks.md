@@ -573,6 +573,17 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
+## Phase 28: Indent, Edges and Paddle Rows (FR-019, FR-021a, FR-023; 2026-09-29)
+
+**Goal**: the owner's next review of the page: target labels at the settings pages' child indent, mapping drop-downs on the Controller and Profile drop-downs' edge, the pictures and readings ending at the Delete button's right edge, each paddle's bar in its own row with its value right of it, no axis letter on a paddle's row, and a labeled paddle speed shown only at paddle speed.
+
+- [X] T240 Update `spec.md` (Session 2026-09-29; FR-021a, FR-023)
+- [X] T241 Tests first: `ControllersPageLayoutTests` (`TargetLabels_TakeTheDiskPagesChildIndent_InEveryMode`, `MappingDropDowns_AlignWithTheControllerAndProfileDropDowns_InEveryMode`, `LiveViews_EndAtTheDeleteButtonsRightEdge_InEveryMode`, `PaddleBars_SitInTheirPaddlesRows`, `PaddleBar_ReadsItsValueRightOfTheTrackWithNoLabel`, `StickPosition_ReadingEndsAtTheRightEdge`, `PaddleSpeed_IsLabeledAndShownOnlyAtPaddleSpeed`, `PaddleProfile_TargetLabelGivesNoAxisLetter`), and the existing column tests measured from the Profile drop-down
+- [X] T242 `DxuiTreeView::kIndentDip`, used by the Disk page and the Controllers page; `ControllersPage::Layout` with the 120 DIP label column, the pictures right-aligned to the Delete button and a `PaddleBarView` per paddle row (renamed from `PaddleBarsView`); `StickPositionView::Paint` right-aligning PDL1's reading; `ControllersPageState::IsPaddleSpeedShown` and the "Paddle speed:" label
+- [X] T243 Mutation checks for Phase 28, the full Release suite, `CheckStyle -Mode Tree` and captures of the page in every mode at its default and minimum sizes and of the Disk page, recorded in `validation.md` under a new "Phase 28" heading
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies

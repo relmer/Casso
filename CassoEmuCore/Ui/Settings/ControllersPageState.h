@@ -233,9 +233,11 @@ public:
     // Whether an axis's options hold a paddle speed, which only a Paddle
     // profile's do, and whether they offer Position beside it, which only a
     // knob's do: its first analog binding a DirectInput axis on a controller
-    // that is not a gamepad.
+    // that is not a gamepad. The speed itself is shown only while the axis's
+    // first analog binding plays at paddle speed.
     bool                                  IsPaddleSpeedOffered () const;
     bool                                  IsPositionOffered    (PaddleTarget target) const;
+    bool                                  IsPaddleSpeedShown   (PaddleTarget target) const;
 
     // Whether the running machine has a Joyport, which puts its jacks among
     // the players' modes, set before Load or after it to swap the list and

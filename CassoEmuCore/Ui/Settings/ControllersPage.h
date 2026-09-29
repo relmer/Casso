@@ -5,7 +5,7 @@
 #include "Ui/Settings/ControllerReadoutViews.h"
 #include "Ui/Settings/ControllersPageState.h"
 #include "Ui/Settings/JoyportSwitchView.h"
-#include "Ui/Settings/PaddleBarsView.h"
+#include "Ui/Settings/PaddleBarView.h"
 #include "Ui/Settings/ProfileDialogOverlay.h"
 
 #include "Window/DxuiPropertyPage.h"
@@ -210,7 +210,7 @@ private:
     void                 PollPaddleBars     (const GamePortContribution * reading);
     void                 SyncJoyportLayout  ();
     bool                 IsTargetShown      (size_t target) const;
-    static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
+    static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport, bool isPaddles);
     std::wstring         GetTargetLabel     (PaddleTarget target) const;
     std::wstring         MakeSharedNotice   (PaddleTarget target) const;
     int                  LayOutSharedWarning (size_t target, int x, int y, int width, IDxuiTextRenderer * text, const DxuiDpiScaler & scaler);
@@ -273,9 +273,10 @@ private:
     JoyportSwitchView      m_switchView;
     bool                   m_isJoyportShown = false;
 
-    // A bar per paddle, drawn where the stick is in the paddle modes.
-    PaddleBarsView         m_paddleBars;
-    bool                   m_isPaddlesShown = false;
+    // In the paddle modes, a bar for each paddle in its own row, in place of
+    // the stick.
+    std::array<PaddleBarView, kAxisCount>  m_paddleBars;
+    bool                                   m_isPaddlesShown = false;
 
     std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;
     std::array<ButtonLightView, kButtonCount>                           m_lights;
@@ -286,6 +287,7 @@ private:
 
     std::array<DxuiCheckbox, kAxisCount>  m_invert;
     std::array<DxuiComboBox, kAxisCount>  m_response;
+    std::array<DxuiLabel, kAxisCount>     m_speedLabel;
     std::array<DxuiSlider, kAxisCount>    m_speed;
 
     // Under each target's rows, a warning for every control there that is also

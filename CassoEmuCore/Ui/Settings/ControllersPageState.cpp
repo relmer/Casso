@@ -1808,6 +1808,42 @@ bool ControllersPageState::IsPaddleSpeedOffered() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsPaddleSpeedShown
+//
+//  A Paddle profile's axis whose first analog binding plays at paddle speed.
+//  At Position the speed does nothing, so it is not shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsPaddleSpeedShown (PaddleTarget target) const
+{
+    ControlMapping              mapping = GetMapping();
+    std::vector<AxisBinding>  * list    = IsAxisTarget (target) ? FindAxisList (mapping, target) : nullptr;
+
+
+
+    if (!IsPaddleSpeedOffered() || list == nullptr)
+    {
+        return false;
+    }
+
+    for (const AxisBinding & binding : *list)
+    {
+        if (binding.kind == AxisBindingKind::Analog)
+        {
+            return binding.response == AxisResponse::Rate;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsPositionOffered
 //
 ////////////////////////////////////////////////////////////////////////////////
