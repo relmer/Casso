@@ -279,6 +279,7 @@
     <ClCompile Include="EmuTests\JoyportMachineTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerTokensTests.cpp" />
     <ClCompile Include="ControllerTests\AxisBudgetTests.cpp" />
+    <ClCompile Include="ControllerTests\AxisResponseRulesTests.cpp" />
     <ClCompile Include="ControllerTests\GamePortInputMixerTests.cpp" />
     <ClCompile Include="ControllerTests\MachineGamePortSinkTests.cpp" />
     <ClCompile Include="ControllerTests\DirectInputSampleDecoderTests.cpp" />

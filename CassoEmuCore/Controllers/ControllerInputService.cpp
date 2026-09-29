@@ -2,6 +2,7 @@
 
 #include "Controllers/ControllerInputService.h"
 
+#include "Controllers/AxisResponseRules.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 #include "Controllers/JoyportJackRules.h"
@@ -2024,19 +2025,21 @@ void ControllerInputService::ResolveUnitLocked (
     // Default for the rest.
     m_profiles.GetBuiltInSettings (kind, device.unit.model, device.formFactor, device.controls, outMapping, outDeadzone);
 
-    if (active.empty())
-    {
-        return;
-    }
-
     // A remembered profile the model no longer has plays the built-in one
     // already in hand; nothing is recreated for it (FR-029).
-    profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device.unit.model), active);
+    if (!active.empty())
+    {
+        profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device.unit.model), active);
+    }
 
     if (profile != nullptr)
     {
         outMapping = profile->mapping;
     }
+
+    // Each binding plays the response its kind of profile allows it, so a
+    // saved Position the control no longer offers plays at paddle speed.
+    AxisResponseRules::Normalize (outMapping, mode, device.unit.model.kind, device.formFactor);
 }
 
 

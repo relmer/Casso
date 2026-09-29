@@ -585,10 +585,10 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         // scaled to pixels on its own, so the rounding left the edges a pixel
         // or two apart. Taking the remainder of the row lands it exactly.
         // It is widened, leftward, to show its longest item whole beside its
-        // arrow, and Invert takes what is left. Position or paddle speed
-        // decides the paddle value only. A Joyport switch follows the stick's
-        // deflection either way, so the choice and its speed are not on the
-        // page while one is attached.
+        // arrow, and Invert takes what is left. Only a Paddle profile has a
+        // paddle speed, and only a knob's offers Position beside it: a
+        // Joystick profile's axes always give position, and a Joyport switch
+        // follows the stick's deflection either way.
         m_response[target].SetItems ({ L"Position", L"Paddle speed" });
         m_response[target].SetDpi   (dpi);
 
@@ -605,10 +605,10 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_invert[target].SetRect    (MakeRect (axesX + labelWidth + indent, axesBottom, responseX - (axesX + labelWidth + indent), rowH));
         m_invert[target].SetLabel   (L"Invert");
 
-        m_response[target].SetVisible (!isJoyport);
+        m_response[target].SetVisible (m_state != nullptr && m_state->IsPositionOffered (TargetAt (target)));
         m_response[target].SetRect    (MakeRect (responseX, axesBottom, responseW, rowH));
 
-        m_speed[target].SetVisible (!isJoyport);
+        m_speed[target].SetVisible (m_state != nullptr && m_state->IsPaddleSpeedOffered());
 
         // The speed slider starts at the "+" above it so the column edge reads
         // straight, and runs to where that column ends. A slider keeps a fixed
@@ -2158,8 +2158,8 @@ void ControllersPage::OnPlayerModeSelect (size_t player, int item)
 
 void ControllersPage::RefreshAxisOptions()
 {
-    const ControlMapping &  mapping = m_state->GetMapping();
-    size_t                  axis    = 0;
+    ControlMapping  mapping = m_state->GetMapping();   // a copy: IsPositionOffered rebuilds what GetMapping returns
+    size_t          axis    = 0;
 
 
 
@@ -2181,6 +2181,9 @@ void ControllersPage::RefreshAxisOptions()
         // either: the row it belongs to is not editable, so neither is what
         // shapes it.
         bool  isEditable = m_state->IsTargetInPlay (TargetAt (axis));
+
+        m_response[axis].SetVisible (IsTargetShown (axis) && m_state->IsPositionOffered (TargetAt (axis)));
+        m_speed[axis].SetVisible    (IsTargetShown (axis) && m_state->IsPaddleSpeedOffered());
 
         m_invert[axis].SetEnabled   (analog != nullptr && isEditable);
         m_response[axis].SetEnabled (analog != nullptr && isEditable);

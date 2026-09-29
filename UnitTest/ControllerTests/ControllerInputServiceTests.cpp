@@ -64,6 +64,7 @@ namespace ControllerTests
             info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
             info.unit.unitId = "{01661270-ADF7-11F1-8005-444553540000}";
             info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.formFactor  = ControllerFormFactor::Joystick;
             info.description = L"VKBsim Gladiator";
             info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
                                  { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
@@ -80,6 +81,23 @@ namespace ControllerTests
             info.unit.unitId = unitId;
             info.unit.source = ControllerUnitSource::InstanceGuid;
             info.description = description;
+            info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
+                                 { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
+            return info;
+        }
+
+
+        // A paddle adapter: a DirectInput device that is not a gamepad, whose
+        // axes a Paddle profile can play as position.
+        static ControllerDeviceInfo MakeKnobDevice()
+        {
+            ControllerDeviceInfo  info;
+
+            info.unit.model  = { ControllerKind::DirectInput, 0x04d8, 0xbeef };
+            info.unit.unitId = "{0B0B0B0B-ADF7-11F1-8005-444553540000}";
+            info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.formFactor  = ControllerFormFactor::Joystick;
+            info.description = L"Paddle Adapter";
             info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
                                  { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
             return info;
@@ -192,34 +210,35 @@ namespace ControllerTests
 
 
         // Each player pushes their stick hard over and holds their first
-        // button. The Xbox controller's Y is pushed too, so a merge that let
-        // player one reach PDL1 would show.
+        // button. Player one's is a knob, whose Paddle profile can give
+        // position; its Y is pushed too, so a merge that let player one reach
+        // PDL1 would show.
         static void SetUpTwoPlayers (FakeControllerBackend  & backend,
                                      ControllerInputService & service,
                                      GamePortInputMixer     & mixer,
-                                     ControllerDeviceInfo   & xbox,
+                                     ControllerDeviceInfo   & knob,
                                      ControllerDeviceInfo   & stick)
         {
-            ControllerSample  xboxSample  = MakePushedSample();
+            ControllerSample  knobSample  = MakePushedSample();
             ControllerSample  stickSample = MakeRestSample();
 
-            xbox  = MakeXboxDevice();
+            knob  = MakeKnobDevice();
             stick = MakeStickDevice();
 
-            xboxSample.axes[XInputSampleDecoder::kLeftStickY] = 1.0f;
+            knobSample.axes[1] = 1.0f;
 
             stickSample.axes[0] = -1.0f;
             stickSample.buttons.set (0);
 
             mixer.SetAxisOwner (AxisOwner::Controller);
-            backend.AddDevice (xbox, true);
+            backend.AddDevice (knob);
             backend.AddDevice (stick);
-            backend.SetSample (xbox.unit,  xboxSample);
+            backend.SetSample (knob.unit,  knobSample);
             backend.SetSample (stick.unit, stickSample);
-            SkipCalibration (service, { stick.unit });
-            UsePaddleKnobs  (service, { xbox, stick });
+            SkipCalibration (service, { knob.unit, stick.unit });
+            UsePaddleKnobs  (service, { knob, stick });
 
-            service.SetPlayerEntries (MakeTwoPlayers (xbox.unit, stick.unit));
+            service.SetPlayerEntries (MakeTwoPlayers (knob.unit, stick.unit));
             service.Tick();
         }
 
@@ -270,11 +289,11 @@ namespace ControllerTests
             GamePortInputMixer      mixer;
             RecordingGamePortSink   sink;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
 
             mixer.SetSink (&sink);
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
 
             Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"PDL0 follows player one");
             Assert::AreEqual (kFullLow,  sink.writes.back().state.paddle[1],
@@ -365,11 +384,11 @@ namespace ControllerTests
             GamePortInputMixer      mixer;
             RecordingGamePortSink   sink;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
 
             mixer.SetSink (&sink);
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
 
             service.SetPlayerMode (1, PlayerMode::Joystick);
             service.Tick();
@@ -390,13 +409,13 @@ namespace ControllerTests
             GamePortInputMixer      mixer;
             RecordingGamePortSink   sink;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
             size_t                  before = 0;
             size_t                  i      = 0;
 
             mixer.SetSink (&sink);
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
             before = sink.writes.size();
 
             backend.RemoveDevice (stick.unit);
@@ -461,12 +480,12 @@ namespace ControllerTests
             GamePortInputMixer      mixer;
             RecordingGamePortSink   sink;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
             ControllerDeviceInfo    spare = MakePadDevice ("{CCCC}", L"Spare Pad");
 
             mixer.SetSink (&sink);
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
 
             backend.AddDevice (spare);
             backend.SetSample (spare.unit, MakePushedSample());
@@ -488,12 +507,12 @@ namespace ControllerTests
             GamePortInputMixer      mixer;
             RecordingGamePortSink   sink;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
             PlayerEntries           entries;
 
             mixer.SetSink (&sink);
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
 
             entries         = service.GetPlayerEntries();
             entries[1]      = PlayerEntry();
@@ -601,6 +620,11 @@ namespace ControllerTests
             ControllerSample                                left   = MakeRestSample();
             ControlMapping                                  knob;
             std::map<std::string, ControllerModelSettings>  models;
+
+            // Paddle adapters rather than gamepads, so the Knob profile's
+            // Position plays as position.
+            first.formFactor  = ControllerFormFactor::Joystick;
+            second.formFactor = ControllerFormFactor::Joystick;
 
             knob.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
             knob.pb0.push_back  ({ { ControlKind::Button, 0 } });
@@ -1814,8 +1838,8 @@ namespace ControllerTests
             // Two profiles with the same rate binding, both in place before
             // any reading: only the switch's own reset can bring the paddle
             // back.
-            models = MakeModelSettings (device, "Rate A", mapping);
-            models.begin()->second.AddProfile ("Rate B", mapping, ProfileMode::Joystick);
+            models = MakeModelSettings (device, "Rate A", mapping, ProfileMode::Paddle);
+            models.begin()->second.AddProfile ("Rate B", mapping, ProfileMode::Paddle);
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
@@ -1824,8 +1848,9 @@ namespace ControllerTests
             service.SetClock ([&now]() { return now; });
             service.SetModelSettings (models);
 
+            service.PickPlayerEntry  (0, MakePick (device.unit, PlayerMode::Paddle));
+            service.SetPlayerMode    (0, PlayerMode::Paddle);
             service.SetActiveProfile (device.unit, "Rate A");
-            Pick (service, device.unit);
 
             for (i = 0; i < kTicks; i++)
             {
@@ -1842,6 +1867,50 @@ namespace ControllerTests
             Assert::IsTrue (sink.writes.back().state.paddle[0] <= kCenter + 1, L"the new profile starts its rate paddle at center");
         }
 
+
+        //  A Paddle profile saved with Position on an Xbox stick, which no
+        //  longer offers it, plays at paddle speed: pushed hard over, the
+        //  paddle leaves center rather than jumping to the end, and reaches it
+        //  at its speed.
+        TEST_METHOD (PaddleProfile_PlaysPositionOnAnXboxStickAtPaddleSpeed)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox    = MakeXboxDevice();
+            double                  now     = 0.0;
+            int                     i       = 0;
+
+            static constexpr int     kTicks    = 10;      // half a second: more than a sweep from center
+            static constexpr double  kStepSecs = 0.05;
+
+
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (xbox, true);
+            backend.SetSample (xbox.unit, MakeRestSample());
+            service.SetClock ([&now]() { return now; });
+            UsePaddleKnobs (service, { xbox });
+            service.PickPlayerEntry (0, MakePick (xbox.unit, PlayerMode::Paddle));
+            service.SetPlayerMode   (0, PlayerMode::Paddle);
+            service.Tick();
+
+            backend.SetSample (xbox.unit, MakePushedSample());
+            now += kStepSecs;
+            service.Tick();
+
+            Assert::IsTrue   (sink.writes.back().state.paddle[0] < kFullHigh, L"the paddle does not jump to the stick's position");
+
+            for (i = 0; i < kTicks; i++)
+            {
+                now += kStepSecs;
+                service.Tick();
+            }
+
+            Assert::AreEqual (kFullHigh, sink.writes.back().state.paddle[0], L"it moves there at its speed");
+        }
 
         TEST_METHOD (ActiveProfileMissing_PlaysDefaultAndSavesNothing)
         {
@@ -2073,12 +2142,12 @@ namespace ControllerTests
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
             JoyportJacks            jacks;
 
             //  Both players start in Paddle mode and move into the jacks.
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
             SetBothInJoyport (service);
             service.Tick();
             jacks = mixer.GetTargetState().jacks;
@@ -2128,14 +2197,14 @@ namespace ControllerTests
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
             GamePortState           state;
-            JoystickSwitches        xboxOn = MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Down, JoystickSwitch::Fire });
+            JoystickSwitches        knobOn = MakeSwitches ({ JoystickSwitch::Right, JoystickSwitch::Down, JoystickSwitch::Fire });
 
 
 
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
             service.SetJoyportAvailable (true);
             service.SetPlayerMode (0, PlayerMode::JoyportLeft);
             service.Tick();
@@ -2144,8 +2213,8 @@ namespace ControllerTests
             Assert::AreEqual (kFullLow, state.paddle[0],                  L"Player 2's knob on paddle 0, as though alone");
             Assert::AreEqual (kCenter,  state.paddle[1],                  L"and Player 1's stick on no paddle input");
             Assert::IsTrue   (state.buttons.none(),                       L"no button line from either");
-            Assert::IsTrue   (state.jacks.jack[JoyportJacks::kLeftJack]  == xboxOn, L"Player 1 in the left jack");
-            Assert::IsTrue   (state.jacks.jack[JoyportJacks::kRightJack] == xboxOn, L"and the right, which is free");
+            Assert::IsTrue   (state.jacks.jack[JoyportJacks::kLeftJack]  == knobOn, L"Player 1 in the left jack");
+            Assert::IsTrue   (state.jacks.jack[JoyportJacks::kRightJack] == knobOn, L"and the right, which is free");
         }
 
 
@@ -2185,11 +2254,11 @@ namespace ControllerTests
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    knob;
             ControllerDeviceInfo    stick;
             JoyportJacks            jacks;
 
-            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+            SetUpTwoPlayers (backend, service, mixer, knob, stick);
             SetBothInJoyport (service);
             service.Tick();
 

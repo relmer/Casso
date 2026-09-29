@@ -539,6 +539,16 @@ description: "Task list for 034 physical game controllers"
 - [X] T225 [US5] `ControllersPage`: target labels right-aligned, ending the page's gap left of their rows; a section gap above the dead zone slider; the slider's rect started `DxuiSlider::kTrackInsetDip` left of the column so its track starts at it; "Dead zone:"; `DxuiLabel::GetHAlign`; `m_deadZone`, `ControllersPageState::GetDeadZone` and `SetDeadZone`, and "dead zone" in comments and test messages
 - [X] T226 Mutation checks for Phase 24, the full Release suite, `CheckStyle -Mode Tree` and a capture of the page in each mode, recorded in `validation.md` under a new "Phase 24" heading
 
+## Phase 25: Paddle Speed in Paddle Profiles Only (FR-021a; 2026-09-28, later)
+
+**Goal**: the owner's rule for the Position / Paddle speed choice: a Joystick profile's axes always give position, with no choice and no speed on the page; a Paddle profile plays at a paddle speed and offers Position only for a real knob, a DirectInput axis on a controller that is not a gamepad; a saved Position the input no longer allows loads as Paddle speed; Joyport profiles unchanged.
+
+- [X] T227 Update `spec.md` (Session 2026-09-28; FR-021a)
+- [X] T228 [P] Tests first: `UnitTest/ControllerTests/AxisResponseRulesTests.cpp` (Position offered only for a DirectInput axis on a joystick or wheel in a Paddle profile; a Joystick profile always Position; a Paddle profile Paddle speed wherever Position is not offered, and a new binding at Paddle speed; Joyport unchanged; every analog binding on PDL0-PDL3 normalized, its speed kept)
+- [X] T229 [US5] Tests first: `ControllersPageStateTests` (`JoystickProfile_OffersNoPaddleSpeed`, `PaddleProfile_LoadsPositionOnAnXboxStickAsPaddleSpeed`, `PaddleProfile_OnAKnobOffersPosition`), `ControllersPageLayoutTests` (`JoystickProfile_ShowsNoPaddleSpeed`, `PaddleProfile_OffersPositionOnlyOnAKnob`; `ResponseDropDown_FitsPaddleSpeedBesideItsArrow` on a knob in a Paddle profile) and `ControllerInputServiceTests::PaddleProfile_PlaysPositionOnAnXboxStickAtPaddleSpeed`
+- [X] T230 `CassoEmuCore/Controllers/AxisResponseRules.h/.cpp`; `ControllerInputService::ResolveUnitLocked` plays each binding at its allowed response; `ControllersPageState` shows the mapping normalized, starts an added or replaced binding at its kind's response, keeps `SetResponse` to an allowed one, and gives `IsPaddleSpeedOffered` and `IsPositionOffered`; `ControllersPage` shows the drop-down and the speed slider from them. Tests that played a Knob Paddle profile as position now use a knob: the VKB Gladiator test stick is a joystick, and the two-player tests' first player a paddle adapter
+- [X] T231 Mutation checks for Phase 25, the full Release suite, `CheckStyle -Mode Tree` and a capture of the page, recorded in `validation.md` under a new "Phase 25" heading
+
 ---
 
 ## Dependencies and Execution Order

@@ -56,6 +56,7 @@ namespace ControllerTests
             info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
             info.unit.unitId = "{01661270-ADF7-11F1-8005-444553540000}";
             info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.formFactor  = ControllerFormFactor::Joystick;
             info.description = L"VKBsim Gladiator";
             info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
                                  { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };

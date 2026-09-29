@@ -47,12 +47,13 @@ public:
     static constexpr const wchar_t *  kpszCutWarning    = L"This controller's buttons are disabled because Player 1 is using the Joyport.";
 
 
-    static ControllerDeviceInfo MakeStick (const char * pszUnit = "{STICK}")
+    static ControllerDeviceInfo MakeStick (const char * pszUnit = "{STICK}", ControllerFormFactor formFactor = ControllerFormFactor::Gamepad)
     {
         ControllerDeviceInfo  info;
 
 
 
+        info.formFactor  = formFactor;
         info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
         info.unit.unitId = pszUnit;
         info.unit.source = ControllerUnitSource::InstanceGuid;
@@ -81,19 +82,20 @@ public:
     //  Lays the page out once on a machine that can take the Joyport, with
     //  two sticks attached and the players given, editing the controller at
     //  `edited`, in a page whose right edge is `right`, and returns its
-    //  reported content height.
+    //  reported content height. Both sticks are of the form factor `form`.
     static int LayOutPage (ControllersPage       & page,
                            ControllersPageState  & state,
                            const PlayerEntries   & entries = PlayerEntries(),
                            const PlayerSlots     & slots   = MakeTwoPlaying(),
                            size_t                  edited  = 0,
-                           int                     right   = kRightPx)
+                           int                     right   = kRightPx,
+                           ControllerFormFactor    form    = ControllerFormFactor::Gamepad)
     {
         DxuiDpiScaler  scaler;
 
 
 
-        state.Load ({ MakeStick ("{A}"), MakeStick ("{B}") }, {}, {}, true);
+        state.Load ({ MakeStick ("{A}", form), MakeStick ("{B}", form) }, {}, {}, true);
         state.SetJoyportAvailable (true);
         state.SetPlayers          (entries, slots, kPaddleAxes);
         state.SelectController    (edited);
@@ -509,6 +511,94 @@ public:
     }
 
 
+    //  Player 1 on a Paddle, Player 2 Disabled.
+    static PlayerEntries MakeOnePaddle()
+    {
+        PlayerEntries  entries;
+
+
+
+        entries[0].mode = PlayerMode::Paddle;
+        entries[1].kind = PlayerEntryKind::Disabled;
+        return entries;
+    }
+
+
+    //  Player 1 alone, on paddle 0.
+    static PlayerSlots MakePaddleSlots()
+    {
+        PlayerSlots  slots = MakeTwoPlaying();
+
+
+
+        slots[0].target = PlayerAxisTarget::Paddle0;
+        slots[1]        = PlayerSlot();
+        return slots;
+    }
+
+
+    //  The shown sliders.
+    static size_t CountShownSliders (const ControllersPage & page)
+    {
+        const DxuiSlider  * slider = nullptr;
+        size_t              count  = 0;
+        size_t              i      = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            slider = dynamic_cast<const DxuiSlider *> (page.GetChild (i));
+
+            if (slider != nullptr && slider->IsVisible())
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+
+    //  A Joystick profile's axes always give position, so neither the
+    //  Position / Paddle speed drop-down nor the speed slider is on the page:
+    //  the dead zone slider is the only one.
+    TEST_METHOD (JoystickProfile_ShowsNoPaddleSpeed)
+    {
+        ControllersPage       page;
+        ControllersPageState  state;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots(), 0, kRightPx, ControllerFormFactor::Joystick);
+
+        Assert::IsTrue   (FindCombos (page, L"Position").empty(), L"no Position / Paddle speed drop-down");
+        Assert::AreEqual ((size_t) 1, CountShownSliders (page),   L"and no speed slider");
+    }
+
+
+    //  A Paddle profile shows the speed slider, and offers Position beside
+    //  Paddle speed only for a knob: a DirectInput axis on a controller that
+    //  is not a gamepad.
+    TEST_METHOD (PaddleProfile_OffersPositionOnlyOnAKnob)
+    {
+        ControllersPage       gamepad;
+        ControllersPage       stick;
+        ControllersPageState  gamepadState;
+        ControllersPageState  stickState;
+
+
+
+        LayOutPage (gamepad, gamepadState, MakeOnePaddle(), MakePaddleSlots(), 0, kRightPx, ControllerFormFactor::Gamepad);
+        LayOutPage (stick,   stickState,   MakeOnePaddle(), MakePaddleSlots(), 0, kRightPx, ControllerFormFactor::Joystick);
+
+        Assert::IsTrue   (FindCombos (gamepad, L"Position").empty(),      L"a gamepad's stick is offered no Position");
+        Assert::AreEqual ((size_t) 2, CountShownSliders (gamepad),        L"but has its speed slider");
+        Assert::AreEqual ((size_t) 1, FindCombos (stick, L"Position").size(), L"a joystick's axis is offered Position");
+        Assert::AreEqual ((size_t) 2, CountShownSliders (stick),          L"beside its speed slider");
+    }
+
+
     //  The Position / Paddle speed drop-down beside Invert is wide enough
     //  for "Paddle speed" and its arrow, and still ends where the mapping
     //  drop-down above it ends; Invert takes what is left.
@@ -524,7 +614,7 @@ public:
 
 
         page.SetTextRenderer (&text);
-        LayOutPage (page, state);
+        LayOutPage (page, state, MakeOnePaddle(), MakePaddleSlots(), 0, kRightPx, ControllerFormFactor::Joystick);
 
         response = FindCombos (page, L"Position")[0];
         mapping  = FindCombos (page, kpszPressToAssign)[0];

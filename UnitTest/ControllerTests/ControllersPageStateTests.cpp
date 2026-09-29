@@ -540,6 +540,92 @@ namespace ControllerTests
         }
 
 
+        //  A Joystick profile's axes always give position: no paddle speed is
+        //  offered or can be set, and a binding added with one gives position.
+        TEST_METHOD (JoystickProfile_OffersNoPaddleSpeed)
+        {
+            ControllersPageState  page;
+            AxisBinding           rate;
+
+
+
+            rate.analog   = { ControlKind::Axis, 1 };
+            rate.response = AxisResponse::Rate;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            Assert::IsFalse (page.IsPaddleSpeedOffered(),                   L"no paddle speed");
+            Assert::IsFalse (page.IsPositionOffered (PaddleTarget::Pdl0),  L"and no choice of Position");
+            Assert::IsFalse (page.SetResponse (PaddleTarget::Pdl0, 0, AxisResponse::Rate, AxisBinding::kDefaultMaxSpeed), L"Paddle speed cannot be set");
+            Assert::IsTrue  (page.GetMapping().pdl0[0].response == AxisResponse::Absolute);
+            Assert::IsTrue  (page.AddAxisBinding (PaddleTarget::Pdl1, rate));
+            Assert::IsTrue  (page.GetMapping().pdl1.back().response == AxisResponse::Absolute, L"a binding added gives position");
+        }
+
+
+        //  A Paddle profile saved with Position on an Xbox stick, which no
+        //  longer offers it, loads as Paddle speed at the speed it was saved
+        //  with, and the page offers the speed and no choice of Position.
+        TEST_METHOD (PaddleProfile_LoadsPositionOnAnXboxStickAsPaddleSpeed)
+        {
+            constexpr float                                 kSpeed = 400.0f;
+            ControllersPageState                            page;
+            ControllerDeviceInfo                            xbox   = MakeXbox();
+            std::map<std::string, ControllerModelSettings>  models;
+            ControlMapping                                  knob;
+            AxisBinding                                     position;
+
+
+
+            position.analog   = { ControlKind::Axis, 0 };
+            position.maxSpeed = kSpeed;
+            knob.pdl0.push_back (position);
+
+            models[ControllerTokens::ModelToToken (xbox.unit.model)].EnsureBuiltInProfiles (xbox.unit.model, xbox.formFactor, xbox.controls);
+            models[ControllerTokens::ModelToToken (xbox.unit.model)].AddProfile ("Knob", knob, ProfileMode::Paddle);
+
+            page.Load ({ xbox }, models, {}, true);
+            page.SetActiveProfiles (ProfileMode::Paddle, { { ControllerTokens::UnitToToken (xbox.unit), "Knob" } });
+            SetPaddlePlayer (page);
+
+            Assert::AreEqual (std::string ("Knob"), page.GetEditedProfileName());
+            Assert::IsTrue   (page.GetMapping().pdl0[0].response == AxisResponse::Rate, L"Position loads as Paddle speed");
+            Assert::AreEqual (kSpeed, page.GetMapping().pdl0[0].maxSpeed,                L"at its own speed");
+            Assert::IsTrue   (page.IsPaddleSpeedOffered(),                                L"with the speed offered");
+            Assert::IsFalse  (page.IsPositionOffered (PaddleTarget::Pdl0),               L"and no choice of Position");
+            Assert::IsFalse  (page.SetResponse (PaddleTarget::Pdl0, 0, AxisResponse::Absolute, kSpeed), L"which cannot be set either");
+            Assert::IsTrue   (page.GetMapping().pdl0[0].response == AxisResponse::Rate);
+        }
+
+
+        //  On a knob, a DirectInput axis on a controller that is not a
+        //  gamepad, a Paddle profile offers Position beside Paddle speed, and
+        //  a binding added still starts at Paddle speed.
+        TEST_METHOD (PaddleProfile_OnAKnobOffersPosition)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+            AxisBinding           added;
+
+
+
+            stick.formFactor = ControllerFormFactor::Joystick;
+            added.analog     = { ControlKind::Axis, 1 };
+
+            page.Load ({ stick }, {}, {}, true);
+            SetPaddlePlayer (page);
+
+            Assert::IsTrue (page.IsPaddleSpeedOffered());
+            Assert::IsTrue (page.IsPositionOffered (PaddleTarget::Pdl0),                                              L"Position is offered");
+            Assert::IsTrue (page.GetMapping().pdl0[0].response == AxisResponse::Rate,                                  L"Paddles starts at Paddle speed");
+            Assert::IsTrue (page.SetResponse (PaddleTarget::Pdl0, 0, AxisResponse::Absolute, AxisBinding::kDefaultMaxSpeed), L"and can be set to Position");
+            Assert::IsTrue (page.GetMapping().pdl0[0].response == AxisResponse::Absolute);
+            Assert::IsTrue (page.AddAxisBinding (PaddleTarget::Pdl0, added));
+            Assert::IsTrue (page.GetMapping().pdl0.back().response == AxisResponse::Rate,                              L"a binding added starts at Paddle speed");
+            Assert::AreEqual (AxisBinding::kDefaultMaxSpeed, page.GetMapping().pdl0.back().maxSpeed,                   L"768/s");
+        }
+
+
         static std::map<std::string, ControllerModelSettings> MakeSavedWithSwapped()
         {
             std::map<std::string, ControllerModelSettings>  models;

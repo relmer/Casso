@@ -2,6 +2,7 @@
 
 #include "Ui/Settings/ControllersPageState.h"
 
+#include "Controllers/AxisResponseRules.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 #include "Controllers/JoyportJackRules.h"
@@ -1432,7 +1433,9 @@ std::optional<size_t> ControllersPageState::FindHoldingPlayer() const
 //  GetMapping
 //
 //  The edited profile's mapping as edited, or the built-in profile's own
-//  mapping for a model nothing has been saved or edited for.
+//  mapping for a model nothing has been saved or edited for, with each
+//  response as the profile's kind allows: a saved Position the control no
+//  longer offers reads as Paddle speed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1443,18 +1446,16 @@ const ControlMapping & ControllersPageState::GetMapping() const
 
 
 
-    if (profile != nullptr)
-    {
-        return profile->mapping;
-    }
-
     if (selected == nullptr)
     {
-        return m_emptyMapping;
+        return profile != nullptr ? profile->mapping : m_emptyMapping;
     }
 
-    m_builtInMapping = ControllerModelSettings::MakeBuiltInMapping (GetEditedBuiltInKind(), selected->unit.model, selected->formFactor, selected->controls);
-    return m_builtInMapping;
+    m_shownMapping = profile != nullptr ? profile->mapping
+                                        : ControllerModelSettings::MakeBuiltInMapping (GetEditedBuiltInKind(), selected->unit.model, selected->formFactor, selected->controls);
+
+    AxisResponseRules::Normalize (m_shownMapping, m_profileMode, selected->unit.model.kind, selected->formFactor);
+    return m_shownMapping;
 }
 
 
@@ -1585,6 +1586,7 @@ bool ControllersPageState::AddAxisBinding (PaddleTarget target, const AxisBindin
 
     list = FindAxisList (profile->mapping, target);
     list->push_back (binding);
+    list->back().response = AxisResponseRules::GetNewResponse (m_profileMode, binding.response);
     list->back().maxSpeed = std::clamp (binding.maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
     NoteAssigned (target, binding);
 
@@ -1648,6 +1650,7 @@ bool ControllersPageState::ReplaceAxisBinding (PaddleTarget target, size_t index
     }
 
     (*list)[index]          = binding;
+    (*list)[index].response = AxisResponseRules::GetNewResponse (m_profileMode, binding.response);
     (*list)[index].maxSpeed = std::clamp (binding.maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
     m_liveEvaluator.ResetRate();
     NoteAssigned (target, binding);
@@ -1777,10 +1780,87 @@ bool ControllersPageState::SetResponse (PaddleTarget target, size_t index, AxisR
     }
 
     (*list)[index].response = response;
+    (*list)[index].response = GetAllowedResponse ((*list)[index]);
     (*list)[index].maxSpeed = std::clamp (maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
     m_liveEvaluator.ResetRate();
 
-    return true;
+    return (*list)[index].response == response;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPaddleSpeedOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsPaddleSpeedOffered() const
+{
+    return m_profileMode == ProfileMode::Paddle;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPositionOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsPositionOffered (PaddleTarget target) const
+{
+    const ControllerEntry     * selected = GetSelected();
+    ControlMapping              mapping  = GetMapping();
+    std::vector<AxisBinding>  * list     = IsAxisTarget (target) ? FindAxisList (mapping, target) : nullptr;
+
+
+
+    if (selected == nullptr || list == nullptr)
+    {
+        return false;
+    }
+
+    for (const AxisBinding & binding : *list)
+    {
+        if (binding.kind == AxisBindingKind::Analog)
+        {
+            return AxisResponseRules::IsPositionOffered (m_profileMode, binding, selected->unit.model.kind, selected->formFactor);
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetAllowedResponse
+//
+//  The response a binding of the edited controller plays with in the page's
+//  kind of profile.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AxisResponse ControllersPageState::GetAllowedResponse (const AxisBinding & binding) const
+{
+    const ControllerEntry  * selected = GetSelected();
+
+
+
+    if (selected == nullptr)
+    {
+        return binding.response;
+    }
+
+    return AxisResponseRules::GetAllowedResponse (m_profileMode, binding, selected->unit.model.kind, selected->formFactor);
 }
 
 

@@ -230,6 +230,13 @@ public:
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
 
+    // Whether an axis's options hold a paddle speed, which only a Paddle
+    // profile's do, and whether they offer Position beside it, which only a
+    // knob's do: its first analog binding a DirectInput axis on a controller
+    // that is not a gamepad.
+    bool                                  IsPaddleSpeedOffered () const;
+    bool                                  IsPositionOffered    (PaddleTarget target) const;
+
     // Whether the running machine has a Joyport, which puts its jacks among
     // the players' modes, set before Load or after it to swap the list and
     // the edited profile in place. The kind whose profiles the page lists and
@@ -353,6 +360,7 @@ private:
     ProfileMode                      GetEditedPlayerProfileMode () const;
     std::optional<size_t>            FindHoldingPlayer    () const;
     std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
+    AxisResponse                     GetAllowedResponse   (const AxisBinding & binding) const;
 
     // Every control on every target of the edited mapping, a pair per row.
     std::vector<std::pair<ControlId, PaddleTarget>>  ListControlUses() const;
@@ -439,8 +447,9 @@ private:
     MappingEvaluator                                m_liveEvaluator;
     ControlMapping                                  m_emptyMapping;
 
-    // What GetMapping hands back for a model with no saved Default profile.
-    // Rebuilt on each call, and held here so the reference it returns
-    // outlives the call.
-    mutable ControlMapping                          m_builtInMapping;
+    // What GetMapping hands back: the edited profile's mapping, or the
+    // built-in one for a model with nothing saved, with each response as the
+    // profile's kind allows. Rebuilt on each call, and held here so the
+    // reference it returns outlives the call.
+    mutable ControlMapping                          m_shownMapping;
 };
