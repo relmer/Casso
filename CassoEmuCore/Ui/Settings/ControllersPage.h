@@ -229,6 +229,7 @@ private:
     ControllersPageState::CommitFn              m_onCommitProfile;
     std::optional<ControllerUnitKey>            m_inspected;
     size_t                                      m_lastControllerCount = 0;
+    bool                                        m_wasEditedConnected  = false;
 
     // The controller each row of the Editing drop-down stands for. In
     // multiplayer the list holds only the players' controllers, so a row's

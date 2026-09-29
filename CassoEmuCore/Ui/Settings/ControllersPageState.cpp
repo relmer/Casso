@@ -439,17 +439,23 @@ void ControllersPageState::UpdateDevices (const std::vector<ControllerDeviceInfo
     m_devices = devices;
 
     // The edited profile goes into the pending prefs first, so a controller
-    // that leaves keeps its edits for when it comes back.
+    // that leaves keeps its edits whatever happens to its row.
     if (m_selected.has_value() && m_selected.value() < m_controllers.size())
     {
         StoreEditedProfile();
         selectedUnit = m_controllers[m_selected.value()].unit;
     }
 
-    std::erase_if (m_controllers, [&devices] (const ControllerEntry & entry)
+    for (ControllerEntry & entry : m_controllers)
     {
-        return std::none_of (devices.begin(), devices.end(),
+        entry.isConnected = std::any_of (devices.begin(), devices.end(),
             [&entry] (const ControllerDeviceInfo & device) { return device.unit == entry.unit; });
+    }
+
+    // Only the edited controller keeps its row once it leaves.
+    std::erase_if (m_controllers, [&selectedUnit] (const ControllerEntry & entry)
+    {
+        return !entry.isConnected && (!selectedUnit.has_value() || entry.unit != selectedUnit.value());
     });
 
     for (const ControllerDeviceInfo & device : devices)
@@ -459,7 +465,7 @@ void ControllersPageState::UpdateDevices (const std::vector<ControllerDeviceInfo
 
         if (!isKnown)
         {
-            m_controllers.push_back ({ device.unit, device.description, device.controls, device.formFactor });
+            m_controllers.push_back ({ device.unit, device.description, device.controls, device.formFactor, true });
         }
     }
 
@@ -468,31 +474,28 @@ void ControllersPageState::UpdateDevices (const std::vector<ControllerDeviceInfo
         stillSelected = FindController (selectedUnit.value());
     }
 
+    // The edited controller stays edited, connected or not, and its values
+    // stay as they are: nothing is reloaded over them when it comes back. A
+    // capture or a calibration cannot go on without it.
     if (stillSelected.has_value())
     {
         m_selected = stillSelected;
+
+        if (!m_controllers[stillSelected.value()].isConnected)
+        {
+            m_capture.Cancel();
+            m_calibrationStep = CalibrationStep::None;
+            m_liveEvaluator.ResetRate();
+        }
+
         return;
     }
 
-    // The edited controller left, or none was edited: the page moves to the
-    // first attached controller, or to none, as it would on opening. A
-    // capture or a calibration belonged to the controller that left.
-    if (selectedUnit.has_value())
-    {
-        m_capture.Cancel();
-        m_calibrationStep = CalibrationStep::None;
-        m_liveEvaluator.ResetRate();
-    }
-
-    m_selected.reset();
-
+    // No controller was edited: the page moves to the first attached one, as
+    // it would on opening.
     if (!m_controllers.empty())
     {
-        m_selected = 0;
-    }
-
-    if (selectedUnit.has_value() || m_selected.has_value())
-    {
+        m_selected    = 0;
         m_profileMode = GetEditedPlayerProfileMode();
         LoadEditedProfile();
     }
@@ -534,6 +537,24 @@ std::optional<size_t> ControllersPageState::GetSelectedIndex() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsEditedControllerConnected
+//
+//  False with no controller in Editing, and while the one in Editing is
+//  unplugged; either way, nothing on the page can be edited.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsEditedControllerConnected() const
+{
+    return m_selected.has_value() && m_selected.value() < m_controllers.size() && m_controllers[m_selected.value()].isConnected;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FindController
 //
 //  The row the page lists a controller on, or none when it does not list
@@ -567,18 +588,31 @@ std::optional<size_t> ControllersPageState::FindController (const ControllerUnit
 //  SelectController
 //
 //  Switching controllers abandons a capture or a calibration in progress:
-//  both belong to the controller they were started on.
+//  both belong to the controller they were started on. A controller that
+//  stayed listed only because it was being edited when it left drops out;
+//  its edits are already in the pending prefs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPageState::SelectController (size_t index)
 {
+    ControllerUnitKey  unit;
+
+
+
     if (index >= m_controllers.size())
     {
         return;
     }
 
-    m_selected = index;
+    unit = m_controllers[index].unit;
+
+    std::erase_if (m_controllers, [&unit] (const ControllerEntry & entry)
+    {
+        return !entry.isConnected && entry.unit != unit;
+    });
+
+    m_selected = FindController (unit);
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
     m_liveEvaluator.ResetRate();

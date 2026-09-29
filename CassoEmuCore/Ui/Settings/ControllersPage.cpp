@@ -1021,8 +1021,9 @@ void ControllersPage::Poll (int64_t nowMs)
         return;
     }
 
-    if (m_state->GetControllers().size() != m_lastControllerCount)
+    if (m_state->GetControllers().size() != m_lastControllerCount || m_state->IsEditedControllerConnected() != m_wasEditedConnected)
     {
+        m_capturing.reset();
         RebuildChoices();
         Refresh();
     }
@@ -1034,7 +1035,8 @@ void ControllersPage::Poll (int64_t nowMs)
 
     selected = m_state->GetSelectedIndex();
 
-    if (selected.has_value())
+    // An unplugged controller in Editing has nothing to show: the views idle.
+    if (selected.has_value() && m_state->IsEditedControllerConnected())
     {
         unit = m_state->GetControllers()[selected.value()].unit;
     }
@@ -1562,6 +1564,7 @@ void ControllersPage::Refresh()
     int                        selectedItem  = 0;
     size_t                     index         = 0;
     bool                       isPlayersOnly = false;
+    bool                       isEditable    = false;
 
 
 
@@ -1587,7 +1590,7 @@ void ControllersPage::Refresh()
         }
 
         m_editingIndices.push_back (index);
-        names.push_back (entry.description);
+        names.push_back (entry.isConnected ? entry.description : entry.description + L" (not connected)");
     }
 
     if (names.empty())
@@ -1596,7 +1599,9 @@ void ControllersPage::Refresh()
     }
 
     selected              = m_state->GetSelectedIndex();
+    isEditable            = m_state->IsEditedControllerConnected();
     m_lastControllerCount = m_state->GetControllers().size();
+    m_wasEditedConnected  = isEditable;
     m_isSyncing           = true;
 
     for (index = 0; selected.has_value() && index < m_editingIndices.size(); index++)
@@ -1618,8 +1623,8 @@ void ControllersPage::Refresh()
     RefreshCalibration();
 
     m_deadZone.SetValue   (m_state->GetDeadZone() * 100.0f);
-    m_deadZone.SetEnabled (selected.has_value());
-    m_reset.SetEnabled    (selected.has_value());
+    m_deadZone.SetEnabled (isEditable);
+    m_reset.SetEnabled    (isEditable);
 
     m_isSyncing = false;
 
@@ -1649,7 +1654,7 @@ void ControllersPage::RefreshProfiles()
 {
     std::vector<std::wstring>  items;
     std::string                edited   = m_state->GetEditedProfileName();
-    bool                       hasUnit  = m_state->GetSelectedIndex().has_value();
+    bool                       hasUnit  = m_state->IsEditedControllerConnected();
     bool                       canEdit  = hasUnit && !m_state->IsEditingBuiltInProfile();
     size_t                     i        = 0;
     int                        selected = 0;
@@ -1745,7 +1750,7 @@ void ControllersPage::SwitchProfile (const std::string & name)
 
 void ControllersPage::OnNewProfile()
 {
-    if (m_state == nullptr || !m_state->GetSelectedIndex().has_value())
+    if (m_state == nullptr || !m_state->IsEditedControllerConnected())
     {
         return;
     }
@@ -2035,7 +2040,7 @@ void ControllersPage::RebuildChoices()
 void ControllersPage::RefreshRows()
 {
     ControllerKind  kind    = GetSelectedKind();
-    bool            hasUnit = m_state->GetSelectedIndex().has_value();
+    bool            hasUnit = m_state->IsEditedControllerConnected();
     size_t          target  = 0;
     size_t          row     = 0;
 
@@ -2398,7 +2403,7 @@ void ControllersPage::RefreshAxisOptions()
         // An axis this controller's player does not drive takes no options
         // either: the row it belongs to is not editable, so neither is what
         // shapes it.
-        bool  isEditable = m_state->IsTargetInPlay (TargetAt (axis));
+        bool  isEditable = m_state->IsEditedControllerConnected() && m_state->IsTargetInPlay (TargetAt (axis));
 
         m_response[axis].SetVisible   (IsTargetShown (axis) && m_state->IsPositionOffered (TargetAt (axis)));
         m_speed[axis].SetVisible      (IsTargetShown (axis) && m_state->IsPaddleSpeedShown (TargetAt (axis)));
@@ -2446,6 +2451,8 @@ void ControllersPage::RefreshCalibration()
     m_calibrate.SetVisible         (canCalibrate);
     m_calibrationCancel.SetVisible (canCalibrate && step != CalibrationStep::None);
     m_useAutomatic.SetVisible      (canCalibrate && step == CalibrationStep::None && hasUser);
+    m_calibrate.SetEnabled         (m_state->IsEditedControllerConnected());
+    m_useAutomatic.SetEnabled      (m_state->IsEditedControllerConnected());
 
     if (!selected.has_value())
     {

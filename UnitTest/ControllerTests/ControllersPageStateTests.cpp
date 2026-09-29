@@ -456,7 +456,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (AControllerUnpluggedWhileOpen_LeavesTheListAndKeepsItsEdits)
+        TEST_METHOD (TheEditedControllerUnpluggedWhileOpen_StaysListedAndCancelsItsCapture)
         {
             ControllersPageState  page;
 
@@ -465,26 +465,62 @@ namespace ControllerTests
             page.BeginCapture (PaddleTarget::Pdl0, Rest(), 0);
             page.UpdateDevices ({});
 
-            Assert::IsTrue  (page.GetControllers().empty(),     L"it leaves the list, as if the page had opened without it");
-            Assert::IsFalse (page.GetSelectedIndex().has_value(), L"nothing is left to edit");
-            Assert::IsFalse (page.IsCapturing(),                L"the capture on it is canceled");
-
-            page.UpdateDevices ({ MakeStick() });
-            Assert::IsTrue   (page.GetSelectedIndex() == std::optional<size_t> (0), L"plugged back in, it is edited again");
-            Assert::AreEqual (0.4f, page.GetDeadZone(), 0.0001f,                     L"with its edit still there");
+            Assert::AreEqual (size_t (1), page.GetControllers().size(),                L"its row stays");
+            Assert::IsTrue   (page.GetSelectedIndex() == std::optional<size_t> (0),    L"and stays selected");
+            Assert::IsFalse  (page.GetControllers()[0].isConnected,                    L"marked not connected");
+            Assert::IsFalse  (page.IsEditedControllerConnected(),                      L"so nothing on the page is editable");
+            Assert::IsFalse  (page.IsCapturing(),                                      L"the capture on it is canceled");
+            Assert::AreEqual (0.4f, page.GetDeadZone(), 0.0001f,                       L"and its edit is still there");
         }
 
 
-        TEST_METHOD (TheEditedControllerUnpluggedWhileOpen_MovesTheSelectionToAnAttachedOne)
+        TEST_METHOD (TheEditedControllerReconnected_ComesBackWithItsValuesIntact)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+
+            page.Load ({ MakeXbox(), stick }, MakeSavedWithSwapped(), {}, true, "Swapped", stick.unit);
+            page.SetDeadZone (0.4f);
+            page.UpdateDevices ({ MakeXbox() });
+            page.UpdateDevices ({ MakeXbox(), stick });
+
+            Assert::AreEqual (size_t (2), page.GetControllers().size());
+            Assert::IsTrue   (page.FindController (stick.unit) == page.GetSelectedIndex(), L"still the controller in Editing");
+            Assert::IsTrue   (page.IsEditedControllerConnected(),                          L"editable again");
+            Assert::AreEqual (0.4f, page.GetDeadZone(), 0.0001f,                           L"with the unsaved edit, not a reload");
+            Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName(),        L"and the same profile");
+        }
+
+
+        TEST_METHOD (AnotherControllerUnpluggedWhileOpen_LeavesTheList)
         {
             ControllersPageState  page;
 
-            page.Load ({ MakeXbox(), MakeStick() }, {}, {}, true, std::string(), MakeStick().unit);
+            page.Load ({ MakeXbox(), MakeStick() }, {}, {}, true, std::string(), MakeXbox().unit);
             page.UpdateDevices ({ MakeXbox() });
 
             Assert::AreEqual (size_t (1), page.GetControllers().size());
             Assert::IsTrue   (page.GetSelectedIndex() == std::optional<size_t> (0));
             Assert::IsTrue   (page.GetControllers()[0].unit == MakeXbox().unit);
+        }
+
+
+        TEST_METHOD (SwitchingAwayFromAnUnpluggedController_DropsItAndKeepsItsEdits)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+
+            page.Load ({ MakeXbox(), stick }, {}, {}, true, std::string(), stick.unit);
+            page.SetDeadZone (0.4f);
+            page.UpdateDevices ({ MakeXbox() });
+            page.SelectController (page.FindController (MakeXbox().unit).value());
+
+            Assert::AreEqual (size_t (1), page.GetControllers().size(),                    L"the unplugged one leaves the list");
+            Assert::IsTrue   (page.GetControllers()[0].unit == MakeXbox().unit);
+
+            page.UpdateDevices ({ MakeXbox(), stick });
+            page.SelectController (page.FindController (stick.unit).value());
+            Assert::AreEqual (0.4f, page.GetDeadZone(), 0.0001f,                           L"its edit was kept in the pending prefs");
         }
 
 

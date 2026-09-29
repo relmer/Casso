@@ -92,7 +92,8 @@ public:
         ControllerUnitKey       unit;
         std::wstring            description;
         std::vector<ControlId>  controls;
-        ControllerFormFactor    formFactor = ControllerFormFactor::Gamepad;
+        ControllerFormFactor    formFactor  = ControllerFormFactor::Gamepad;
+        bool                    isConnected = true;
     };
 
     // The page opens. `hasPb2` is false on a machine whose $C063 is not a
@@ -123,17 +124,17 @@ public:
     const std::wstring &  GetMachineName () const                    { return m_machineName; }
 
 
-    // Controllers came or went while the page is open. One that left drops
-    // out of the list, as if the page had opened without it, and the page
-    // moves to another attached controller or to none. Its edits stay in the
-    // pending prefs, so it comes back with them when it is plugged in again.
+    // Controllers came or went while the page is open. The edited one stays
+    // listed and selected when it leaves, marked not connected, and picks up
+    // where it was when it comes back; any other one that left drops out.
     void  UpdateDevices (const std::vector<ControllerDeviceInfo> & devices);
 
-    const std::vector<ControllerEntry> &  GetControllers     () const;
-    std::optional<size_t>                 GetSelectedIndex   () const;
-    std::optional<size_t>                 FindController     (const ControllerUnitKey & unit) const;
-    void                                  SelectController   (size_t index);
-    bool                                  IsCalibratable     () const;
+    const std::vector<ControllerEntry> &  GetControllers              () const;
+    std::optional<size_t>                 GetSelectedIndex            () const;
+    bool                                  IsEditedControllerConnected () const;
+    std::optional<size_t>                 FindController              (const ControllerUnitKey & unit) const;
+    void                                  SelectController            (size_t index);
+    bool                                  IsCalibratable              () const;
 
     static constexpr size_t  kPlayerCount = PlayerSlotPolicy::kPlayerCount;
     static constexpr size_t  kPlayerTwo   = 1;
