@@ -62,6 +62,9 @@ private:
 //  kPressRampMs and fades over kFadeMs once released. The clock and the
 //  animation setting are passed in, so all of it is testable without either.
 //
+//  While it is lit, a short message picked at random from a fixed list shows
+//  to its right, fading with it; each new press picks another.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ButtonLightView : public IDxuiControl
@@ -83,12 +86,25 @@ public:
     float  GetLevel             () const { return m_level; }
     bool   IsLit                () const { return m_level > 0.0f; }
 
+    // The message beside the light, empty while it is dark, and where it
+    // goes: a row to the light's right, which it is elided to fit.
+    std::wstring  GetFunMessage     () const;
+    void          SetMessageBounds  (const RECT & bounds) { m_messageBounds = bounds; }
+
+    // The list the messages come from, and a pick from it given a random
+    // number: never `previous`, so a press never repeats the one before.
+    static size_t           GetFunMessageCount ();
+    static const wchar_t  * GetFunMessageAt    (size_t index);
+    static size_t           PickFunMessage     (std::optional<size_t> previous, uint32_t random);
+
     void   Layout               (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void   Paint                (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
 
     static uint32_t  BlendColor (uint32_t from, uint32_t to, float amount);
+
+    void             PaintFunMessage (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     DxuiDpiScaler  m_scaler;
     bool           m_isAnimated   = true;
@@ -97,4 +113,9 @@ private:
     int64_t        m_pressStartMs = 0;
     int64_t        m_lastSeenMs   = 0;
     float          m_level        = 0.0f;
+
+    RECT                   m_messageBounds = {};
+    std::optional<size_t>  m_message;
+    std::optional<size_t>  m_lastMessage;
+    std::mt19937           m_random { std::random_device{}() };
 };

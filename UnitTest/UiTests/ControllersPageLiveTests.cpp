@@ -284,4 +284,65 @@ public:
         Assert::AreEqual (0,  readings.reads,            L"a poll reads nothing");
         Assert::IsFalse  (readings.inspects.back(),      L"and the controller is let go");
     }
+
+    //  The messages beside a lit light come from one table, every entry with
+    //  text, and a pick never repeats the one before it.
+    TEST_METHOD (FunMessages_PickNeverRepeatsThePrevious)
+    {
+        constexpr uint32_t  kRandomsPerCase = 200;
+        size_t              count           = ButtonLightView::GetFunMessageCount();
+        size_t              previous        = 0;
+        size_t              picked          = 0;
+        uint32_t            random          = 0;
+
+
+
+        Assert::AreEqual ((size_t) 37, count, L"the owner's list");
+
+        for (previous = 0; previous < count; previous++)
+        {
+            Assert::IsTrue (wcslen (ButtonLightView::GetFunMessageAt (previous)) > 0, L"every entry has text");
+
+            for (random = 0; random < kRandomsPerCase; random++)
+            {
+                picked = ButtonLightView::PickFunMessage (previous, random);
+                Assert::IsTrue (picked < count,     L"in the table");
+                Assert::IsTrue (picked != previous, L"never the previous one");
+            }
+        }
+
+        Assert::IsTrue (ButtonLightView::PickFunMessage (std::nullopt, 0) < count, L"the first pick is in the table");
+    }
+
+
+    //  A press shows a message beside its light while the light is lit; the
+    //  message goes when the light goes dark, and the next press shows another.
+    TEST_METHOD (Press_ShowsAMessageUntilTheLightGoesDark)
+    {
+        constexpr int64_t  kPressMs  = kStartMs;
+        constexpr int64_t  kDarkMs   = kPressMs + ButtonLightView::kMinLitMs + 1;
+        constexpr int64_t  kSecondMs = kDarkMs + kFrameMs;
+        ButtonLightView    light;
+        std::wstring       first;
+
+
+
+        light.SetAnimationsEnabled (false);
+        Assert::IsTrue (light.GetFunMessage().empty(), L"no message at rest");
+
+        light.Update (true, false, kPressMs);
+        first = light.GetFunMessage();
+        Assert::IsFalse (first.empty(), L"a message while lit");
+
+        light.Update (false, false, kDarkMs);
+        Assert::IsFalse (light.IsLit(),               L"dark");
+        Assert::IsTrue  (light.GetFunMessage().empty(), L"and the message gone");
+
+        light.Update (true, false, kSecondMs);
+        Assert::IsFalse (light.GetFunMessage().empty(), L"a message for the next press");
+        Assert::AreNotEqual (first, light.GetFunMessage(), L"not the one before");
+
+        light.Clear();
+        Assert::IsTrue (light.GetFunMessage().empty(), L"cleared with the light");
+    }
 };

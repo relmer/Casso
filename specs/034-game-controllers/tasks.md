@@ -596,6 +596,7 @@ description: "Task list for 034 physical game controllers"
 ## Phase 30: Stick and Throttle, Button Messages, Drop-Down Widths (FR-007, FR-019, FR-023; 2026-09-29, later)
 
 - [X] T248 The Paddles starting point on a device with a non-centering axis: PDL0 on the primary stick's X at Paddle speed, PDL1 on that axis at Position, PB0 on the first button and PB1 unassigned. Tests first: `AxisRoleRulesTests::Paddles_BindPdl1ToANonCenteringAxisAtPosition`, `ControllersPageStateTests::PaddleProfile_TheThrottleStartsAtPositionAndTheStickAtPaddleSpeed`, `ControllerInputServiceTests::Gladiator_TwoPaddlesModePlaysItsThrottleAtPosition`; then `DefaultMapping::MakePaddles`
+- [X] T249 A message beside each lit button light, from one static table of 37, never the previous pick. Tests first: `ControllersPageLiveTests::FunMessages_PickNeverRepeatsThePrevious`, `Press_ShowsAMessageUntilTheLightGoesDark`; then `ButtonLightView` (`PickFunMessage`, `SetMessageBounds`, `PaintFunMessage`) and its row in `ControllersPage::Layout`
 
 ---
 

@@ -3,6 +3,7 @@
 #include "Ui/Settings/ControllerReadoutViews.h"
 
 #include "Core/DxuiAnimation.h"
+#include "Core/DxuiTextElide.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -16,6 +17,48 @@ static constexpr float            s_kReadoutFontDip   = 12.0f;
 static constexpr float            s_kLabelBandDip     = 18.0f;
 static constexpr float            s_kRingThicknessDip = 2.0f;
 static constexpr float            s_kDotRadiusDip     = 6.0f;
+
+// What a lit button light says beside it, one picked per press.
+static constexpr const wchar_t *  s_kpszFunMessages[] =
+{
+    L"Fire!",
+    L"Pew-pew!",
+    L"Pow!",
+    L"360 no-scope!",
+    L"Enemy down.",
+    L"Target eliminated.",
+    L"Boom. Headshot.",
+    L"Get rekt.",
+    L"Git gud.",
+    L"Skill issue.",
+    L"Lag! That was lag.",
+    L"Frag out!",
+    L"Critical hit!",
+    L"Combo x2!",
+    L"Button mashing detected.",
+    L"Easy mode.",
+    L"GG, no re.",
+    L"Press F to pay respects.",
+    L"Achievement unlocked.",
+    L"Nice shot, rookie.",
+    L"The cake is a lie.",
+    L"Do a barrel roll!",
+    L"It's super effective!",
+    L"All your base are belong to us.",
+    L"Leeroy Jenkins!",
+    L"Camping detected.",
+    L"Ammo is not infinite, you know.",
+    L"Insert coin.",
+    L"One more game.",
+    L"Sir, this is a paddle.",
+    L"Your princess is in another castle.",
+    L"Hadouken!",
+    L"Finish him!",
+    L"Wasted.",
+    L"Waka waka.",
+    L"Do you even lift?",
+    L"Get off my lawn!",
+};
 
 
 
@@ -203,6 +246,8 @@ void ButtonLightView::Update (bool wasPressed, bool isPressed, int64_t nowMs)
     {
         m_pressStartMs = m_level > 0.0f ? nowMs - kPressRampMs : nowMs;
         m_hasPress     = true;
+        m_message      = PickFunMessage (m_lastMessage, (uint32_t) m_random());
+        m_lastMessage  = m_message;
     }
 
     if (isSeen)
@@ -215,6 +260,7 @@ void ButtonLightView::Update (bool wasPressed, bool isPressed, int64_t nowMs)
     if (!m_hasPress)
     {
         m_level = 0.0f;
+        m_message.reset();
         return;
     }
 
@@ -234,6 +280,7 @@ void ButtonLightView::Update (bool wasPressed, bool isPressed, int64_t nowMs)
     {
         m_level    = 0.0f;
         m_hasPress = false;
+        m_message.reset();
     }
 }
 
@@ -254,6 +301,8 @@ void ButtonLightView::Clear()
     m_hasPress = false;
     m_isHeld   = false;
     m_level    = 0.0f;
+
+    m_message.reset();
 }
 
 
@@ -342,4 +391,125 @@ void ButtonLightView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
     hr = text.DrawEllipse (cx, cy, radius - ring * 0.5f, radius - ring * 0.5f, ring, BlendColor (theme.Border(), theme.Accent(), m_level));
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    PaintFunMessage (text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintFunMessage
+//
+//  The message in the page's label font, fading from the page background to
+//  the muted text color with the light, and elided at its end when the row
+//  to the light's right is too narrow for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ButtonLightView::PaintFunMessage (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    DxuiFontHandle  font   = theme.BodyFont();
+    float           fontPx = m_scaler.ToPxf (font.sizeDip);
+    float           width  = (float) (m_messageBounds.right - m_messageBounds.left);
+    float           height = (float) (m_messageBounds.bottom - m_messageBounds.top);
+    std::wstring    shown;
+    HRESULT         hr     = S_OK;
+
+
+
+    if (!m_message.has_value() || m_level <= 0.0f || width <= 0.0f)
+    {
+        return;
+    }
+
+    shown = DxuiTextElide::ToWidth (text, GetFunMessage(), fontPx, font.face, width, DxuiElide::Tail);
+
+    hr = text.DrawString (shown.c_str(),
+                          (float) m_messageBounds.left, (float) m_messageBounds.top, width, height,
+                          BlendColor (theme.Background(), theme.ForegroundMuted(), m_level), fontPx, font.face,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, font.weight, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFunMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ButtonLightView::GetFunMessage() const
+{
+    return m_message.has_value() ? std::wstring (GetFunMessageAt (*m_message)) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFunMessageCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ButtonLightView::GetFunMessageCount()
+{
+    return std::size (s_kpszFunMessages);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFunMessageAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ButtonLightView::GetFunMessageAt (size_t index)
+{
+    return s_kpszFunMessages[index % std::size (s_kpszFunMessages)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickFunMessage
+//
+//  Uniform over the list, less the previous pick: the random number chooses
+//  among the others, and a choice at or past the previous one steps over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ButtonLightView::PickFunMessage (std::optional<size_t> previous, uint32_t random)
+{
+    size_t  count  = std::size (s_kpszFunMessages);
+    size_t  picked = 0;
+
+
+
+    if (!previous.has_value() || *previous >= count)
+    {
+        return random % count;
+    }
+
+    picked = random % (count - 1);
+
+    if (picked >= *previous)
+    {
+        picked++;
+    }
+
+    return picked;
 }

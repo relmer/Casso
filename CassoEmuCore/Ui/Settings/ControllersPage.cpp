@@ -461,6 +461,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     size_t               player      = 0;
     IDxuiTextRenderer  * text        = GetMeasuringRenderer();
 
+    int                  messageX    = pictureX + lightSize + gap;
 
 
     m_lastRect   = rect;
@@ -657,7 +658,9 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y = std::max (isPaddles ? stickTop : stickTop + stickSize, axesBottom) + sectionGap;
 
     // The buttons, each with a light that fills while it reads pressed, in
-    // the picture's column beside its row.
+    // the picture's column beside its row. A lit light's message runs from
+    // the light to the page padding, past the pictures' right edge, so it
+    // is not counted in the page's content width.
     m_buttonsHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
     m_buttonsHeading.SetText (L"Buttons");
     y += rowH;
@@ -675,6 +678,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_targetLabel[target].SetVisible   (isInPlay);
         m_targetLabel[target].SetRect      (MakeRect (rowsX, y, labelW, rowH));
         m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+        m_lights[light].SetMessageBounds (MakeRect (messageX, y, std::max (0, (int) rect.right - pad - messageX), rowH));
         m_targetLabel[target].SetText      (GetRowLabel (target, playLabel, isJoyport, isPaddles));
 
         tableH = LayOutTable (target, columnX, y, rowWidth, isInPlay, scaler);
