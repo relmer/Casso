@@ -269,3 +269,12 @@ Results are recorded as they are produced. A scenario that could not run says so
 | Full unit suite, x64 Debug | automated | 5924 passed, 0 failed |
 | Scenario suite, x64 Release | automated | 28 passed, 0 failed |
 | `CheckStyle -Mode Staged` and `-Mode Tree` | automated | clean, 1598 files |
+
+## Phase 23: Focus on the Controllers page (2026-09-28, later)
+
+| Check | Kind | Result |
+|---|---|---|
+| T219 `DxuiScrollPanelTests`: `Paint_GivesARowInViewRoomForItsFocusRing` (the first row's clip 4 px past its bounds on every side, above the viewport's top; the fourth row's 4 px below the viewport's bottom), `Paint_ClipsARowOutOfViewAtTheViewport` (scrolled half a row: the first and fifth rows, partly out of view, cut at the viewport's top and bottom and 4 px wide at the sides; the sixth, wholly out, cut too); `Paint_ClipsToTheViewportWithinTheClipAround` now expects the text clip at the page's top | automated | pass; full Release suite 5924 passed; `CheckStyle -Mode Tree` clean |
+| Mutation M82, alone: every child clipped to the viewport, as before the fix (`Paint_GivesARowInViewRoomForItsFocusRing`, "left of the viewport", Expected 6, Actual 10; `Paint_ClipsARowOutOfViewAtTheViewport`, Expected 6, Actual 10) | automated | red. Restored, stamped, rebuilt, green |
+| Mutation M83, alone: every child cut at the viewport's top and bottom (`Paint_GivesARowInViewRoomForItsFocusRing`, "above the viewport", Expected 99, Actual 100) | automated | red. Restored, stamped, rebuilt, green |
+| Mutation M84, alone: every child treated as in view (`Paint_ClipsARowOutOfViewAtTheViewport`, Expected 100, Actual 84) | automated | red. Restored, stamped, rebuilt, green |

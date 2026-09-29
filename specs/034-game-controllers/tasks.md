@@ -520,6 +520,13 @@ description: "Task list for 034 physical game controllers"
 - [X] T216 [US5] `ControllersPage`: each target's rows in a `DxuiScrollPanel`, made as they are needed (`kMaxRows` removed); "+" beside the first row and never unavailable for the count; the row waiting on press-to-assign scrolled into view; the content height from each table's visible height
 - [X] T217 Mutation checks for Phase 22, recorded in `validation.md` under a new "Phase 22" heading
 - [X] T218 Build x64 Debug and Release; run the full Release suite; capture the Controllers page; record the capture in `validation.md`
+
+## Phase 23: Focus on the Controllers Page (FR-020; 2026-09-28, later)
+
+**Goal**: three focus bugs the owner found testing Phase 22: a row's focus rectangle cut off at its sides by the table, Reset profile reached by Tab after OK and Cancel, and focus sent to the tab strip when a row is removed.
+
+- [X] T219 Tests first: `DxuiScrollPanelTests::Paint_GivesARowInViewRoomForItsFocusRing` and `Paint_ClipsARowOutOfViewAtTheViewport`; `DxuiScrollPanel` clips each child to its bounds grown by a focus margin, cut at the viewport's top and bottom only for a child not wholly in view
+
 ---
 
 ## Dependencies and Execution Order

@@ -297,8 +297,71 @@ public:
         Assert::AreEqual (page.bottom, after.bottom);
 
         Assert::IsTrue   (text.Calls().front().kind == RecordedTextKind::PushClipRect, L"text is clipped too");
-        Assert::AreEqual ((float) kTopPx, text.Calls().front().y);
+        Assert::AreEqual ((float) page.top, text.Calls().front().y, L"within the page's clip");
         Assert::IsTrue   (text.Calls().back().kind  == RecordedTextKind::PopClipRect);
+    }
+
+
+    //  A row in view is clipped to its own bounds grown by the focus margin,
+    //  so its focus rectangle, drawn outside its bounds, shows on all four
+    //  sides, even where the row meets the viewport's edge.
+    TEST_METHOD (Paint_GivesARowInViewRoomForItsFocusRing)
+    {
+        DxuiScrollPanel                  panel;
+        std::vector<MockDxuiControl *>   rows    = AddRows (panel, 6);
+        MockDxuiPainter                  painter;
+        MockDxuiTextRenderer             text;
+        MockDxuiTheme                    theme;
+        RECT                             first   = {};
+        RECT                             fourth  = {};
+
+
+
+        panel.Paint (painter, text, theme);
+
+        first  = rows[0]->GetBounds();
+        fourth = rows[3]->GetBounds();
+
+        Assert::IsTrue   (rows[0]->wasPaintClipped);
+        Assert::AreEqual (first.left   - DxuiScrollPanel::kFocusMarginDip, rows[0]->paintClip.left,   L"left of the viewport");
+        Assert::AreEqual (first.right  + DxuiScrollPanel::kFocusMarginDip, rows[0]->paintClip.right);
+        Assert::AreEqual (first.top    - DxuiScrollPanel::kFocusMarginDip, rows[0]->paintClip.top,    L"above the viewport");
+        Assert::AreEqual (first.bottom + DxuiScrollPanel::kFocusMarginDip, rows[0]->paintClip.bottom);
+        Assert::IsTrue   (rows[0]->paintClip.top < kTopPx);
+
+        Assert::IsTrue   (fourth.bottom <= kBottomPx, L"the fourth row is the last in view");
+        Assert::AreEqual (fourth.bottom + DxuiScrollPanel::kFocusMarginDip, rows[3]->paintClip.bottom, L"below the viewport");
+        Assert::IsTrue   (rows[3]->paintClip.bottom > kBottomPx);
+    }
+
+
+    //  A row partly or wholly out of view is still cut off at the viewport's
+    //  top and bottom, and keeps the focus margin at its sides.
+    TEST_METHOD (Paint_ClipsARowOutOfViewAtTheViewport)
+    {
+        constexpr int                    kHalfRowPx = kStepPx / 2;
+        DxuiScrollPanel                  panel;
+        std::vector<MockDxuiControl *>   rows       = AddRows (panel, 6);
+        MockDxuiPainter                  painter;
+        MockDxuiTextRenderer             text;
+        MockDxuiTheme                    theme;
+
+
+
+        panel.SetScrollPosPx (kHalfRowPx);
+        panel.Paint (painter, text, theme);
+
+        Assert::IsTrue   (rows[0]->GetBounds().top < kTopPx, L"the first row is partly above the viewport");
+        Assert::AreEqual ((LONG) kTopPx, rows[0]->paintClip.top);
+        Assert::AreEqual ((LONG) kBottomPx, rows[0]->paintClip.bottom);
+        Assert::AreEqual (rows[0]->GetBounds().left - DxuiScrollPanel::kFocusMarginDip, rows[0]->paintClip.left);
+
+        Assert::IsTrue   (rows[4]->GetBounds().bottom > kBottomPx, L"the fifth row is partly below it");
+        Assert::AreEqual ((LONG) kTopPx, rows[4]->paintClip.top);
+        Assert::AreEqual ((LONG) kBottomPx, rows[4]->paintClip.bottom);
+
+        Assert::IsTrue   (rows[5]->GetBounds().top > kBottomPx, L"the sixth row is wholly below it");
+        Assert::AreEqual ((LONG) kBottomPx, rows[5]->paintClip.bottom);
     }
 
 

@@ -33,6 +33,10 @@ class DxuiScrollPanel : public DxuiPanel
 public:
     static constexpr int  kScrollbarWidthDip = 10;
 
+    // How far past its bounds a child in view may draw, for the focus
+    // rectangle a control draws outside itself.
+    static constexpr int  kFocusMarginDip    = 4;
+
     DxuiScrollPanel();
 
     // The scrollbar reports to this panel, so the panel stays where it was
@@ -66,8 +70,9 @@ public:
     bool     IsTabGroup          () const override { return true; }
     void     RevealDescendant    (const IDxuiControl & descendant) override;
 
-    static int  ClampScrollPos       (int posPx, int contentPx, int viewportPx);
-    static int  GetScrollPosToReveal (int posPx, const RECT & targetPx, const RECT & viewportPx);
+    static int   ClampScrollPos       (int posPx, int contentPx, int viewportPx);
+    static int   GetScrollPosToReveal (int posPx, const RECT & targetPx, const RECT & viewportPx);
+    static RECT  GetChildClipRect     (const RECT & childPx, const RECT & viewportPx, int marginPx);
 
 private:
     // A child and where it sits with the panel scrolled to its top.
@@ -81,7 +86,14 @@ private:
     int      ComputeInsetPx         ()               const;
     void     ApplyScrollPos         ();
     void     ConfigureScrollbar     ();
+    void     PaintChild             (IDxuiControl        & child,
+                                     const RECT          * prior,
+                                     IDxuiPainter        & painter,
+                                     IDxuiTextRenderer   & text,
+                                     const IDxuiTheme    & theme);
     bool     IsInViewport           (POINT clientPx) const;
+
+    static RECT  IntersectClip      (const RECT & clipPx, const RECT * priorPx);
 
     std::vector<Placement>  m_placements;
     DxuiScrollbar           m_scrollbar;

@@ -260,48 +260,138 @@ void DxuiScrollPanel::ConfigureScrollbar()
 //
 //  Paint
 //
-//  The children clipped to the viewport, within whatever clip a scrolled
-//  page around the panel has set, which is put back after; then the
-//  scrollbar while the children do not fit.
+//  Each child clipped as GetChildClipRect gives, within whatever clip a
+//  scrolled page around the panel has set, which is put back after; then the
+//  scrollbar, clipped to the viewport, while the children do not fit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiScrollPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT  hr       = S_OK;
-    RECT     prior    = {};
-    RECT     clip     = m_viewportPx;
-    bool     hasPrior = painter.GetClipRect (prior);
+    RECT    prior      = {};
+    bool    hasPrior   = painter.GetClipRect (prior);
+    RECT  * priorClip  = hasPrior ? &prior : nullptr;
+    RECT    clip       = IntersectClip (m_viewportPx, priorClip);
+    size_t  i          = 0;
 
 
 
-    if (hasPrior)
+    for (i = 0; i < GetChildCount(); i++)
     {
-        clip.left   = std::max (clip.left,   prior.left);
-        clip.top    = std::max (clip.top,    prior.top);
-        clip.right  = std::min (clip.right,  std::max (prior.right,  clip.left));
-        clip.bottom = std::min (clip.bottom, std::max (prior.bottom, clip.top));
+        IDxuiControl  * child = GetChild (i);
+
+        if (child != nullptr && child->IsVisible())
+        {
+            PaintChild (*child, priorClip, painter, text, theme);
+        }
     }
-
-    painter.SetClipRect (&clip);
-
-    hr = text.PushClipRect ((float) m_viewportPx.left,
-                            (float) m_viewportPx.top,
-                            (float) (m_viewportPx.right  - m_viewportPx.left),
-                            (float) (m_viewportPx.bottom - m_viewportPx.top));
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    DxuiPanel::Paint (painter, text, theme);
-
-    hr = text.PopClipRect();
-    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (m_isScrollable)
     {
+        painter.SetClipRect (&clip);
         m_scrollbar.Paint (painter, theme.Foreground());
     }
 
-    painter.SetClipRect (hasPrior ? &prior : nullptr);
+    painter.SetClipRect (priorClip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintChild
+//
+//  The painter and the text renderer both clipped to the child's clip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiScrollPanel::PaintChild (
+    IDxuiControl        & child,
+    const RECT          * prior,
+    IDxuiPainter        & painter,
+    IDxuiTextRenderer   & text,
+    const IDxuiTheme    & theme)
+{
+    HRESULT  hr     = S_OK;
+    int      margin = m_scaler.ToPx (kFocusMarginDip);
+    RECT     clip   = IntersectClip (GetChildClipRect (child.GetBounds(), m_viewportPx, margin), prior);
+
+
+
+    painter.SetClipRect (&clip);
+
+    hr = text.PushClipRect ((float) clip.left,
+                            (float) clip.top,
+                            (float) (clip.right  - clip.left),
+                            (float) (clip.bottom - clip.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    child.Paint (painter, text, theme);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetChildClipRect
+//
+//  A control draws its focus rectangle outside its bounds, so a child is
+//  given the focus margin at its sides, and at its top and bottom too while
+//  it is wholly in view. A child partly or wholly out of view is cut off at
+//  the viewport's top and bottom, as the list scrolls under them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiScrollPanel::GetChildClipRect (const RECT & childPx, const RECT & viewportPx, int marginPx)
+{
+    bool  isInView = childPx.top >= viewportPx.top && childPx.bottom <= viewportPx.bottom;
+    RECT  clip     = {};
+
+
+
+    clip.left   = childPx.left  - marginPx;
+    clip.right  = childPx.right + marginPx;
+    clip.top    = isInView ? childPx.top    - marginPx : viewportPx.top;
+    clip.bottom = isInView ? childPx.bottom + marginPx : viewportPx.bottom;
+
+    return clip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IntersectClip
+//
+//  The overlap of a clip with the one already in force, if any, kept from
+//  turning inside out when they do not meet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiScrollPanel::IntersectClip (const RECT & clipPx, const RECT * priorPx)
+{
+    RECT  clip = clipPx;
+
+
+
+    if (priorPx != nullptr)
+    {
+        clip.left   = std::max (clip.left,   priorPx->left);
+        clip.top    = std::max (clip.top,    priorPx->top);
+        clip.right  = std::min (clip.right,  std::max (priorPx->right,  clip.left));
+        clip.bottom = std::min (clip.bottom, std::max (priorPx->bottom, clip.top));
+    }
+
+    return clip;
 }
 
 
