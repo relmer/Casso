@@ -14,6 +14,7 @@
 #include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiScrollPanel.h"
 #include "Widgets/DxuiSlider.h"
 
 
@@ -50,7 +51,10 @@ class DxuiHwndSource;
 //  to assign...", "None" and the controller's controls. A target takes more
 //  than one control through "+", which adds a row; "None" on an added row
 //  removes it. The first row always stays, showing "None" when the target is
-//  unassigned, so every target keeps its place on the page.
+//  unassigned, so every target keeps its place on the page. A target's rows
+//  form a table as tall as its rows up to kTableRows, which scrolls past that;
+//  "+" sits beside the table's first row, and the axis options and the
+//  sharing warning sit under the table.
 //
 //  The page is polled each dialog tick with the controller's latest reading,
 //  which is what drives press-to-assign, the Calibrate steps, the stick and
@@ -65,7 +69,7 @@ public:
     static constexpr size_t  kTargetCount = 5;
     static constexpr size_t  kAxisCount   = 2;
     static constexpr size_t  kButtonCount = 3;
-    static constexpr size_t  kMaxRows     = 4;
+    static constexpr size_t  kTableRows   = 4;     // rows a target's table shows before it scrolls
     static constexpr size_t  kPlayerCount = MultiplayerSetup::kPlayerCount;
     static constexpr size_t  kPlayerTwo   = ControllersPageState::kPlayerTwo;
 
@@ -140,6 +144,9 @@ private:
     static constexpr int  kNoneItem          = 1;
     static constexpr int  kFirstControlItem  = 2;
 
+    // A target's mapping drop-downs, one per row, made as rows are needed.
+    using RowList = std::vector<std::unique_ptr<DxuiComboBox>>;
+
     static RECT          MakeRect           (int l, int t, int w, int h);
     static PaddleTarget  TargetAt           (size_t index);
     static std::wstring  DescribeAxis       (ControllerKind kind, const AxisBinding & binding);
@@ -149,6 +156,8 @@ private:
 
     size_t               GetBindingCount    (size_t target) const;
     size_t               GetShownRows       (size_t target) const;
+    void                 EnsureRows         (size_t target, size_t count);
+    int                  LayOutTable        (size_t target, int x, int y, int width, bool isInPlay, const DxuiDpiScaler & scaler);
     int                  FindChoice         (size_t target, size_t row) const;
 
     void                 RebuildChoices     ();
@@ -249,7 +258,8 @@ private:
 
     std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;
     std::array<ButtonLightView, kButtonCount>                           m_lights;
-    std::array<std::array<DxuiComboBox, kMaxRows>, kTargetCount>        m_rows;
+    std::array<RowList, kTargetCount>                                   m_rows;
+    std::array<DxuiScrollPanel, kTargetCount>                           m_tables;
     std::array<DxuiButton, kTargetCount>                                m_addRow;
     std::array<std::vector<ControlChoice>, kTargetCount>                m_choices;
 

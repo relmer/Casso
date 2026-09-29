@@ -185,26 +185,109 @@ public:
     }
 
 
-    //  The shown drop-downs that offer the given first item, in page order.
-    static std::vector<const DxuiComboBox *> FindCombos (const ControllersPage & page, const std::wstring & firstItem)
+    //  The shown drop-downs that offer the given first item, in page order,
+    //  those in a target's table included, whether or not scrolled into view.
+    static std::vector<const DxuiComboBox *> FindCombos (const IDxuiControl & parent, const std::wstring & firstItem)
     {
+        const IDxuiControl                 * child = nullptr;
         const DxuiComboBox                 * combo = nullptr;
         std::vector<const DxuiComboBox *>    found;
         size_t                               i     = 0;
 
 
 
-        for (i = 0; i < page.GetChildCount(); ++i)
+        for (i = 0; i < parent.GetChildCount(); ++i)
         {
-            combo = dynamic_cast<const DxuiComboBox *> (page.GetChild (i));
+            child = parent.GetChild (i);
+            combo = dynamic_cast<const DxuiComboBox *> (child);
 
-            if (combo != nullptr && combo->IsVisible() && !combo->GetItems().empty() && combo->GetItems()[0] == firstItem)
+            if (child == nullptr || !child->IsVisible())
+            {
+                continue;
+            }
+
+            if (combo != nullptr && !combo->GetItems().empty() && combo->GetItems()[0] == firstItem)
             {
                 found.push_back (combo);
+            }
+
+            for (const DxuiComboBox * inner : FindCombos (*child, firstItem))
+            {
+                found.push_back (inner);
             }
         }
 
         return found;
+    }
+
+
+    //  The shown targets' tables, in page order.
+    static std::vector<const DxuiScrollPanel *> FindTables (const ControllersPage & page)
+    {
+        const DxuiScrollPanel                 * table = nullptr;
+        std::vector<const DxuiScrollPanel *>    found;
+        size_t                                  i     = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            table = dynamic_cast<const DxuiScrollPanel *> (page.GetChild (i));
+
+            if (table != nullptr && table->IsVisible())
+            {
+                found.push_back (table);
+            }
+        }
+
+        return found;
+    }
+
+
+    //  The shown "+" buttons, in page order.
+    static std::vector<const DxuiButton *> FindAddButtons (const ControllersPage & page)
+    {
+        const DxuiButton                 * button = nullptr;
+        std::vector<const DxuiButton *>    found;
+        size_t                             i      = 0;
+
+
+
+        for (i = 0; i < page.GetChildCount(); ++i)
+        {
+            button = dynamic_cast<const DxuiButton *> (page.GetChild (i));
+
+            if (button != nullptr && button->IsVisible() && button->GetAccessibleName() == L"+")
+            {
+                found.push_back (button);
+            }
+        }
+
+        return found;
+    }
+
+
+    //  Lays out a page editing one stick, with PB0 given `count` bindings.
+    static void LayOutWithPb0Bindings (ControllersPage & page, ControllersPageState & state, size_t count)
+    {
+        constexpr int  kFirstSpareButton = 10;     // on no other target, so nothing is shared
+        size_t         i                 = 0;
+
+
+
+        LayOutPage (page, state, PlayerEntries(), PlayerSlots());
+
+        while (state.GetMapping().pb0.size() > count)
+        {
+            state.RemoveBinding (PaddleTarget::Pb0, 0);
+        }
+
+        for (i = state.GetMapping().pb0.size(); i < count; i++)
+        {
+            state.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, kFirstSpareButton + (int) i } });
+        }
+
+        page.Relayout();
     }
 
 
@@ -775,6 +858,81 @@ public:
         Assert::IsTrue   (IsBetweenLabels (*warnings[1], page, L"PB1:", L"PB2:"), L"the second under PB1");
     }
 
+
+    //  Fire on the Joyport profile takes eight controls. Past four, a
+    //  target's rows scroll in a table four rows tall: every row is there,
+    //  "+" stays offered beside the first, and the page is no taller than
+    //  with four.
+    TEST_METHOD (Rows_PastFourScrollInATableFourRowsTall)
+    {
+        constexpr size_t                        kRows      = 8;
+        constexpr int                           kTableHPx  = 4 * (28 + 6) - 6 + 6;   // four rows and gaps, half a gap above and below
+        ControllersPage                         page;
+        ControllersPage                         fourPage;
+        ControllersPageState                    state;
+        ControllersPageState                    fourState;
+        std::vector<const DxuiScrollPanel *>    tables;
+        std::vector<const DxuiButton *>         adds;
+
+
+
+        LayOutWithPb0Bindings (page,     state,     kRows);
+        LayOutWithPb0Bindings (fourPage, fourState, ControllersPage::kTableRows);
+
+        tables = FindTables (page);
+        adds   = FindAddButtons (page);
+
+        Assert::AreEqual ((size_t) 5, tables.size(), L"a table per target");
+        Assert::AreEqual ((size_t) 5, adds.size());
+        Assert::AreEqual (kRows, FindCombos (*tables[2], kpszPressToAssign).size(), L"every one of PB0's rows is in its table");
+        Assert::IsTrue   (tables[2]->IsScrollable(), L"and it scrolls");
+        Assert::AreEqual ((LONG) kTableHPx, tables[2]->GetBounds().bottom - tables[2]->GetBounds().top, L"four rows tall");
+        Assert::IsFalse  (tables[3]->IsScrollable(), L"a target with one row does not");
+        Assert::IsTrue   (adds[2]->IsEnabled(), L"+ is still offered");
+        Assert::AreEqual (FindCombos (*tables[2], kpszPressToAssign)[0]->GetBounds().top, adds[2]->GetBounds().top, L"beside the first row");
+        Assert::AreEqual (fourPage.GetContentHeightPx(), page.GetContentHeightPx(), L"the page counts the table's four rows");
+    }
+
+
+    //  "+" past four waits on a new row, which is scrolled into view.
+    TEST_METHOD (AddRow_PastFourIsScrolledTo)
+    {
+        ControllersPage                         page;
+        ControllersPageState                    state;
+        std::vector<const DxuiScrollPanel *>    tables;
+        std::vector<const DxuiComboBox *>       rows;
+        std::vector<const DxuiComboBox *>       waiting;
+        RECT                                    add    = {};
+        POINT                                   center = {};
+        DxuiMouseEvent                          ev;
+
+
+
+        LayOutWithPb0Bindings (page, state, 8);
+
+        add    = FindAddButtons (page)[2]->GetBounds();
+        center = { (add.left + add.right) / 2, (add.top + add.bottom) / 2 };
+
+        ev.positionDip = center;
+        ev.button      = DxuiMouseButton::Left;
+        ev.kind        = DxuiMouseEventKind::Move;
+        page.OnMouse (ev);
+        ev.kind        = DxuiMouseEventKind::Down;
+        page.OnMouse (ev);
+        ev.kind        = DxuiMouseEventKind::Up;
+        page.OnMouse (ev);
+
+        tables  = FindTables (page);
+        rows    = FindCombos (*tables[2], kpszPressToAssign);
+        waiting = FindCombos (*tables[2], L"Press a control...");
+
+        Assert::IsTrue   (page.IsCapturing(), L"+ waits on a control");
+        Assert::AreEqual ((size_t) 8, rows.size());
+        Assert::AreEqual ((size_t) 1, waiting.size(), L"on a ninth row");
+        Assert::IsTrue   (waiting[0]->GetBounds().top > rows[7]->GetBounds().top, L"after the other eight");
+        Assert::IsTrue   (waiting[0]->GetBounds().bottom <= tables[2]->GetBounds().bottom, L"and in view");
+        Assert::IsTrue   (waiting[0]->GetBounds().top    >= tables[2]->GetBounds().top);
+    }
 
     //  The page's width reaches its rightmost control and its padding, which
     //  is what the Settings sheet sizes its largest window to.

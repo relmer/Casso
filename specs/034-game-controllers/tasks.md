@@ -506,6 +506,20 @@ description: "Task list for 034 physical game controllers"
 - [X] T209a [US7] The player rows stretch by as much as the sheet is wider than its design width, which the sheet gives each page (`DxuiPropertyPage::SetDesignWidthPx`), and the content width is taken with the rows at their design extent; found by capture, where the rows ran past Delete... at the design width
 - [X] T210 Mutation checks for Phase 21, recorded in `validation.md` under a new "Phase 21" heading
 - [X] T211 Build x64 Debug and Release; run the full Release suite and the scenario suite; capture the player rows at the design width and wider and the page in Two paddles mode with the bars; record the captures in `validation.md`
+
+## Phase 22: Mapping Rows in a Scrolling Table (FR-020, FR-025; 2026-09-28, later)
+
+**Goal**: a target's mapping rows form a table as tall as its rows up to four that scrolls past that, so a target takes any number of controls and every one can be seen and removed. The built-in Joyport profile's eight controls on Fire were half hidden. Dxui gains a general scrolling container for it.
+
+**Independent Test**: on the Joyport profile, Fire shows four rows and a scrollbar; the wheel, the scrollbar and Tab reach the other four.
+
+- [X] T212 Update `spec.md` (Session 2026-09-28; FR-020, FR-025) for the scrolling table
+- [X] T213 [P] Tests first: `UnitTest/Dxui/DxuiScrollPanelTests.cpp` (the range and the position, a row per wheel notch and the page's turn at either end, input and painting clipped to the viewport within a clip already in force, Tab through every row before the controls beside and below, a row reached by Tab scrolled into view, a click scrolling nothing)
+- [X] T214 Implement `Dxui/Widgets/DxuiScrollPanel.h/.cpp`; `IDxuiControl::IsTabGroup` and `RevealDescendant`; `DxuiFocusManager` sorting a tab group's controls at the group's place and revealing a control focused from the keyboard; `IDxuiPainter::GetClipRect` so a nested clip can be put back
+- [X] T215 [US5] Tests first: `ControllersPageLayoutTests::Rows_PastFourScrollInATableFourRowsTall` and `AddRow_PastFourIsScrolledTo`
+- [X] T216 [US5] `ControllersPage`: each target's rows in a `DxuiScrollPanel`, made as they are needed (`kMaxRows` removed); "+" beside the first row and never unavailable for the count; the row waiting on press-to-assign scrolled into view; the content height from each table's visible height
+- [X] T217 Mutation checks for Phase 22, recorded in `validation.md` under a new "Phase 22" heading
+- [X] T218 Build x64 Debug and Release; run the full Release suite; capture the Controllers page; record the capture in `validation.md`
 ---
 
 ## Dependencies and Execution Order

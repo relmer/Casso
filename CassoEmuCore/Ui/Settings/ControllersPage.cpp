@@ -50,7 +50,6 @@ ControllersPage::ControllersPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
     size_t  target = 0;
-    size_t  row    = 0;
 
 
 
@@ -84,15 +83,15 @@ ControllersPage::ControllersPage (std::wstring title)
     Adopt (m_stick);
     Adopt (m_buttonsHeading);
 
+    // Each target's rows sit in its table, which makes them as they are
+    // needed; every target has its first.
     for (target = 0; target < kTargetCount; target++)
     {
         Adopt (m_targetLabel[target]);
+        Adopt (m_tables[target]);
         Adopt (m_addRow[target]);
 
-        for (row = 0; row < kMaxRows; row++)
-        {
-            Adopt (m_rows[target][row]);
-        }
+        EnsureRows (target, 1);
     }
 
     for (target = 0; target < kButtonCount; target++)
@@ -206,17 +205,6 @@ void ControllersPage::SetState (ControllersPageState * state)
 
     for (size_t target = 0; target < kTargetCount; target++)
     {
-        for (size_t row = 0; row < kMaxRows; row++)
-        {
-            m_rows[target][row].SetSelect ([this, target, row] (int item)
-            {
-                if (!m_isSyncing)
-                {
-                    OnRowSelect (target, row, item);
-                }
-            });
-        }
-
         // Bounded again, although the loop already bounds it. The analyzer
         // widens the index across the loop body and reads this as a write
         // past the end.
@@ -339,7 +327,6 @@ void ControllersPage::SetOnInspect (InspectFn onInspect)
 void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 {
     size_t  target = 0;
-    size_t  row    = 0;
 
 
 
@@ -357,9 +344,9 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
     for (target = 0; target < kTargetCount; target++)
     {
-        for (row = 0; row < kMaxRows; row++)
+        for (const std::unique_ptr<DxuiComboBox> & row : m_rows[target])
         {
-            m_rows[target][row].SetPopupHost (host);
+            row->SetPopupHost (host);
         }
     }
 
@@ -462,7 +449,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  responseX   = 0;
     size_t               target      = 0;
     size_t               player      = 0;
-    size_t               row         = 0;
     IDxuiTextRenderer  * text        = GetMeasuringRenderer();
 
 
@@ -563,7 +549,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // that cannot do anything is one more thing to read past.
     for (target = 0; target < kAxisCount; target++)
     {
-        size_t        shown     = GetShownRows (target);
+        int           tableH    = 0;
         bool          isInPlay  = IsTargetShown (target);
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
@@ -575,15 +561,11 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         // the Joyport attached it is named for the switches it closes.
         m_targetLabel[target].SetText (GetRowLabel (target, playLabel, isJoyport));
 
-        for (row = 0; row < kMaxRows; row++)
-        {
-            m_rows[target][row].SetVisible (isInPlay && row < shown);
-            m_rows[target][row].SetRect    (MakeRect (axesX + labelWidth, axesBottom + (int) row * (rowH + gap), rowWidth, rowH));
-        }
+        tableH = LayOutTable (target, axesX + labelWidth, axesBottom, rowWidth, isInPlay, scaler);
 
         m_addRow[target].SetLabel   (L"+");
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].Layout     (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+        m_addRow[target].Layout     (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom, addWidth, rowH));
 
         if (!isInPlay)
         {
@@ -594,7 +576,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
             continue;
         }
 
-        axesBottom += (int) shown * (rowH + gap);
+        axesBottom += tableH;
 
         // Right-aligned with the mapping drop-down above it: the two option
         // widths and the row width are the same span in DIPs, but each is
@@ -652,7 +634,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     for (target = kAxisCount; target < kTargetCount; target++)
     {
-        size_t        shown     = GetShownRows (target);
+        int           tableH    = 0;
         size_t        light     = target - kAxisCount;
         bool          isInPlay  = IsTargetShown (target);
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
@@ -667,19 +649,15 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
                                                     : MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
         m_targetLabel[target].SetText    (GetRowLabel (target, playLabel, isJoyport));
 
-        for (row = 0; row < kMaxRows; row++)
-        {
-            m_rows[target][row].SetVisible (isInPlay && row < shown);
-            m_rows[target][row].SetRect    (MakeRect (x + labelWidth, y + (int) row * (rowH + gap), rowWidth, rowH));
-        }
+        tableH = LayOutTable (target, x + labelWidth, y, rowWidth, isInPlay, scaler);
 
         m_addRow[target].SetLabel   (L"+");
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].Layout     (MakeRect (x + labelWidth + rowWidth + gap, y + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+        m_addRow[target].Layout     (MakeRect (x + labelWidth + rowWidth + gap, y, addWidth, rowH));
 
         if (isInPlay)
         {
-            y += (int) shown * (rowH + gap);
+            y += tableH;
         }
 
         y += LayOutSharedWarning (target, x, y, buttonWarnW, text, scaler);
@@ -733,9 +711,9 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_targetLabel[target].SetDpi (dpi);
         m_addRow[target].SetDpi      (dpi);
 
-        for (row = 0; row < kMaxRows; row++)
+        for (const std::unique_ptr<DxuiComboBox> & row : m_rows[target])
         {
-            m_rows[target][row].SetDpi (dpi);
+            row->SetDpi (dpi);
         }
     }
 
@@ -1855,7 +1833,9 @@ void ControllersPage::RefreshRows()
         size_t        count        = GetBindingCount (target);
         size_t        shown        = GetShownRows (target);
 
-        for (row = 0; row < kMaxRows; row++)
+        EnsureRows (target, shown);
+
+        for (row = 0; row < m_rows[target].size(); row++)
         {
             std::vector<std::wstring>  items;
             std::vector<std::wstring>  glyphs;
@@ -1882,19 +1862,20 @@ void ControllersPage::RefreshRows()
                 choice = (int) items.size() - 1;
             }
 
-            m_rows[target][row].SetItems      (items);
-            m_rows[target][row].SetItemGlyphs (glyphs);
+            m_rows[target][row]->SetItems      (items);
+            m_rows[target][row]->SetItemGlyphs (glyphs);
             // A target the machine lacks says so, rather than showing a
             // binding saved from a machine that has it as though it applied.
-            m_rows[target][row].SetSelected (!available  ? kNoneItem
-                                             : isCapturing ? kPressToAssignItem
-                                             : (row < count ? choice : kNoneItem));
-            m_rows[target][row].SetEnabled  (isEditable);
-            m_rows[target][row].SetVisible  (isInPlay && row < shown);
+            m_rows[target][row]->SetSelected (!available  ? kNoneItem
+                                              : isCapturing ? kPressToAssignItem
+                                              : (row < count ? choice : kNoneItem));
+            m_rows[target][row]->SetEnabled  (isEditable);
+            m_rows[target][row]->SetVisible  (isInPlay && row < shown);
         }
 
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].SetEnabled (isEditable && count > 0 && shown < kMaxRows && !m_hasExtraRow[target]);
+        // Never unavailable for the number of rows: the table scrolls.
+        m_addRow[target].SetEnabled (isEditable && count > 0 && !m_hasExtraRow[target]);
     }
 }
 
@@ -2397,7 +2378,8 @@ void ControllersPage::OnRowSelect (size_t target, size_t row, int item)
 //  Waits at once for the control the new row will hold. The sheet shows a
 //  prompt over the page while it waits, so the user is not left wondering
 //  what a click on "+" did; Escape or a click calls it off, and the row is
-//  never added.
+//  never added. A target takes any number of rows; the new one is scrolled
+//  into view in the target's table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2409,7 +2391,7 @@ void ControllersPage::AddRow (size_t target)
 
 
 
-    if (m_state == nullptr || count >= kMaxRows)
+    if (m_state == nullptr)
     {
         return;
     }
@@ -2682,8 +2664,8 @@ size_t ControllersPage::GetBindingCount (size_t target) const
 //  GetShownRows
 //
 //  One row per control, plus an empty row "+" asked for, plus a row waiting
-//  on press-to-assign past the end; never fewer than one, never more than
-//  kMaxRows.
+//  on press-to-assign past the end; never fewer than one. Past kTableRows the
+//  target's table scrolls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2704,7 +2686,108 @@ size_t ControllersPage::GetShownRows (size_t target) const
         shown = std::max (shown, m_capturing->second + 1);
     }
 
-    return std::clamp (shown, (size_t) 1, kMaxRows);
+    return std::max (shown, (size_t) 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureRows
+//
+//  A target's table holds at least `count` drop-downs, each wired to its row
+//  and to the popup host, at the page's DPI. Rows are never taken away; the
+//  ones past what the target shows are hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::EnsureRows (size_t target, size_t count)
+{
+    RowList  & rows = m_rows[target];
+
+
+
+    while (rows.size() < count)
+    {
+        size_t  row = rows.size();
+
+        rows.push_back (std::make_unique<DxuiComboBox>());
+
+        rows[row]->SetSelect ([this, target, row] (int item)
+        {
+            if (!m_isSyncing)
+            {
+                OnRowSelect (target, row, item);
+            }
+        });
+
+        rows[row]->SetPopupHost (m_popupHost);
+        rows[row]->SetDpi       (m_lastScaler.GetDpi());
+        m_tables[target].Adopt  (*rows[row]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayOutTable
+//
+//  A target's rows at (x, y), `width` wide, in its table: as tall as its
+//  rows up to kTableRows, and scrolling past that, with the scrollbar at the
+//  right of the width and the rows narrowed to leave it room. The viewport
+//  reaches half a gap above the first row and below the last shown, so a
+//  row's focus rectangle is not cut off. A row waiting on press-to-assign,
+//  a new one included, is scrolled into view. Returns the height the table
+//  takes on the page, the gap below it included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::LayOutTable (
+    size_t                  target,
+    int                     x,
+    int                     y,
+    int                     width,
+    bool                    isInPlay,
+    const DxuiDpiScaler   & scaler)
+{
+    DxuiScrollPanel  & table     = m_tables[target];
+    RowList          & rows      = m_rows[target];
+    int                rowH      = scaler.ToPx (s_kRowHeightDp);
+    int                gap       = scaler.ToPx (s_kGapDp);
+    int                step      = rowH + gap;
+    int                inset     = gap / 2;
+    size_t             shown     = GetShownRows (target);
+    size_t             visible   = std::min (shown, kTableRows);
+    bool               canScroll = shown > kTableRows;
+    int                rowWidth  = canScroll ? width - scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip) - inset : width;
+    size_t             row       = 0;
+
+
+
+    EnsureRows (target, shown);
+
+    table.SetVisible    (isInPlay);
+    table.SetLineStepPx (step);
+
+    for (row = 0; row < rows.size(); row++)
+    {
+        rows[row]->SetVisible (isInPlay && row < shown);
+        table.PlaceChild      (*rows[row], MakeRect (x, y + (int) row * step, rowWidth, rowH));
+    }
+
+    table.Layout (MakeRect (x, y - inset, width, (int) visible * step - gap + 2 * inset), scaler);
+
+    if (m_capturing.has_value() && m_capturing->first == target && m_capturing->second < rows.size())
+    {
+        table.RevealDescendant (*rows[m_capturing->second]);
+    }
+
+    return (int) visible * step;
 }
 
 
