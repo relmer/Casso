@@ -120,6 +120,11 @@ public:
     // otherwise sort them among the controls below it.
     virtual bool  IsTabGroup      () const                                      { return false; }
 
+    // Where a tab group sorts in the tab order: what it shows of its
+    // descendants, which for a container laid out past its viewport is the
+    // viewport rather than its bounds.
+    virtual RECT  GetTabGroupPlace () const                                     { return GetBounds(); }
+
     // Scrolls a scrolling container just far enough to show a descendant the
     // keyboard just focused. Nothing for a container that does not scroll.
     virtual void  RevealDescendant (const IDxuiControl & descendant)            { (void) descendant; }

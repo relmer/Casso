@@ -25,7 +25,8 @@
 //      kTabIndexExcluded (-2): skip Tab traversal entirely; the
 //          control remains mouse-focusable but never receives Tab.
 //  A control inside a tab group (IDxuiControl::IsTabGroup) sorts at the
-//  group's place, and among the group's controls by its own bounds.
+//  group's place, and among the group's controls by its own bounds; a group
+//  inside another sorts among the outer group's controls the same way.
 //
 //  Focus scopes: PushScope(root) saves the current focus and restricts
 //  subsequent tab walks to root's subtree. PopScope() restores the
@@ -97,7 +98,8 @@ private:
     void   ChangeFocus       (IDxuiControl * ctl, bool showCue);
 
     static bool  IsClippedByAncestor (const IDxuiControl * ctl, POINT pointPx);
-    static RECT  GetTabPlace         (const IDxuiControl * ctl);
+    static void  GetTabPlaces        (const IDxuiControl * ctl, std::vector<RECT> & places);
+    static bool  IsBeforeInTabOrder  (const IDxuiControl * a, const IDxuiControl * b, float eps);
     static void  RevealInAncestors   (const IDxuiControl * ctl);
 
     DxuiPanel                    * m_root                  = nullptr;

@@ -147,11 +147,7 @@ void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxui
 //
 //  Rebuild
 //
-//  Rebuilds the tab order. Controls with explicit non-negative
-//  GetTabIndex() values sort first by ascending index. Remaining
-//  geometry-mode controls sort by (top / rowEpsilon, left) of their place,
-//  which is their own bounds or, inside a tab group, the group's; controls
-//  at the same place sort by their own top, then left.
+//  Rebuilds the tab order, sorted as IsBeforeInTabOrder gives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,49 +184,7 @@ void DxuiFocusManager::Rebuild()
         std::sort (raw.begin(), raw.end(),
             [eps] (IDxuiControl * a, IDxuiControl * b) -> bool
             {
-                int   taIdx = a->GetTabIndex();
-                int   tbIdx = b->GetTabIndex();
-                bool  aExpl = (taIdx >= 0);
-                bool  bExpl = (tbIdx >= 0);
-                RECT  pa    = {};
-                RECT  pb    = {};
-                RECT  ra    = {};
-                RECT  rb    = {};
-                int   ba    = 0;
-                int   bb    = 0;
-
-                if (aExpl && bExpl)
-                {
-                    return taIdx < tbIdx;
-                }
-
-                if (aExpl != bExpl)
-                {
-                    return aExpl;  // explicit indices come first
-                }
-
-                pa = GetTabPlace (a);
-                pb = GetTabPlace (b);
-                ba = (int) ((float) pa.top / eps);
-                bb = (int) ((float) pb.top / eps);
-                if (ba != bb)
-                {
-                    return ba < bb;
-                }
-
-                if (pa.left != pb.left)
-                {
-                    return pa.left < pb.left;
-                }
-
-                ra = a->GetBounds();
-                rb = b->GetBounds();
-                if (ra.top != rb.top)
-                {
-                    return ra.top < rb.top;
-                }
-
-                return ra.left < rb.left;
+                return IsBeforeInTabOrder (a, b, eps);
             });
 
         m_tabOrder = std::move (raw);
@@ -310,31 +264,103 @@ bool DxuiFocusManager::IsClippedByAncestor (const IDxuiControl * ctl, POINT poin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetTabPlace
+//  GetTabPlaces
 //
-//  Where a control sorts in the tab order: at its nearest tab group's bounds
-//  when it has one, else at its own. A row scrolled out of a list's viewport
-//  keeps its place with the list rather than with whatever it lies under.
+//  Where a control sorts in the tab order, level by level: the place of each
+//  tab group it sits in, outermost first, then its own bounds. A row
+//  scrolled out of a list's viewport keeps its place with the list, and a
+//  control scrolled out of a page's keeps its place with the page, rather
+//  than with whatever it lies under.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiFocusManager::GetTabPlace (const IDxuiControl * ctl)
+void DxuiFocusManager::GetTabPlaces (const IDxuiControl * ctl, std::vector<RECT> & places)
 {
-    const IDxuiControl  * node  = ctl->GetParent();
-    RECT                  place = ctl->GetBounds();
+    const IDxuiControl  * node = ctl->GetParent();
 
 
+
+    places.clear();
+    places.push_back (ctl->GetBounds());
 
     for ( ; node != nullptr; node = node->GetParent())
     {
         if (node->IsTabGroup())
         {
-            place = node->GetBounds();
-            break;
+            places.push_back (node->GetTabGroupPlace());
         }
     }
 
-    return place;
+    std::reverse (places.begin(), places.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBeforeInTabOrder
+//
+//  Controls with explicit non-negative GetTabIndex() values come first, by
+//  ascending index. The rest compare their places level by level, as
+//  GetTabPlaces gives them, by (top / rowEpsilon, left) at the first level
+//  where they differ; controls at the same places sort by their own top,
+//  then left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiFocusManager::IsBeforeInTabOrder (const IDxuiControl * a, const IDxuiControl * b, float eps)
+{
+    int                taIdx   = a->GetTabIndex();
+    int                tbIdx   = b->GetTabIndex();
+    bool               aExpl   = (taIdx >= 0);
+    bool               bExpl   = (tbIdx >= 0);
+    RECT               ra      = a->GetBounds();
+    RECT               rb      = b->GetBounds();
+    std::vector<RECT>  placesA;
+    std::vector<RECT>  placesB;
+    size_t             levels  = 0;
+    size_t             i       = 0;
+
+
+
+    if (aExpl && bExpl)
+    {
+        return taIdx < tbIdx;
+    }
+
+    if (aExpl != bExpl)
+    {
+        return aExpl;
+    }
+
+    GetTabPlaces (a, placesA);
+    GetTabPlaces (b, placesB);
+    levels = std::min (placesA.size(), placesB.size());
+
+    for (i = 0; i < levels; i++)
+    {
+        int  bandA = (int) std::floor ((float) placesA[i].top / eps);
+        int  bandB = (int) std::floor ((float) placesB[i].top / eps);
+
+        if (bandA != bandB)
+        {
+            return bandA < bandB;
+        }
+
+        if (placesA[i].left != placesB[i].left)
+        {
+            return placesA[i].left < placesB[i].left;
+        }
+    }
+
+    if (ra.top != rb.top)
+    {
+        return ra.top < rb.top;
+    }
+
+    return ra.left < rb.left;
 }
 
 

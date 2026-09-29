@@ -526,6 +526,7 @@ description: "Task list for 034 physical game controllers"
 **Goal**: three focus bugs the owner found testing Phase 22: a row's focus rectangle cut off at its sides by the table, Reset profile reached by Tab after OK and Cancel, and focus sent to the tab strip when a row is removed.
 
 - [X] T219 Tests first: `DxuiScrollPanelTests::Paint_GivesARowInViewRoomForItsFocusRing` and `Paint_ClipsARowOutOfViewAtTheViewport`; `DxuiScrollPanel` clips each child to its bounds grown by a focus margin, cut at the viewport's top and bottom only for a child not wholly in view
+- [X] T220 Tests first: `DxuiFocusManagerTests::Tab_ReachesAScrolledPageBeforeTheButtonsBelowIt`; `DxuiPropertyPage` a tab group at its viewport (`IDxuiControl::GetTabGroupPlace`), and `DxuiFocusManager` comparing places level by level through nested tab groups, so Reset profile comes before OK and Cancel
 
 ---
 

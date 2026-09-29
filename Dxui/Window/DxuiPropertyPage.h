@@ -59,6 +59,14 @@ public:
     bool  IsPointClipped (POINT clientPx) const override;
 
     //
+    //  A page is a tab group at its viewport, so Tab takes every control on
+    //  it, those scrolled out of view included, after the tab strip and
+    //  before the buttons below it.
+    //
+    bool  IsTabGroup       () const override { return true; }
+    RECT  GetTabGroupPlace () const override { return m_hasViewport ? m_viewportPx : GetBounds(); }
+
+    //
     //  How tall the page's content is, in pixels from the top of the rect it
     //  was laid out in, or 0 for a page that fits whatever rect it is given.
     //  The sheet scrolls a page whose content runs past the viewport, and
