@@ -673,13 +673,13 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     for (target = kAxisCount; target < kTargetCount; target++)
     {
         int           tableH      = 0;
-        int           rowMessageX = isJoyport ? columnEnd + gap : messageX;
+        int           rowMessageX = isJoyport ? pictureX : messageX;
         size_t        light       = target - kAxisCount;
         bool          isInPlay    = IsTargetShown (target);
         std::wstring  playLabel   = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
         // The Joyport's art shows fire itself, so there the light is not
-        // drawn and its message follows the Fire table's "+" instead.
+        // drawn and its message starts at the art's left edge instead.
         m_lights[light].SetVisible       (isInPlay);
         m_lights[light].SetCircleShown   (!isJoyport);
         m_lights[light].Layout           (MakeRect (pictureX, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
