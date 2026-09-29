@@ -312,8 +312,9 @@ namespace ControllerTests
             page.Load ({ MakeGladiator() }, {}, {}, true);
             SetPaddlePlayer (page);
 
-            Assert::IsTrue (page.GetMapping().pdl0.at (0).analog == throttle.analog,          L"the built-in Paddles profile plays the throttle");
-            Assert::IsTrue (page.GetMapping().pdl0.at (0).response == AxisResponse::Absolute, L"at Position");
+            Assert::IsTrue (page.GetMapping().pdl0.at (0).analog == stick.analog,             L"the built-in Paddles profile plays the stick on PDL0");
+            Assert::IsTrue (page.GetMapping().pdl1.at (0).analog == throttle.analog,          L"and the throttle on PDL1");
+            Assert::IsTrue (page.GetMapping().pdl1.at (0).response == AxisResponse::Absolute, L"at Position");
 
             Assert::IsTrue (page.ReplaceAxisBinding (PaddleTarget::Pdl0, 0, stick));
             Assert::IsTrue (page.GetMapping().pdl0.at (0).response == AxisResponse::Rate, L"the stick starts at Paddle speed");

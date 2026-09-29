@@ -770,7 +770,7 @@ namespace ControllerTests
         //  Left at an end when it connects it reads that end, not center,
         //  and a little off its middle it moves the paddle there: no center
         //  dead zone.
-        TEST_METHOD (Gladiator_PaddleModePlaysItsThrottleAtPosition)
+        TEST_METHOD (Gladiator_TwoPaddlesModePlaysItsThrottleAtPosition)
         {
             constexpr float          kOffMiddle = 0.2f;
             FakeControllerBackend    backend;
@@ -782,7 +782,7 @@ namespace ControllerTests
             PlayerEntries            entries;
 
             sample.axes[DefaultMapping::kAxisZ] = -1.0f;
-            entries[0]      = MakePick (stick.unit, PlayerMode::Paddle);
+            entries[0]      = MakePick (stick.unit, PlayerMode::TwoPaddles);
             entries[1].kind = PlayerEntryKind::Disabled;
 
             mixer.SetSink (&sink);
@@ -792,13 +792,13 @@ namespace ControllerTests
             service.SetPlayerEntries (entries);
             service.Tick();
 
-            Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[0], L"the throttle left at its end reads that end");
+            Assert::AreEqual (kFullLow, sink.writes.back().state.paddle[1], L"the throttle left at its end reads that end");
 
             sample.axes[DefaultMapping::kAxisZ] = kOffMiddle;
             backend.SetSample (stick.unit, sample);
             service.Tick();
 
-            Assert::AreEqual (DeadzoneShaper::ToPaddle (kOffMiddle), sink.writes.back().state.paddle[0], L"and off its middle it reads there, with no dead zone");
+            Assert::AreEqual (DeadzoneShaper::ToPaddle (kOffMiddle), sink.writes.back().state.paddle[1], L"and off its middle it reads there, with no dead zone");
         }
 
 

@@ -85,8 +85,9 @@ ControlMapping DefaultMapping::For (const ControllerModelKey & model, const std:
 //  resting off center, so it binds PDL0 alone.
 //
 //  A DirectInput device that is not a gamepad and has an axis that stays
-//  where it is left -- a throttle, a slider, a dial -- plays PDL0 on that
-//  axis at Position instead, as a real paddle's knob plays.
+//  where it is left -- a throttle, a slider, a dial -- keeps the stick's X
+//  on PDL0 at Rate and plays PDL1 on that axis at Position, as a real
+//  paddle's knob plays. Its buttons stay as a lone stick's: PB0 only.
 //
 //  The D-pad is left off: a D-pad pair jumps its axis straight to either end,
 //  which would throw a paddle to the edge of the screen.
@@ -120,20 +121,20 @@ ControlMapping DefaultMapping::MakePaddles (
         knob = AxisRoleRules::FindNonCenteringAxis (controls);
     }
 
-    if (knob.has_value())
-    {
-        binding.analog   = { knob->kind, knob->index };
-        binding.response = AxisResponse::Absolute;
-        mapping.pdl0.push_back (binding);
-        binding.response = AxisResponse::Rate;
-    }
-    else if (HasControl (controls, paddle))
+    if (HasControl (controls, paddle))
     {
         binding.analog = paddle;
         mapping.pdl0.push_back (binding);
     }
 
-    if (isXInput && HasControl (controls, rightX))
+    if (knob.has_value())
+    {
+        binding.analog   = { knob->kind, knob->index };
+        binding.response = AxisResponse::Absolute;
+        mapping.pdl1.push_back (binding);
+        binding.response = AxisResponse::Rate;
+    }
+    else if (isXInput && HasControl (controls, rightX))
     {
         binding.analog = rightX;
         mapping.pdl1.push_back (binding);
@@ -154,7 +155,7 @@ ControlMapping DefaultMapping::MakePaddles (
         mapping.pb0.push_back ({ first });
     }
 
-    if (!mapping.pdl1.empty() && HasControl (controls, second))
+    if (!knob.has_value() && !mapping.pdl1.empty() && HasControl (controls, second))
     {
         mapping.pb1.push_back ({ second });
     }

@@ -160,9 +160,10 @@ namespace ControllerTests
 
 
         //  A joystick with a throttle plays the Paddles starting point's PDL0
-        //  on the throttle at Position; a gamepad with a slider, and a
-        //  joystick without one, keep the stick's X at Paddle speed.
-        TEST_METHOD (Paddles_BindPdl0ToANonCenteringAxisAtPosition)
+        //  on the stick's X at Paddle speed and PDL1 on the throttle at
+        //  Position, with PB0 alone; a gamepad with a slider, and a joystick
+        //  without one, keep the stick's X at Paddle speed and leave PDL1 off.
+        TEST_METHOD (Paddles_BindPdl1ToANonCenteringAxisAtPosition)
         {
             ControllerModelKey      model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
             std::vector<ControlId>  plain  = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 }, { ControlKind::Button, 0 } };
@@ -175,8 +176,13 @@ namespace ControllerTests
 
             mapping = DefaultMapping::MakePaddles (model, ControllerFormFactor::Joystick, MakeGladiatorControls());
             Assert::AreEqual ((size_t) 1, mapping.pdl0.size());
-            Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, kAxisZ }, L"the Gladiator's throttle");
-            Assert::IsTrue   (mapping.pdl0[0].response == AxisResponse::Absolute,                 L"at Position");
+            Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, 0 },       L"the Gladiator's stick X");
+            Assert::IsTrue   (mapping.pdl0[0].response == AxisResponse::Rate,                     L"at Paddle speed");
+            Assert::AreEqual ((size_t) 1, mapping.pdl1.size());
+            Assert::IsTrue   (mapping.pdl1[0].analog == ControlId { ControlKind::Axis, kAxisZ }, L"the Gladiator's throttle");
+            Assert::IsTrue   (mapping.pdl1[0].response == AxisResponse::Absolute,                 L"at Position");
+            Assert::AreEqual ((size_t) 1, mapping.pb0.size(),                                     L"PB0 on the first button");
+            Assert::IsTrue   (mapping.pb1.empty(),                                                L"PB1 unassigned");
 
             mapping = DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, slider);
             Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, 0 },       L"a gamepad keeps its stick");
@@ -185,6 +191,7 @@ namespace ControllerTests
             mapping = DefaultMapping::MakePaddles (model, ControllerFormFactor::Joystick, plain);
             Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, 0 },       L"a joystick with nothing that stays put keeps X");
             Assert::IsTrue   (mapping.pdl0[0].response == AxisResponse::Rate,                     L"at Paddle speed");
+            Assert::IsTrue   (mapping.pdl1.empty(),                                               L"no knob, no PDL1");
         }
     };
 }
