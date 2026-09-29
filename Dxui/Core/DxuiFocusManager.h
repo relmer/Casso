@@ -96,6 +96,8 @@ private:
     bool   MoveFocus         (int direction);   // +1 forward, -1 backward
     bool   MoveFocusSpatial  (DxuiFocusKey arrow);
     void   ChangeFocus       (IDxuiControl * ctl, bool showCue);
+    void   RecoverFocus      (const std::vector<IDxuiControl *> & priorOrder);
+    bool   IsInTabOrder      (const IDxuiControl * ctl) const;
 
     static bool  IsClippedByAncestor (const IDxuiControl * ctl, POINT pointPx);
     static void  GetTabPlaces        (const IDxuiControl * ctl, std::vector<RECT> & places);
@@ -106,6 +108,7 @@ private:
     const IDxuiTheme             * m_theme                 = nullptr;
     std::vector<IDxuiControl *>    m_tabOrder;
     IDxuiControl                 * m_focused               = nullptr;
+    bool                           m_isCueShown            = false;
     std::vector<Scope>             m_scopes;
     float                          m_rowEpsilonOverrideDip = 0.0f;
     bool                           m_rowEpsilonOverridden  = false;

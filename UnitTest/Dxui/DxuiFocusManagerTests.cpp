@@ -360,4 +360,62 @@ public:
         Assert::AreEqual (static_cast<void *> (&reset), static_cast<void *> (focus.GetTabOrderAt (3)), L"the page's last control before the buttons");
         Assert::AreEqual (static_cast<void *> (&ok),    static_cast<void *> (focus.GetTabOrderAt (4)));
     }
+
+
+    //  A control taken away while it has focus, as a mapping row set to None
+    //  is, passes focus to the next control in the tab order, with the focus
+    //  rectangle it had, rather than dropping it.
+    TEST_METHOD (RemovingTheFocusedControl_MovesFocusToTheNext)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl  & a     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & b     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & c     = panel.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+
+        a.SetBounds (MakeRect (0,   0, 50,  20));
+        b.SetBounds (MakeRect (60,  0, 110, 20));
+        c.SetBounds (MakeRect (120, 0, 170, 20));
+        focus.SetRowEpsilonDip (32.0f);
+        focus.Attach (&panel);
+        focus.SetFocused (&b);
+
+        b.SetVisible (false);
+        focus.Rebuild();
+
+        Assert::AreEqual (static_cast<void *> (&c), static_cast<void *> (focus.GetFocusedControl()), L"the next control");
+        Assert::IsTrue   (c.IsFocusCueVisible(), L"with the focus rectangle");
+        Assert::IsTrue   (c.lastFocused);
+    }
+
+
+    //  Past the end of the order, focus goes back to the nearest control
+    //  before it that is still there, rather than around to the first.
+    TEST_METHOD (RemovingTheFocusedControlAtTheEnd_MovesFocusToThePrevious)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl  & a     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & b     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & c     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & d     = panel.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+
+        a.SetBounds (MakeRect (0,   0, 50,  20));
+        b.SetBounds (MakeRect (60,  0, 110, 20));
+        c.SetBounds (MakeRect (120, 0, 170, 20));
+        d.SetBounds (MakeRect (180, 0, 230, 20));
+        focus.SetRowEpsilonDip (32.0f);
+        focus.Attach (&panel);
+        focus.SetFocused (&c);
+
+        c.SetVisible (false);
+        d.SetVisible (false);
+        focus.Rebuild();
+
+        Assert::AreEqual (static_cast<void *> (&b), static_cast<void *> (focus.GetFocusedControl()), L"the previous control, not the first");
+    }
 };

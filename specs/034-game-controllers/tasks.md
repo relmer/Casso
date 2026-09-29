@@ -527,6 +527,8 @@ description: "Task list for 034 physical game controllers"
 
 - [X] T219 Tests first: `DxuiScrollPanelTests::Paint_GivesARowInViewRoomForItsFocusRing` and `Paint_ClipsARowOutOfViewAtTheViewport`; `DxuiScrollPanel` clips each child to its bounds grown by a focus margin, cut at the viewport's top and bottom only for a child not wholly in view
 - [X] T220 Tests first: `DxuiFocusManagerTests::Tab_ReachesAScrolledPageBeforeTheButtonsBelowIt`; `DxuiPropertyPage` a tab group at its viewport (`IDxuiControl::GetTabGroupPlace`), and `DxuiFocusManager` comparing places level by level through nested tab groups, so Reset profile comes before OK and Cancel
+- [X] T221 Tests first: `DxuiFocusManagerTests::RemovingTheFocusedControl_MovesFocusToTheNext` and `RemovingTheFocusedControlAtTheEnd_MovesFocusToThePrevious`; `DxuiFocusManager::Rebuild` passes focus from a control that left the order to the next one still in it, or the one before, keeping the focus rectangle
+- [X] T222 Mutation checks for Phase 23, the full Release suite, `CheckStyle -Mode Tree`, the x64 Debug code-analysis rebuild and a capture of the page's Tab walk, recorded in `validation.md` under a new "Phase 23" heading
 
 ---
 

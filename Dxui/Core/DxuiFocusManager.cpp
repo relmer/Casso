@@ -154,6 +154,7 @@ void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxui
 void DxuiFocusManager::Rebuild()
 {
     std::vector<IDxuiControl *>  raw;
+    std::vector<IDxuiControl *>  prior     = m_tabOrder;
     IDxuiControl *               scopeRoot = nullptr;
     float                        eps       = 1.0f;
 
@@ -189,26 +190,71 @@ void DxuiFocusManager::Rebuild()
 
         m_tabOrder = std::move (raw);
 
-        // Drop focus if previously-focused control is no longer in the order.
-        if (m_focused != nullptr)
-        {
-            bool  stillThere = false;
-
-            for (IDxuiControl * ctl : m_tabOrder)
-            {
-                if (ctl == m_focused)
-                {
-                    stillThere = true;
-                    break;
-                }
-            }
-
-            if (!stillThere)
-            {
-                m_focused = nullptr;
-            }
-        }
+        RecoverFocus (prior);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecoverFocus
+//
+//  A focused control that has left the order, hidden or removed, passes
+//  focus to the next control in the order it left that is still there, or,
+//  when none follows it, to the nearest one before it: focus goes on from
+//  where it was rather than around to the top. The control that left is not
+//  told, since it may no longer exist. With nothing left, focus is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFocusManager::RecoverFocus (const std::vector<IDxuiControl *> & priorOrder)
+{
+    auto            it        = std::find (priorOrder.begin(), priorOrder.end(), m_focused);
+    size_t          at        = (size_t) (it - priorOrder.begin());
+    size_t          i         = 0;
+    IDxuiControl  * successor = nullptr;
+
+
+
+    if (m_focused == nullptr || IsInTabOrder (m_focused))
+    {
+        return;
+    }
+
+    for (i = at + 1; i < priorOrder.size() && successor == nullptr; i++)
+    {
+        successor = IsInTabOrder (priorOrder[i]) ? priorOrder[i] : nullptr;
+    }
+
+    for (i = (at < priorOrder.size()) ? at : 0; i > 0 && successor == nullptr; i--)
+    {
+        successor = IsInTabOrder (priorOrder[i - 1]) ? priorOrder[i - 1] : nullptr;
+    }
+
+    m_focused = nullptr;
+
+    if (successor != nullptr)
+    {
+        ChangeFocus (successor, m_isCueShown);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsInTabOrder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiFocusManager::IsInTabOrder (const IDxuiControl * ctl) const
+{
+    return std::find (m_tabOrder.begin(), m_tabOrder.end(), ctl) != m_tabOrder.end();
 }
 
 
@@ -446,6 +492,8 @@ void DxuiFocusManager::ChangeFocus (IDxuiControl * ctl, bool showCue)
 
 
     DXUI_ASSERT_UI_THREAD();
+
+    m_isCueShown = showCue;
 
     if (ctl != nullptr)
     {
