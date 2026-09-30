@@ -1,7 +1,8 @@
 #pragma once
 
-//  For ParseStatus, which every mode reports through, and for the engine
-//  commands, which a GSSquared line reaches by their bare AppleWin names.
+//  For ParseStatus, which every mode reports through, for the engine commands,
+//  which a GSSquared line reaches by their bare AppleWin names, and for
+//  TryEvaluate, which reads a register value and a file:line target.
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugCommand.h"
 
@@ -67,11 +68,11 @@ struct GSSquaredCommand
 //  address, a quoted token is a string -- and looks anything else up in a
 //  flat table of words. The first token decides the command.
 //
-//  EVERY COMMAND IS AN APPLEWIN LINE UNDERNEATH. A line is rewritten into the
-//  AppleWin command with the same effect and parsed by AppleWinParser, so a
-//  breakpoint set here is the breakpoint `BPL` lists, and the two modes
-//  cannot drift apart. Numbers are rewritten with a `$`, since GSSquared's
-//  are always hex and never symbols.
+//  Each command is built here as the DebugCommand with the same effect as
+//  its AppleWin counterpart, the same verb and the same fields, so a
+//  breakpoint set here is the breakpoint `BPL` lists. No line is rewritten
+//  into another mode's text. GSSquared's numbers are always hex and never
+//  symbols, so they are read here rather than evaluated.
 //
 //  Casso's engine commands are bare names here, as in AppleWin mode: `/` is
 //  GSSquared's bank separator and cannot be the marker. Only bank 00 exists
@@ -110,16 +111,26 @@ private:
     static void         ParseSymbols       (Line & line, const std::string & word);
     static void         ParseRegister      (Line & line);
     static void         ParsePanel         (Line & line, bool isClose);
-    static void         ParseNoArguments   (Line & line, const std::string & appleWin);
-    static void         ParseAppleWin      (Line & line, const std::string & appleWin, const std::string & word);
+    static void         ParseNoArguments   (Line & line, DebugVerb verb);
+    static void         ParseHelp          (Line & line);
+    static void         ParseMove          (Line & line, const std::string & word, Word first, Word last, Word dest);
+    static void         ParseCassoCommand  (Line & line, const std::string & text);
+    static void         AddSymbolCommand   (Line & line, DebugVerb verb, const std::string & text);
+    static DebugCommand MakeCommand        (DebugVerb verb, const std::string & word);
+    static void         AddCommand         (Line & line, const DebugCommand & command);
+    static void         AddRange           (Line & line, DebugCommand command, Word first, Word last, bool hasLast);
+    static bool         TryParseColonTarget (Line & line, const std::string & token, DebugCommand & command);
+    static bool         TryParseIdOrAll    (Line & line, const std::string & token, DebugCommand & command);
+    static bool         TryParseId         (const std::string & text, uint32_t & value);
+    static bool         TryParseIfExpression (Line & line, bool hasIf, const std::string & expression, DebugCommand & command);
     static bool         TryParseAddress    (Line & line, const std::string & token, Word & address);
     static bool         TryParseRange      (Line & line, const std::string & token, Word & first, Word & last);
     static bool         TryParseHex        (const std::string & text, size_t maxDigits, Word & value);
-    static bool         TryGetIfClause     (const Tokens & tokens, size_t first, std::string & clause);
+    static bool         TryGetIfClause     (const Tokens & tokens, size_t first, std::string & expression);
     static void         SetInvalid         (Line & line, const std::string & error);
     static void         SetNotAvailable    (Line & line, const std::string & error);
     static std::string  FormatHex          (Word value);
-    static std::string  FormatRange        (Word first, Word last);
+    static std::string  ToUpper            (const std::string & text);
     static std::string  ToLower            (const std::string & text);
     static std::string  Unquote            (const std::string & text);
     static Tokens       Split              (const std::string & text);

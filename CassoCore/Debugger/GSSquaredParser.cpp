@@ -82,7 +82,7 @@ GSSquaredParseResult GSSquaredParser::Parse (const std::string & line, const IDe
 
     if (CommandModeHelp::IsCassoCommandReachable (CommandMode::GSSquared, current.tokens[0]))
     {
-        ParseAppleWin (current, line, current.tokens[0]);
+        ParseCassoCommand (current, line);
     }
     else if (!TryParseForm (current) && !TryParseWord (current))
     {
@@ -156,7 +156,7 @@ bool GSSquaredParser::TryParseForm (Line & line)
         }
         else if (TryParseRange (line, first, value, second))
         {
-            ParseAppleWin (line, std::format ("D {}:{}", FormatHex (value), FormatHex (second)), first);
+            AddRange (line, MakeCommand (DebugVerb::DumpMemory, first), value, second, true);
         }
 
         return true;
@@ -170,7 +170,7 @@ bool GSSquaredParser::TryParseForm (Line & line)
         }
         else if (TryParseAddress (line, front, value))
         {
-            ParseAppleWin (line, std::format ("U {}", FormatHex (value)), "l");
+            AddRange (line, MakeCommand (DebugVerb::Disassemble, "l"), value, value, false);
         }
 
         return true;
@@ -187,7 +187,7 @@ bool GSSquaredParser::TryParseForm (Line & line)
     }
     else if (TryParseAddress (line, first, value))
     {
-        ParseAppleWin (line, std::format ("D {}:{}", FormatHex (value), FormatHex (value)), first);
+        AddRange (line, MakeCommand (DebugVerb::DumpMemory, first), value, value, true);
     }
 
     return true;
@@ -252,7 +252,7 @@ bool GSSquaredParser::TryParseWord (Line & line)
         }
         else if (TryParseRange (line, line.tokens[1], value, last) && TryParseAddress (line, line.tokens[2], dest))
         {
-            ParseAppleWin (line, std::format ("M {} {}:{}", FormatHex (dest), FormatHex (value), FormatHex (last)), word);
+            ParseMove (line, word, value, last, dest);
         }
     }
     else if (word == "l" || word == "list")
@@ -263,11 +263,11 @@ bool GSSquaredParser::TryParseWord (Line & line)
         }
         else if (count == 1)
         {
-            ParseAppleWin (line, "U", word);
+            AddCommand (line, MakeCommand (DebugVerb::Disassemble, word));
         }
         else if (TryParseAddress (line, line.tokens[1], value))
         {
-            ParseAppleWin (line, std::format ("U {}", FormatHex (value)), word);
+            AddRange (line, MakeCommand (DebugVerb::Disassemble, word), value, value, false);
         }
     }
     else if (word == "bp")                          { ParseBreakpoint      (line); }
@@ -277,13 +277,13 @@ bool GSSquaredParser::TryParseWord (Line & line)
     else if (word == "load" || word == "save")      { ParseFile            (line, word == "load"); }
     else if (word == "sload" || word == "slookup" || word == "sclear") { ParseSymbols (line, word); }
     else if (word == "debug" || word == "nodebug")  { ParsePanel           (line, word == "nodebug"); }
-    else if (word == "help" && line.tokens.size() == 2) { ParseAppleWin    (line, "HELP " + line.tokens[1], word); }
-    else if (word == "help")                        { ParseNoArguments     (line, "HELP"); }
-    else if (word == "s")                           { ParseNoArguments     (line, "T"); }
-    else if (word == "o")                           { ParseNoArguments     (line, "P"); }
+    else if (word == "help" && line.tokens.size() == 2) { ParseHelp        (line); }
+    else if (word == "help")                        { ParseNoArguments     (line, DebugVerb::Help); }
+    else if (word == "s")                           { ParseNoArguments     (line, DebugVerb::StepInto); }
+    else if (word == "o")                           { ParseNoArguments     (line, DebugVerb::StepOver); }
     else if (word == "r" && count > 1)              { ParseRegister        (line); }
-    else if (word == "r")                           { ParseNoArguments     (line, "RTS"); }
-    else                                            { ParseNoArguments     (line, "G"); }
+    else if (word == "r")                           { ParseNoArguments     (line, DebugVerb::StepOut); }
+    else                                            { ParseNoArguments     (line, DebugVerb::Go); }
 
     return true;
 }
@@ -306,8 +306,9 @@ void GSSquaredParser::ParseDeposit (Line & line, const std::string & address, co
 {
     static constexpr size_t  kByteDigits = 2;
     Word                     start       = 0;
+    static constexpr Byte    kAllBits    = 0xFF;
     Word                     value       = 0;
-    std::string              appleWin;
+    DebugCommand             command     = MakeCommand (DebugVerb::EnterBytes, ToLower (line.tokens[0]) == "set" ? "set" : address + ":");
 
 
 
@@ -322,7 +323,8 @@ void GSSquaredParser::ParseDeposit (Line & line, const std::string & address, co
         return;
     }
 
-    appleWin = std::format ("MEB {}", FormatHex (start));
+    command.a1    = start;
+    command.hasA1 = true;
 
     for (const std::string & text : values)
     {
@@ -332,10 +334,11 @@ void GSSquaredParser::ParseDeposit (Line & line, const std::string & address, co
             return;
         }
 
-        appleWin += std::format (" ${:02X}", value);
+        command.values.push_back ((Byte) value);
+        command.mask.push_back (kAllBits);
     }
 
-    ParseAppleWin (line, appleWin, ToLower (line.tokens[0]) == "set" ? "set" : address + ":");
+    AddCommand (line, command);
 }
 
 
@@ -353,36 +356,94 @@ void GSSquaredParser::ParseDeposit (Line & line, const std::string & address, co
 
 void GSSquaredParser::ParseBreakpoint (Line & line)
 {
-    Word         first  = 0;
-    Word         last   = 0;
-    std::string  clause;
+    DebugCommand  command = MakeCommand (DebugVerb::SetBreakpoint, "bp");
+    Word          first   = 0;
+    Word          last    = 0;
+    std::string   expression;
 
 
 
     if (line.tokens.size() == 1)
     {
-        ParseAppleWin (line, "BPL", "bp");
+        AddCommand (line, MakeCommand (DebugVerb::ListBreakpoints, "bp"));
         return;
     }
 
-    if (!TryGetIfClause (line.tokens, 2, clause))
+    if (!TryGetIfClause (line.tokens, 2, expression))
     {
         SetInvalid (line, "BP takes an address or a range, and optionally IF and an expression.");
         return;
     }
 
     // A GSSquared range uses a period and a bank a slash, so a colon is a
-    // source line, file:line, which only the AppleWin BP reads.
+    // source line, file:line, or an expression range, first:last.
     if (line.tokens[1].find (':') != std::string::npos)
     {
-        ParseAppleWin (line, std::format ("BP {}{}", line.tokens[1], clause), "bp");
+        if (TryParseIfExpression (line, line.tokens.size() > 2, expression, command) && TryParseColonTarget (line, line.tokens[1], command))
+        {
+            AddCommand (line, command);
+        }
+
         return;
     }
 
-    if (TryParseRange (line, line.tokens[1], first, last))
+    if (TryParseRange (line, line.tokens[1], first, last) && TryParseIfExpression (line, line.tokens.size() > 2, expression, command))
     {
-        ParseAppleWin (line, std::format ("BP {}{}", FormatRange (first, last), clause), "bp");
+        AddRange (line, command, first, last, first != last);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::TryParseColonTarget
+//
+//  `file:line` sets a breakpoint on a source line: its left side does not
+//  evaluate as an address and its right is a decimal line number. Anything
+//  else with a colon is a range of two expressions, first:last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GSSquaredParser::TryParseColonTarget (Line & line, const std::string & token, DebugCommand & command)
+{
+    size_t       colon  = token.rfind (':');
+    size_t       split  = token.find (':');
+    std::string  error;
+    Word         unused = 0;
+    uint32_t     number = 0;
+
+
+
+    if (colon != 0 && colon + 1 < token.size() && TryParseId (token.substr (colon + 1), number) &&
+        !AppleWinParser::TryEvaluate (token.substr (0, colon), line.context, unused, error))
+    {
+        command.verb  = DebugVerb::SetSourceBreakpoint;
+        command.text  = token.substr (0, colon);
+        command.count = number;
+        return true;
+    }
+
+    error.clear();
+
+    if (!AppleWinParser::TryEvaluate (token.substr (0, split), line.context, command.a1, error) ||
+        !AppleWinParser::TryEvaluate (token.substr (split + 1), line.context, command.a2, error))
+    {
+        SetInvalid (line, error);
+        return false;
+    }
+
+    if (command.a2 < command.a1)
+    {
+        SetInvalid (line, std::format ("The range ends at ${:04X}, before its start at ${:04X}.", command.a2, command.a1));
+        return false;
+    }
+
+    command.hasA1 = true;
+    command.hasA2 = true;
+    return true;
 }
 
 
@@ -404,9 +465,9 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
     static constexpr Word  kIoFirst = 0xC000;
     static constexpr Word  kIoLast  = 0xC0FF;
     std::string            name     = isIo ? "BPI" : "BPD";
+    DebugCommand           command  = MakeCommand (DebugVerb::None, ToLower (name));
     std::string            access;
-    std::string            clause;
-    std::string            appleWin;
+    std::string            expression;
     Word                   first    = 0;
     Word                   last     = 0;
 
@@ -416,11 +477,17 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
     // AppleWin's BPD: disable the breakpoint with that id.
     if (!isIo && line.tokens.size() == 2)
     {
-        ParseAppleWin (line, "BPD " + line.tokens[1], "bpd");
+        command.verb = DebugVerb::DisableBreakpoint;
+
+        if (TryParseIdOrAll (line, line.tokens[1], command))
+        {
+            AddCommand (line, command);
+        }
+
         return;
     }
 
-    if (line.tokens.size() < 3 || !TryGetIfClause (line.tokens, 3, clause))
+    if (line.tokens.size() < 3 || !TryGetIfClause (line.tokens, 3, expression))
     {
         SetInvalid (line, std::format ("{} takes an address or a range, then r, w, or rw.", name));
         return;
@@ -428,9 +495,9 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
 
     access = ToLower (line.tokens[2]);
 
-    if      (access == "r")  { appleWin = "BPMR"; }
-    else if (access == "w")  { appleWin = "BPMW"; }
-    else if (access == "rw") { appleWin = "BPM";  }
+    if      (access == "r")  { command.verb = DebugVerb::SetReadWatchpoint;   }
+    else if (access == "w")  { command.verb = DebugVerb::SetWriteWatchpoint;  }
+    else if (access == "rw") { command.verb = DebugVerb::SetMemoryWatchpoint; }
     else
     {
         SetInvalid (line, std::format ("{} is not an access. The accesses are r, w, and rw.", line.tokens[2]));
@@ -448,7 +515,11 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
         return;
     }
 
-    ParseAppleWin (line, std::format ("{} {}{}", appleWin, FormatRange (first, last), clause), ToLower (name));
+    if (TryParseIfExpression (line, line.tokens.size() > 3, expression, command))
+    {
+        command.text = "AFTER";
+        AddRange (line, command, first, last, first != last);
+    }
 }
 
 
@@ -469,7 +540,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
 {
     static constexpr size_t  kAddressDigits = 4;
     static constexpr size_t  kMaxIdDigits   = 9;
-    DebugCommand             command;
+    DebugCommand             command        = MakeCommand (DebugVerb::ClearBreakpoint, "nobp");
     std::string              token;
     bool                     isDecimal      = false;
     bool                     hasBank        = false;
@@ -486,10 +557,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
     isDecimal = token.find_first_not_of ("0123456789") == std::string::npos && token.size() <= kMaxIdDigits;
     hasBank   = token.find ('/') != std::string::npos;
 
-    command.verb       = DebugVerb::ClearBreakpoint;
-    command.sourceName = "nobp";
-    command.mode       = CommandMode::GSSquared;
-    command.text       = token;
+    command.text = token;
 
     if (hasBank)
     {
@@ -516,8 +584,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
         command.count = (uint32_t) std::stoul (token);
     }
 
-    line.result.commands.push_back (command);
-    line.result.status        = ParseStatus::Ok;
+    AddCommand (line, command);
     line.result.isIdOrAddress = true;
 }
 
@@ -539,6 +606,7 @@ void GSSquaredParser::ParseWatch (Line & line)
 {
     static constexpr uint32_t  kMaxRange = 0x100;
     bool                       isClear   = ToLower (line.tokens[0]) == "nowatch";
+    DebugCommand               command   = MakeCommand (DebugVerb::ClearWatch, "nowatch");
     Word                       first     = 0;
     Word                       last      = 0;
 
@@ -552,13 +620,17 @@ void GSSquaredParser::ParseWatch (Line & line)
             return;
         }
 
-        ParseAppleWin (line, "WC " + line.tokens[1], "nowatch");
+        if (TryParseIdOrAll (line, line.tokens[1], command))
+        {
+            AddCommand (line, command);
+        }
+
         return;
     }
 
     if (line.tokens.size() == 1)
     {
-        ParseAppleWin (line, "WL", "watch");
+        AddCommand (line, MakeCommand (DebugVerb::ListWatches, "watch"));
         return;
     }
 
@@ -581,12 +653,7 @@ void GSSquaredParser::ParseWatch (Line & line)
 
     for (uint32_t address = first; address <= last; ++address)
     {
-        ParseAppleWin (line, std::format ("W {}", FormatHex ((Word) address)), "watch");
-
-        if (line.result.status != ParseStatus::Ok)
-        {
-            return;
-        }
+        AddRange (line, MakeCommand (DebugVerb::AddWatch, "watch"), (Word) address, (Word) address, false);
     }
 }
 
@@ -605,9 +672,9 @@ void GSSquaredParser::ParseWatch (Line & line)
 
 void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 {
-    std::string  file;
-    Word         first = 0;
-    Word         last  = 0;
+    DebugCommand  command = MakeCommand (isLoad ? DebugVerb::LoadBinary : DebugVerb::SaveBinary, isLoad ? "load" : "save");
+    Word          first   = 0;
+    Word          last    = 0;
 
 
 
@@ -617,13 +684,13 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
         return;
     }
 
-    file = Unquote (line.tokens[1]);
+    command.text = Unquote (line.tokens[1]);
 
     if (isLoad)
     {
         if (TryParseAddress (line, line.tokens[2], first))
         {
-            ParseAppleWin (line, std::format ("BLOAD \"{}\" {}", file, FormatHex (first)), "load");
+            AddRange (line, command, first, first, false);
         }
 
         return;
@@ -631,7 +698,7 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 
     if (TryParseRange (line, line.tokens[2], first, last))
     {
-        ParseAppleWin (line, std::format ("BSAVE \"{}\" {}:{}", file, FormatHex (first), FormatHex (last)), "save");
+        AddRange (line, command, first, last, true);
     }
 }
 
@@ -645,8 +712,8 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 //
 //  `sload "file"`, `slookup addr` and `sclear`, as SYM LOAD, SYM addr and
 //  SYM CLEAR against the User table, so sclear clears what sload loaded and
-//  the ROM symbols stay. These keep SYM as the command's name, because the
-//  name is what selects the symbol table.
+//  the ROM symbols stay. These keep SYM as the command's sourceName, because
+//  the symbol handlers look the table up from it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -659,7 +726,7 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
 
     if (word == "sclear")
     {
-        ParseNoArguments (line, "SYM CLEAR");
+        ParseNoArguments (line, DebugVerb::ClearSymbols);
     }
     else if (count != 2)
     {
@@ -671,12 +738,35 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
     }
     else if (word == "sload")
     {
-        ParseAppleWin (line, std::format ("SYM LOAD \"{}\"", Unquote (line.tokens[1])), std::string());
+        AddSymbolCommand (line, DebugVerb::LoadSymbols, std::format ("\"{}\"", Unquote (line.tokens[1])));
     }
     else if (TryParseAddress (line, line.tokens[1], value))
     {
-        ParseAppleWin (line, std::format ("SYM {}", FormatHex (value)), std::string());
+        AddSymbolCommand (line, DebugVerb::LookupSymbol, FormatHex (value));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::AddSymbolCommand
+//
+//  A command against the User symbol table, which SYM as its sourceName
+//  selects.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::AddSymbolCommand (Line & line, DebugVerb verb, const std::string & text)
+{
+    DebugCommand  command = MakeCommand (verb, "SYM");
+
+
+
+    command.text = text;
+    AddCommand (line, command);
 }
 
 
@@ -687,23 +777,55 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
 //
 //  GSSquaredParser::ParseRegister
 //
-//  GSSquared's r takes nothing, so r with arguments is AppleWin's R: `r a 41`
-//  sets a register, as `bpd` with one argument is AppleWin's BPD.
+//  GSSquared's r takes nothing, so r with arguments sets a register as
+//  AppleWin's R does: `r a 41`, `r a=41` and `r pc = fa62`, as `bpd` with one
+//  argument disables a breakpoint as AppleWin's BPD does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void GSSquaredParser::ParseRegister (Line & line)
 {
-    std::string  appleWin = "R";
+    static constexpr const char * kRegisters[] = { "A", "X", "Y", "P", "S", "PC" };
+    DebugCommand                  command      = MakeCommand (DebugVerb::SetRegister, "r");
+    std::string                   joined;
+    std::string                   name;
+    std::string                   value;
+    std::string                   error;
+    size_t                        split        = 0;
 
 
 
     for (size_t i = 1; i < line.tokens.size(); ++i)
     {
-        appleWin += " " + line.tokens[i];
+        joined += (joined.empty() ? "" : " ") + line.tokens[i];
     }
 
-    ParseAppleWin (line, appleWin, "r");
+    std::replace (joined.begin(), joined.end(), '=', ' ');
+    split = joined.find_first_of (" \t");
+    name  = ToUpper (joined.substr (0, split));
+    value = (split == std::string::npos) ? std::string() : joined.substr (split);
+
+    if (name.empty())
+    {
+        SetInvalid (line, "R takes a register and a value. The registers are A, X, Y, P, S, and PC.");
+        return;
+    }
+
+    if (std::find (std::begin (kRegisters), std::end (kRegisters), name) == std::end (kRegisters))
+    {
+        SetInvalid (line, std::format ("{} is not a register. The registers are A, X, Y, P, S, and PC.", name));
+        return;
+    }
+
+    if (!AppleWinParser::TryEvaluate (value, line.context, command.a1, error))
+    {
+        SetInvalid (line, error);
+        return;
+    }
+
+    command.text  = name;
+    command.hasA1 = true;
+    AddCommand (line, command);
 }
 
 
@@ -715,28 +837,87 @@ void GSSquaredParser::ParseRegister (Line & line)
 //  GSSquaredParser::ParsePanel
 //
 //  `debug` lists the device panels, `debug "name"` opens one and
-//  `nodebug "name"` closes it: PANEL, PANEL name and PANEL CLOSE name.
+//  `nodebug "name"` closes it. `debug list` lists them too, as PANEL LIST
+//  does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void GSSquaredParser::ParsePanel (Line & line, bool isClose)
 {
-    size_t  count = line.tokens.size();
+    size_t        count   = line.tokens.size();
+    DebugCommand  command = MakeCommand (isClose ? DebugVerb::ClosePanel : DebugVerb::OpenPanel, ToLower (line.tokens[0]));
 
 
 
     if (count > 2 || (isClose && count != 2))
     {
         SetInvalid (line, isClose ? "NODEBUG takes a panel name." : "DEBUG takes a panel name or nothing.");
+        return;
     }
-    else if (count == 1)
+
+    command.text = (count == 1) ? std::string() : Unquote (line.tokens[1]);
+
+    if (!isClose && (count == 1 || ToUpper (command.text) == "LIST"))
     {
-        ParseAppleWin (line, "PANEL", ToLower (line.tokens[0]));
+        command.verb = DebugVerb::ListPanels;
+        command.text.clear();
+        AddCommand (line, command);
+        return;
     }
-    else
+
+    if (!isClose && ToUpper (command.text) == "CLOSE")
     {
-        ParseAppleWin (line, std::format ("PANEL {}{}", isClose ? "CLOSE " : "", Unquote (line.tokens[1])), ToLower (line.tokens[0]));
+        SetInvalid (line, "DEBUG takes a panel name or nothing. Use NODEBUG name to close a panel.");
+        return;
     }
+
+    AddCommand (line, command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::ParseHelp
+//
+//  `help word`: help on one command, which the help handler looks up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::ParseHelp (Line & line)
+{
+    DebugCommand  command = MakeCommand (DebugVerb::Help, "help");
+
+
+
+    command.text = line.tokens[1];
+    AddCommand (line, command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::ParseMove
+//
+//  `move first.last dest`: the source range in a1/a2 and the destination in
+//  a3, as AppleWin's M carries them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::ParseMove (Line & line, const std::string & word, Word first, Word last, Word dest)
+{
+    DebugCommand  command = MakeCommand (DebugVerb::MoveMemory, word);
+
+
+
+    command.a3    = dest;
+    command.hasA3 = true;
+    AddRange (line, command, first, last, true);
 }
 
 
@@ -748,14 +929,15 @@ void GSSquaredParser::ParsePanel (Line & line, bool isClose)
 //  GSSquaredParser::ParseNoArguments
 //
 //  A word that takes nothing: help, sclear, and the step and run additions.
-//  The command keeps its AppleWin name only where that name selects
-//  something, which is SYM's case.
+//  sclear keeps SYM as its sourceName, which selects the symbol table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GSSquaredParser::ParseNoArguments (Line & line, const std::string & appleWin)
+void GSSquaredParser::ParseNoArguments (Line & line, DebugVerb verb)
 {
-    std::string  word = ToLower (line.tokens[0]);
+    static constexpr uint32_t  kOneStep = 1;
+    std::string                word     = ToLower (line.tokens[0]);
+    DebugCommand               command  = MakeCommand (verb, verb == DebugVerb::ClearSymbols ? "SYM" : word);
 
 
 
@@ -765,7 +947,12 @@ void GSSquaredParser::ParseNoArguments (Line & line, const std::string & appleWi
         return;
     }
 
-    ParseAppleWin (line, appleWin, appleWin.starts_with ("SYM") ? std::string() : word);
+    if (verb == DebugVerb::StepInto || verb == DebugVerb::StepOver || verb == DebugVerb::StepOut)
+    {
+        command.count = kOneStep;
+    }
+
+    AddCommand (line, command);
 }
 
 
@@ -774,17 +961,16 @@ void GSSquaredParser::ParseNoArguments (Line & line, const std::string & appleWi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GSSquaredParser::ParseAppleWin
+//  GSSquaredParser::ParseCassoCommand
 //
-//  The AppleWin line with the same effect, parsed as AppleWin mode parses
-//  it and added to the result. word, when given, replaces the AppleWin name,
-//  so a reply and an error quote what was typed.
+//  A Casso engine command, reached by its bare name as in AppleWin mode. The
+//  line goes to AppleWinParser exactly as typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GSSquaredParser::ParseAppleWin (Line & line, const std::string & appleWin, const std::string & word)
+void GSSquaredParser::ParseCassoCommand (Line & line, const std::string & text)
 {
-    AppleWinParseResult  parsed = AppleWinParser::Parse (appleWin, line.context);
+    AppleWinParseResult  parsed = AppleWinParser::Parse (text, line.context);
 
 
 
@@ -796,17 +982,184 @@ void GSSquaredParser::ParseAppleWin (Line & line, const std::string & appleWin, 
         return;
     }
 
-    if (!word.empty())
-    {
-        parsed.command.sourceName = word;
-    }
-
     if (parsed.command.verb != DebugVerb::SetMode)
     {
         parsed.command.mode = CommandMode::GSSquared;
     }
 
     line.result.commands.push_back (parsed.command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::MakeCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugCommand GSSquaredParser::MakeCommand (DebugVerb verb, const std::string & word)
+{
+    DebugCommand  command;
+
+
+
+    command.verb       = verb;
+    command.sourceName = word;
+    command.mode       = CommandMode::GSSquared;
+    return command;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::AddCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::AddCommand (Line & line, const DebugCommand & command)
+{
+    line.result.commands.push_back (command);
+    line.result.status = ParseStatus::Ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::AddRange
+//
+//  The command with first in a1 and, when hasLast, last in a2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::AddRange (Line & line, DebugCommand command, Word first, Word last, bool hasLast)
+{
+    command.a1    = first;
+    command.hasA1 = true;
+
+    if (hasLast)
+    {
+        command.a2    = last;
+        command.hasA2 = true;
+    }
+
+    AddCommand (line, command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::TryParseIdOrAll
+//
+//  An id in decimal, as ids are listed, or * for every entry, carried as
+//  text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GSSquaredParser::TryParseIdOrAll (Line & line, const std::string & token, DebugCommand & command)
+{
+    if (token == "*")
+    {
+        command.text = "*";
+        return true;
+    }
+
+    if (!TryParseId (token, command.count))
+    {
+        SetInvalid (line, std::format ("{} is not an id.", token));
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::TryParseId
+//
+//  Decimal digits, with or without a leading #, that fit in 32 bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GSSquaredParser::TryParseId (const std::string & text, uint32_t & value)
+{
+    static constexpr size_t  kMaxDigits = 18;
+    std::string              digits     = text.starts_with ('#') ? text.substr (1) : text;
+    uint64_t                 wide       = 0;
+
+
+
+    if (digits.empty() || digits.size() > kMaxDigits || digits.find_first_not_of ("0123456789") != std::string::npos)
+    {
+        return false;
+    }
+
+    wide = std::stoull (digits);
+
+    if (wide > UINT32_MAX)
+    {
+        return false;
+    }
+
+    value = (uint32_t) wide;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::TryParseIfExpression
+//
+//  The expression after IF, parsed into the command's condition. hasIf is
+//  false when the line had no IF, and then there is nothing to parse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GSSquaredParser::TryParseIfExpression (Line & line, bool hasIf, const std::string & expression, DebugCommand & command)
+{
+    std::string  error;
+    HRESULT      hr    = S_OK;
+
+
+
+    if (!hasIf)
+    {
+        return true;
+    }
+
+    if (expression.empty())
+    {
+        SetInvalid (line, "IF needs an expression.");
+        return false;
+    }
+
+    hr = DebugExpressionEvaluator::Parse (expression, command.expression, error);
+
+    if (FAILED (hr))
+    {
+        SetInvalid (line, error);
+        return false;
+    }
+
+    return true;
 }
 
 
@@ -954,11 +1307,11 @@ bool GSSquaredParser::TryParseHex (const std::string & text, size_t maxDigits, W
 //  GSSquaredParser::TryGetIfClause
 //
 //  Nothing from first on, or `IF` and an expression, which is kept as text
-//  for AppleWinParser to parse. Anything else there is an error.
+//  for TryParseIfExpression to parse. Anything else there is an error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GSSquaredParser::TryGetIfClause (const Tokens & tokens, size_t first, std::string & clause)
+bool GSSquaredParser::TryGetIfClause (const Tokens & tokens, size_t first, std::string & expression)
 {
     if (tokens.size() <= first)
     {
@@ -970,11 +1323,9 @@ bool GSSquaredParser::TryGetIfClause (const Tokens & tokens, size_t first, std::
         return false;
     }
 
-    clause = " IF";
-
     for (size_t i = first + 1; i < tokens.size(); ++i)
     {
-        clause += " " + tokens[i];
+        expression += (expression.empty() ? "" : " ") + tokens[i];
     }
 
     return true;
@@ -1033,15 +1384,22 @@ std::string GSSquaredParser::FormatHex (Word value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GSSquaredParser::FormatRange
-//
-//  A range as AppleWin writes one, or the address alone for a range of one.
+//  GSSquaredParser::ToUpper
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string GSSquaredParser::FormatRange (Word first, Word last)
+std::string GSSquaredParser::ToUpper (const std::string & text)
 {
-    return (first == last) ? FormatHex (first) : std::format ("{}:{}", FormatHex (first), FormatHex (last));
+    std::string  upper (text);
+
+
+
+    for (char & ch : upper)
+    {
+        ch = (char) toupper ((unsigned char) ch);
+    }
+
+    return upper;
 }
 
 

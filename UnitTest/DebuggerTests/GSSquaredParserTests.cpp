@@ -421,6 +421,20 @@ namespace DebuggerTests
             Refused ("bp E1/300", ParseStatus::NotAvailable);
         }
 
+        //  FR-135: a command is built here, not rewritten into AppleWin text,
+        //  so an error quotes the GSSquared word and never an AppleWin one.
+        TEST_METHOD (Errors_QuoteTheGSSquaredWord)
+        {
+            GSSquaredParseResult  close = Refused ("debug close", ParseStatus::Invalid);
+
+
+
+            Assert::IsTrue  (close.error.find ("DEBUG") != std::string::npos, Widen (close.error).c_str());
+            Assert::IsTrue  (close.error.find ("PANEL") == std::string::npos, Widen (close.error).c_str());
+            Assert::AreEqual (std::string ("debug"), One ("debug \"list\"").sourceName);
+            AssertVerb (DebugVerb::ListPanels, One ("debug \"list\""), "debug \"list\"");
+        }
+
         TEST_METHOD (Names_IgnoreCase)
         {
             AssertVerb (DebugVerb::SetBreakpoint, One ("BP 300"),   "BP");
