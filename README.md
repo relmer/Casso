@@ -104,9 +104,12 @@ surprise or two there too.
 </tr>
 </table>
 
-<p align="center"><img src="Assets/controllers-1-29-joyport.png" alt="The Controllers page in Settings with the Sirius Joyport: Player 1 on Automatic with the Xbox Series X|S controller on the left jack, and Player 2 on Automatic with the Xbox One S controller, which resolves to the right jack. The left stick, right stick and D-pad all drive left/right and up/down, a scrolling list of buttons and triggers fires, and a top-down drawing of an Atari joystick lights its right marker" width="540" /></p>
-
-<p align="center"><img src="Assets/controllers-1-29-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: a submenu for each player, and Player 1's submenu open under three headings, Controller with Automatic, the Xbox Series X|S controller, the Xbox One S controller checked and keys as a joystick, Mode with Joystick checked above the two Joyport jacks, Paddle and Two paddles, and Profile with Default checked and New... at the bottom" width="700" /></p>
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="41%" align="center"><img src="Assets/controllers-1-29-joyport.png" alt="The Controllers page in Settings with the Sirius Joyport: Player 1 on Automatic with the Xbox Series X|S controller on the left jack, and Player 2 on Automatic with the Xbox One S controller, which resolves to the right jack. The left stick, right stick and D-pad all drive left/right and up/down, a scrolling list of buttons and triggers fires, and a top-down drawing of an Atari joystick lights its right marker" width="100%" /><br /><sub>Two players on the Joyport</sub></td>
+  <td valign="top" width="59%" align="center"><img src="Assets/controllers-1-29-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: a submenu for each player, and Player 1's submenu open under three headings, Controller with Automatic, the Xbox Series X|S controller, the Xbox One S controller checked and keys as a joystick, Mode with Joystick checked above the two Joyport jacks, Paddle and Two paddles, and Profile with Default checked and New... at the bottom" width="100%" /><br /><sub>Controller, mode and profile on the toolbar</sub></td>
+</tr>
+</table>
 
 <a id="v1-26"></a>
 ### [2026-09-19 · 1.26] A real installer
