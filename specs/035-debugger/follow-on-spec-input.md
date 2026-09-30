@@ -38,8 +38,12 @@ Run `/speckit-specify` with the text below as a new feature once 035 closes.
    executed map: every address the CPU has fetched as an opcode is code,
    which settles indirect jumps, jump tables and pushed-address returns that
    a static pass cannot. User data directives and debug files still win.
-   The linear disassembly of files (`Disassembler::Disassemble`) is
-   unchanged.
+   The same pass also serves Casso Explorer's disassembly of binary files,
+   which today is linear (`Disassembler::Disassemble`): a DOS 3.3 `B` file
+   carries its load address and a ProDOS `BIN` file its aux type, and BRUN
+   starts at that address, so it seeds the walk. The header comment in
+   `CassoCore/Disassembler.h` claiming a file has no entry point is wrong
+   for those and gets corrected.
 
 ## Notes for planning
 
