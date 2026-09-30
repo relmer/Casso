@@ -2061,6 +2061,13 @@ bool ControllerProfileStore::ReadCalibration (const std::string & token, const J
         return false;
     }
 
+    // HasArray's annotation does not carry through the || above, so the
+    // build server's code analysis needs the pointer tested on its own.
+    if (axesArr == nullptr)
+    {
+        return false;
+    }
+
     outCalibration = ControllerCalibration();
 
     if (mode == s_kpszUserMode)
