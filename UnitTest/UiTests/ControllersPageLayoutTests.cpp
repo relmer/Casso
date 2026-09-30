@@ -1416,12 +1416,7 @@ public:
             LayOutPage (page, state, mode.entries, mode.slots, mode.edited);
 
             profile    = FindShownBeside<DxuiComboBox> (page, L"Profile:");
-            controller = FindShownBeside<DxuiComboBox> (page, L"Editing:");
-
-            if (controller == nullptr)
-            {
-                controller = FindShownBeside<DxuiComboBox> (page, L"Controller:");
-            }
+            controller = FindShownBeside<DxuiComboBox> (page, L"Controller:");
 
             Assert::IsNotNull (profile,    mode.pszName);
             Assert::IsNotNull (controller, mode.pszName);

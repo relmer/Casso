@@ -457,7 +457,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int                  playerStep  = rowH + gap;
     int                  warnW       = columnEnd - rowsX;
     int                  stretch     = GetDesignWidthPx() > 0 ? std::max (0, (int) (rect.right - rect.left) - GetDesignWidthPx()) : 0;
-    bool                 isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     bool                 isJoyport   = IsJoyportMode();
     bool                 isPaddles   = !isJoyport && IsPaddlesMode();
     int                  responseW   = 0;
@@ -521,10 +520,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += sectionGap - gap;
     m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
 
-    // While two people play, this drop-down chooses whose mappings the rest
-    // of the page edits rather than who drives the game port, which the
-    // slots above decide.
-    m_controllerLabel.SetText (isTwoPlayer ? L"Editing:" : L"Controller:");
+    m_controllerLabel.SetText (L"Controller:");
     m_controller.SetRect      (MakeRect (x + labelWidth, y, wideWidth, rowH));
     y += rowH + gap;
 
