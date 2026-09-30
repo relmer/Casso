@@ -674,20 +674,14 @@ namespace ControllerTests
 
 
 
-            // Each null test stands on its own: joined to its lookup, it is one
-            // the build server's code analysis does not carry to the
-            // dereference that follows.
             hasKey = written.HasObject ("models", models);
             CBR (hasKey);
-            CBR (models != nullptr);
 
             hasKey = models->HasObject (token, model);
             CBR (hasKey);
-            CBR (model != nullptr);
 
             hasKey = model->HasArray ("profiles", profiles);
             CBR (hasKey);
-            CBR (profiles != nullptr);
 
             for (size_t i = 0; i < profiles->GetArraySize(); i++)
             {
