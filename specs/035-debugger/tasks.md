@@ -957,3 +957,28 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T231 Rebuild HELP in `ConfigHandlers::Help` per FR-122 and FR-123 (partial): the dialect's own commands by category, alphabetical within each, syntax then description; then "Casso commands" in the same layout, each written as it is typed in that dialect; Casso mode lists every command with no separate section; AppleWin mode separates AppleWin's commands from Casso's additions **Done 2026-09-25:** `CommandModeHelp::BuildHelp`: the dialect's commands, then the Casso commands it reaches and has no form of its own for, written with its marker; one syntax column, by category, alphabetical within each; AppleWin mode sets the engine commands apart.
 - [X] T232 Answer `HELP <command>` for a command the dialect cannot run by naming the dialect that has it, per FR-124 (contradicts): today GSSquared's `help disk` describes DISK as if it ran **Done 2026-09-25:** `help db` in GSSquared: "DB does not run in GSSquared mode; it runs in AppleWin, Monitor as /DB, WinDbg as !DB and Casso modes."
 - [X] T233 Test per SC-031 that in every mode each command help lists runs when typed as listed, and that every command the mode can run is listed (missing) **Done 2026-09-25:** `CommandModeHelpTests` parses every Casso command each dialect reaches through that dialect's parser.
+
+## Phase 27: Convergence
+
+- [ ] T234 Define the structured command each dialect parser hands the debugger (operation plus typed arguments, with the line as typed for replies) and the dispatch from it to the internal debugger functions, with no command text in between, per FR-135 (missing)
+- [ ] T235 Make AppleWinParser, and the Casso mode that shares it, build structured commands and dispatch them directly per FR-135 (contradicts)
+- [ ] T236 Make GSSquaredParser build structured commands directly instead of its 25 ParseAppleWin rewrites; replies quote the GSSquared line as typed, per FR-135 (contradicts)
+- [ ] T237 Make MonitorParser build structured commands directly, with no intermediate command text, per FR-135 (contradicts)
+- [ ] T238 Make WinDbgParser build structured commands directly, with no intermediate command text, per FR-135 (contradicts)
+- [ ] T239 Add a test per dialect that every command reaches the debugger without any command text being parsed a second time, and that every reply quotes the line as typed, per FR-135 (missing)
+- [ ] T240 Add topic help: plain help lists the sections and how to ask for each, help all lists everything, help <section> lists one, in every mode, per FR-125, US18/AC1-2, SC-033 (missing)
+- [ ] T241 Add help search: keyword ignoring case, * and ? wildcards, /regex/, and a no-match reply; a word that is both a section and a command follows the edge case, per FR-126, US18/AC3 (missing)
+- [ ] T242 Generate docs/Debugger-Commands.md per mode from the help command table, with a test that fails when they differ, per FR-130, SC-034 (missing)
+- [ ] T243 Answer a word of another mode with that mode and the current mode's equivalent (the AppleWin, Casso, Monitor, GSSquared, WinDbg order for a word several modes use; no suggestion when there is no equivalent), a word no mode has with the closest command by spelling, and a usage error with the command's syntax line, per FR-127, US18/AC4-6, SC-032 (missing)
+- [ ] T244 Show the FR-127 suggestion as gray text after the caret in the command box; Tab accepts it and other typing discards it, per FR-128 (missing)
+- [ ] T245 Print a one-line confirmation from every command that changes breakpoints, watches, memory, registers, flags, symbols, disks or settings, per FR-129, US18/AC7 (missing)
+- [ ] T246 Add PowerShell-style completion to the command box: Tab completes and cycles command names; gray history suggestion accepted by Right arrow; F8 prefix history search; F7 history list, per FR-131, US18/AC8-9 (missing)
+- [ ] T247 Add map in every mode, showing the resolved read and write target of each address range from the language card, auxiliary memory and ROM switches, replacing GSSquared's IIgs message, per FR-133, US18/AC10, SC-036 (missing)
+- [ ] T248 Print the out-of-range slot note for Monitor n Ctrl+P and n Ctrl+K while keeping the ROM behavior, per FR-132 (missing)
+- [ ] T249 Make GSSquared m and x print that they set 65816 register widths and do not apply to this CPU, per FR-134 (missing)
+- [ ] T250 Silence sound while single-stepping and resume it on run, per FR-140, US19/AC6 (missing)
+- [ ] T251 Add the trace pane's key-hint line and its focus keys Space, O, R, Return, T and B, per FR-136, US19/AC1-2, SC-035 (missing)
+- [ ] T252 Show the next several instructions from PC below the trace while stopped, following branches the flags decide, per FR-137, US19/AC3 (missing)
+- [ ] T253 Save the trace as text of its rows as shown, from the pane and the console, per FR-138, US19/AC4 (missing)
+- [ ] T254 Make step over and step out available while the machine runs, first sizing the work, per FR-139, US19/AC5 (missing)
+- [ ] T255 Write the document for AI agents on driving a running Casso's debugger through CassoCli --attach, per FR-141 (missing)
