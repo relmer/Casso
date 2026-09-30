@@ -669,9 +669,17 @@ namespace ControllerTests
             const JsonValue *  profiles = nullptr;
             std::string        found;
 
-            if (!written.HasObject ("models", models) || models == nullptr ||
-                !models->HasObject (token, model)     || model == nullptr  ||
-                !model->HasArray ("profiles", profiles) || profiles == nullptr)
+            if (!written.HasObject ("models", models) || models == nullptr)
+            {
+                return nullptr;
+            }
+
+            if (!models->HasObject (token, model) || model == nullptr)
+            {
+                return nullptr;
+            }
+
+            if (!model->HasArray ("profiles", profiles) || profiles == nullptr)
             {
                 return nullptr;
             }
