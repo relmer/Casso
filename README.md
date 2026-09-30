@@ -106,6 +106,8 @@ surprise or two there too.
 
 <p align="center"><img src="Assets/controllers-1-29-joyport.png" alt="The Controllers page in Settings with the Sirius Joyport on: Player 1 on the Joyport's left jack and Player 2 on Automatic, which resolves to the right jack, with the stick's axes and the D-pad on left/right and up/down and a list of buttons on fire, beside a top-down drawing of an Atari joystick" width="540" /></p>
 
+<p align="center"><img src="Assets/controllers-1-29-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: a submenu for each player, and Player 1's submenu open under three headings, Controllers with Automatic, the Xbox One S controller checked, the Xbox Series X|S controller, the VKBsim Gladiator and keys as a joystick, Modes with Joystick checked above the two Joyport jacks, Paddle and Two paddles, and Profiles with Default checked and New... at the bottom" width="700" /></p>
+
 <a id="v1-26"></a>
 ### [2026-09-19 · 1.26] A real installer
 
