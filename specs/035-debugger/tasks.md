@@ -982,3 +982,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T253 Save the trace as text of its rows as shown, from the pane and the console, per FR-138, US19/AC4 (missing)
 - [ ] T254 Make step over and step out available while the machine runs, first sizing the work, per FR-139, US19/AC5 (missing)
 - [ ] T255 Write the document for AI agents on driving a running Casso's debugger through CassoCli --attach, per FR-141 (missing)
+- [ ] T256 Make console Find work like Visual Studio Code's find bar: an inline bar with the search box, toggle buttons for match case (Aa), match whole word (ab) and regular expression (.*), plain substring matching when none is on, an "N of M" match count, previous and next arrows, and a close button, per the owner's 2026-09-30 review (partial)
+- [ ] T257 Make the debugger window's toolbar, F9, gutter clicks, run to cursor and other window actions call the debugger functions directly instead of building command text for the parser, keeping a console echo of the equivalent command only as display, per FR-135 and the owner's 2026-09-30 decision (contradicts)
+- [ ] T258 Remove the last text rewrite in WinDbgParser: read WinDbg's 0x and 0n number prefixes in the expression evaluator when parsing in WinDbg mode, so NormalizeEngineArguments goes and `!` commands reach AppleWinParser as typed, per FR-135 (partial)
+- [ ] T259 Pass the symbol table to SymbolHandlers as its own argument instead of reading it from sourceName, so GSSquared sload, slookup and sclear keep the word as typed, per FR-135 (partial)
