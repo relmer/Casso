@@ -606,7 +606,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T253 Alt+F4 left unclaimed so Windows closes the main window; test in `ShellKeyWiringTests` (c4f6f378)
 - [X] T254 The outlined MDL2 Warning glyph on shared-control warnings; test in `ControllersPageLayoutTests` (71946434)
 - [X] T255 The edited controller stays listed as "(not connected)" with its controls disabled; any other disconnected controller leaves the list; tests in `ControllersPageStateTests` (21118131, 159c43da)
-- [ ] T256 Pre-merge gates, recorded in `validation.md` under "Phase 31"
+- [X] T256 Pre-merge gates, recorded in `validation.md` under "Phase 31"
 
 ---
 

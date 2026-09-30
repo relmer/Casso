@@ -393,3 +393,12 @@ Results are recorded as they are produced. A scenario that could not run says so
 | T249 the lights' messages, by capture | manual, by capture | pass. A local Debug build, not committed, held every light lit with a fixed message, and was launched minimized with `--title`; prefs backed up and restored (SHA-256 checked). At the default size (720 DIP at 120 DPI) "All your base are belong to us." (174 DIP) shows in full; "Your princess is in another castle.", 189 DIP and the longest in the list, is elided by about 2 DIP. `shots28\p30-joystick.png` in the session scratchpad |
 | T250 `ControllersPageLayoutTests::DropDowns_FitTheWidestModeAndEditingMatchesTheEntries` | automated | pass; `PlayerRows_StretchToTheProfileRowAndWithTheSheet` still passes; no mutation, at the owner's request for UI work |
 | T250 the drop-downs, by capture | manual, by capture | pass, in the same capture as T249. Measured in the page font (Segoe UI, 13 DIP) at 120 DPI: "Automatic (Joyport right)" is the widest label at 143.9 DIP, then "Automatic (two paddles)" 140.6, "Automatic (Joyport left)" 135.3 and "Joyport right (Atari)" 111.9; the mode drop-downs are 180.7 DIP with the arrow and padding. The entries and Editing are one width, about 322 DIP |
+
+## Phase 31: Pre-merge gates (2026-09-29, later)
+
+| Check | Kind | Result |
+|---|---|---|
+| T256 `Build.ps1 -Target RebuildAll -RunCodeAnalysis`, x64 and ARM64, Debug and Release | automated | 4 builds, 0 warnings, 0 errors |
+| T256 full unit suites against the fresh binaries (`x64\Debug\UnitTest.dll` 5:27 PM, `x64\Release\UnitTest.dll` 5:30 PM) | automated | Debug x64 5982 passed; Release x64 5980 passed; 0 failed |
+| T256 scenario suite, Release x64 | automated | 28 passed, 0 failed |
+| T256 `CheckStyle -Mode Tree` | automated | clean, 1605 files |
