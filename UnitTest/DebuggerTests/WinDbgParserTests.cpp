@@ -431,8 +431,20 @@ namespace DebuggerTests
             Assert::AreEqual ((uint32_t) 1000,               ParseOk ("!budget 1000").command.count);
         }
 
+        //  An error quotes the command as it was typed in WinDbg mode, never
+        //  the AppleWin command with the same effect.
+        TEST_METHOD (Error_QuotesTheWinDbgName)
+        {
+            Assert::AreEqual (std::string ("eb needs an address and one or more values."), ParseFails ("eb 300",      ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("ew needs an address and one or more values."), ParseFails ("ew 300",      ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("? needs an expression."),                      ParseFails ("?",           ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("bp takes one argument, not 2."),               ParseFails ("bp 300 301",  ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("ba takes one argument, not 2."),               ParseFails ("ba e1 300 1", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("bc takes one argument, not 2."),               ParseFails ("bc 1 2",      ParseStatus::Invalid).error);
+        }
+
         //  A reply quotes the command as it was typed in WinDbg mode, not
-        //  the AppleWin command it was rewritten to.
+        //  the AppleWin command with the same effect.
         TEST_METHOD (SourceName_IsTheWinDbgName)
         {
             Assert::AreEqual (std::string ("eb"),      ParseOk ("eb 300 41").command.sourceName);

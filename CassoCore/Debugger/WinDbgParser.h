@@ -35,8 +35,8 @@ struct WinDbgParseResult
 //
 //  WinDbgCommand / WinDbgExclusion
 //
-//  A WinDbg-mode command and the AppleWin-mode command with the same engine
-//  effect; an excluded WinDbg command and the family it belongs to.
+//  A WinDbg-mode command and the AppleWin-mode command whose DebugCommand it
+//  builds; an excluded WinDbg command and the family it belongs to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,9 +62,11 @@ struct WinDbgExclusion
 //
 //  One WinDbg-mode line to one DebugCommand.
 //
-//  Each command is rewritten as the AppleWin-mode line with the same effect
-//  and handed to AppleWinParser, so a WinDbg command and its AppleWin
-//  equivalent cannot parse to different engine operations.
+//  Each command's DebugCommand is built here, with the same verb and fields
+//  AppleWin mode gives its equivalent, so the two cannot reach different
+//  engine operations; the sweep test holds them to that. Replies and errors
+//  quote the command as typed in WinDbg mode. A `!` engine command is parsed
+//  by AppleWinParser, with its numbers' WinDbg prefixes read as AppleWin's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,37 +81,45 @@ public:
 private:
     using Tokens = std::vector<std::string>;
 
-    //  What one command's arguments were rewritten to, before AppleWinParser.
-    struct Rewrite
+    //  One command as it is built, or why it could not be.
+    struct Build
     {
-        std::string  appleWinLine;
-        std::string  error;
-        bool         isDeferred = false;
+        DebugCommand  command;
+        std::string   error;
+        bool          isDeferred = false;
     };
 
     static Tokens       Split                    (const std::string & text);
     static std::string  ToLower                  (const std::string & text);
-    static std::string  Join                     (const Tokens & tokens, size_t first);
+    static std::string  ToUpper                  (const std::string & text);
     static std::string  GetTail                  (const std::string & text, size_t first);
     static std::string  NormalizeNumbers         (const std::string & text);
     static std::string  RewriteRegisters         (const std::string & text);
     static std::string  StripBackquotes          (const std::string & text);
     static std::string  NormalizeEngineArguments (const std::string & text, const Tokens & tokens);
-    static std::string  ShortenSearchBytes       (const std::string & text);
+    static bool         HasIf                    (const Tokens & tokens);
     static bool         IsPath                   (const std::string & token);
     static bool         TryReadNumber            (const std::string & token, uint64_t & value);
 
-    static bool  IsWholeNumber         (const std::string & text, size_t first, char prefix);
-    static bool  TryFindExclusion      (const std::string & name, const WinDbgExclusion *& exclusion);
-    static bool  TryParseEngine        (const std::string & line, const IDebugExpressionContext & context, WinDbgParseResult & result);
-    static bool  TryRewrite            (const std::string & name, const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Rewrite & rewrite);
-    static bool  TryRewriteBytes       (const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Rewrite & rewrite);
-    static bool  TryRewriteDump        (const std::string & name, const Tokens & args, const IDebugExpressionContext & context, Rewrite & rewrite);
-    static bool  TryRewriteAccess      (const Tokens & args, Rewrite & rewrite);
-    static bool  TryRewriteBreakpoint  (const Tokens & args, const std::string & rest, Rewrite & rewrite);
-    static bool  TryRewriteRegister    (const std::string & rest, Rewrite & rewrite);
-    static bool  TryRewriteText        (const Tokens & args, const std::string & rest, Rewrite & rewrite);
-    static bool  TryRewriteRange       (const std::string & name, const Tokens & args, const std::string & rest, Rewrite & rewrite);
-    static bool  TrySplitLength        (const Tokens & args, size_t first, std::string & length, size_t & next);
-    static bool  TryEvaluate           (const std::string & text, const IDebugExpressionContext & context, uint32_t & value, std::string & error);
+    static bool  IsWholeNumber              (const std::string & text, size_t first, char prefix);
+    static bool  TryFindExclusion           (const std::string & name, const WinDbgExclusion *& exclusion);
+    static bool  TryParseEngine             (const std::string & line, const IDebugExpressionContext & context, WinDbgParseResult & result);
+    static bool  TryBuild                   (const std::string & name, const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildStep               (const Tokens & args, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildIdOrAll            (const std::string & name, const Tokens & args, Build & build);
+    static bool  TryBuildBytes              (const Tokens & args, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildEnter              (const std::string & name, const Tokens & args, bool isWords, const IDebugExpressionContext & context, Build & build);
+    static bool  TryAddValues               (const Tokens & tokens, size_t first, bool isWords, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool  TryBuildDump               (const std::string & name, const Tokens & args, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildAccess             (const Tokens & args, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildBreakpoint         (const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildAddressBreakpoint  (const std::string & name, Tokens tokens, const std::string & size, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildWatchpoint         (Tokens tokens, const std::string & size, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildAccessRange        (const std::string & text, const std::string & size, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool  TrySetLength               (Word address, uint32_t length, DebugCommand & command, std::string & error);
+    static bool  TryBuildRegister           (const std::string & rest, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildText               (const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Build & build);
+    static bool  TryBuildRange              (const std::string & name, const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Build & build);
+    static bool  TrySplitLength             (const Tokens & args, size_t first, std::string & length, size_t & next);
+    static bool  TryEvaluate                (const std::string & text, const IDebugExpressionContext & context, uint32_t & value, std::string & error);
 };

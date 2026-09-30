@@ -49,13 +49,24 @@ struct AppleWinParseResult
 class AppleWinParser
 {
 public:
+    using Tokens = std::vector<std::string>;
+
     static AppleWinParseResult  Parse (const std::string & line, const IDebugExpressionContext & context);
 
     //  One expression as a word; a value outside $0000-$FFFF is an error.
     static bool  TryEvaluate (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);
 
+    //  Argument forms another dialect's parser shares when it builds the same
+    //  command: a range, a source line, search items, an id or *, an IF clause
+    //  and a comparison.
+    static bool  TryParseRange       (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool  TryParseSourceLine  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
+    static bool  TryParseSearchItems (const std::string & items, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool  TryParseIdOrAll     (const Tokens & tokens, DebugCommand & command, std::string & error);
+    static bool  TryParseIfClause    (Tokens & tokens, DebugCommand & command, std::string & error);
+    static bool  TryParseCondition   (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error);
+
 private:
-    using Tokens = std::vector<std::string>;
 
     struct Arguments
     {
@@ -85,7 +96,6 @@ private:
     static bool    TryParseRegisterArguments (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseFlagArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error);
-    static bool    TryParseIfClause          (Tokens & tokens, DebugCommand & command, std::string & error);
     static bool    TryParseValueBreakpoint   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error);
     static bool    TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
@@ -103,11 +113,6 @@ private:
     static bool    TryParseCount             (const std::string & text, uint32_t & value);
     static bool    TryParsePanelArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseSkipRange  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
-    static bool    TryParseRange      (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
-    static bool    TryParseSourceLine (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool    TryParseValues     (const Tokens & tokens, size_t first, ValueWidth width, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
-    static bool    TryParseSearchItems (const std::string & items, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryParseSearchWord  (const std::string & word, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
-    static bool    TryParseIdOrAll    (const Tokens & tokens, DebugCommand & command, std::string & error);
-    static bool    TryParseCondition  (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error);
 };
