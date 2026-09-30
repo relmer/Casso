@@ -838,7 +838,106 @@ confirm it disables without being removed.
 
 ---
 
+### User Story 18 - Find and type commands without reading the manual (Priority: P2)
+
+A user who knows another debugger, or who has forgotten a command, gets from
+not knowing to a running command without paging through every command. Help
+is sorted into sections they can ask for one at a time or search; a command
+from another dialect, or a typo, is answered with the command that works here,
+ready to accept with one key; the command box completes command names and
+earlier lines the way PowerShell does; and every change a command makes is
+confirmed in one line. Added 2026-09-29 after comparing with GSSquared's
+debugger, whose console answers a wrong guess with "unknown command" and a
+removal with nothing.
+
+**Why this priority**: The console is the debugger's main way in, and with
+five dialects a wrong guess is the common case, not the rare one.
+
+**Independent Test**: In GSSquared mode, type `bpc 1`, press Tab and Return,
+and the breakpoint is removed with a confirmation; type `help breakpoints`
+and only breakpoint commands are listed.
+
+**Acceptance Scenarios**:
+
+1. **Given** any mode, **When** the user types `help`, **Then** the console
+   lists the help sections and how to ask for each, not every command.
+2. **Given** any mode, **When** the user types `help breakpoints`, **Then**
+   only that section's commands are listed, in the one help layout; `help all`
+   lists every command.
+3. **Given** any mode, **When** the user types `help watch`, `help bp*` or
+   `help /^bp[de]/`, **Then** every command whose syntax or description
+   matches is listed, and a search with no match says so.
+4. **Given** GSSquared mode and breakpoint 1 set, **When** the user types
+   `bpc 1`, **Then** the reply says `bpc` is an AppleWin command and that
+   GSSquared's is `nobp 1`, and `nobp 1` appears as a gray suggestion in the
+   command box; Tab accepts it, Return runs it, and typing anything else
+   instead discards it.
+5. **Given** any mode, **When** the user types a word no mode has, such as
+   `nbop 1` in GSSquared mode, **Then** the reply suggests the closest command
+   of the mode, as in scenario 4.
+6. **Given** any mode, **When** a command is typed with wrong arguments,
+   **Then** the reply shows that command's own syntax line.
+7. **Given** any mode, **When** a command removes, adds, enables or disables
+   a breakpoint or watch, or writes memory or a register, **Then** one line
+   says what changed, such as "Removed breakpoint 3 (exec C000)".
+8. **Given** the command box, **When** the user types the start of a command
+   name and presses Tab, **Then** it completes to the first matching command
+   of the mode, and further presses cycle through the rest.
+9. **Given** earlier lines in the history, **When** the user types the start
+   of one, **Then** the rest of the newest matching line appears in gray, and
+   Right arrow accepts it; F8 steps back through the lines that start with
+   what is typed, and F7 opens a list of earlier lines to pick from.
+
+---
+
+### User Story 19 - Follow execution from the trace pane (Priority: P2)
+
+A user stepping through code in the trace pane keeps their eyes and hands
+there: the pane shows its keys, runs and steps from single keys, shows the
+instructions about to run below the last one traced, and saves what it holds
+as text. Sound goes quiet while stepping instead of stuttering.
+
+**Why this priority**: GSSquared's users praise this workflow; without it,
+stepping means moving between the trace, the code pane and the toolbar.
+
+**Independent Test**: Stop at a breakpoint, focus the trace pane, press
+Space three times and R once, and the steps and the step out appear in the
+trace, with the next instructions shown below it.
+
+**Acceptance Scenarios**:
+
+1. **Given** the trace pane, **Then** a line above its rows lists its keys.
+2. **Given** the trace pane has focus and the machine is stopped, **When** the
+   user presses Space, O or R, **Then** the machine steps into, over or out;
+   Return runs it; T turns tracing off and on; B shows and hides the bytes
+   column.
+3. **Given** the machine is stopped, **Then** the next several instructions
+   from PC are shown below the trace, following a branch whose outcome the
+   current flags decide, and are replaced by traced rows as they run.
+4. **Given** a trace, **When** the user saves it, from the pane or the
+   console, **Then** the chosen file holds the rows as text, as the pane
+   shows them.
+5. **Given** the machine is running, **When** the user chooses step over or
+   step out, **Then** the machine stops after the current routine returns, as
+   it would had it been stopped first.
+6. **Given** sound is playing, **When** the user single-steps, **Then** no
+   sound is produced until the machine runs again.
+
+---
+
 ### Edge Cases
+
+- **A word two modes use differently**: When a word the user types is not a
+  command of the current mode but is one in more than one other mode, the
+  reply lists each mode's meaning and suggests the current mode's equivalent
+  of the first in the order AppleWin, Casso, Monitor, GSSquared, WinDbg.
+- **No equivalent in the current mode**: When the other mode's command has no
+  equivalent in the current mode, the reply says so and no suggestion is
+  shown.
+- **A help word that is both a section and a command**: `help` with a word
+  that is a section shows the section; a command shows the command; a word
+  that is both shows the command, followed by a line on how to ask for the
+  section.
 
 - **Breakpoints changed from the console**: The pane's Undo reverses only what
   the pane did. A change typed at the console is not on its undo list, and an
@@ -1075,6 +1174,63 @@ confirm it disables without being removed.
   description on the right. AppleWin's commands MUST have descriptions.
 - **FR-124**: Asking help for a command the mode cannot run MUST say which
   mode has it, and MUST NOT describe it as if it ran.
+- **FR-125**: `help` with no argument MUST list the help sections (the
+  categories of FR-123) and how to ask for each; `help all` MUST list every
+  command; `help <section>` MUST list only that section, in every mode.
+- **FR-126**: `help <text>` that is neither a section nor a command MUST list
+  every command of the mode whose syntax or description contains the text,
+  ignoring case; `*` and `?` MUST work as wildcards, and text between slashes
+  MUST be read as a regular expression. A search with no match MUST say so.
+- **FR-127**: A word that is not a command of the current mode but is one in
+  another MUST be answered with the other mode's name and the current mode's
+  equivalent command, with the same arguments; a word no mode has MUST be
+  answered with the closest command of the current mode by spelling. A
+  command given wrong arguments MUST be answered with its own syntax line.
+- **FR-128**: A suggested command from FR-127 MUST appear in the command box
+  as gray text after the caret; Tab MUST accept it, and any other typing MUST
+  discard it.
+- **FR-129**: Every command that changes breakpoints, watches, memory,
+  registers, flags, symbols, disks or settings MUST print one line saying
+  what changed.
+- **FR-130**: A command reference in `docs/` MUST be generated, per mode,
+  from the same command table help reads, and a test MUST fail when the two
+  differ.
+- **FR-131**: The command box MUST complete as PowerShell does: Tab completes
+  a command name of the current mode and cycles through the matches; the
+  newest earlier line starting with the typed text MUST appear in gray, and
+  Right arrow at the end of the line MUST accept it; F8 MUST step back through
+  earlier lines starting with the typed text; F7 MUST open a list of earlier
+  lines to pick from.
+- **FR-132**: A Monitor-mode slot command (`n` Ctrl+P, `n` Ctrl+K) whose slot
+  is out of range MUST keep the ROM's behavior and print one line saying
+  which slot was used, such as "Slot 10 is out of range; the ROM uses slot
+  0".
+- **FR-133**: `map`, in every mode (GSSquared's own word, a Casso command in
+  the others), MUST show the current machine's resolved memory map: for each
+  address range, where reads go and where writes go -- main or auxiliary RAM,
+  ROM, language card bank 1 or 2, slot or internal ROM -- as the language
+  card, auxiliary memory and ROM switches set them now.
+- **FR-134**: GSSquared's `m` and `x` MUST print that they set 65816 register
+  widths and do not apply to the current machine's CPU.
+- **FR-135**: Each mode's commands SHOULD reach Casso's implementation
+  directly rather than by being rewritten as another mode's text and parsed
+  again, with no change in what any command does. Low priority.
+- **FR-136**: The trace pane MUST show a line listing its keys, and while it
+  has focus MUST take Space (step into), O (step over), R (step out), Return
+  (run), T (tracing on and off) and B (bytes column on and off).
+- **FR-137**: While the machine is stopped, the trace pane MUST show the next
+  several instructions from PC below the last traced row, following each
+  branch whose outcome the current flags decide and stopping at one they do
+  not.
+- **FR-138**: The trace MUST be savable as a text file of its rows as the
+  pane shows them, from the pane and from the console.
+- **FR-139**: Step over and step out MUST be available while the machine is
+  running, stopping where they would had the machine been stopped first.
+- **FR-140**: Sound MUST be silent while the machine is single-stepped and
+  MUST resume when it runs.
+- **FR-141**: A document for AI agents MUST describe driving a running
+  Casso's debugger through `CassoCli --attach`: starting, sending commands in
+  a chosen mode, and reading replies.
 
 **AppleWin mode**
 
@@ -1801,6 +1957,20 @@ confirm it disables without being removed.
 - **SC-030**: Any sequence of breakpoint changes made from the pane can be undone
   step by step back to the state before the first, and exported breakpoints
   imported into a cleared session match the originals in every column.
+- **SC-032**: For every command of every mode, typing it in each other mode
+  produces a suggestion that, accepted with Tab, has the same effect, or a
+  reply that the mode has no equivalent.
+- **SC-033**: Every help section of every mode lists only commands of that
+  section, and together the sections list every command `help all` lists.
+- **SC-034**: The generated command reference matches help for 100% of
+  commands in every mode.
+- **SC-035**: From the trace pane alone, with no mouse, a user can step, step
+  over, step out and run, and see the next instruction before it runs.
+
+**Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
+`video` and `novideo` real), a beam view while stepping, per-session trace
+files with seamless scroll-back, debug projects, and an MCP adapter over the
+debug channel.
 
 ## Assumptions
 
