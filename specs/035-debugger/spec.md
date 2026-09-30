@@ -1218,8 +1218,9 @@ trace, with the next instructions shown below it.
 - **FR-134**: GSSquared's `m` and `x` MUST print that they set 65816 register
   widths and do not apply to the current machine's CPU.
 - **FR-135**: Each mode's commands MUST reach Casso's implementation
-  directly, as a structured command built by that mode's parser, and MUST NOT
-  be rewritten as another mode's command text and parsed again. What every
+  directly: each mode's parser MUST call the debugger's internal functions
+  itself, and MUST NOT produce command text of any mode -- AppleWin's, Casso's
+  or another -- to be parsed and run again. What every
   command does, and every reply it gives, MUST stay the same, except that a
   reply MUST quote the command as the user typed it, never another mode's
   form. 035 does not ship without this.
