@@ -962,7 +962,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 
 - [X] T234 Define the structured command each dialect parser hands the debugger (operation plus typed arguments, with the line as typed for replies) and the dispatch from it to the internal debugger functions, with no command text in between, per FR-135 (missing). **Already met, 2026-09-30:** `DebugCommand` (`CassoCore/Debugger/DebugCommand.h`, a `DebugVerb` plus typed arguments and `sourceName`) is that command, and the handlers run it directly; the remaining work is only in T236 and T238.
 - [X] T235 Make AppleWinParser, and the Casso mode that shares it, build structured commands and dispatch them directly per FR-135 (contradicts)
-- [ ] T236 Make GSSquaredParser build structured commands directly instead of its 25 ParseAppleWin rewrites; replies quote the GSSquared line as typed, per FR-135 (contradicts)
+- [X] T236 Make GSSquaredParser build structured commands directly instead of its 25 ParseAppleWin rewrites; replies quote the GSSquared line as typed, per FR-135 (contradicts)
 - [X] T237 Make MonitorParser build structured commands directly, with no intermediate command text, per FR-135 (contradicts)
 - [ ] T238 Make WinDbgParser build structured commands directly, with no intermediate command text, per FR-135 (contradicts)
 - [ ] T239 Add a test per dialect that every command reaches the debugger without any command text being parsed a second time, and that every reply quotes the line as typed, per FR-135 (missing)
