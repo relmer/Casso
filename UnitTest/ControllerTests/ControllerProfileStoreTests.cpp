@@ -1285,8 +1285,8 @@ namespace ControllerTests
             Assert::AreEqual (std::string ("Flight"),  readBack.activeProfiles.at (unit));
             Assert::AreEqual (std::string ("Pong"),    readBack.paddleActiveProfiles.at (unit));
             Assert::AreEqual (std::string ("Default"), readBack.joyportActiveProfiles.at (unit));
-            Assert::IsTrue   (written.HasObject ("activeProfiles", joystick) && joystick != nullptr,     L"the Joystick choices under their old key");
-            Assert::IsTrue   (written.HasObject ("paddleActiveProfiles", paddle) && paddle != nullptr,   L"the Paddle choices under their own");
+            Assert::IsTrue   (written.HasObject ("activeProfiles", joystick),     L"the Joystick choices under their old key");
+            Assert::IsTrue   (written.HasObject ("paddleActiveProfiles", paddle), L"the Paddle choices under their own");
         }
 
 
@@ -1494,7 +1494,7 @@ namespace ControllerTests
             store.players.value()[1].mode  = PlayerMode::Paddle;
             written                        = store.ToJson (JsonValue());
 
-            Assert::IsTrue   (written.HasArray ("players", players) && players != nullptr);
+            Assert::IsTrue   (written.HasArray ("players", players));
 
             if (players == nullptr)
             {
@@ -1560,7 +1560,7 @@ namespace ControllerTests
                 store.players.value()[1].mode = token.first;
                 written                       = store.ToJson (JsonValue());
 
-                Assert::IsTrue   (written.HasArray ("players", players) && players != nullptr);
+                Assert::IsTrue   (written.HasArray ("players", players));
                 Assert::IsTrue   (players->GetArrayElement (1).HasString ("mode", mode));
                 Assert::AreEqual (std::string (token.second), mode);
 

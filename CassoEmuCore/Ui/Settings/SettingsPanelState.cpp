@@ -1136,8 +1136,6 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     // No $cassoUiPrefs in the file -- struct defaults stand.
     BAIL_OUT_IF (!hasUiPrefs, S_OK);
 
-    _Analysis_assume_ (uiObj != nullptr);
-
     outPrefs.speedMode = SpeedFromString (
         GetStringOpt (*uiObj, "speedMode", "authentic"),
         SettingsSpeedMode::Authentic);
@@ -1552,13 +1550,10 @@ HRESULT SettingsPanelState::ExtractMachinePorts (
     // machine whose hardware is carded, so there is nothing here to write
     // back and BuildJson must leave the key alone entirely.
     if (mergedJson.GetType() != JsonType::Object ||
-        !mergedJson.HasArray (kpszPortsKey, portsArr) ||
-        portsArr == nullptr)
+        !mergedJson.HasArray (kpszPortsKey, portsArr))
     {
         return S_OK;
     }
-
-    _Analysis_assume_ (portsArr != nullptr);
 
     for (i = 0; i < portsArr->GetArraySize(); ++i)
     {
@@ -1723,7 +1718,7 @@ HRESULT SettingsPanelState::ExtractHardware (
             {
                 const JsonValue *  portsArr = nullptr;
 
-                if (entry.HasArray (kpszPortsKey, portsArr) && portsArr != nullptr)
+                if (entry.HasArray (kpszPortsKey, portsArr))
                 {
                     for (j = 0; j < portsArr->GetArraySize(); ++j)
                     {

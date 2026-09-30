@@ -176,7 +176,6 @@ namespace MonitorCatalog
 
         if (mergedJson.GetType() != JsonType::Object ||
             !mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) ||
-            uiPrefs == nullptr ||
             !uiPrefs->HasString ("colorMode", colorMode))
         {
             return mode;

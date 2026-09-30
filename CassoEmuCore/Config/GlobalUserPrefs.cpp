@@ -1294,7 +1294,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     {
         const JsonValue *  tiltObj = nullptr;
 
-        if (v.HasObject ("monitorTilt", tiltObj) && tiltObj != nullptr)
+        if (v.HasObject ("monitorTilt", tiltObj))
         {
             monitorTilt.clear();
 
@@ -1311,7 +1311,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     {
         const JsonValue *  controllersObj = nullptr;
 
-        if (v.HasObject ("controllers", controllersObj) && controllersObj != nullptr)
+        if (v.HasObject ("controllers", controllersObj))
         {
             controllers = *controllersObj;
         }

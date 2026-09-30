@@ -287,8 +287,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     bool               mouseConn  = false;
                     bool               fFromPort  = false;
 
-                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
-                        extPrefs != nullptr)
+                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs))
                     {
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
@@ -297,8 +296,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     // The back-panel disk port is the answer when the machine
                     // declares one; the legacy boolean above stays as the
                     // fallback for a config that has not been folded yet.
-                    if (mergedJson.HasArray ("ports", portsArray) &&
-                        portsArray != nullptr)
+                    if (mergedJson.HasArray ("ports", portsArray))
                     {
                         for (size_t p = 0; !fFromPort && p < portsArray->GetArraySize(); p++)
                         {

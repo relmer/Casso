@@ -341,25 +341,12 @@ MultiplayerSetup MachineInputPrefs::ReadMultiplayer (const JsonValue * uiPrefs)
         return setup;
     }
 
-    // Each null test stands on its own: joined to its lookup by ||, it is
-    // one the code analysis on the build server does not carry to the
-    // dereference that follows.
-    if (block == nullptr)
-    {
-        return setup;
-    }
-
     if (block->HasBool (s_kpszEnabledKey, isEnabled))
     {
         setup.isEnabled = isEnabled;
     }
 
     if (!block->HasArray (s_kpszPlayersKey, players))
-    {
-        return setup;
-    }
-
-    if (players == nullptr)
     {
         return setup;
     }

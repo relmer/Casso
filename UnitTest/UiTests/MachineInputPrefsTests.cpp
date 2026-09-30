@@ -60,7 +60,7 @@ public:
         const JsonValue *  uiPrefs = nullptr;
         bool               found   = doc.HasObject ("$cassoUiPrefs", uiPrefs);
 
-        Assert::IsTrue (found && uiPrefs != nullptr, L"fixture has no $cassoUiPrefs block");
+        Assert::IsTrue (found, L"fixture has no $cassoUiPrefs block");
         return uiPrefs;
     }
 
