@@ -180,8 +180,8 @@ HRESULT SettingsSheet::OpenModeless (
     params.hInstance                = hInstance;
     params.ownerHwnd                = ownerHwnd;
     // The size the user last left it at, or the design size. The work area
-    // is applied as the window is created, and the pages' own maximum once
-    // they have been laid out.
+    // is applied as the window is created; once the pages have been laid out
+    // it is refitted to their content, growing as well as shrinking.
     params.minSizeDip               = { s_kSheetWidthDip, s_kSheetMinHeightDip };
     params.initialSizeDip           = SettingsSheetSize::GetInitialSizeDip (prefs, { s_kSheetWidthDip, s_kSheetHeightDip }, params.minSizeDip);
     params.fitToWorkArea            = true;
@@ -226,7 +226,10 @@ HRESULT SettingsSheet::OpenModeless (
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);
 
-    ShrinkToMaxSize();
+    // Opened as tall and wide as the content wants, up to the work area, so a
+    // page scrolls only when the monitor is too small for it. A size the user
+    // chose is kept for the rest of this visit only.
+    FitToMaxSize();
     m_openedSizeDip = GetSizeDip();
 
     SetTheme (&emuShell.m_chromeTheme);

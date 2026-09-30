@@ -496,6 +496,25 @@ public:
         Assert::AreEqual (100L, crossed.cx);
         Assert::AreEqual (200L, crossed.cy);
     }
+
+
+    //  A window opened smaller than its content grows to it, and one taller
+    //  than the work area is cut to it and moved up to stay inside.
+    TEST_METHOD (FitRectToMaxSize_GrowsToTheContentWithinTheWorkArea)
+    {
+        RECT  work   = { 0, 0, 2000, 1400 };
+        RECT  grown  = DxuiWindow::FitRectToMaxSize (RECT { 100, 100, 820, 980 },  SIZE { 760, 1100 }, work);
+        RECT  capped = DxuiWindow::FitRectToMaxSize (RECT { 100, 300, 820, 1180 }, SIZE { 760, 1600 }, work);
+
+        Assert::AreEqual (100L,  grown.left);
+        Assert::AreEqual (100L,  grown.top);
+        Assert::AreEqual (860L,  grown.right);
+        Assert::AreEqual (1200L, grown.bottom);
+        Assert::AreEqual (100L,  capped.left);
+        Assert::AreEqual (0L,    capped.top);
+        Assert::AreEqual (860L,  capped.right);
+        Assert::AreEqual (1400L, capped.bottom);
+    }
 };
 
 

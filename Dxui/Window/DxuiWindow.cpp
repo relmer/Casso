@@ -848,25 +848,52 @@ SIZE DxuiWindow::ClampSize (const SIZE & size, const SIZE & minSize, const SIZE 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShrinkToMaxSize
+//  FitRectToMaxSize
 //
-//  A window larger than its maximum -- opened at a size remembered from
-//  content that has since shrunk -- is brought down to it, keeping its top
-//  left corner.
+//  The window at its maximum, cut to the work area, keeping its top left
+//  corner unless that would carry it past the work area's right or bottom
+//  edge. It grows as well as shrinks: a size remembered from before the
+//  content grew, or a design size the content has since outgrown, would
+//  otherwise open with a scroll bar on a screen with room to spare.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::ShrinkToMaxSize()
+RECT DxuiWindow::FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx)
 {
-    HRESULT  hr      = S_OK;
-    HWND     hwnd    = GetHwnd();
-    RECT     rect    = {};
-    SIZE     maxPx   = {};
-    SIZE     sizePx  = {};
-    SIZE     clamped = {};
-    bool     hasMax  = false;
-    bool     isOver  = false;
-    BOOL     done    = FALSE;
+    LONG  widthPx  = std::min (maxPx.cx, workPx.right  - workPx.left);
+    LONG  heightPx = std::min (maxPx.cy, workPx.bottom - workPx.top);
+    LONG  left     = std::max (workPx.left, std::min (windowPx.left, workPx.right  - widthPx));
+    LONG  top      = std::max (workPx.top,  std::min (windowPx.top,  workPx.bottom - heightPx));
+
+
+
+    return RECT { left, top, left + widthPx, top + heightPx };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FitToMaxSize
+//
+//  Sizes the window to TryGetMaxClientSizePx within its monitor's work area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::FitToMaxSize()
+{
+    HRESULT      hr      = S_OK;
+    HWND         hwnd    = GetHwnd();
+    HMONITOR     monitor = nullptr;
+    MONITORINFO  info    = { sizeof (info) };
+    RECT         rect    = {};
+    RECT         fitted  = {};
+    SIZE         maxPx   = {};
+    bool         hasMax  = false;
+    bool         isSame  = false;
+    BOOL         done    = FALSE;
 
 
 
@@ -878,18 +905,22 @@ void DxuiWindow::ShrinkToMaxSize()
     done = GetWindowRect (hwnd, &rect);
     CWRA (done);
 
-    sizePx  = SIZE { rect.right - rect.left, rect.bottom - rect.top };
-    clamped = SIZE { std::min (sizePx.cx, maxPx.cx), std::min (sizePx.cy, maxPx.cy) };
-    isOver  = clamped.cx != sizePx.cx || clamped.cy != sizePx.cy;
-    BAIL_OUT_IF (!isOver, S_OK);
+    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    done    = GetMonitorInfoW (monitor, &info);
+    CWRA (done);
 
-    done = SetWindowPos (hwnd, nullptr, 0, 0, clamped.cx, clamped.cy, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    fitted = FitRectToMaxSize (rect, maxPx, info.rcWork);
+    isSame = EqualRect (&fitted, &rect) != FALSE;
+    BAIL_OUT_IF (isSame, S_OK);
+
+    done = SetWindowPos (hwnd, nullptr, fitted.left, fitted.top,
+                         fitted.right - fitted.left, fitted.bottom - fitted.top,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
     CWRA (done);
 
 Error:
     return;
 }
-
 
 
 

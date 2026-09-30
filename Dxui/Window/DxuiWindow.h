@@ -203,10 +203,17 @@ public:
     static SIZE  ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize);
 
     //
-    //  Shrinks the window to TryGetMaxClientSizePx when it is larger, keeping
-    //  its position. For a window opened at a remembered size.
+    //  The window rect at maxPx, cut to the work area and moved only as far
+    //  as it takes to stay inside it.
     //
-    void     ShrinkToMaxSize ();
+    static RECT  FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx);
+
+    //
+    //  Grows or shrinks the window to TryGetMaxClientSizePx within its
+    //  monitor's work area. For a window opened before its content was laid
+    //  out.
+    //
+    void     FitToMaxSize ();
 
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
