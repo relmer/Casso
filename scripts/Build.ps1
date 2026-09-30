@@ -26,8 +26,10 @@
 .PARAMETER RunCodeAnalysis
     If set, enables C++ Core Check code analysis during build, with analysis
     warnings treated as errors. These are the same three MSBuild properties CI
-    sets, so a clean run here is the same verdict CI reaches FOR THE
-    CONFIGURATION AND PLATFORM BUILT.
+    sets, and it compiles on the x86-hosted compiler as CI does, so a clean
+    run here is the same verdict CI reaches FOR THE CONFIGURATION AND
+    PLATFORM BUILT. Use -Target Rebuild: an incremental build does not
+    reanalyze unchanged files.
 
     CI analyses four of them: Debug and Release, each on x64 and ARM64. Pair
     this with -Target RebuildAll to cover the same ground before merging; a
@@ -210,6 +212,18 @@ Write-Host "Using MSBuild: $msbuildPath"
 $preferredArch = 'x64'
 if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
     $preferredArch = 'ARM64'
+}
+
+#
+#  ANALYSIS RUNS ON THE X86-HOSTED COMPILER, AS CI'S DOES. CI's msbuild is
+#  the x86 one setup-msbuild puts on PATH, so it compiles with
+#  HostX86\x64\CL.exe, and the two hosts' analyzers do not agree: on
+#  b6154afb the x86 host reports three C6011s that the x64 host, at the
+#  same MSVC 14.51.36231 and on a clean Rebuild, does not report at any
+#  level. Matching the host is what makes a local pass mean a CI pass.
+#
+if ($RunCodeAnalysis) {
+    $preferredArch = 'x86'
 }
 
 $scriptExitCode = 0
