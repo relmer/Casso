@@ -1011,3 +1011,4 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T282 Found on 2026-09-30, for T191's walk: drop targets are drawn above floating windows, and they disappear when a drag of a floating window's title bar ends (today they stay)
 - [ ] T283 Found on 2026-09-30, for T191's walk: an auto-hidden pane's edge tab draws its thick bar on the side nearest the window's outer edge (left of the title for a pane hidden on the left edge)
 - [ ] T284 Found on 2026-09-30, for T191's walk: the close button on a floating pane window docks the pane; it must close the pane, which reopens where it was (floating) from the View menu
+- [ ] T285 Found on 2026-09-30, for T191's walk: dragging a tab group by its title bar moves only the active tab; it must move the whole group, all tabs in order with the same one active, as Visual Studio does, while dragging a tab moves that tab alone
