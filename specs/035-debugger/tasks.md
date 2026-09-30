@@ -1010,3 +1010,4 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T281 Found on 2026-09-30, for T191's walk: a floating pane window looks like Visual Studio's: one small title bar holding the pane's title and its drop-down, float/dock and close buttons, with no second tab under it; it does not appear in Alt+Tab (tool window style, owned by the debugger window)
 - [ ] T282 Found on 2026-09-30, for T191's walk: drop targets are drawn above floating windows, and they disappear when a drag of a floating window's title bar ends (today they stay)
 - [ ] T283 Found on 2026-09-30, for T191's walk: an auto-hidden pane's edge tab draws its thick bar on the side nearest the window's outer edge (left of the title for a pane hidden on the left edge)
+- [ ] T284 Found on 2026-09-30, for T191's walk: the close button on a floating pane window docks the pane; it must close the pane, which reopens where it was (floating) from the View menu
