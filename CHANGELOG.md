@@ -8,6 +8,8 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-09-29: The one where controllers Just Work™
+
 ### Added
 
 - GH #156: Controllers are assigned to Player 1 and Player 2 automatically, in
