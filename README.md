@@ -78,6 +78,25 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+<a id="v1-29"></a>
+### [2026-09-29 · 1.29] Controllers Just Work™
+
+Setting up controllers is now much simpler. Controllers are assigned to Player
+1 and Player 2 automatically, in the order you connect them or the order you
+first use them. Player 2's controller works the same way as Player 1's unless
+you pick otherwise: as a joystick, one or two paddles, or an Atari joystick on
+the other jack of the Sirius Joyport. In Joyport mode, every stick, D-pad and
+fire button on the controller is mapped for you, so two Xbox controllers can
+play a two-player Joyport game with no setup at all.
+
+Profiles are now saved per input mode, so each controller keeps its own
+joystick, paddle and Joyport setups, and switching between them no longer means
+remapping. One controller's sticks or D-pad can work as separate paddles if you
+like, and controllers, joysticks and flight sticks with a throttle or slider now
+work like a real paddle's knob. The Controllers page also shows more responsive
+views of sticks, paddles and buttons, and we may have snuck in an amusing
+surprise or two there too.
+
 <a id="v1-28"></a>
 ### [2026-09-25 · 1.28] Sirius Joyport
 
@@ -432,11 +451,12 @@ timing-sensitive arrow input behaves the way it did on real hardware. An Input
 Debug panel (**Ctrl+Shift+I**) logs host → guest key events, the `$C000`/`$C010`
 strobe, Open/Closed-Apple state, and synthesized paddle reads.
 
-Physical game controllers — Xbox controllers, gamepads, and joysticks — map onto
-the same paddle and button inputs, configured on the **Controllers** page in
-Settings with per-game profiles, and a multiplayer mode puts two controllers on
-the game port at once. A Sirius Joyport can be attached to the ][, ][+ or //e,
-putting a controller on the Atari joystick switches that Joyport games read.
+Physical game controllers (Xbox controllers, gamepads, joysticks and flight
+sticks) can drive the Apple's paddles and buttons too. Controllers are assigned
+to Player 1 and Player 2 automatically, and each works as a joystick, one or two
+paddles, or an Atari joystick on either jack of a Sirius Joyport on the ][, ][+
+or //e, with profiles for each configured on the **Controllers** page in
+Settings.
 
 ### Assembler and CLI
 
