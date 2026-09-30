@@ -633,15 +633,59 @@ std::array<PlayerAxisTarget, PlayerSlotPolicy::kPlayerCount> PlayerSlotPolicy::G
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ObserveTravel
+//
+//  Widens the lowest and highest reading of each axis and trigger seen since
+//  the controller connected. A connection starts the range over at the
+//  reading in hand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlayerSlotPolicy::ObserveTravel (
+    const ControllerSample  & calibrated,
+    bool                      isNewConnection,
+    ControllerSample        & low,
+    ControllerSample        & high)
+{
+    size_t  i = 0;
+
+
+
+    if (isNewConnection)
+    {
+        low  = calibrated;
+        high = calibrated;
+        return;
+    }
+
+    for (i = 0; i < calibrated.axes.size(); i++)
+    {
+        low.axes[i]  = std::min (low.axes[i],  calibrated.axes[i]);
+        high.axes[i] = std::max (high.axes[i], calibrated.axes[i]);
+    }
+
+    for (i = 0; i < calibrated.triggers.size(); i++)
+    {
+        low.triggers[i]  = std::min (low.triggers[i],  calibrated.triggers[i]);
+        high.triggers[i] = std::max (high.triggers[i], calibrated.triggers[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsRealInput
 //
 //  A controller counts as used on a button or D-pad press, a trigger past the
 //  point where it counts as a button, or any axis outside its dead zone once
 //  calibrated. The dead zone is what already defines rest for the controller,
 //  so the same edge that moves a game's paddle is the one that claims a slot.
-//  Given where the controller rested when it connected, an axis or trigger is
-//  judged by how far it moved from there, so one left off center, such as a
-//  drifting stick or a throttle at an end, is not taken as use.
+//  Given its travel since it connected, an axis or trigger counts only once
+//  that travel exceeds the same edge, wherever it started, so a stick or
+//  throttle that sits still off center is not taken as use.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -649,11 +693,13 @@ bool PlayerSlotPolicy::IsRealInput (
     const ControllerSample       & sample,
     const ControllerCalibration  * calibration,
     float                          deadzone,
-    const ControllerSample       * rest)
+    const ControllerSample       * travelLow,
+    const ControllerSample       * travelHigh)
 {
     ControllerSample  calibrated = (calibration != nullptr) ? calibration->Apply (sample) : sample;
+    bool              hasTravel  = travelLow != nullptr && travelHigh != nullptr;
     size_t            i          = 0;
-    float             resting    = 0.0f;
+    float             reach      = 0.0f;
 
 
 
@@ -672,9 +718,9 @@ bool PlayerSlotPolicy::IsRealInput (
 
     for (i = 0; i < calibrated.triggers.size(); i++)
     {
-        resting = (rest != nullptr) ? rest->triggers[i] : 0.0f;
+        reach = hasTravel ? travelHigh->triggers[i] - travelLow->triggers[i] : calibrated.triggers[i];
 
-        if (calibrated.triggers[i] - resting > ButtonBinding::kTriggerThreshold)
+        if (reach > ButtonBinding::kTriggerThreshold)
         {
             return true;
         }
@@ -682,9 +728,9 @@ bool PlayerSlotPolicy::IsRealInput (
 
     for (i = 0; i < calibrated.axes.size(); i++)
     {
-        resting = (rest != nullptr) ? rest->axes[i] : 0.0f;
+        reach = hasTravel ? travelHigh->axes[i] - travelLow->axes[i] : std::fabs (calibrated.axes[i]);
 
-        if (std::fabs (calibrated.axes[i] - resting) > deadzone)
+        if (reach > deadzone)
         {
             return true;
         }

@@ -210,7 +210,12 @@ public:
     static bool         IsRealInput        (const ControllerSample       & sample,
                                             const ControllerCalibration  * calibration,
                                             float                          deadzone,
-                                            const ControllerSample       * rest = nullptr);
+                                            const ControllerSample       * travelLow  = nullptr,
+                                            const ControllerSample       * travelHigh = nullptr);
+    static void         ObserveTravel      (const ControllerSample       & calibrated,
+                                            bool                           isNewConnection,
+                                            ControllerSample             & low,
+                                            ControllerSample             & high);
 
     static bool         IsOnePlaying       (const PlayerSlots & slots, const PlayerEntries & entries);
     static bool         IsDrivingSlot      (const PlayerSlot & slot);

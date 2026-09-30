@@ -39,7 +39,8 @@ struct ControllerInputService::DriverRead
 
     HRESULT                                    readResult       = S_OK;
     ControllerSample                           calibrated;
-    ControllerSample                           rest;
+    ControllerSample                           travelLow;
+    ControllerSample                           travelHigh;
     bool                                       isConnected      = false;
     bool                                       hasFlipped       = false;
     bool                                       hasRealInput     = false;
@@ -1277,12 +1278,12 @@ void ControllerInputService::ReadDriver (DriverRead & read, bool isActive)
 
     read.readResult  = m_backend.ReadSample (read.unit, sample);
     read.isConnected = SUCCEEDED (read.readResult) && sample.connected;
-    read.calibrated  = RecordReading (read, read.readResult, sample, read.isConnected, read.hasFlipped, read.rest);
+    read.calibrated  = RecordReading (read, read.readResult, sample, read.isConnected, read.hasFlipped, read.travelLow, read.travelHigh);
 
     read.hasRealInput = isActive
                         && read.isConnected
                         && !read.isLogged
-                        && PlayerSlotPolicy::IsRealInput (read.calibrated, nullptr, read.deadzone, &read.rest);
+                        && PlayerSlotPolicy::IsRealInput (read.calibrated, nullptr, read.deadzone, &read.travelLow, &read.travelHigh);
 }
 
 
@@ -1357,7 +1358,7 @@ void ControllerInputService::EvaluateDriver (
 //  its calibration. A DirectInput unit is read through its own calibration;
 //  an Xbox-class controller is factory-calibrated and never gets one
 //  (FR-018a). The first reading after it connects is where it rests, so that
-//  is the center (FR-007), and where use is measured from.
+//  is the center (FR-007), and where its travel since connecting starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1367,7 +1368,8 @@ ControllerSample ControllerInputService::RecordReading (
     const ControllerSample  & sample,
     bool                      isConnected,
     bool                    & outHasFlipped,
-    ControllerSample        & outRest)
+    ControllerSample        & outLow,
+    ControllerSample        & outHigh)
 {
     std::lock_guard<std::mutex>  lock         (m_mutex);
     auto                         found        = m_drivers.find (read.token);
@@ -1394,13 +1396,14 @@ ControllerSample ControllerInputService::RecordReading (
 
     if (found != m_drivers.end())
     {
-        if (isConnected && !wasConnected)
+        if (isConnected)
         {
-            found->second.rest = calibrated;
+            PlayerSlotPolicy::ObserveTravel (calibrated, !wasConnected, found->second.travelLow, found->second.travelHigh);
         }
 
         found->second.isConnected = isConnected;
-        outRest                   = found->second.rest;
+        outLow                    = found->second.travelLow;
+        outHigh                   = found->second.travelHigh;
 
         // A watched controller that cannot be read is reported and left out
         // of the watch until it reconnects, never taken as one at rest.

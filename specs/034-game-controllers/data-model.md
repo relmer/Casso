@@ -311,7 +311,7 @@ Inputs: `PlayerEntries`, attached devices, `PlayerOrderLogs`, the previous slots
 | `Evaluate` | R16 ordering and states; R17 held slots and start over; targets from the modes (`GetModeTarget`; per R18 before 2026-09-27, superseded); `Normalize` over the result (FR-036) |
 | `GetPlayerRoute (slots, entries, player, ...)` | The route a player's controller takes, whether or not it is driving: the lone route while it plays alone, else its target's route (FR-039) |
 | `GetDriverRoute (slots, entries, ...)` | The route of the one player driving the port alone, if there is one |
-| `IsRealInput (sample, calibration, deadzone)` | A button or D-pad press, a trigger past its threshold, or any axis outside its dead zone after calibration (R16) |
+| `IsRealInput (sample, calibration, deadzone, travelLow, travelHigh)` | A button or D-pad press; given the lowest and highest calibrated readings since the controller connected (`ObserveTravel`), an axis whose travel exceeds its dead zone or a trigger whose travel exceeds its threshold; without them, a trigger past its threshold or any axis outside its dead zone after calibration (R16) |
 | `IsOnePlaying (slots)` | Exactly one slot `Playing` or `Provisional` (or Player 1 on keys/mouse) and the other `Empty` or `Waiting`, not `Held` |
 | `DescribeAssignment (player, description)` | "Player 1: description"; spec 036 substitutes its Joyport labels here. (Superseded 2026-09-28: `PlayerModeRules::DescribeAssignment (player, description, jacks)` adds "(Joyport left)", "(Joyport right)" or "(Joyport left and right)" after the player.) |
 | `NeedsIdleWatch (entries, slots)` | Whether any Automatic player is `Empty`, `Waiting` or `Provisional`, which turns on R23's watch |
