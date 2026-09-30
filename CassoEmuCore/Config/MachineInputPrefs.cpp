@@ -341,6 +341,13 @@ MultiplayerSetup MachineInputPrefs::ReadMultiplayer (const JsonValue * uiPrefs)
         return setup;
     }
 
+    // HasObject's annotation does not carry through the || above, so the
+    // build server's code analysis needs the pointer tested on its own.
+    if (block == nullptr)
+    {
+        return setup;
+    }
+
     if (block->HasBool (s_kpszEnabledKey, isEnabled))
     {
         setup.isEnabled = isEnabled;

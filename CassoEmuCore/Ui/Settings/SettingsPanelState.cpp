@@ -1555,6 +1555,13 @@ HRESULT SettingsPanelState::ExtractMachinePorts (
         return S_OK;
     }
 
+    // HasArray's annotation does not carry through the || above, so the
+    // build server's code analysis needs the pointer tested on its own.
+    if (portsArr == nullptr)
+    {
+        return S_OK;
+    }
+
     for (i = 0; i < portsArr->GetArraySize(); ++i)
     {
         const JsonValue      & entry = portsArr->GetArrayElement (i);
