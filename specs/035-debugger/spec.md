@@ -1212,9 +1212,12 @@ trace, with the next instructions shown below it.
   card, auxiliary memory and ROM switches set them now.
 - **FR-134**: GSSquared's `m` and `x` MUST print that they set 65816 register
   widths and do not apply to the current machine's CPU.
-- **FR-135**: Each mode's commands SHOULD reach Casso's implementation
-  directly rather than by being rewritten as another mode's text and parsed
-  again, with no change in what any command does. Low priority.
+- **FR-135**: Each mode's commands MUST reach Casso's implementation
+  directly, as a structured command built by that mode's parser, and MUST NOT
+  be rewritten as another mode's command text and parsed again. What every
+  command does, and every reply it gives, MUST stay the same, except that a
+  reply MUST quote the command as the user typed it, never another mode's
+  form. 035 does not ship without this.
 - **FR-136**: The trace pane MUST show a line listing its keys, and while it
   has focus MUST take Space (step into), O (step over), R (step out), Return
   (run), T (tracing on and off) and B (bytes column on and off).
