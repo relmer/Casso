@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Controllers/MappingEvaluator.h"
+#include "Controllers/DeadzoneShaper.h"
 
 #include "Controllers/DirectInputSampleDecoder.h"
 #include "Controllers/XInputSampleDecoder.h"
@@ -62,6 +63,40 @@ namespace ControllerTests
         }
 
 
+        //  An axis that stays where it is left takes no center dead zone: a
+        //  throttle a little off its middle moves its paddle there, where a
+        //  stick's axis at the same reading is inside the dead zone and rests.
+        TEST_METHOD (NonCenteringAxis_HasNoCenterDeadZone)
+        {
+            constexpr float                            kDeadzone = 0.5f;
+            constexpr float                            kReading  = 0.2f;
+            constexpr int                              kAxisZ    = DefaultMapping::kAxisZ;
+            ControlMapping                             mapping;
+            ControllerSample                           sample    = MakeSample();
+            MappingEvaluator                           evaluator;
+            std::bitset<ControllerSample::kAxisCount>  freeAxes;
+            AxisBinding                                throttle;
+            AxisBinding                                stick;
+            GamePortContribution                       result;
+
+
+
+            throttle.analog = { ControlKind::Axis, kAxisZ };
+            stick.analog    = { ControlKind::Axis, 0 };
+            mapping.pdl0    = { throttle };
+            mapping.pdl1    = { stick };
+            sample.axes[0]      = kReading;
+            sample.axes[kAxisZ] = kReading;
+            freeAxes.set (kAxisZ);
+
+            evaluator.SetNonCenteringAxes (freeAxes);
+            result = evaluator.Evaluate (sample, mapping, kDeadzone);
+
+            Assert::AreEqual (DeadzoneShaper::ToPaddle (kReading), result.paddle[0].value(), L"the throttle reads where it is");
+            Assert::AreEqual (kCenter,                             result.paddle[1].value(), L"the stick's axis rests in its dead zone");
+        }
+
+
         TEST_METHOD (Default_UsesThePrimaryAxesNotTheFirstOnesReported)
         {
             ControllerModelKey    model    = { ControllerKind::DirectInput, 0x231d, 0x0121 };
@@ -115,34 +150,53 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Paddles_OnePlayersPaddleAndButton)
+        //  An Xbox-class controller's two sticks are two paddles: left stick X
+        //  on PDL0 with A on PB0, right stick X on PDL1 with B on PB1, both
+        //  Rate at the default speed. Paddle mode plays only the first.
+        TEST_METHOD (Paddles_TwoPaddlesOnTheTwoSticks)
         {
-            ControllerModelKey  model   = { ControllerKind::XInput, 0, 0 };
-            ControlMapping      mapping = DefaultMapping::MakePaddles (model, XInputSampleDecoder::ListControls());
+            constexpr float     kOwnersSpeed = 768.0f;
+            ControllerModelKey  model        = { ControllerKind::XInput, 0, 0 };
+            ControlMapping      mapping      = DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, XInputSampleDecoder::ListControls());
 
             Assert::AreEqual (static_cast<size_t> (1), mapping.pdl0.size());
             Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, XInputSampleDecoder::kLeftStickX }, L"PDL0 is left stick X");
             Assert::IsTrue   (mapping.pdl0[0].response == AxisResponse::Rate, L"so a released stick leaves its paddle where it was");
-            Assert::AreEqual (AxisBinding::kDefaultMaxSpeed, mapping.pdl0[0].maxSpeed, 0.0001f);
+            Assert::AreEqual (kOwnersSpeed, mapping.pdl0[0].maxSpeed, 0.0001f, L"at 768 per second, one sweep in about a third of a second");
+            Assert::AreEqual (static_cast<size_t> (1), mapping.pdl1.size());
+            Assert::IsTrue   (mapping.pdl1[0].analog == ControlId { ControlKind::Axis, XInputSampleDecoder::kRightStickX }, L"PDL1 is right stick X");
+            Assert::IsTrue   (mapping.pdl1[0].response == AxisResponse::Rate);
+            Assert::AreEqual (kOwnersSpeed, mapping.pdl1[0].maxSpeed, 0.0001f);
             Assert::AreEqual (static_cast<size_t> (1), mapping.pb0.size());
-            Assert::IsTrue   (mapping.pb0[0].control == ControlId { ControlKind::Button, 0 }, L"A is the paddle's button");
-            Assert::IsTrue   (mapping.pdl1.empty(), L"one controller is one player, so the second paddle is left for another controller");
-            Assert::IsTrue   (mapping.pb1.empty());
+            Assert::IsTrue   (mapping.pb0[0].control == ControlId { ControlKind::Button, 0 }, L"A is the first paddle's button");
+            Assert::AreEqual (static_cast<size_t> (1), mapping.pb1.size());
+            Assert::IsTrue   (mapping.pb1[0].control == ControlId { ControlKind::Button, 1 }, L"B is the second paddle's button");
             Assert::IsTrue   (mapping.pb2.empty());
         }
 
 
+        //  A DirectInput gamepad takes its second paddle from the second stick
+        //  the Joyport would find; a joystick has none, so it binds PDL0 alone.
         TEST_METHOD (Paddles_BindsOnlyControlsTheDeviceReports)
         {
-            ControllerModelKey  model = { ControllerKind::DirectInput, 1, 2 };
-            ControlMapping      stick = DefaultMapping::MakePaddles (model, MakeFlightStickControls());
-            ControlMapping      bare  = DefaultMapping::MakePaddles (model, { { ControlKind::Axis, 1 } });
+            ControllerModelKey            model   = { ControllerKind::DirectInput, 1, 2 };
+            ControlMapping                stick   = DefaultMapping::MakePaddles (model, ControllerFormFactor::Joystick, MakeFlightStickControls());
+            ControlMapping                bare    = DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, { { ControlKind::Axis, 1 } });
+            std::vector<ControlId>        padAxes = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
+                                                      { ControlKind::Axis, DefaultMapping::kAxisZ }, { ControlKind::Axis, DefaultMapping::kAxisRz },
+                                                      { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
+            ControlMapping                pad     = DefaultMapping::MakePaddles (model, ControllerFormFactor::Gamepad, padAxes);
 
             Assert::IsTrue (stick.pdl0[0].analog == ControlId { ControlKind::Axis, 0 }, L"a DirectInput device's X axis drives the paddle");
             Assert::IsTrue (stick.pdl0[0].response == AxisResponse::Rate);
-            Assert::IsTrue (stick.pdl1.empty());
+            Assert::IsTrue (stick.pdl1.empty(), L"a joystick has no second stick for a second paddle");
+            Assert::IsTrue (stick.pb1.empty(),  L"so it has no second paddle's button either");
             Assert::IsTrue (bare.pdl0.empty(), L"a device with no X axis leaves the paddle unassigned");
             Assert::IsTrue (bare.pb0.empty(),  L"and binds no button it does not report");
+            Assert::AreEqual (static_cast<size_t> (1), pad.pdl1.size());
+            Assert::IsTrue   (pad.pdl1[0].analog == ControlId { ControlKind::Axis, DefaultMapping::kAxisZ }, L"a gamepad's second stick X drives PDL1");
+            Assert::IsTrue   (pad.pdl1[0].response == AxisResponse::Rate);
+            Assert::IsTrue   (pad.pb1.size() == 1 && pad.pb1[0].control == ControlId { ControlKind::Button, 1 }, L"with its second button on PB1");
         }
 
 
@@ -555,7 +609,7 @@ namespace ControllerTests
             ControlMapping    mapping   = MakeStickMapping();
             ControllerSample  sample    = MakeSample();
 
-            //  0.7 raw is 0.4 of the travel beyond a 0.5 deadzone: short of it.
+            //  0.7 raw is 0.4 of the travel beyond a 0.5 dead zone: short of it.
             sample.axes[0] = 0.7f;
             Assert::IsFalse (IsClosed (evaluator.Evaluate (sample, mapping, kDeadzone), JoystickSwitch::Right));
 
@@ -597,7 +651,7 @@ namespace ControllerTests
 
             sample.hats[0] = ControllerSample::kHatLeft;
             result = evaluator.Evaluate (sample, mapping, 0.9f);
-            Assert::IsTrue (IsClosed (result, JoystickSwitch::Left), L"a D-pad press needs no threshold, even under a large deadzone");
+            Assert::IsTrue (IsClosed (result, JoystickSwitch::Left), L"a D-pad press needs no threshold, even under a large dead zone");
 
             sample.hats[0] = ControllerSample::kHatLeft | ControllerSample::kHatRight;
             result = evaluator.Evaluate (sample, mapping, kNoDeadzone);

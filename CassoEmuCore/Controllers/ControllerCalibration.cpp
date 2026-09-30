@@ -94,8 +94,9 @@ void ControllerCalibration::Observe (const ControllerSample & sample)
 //
 //  Apply
 //
-//  The same reading with every axis calibrated. Triggers, buttons and hats
-//  have no rest position to correct and pass through unchanged.
+//  The same reading with every axis calibrated, an axis that stays where it
+//  is left from its limits alone. Triggers, buttons and hats have no rest
+//  position to correct and pass through unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +109,8 @@ ControllerSample ControllerCalibration::Apply (const ControllerSample & sample) 
 
     for (i = 0; i < axes.size(); i++)
     {
-        calibrated.axes[i] = ApplyAxis (sample.axes[i], axes[i], mode, hasMoved[i]);
+        calibrated.axes[i] = nonCentering.test (i) ? ApplyFreeAxis (sample.axes[i], axes[i], mode)
+                                                   : ApplyAxis     (sample.axes[i], axes[i], mode, hasMoved[i]);
     }
 
     return calibrated;
@@ -209,4 +211,36 @@ float ControllerCalibration::ApplyAxis (float value, const AxisCalibration & axi
     }
 
     return std::clamp ((value - axis.center) / travel, -1.0f, 1.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyFreeAxis
+//
+//  An axis that stays where it is left, from its limits alone: a user
+//  calibration's measured minimum is -1 and its maximum 1, and an automatic
+//  one reads as the device reports it, since DirectInput already scales the
+//  device's own minimum and maximum to -1 and 1. A captured center or a
+//  widening from where it sat at connect would read a throttle left at an end
+//  as center.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float ControllerCalibration::ApplyFreeAxis (float value, const AxisCalibration & axis, CalibrationMode mode)
+{
+    constexpr float  kNoTravel = 1.0e-6f;
+    float            span      = axis.maximum - axis.minimum;
+
+
+
+    if (mode == CalibrationMode::Automatic || span <= kNoTravel)
+    {
+        return std::clamp (value, -1.0f, 1.0f);
+    }
+
+    return std::clamp ((value - axis.minimum) / span * 2.0f - 1.0f, -1.0f, 1.0f);
 }

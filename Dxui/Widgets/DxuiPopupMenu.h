@@ -254,12 +254,15 @@ public:
                                 int                & outIndex,
                                 wchar_t            & outLower);
 
+    //  How long a menu takes to open. Public so whatever else slides in the
+    //  chrome takes the same time and moves the same way.
+    static constexpr int  kRevealMs = 150;
+
 private:
     static constexpr int       kBorderDip              = 1;
     static constexpr int       kFallbackGlyphWidthDip  = 8;
     static constexpr float     kUnderlineThicknessDip  = 1.0f;
     static constexpr uint64_t  kReopenGuardMs          = 250;
-    static constexpr int       kRevealMs               = 150;
 
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded

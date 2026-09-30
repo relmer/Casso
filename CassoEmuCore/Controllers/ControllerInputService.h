@@ -8,6 +8,7 @@
 #include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Controllers/MappingEvaluator.h"
+#include "Controllers/PlayerSlotPolicy.h"
 #include "Seams/IControllerBackend.h"
 
 
@@ -18,19 +19,25 @@
 //
 //  ControllerInputService
 //
-//  What the controller thread does on every wake: read each controller that
-//  drives the game port, turn its state into a game-port contribution, and
+//  What the controller thread does on every wake: read the attached
+//  controllers, turn the ones that play into a game-port contribution, and
 //  submit what they ask for together to the mixer. It also answers how long
 //  the thread should wait for the next wake, which is what keeps an idle
 //  Casso idle.
 //
-//  WHICH CONTROLLERS DRIVE THE GAME PORT FOLLOWS THE MACHINE'S MODE. In
-//  single-source mode it is the selection alone, driving PDL0/PDL1 and
-//  PB0-PB2, which is what a machine has always done. In multiplayer mode it is
-//  the two player slots, each playing the paddles its slot maps to and one
-//  button line of its own (see MultiplayerSetup); the selection drives
-//  nothing. Each driver is read and evaluated on its own, so one controller
-//  leaving releases only what it held.
+//  WHO PLAYS IS THE TWO PLAYER SLOTS. Each player has an entry -- Automatic, a
+//  picked controller, the keys or the mouse for Player 1, or Disabled for
+//  Player 2 -- and PlayerSlotPolicy turns the entries, what is attached, and
+//  the order controllers arrived in and were first used into the slots. The
+//  service keeps those two orders: the controllers that connect after the
+//  startup scan, and each controller's first real input while Casso is
+//  active. A controller in no slot is read only for its first input and
+//  never reaches the game port.
+//
+//  One player playing drives PDL0, PDL1 and PB0-PB2 as a single controller
+//  always has; two each drive their own slot's paddles and lines. Each is read
+//  and evaluated on its own, so one controller leaving releases only what it
+//  held.
 //
 //  Nothing here touches a device or a machine directly: the backend reads
 //  controllers and the mixer writes the machine, so every rule in this class
@@ -48,45 +55,68 @@ class ControllerInputService : public IControllerBackendEvents
 public:
 
     // The measured XInput report interval on this machine (research R13).
-    static constexpr DWORD  kPollPeriodMs = 8;
+    static constexpr DWORD  kPollPeriodMs      = 8;
+
+    // How often a controller nobody plays is read for its first input, when
+    // it has no change events of its own. Slow enough to cost nothing
+    // measurable while idle, quick enough that a person joining a game does
+    // not notice.
+    static constexpr DWORD  kIdleWatchPeriodMs = 100;
+
+    // How many readings of the inspected controller are kept for the page
+    // between two of its polls: a second's worth at kPollPeriodMs, far more
+    // than a poll at display rate leaves waiting.
+    static constexpr size_t kInspectedHistoryMax = 128;
 
     struct Snapshot
     {
         std::vector<ControllerDeviceInfo>      devices;
-        std::optional<ControllerUnitKey>       selection;
+        PlayerEntries                          entries;
+        PlayerSlots                            slots;
 
-        // What the machine keeps. The same as `selection` except after a clear,
-        // which is never saved: the machine keeps the controller it last had
-        // (FR-011).
-        std::optional<ControllerUnitKey>       saved;
-
-        // Each controller's active profile, by unit token; a missing or empty
-        // entry means Default.
+        // Each attached controller's kind of profile, from its player's mode
+        // or the Joyport, and its active profile of that kind, by unit token;
+        // a missing or empty entry means that kind's built-in profile.
+        std::map<std::string, ProfileMode>     profileModes;
         std::map<std::string, std::string>     activeProfiles;
-        ControllerSample                       lastSample;
-        bool                                   isSelectedConnected  = false;
-
-        // The machine's two-player setup as the user left it, and how many
-        // axes it has. `multiplayer` is INTENT: the settings page edits it and
-        // the prefs keep it. `isMultiplayerLive` is whether it is what the
-        // machine is playing right now, which it is not while a controller a
-        // player slot names is unplugged (FR-040).
-        MultiplayerSetup                       multiplayer;
-        bool                                   isMultiplayerLive    = false;
+        bool                                   isJoyportAttached    = false;
+        bool                                   hasJoyport           = false;
         size_t                                 axisCount            = GamePortContribution::kAxisCount;
 
-        // Whether any controller that drives the game port reads: the
-        // selection, or either player's controller.
+        // Whether any controller that drives the game port reads.
         bool                                   isAnyDriverConnected = false;
+
+        // Attached controllers whose last read failed while they were
+        // watched for their first input. They are not read again until they
+        // reconnect.
+        std::vector<ControllerUnitKey>         unreadable;
     };
 
-    // Raised on the controller thread when the policy moves the selection on
-    // its own, so the shell can persist the choice and say so.
-    using SelectionChangedFn = std::function<void (const ControllerSelectionPolicy::Decision &)>;
+    // What changed in the slots, raised on whichever thread changed them. The
+    // entries come along because a picked controller that came back under
+    // another identity is followed there, which the prefs should keep.
+    struct SlotsChange
+    {
+        PlayerEntries              entries;
+        PlayerSlots                slots;
+        bool                       haveEntriesChanged = false;
+
+        // Each controller that held a slot and has disconnected.
+        std::vector<std::wstring>  departedDescriptions;
+
+        // A notice for each slot Automatic gave a controller other than the
+        // one that last held it, and the last holders after this change,
+        // which the shell saves when they moved.
+        std::vector<std::wstring>  notices;
+        PlayerLastHolders          lastHolders;
+        bool                       haveLastHoldersChanged = false;
+    };
+
+    using SlotsChangedFn = std::function<void (const SlotsChange &)>;
 
     // Raised when a controller that drives the game port connects or
-    // disconnects. The axis owner depends on it, and the owner is decided on
-    // the UI thread.
+    // disconnects, or the attached list changes. The axis owner and the
+    // picker's rows depend on it, and both are decided on the UI thread.
     using StateChangedFn = std::function<void ()>;
 
     // Brings the controller thread out of its wait, for a change that gives
@@ -97,55 +127,58 @@ public:
 
     void  OnDevicesChanged () override;
 
-    void  SetActive             (bool isActive);
-    void  SetSelection          (const std::optional<ControllerUnitKey> & selection);
-    void  SetDeadzone           (float deadzone);
-    void  SetHasGamePort        (bool hasGamePort);
-    void  SetSelectionChangedFn (SelectionChangedFn onSelectionChanged);
-    void  SetStateChangedFn     (StateChangedFn onStateChanged);
-    void  SetWakeFn             (WakeFn wake);
+    void  SetActive          (bool isActive);
+    void  SetDeadzone        (float deadzone);
+    void  SetHasGamePort     (bool hasGamePort);
+    void  SetSlotsChangedFn  (SlotsChangedFn onSlotsChanged);
+    void  SetStateChangedFn  (StateChangedFn onStateChanged);
+    void  SetWakeFn          (WakeFn wake);
 
     // How many paddle axes the machine has. A player slot mapped to a paddle
     // past it is kept and plays nothing, so a machine with more axes restores
-    // it (FR-034, FR-035).
-    void  SetAxisCount          (size_t axisCount);
+    // it.
+    void  SetAxisCount       (size_t axisCount);
 
-    // The machine's two-player setup, replacing any before. It is normalized
-    // first, so an overlapping or repeated slot is refused rather than played
-    // (FR-036).
-    void  SetMultiplayer        (MultiplayerSetup setup);
+    // Both players' entries, replacing any before. A second pick of the
+    // first player's controller, and an entry the player cannot have, read
+    // as Automatic.
+    void           SetPlayerEntries (const PlayerEntries & entries);
+    PlayerEntries  GetPlayerEntries () const;
 
-    // Turns the mode on or off, keeping both slots. Off is single-source mode,
-    // where the machine behaves exactly as it did before the mode existed;
-    // picking a single source from the toolbar picker turns it off.
-    void  SetMultiplayerEnabled (bool isEnabled);
+    // One player's entry. Picking the controller the other player picked
+    // returns the other player to Automatic.
+    void           PickPlayerEntry  (size_t player, const PlayerEntry & entry);
 
-    // One player's controller and what it maps to. A slot that cannot be
-    // played beside the other one is emptied by the same normalization.
-    void  SetMultiplayerSlot    (size_t                                    player,
-                                 const std::optional<ControllerUnitKey> &  unit,
-                                 PlayerAxisTarget                          target);
+    // One player's mode, which decides what the player drives and which
+    // kind of profile its controller plays.
+    void           SetPlayerMode    (size_t player, PlayerMode mode);
 
-    MultiplayerSetup  GetMultiplayer () const;
+    PlayerSlots    GetPlayerSlots   () const;
 
-    // The setup as it is PLAYED: the saved one, turned off while a controller
-    // one of its slots names is not attached, so the game port falls back to
-    // single-source play rather than going dead (FR-040).
-    MultiplayerSetup  GetLiveMultiplayer () const;
+    // The controller that last held each slot, set from the saved prefs
+    // before the first tick and read back to save them. It decides only
+    // whether an assignment is announced.
+    void               SetLastHolders (const PlayerLastHolders & lastHolders);
+    PlayerLastHolders  GetLastHolders () const;
 
-    // Runs the selection policy on the next tick, for a machine switched to:
-    // one with no controller saved counts as a controller connecting (FR-032).
-    void  RequestRescan         ();
+    // Rescans what is attached on the next tick, for a machine switched to.
+    void  RequestRescan      ();
 
     // The controller the Settings sheet's Controllers page shows, read on
-    // every tick while it is set whether or not it is the selected one, so
-    // the page can assign, calibrate and show live readings for any attached
-    // controller. Cleared when the page closes, which ends the extra reads.
-    // A request for a new unit, or for one not yet read, wakes the thread:
-    // with an event-driven controller selected it may otherwise sleep until
-    // that controller moves.
+    // every tick while it is set whether or not it plays, so the page can
+    // assign, calibrate and show live readings for any attached controller.
+    // Cleared when the page closes, which ends the extra reads. A request for
+    // a new unit, or for one not yet read, wakes the thread: with an
+    // event-driven controller playing it may otherwise sleep until that
+    // controller moves.
     void                             SetInspectedUnit   (const std::optional<ControllerUnitKey> & unit);
     std::optional<ControllerSample>  GetInspectedSample (const ControllerUnitKey & unit) const;
+
+    // Every reading of the inspected controller since the last call, oldest
+    // first, up to kInspectedHistoryMax of the latest; none for another unit.
+    // A press and release between two of the page's polls is in here even
+    // though neither poll's latest reading shows it.
+    std::vector<ControllerSample>    TakeInspectedSamples (const ControllerUnitKey & unit);
 
     // Rate bindings' paddles back to center, for a machine switch or a profile
     // change (FR-021a). Takes effect on the controller thread's next reading.
@@ -157,22 +190,32 @@ public:
 
     void  SetClock (ClockFn clock);
 
-    // Each controller model's saved deadzone and profiles, by model token. A
+    // Each controller model's saved dead zone and profiles, by model token. A
     // controller plays with its model's Default profile from the next time it
-    // is selected or connects.
+    // plays or connects.
     void                                            SetModelSettings (std::map<std::string, ControllerModelSettings> models);
     std::map<std::string, ControllerModelSettings>  GetModelSettings () const;
 
-    // Each controller's active profile, by name; empty means Default. The
-    // choice belongs to the controller, not the machine or the player, so a
-    // controller plays its profile on any machine and keeps it through a
-    // swap between players. A name its model does not have plays the
-    // Default. A change takes effect on the next reading, releasing whatever
-    // the old profile held.
+    // Each controller's active profile of the kind it plays, by name; empty
+    // means that kind's built-in profile. The kind comes from the mode of the
+    // player whose slot holds the controller, Joystick for one in no slot,
+    // or Joyport while the Joyport is attached. The choice belongs to the
+    // controller, not the machine or the player, so a controller plays its
+    // profile on any machine. A name its model does not have plays the
+    // built-in profile, and so does a profile of another kind, which cannot
+    // be chosen. A change takes effect on the next reading, releasing
+    // whatever the old profile held. The whole maps, one per kind, are set
+    // from and saved to the prefs; what is read back to save leaves out
+    // choices of another kind.
     void                                SetActiveProfile  (const ControllerUnitKey & unit, const std::string & name);
     std::string                         GetActiveProfile  (const ControllerUnitKey & unit) const;
-    void                                SetActiveProfiles (std::map<std::string, std::string> activeProfiles);
-    std::map<std::string, std::string>  GetActiveProfiles () const;
+    void                                SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles);
+    std::map<std::string, std::string>  GetActiveProfiles (ProfileMode mode) const;
+
+    // Whether the running machine has a Joyport. It is on while a player's
+    // mode puts it in one of the jacks, and that player plays its Joyport
+    // profile.
+    void                                SetJoyportAvailable (bool hasJoyport);
 
     // Every DirectInput unit's calibration, by unit token. Set once from the
     // saved prefs; read back to save them, including what automatic
@@ -180,22 +223,22 @@ public:
     void                                          SetCalibrations (std::map<std::string, ControllerCalibration> calibrations);
     std::map<std::string, ControllerCalibration>  GetCalibrations () const;
 
-    // Reads the controllers that drive the game port once and returns what
-    // the thread should wait on before reading again.
+    // Reads the attached controllers once and returns what the thread should
+    // wait on before reading again.
     ControllerWaitSources  Tick ();
 
     // What the last tick decided, for the trace. Every step between a
     // controller moving and the game port changing, so a failure says which
     // step it failed at rather than only that nothing happened. The read
-    // fields describe the selected controller; the submission is every
-    // driving controller merged.
+    // fields describe Player 1's controller; the submission is every driving
+    // controller merged.
     struct TickReport
     {
-        bool                  hasSelection      = false;
+        bool                  hasPlayerOne      = false;
         bool                  isActiveXInput    = false;
         HRESULT               readResult        = S_OK;
         bool                  isConnected       = false;   // the read succeeded and reported connected
-        bool                  hasMapping        = false;   // the selected unit has a non-empty mapping
+        bool                  hasMapping        = false;   // Player 1's controller has a non-empty mapping
         bool                  isAppActive       = false;
         bool                  didSubmit         = false;
         float                 deadzone          = 0.0f;
@@ -208,8 +251,9 @@ public:
 
 private:
 
-    // One controller that drives the game port, guarded by m_mutex. Its
-    // evaluator is not here: that belongs to the controller thread alone.
+    // One attached controller the tick reads, guarded by m_mutex: the ones
+    // that play, and the ones read only for their first input. Its evaluator
+    // is not here: that belongs to the controller thread alone.
     struct DriverState
     {
         ControllerUnitKey                    unit;
@@ -217,52 +261,85 @@ private:
         float                                deadzone    = 0.0f;
         bool                                 isResolved  = false;
         bool                                 isConnected = false;
+        bool                                 isDriving   = false;
+        bool                                 hasFailed   = false;
 
-        // What its last reading asked for, on its own PDL0-PDL3 before the
-        // assignment places them. Absent while it contributes nothing.
+        // What its last reading asked for, on its own PDL0-PDL3 before its
+        // slot places them. Absent while it contributes nothing.
         std::optional<GamePortContribution>  logical;
+
+        // The lowest and highest calibrated reading of each axis and trigger
+        // since it connected. Only travel counts as use, so a stick or
+        // throttle that sits still off center does not claim a slot.
+        ControllerSample                     travelLow;
+        ControllerSample                     travelHigh;
+
+        // The kind of profile the mapping was resolved for. A change of the
+        // player's mode, or of the Joyport, resolves it again.
+        ProfileMode                          mode        = ProfileMode::Joystick;
+
+        // Its axes that stay where they are left (AxisRoleRules), which are
+        // read with no center dead zone and calibrated from their limits.
+        std::bitset<ControllerSample::kAxisCount>  nonCentering;
     };
 
-    // One driver's work for one tick, copied out of the lock.
+    // One controller's work for one tick, copied out of the lock, and what
+    // its read found.
     struct DriverRead;
 
     void                   RefreshDevices       ();
     ControllerWaitSources  TickDrivers          ();
-    bool                   TickDriver           (const DriverRead & read, float elapsedSeconds, bool isActive, ControllerWaitSources & wait, bool & outNeedsPoll);
-    ControllerSample       RecordReading        (const DriverRead & read, HRESULT hr, const ControllerSample & sample, bool isConnected, bool & outHasFlipped);
-    void                   ForgetIdleEvaluators (const std::vector<DriverRead> & reads);
+    bool                   PrepareWatch         (std::vector<DriverRead> & reads, bool isWatchDue, ControllerWaitSources & wait);
+    void                   ReadDriver           (DriverRead & read, bool isActive);
+    void                   EvaluateDriver       (DriverRead & read, float elapsedSeconds, bool isActive, ControllerWaitSources & wait, bool & outNeedsPoll);
+    ControllerSample       RecordReading        (const DriverRead & read, HRESULT hr, const ControllerSample & sample, bool isConnected, bool & outHasFlipped, ControllerSample & outLow, ControllerSample & outHigh);
+    void                   ForgetIdleEvaluators ();
     void                   Publish              (const GamePortContribution & merged);
     void                   ReleaseContribution  ();
     void                   Wake                 ();
+    void                   AnnounceSlots        (const std::optional<SlotsChange> & change);
 
     // All of these assume m_mutex is already held.
     const ControllerDeviceInfo *    FindDeviceLocked         (const ControllerUnitKey & unit) const;
     std::string                     GetActiveProfileLocked   (const ControllerUnitKey & unit) const;
-    MultiplayerSetup                GetLiveMultiplayerLocked () const;
-    std::vector<ControllerUnitKey>  GetDriverUnitsLocked     () const;
-    MultiplayerSetup::AxisSet       GetDriverAxesLocked      (const ControllerUnitKey & unit) const;
-    bool                            IsDriverLocked           (const ControllerUnitKey & unit) const;
+    ProfileMode                     GetUnitModeLocked        (const ControllerUnitKey & unit) const;
+    std::optional<size_t>           FindPlayerLocked         (const ControllerUnitKey & unit) const;
     void                            SyncDriversLocked        ();
     void                            ResolveMappingLocked     (DriverState & driver);
+    void                            ResolveUnitLocked        (const ControllerDeviceInfo & device, ControlMapping & outMapping, float & outDeadzone) const;
     void                            UnresolveDriversLocked   ();
     GamePortContribution            BuildMergedLocked        () const;
     float                           MeasureElapsedLocked     ();
-    void                            UpdateAttachOrderLocked  ();
-    uint64_t                        GetAttachOrderLocked     (const ControllerUnitKey & unit) const;
+    bool                            IsOfOtherModeLocked      (const ControllerModelKey & model, const std::string & name, ProfileMode mode) const;
+    std::optional<SlotsChange>      EvaluateSlotsLocked      (std::vector<std::wstring> departed = {});
+    void                            RecordArrivalsLocked     (const std::vector<ControllerDeviceInfo> & devices);
+    std::vector<std::wstring>       FindDepartedLocked       (const std::vector<ControllerDeviceInfo> & devices) const;
 
-    static void  AddJoyportSwitches (const std::optional<size_t> & player,
-                                     const JoystickSwitches      & switches,
-                                     GamePortContribution        & merged);
+    // What a controller reaches on the game port, or nothing when it does not
+    // play. Assumes m_mutex is held.
+    std::optional<PlayerTargetRules::Route>  GetDriverRouteLocked (const ControllerUnitKey & unit) const;
+
+
+    // Places each player's switches on the Joyport jacks the players' states
+    // give them. Assumes m_mutex is held.
+    void  AddJoyportSwitchesLocked (GamePortContribution & merged) const;
 
     IControllerBackend                 & m_backend;
     GamePortInputMixer                 & m_mixer;
     std::vector<ControllerDeviceInfo>    m_devices;
-    std::optional<ControllerUnitKey>     m_selection;
-    std::optional<ControllerUnitKey>     m_saved;
 
-    // Every controller that drives the game port, by unit token.
+    // The players: what the user chose, what is played, and the two orders
+    // Automatic fills them in. m_hasEnumerated separates the controllers
+    // present at startup, which are no arrival, from the ones that connect
+    // later.
+    PlayerEntries                                        m_entries       = PlayerSlotPolicy::MakeDefaultEntries();
+    PlayerSlots                                          m_slots;
+    PlayerOrderLogs                                      m_logs;
+    PlayerLastHolders                                    m_lastHolders;
+    bool                                                 m_hasEnumerated = false;
+
+    // Every controller the tick reads, by unit token.
     std::map<std::string, DriverState>                   m_drivers;
-    MultiplayerSetup                                     m_multiplayer;
     size_t                                               m_axisCount = GamePortContribution::kAxisCount;
 
     // Controller thread only: each driver's rate paddles, by unit token, and
@@ -270,33 +347,27 @@ private:
     std::map<std::string, MappingEvaluator>              m_evaluators;
     std::vector<std::string>                             m_rateResetTokens;
 
-    // When each attached controller was first seen, so the one that takes
-    // over from a controller that leaves is the one that has been there
-    // longest, not whichever enumeration happens to list first (FR-008a).
-    std::vector<std::pair<ControllerUnitKey, uint64_t>>  m_attachOrder;
-    uint64_t                                             m_nextAttachOrder = 0;
-
     std::map<std::string, ControllerCalibration>         m_calibrations;
     ControllerProfileStore                               m_profiles;
-    std::map<std::string, std::string>                   m_activeProfiles;
+    bool                                                 m_hasJoyport        = false;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;
+    double                                               m_lastWatchSeconds = -1.0;
     std::atomic<bool>                                    m_rateResetPending {false};
 
     std::optional<ControllerUnitKey>                     m_inspectedUnit;
     ControllerSample                                     m_inspectedSample;
     bool                                                 m_hasInspectedSample = false;
+    std::deque<ControllerSample>                         m_inspectedHistory;
 
-    ControllerSample                     m_lastSample;
     TickReport                           m_lastTick;
-    SelectionChangedFn                   m_onSelectionChanged;
+    SlotsChangedFn                       m_onSlotsChanged;
     StateChangedFn                       m_onStateChanged;
     WakeFn                               m_wake;
     float                                m_deadzone            = 0.0f;
     bool                                 m_isActive            = true;
     bool                                 m_hasGamePort         = true;
-    bool                                 m_isSelectedConnected = false;
     std::atomic<bool>                    m_hasContribution     {false};
     std::atomic<bool>                    m_devicesDirty        {true};
     mutable std::mutex                   m_mutex;

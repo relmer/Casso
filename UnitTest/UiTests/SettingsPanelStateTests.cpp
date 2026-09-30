@@ -56,8 +56,6 @@ public:
         float              lastDriveTwoPan            = 0.0f;
         bool               lastExternalDriveConnected = false;
         bool               lastMouseConnected         = true;
-        GamePortAdapter    lastGamePortAdapter        = GamePortAdapter::None;
-        int                gamePortApplyCount         = 0;
         int                queuedResetCount           = 0;
         int                applyCount                 = 0;
 
@@ -95,13 +93,6 @@ public:
         void ApplyMouseConnected (bool connected) override
         {
             lastMouseConnected = connected;
-            ++applyCount;
-        }
-
-        void ApplyGamePortAdapter (GamePortAdapter adapter) override
-        {
-            lastGamePortAdapter = adapter;
-            ++gamePortApplyCount;
             ++applyCount;
         }
 
@@ -1400,79 +1391,47 @@ public:
     }
 
 
-    TEST_METHOD (GamePortAdapter_DefaultsToNoneRoundTripsNoReset)
+    //  The Joyport setting is global and applied as it is changed, from the
+    //  picker or the Controllers page, so OK never writes it: a sheet opened
+    //  before the change cannot undo it. A legacy per-machine key is carried
+    //  through as it was loaded, like any key the sheet does not manage.
+    TEST_METHOD (BuildJson_NeverWritesTheGamePortAdapter)
     {
-        SettingsPanelState  st;
-        JsonValue           v        = ParseOrFail (kFixtureJson);
-        RecordingSink       sink;
-        JsonValue           outJson;
-        SettingsUiPrefs     reloaded;
+        const char * withKey = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "$cassoUiPrefs": { "gamePortAdapter": "siriusJoyport" },
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 6, "device": "disk-ii" } ]
+        })JSON";
+
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            v       = ParseOrFail (kFixtureJson);
+        JsonValue            legacy  = ParseOrFail (withKey);
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+
+
+
+        opts.fPretty = false;
 
         st.LoadFromMachine ("X", v, v);
-
-        Assert::IsTrue  (st.GetPrefs().gamePortAdapter == GamePortAdapter::None, L"defaults to None");
-        st.SetGamePortAdapter (GamePortAdapter::SiriusJoyport);
-        Assert::IsTrue  (st.IsDirty());
-        Assert::IsFalse (st.RequiresReset(), L"attaching a Joyport never needs a reset");
-
+        st.SetSpeedMode (SettingsSpeedMode::Double);
         AssertSucceeded (st.Apply (sink, outJson));
-        Assert::IsTrue   (sink.lastGamePortAdapter == GamePortAdapter::SiriusJoyport, L"pushed live");
-        Assert::AreEqual (0, sink.queuedResetCount);
+        JsonWriter::Write (outJson, opts, text);
 
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
-        Assert::IsTrue (reloaded.gamePortAdapter == GamePortAdapter::SiriusJoyport, L"gamePortAdapter round-trips");
-    }
+        Assert::IsTrue (text.find ("gamePortAdapter") == std::string::npos, L"a machine without the key gets none from OK");
 
-
-    TEST_METHOD (GamePortAdapter_APickerChangeWhileOpenIsKeptOnOk)
-    {
-        SettingsPanelState  st;
-        JsonValue           v       = ParseOrFail (kFixtureJson);
-        RecordingSink       sink;
-        JsonValue           outJson;
-        SettingsUiPrefs     saved;
-        bool                rebuild = false;
-
-        st.LoadFromMachine ("X", v, v);
-
-        //  The picker attaches the Joyport while the sheet is open.
-        rebuild = st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport);
-
-        Assert::IsTrue  (rebuild, L"the Machine tab shows it at once");
-        Assert::IsTrue  (st.GetPrefs().gamePortAdapter == GamePortAdapter::SiriusJoyport);
-        Assert::IsFalse (st.IsDirty(), L"a change the picker already made is not a change the sheet makes");
-
+        st.LoadFromMachine ("X", legacy, legacy);
+        st.SetSpeedMode (SettingsSpeedMode::Maximum);
         AssertSucceeded (st.Apply (sink, outJson));
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, saved));
-        Assert::IsTrue (saved.gamePortAdapter == GamePortAdapter::SiriusJoyport, L"OK writes what is live, not what the sheet opened with");
-        Assert::IsTrue (sink.lastGamePortAdapter == GamePortAdapter::SiriusJoyport, L"and does not detach it again");
+        JsonWriter::Write (outJson, opts, text);
 
-        Assert::IsFalse (st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport), L"an unchanged live value rebuilds nothing");
+        Assert::IsTrue (text.find ("\"gamePortAdapter\":\"siriusJoyport\"") != std::string::npos, L"a legacy key is carried through as it was");
+        Assert::IsTrue (text.find ("\"gamePortAdapter\":\"none\"")          == std::string::npos, L"never reset by OK");
     }
-
-
-    TEST_METHOD (GamePortAdapter_AnEditOnTheMachineTabSurvivesThePicker)
-    {
-        SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJson);
-
-        st.LoadFromMachine ("X", v, v);
-
-        //  The user attaches it on the Machine tab, then the picker is used to
-        //  attach it too: nothing pending is lost, and nothing is left dirty.
-        st.SetGamePortAdapter (GamePortAdapter::SiriusJoyport);
-        st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport);
-        Assert::IsTrue  (st.GetPrefs().gamePortAdapter == GamePortAdapter::SiriusJoyport);
-        Assert::IsFalse (st.IsDirty());
-
-        //  Now the user sets None on the tab while the picker's value stands:
-        //  the edit is the last explicit choice and is kept.
-        st.SetGamePortAdapter (GamePortAdapter::None);
-        st.ObserveLiveGamePortAdapter (GamePortAdapter::SiriusJoyport);
-        Assert::IsTrue (st.GetPrefs().gamePortAdapter == GamePortAdapter::None, L"the pending edit survives");
-        Assert::IsTrue (st.IsDirty());
-    }
-
 
     TEST_METHOD (GamePortAdapter_OfferedOnMachinesWithAnnunciatorsOnly)
     {

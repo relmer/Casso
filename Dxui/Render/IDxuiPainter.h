@@ -115,6 +115,10 @@ public:
     // Clip every shape drawn after it to `clipPx` (same coordinates as the
     // draw calls), or stop clipping with nullptr. One level, not a stack: a
     // scrolling container sets it around its children and clears it after.
+    // A container nested in another reads the clip in force with GetClipRect
+    // first, clips to the overlap, and sets the one it found again after;
+    // GetClipRect returns false while nothing clips.
     virtual void   SetClipRect (const RECT * clipPx)                          { (void) clipPx; }
+    virtual bool   GetClipRect (RECT & clipPx) const                          { (void) clipPx; return false; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 };

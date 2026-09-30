@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/UnicodeSymbols.h"
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiPainter.h"
 #include "MockDxuiTheme.h"
@@ -163,6 +164,37 @@ namespace DxuiInfoBannerTests
             // so a blank message never collapses to nothing.
             Assert::IsTrue (banner.GetPreferredHeightPx (300.0f, scaler) > 0.0f,
                             L"an empty banner keeps a positive, icon-clearing height");
+        }
+
+
+        //  The vertical padding comes off both edges of both heights, and a
+        //  banner that never set it keeps the default.
+        TEST_METHOD (VerticalPadding_ComesOffTheTopAndTheBottom)
+        {
+            constexpr float  kDefaultPadDip = 9.0f;
+            constexpr float  kCompactPadDip = 3.0f;
+            constexpr float  kTolerance     = 0.01f;
+            DxuiDpiScaler    scaler         = Scaler96();
+            DxuiInfoBanner        normal  (L"a short warning");
+            DxuiInfoBanner        compact (L"a short warning");
+            MockDxuiTextRenderer  text;
+            SIZE                  oneLine = { 200, 20 };
+            float                 saved   = 2.0f * (kDefaultPadDip - kCompactPadDip);
+
+
+
+            text.SetCannedMetrics (L"a short warning", oneLine);
+            compact.SetVerticalPaddingDip (kCompactPadDip);
+
+            Assert::AreEqual (normal.GetMeasuredHeightPx (text, 400.0f, scaler) - saved,
+                              compact.GetMeasuredHeightPx (text, 400.0f, scaler),
+                              kTolerance, L"measured");
+            Assert::AreEqual (normal.GetPreferredHeightPx (400.0f, scaler) - saved,
+                              compact.GetPreferredHeightPx (400.0f, scaler),
+                              kTolerance, L"estimated");
+            Assert::AreEqual ((float) oneLine.cy + 2.0f * kDefaultPadDip,
+                              normal.GetMeasuredHeightPx (text, 400.0f, scaler),
+                              kTolerance, L"the default is unchanged");
         }
 
         TEST_METHOD (MeasuredHeight_UsesTheRendererInsteadOfTheEstimate)
@@ -462,6 +494,84 @@ namespace DxuiInfoBannerTests
 
             Assert::AreEqual (3.0f, height / oneRow, 0.01f,
                 L"each word takes a line of its own, which the arithmetic model could not show");
+        }
+
+
+        //  AN ICON GLYPH REPLACES THE BADGE. The glyph is drawn as text in the
+        //  severity's color, and the hand-drawn ring and dot are not drawn.
+        TEST_METHOD (IconGlyph_ReplacesTheDrawnBadge)
+        {
+            DxuiDpiScaler         scaler    = Scaler96();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiInfoBanner        banner (L"Buttons are disabled.");
+            int                   glyphs    = 0;
+            int                   marks     = 0;
+            uint32_t              glyphArgb = 0;
+            float                 glyphSize = 0.0f;
+
+
+
+            banner.SetIconGlyph (s_kpszMdl2Info);
+            banner.Layout (RECT{ 0, 0, 400, 40 }, scaler);
+            static_cast<IDxuiControl &> (banner).Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString && call.text == s_kpszMdl2Info)
+                {
+                    glyphs++;
+                    glyphArgb = call.argb;
+                    glyphSize = call.fontSizeDip;
+                }
+            }
+
+            marks = CountBadgeMarks (painter);
+
+            Assert::AreEqual (1, glyphs, L"the glyph is drawn once");
+            Assert::AreEqual (theme.Accent(), glyphArgb, L"...in the info color");
+            Assert::AreEqual (16.0f, glyphSize, 0.01f, L"...sized to the icon box");
+            Assert::AreEqual (0, marks, L"the drawn badge is not drawn as well");
+        }
+
+
+        //  Without a glyph the banner keeps the badge it always had.
+        TEST_METHOD (IconGlyph_UnsetKeepsTheDrawnBadge)
+        {
+            DxuiDpiScaler         scaler = Scaler96();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiInfoBanner        banner (L"Buttons are disabled.");
+
+
+
+            banner.Layout (RECT{ 0, 0, 400, 40 }, scaler);
+            static_cast<IDxuiControl &> (banner).Paint (painter, text, theme);
+
+            Assert::IsTrue (CountBadgeMarks (painter) > 0, L"the drawn badge is drawn");
+            Assert::AreEqual ((size_t) 1, text.Calls().size(), L"...and the only text is the notice");
+        }
+
+
+        //  The ring's chords and the dot: every mark the hand-drawn badge makes
+        //  that the surface fill and border never do.
+        static int CountBadgeMarks (const MockDxuiPainter & painter)
+        {
+            int  marks = 0;
+
+
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                if (call.kind == RecordedPaintKind::DrawLine || call.kind == RecordedPaintKind::FillCircle)
+                {
+                    marks++;
+                }
+            }
+
+            return marks;
         }
     };
 }

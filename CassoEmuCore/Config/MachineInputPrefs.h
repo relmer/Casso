@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Controllers/ControllerSelectionPolicy.h"
+#include "Controllers/PlayerSlotPolicy.h"
 #include "Core/JsonValue.h"
 #include "Ui/UiCommandTypes.h"
 
@@ -62,10 +63,6 @@ public:
     static std::string  ReadControllerToken (const JsonValue * uiPrefs);
     static std::string  ReadProfileName     (const JsonValue * uiPrefs);
 
-    static std::vector<std::pair<std::string, JsonValue>>  BuildControllerEntries (
-        const std::string &  controllerToken,
-        const std::string &  profileName);
-
     // The machine's two-player setup. An absent block, or one that is not
     // enabled, means single-source mode: the machine behaves exactly as it did
     // before the mode existed. A slot whose controller cannot be read is left
@@ -73,23 +70,23 @@ public:
     // in a hand-edited file is refused rather than played (FR-036).
     static MultiplayerSetup  ReadMultiplayer (const JsonValue * uiPrefs);
 
-    // Always written, so turning the mode off replaces the saved block rather
-    // than leaving it behind. Paddles this machine lacks are written as they
-    // stand, so a //e's setup survives a trip through a //c (FR-035).
-    static std::pair<std::string, JsonValue>  BuildMultiplayerEntry (
-        const MultiplayerSetup &  setup);
+    // What the one-time adoption makes of a machine's saved selection: the
+    // players' entries, and the last holders they start from. Reads the block
+    // and writes nothing to it.
+    static PlayerEntries  ReadAdoptedPlayers (const JsonValue   * uiPrefs,
+                                              PlayerLastHolders & outLastHolders);
 
-    // The device on the machine's game socket: None, or the Sirius Joyport.
-    // Always None on a machine with no annunciators to drive one.
-    static GamePortAdapter                    ReadGamePortAdapter       (const JsonValue * uiPrefs,
-                                                                         bool              hasAnnunciators);
-    static std::pair<std::string, JsonValue>  BuildGamePortAdapterEntry (GamePortAdapter adapter);
+    // The Joyport setting as builds before it became global saved it with
+    // the machine: None, or the Sirius Joyport. Read once, by the launch that
+    // adopts it; nothing writes it any more. Always None on a machine with
+    // no annunciators to drive one.
+    static GamePortAdapter  ReadGamePortAdapter (const JsonValue * uiPrefs,
+                                                 bool              hasAnnunciators);
 
     static const char *      ModeToToken   (InputMappingMode    mode);
     static InputMappingMode  ModeFromToken (const std::string & token,
                                             InputMappingMode    fallback);
 
-    static const char *      TargetToToken   (PlayerAxisTarget    target);
     static PlayerAxisTarget  TargetFromToken (const std::string & token,
                                               PlayerAxisTarget    fallback);
 };

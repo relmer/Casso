@@ -279,6 +279,8 @@
     <ClCompile Include="EmuTests\JoyportMachineTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerTokensTests.cpp" />
     <ClCompile Include="ControllerTests\AxisBudgetTests.cpp" />
+    <ClCompile Include="ControllerTests\AxisResponseRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\AxisRoleRulesTests.cpp" />
     <ClCompile Include="ControllerTests\GamePortInputMixerTests.cpp" />
     <ClCompile Include="ControllerTests\MachineGamePortSinkTests.cpp" />
     <ClCompile Include="ControllerTests\DirectInputSampleDecoderTests.cpp" />
@@ -292,7 +294,12 @@
     <ClCompile Include="ControllerTests\ControllerProfileStoreTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerSelectionPolicyTests.cpp" />
     <ClCompile Include="ControllerTests\InputModeRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerModeRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerSlotPolicyTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerTargetRulesTests.cpp" />
     <ClCompile Include="ControllerTests\PaddleSourceRowsTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerPickTests.cpp" />
+    <ClCompile Include="ControllerTests\JoyportJackRulesTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerInputServiceTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerDescriptionsTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
@@ -447,6 +454,7 @@
     <ClCompile Include="UiTests\MachineInputPrefsTests.cpp" />
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />
     <ClCompile Include="Dxui\DxuiRadioGroupTests.cpp" />
@@ -487,6 +495,8 @@
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
     <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\SettingsPageEnablementTests.cpp" />
+    <ClCompile Include="UiTests\ControllersPageLayoutTests.cpp" />
+    <ClCompile Include="UiTests\ControllersPageLiveTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
@@ -515,6 +525,8 @@
     <ClCompile Include="Dxui\DxuiPropertySheetTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
+    <ClCompile Include="Dxui\DxuiComboBoxFitTests.cpp" />
+    <ClCompile Include="Dxui\DxuiComboBoxItemEnabledTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
@@ -522,13 +534,17 @@
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToggleTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSlideTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiScrollPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />
     <ClCompile Include="Dxui\DxuiWidgetIDxuiControlTests.cpp" />

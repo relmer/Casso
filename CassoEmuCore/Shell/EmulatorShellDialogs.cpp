@@ -561,7 +561,16 @@ void EmulatorShell::OpenSettings (bool showControllers)
     }
 
     m_settingsSheet = std::make_unique<SettingsSheet>();
-    m_settingsSheet->SetOnDialogEnd ([this] (int) { m_settingsSheetClosePending = true; });
+    // A size the user dragged it to is kept for the next time it opens.
+    m_settingsSheet->SetOnDialogEnd ([this] (int)
+    {
+        if (m_settingsSheet->TryStoreResizedSize())
+        {
+            SaveGlobalPrefs();
+        }
+
+        m_settingsSheetClosePending = true;
+    });
 
     (void) m_settingsSheet->OpenModeless (hInst, m_hwnd,
                                           *m_userConfigStore, m_globalPrefs, *m_themeManager,

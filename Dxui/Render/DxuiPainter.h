@@ -103,6 +103,7 @@ public:
     void    SetGlobalAlpha (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
     void    SetOrigin      (float xPx, float yPx)   override { m_originXPx = xPx; m_originYPx = yPx; }
     void    SetClipRect    (const RECT * clipPx)    override;
+    bool    GetClipRect    (RECT & clipPx) const    override;
     float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
 
     int     GetPendingVertexCount () const { return (int) m_vertices.size(); }

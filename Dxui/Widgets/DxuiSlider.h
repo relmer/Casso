@@ -38,6 +38,10 @@ public:
     using InteractionFn = std::function<void ()>;
     using FormatFn      = std::function<std::wstring (float value)>;
 
+    // How far a horizontal track starts inside the left edge: the widest the
+    // puck is ever drawn, so the puck at the minimum stays inside the rect.
+    static constexpr int  kTrackInsetDip = 11;
+
     DxuiSlider() { m_focusable = true; }
     ~DxuiSlider() override = default;
 

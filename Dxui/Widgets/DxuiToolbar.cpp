@@ -625,7 +625,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
     if (labeled && slot.entry.command != nullptr)
     {
-        label  = GetButtonText (*slot.entry.command);
+        label  = GetFittedButtonText (*slot.entry.command, m_textRenderer, fontPx);
         width += iconGap + MeasureLabelPx (label.c_str(), fontPx);
     }
 
@@ -658,6 +658,57 @@ std::wstring DxuiToolbar::GetButtonText (const DxuiCommand & cmd)
     DxuiMenuBar::ParseMnemonic (cmd.GetShortText(), stripped, mnIdx, mnCh);
 
     return stripped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetFittedButtonText
+//
+//  The button text shortened to the command's label fit, when it has one.
+//  Measuring and painting both take their text from here, so the strip
+//  reserves exactly the width of the string it draws. Without a renderer
+//  there is nothing to measure the fit against, and the text is left whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiToolbar::GetFittedButtonText (
+    const DxuiCommand  & cmd,
+    IDxuiTextRenderer  * text,
+    float                fontPx) const
+{
+    std::wstring          label    = GetButtonText (cmd);
+    const DxuiLabelFit  * fit      = nullptr;
+    size_t                keptLen  = 0;
+    bool                  isFitted = cmd.labelFit.has_value() && text != nullptr;
+
+
+
+    if (!isFitted)
+    {
+        return label;
+    }
+
+    fit = &cmd.labelFit.value();
+
+    if (!fit->keptSuffix.empty() && label.ends_with (fit->keptSuffix))
+    {
+        keptLen = fit->keptSuffix.size();
+    }
+
+    for (const std::wstring & suffix : fit->keptSuffixes)
+    {
+        if (suffix.size() > keptLen && label.ends_with (suffix))
+        {
+            keptLen = suffix.size();
+        }
+    }
+
+    return DxuiTextElide::ToWidth (*text, label, fontPx, DxuiTheme::kBodyFace,
+                                   m_scaler.ToPxf (fit->maxWidthDip), fit->mode, keptLen);
 }
 
 
@@ -1431,7 +1482,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
     if (slot.labeled && cmd != nullptr)
     {
-        label = GetButtonText (*cmd);
+        label = GetFittedButtonText (*cmd, &text, fontDip);
 
         if (!label.empty())
         {

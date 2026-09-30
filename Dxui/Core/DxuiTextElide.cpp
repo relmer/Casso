@@ -161,6 +161,84 @@ std::wstring DxuiTextElide::ElidePathHead (IDxuiTextRenderer  & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  JoinMiddle
+//
+//  `kept` characters of `body` around one ellipsis -- the head taking the odd
+//  one -- followed by the whole suffix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiTextElide::JoinMiddle (const std::wstring & body,
+                                        size_t               kept,
+                                        const std::wstring & suffix)
+{
+    size_t  head = (kept + 1) / 2;
+    size_t  tail = kept / 2;
+
+
+
+    return body.substr (0, head) + s_kEllipsis + body.substr (body.size() - tail) + suffix;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ElideMiddle
+//
+//  The most characters of the body, split between its head and its tail,
+//  that fit around the ellipsis with the suffix after them. The suffix is
+//  never cut: with no room for any of the body, the result is the ellipsis
+//  and the suffix, even where that still overflows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiTextElide::ElideMiddle (IDxuiTextRenderer  & text,
+                                         const std::wstring & value,
+                                         float                fontDip,
+                                         const wchar_t      * fontFamily,
+                                         float                maxWidthDip,
+                                         size_t               keptSuffix)
+{
+    size_t        suffixLen = (std::min) (keptSuffix, value.size());
+    std::wstring  body      = value.substr (0, value.size() - suffixLen);
+    std::wstring  suffix    = value.substr (value.size() - suffixLen);
+    size_t        lo        = 0;
+    size_t        hi        = body.size();
+    size_t        mid       = 0;
+
+
+
+    if (body.empty())
+    {
+        return value;
+    }
+
+    while (lo < hi)
+    {
+        mid = (lo + hi + 1) / 2;
+
+        if (Fits (text, JoinMiddle (body, mid, suffix), fontDip, fontFamily, maxWidthDip))
+        {
+            lo = mid;
+        }
+        else
+        {
+            hi = mid - 1;
+        }
+    }
+
+    return JoinMiddle (body, lo, suffix);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ToWidth
 //
 //  The entry point. Returns `value` untouched when it already fits, when the
@@ -173,7 +251,8 @@ std::wstring DxuiTextElide::ToWidth (IDxuiTextRenderer  & text,
                                      float                fontDip,
                                      const wchar_t      * fontFamily,
                                      float                maxWidthDip,
-                                     DxuiElide            mode)
+                                     DxuiElide            mode,
+                                     size_t               keptSuffix)
 {
     std::wstring   result = value;
     bool           search = false;
@@ -185,11 +264,18 @@ std::wstring DxuiTextElide::ToWidth (IDxuiTextRenderer  & text,
           && (maxWidthDip > 0.0f)
           && !Fits (text, value, fontDip, fontFamily, maxWidthDip);
 
-    if (search)
+    if (!search)
     {
-        result = (mode == DxuiElide::PathHead)
-               ? ElidePathHead (text, value, fontDip, fontFamily, maxWidthDip)
-               : ElideTail     (text, value, fontDip, fontFamily, maxWidthDip);
+        return result;
+    }
+
+    switch (mode)
+    {
+        case DxuiElide::PathHead: result = ElidePathHead (text, value, fontDip, fontFamily, maxWidthDip);             break;
+        case DxuiElide::Middle:   result = ElideMiddle   (text, value, fontDip, fontFamily, maxWidthDip, keptSuffix); break;
+
+        case DxuiElide::Tail:
+        default:                  result = ElideTail     (text, value, fontDip, fontFamily, maxWidthDip);             break;
     }
 
     return result;

@@ -102,6 +102,7 @@
 #include "Core/DxuiFrameRate.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Core/DxuiTextElide.h"
+#include "Core/DxuiSlide.h"
 
 // ComPtr alias needed by Render/* headers below. Defined in the
 // umbrella so any consumer including Dxui.h (typically via their
@@ -142,6 +143,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiTreeView.h"
 #include "Widgets/DxuiScrollbar.h"
+#include "Widgets/DxuiScrollPanel.h"
 #include "Widgets/DxuiSurface.h"
 #include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiIconButton.h"
@@ -149,6 +151,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiTimedInfoBanner.h"
 #include "Widgets/DxuiActionBanner.h"
+#include "Widgets/DxuiNoticeStack.h"
 #include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiOrbitControl.h"
 #include "Window/DxuiDragDropTarget.h"

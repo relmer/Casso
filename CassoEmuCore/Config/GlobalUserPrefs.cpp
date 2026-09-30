@@ -70,6 +70,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "crtOverrides",
     "monitorTilt",
     "controllers",
+    "gamePortAdapter",
     "window",
     "printOutputDpi",
     "printDotStyle",
@@ -80,6 +81,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "printerAudioPan",
     "masterVolume",
     "masterMuted",
+    "settingsWidthDip",
+    "settingsHeightDip",
     "screenshotMode",
     "screenshotSaveFile",
     "screenshotFolder"
@@ -1110,6 +1113,13 @@ JsonValue GlobalUserPrefs::ToJson() const
         root.emplace_back ("controllers", controllers);
     }
 
+    // gamePortAdapter: only while set. The migration clears it once read, so
+    // the key leaves the file on the next save.
+    if (!gamePortAdapter.empty())
+    {
+        root.emplace_back ("gamePortAdapter", JsonValue (gamePortAdapter));
+    }
+
     // recentDisks: most-recent-first absolute paths, cap enforced by
     // DiskMru itself before we get here.
     root.emplace_back ("recentDisks", RecentDisksToJson (recentDisks));
@@ -1136,6 +1146,13 @@ JsonValue GlobalUserPrefs::ToJson() const
     // Master output volume (chrome toolbar).
     root.emplace_back ("masterVolume", JsonValue ((double) masterVolume));
     root.emplace_back ("masterMuted",  JsonValue (masterMuted));
+
+    // The Settings sheet's size, only once the user has resized it.
+    if (settingsWidthDip > 0 && settingsHeightDip > 0)
+    {
+        root.emplace_back ("settingsWidthDip",  JsonValue ((double) settingsWidthDip));
+        root.emplace_back ("settingsHeightDip", JsonValue ((double) settingsHeightDip));
+    }
 
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
@@ -1300,6 +1317,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         }
     }
 
+    gamePortAdapter = GetStringOpt (v, "gamePortAdapter", gamePortAdapter);
+
     if (v.HasObject ("window", windowSub))
     {
         if (windowSub->HasObject ("placements", placementsObj))
@@ -1350,6 +1369,10 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     masterVolume = (float) GetNumberOpt (v, "masterVolume", masterVolume);
     masterMuted  = TryGetBoolOpt (v, "masterMuted", masterMuted);
     masterVolume = std::clamp (masterVolume, 0.0f, 1.0f);
+
+    // The Settings sheet's size; a negative one reads as never resized.
+    settingsWidthDip  = std::max (GetIntOpt (v, "settingsWidthDip",  settingsWidthDip),  0);
+    settingsHeightDip = std::max (GetIntOpt (v, "settingsHeightDip", settingsHeightDip), 0);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

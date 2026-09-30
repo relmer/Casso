@@ -42,6 +42,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <unordered_map>

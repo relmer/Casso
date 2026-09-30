@@ -147,15 +147,14 @@ void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxui
 //
 //  Rebuild
 //
-//  Rebuilds the tab order. Controls with explicit non-negative
-//  GetTabIndex() values sort first by ascending index. Remaining
-//  geometry-mode controls sort by (top / rowEpsilon, left).
+//  Rebuilds the tab order, sorted as IsBeforeInTabOrder gives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiFocusManager::Rebuild()
 {
     std::vector<IDxuiControl *>  raw;
+    std::vector<IDxuiControl *>  prior     = m_tabOrder;
     IDxuiControl *               scopeRoot = nullptr;
     float                        eps       = 1.0f;
 
@@ -186,59 +185,76 @@ void DxuiFocusManager::Rebuild()
         std::sort (raw.begin(), raw.end(),
             [eps] (IDxuiControl * a, IDxuiControl * b) -> bool
             {
-                int   taIdx = a->GetTabIndex();
-                int   tbIdx = b->GetTabIndex();
-                bool  aExpl = (taIdx >= 0);
-                bool  bExpl = (tbIdx >= 0);
-                RECT  ra    = {};
-                RECT  rb    = {};
-                int   ba    = 0;
-                int   bb    = 0;
-
-                if (aExpl && bExpl)
-                {
-                    return taIdx < tbIdx;
-                }
-
-                if (aExpl != bExpl)
-                {
-                    return aExpl;  // explicit indices come first
-                }
-
-                ra = a->GetBounds();
-                rb = b->GetBounds();
-                ba = (int) ((float) ra.top / eps);
-                bb = (int) ((float) rb.top / eps);
-                if (ba != bb)
-                {
-                    return ba < bb;
-                }
-
-                return ra.left < rb.left;
+                return IsBeforeInTabOrder (a, b, eps);
             });
 
         m_tabOrder = std::move (raw);
 
-        // Drop focus if previously-focused control is no longer in the order.
-        if (m_focused != nullptr)
-        {
-            bool  stillThere = false;
-
-            for (IDxuiControl * ctl : m_tabOrder)
-            {
-                if (ctl == m_focused)
-                {
-                    stillThere = true;
-                    break;
-                }
-            }
-
-            if (!stillThere)
-            {
-                m_focused = nullptr;
-            }
-        }
+        RecoverFocus (prior);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecoverFocus
+//
+//  A focused control that has left the order, hidden or removed, passes
+//  focus to the next control in the order it left that is still there, or,
+//  when none follows it, to the nearest one before it: focus goes on from
+//  where it was rather than around to the top. The control that left is not
+//  told, since it may no longer exist. With nothing left, focus is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFocusManager::RecoverFocus (const std::vector<IDxuiControl *> & priorOrder)
+{
+    auto            it        = std::find (priorOrder.begin(), priorOrder.end(), m_focused);
+    size_t          at        = (size_t) (it - priorOrder.begin());
+    size_t          i         = 0;
+    IDxuiControl  * successor = nullptr;
+
+
+
+    if (m_focused == nullptr || IsInTabOrder (m_focused))
+    {
+        return;
+    }
+
+    for (i = at + 1; i < priorOrder.size() && successor == nullptr; i++)
+    {
+        successor = IsInTabOrder (priorOrder[i]) ? priorOrder[i] : nullptr;
+    }
+
+    for (i = (at < priorOrder.size()) ? at : 0; i > 0 && successor == nullptr; i--)
+    {
+        successor = IsInTabOrder (priorOrder[i - 1]) ? priorOrder[i - 1] : nullptr;
+    }
+
+    m_focused = nullptr;
+
+    if (successor != nullptr)
+    {
+        ChangeFocus (successor, m_isCueShown);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsInTabOrder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiFocusManager::IsInTabOrder (const IDxuiControl * ctl) const
+{
+    return std::find (m_tabOrder.begin(), m_tabOrder.end(), ctl) != m_tabOrder.end();
 }
 
 
@@ -286,6 +302,137 @@ bool DxuiFocusManager::IsClippedByAncestor (const IDxuiControl * ctl, POINT poin
     }
 
     return clipped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTabPlaces
+//
+//  Where a control sorts in the tab order, level by level: the place of each
+//  tab group it sits in, outermost first, then its own bounds. A row
+//  scrolled out of a list's viewport keeps its place with the list, and a
+//  control scrolled out of a page's keeps its place with the page, rather
+//  than with whatever it lies under.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFocusManager::GetTabPlaces (const IDxuiControl * ctl, std::vector<RECT> & places)
+{
+    const IDxuiControl  * node = ctl->GetParent();
+
+
+
+    places.clear();
+    places.push_back (ctl->GetBounds());
+
+    for ( ; node != nullptr; node = node->GetParent())
+    {
+        if (node->IsTabGroup())
+        {
+            places.push_back (node->GetTabGroupPlace());
+        }
+    }
+
+    std::reverse (places.begin(), places.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBeforeInTabOrder
+//
+//  Controls with explicit non-negative GetTabIndex() values come first, by
+//  ascending index. The rest compare their places level by level, as
+//  GetTabPlaces gives them, by (top / rowEpsilon, left) at the first level
+//  where they differ; controls at the same places sort by their own top,
+//  then left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiFocusManager::IsBeforeInTabOrder (const IDxuiControl * a, const IDxuiControl * b, float eps)
+{
+    int                taIdx   = a->GetTabIndex();
+    int                tbIdx   = b->GetTabIndex();
+    bool               aExpl   = (taIdx >= 0);
+    bool               bExpl   = (tbIdx >= 0);
+    RECT               ra      = a->GetBounds();
+    RECT               rb      = b->GetBounds();
+    std::vector<RECT>  placesA;
+    std::vector<RECT>  placesB;
+    size_t             levels  = 0;
+    size_t             i       = 0;
+
+
+
+    if (aExpl && bExpl)
+    {
+        return taIdx < tbIdx;
+    }
+
+    if (aExpl != bExpl)
+    {
+        return aExpl;
+    }
+
+    GetTabPlaces (a, placesA);
+    GetTabPlaces (b, placesB);
+    levels = std::min (placesA.size(), placesB.size());
+
+    for (i = 0; i < levels; i++)
+    {
+        int  bandA = (int) std::floor ((float) placesA[i].top / eps);
+        int  bandB = (int) std::floor ((float) placesB[i].top / eps);
+
+        if (bandA != bandB)
+        {
+            return bandA < bandB;
+        }
+
+        if (placesA[i].left != placesB[i].left)
+        {
+            return placesA[i].left < placesB[i].left;
+        }
+    }
+
+    if (ra.top != rb.top)
+    {
+        return ra.top < rb.top;
+    }
+
+    return ra.left < rb.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RevealInAncestors
+//
+//  A control focused from the keyboard is scrolled into view by every
+//  scrolling container it sits in, innermost first, so each outer one
+//  reveals where the inner ones left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFocusManager::RevealInAncestors (const IDxuiControl * ctl)
+{
+    IDxuiControl  * node = (ctl != nullptr) ? ctl->GetParent() : nullptr;
+
+
+
+    for ( ; node != nullptr; node = node->GetParent())
+    {
+        node->RevealDescendant (*ctl);
+    }
 }
 
 
@@ -346,9 +493,18 @@ void DxuiFocusManager::ChangeFocus (IDxuiControl * ctl, bool showCue)
 
     DXUI_ASSERT_UI_THREAD();
 
+    m_isCueShown = showCue;
+
     if (ctl != nullptr)
     {
         ctl->SetFocusCueVisible (showCue);
+    }
+
+    // Focus moved by the keyboard can land on a control scrolled out of its
+    // container's view. A click lands on one in view, so it scrolls nothing.
+    if (showCue)
+    {
+        RevealInAncestors (ctl);
     }
 
     // Re-focusing the already-focused control must not fire the notifications

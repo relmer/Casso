@@ -2,8 +2,12 @@
 
 #include "Controllers/ControllerInputService.h"
 
+#include "Controllers/AxisResponseRules.h"
+#include "Controllers/AxisRoleRules.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
+#include "Controllers/JoyportJackRules.h"
+#include "Controllers/PlayerModeRules.h"
 
 
 
@@ -13,18 +17,33 @@
 //
 //  DriverRead
 //
-//  What one tick needs to read and evaluate one driving controller, copied
-//  out from under the lock so the backend and the evaluator run outside it.
+//  What one tick needs to read and evaluate one controller, copied out from
+//  under the lock so the backend and the evaluator run outside it, and what
+//  the read found.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ControllerInputService::DriverRead
 {
-    ControllerUnitKey  unit;
-    std::string        token;
-    ControlMapping     mapping;
-    float              deadzone         = 0.0f;
-    size_t             logicalAxisCount = 0;
+    ControllerUnitKey                          unit;
+    std::string                                token;
+    ControlMapping                             mapping;
+    float                                      deadzone         = 0.0f;
+    size_t                                     logicalAxisCount = 0;
+    std::bitset<ControllerSample::kAxisCount>  nonCentering;
+    bool                                       isDriving        = false;
+    bool                                       isWatched        = false;
+    bool                                       isLogged         = false;
+    bool                                       needsTimedPoll   = false;
+    bool                                       isRead           = false;
+
+    HRESULT                                    readResult       = S_OK;
+    ControllerSample                           calibrated;
+    ControllerSample                           travelLow;
+    ControllerSample                           travelHigh;
+    bool                                       isConnected      = false;
+    bool                                       hasFlipped       = false;
+    bool                                       hasRealInput     = false;
 };
 
 
@@ -106,62 +125,6 @@ void ControllerInputService::SetActive (bool isActive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetSelection
-//
-//  Which controller drives the game port, or none. The controller it replaces
-//  stops driving unless a player slot holds it, and whatever it held is
-//  released; every other driving controller carries on untouched. While
-//  multiplayer is on the selection drives nothing, and is only what the
-//  machine returns to when the mode goes off.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllerInputService::SetSelection (const std::optional<ControllerUnitKey> & selection)
-{
-    std::unique_lock<std::mutex>  lock       (m_mutex);
-    bool                          hasChanged = m_selection != selection;
-    GamePortContribution          merged;
-
-
-
-    // A pick, or a machine's saved controller handed in, is what the machine
-    // keeps -- even when it names the controller already in use after a
-    // takeover, which is how a user makes that controller the saved one.
-    m_saved = selection;
-
-    if (!hasChanged)
-    {
-        return;
-    }
-
-    m_selection           = selection;
-    m_lastSample          = ControllerSample();
-    m_isSelectedConnected = false;
-
-    // A driver that is new starts from its own model's mapping and with its
-    // rate paddles at center; one that was already driving keeps both.
-    SyncDriversLocked();
-
-    // A saved controller restored for a machine may not be attached. The
-    // policy is what replaces it, so the next tick has to run it; a pick
-    // from the picker is always attached and needs no scan.
-    if (selection.has_value() && FindDeviceLocked (selection.value()) == nullptr)
-    {
-        m_devicesDirty = true;
-    }
-
-    merged = BuildMergedLocked();
-    lock.unlock();
-
-    Publish (merged);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SetDeadzone
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,8 +152,8 @@ void ControllerInputService::SetDeadzone (float deadzone)
 //  SetHasGamePort
 //
 //  Whether the machine in front of the user has a game port at all. Without
-//  one the policy chooses nothing, and a selection carried in from another
-//  machine is kept untouched (FR-017).
+//  one nothing is submitted, and the players are kept untouched for a machine
+//  that has one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,17 +192,17 @@ void ControllerInputService::SetHasGamePort (bool hasGamePort)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetSelectionChangedFn
+//  SetSlotsChangedFn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetSelectionChangedFn (SelectionChangedFn onSelectionChanged)
+void ControllerInputService::SetSlotsChangedFn (SlotsChangedFn onSlotsChanged)
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
 
 
 
-    m_onSelectionChanged = std::move (onSelectionChanged);
+    m_onSlotsChanged = std::move (onSlotsChanged);
 }
 
 
@@ -288,9 +251,10 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 //
 //  SetAxisCount
 //
-//  A machine with fewer axes drops the drivers left with none of them and the
-//  values for the axes it lacks; the player slots themselves are kept, so
-//  switching back to a machine with four plays them again.
+//  A machine with fewer axes drops the values for the axes it lacks, and a
+//  player with none of their paddles on it plays nothing; the players
+//  themselves are kept, so switching back to a machine with four plays them
+//  again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,35 +287,39 @@ void ControllerInputService::SetAxisCount (size_t axisCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetMultiplayer
+//  SetPlayerEntries
 //
-//  The setup is normalized before it is kept, so what the service plays is
-//  never an overlapping or repeated pair of slots, whatever the caller handed
-//  in -- a hand-edited prefs file as much as the settings page.
+//  Takes effect at once, whether or not a picked controller has given input.
+//  A controller that stops playing releases what it held; one that starts
+//  has its rate paddles centered and is read on the next tick, which the
+//  thread is woken for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetMultiplayer (MultiplayerSetup setup)
+void ControllerInputService::SetPlayerEntries (const PlayerEntries & entries)
 {
     std::unique_lock<std::mutex>  lock       (m_mutex);
-    MultiplayerSetup              normalized = ControllerSelectionPolicy::Normalize (std::move (setup));
+    PlayerEntries                 normalized = PlayerSlotPolicy::NormalizeEntries (entries);
+    std::optional<SlotsChange>    change;
     GamePortContribution          merged;
 
 
 
-    if (m_multiplayer == normalized)
+    if (m_entries == normalized)
     {
         return;
     }
 
-    m_multiplayer = normalized;
-    SyncDriversLocked();
+    m_entries = normalized;
+    change    = EvaluateSlotsLocked();
 
+    SyncDriversLocked();
     merged = BuildMergedLocked();
     lock.unlock();
 
     Publish (merged);
     Wake();
+    AnnounceSlots (change);
 }
 
 
@@ -360,106 +328,108 @@ void ControllerInputService::SetMultiplayer (MultiplayerSetup setup)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetMultiplayerEnabled
-//
-//  BOTH SLOTS ARE KEPT when the mode goes off. Turning multiplayer off is how
-//  a user hands the game port back to one controller for a single-player game,
-//  and throwing the players away would make turning it back on a setup job
-//  rather than a click.
+//  GetPlayerEntries
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetMultiplayerEnabled (bool isEnabled)
-{
-    MultiplayerSetup  setup  = GetMultiplayer();
-    size_t            player = 0;
-
-
-
-    setup.isEnabled = isEnabled;
-
-    // TWO PLAYERS START WITH THE CONTROLLERS THAT ARE THERE. An empty slot
-    // means nobody plays it, which reads as the mode doing nothing, so every
-    // empty slot takes an attached controller the other slot does not hold.
-    // Filling only when BOTH were empty left the second slot empty for a user
-    // who had already chosen the first player's controller.
-    if (isEnabled)
-    {
-        std::lock_guard<std::mutex>  lock (m_mutex);
-
-        for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
-        {
-            size_t  other = (player == 0) ? 1 : 0;
-
-            if (setup.players[player].unit.has_value())
-            {
-                continue;
-            }
-
-            for (const ControllerDeviceInfo & device : m_devices)
-            {
-                if (setup.players[other].unit.has_value() && setup.players[other].unit.value() == device.unit)
-                {
-                    continue;
-                }
-
-                setup.players[player].unit   = device.unit;
-                setup.players[player].target = (player == 0) ? PlayerAxisTarget::Joystick0 : PlayerAxisTarget::Joystick1;
-                break;
-            }
-        }
-    }
-
-    SetMultiplayer (setup);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetMultiplayerSlot
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllerInputService::SetMultiplayerSlot (
-    size_t                                    player,
-    const std::optional<ControllerUnitKey> &  unit,
-    PlayerAxisTarget                          target)
-{
-    MultiplayerSetup  setup = GetMultiplayer();
-
-
-
-    if (player >= MultiplayerSetup::kPlayerCount)
-    {
-        return;
-    }
-
-    setup.players[player].unit   = unit;
-    setup.players[player].target = target;
-
-    SetMultiplayer (setup);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetMultiplayer
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MultiplayerSetup ControllerInputService::GetMultiplayer() const
+PlayerEntries ControllerInputService::GetPlayerEntries() const
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
 
 
 
-    return m_multiplayer;
+    return m_entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickPlayerEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::PickPlayerEntry (size_t player, const PlayerEntry & entry)
+{
+    SetPlayerEntries (PlayerSlotPolicy::ApplyPick (GetPlayerEntries(), player, entry));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPlayerMode
+//
+//  Takes effect at once, as a pick does: the player's controller moves to
+//  what the new mode drives and to its choice of the new mode's kind of
+//  profile, releasing what it held.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetPlayerMode (size_t player, PlayerMode mode)
+{
+    SetPlayerEntries (PlayerSlotPolicy::ApplyMode (GetPlayerEntries(), player, mode));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlayerSlots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerSlots ControllerInputService::GetPlayerSlots() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_slots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLastHolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetLastHolders (const PlayerLastHolders & lastHolders)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_lastHolders = lastHolders;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLastHolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlayerLastHolders ControllerInputService::GetLastHolders() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_lastHolders;
 }
 
 
@@ -509,7 +479,8 @@ void ControllerInputService::SetClock (ClockFn clock)
 
 void ControllerInputService::SetModelSettings (std::map<std::string, ControllerModelSettings> models)
 {
-    std::lock_guard<std::mutex>  lock (m_mutex);
+    std::unique_lock<std::mutex>  lock (m_mutex);
+    std::optional<SlotsChange>    change;
 
 
 
@@ -518,8 +489,13 @@ void ControllerInputService::SetModelSettings (std::map<std::string, ControllerM
     // A controller in use picks the new settings up now rather than at its
     // next connect, so OK on the Controllers page takes effect at once.
     UnresolveDriversLocked();
+    change = EvaluateSlotsLocked();
     SyncDriversLocked();
     m_rateResetPending = true;
+
+    lock.unlock();
+
+    AnnounceSlots (change);
 }
 
 
@@ -555,30 +531,36 @@ std::map<std::string, ControllerModelSettings> ControllerInputService::GetModelS
 //  up and an axis it does not drive centers before the next reading submits
 //  what the new profile asks for (FR-030).
 //
+//  The choice is recorded for the kind the controller plays. A profile of
+//  another kind cannot be chosen, so it leaves the choice as it was.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, const std::string & name)
 {
-    std::unique_lock<std::mutex>  lock   (m_mutex);
-    std::string                   token  = ControllerTokens::UnitToToken (unit);
-    auto                          found  = m_activeProfiles.find (token);
-    bool                          isSame = false;
+    std::unique_lock<std::mutex>  lock        (m_mutex);
+    std::string                   token       = ControllerTokens::UnitToToken (unit);
+    ProfileMode                   mode        = GetUnitModeLocked (unit);
+    auto &                        active      = m_profiles.GetActiveProfiles (mode);
+    auto                          found       = active.find (token);
+    bool                          isSame      = false;
+    bool                          isOtherMode = IsOfOtherModeLocked (unit.model, name, mode);
 
 
 
     // An entry is kept even for the Default, so choosing it is remembered as
     // a choice; only a matching entry is a no-op.
-    isSame = found != m_activeProfiles.end()
+    isSame = found != active.end()
              && found->second.size() == name.size()
              && _stricmp (found->second.c_str(), name.c_str()) == 0;
 
-    if (isSame)
+    if (isSame || isOtherMode)
     {
         return;
     }
 
-    m_activeProfiles[token] = name;
-    m_rateResetPending      = true;
+    active[token]      = name;
+    m_rateResetPending = true;
     UnresolveDriversLocked();
     SyncDriversLocked();
 
@@ -595,7 +577,9 @@ void ControllerInputService::SetActiveProfile (const ControllerUnitKey & unit, c
 //
 //  GetActiveProfile
 //
-//  Empty for the Default, and for a controller that has never had one chosen.
+//  The profile chosen for the kind the controller plays. Empty for that
+//  kind's built-in profile, and for a controller that has never had one
+//  chosen for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -620,11 +604,41 @@ std::string ControllerInputService::GetActiveProfile (const ControllerUnitKey & 
 
 std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnitKey & unit) const
 {
-    auto  found = m_activeProfiles.find (ControllerTokens::UnitToToken (unit));
+    const auto &  active = m_profiles.GetActiveProfiles (GetUnitModeLocked (unit));
+    auto          found  = active.find (ControllerTokens::UnitToToken (unit));
 
 
 
-    return (found != m_activeProfiles.end()) ? found->second : std::string();
+    return (found != active.end()) ? found->second : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetUnitModeLocked
+//
+//  The kind of profile a controller plays: its player's mode as it plays,
+//  either Joyport jack being the Joyport kind, and Joystick for a controller
+//  in no slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileMode ControllerInputService::GetUnitModeLocked (const ControllerUnitKey & unit) const
+{
+    std::optional<size_t>  player = FindPlayerLocked (unit);
+    PlayerMode             mode   = PlayerMode::Joystick;
+
+
+
+    if (player.has_value())
+    {
+        mode = PlayerModeRules::ResolveMode (m_entries, player.value(), m_hasJoyport);
+    }
+
+    return ControllerModelSettings::GetPlayerProfileMode (mode);
 }
 
 
@@ -635,18 +649,19 @@ std::string ControllerInputService::GetActiveProfileLocked (const ControllerUnit
 //
 //  SetActiveProfiles
 //
-//  The whole map, by unit token: set once from the saved prefs, and read back
-//  to save them.
+//  The whole map for one kind, by unit token: set once from the saved prefs,
+//  and read back to save them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetActiveProfiles (std::map<std::string, std::string> activeProfiles)
+void ControllerInputService::SetActiveProfiles (ProfileMode mode, std::map<std::string, std::string> activeProfiles)
 {
     std::unique_lock<std::mutex>  lock (m_mutex);
 
 
 
-    m_activeProfiles   = std::move (activeProfiles);
+    m_profiles.GetActiveProfiles (mode) = std::move (activeProfiles);
+
     m_rateResetPending = true;
     UnresolveDriversLocked();
     SyncDriversLocked();
@@ -662,17 +677,102 @@ void ControllerInputService::SetActiveProfiles (std::map<std::string, std::strin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetActiveProfiles
+//  SetJoyportAvailable
+//
+//  Set when a machine is built. A player in a jack plays it only on a
+//  machine that has a Joyport, so every controller whose player's mode now
+//  plays differently switches to its choice for the new kind, or with none
+//  chosen to that kind's built-in profile, released as for a profile change,
+//  and the slots take their targets again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<std::string, std::string> ControllerInputService::GetActiveProfiles() const
+void ControllerInputService::SetJoyportAvailable (bool hasJoyport)
 {
-    std::lock_guard<std::mutex>  lock (m_mutex);
+    std::unique_lock<std::mutex>  lock   (m_mutex);
+    std::optional<SlotsChange>    change;
 
 
 
-    return m_activeProfiles;
+    if (m_hasJoyport == hasJoyport)
+    {
+        return;
+    }
+
+    m_hasJoyport = hasJoyport;
+    m_rateResetPending = true;
+    UnresolveDriversLocked();
+    change = EvaluateSlotsLocked();
+    SyncDriversLocked();
+
+    lock.unlock();
+
+    ReleaseContribution();
+    AnnounceSlots (change);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveProfiles
+//
+//  What is saved, so a choice of another kind's profile, which can come only
+//  from the prefs, is dropped here rather than written back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, std::string> ControllerInputService::GetActiveProfiles (ProfileMode mode) const
+{
+    std::lock_guard<std::mutex>                 lock    (m_mutex);
+    const std::map<std::string, std::string> &  all     = m_profiles.GetActiveProfiles (mode);
+    std::map<std::string, std::string>          choices;
+    ControllerUnitKey                           unit;
+    HRESULT                                     hr      = S_OK;
+
+
+
+    for (const auto & entry : all)
+    {
+        hr = ControllerTokens::UnitFromToken (entry.first, unit);
+
+        if (SUCCEEDED (hr) && IsOfOtherModeLocked (unit.model, entry.second, mode))
+        {
+            continue;
+        }
+
+        choices.insert (entry);
+    }
+
+    return choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOfOtherModeLocked
+//
+//  A model with nothing saved still has its built-in profiles by name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerInputService::IsOfOtherModeLocked (const ControllerModelKey & model, const std::string & name, ProfileMode mode) const
+{
+    auto  found = m_profiles.models.find (ControllerTokens::ModelToToken (model));
+
+
+
+    if (found == m_profiles.models.end())
+    {
+        return ControllerModelSettings().IsOfOtherMode (name, mode);
+    }
+
+    return found->second.IsOfOtherMode (name, mode);
 }
 
 
@@ -721,9 +821,8 @@ std::map<std::string, ControllerCalibration> ControllerInputService::GetCalibrat
 //
 //  RequestRescan
 //
-//  A selection handed in that did not change -- none, to a machine that had
-//  none -- would otherwise never reach the policy, since only a device
-//  notification marks the list dirty.
+//  Reads what is attached again on the next tick, which is otherwise done
+//  only after a device notification.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -759,6 +858,8 @@ void ControllerInputService::SetInspectedUnit (const std::optional<ControllerUni
             m_inspectedUnit      = unit;
             m_hasInspectedSample = false;
             shouldWake           = true;
+
+            m_inspectedHistory.clear();
         }
         else if (unit.has_value() && !m_hasInspectedSample)
         {
@@ -804,11 +905,39 @@ std::optional<ControllerSample> ControllerInputService::GetInspectedSample (cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TakeInspectedSamples
+//
+//  Hands over the readings kept since the last call and starts a new list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ControllerSample> ControllerInputService::TakeInspectedSamples (const ControllerUnitKey & unit)
+{
+    std::lock_guard<std::mutex>    lock (m_mutex);
+    std::vector<ControllerSample>  taken;
+
+
+
+    if (m_inspectedUnit == unit)
+    {
+        taken.assign (m_inspectedHistory.begin(), m_inspectedHistory.end());
+        m_inspectedHistory.clear();
+    }
+
+    return taken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Tick
 //
-//  Controller thread. The driving controllers first, then the one the
+//  Controller thread. The attached controllers first, then the one the
 //  Controllers page shows, if the page is open. While the page is open the
-//  thread polls at the measured period regardless of what the driving
+//  thread polls at the measured period regardless of what the playing
 //  controllers need, since the controller being edited may be one that sends
 //  no change events of its own.
 //
@@ -843,6 +972,16 @@ ControllerWaitSources ControllerInputService::Tick()
         {
             m_inspectedSample    = sample;
             m_hasInspectedSample = SUCCEEDED (hr) && sample.connected;
+
+            if (m_hasInspectedSample)
+            {
+                m_inspectedHistory.push_back (sample);
+            }
+
+            while (m_inspectedHistory.size() > kInspectedHistoryMax)
+            {
+                m_inspectedHistory.pop_front();
+            }
         }
     }
 
@@ -859,25 +998,41 @@ ControllerWaitSources ControllerInputService::Tick()
 //
 //  TickDrivers
 //
-//  Controller thread. Reads each driving controller once, submits what they
-//  ask of the game port together, then says how long to wait for the next
-//  wake: the measured poll period while a controller that must be polled is
-//  driving, and otherwise nothing at all, since a DirectInput device wakes
-//  the thread itself and no driver means nothing to read.
+//  Controller thread. Reads each playing controller once, and while a player
+//  on Automatic waits for a controller and Casso is active, watches the ones
+//  nobody plays for their first real input: those with change events of
+//  their own on every wake, the rest every kIdleWatchPeriodMs. A first input
+//  goes into the input log and can give its controller a slot, and one given
+//  a slot that way plays the very reading that gave it, rather than one tick
+//  later. Then everything the playing controllers ask of the game port is
+//  submitted together, and the thread is told how long to wait: the measured
+//  poll period while a playing controller must be polled, the time to the
+//  next idle read while a watched one must be, the shorter of the two when
+//  both, and otherwise nothing at all, since a DirectInput device wakes the
+//  thread itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ControllerWaitSources ControllerInputService::TickDrivers()
 {
-    std::vector<DriverRead>   reads;
-    std::vector<std::string>  resetTokens;
-    ControllerWaitSources     wait;
-    GamePortContribution      merged;
-    StateChangedFn            onStateChanged;
-    float                     elapsedSeconds = 0.0f;
-    bool                      isActive       = false;
-    bool                      hasFlipped     = false;
-    bool                      needsPoll      = false;
+    std::vector<DriverRead>     reads;
+    std::vector<std::string>    resetTokens;
+    ControllerWaitSources       wait;
+    GamePortContribution        merged;
+    StateChangedFn              onStateChanged;
+    std::optional<SlotsChange>  change;
+    float                       elapsedSeconds = 0.0f;
+    double                      nowSeconds     = 0.0;
+    double                      sinceWatchMs   = 0.0;
+    DWORD                       untilWatchMs   = kIdleWatchPeriodMs;
+    bool                        isActive       = false;
+    bool                        isWatchOn      = false;
+    bool                        isWatchDue     = false;
+    bool                        hasTimedWatch  = false;
+    bool                        hasFlipped     = false;
+    bool                        hasNewInput    = false;
+    bool                        needsPoll      = false;
+    constexpr double            kMsPerSecond   = 1000.0;
 
 
 
@@ -898,29 +1053,110 @@ ControllerWaitSources ControllerInputService::TickDrivers()
         std::lock_guard<std::mutex>  lock (m_mutex);
 
         elapsedSeconds = MeasureElapsedLocked();
+        nowSeconds     = m_lastTickSeconds;
         isActive       = m_isActive;
+        sinceWatchMs   = (nowSeconds - m_lastWatchSeconds) * kMsPerSecond;
+
+        // THE WATCH IS OFF WHILE CASSO IS INACTIVE, so input made while
+        // another application is active never claims a slot, and while no
+        // player waits for a controller, so an idle Casso reads nothing.
+        isWatchOn  = m_isActive && PlayerSlotPolicy::NeedsIdleWatch (m_entries, m_slots);
+        isWatchDue = m_lastWatchSeconds < 0.0 || sinceWatchMs >= kIdleWatchPeriodMs;
+
+        SyncDriversLocked();
+
+        for (const auto & [token, driver] : m_drivers)
+        {
+            DriverRead  read;
+            bool        isWatched = !driver.isDriving;
+
+            if (isWatched && (!isWatchOn || driver.hasFailed))
+            {
+                continue;
+            }
+
+            read.unit         = driver.unit;
+            read.token        = token;
+            read.deadzone     = driver.deadzone;
+            read.nonCentering = driver.nonCentering;
+            read.isWatched    = isWatched;
+            read.isLogged  = std::find (m_logs.firstInput.begin(), m_logs.firstInput.end(), driver.unit) != m_logs.firstInput.end();
+
+            reads.push_back (read);
+        }
+
+        m_lastTick              = TickReport();
+        m_lastTick.hasPlayerOne = m_slots[0].holder.has_value();
+        m_lastTick.isAppActive  = m_isActive;
+        m_lastTick.deadzone     = m_deadzone;
+
+        if (m_slots[0].holder.has_value())
+        {
+            auto  found = m_drivers.find (ControllerTokens::UnitToToken (m_slots[0].holder.value()));
+
+            m_lastTick.isActiveXInput = m_slots[0].holder->model.kind == ControllerKind::XInput;
+
+            if (found != m_drivers.end())
+            {
+                m_lastTick.hasMapping = found->second.mapping != ControlMapping();
+                m_lastTick.deadzone   = found->second.deadzone;
+            }
+        }
+    }
+
+    hasTimedWatch = PrepareWatch (reads, isWatchDue, wait);
+
+    for (DriverRead & read : reads)
+    {
+        if (!read.isRead)
+        {
+            continue;
+        }
+
+        ReadDriver (read, isActive);
+        hasFlipped  = hasFlipped  || read.hasFlipped;
+        hasNewInput = hasNewInput || read.hasRealInput;
+    }
+
+    // First inputs first, so the slots they change decide who is evaluated.
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        if (hasTimedWatch && isWatchDue)
+        {
+            m_lastWatchSeconds = nowSeconds;
+        }
+
+        for (const DriverRead & read : reads)
+        {
+            if (read.hasRealInput)
+            {
+                m_logs.firstInput.push_back (read.unit);
+            }
+        }
+
+        if (hasNewInput)
+        {
+            change = EvaluateSlotsLocked();
+        }
 
         SyncDriversLocked();
         resetTokens.swap (m_rateResetTokens);
 
-        for (const auto & [token, driver] : m_drivers)
+        for (DriverRead & read : reads)
         {
-            reads.push_back ({ driver.unit, token, driver.mapping, driver.deadzone,
-                               GetDriverAxesLocked (driver.unit).count() });
-        }
+            auto                                     found = m_drivers.find (read.token);
+            std::optional<PlayerTargetRules::Route>  route = GetDriverRouteLocked (read.unit);
 
-        m_lastTick                = TickReport();
-        m_lastTick.hasSelection   = m_selection.has_value();
-        m_lastTick.isActiveXInput = m_selection.has_value() && m_selection.value().model.kind == ControllerKind::XInput;
-        m_lastTick.isAppActive    = m_isActive;
-        m_lastTick.deadzone       = m_deadzone;
+            if (found == m_drivers.end())
+            {
+                continue;
+            }
 
-        if (m_selection.has_value() && m_drivers.contains (ControllerTokens::UnitToToken (m_selection.value())))
-        {
-            const DriverState &  selected = m_drivers.at (ControllerTokens::UnitToToken (m_selection.value()));
-
-            m_lastTick.hasMapping = selected.mapping != ControlMapping();
-            m_lastTick.deadzone   = selected.deadzone;
+            read.isDriving        = found->second.isDriving;
+            read.mapping          = found->second.mapping;
+            read.deadzone         = found->second.deadzone;
+            read.logicalAxisCount = route.has_value() ? PlayerTargetRules::CountPaddles (route.value()) : 0;
         }
     }
 
@@ -929,12 +1165,15 @@ ControllerWaitSources ControllerInputService::TickDrivers()
         m_evaluators[token].ResetRate();
     }
 
-    for (const DriverRead & read : reads)
+    for (DriverRead & read : reads)
     {
-        hasFlipped = TickDriver (read, elapsedSeconds, isActive, wait, needsPoll) || hasFlipped;
+        if (read.isRead)
+        {
+            EvaluateDriver (read, elapsedSeconds, isActive, wait, needsPoll);
+        }
     }
 
-    ForgetIdleEvaluators (reads);
+    ForgetIdleEvaluators();
 
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
@@ -946,11 +1185,12 @@ ControllerWaitSources ControllerInputService::TickDrivers()
     }
 
     Publish (merged);
+    AnnounceSlots (change);
 
-    // Who owns the axes turns on whether a driving controller reads, so the
-    // first successful read after one is chosen has to be announced: until
-    // then the axes rest at center however far the stick is pushed.
-    if (hasFlipped && onStateChanged)
+    // Who owns the axes turns on whether a playing controller reads, so the
+    // first successful read after one starts playing has to be announced:
+    // until then the axes rest at center however far the stick is pushed.
+    if ((hasFlipped || change.has_value()) && onStateChanged)
     {
         onStateChanged();
     }
@@ -958,6 +1198,16 @@ ControllerWaitSources ControllerInputService::TickDrivers()
     if (needsPoll)
     {
         wait.timeoutMs = kPollPeriodMs;
+    }
+
+    if (hasTimedWatch)
+    {
+        if (!isWatchDue)
+        {
+            untilWatchMs = (DWORD) std::ceil (std::max (0.0, kIdleWatchPeriodMs - sinceWatchMs));
+        }
+
+        wait.timeoutMs = std::min (wait.timeoutMs.value_or (untilWatchMs), untilWatchMs);
     }
 
     return wait;
@@ -969,51 +1219,116 @@ ControllerWaitSources ControllerInputService::TickDrivers()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TickDriver
+//  PrepareWatch
 //
-//  Controller thread. One driving controller: read it, evaluate it while
-//  Casso is active, and record what it asks for. A controller that could not
-//  be read is gone, not resting, and contributes nothing; nothing of its own
-//  to wait on either, since the next device notification is what brings it
-//  back. Returns whether it connected or disconnected.
+//  Controller thread. Which of the controllers read this tick are read at
+//  all: every playing one, a watched one with change events of its own --
+//  whose events the thread now also waits on -- and a watched one without
+//  them only when the idle period is due. Returns whether any watched
+//  controller needs reading on that period.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ControllerInputService::TickDriver (
-    const DriverRead       & read,
+bool ControllerInputService::PrepareWatch (std::vector<DriverRead> & reads, bool isWatchDue, ControllerWaitSources & wait)
+{
+    bool  hasTimedWatch = false;
+
+
+
+    for (DriverRead & read : reads)
+    {
+        std::vector<HANDLE>  events;
+
+        if (!read.isWatched)
+        {
+            read.isRead = true;
+            continue;
+        }
+
+        m_backend.GetWakeSources (read.unit, events, read.needsTimedPoll);
+        wait.events.insert (wait.events.end(), events.begin(), events.end());
+
+        read.isRead   = !read.needsTimedPoll || isWatchDue;
+        hasTimedWatch = hasTimedWatch || read.needsTimedPoll;
+    }
+
+    return hasTimedWatch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadDriver
+//
+//  Controller thread. One attached controller: read it, and put the reading
+//  through its calibration. A controller that could not be read is gone, not
+//  resting. Real input counts only while Casso is active, so playing another
+//  game on a controller never gives it a slot here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::ReadDriver (DriverRead & read, bool isActive)
+{
+    ControllerSample  sample;
+
+
+
+    read.readResult  = m_backend.ReadSample (read.unit, sample);
+    read.isConnected = SUCCEEDED (read.readResult) && sample.connected;
+    read.calibrated  = RecordReading (read, read.readResult, sample, read.isConnected, read.hasFlipped, read.travelLow, read.travelHigh);
+
+    read.hasRealInput = isActive
+                        && read.isConnected
+                        && !read.isLogged
+                        && PlayerSlotPolicy::IsRealInput (read.calibrated, nullptr, read.deadzone, &read.travelLow, &read.travelHigh);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDriver
+//
+//  Controller thread. A controller that plays is evaluated while Casso is
+//  active and records what it asks for; one that does not play records
+//  nothing. Either way a connected controller says what the thread waits on
+//  until its next read: its own change events where it has them, and the
+//  measured poll period where it has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::EvaluateDriver (
+    DriverRead             & read,
     float                    elapsedSeconds,
     bool                     isActive,
     ControllerWaitSources  & wait,
     bool                   & outNeedsPoll)
 {
-    HRESULT                              hr             = S_OK;
-    ControllerSample                     sample;
-    ControllerSample                     calibrated;
     std::optional<GamePortContribution>  logical;
     std::vector<HANDLE>                  events;
-    bool                                 isConnected    = false;
-    bool                                 hasFlipped     = false;
     bool                                 needsTimedPoll = false;
 
 
 
-    hr          = m_backend.ReadSample (read.unit, sample);
-    isConnected = SUCCEEDED (hr) && sample.connected;
-    calibrated  = RecordReading (read, hr, sample, isConnected, hasFlipped);
-
-    if (isConnected && isActive)
+    if (read.isConnected && isActive && read.isDriving)
     {
         MappingEvaluator &  evaluator = m_evaluators[read.token];
 
-        logical      = evaluator.Evaluate (calibrated, read.mapping, read.deadzone, elapsedSeconds, read.logicalAxisCount);
+        evaluator.SetNonCenteringAxes (read.nonCentering);
+
+        logical      = evaluator.Evaluate (read.calibrated, read.mapping, read.deadzone, elapsedSeconds, read.logicalAxisCount);
         outNeedsPoll = outNeedsPoll || evaluator.IsRateMoving();
     }
 
-    if (isConnected)
+    // A watched controller's events were gathered with the watch; one that
+    // started playing on this reading waits on its own from now on.
+    if (read.isConnected && read.isDriving)
     {
-        // What the thread waits on until the next read: the controller's own
-        // change events where it has them, and the measured poll period only
-        // for the ones that have none.
         m_backend.GetWakeSources (read.unit, events, needsTimedPoll);
         wait.events.insert (wait.events.end(), events.begin(), events.end());
         outNeedsPoll = outNeedsPoll || needsTimedPoll;
@@ -1023,14 +1338,12 @@ bool ControllerInputService::TickDriver (
         std::lock_guard<std::mutex>  lock  (m_mutex);
         auto                         found = m_drivers.find (read.token);
 
-        // A setter may have dropped this driver while it was being read.
+        // A setter may have dropped this controller while it was being read.
         if (found != m_drivers.end())
         {
             found->second.logical = logical;
         }
     }
-
-    return hasFlipped;
 }
 
 
@@ -1041,11 +1354,11 @@ bool ControllerInputService::TickDriver (
 //
 //  RecordReading
 //
-//  Under the lock: whether the driver reads, and the reading put through its
-//  calibration. A DirectInput unit is read through its own calibration; an
-//  Xbox-class controller is factory-calibrated and never gets one (FR-018a).
-//  The first reading after it starts driving or comes back is where it rests,
-//  so that is the center (FR-007).
+//  Under the lock: whether the controller reads, and the reading put through
+//  its calibration. A DirectInput unit is read through its own calibration;
+//  an Xbox-class controller is factory-calibrated and never gets one
+//  (FR-018a). The first reading after it connects is where it rests, so that
+//  is the center (FR-007), and where its travel since connecting starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1054,19 +1367,23 @@ ControllerSample ControllerInputService::RecordReading (
     HRESULT                   hr,
     const ControllerSample  & sample,
     bool                      isConnected,
-    bool                    & outHasFlipped)
+    bool                    & outHasFlipped,
+    ControllerSample        & outLow,
+    ControllerSample        & outHigh)
 {
     std::lock_guard<std::mutex>  lock         (m_mutex);
     auto                         found        = m_drivers.find (read.token);
     ControllerSample             calibrated   = sample;
     bool                         wasConnected = found != m_drivers.end() && found->second.isConnected;
-    bool                         isSelected   = m_selection.has_value() && m_selection.value() == read.unit;
+    bool                         isPlayerOne  = m_slots[0].holder == read.unit;
 
 
 
     if (isConnected && read.unit.model.kind == ControllerKind::DirectInput)
     {
         ControllerCalibration &  calibration = m_calibrations[read.token];
+
+        calibration.nonCentering = read.nonCentering;
 
         if (!wasConnected)
         {
@@ -1079,18 +1396,32 @@ ControllerSample ControllerInputService::RecordReading (
 
     if (found != m_drivers.end())
     {
+        if (isConnected)
+        {
+            PlayerSlotPolicy::ObserveTravel (calibrated, !wasConnected, found->second.travelLow, found->second.travelHigh);
+        }
+
         found->second.isConnected = isConnected;
+        outLow                    = found->second.travelLow;
+        outHigh                   = found->second.travelHigh;
+
+        // A watched controller that cannot be read is reported and left out
+        // of the watch until it reconnects, never taken as one at rest.
+        if (!isConnected && read.isWatched)
+        {
+            found->second.hasFailed = true;
+        }
     }
 
-    if (isSelected)
+    if (isPlayerOne)
     {
-        m_isSelectedConnected  = isConnected;
-        m_lastSample           = isConnected ? sample : ControllerSample();
         m_lastTick.readResult  = hr;
         m_lastTick.isConnected = isConnected;
     }
 
-    outHasFlipped = isConnected != wasConnected;
+    // Only a controller that plays changes who owns the axes by reading or
+    // failing to; one read only for its first input changes nothing.
+    outHasFlipped = isConnected != wasConnected && found != m_drivers.end() && found->second.isDriving;
 
     return calibrated;
 }
@@ -1103,16 +1434,32 @@ ControllerSample ControllerInputService::RecordReading (
 //
 //  ForgetIdleEvaluators
 //
-//  Controller thread. A controller that stopped driving gives up its rate
-//  paddles; if it drives again it starts from center.
+//  Controller thread. A controller that stopped playing gives up its rate
+//  paddles; if it plays again it starts from center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::ForgetIdleEvaluators (const std::vector<DriverRead> & reads)
+void ControllerInputService::ForgetIdleEvaluators()
 {
-    std::erase_if (m_evaluators, [&reads] (const std::pair<const std::string, MappingEvaluator> & entry)
+    std::vector<std::string>  driving;
+
+
+
     {
-        return std::none_of (reads.begin(), reads.end(), [&entry] (const DriverRead & read) { return read.token == entry.first; });
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        for (const auto & [token, driver] : m_drivers)
+        {
+            if (driver.isDriving)
+            {
+                driving.push_back (token);
+            }
+        }
+    }
+
+    std::erase_if (m_evaluators, [&driving] (const std::pair<const std::string, MappingEvaluator> & entry)
+    {
+        return std::find (driving.begin(), driving.end(), entry.first) == driving.end();
     });
 }
 
@@ -1135,19 +1482,34 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
 
 
 
-    snapshot.devices             = m_devices;
-    snapshot.selection           = m_selection;
-    snapshot.saved               = m_saved;
-    snapshot.activeProfiles      = m_activeProfiles;
-    snapshot.lastSample          = m_lastSample;
-    snapshot.isSelectedConnected = m_isSelectedConnected;
-    snapshot.multiplayer         = m_multiplayer;
-    snapshot.isMultiplayerLive   = ControllerSelectionPolicy::IsMultiplayerPlayable (m_multiplayer, m_devices);
-    snapshot.axisCount           = m_axisCount;
+    snapshot.devices           = m_devices;
+    snapshot.entries           = m_entries;
+    snapshot.slots             = m_slots;
+    snapshot.isJoyportAttached = PlayerModeRules::IsJoyportOn (m_entries, m_hasJoyport);
+    snapshot.hasJoyport        = m_hasJoyport;
+    snapshot.axisCount         = m_axisCount;
+
+    for (const ControllerDeviceInfo & device : m_devices)
+    {
+        std::string  token = ControllerTokens::UnitToToken (device.unit);
+        std::string  name  = GetActiveProfileLocked (device.unit);
+
+        snapshot.profileModes[token] = GetUnitModeLocked (device.unit);
+
+        if (!name.empty())
+        {
+            snapshot.activeProfiles[token] = name;
+        }
+    }
 
     for (const auto & [token, driver] : m_drivers)
     {
-        snapshot.isAnyDriverConnected = snapshot.isAnyDriverConnected || driver.isConnected;
+        snapshot.isAnyDriverConnected = snapshot.isAnyDriverConnected || (driver.isDriving && driver.isConnected);
+
+        if (driver.hasFailed)
+        {
+            snapshot.unreadable.push_back (driver.unit);
+        }
     }
 
     return snapshot;
@@ -1180,27 +1542,24 @@ ControllerInputService::TickReport ControllerInputService::GetLastTickReport() c
 //
 //  RefreshDevices
 //
-//  Re-reads what is attached and lets the policy move the selection. A
-//  selected controller that is gone hands the selection to the one attached
-//  longest, or to nothing, and the contribution it was holding is released at
-//  once: with nothing selected there is no read left to fail and release it.
-//  Every other driving controller keeps what it holds.
+//  Re-reads what is attached and lets the players follow it. A controller
+//  that held a slot and has gone releases what it was holding at once: with
+//  it gone there is no read left to fail and release it. Every other playing
+//  controller keeps what it holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::RefreshDevices()
 {
-    HRESULT                              hr                   = S_OK;
-    std::vector<ControllerDeviceInfo>    devices;
-    std::vector<ControllerDeviceInfo>    byAttachOrder;
-    ControllerSelectionPolicy::Decision  decision;
-    SelectionChangedFn                   onSelectionChanged;
-    StateChangedFn                       onStateChanged;
-    GamePortContribution                 merged;
-    std::wstring                         departedDescription;
-    bool                                 wasSelectionAttached = false;
-    bool                                 hasListChanged       = false;
-    size_t                               i                    = 0;
+    HRESULT                            hr             = S_OK;
+    std::vector<ControllerDeviceInfo>  devices;
+    std::vector<std::wstring>          departed;
+    std::optional<SlotsChange>         change;
+    StateChangedFn                     onStateChanged;
+    GamePortContribution               merged;
+    MultiplayerSetup                   picks;
+    bool                               hasListChanged = false;
+    size_t                             i              = 0;
 
 
 
@@ -1210,18 +1569,9 @@ void ControllerInputService::RefreshDevices()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
 
-        //  WHETHER THE SELECTION WAS HERE BEFORE THIS SCAN. A selection that
-        //  is cleared because its controller left is news; one that is
-        //  cleared because a saved controller was never plugged in is not.
-        if (m_selection.has_value() && FindDeviceLocked (m_selection.value()) != nullptr)
-        {
-            wasSelectionAttached = true;
-            departedDescription  = FindDeviceLocked (m_selection.value())->description;
-        }
-
         //  WHAT IS ATTACHED, compared on its own. An arrival or removal that
         //  moves nothing else -- a second controller coming or going while
-        //  another one drives -- still changes the picker's rows, and nothing
+        //  another one plays -- still changes the picker's rows, and nothing
         //  else would announce it.
         hasListChanged = m_devices.size() != devices.size();
 
@@ -1231,88 +1581,52 @@ void ControllerInputService::RefreshDevices()
                              || m_devices[i].description != devices[i].description;
         }
 
-        m_devices = devices;
-        UpdateAttachOrderLocked();
+        departed = FindDepartedLocked (devices);
+        RecordArrivalsLocked (devices);
 
-        // A setup saved when Xbox-class units were keyed by XInput slot moves
-        // onto the unit in that slot, once. Reporting it as a list change is
-        // what gets it saved, so the next launch finds the product keys.
-        if (ControllerSelectionPolicy::AdoptSlotKeyedPlayers (m_multiplayer, m_devices))
+        m_devices       = devices;
+        m_hasEnumerated = true;
+
+        // A pick saved when Xbox-class units were keyed by XInput slot moves
+        // onto the unit in that slot, once. Reporting it as a change to the
+        // entries is what gets it saved, so the next launch finds the
+        // product keys.
+        for (i = 0; i < PlayerSlotPolicy::kPlayerCount; i++)
         {
-            m_multiplayer  = ControllerSelectionPolicy::Normalize (m_multiplayer);
-            hasListChanged = true;
+            picks.players[i].unit = (m_entries[i].kind == PlayerEntryKind::Controller) ? m_entries[i].unit : std::nullopt;
         }
 
-        byAttachOrder = m_devices;
-        std::stable_sort (byAttachOrder.begin(), byAttachOrder.end(),
-            [this] (const ControllerDeviceInfo & a, const ControllerDeviceInfo & b)
-            {
-                return GetAttachOrderLocked (a.unit) < GetAttachOrderLocked (b.unit);
-            });
-
-        decision = ControllerSelectionPolicy::Evaluate (m_selection, byAttachOrder, m_hasGamePort, m_multiplayer);
-
-        if (decision.reason == SelectionChangeReason::Cleared && !wasSelectionAttached)
+        if (ControllerSelectionPolicy::AdoptSlotKeyedPlayers (picks, m_devices))
         {
-            decision.isAnnounced = false;
-        }
-
-        decision.departedDescription = departedDescription;
-
-        if (decision.hasChanged)
-        {
-            // A unit that came back under another identity keeps the player
-            // slot it was in.
-            if (decision.reason == SelectionChangeReason::Adoption && m_selection.has_value() && decision.selection.has_value())
+            for (i = 0; i < PlayerSlotPolicy::kPlayerCount; i++)
             {
-                for (MultiplayerSlot & slot : m_multiplayer.players)
+                if (m_entries[i].kind == PlayerEntryKind::Controller)
                 {
-                    if (slot.unit.has_value() && slot.unit.value() == m_selection.value())
-                    {
-                        slot.unit = decision.selection.value();
-                    }
+                    m_entries[i].unit = picks.players[i].unit;
                 }
             }
 
-            // EVERY CHANGE IS SAVED BUT A CLEAR. Nothing being attached is not
-            // a choice, and writing it down threw away the controller the
-            // machine had, so the next switch to it picked whatever was
-            // attached longest instead.
-            if (decision.reason != SelectionChangeReason::Cleared)
-            {
-                m_saved = decision.selection;
-            }
-
-            m_selection           = decision.selection;
-            m_lastSample          = ControllerSample();
-            m_isSelectedConnected = false;
+            m_entries = PlayerSlotPolicy::NormalizeEntries (m_entries);
         }
 
-        // Also resolves the mapping of a driving controller that has just
-        // arrived: an empty mapping reads every control as unbound.
+        change = EvaluateSlotsLocked (departed);
+
         SyncDriversLocked();
 
-        merged             = BuildMergedLocked();
-        onSelectionChanged = m_onSelectionChanged;
-        onStateChanged     = m_onStateChanged;
+        merged         = BuildMergedLocked();
+        onStateChanged = m_onStateChanged;
     }
 
-    if (decision.hasChanged)
+    if (change.has_value())
     {
         Publish (merged);
     }
 
-    // Outside the lock: the sink persists the choice and raises a notice, and
+    // Outside the lock: the shell saves the entries and raises notices, and
     // neither belongs under a lock the controller thread holds every tick.
-    if (decision.hasChanged && onSelectionChanged)
-    {
-        onSelectionChanged (decision);
-    }
+    AnnounceSlots (change);
 
-    // The picker lists what is attached and checks what is selected, and who
-    // owns the axes turns on the selection. All of that is decided on the UI
-    // thread.
-    if ((decision.hasChanged || hasListChanged) && onStateChanged)
+    if ((change.has_value() || hasListChanged) && onStateChanged)
     {
         onStateChanged();
     }
@@ -1324,9 +1638,184 @@ void ControllerInputService::RefreshDevices()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RecordArrivalsLocked
+//
+//  The connection log takes each distinct controller that arrives after the
+//  startup scan, in the order they arrive. The controllers present at startup
+//  arrived at no particular moment, so they are no order at all; a
+//  controller coming back to the slot held for it, or arriving a second
+//  time, is not a new arrival -- a wireless pad that sleeps and wakes does
+//  not count twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::RecordArrivalsLocked (const std::vector<ControllerDeviceInfo> & devices)
+{
+    if (!m_hasEnumerated)
+    {
+        return;
+    }
+
+    for (const ControllerDeviceInfo & device : devices)
+    {
+        bool  wasAttached = FindDeviceLocked (device.unit) != nullptr;
+        bool  isLogged    = std::find (m_logs.connected.begin(), m_logs.connected.end(), device.unit) != m_logs.connected.end();
+        bool  isReturning = std::any_of (m_slots.begin(), m_slots.end(), [&device] (const PlayerSlot & slot)
+        {
+            return slot.state == PlayerSlotState::Held && slot.holder == device.unit;
+        });
+
+        if (wasAttached || isLogged || isReturning)
+        {
+            continue;
+        }
+
+        m_logs.connected.push_back (device.unit);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindDepartedLocked
+//
+//  The descriptions of the controllers that were attached and holding a slot
+//  and are not in the new list. A picked controller that never connected
+//  departed from nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ControllerInputService::FindDepartedLocked (const std::vector<ControllerDeviceInfo> & devices) const
+{
+    std::vector<std::wstring>  departed;
+
+
+
+    for (const PlayerSlot & slot : m_slots)
+    {
+        const ControllerDeviceInfo  * before = slot.holder.has_value() ? FindDeviceLocked (slot.holder.value()) : nullptr;
+        bool                          isHere = false;
+
+        if (before == nullptr || slot.state == PlayerSlotState::Held || slot.state == PlayerSlotState::Empty)
+        {
+            continue;
+        }
+
+        isHere = std::any_of (devices.begin(), devices.end(), [&slot] (const ControllerDeviceInfo & device) { return device.unit == slot.holder.value(); });
+
+        if (!isHere)
+        {
+            departed.push_back (before->description);
+        }
+    }
+
+    return departed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateSlotsLocked
+//
+//  The players again from what is attached, the entries and the two logs,
+//  with the players' modes deciding each slot's target. A picked controller
+//  found under another identity is followed there, so the entry holds the
+//  controller that is playing. Each slot's holder is recorded as its last
+//  holder, with a notice for each slot Automatic gave a different
+//  controller. Empty when nothing changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<ControllerInputService::SlotsChange> ControllerInputService::EvaluateSlotsLocked (std::vector<std::wstring> departed)
+{
+    PlayerSlots        previous        = m_slots;
+    PlayerEntries      previousEntries = m_entries;
+    PlayerLastHolders  previousHolders = m_lastHolders;
+    SlotsChange        change;
+    size_t             player          = 0;
+
+
+
+    m_slots = PlayerSlotPolicy::Evaluate (m_entries, m_devices, m_logs, previous, m_hasJoyport);
+
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
+    {
+        const PlayerSlot  & slot = m_slots[player];
+
+        if (m_entries[player].kind == PlayerEntryKind::Controller && slot.holder.has_value() &&
+            FindDeviceLocked (slot.holder.value()) != nullptr && slot.holder != m_entries[player].unit)
+        {
+            m_entries[player].unit = slot.holder;
+        }
+    }
+
+    change.notices = PlayerSlotPolicy::RecordHolders (m_slots, m_devices, m_lastHolders, m_entries, m_hasJoyport);
+
+    if (m_slots == previous && m_entries == previousEntries && m_lastHolders == previousHolders && departed.empty())
+    {
+        return std::nullopt;
+    }
+
+    change.entries                = m_entries;
+    change.slots                  = m_slots;
+    change.lastHolders            = m_lastHolders;
+    change.haveEntriesChanged     = m_entries != previousEntries;
+    change.haveLastHoldersChanged = m_lastHolders != previousHolders;
+    change.departedDescriptions   = std::move (departed);
+
+    return change;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AnnounceSlots
+//
+//  Outside the lock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::AnnounceSlots (const std::optional<SlotsChange> & change)
+{
+    SlotsChangedFn  onSlotsChanged;
+
+
+
+    if (!change.has_value())
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        onSlotsChanged = m_onSlotsChanged;
+    }
+
+    if (onSlotsChanged)
+    {
+        onSlotsChanged (change.value());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Publish
 //
-//  Submits what the driving controllers ask for together, or releases the
+//  Submits what the playing controllers ask for together, or releases the
 //  controller source when they ask for nothing, without disturbing what any
 //  other input source is holding. Called outside the lock.
 //
@@ -1373,8 +1862,8 @@ void ControllerInputService::ReleaseContribution()
 //
 //  Wake
 //
-//  Brings the controller thread round to read a driver that has just been
-//  added, rather than at the end of whatever wait it is in.
+//  Brings the controller thread round to read a controller that has just
+//  started playing, rather than at the end of whatever wait it is in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1402,36 +1891,27 @@ void ControllerInputService::Wake()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateAttachOrderLocked
+//  FindPlayerLocked
 //
-//  Stamps each newly attached controller with a rising number and forgets the
-//  ones that have gone. The numbers are what makes the controller that takes
-//  over the longest-attached one rather than whichever one enumeration
-//  happens to list first (FR-008a).
-//
-//  A controller that leaves and comes back is a NEW arrival, and goes to the
-//  back: it was not there for the stretch it was unplugged, so calling it the
-//  longest-attached would be counting time it did not serve.
+//  Which player's slot holds this controller, or none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::UpdateAttachOrderLocked()
+std::optional<size_t> ControllerInputService::FindPlayerLocked (const ControllerUnitKey & unit) const
 {
-    std::erase_if (m_attachOrder, [this] (const std::pair<ControllerUnitKey, uint64_t> & entry)
-    {
-        return FindDeviceLocked (entry.first) == nullptr;
-    });
+    size_t  player = 0;
 
-    for (const ControllerDeviceInfo & device : m_devices)
-    {
-        auto  found = std::find_if (m_attachOrder.begin(), m_attachOrder.end(),
-            [&device] (const std::pair<ControllerUnitKey, uint64_t> & entry) { return entry.first == device.unit; });
 
-        if (found == m_attachOrder.end())
+
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
+    {
+        if (m_slots[player].holder == unit)
         {
-            m_attachOrder.push_back ({ device.unit, m_nextAttachOrder++ });
+            return player;
         }
     }
+
+    return std::nullopt;
 }
 
 
@@ -1440,192 +1920,25 @@ void ControllerInputService::UpdateAttachOrderLocked()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetAttachOrderLocked
+//  GetDriverRouteLocked
 //
-//  The number UpdateAttachOrderLocked stamped on this controller: lower means
-//  attached longer. A controller with no stamp sorts last.
+//  What this controller reaches on the game port, or nothing when it does
+//  not play.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t ControllerInputService::GetAttachOrderLocked (const ControllerUnitKey & unit) const
+std::optional<PlayerTargetRules::Route> ControllerInputService::GetDriverRouteLocked (const ControllerUnitKey & unit) const
 {
-    for (const std::pair<ControllerUnitKey, uint64_t> & entry : m_attachOrder)
+    std::optional<size_t>  player = FindPlayerLocked (unit);
+
+
+
+    if (!player.has_value())
     {
-        if (entry.first == unit)
-        {
-            return entry.second;
-        }
+        return std::nullopt;
     }
 
-    return UINT64_MAX;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDriverUnitsLocked
-//
-//  The controllers that drive the game port: the selection in single-source
-//  mode, and in multiplayer the players whose slots this machine has the
-//  paddles for. A player mapped to paddles a //c lacks is not read at all, so
-//  neither their axes nor their button reach it -- and the slot is kept, so a
-//  //e plays it again (FR-035).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() const
-{
-    std::vector<ControllerUnitKey>  units;
-    MultiplayerSetup                live   = GetLiveMultiplayerLocked();
-    size_t                          player = 0;
-
-
-
-    if (!live.isEnabled)
-    {
-        if (m_selection.has_value())
-        {
-            units.push_back (m_selection.value());
-        }
-
-        return units;
-    }
-
-    for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
-    {
-        const std::optional<ControllerUnitKey>  & unit      = live.players[player].unit;
-        bool                                      isPlaying = ControllerSelectionPolicy::GetAxesForPlayer (live, player, m_axisCount).any();
-
-        if (!unit.has_value() || !isPlaying)
-        {
-            continue;
-        }
-
-        units.push_back (unit.value());
-    }
-
-    return units;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetLiveMultiplayerLocked
-//
-//  The saved setup, turned off while it cannot be played.
-//
-//  EVERY RULE BELOW READS THIS, NOT m_multiplayer. The saved setup is what the
-//  user asked for and what the prefs keep; this is what the machine plays. A
-//  user whose players are unplugged gets single-source play on whatever is
-//  attached, and the mode returns by itself when they plug back in, because
-//  nothing about the saved setup changed (FR-040).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MultiplayerSetup ControllerInputService::GetLiveMultiplayerLocked() const
-{
-    MultiplayerSetup  live = m_multiplayer;
-
-
-
-    live.isEnabled = ControllerSelectionPolicy::IsMultiplayerPlayable (m_multiplayer, m_devices);
-
-    return live;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetLiveMultiplayer
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MultiplayerSetup ControllerInputService::GetLiveMultiplayer() const
-{
-    std::lock_guard<std::mutex>  lock (m_mutex);
-
-
-
-    return GetLiveMultiplayerLocked();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDriverAxesLocked
-//
-//  The machine paddles one controller drives: its player's, or PDL0 and PDL1
-//  for the selection in single-source mode, in both cases less the paddles
-//  this machine does not have.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MultiplayerSetup::AxisSet ControllerInputService::GetDriverAxesLocked (const ControllerUnitKey & unit) const
-{
-    MultiplayerSetup           live   = GetLiveMultiplayerLocked();
-    std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (live, unit);
-    MultiplayerSetup::AxisSet  axes;
-    size_t                     axis   = 0;
-
-
-
-    if (live.isEnabled)
-    {
-        if (player.has_value())
-        {
-            axes = ControllerSelectionPolicy::GetAxesForPlayer (live, player.value(), m_axisCount);
-        }
-
-        return axes;
-    }
-
-    if (m_selection.has_value() && m_selection.value() == unit)
-    {
-        axes = MultiplayerSetup::AxisSet (ControllerSelectionPolicy::kSingleSourceAxisBits);
-
-        for (axis = m_axisCount; axis < axes.size(); axis++)
-        {
-            axes.reset (axis);
-        }
-    }
-
-    return axes;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsDriverLocked
-//
-//  In single-source mode the selection drives whether or not it has an axis
-//  left, because it still reaches the buttons; in multiplayer a player with no
-//  paddle on this machine drives nothing at all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ControllerInputService::IsDriverLocked (const ControllerUnitKey & unit) const
-{
-    if (GetLiveMultiplayerLocked().isEnabled)
-    {
-        return GetDriverAxesLocked (unit).any();
-    }
-
-    return m_selection.has_value() && m_selection.value() == unit;
+    return PlayerSlotPolicy::GetDriverRoute (m_slots, m_entries, player.value(), m_axisCount, m_hasJoyport);
 }
 
 
@@ -1636,34 +1949,53 @@ bool ControllerInputService::IsDriverLocked (const ControllerUnitKey & unit) con
 //
 //  SyncDriversLocked
 //
-//  Brings the driver list in line with the selection and the player slots. A
-//  controller that stopped driving is dropped with whatever it held; one that
-//  started driving gets its mapping and has its rate paddles centered on the
-//  next tick; one that drives on is left exactly as it was, so a change to
-//  another controller never interrupts it (SC-012).
+//  Brings the read list in line with what is attached, and marks which of
+//  them play. A controller that stopped playing drops whatever it held; one
+//  that started gets its rate paddles centered on the next tick; one that
+//  plays on is left exactly as it was, so a change to another controller
+//  never interrupts it (SC-012). One whose kind of profile changed, with its
+//  player's mode or a move to the other player, drops what it held and is
+//  resolved again for the new kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::SyncDriversLocked()
 {
-    std::vector<ControllerUnitKey>  units = GetDriverUnitsLocked();
-
-
-
-    std::erase_if (m_drivers, [&units] (const std::pair<const std::string, DriverState> & entry)
+    std::erase_if (m_drivers, [this] (const std::pair<const std::string, DriverState> & entry)
     {
-        return std::find (units.begin(), units.end(), entry.second.unit) == units.end();
+        return FindDeviceLocked (entry.second.unit) == nullptr;
     });
 
-    for (const ControllerUnitKey & unit : units)
+    for (const ControllerDeviceInfo & device : m_devices)
     {
-        std::string  token            = ControllerTokens::UnitToToken (unit);
+        std::string  token            = ControllerTokens::UnitToToken (device.unit);
         auto         [found, isAdded] = m_drivers.try_emplace (token);
+        bool         wasDriving       = found->second.isDriving;
 
         if (isAdded)
         {
-            found->second.unit = unit;
+            found->second.unit = device.unit;
+        }
+
+        found->second.isDriving    = GetDriverRouteLocked (device.unit).has_value();
+        found->second.nonCentering = AxisRoleRules::GetNonCenteringAxes (device.controls);
+
+        if (found->second.isResolved && found->second.mode != GetUnitModeLocked (device.unit))
+        {
+            found->second.mapping    = ControlMapping();
+            found->second.isResolved = false;
+            found->second.logical.reset();
             m_rateResetTokens.push_back (token);
+        }
+
+        if (found->second.isDriving && !wasDriving)
+        {
+            m_rateResetTokens.push_back (token);
+        }
+
+        if (!found->second.isDriving)
+        {
+            found->second.logical.reset();
         }
 
         ResolveMappingLocked (found->second);
@@ -1678,19 +2010,16 @@ void ControllerInputService::SyncDriversLocked()
 //
 //  ResolveMappingLocked
 //
-//  Gives a driving controller the mapping it plays with. An empty mapping
-//  reads every control as unbound, so a controller without one sits at center
-//  with its buttons up no matter what the user does with it -- which is why
-//  this runs from the refresh, the setters and the tick alike: a controller
-//  can start driving before it is enumerated.
+//  Gives an attached controller the mapping it plays with. An empty mapping
+//  reads every control as unbound, so a controller without one sits at
+//  center with its buttons up no matter what the user does with it -- which
+//  is why this runs from the refresh, the setters and the tick alike.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::ResolveMappingLocked (DriverState & driver)
 {
-    const ControllerDeviceInfo  * device  = FindDeviceLocked (driver.unit);
-    const ControllerProfile     * profile = nullptr;
-    std::string                   active;
+    const ControllerDeviceInfo  * device = FindDeviceLocked (driver.unit);
 
 
 
@@ -1699,27 +2028,77 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
         return;
     }
 
-    // The deadzone belongs to the model, whichever profile is active.
-    m_profiles.GetDefaultSettings (device->unit.model, device->controls, driver.mapping, driver.deadzone);
+    ResolveUnitLocked (*device, driver.mapping, driver.deadzone);
+    driver.mode       = GetUnitModeLocked (driver.unit);
     driver.isResolved = true;
+}
 
-    // THIS CONTROLLER'S profile, not the machine's: two players on two pads
-    // of one model can each play their own.
-    active = GetActiveProfileLocked (driver.unit);
 
-    if (active.empty())
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveUnitLocked
+//
+//  One controller's mapping and dead zone for its active profile of the kind
+//  it plays. THIS CONTROLLER'S profile, not the machine's: two players on two
+//  pads of one model can each play their own, and two players in different
+//  modes their own kinds. A choice of another kind's profile, which only the
+//  prefs can hold, is no choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::ResolveUnitLocked (
+    const ControllerDeviceInfo  & device,
+    ControlMapping              & outMapping,
+    float                       & outDeadzone) const
+{
+    const ControllerProfile  * profile    = nullptr;
+    ProfileMode                mode       = GetUnitModeLocked (device.unit);
+    std::string                active     = GetActiveProfileLocked (device.unit);
+    ControllerProfileKind      kind       = ControllerModelSettings::GetAutomaticKind (mode);
+    ControllerProfileKind      chosenKind = ControllerProfileKind::User;
+
+
+
+    if (IsOfOtherModeLocked (device.unit.model, active, mode))
     {
-        return;
+        active.clear();
     }
 
-    // A remembered profile the model no longer has plays the Default, which
-    // is already in hand; nothing is recreated for it (FR-029).
-    profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device->unit.model), active);
+    // A built-in profile chosen by name plays even for a model with nothing
+    // saved, which has no profile of that name to find.
+    chosenKind = ControllerModelSettings::GetBuiltInKind (active);
+
+    if (chosenKind != ControllerProfileKind::User)
+    {
+        kind = chosenKind;
+        active.clear();
+    }
+
+    // The dead zone belongs to the model, whichever profile is active. With no
+    // profile chosen for this kind, or one the model no longer has, the
+    // controller plays the kind's built-in profile: the Joyport profile for a
+    // player in a Joyport jack, Paddles for a player in Paddle mode and the
+    // Default for the rest.
+    m_profiles.GetBuiltInSettings (kind, device.unit.model, device.formFactor, device.controls, outMapping, outDeadzone);
+
+    // A remembered profile the model no longer has plays the built-in one
+    // already in hand; nothing is recreated for it (FR-029).
+    if (!active.empty())
+    {
+        profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device.unit.model), active);
+    }
 
     if (profile != nullptr)
     {
-        driver.mapping = profile->mapping;
+        outMapping = profile->mapping;
     }
+
+    // Each binding plays the response its kind of profile allows it, so a
+    // saved Position the control no longer offers plays at paddle speed.
+    AxisResponseRules::Normalize (outMapping, mode, device.unit.model.kind, device.formFactor);
 }
 
 
@@ -1730,8 +2109,8 @@ void ControllerInputService::ResolveMappingLocked (DriverState & driver)
 //
 //  UnresolveDriversLocked
 //
-//  Every driver's mapping is looked up again, and what it held is dropped:
-//  the settings or the profile it was resolved from changed.
+//  Every controller's mapping is looked up again, and what it held is
+//  dropped: the settings or the profile it was resolved from changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1753,61 +2132,61 @@ void ControllerInputService::UnresolveDriversLocked()
 //
 //  BuildMergedLocked
 //
-//  Every driving controller's last reading, placed where its slot maps it: its
-//  own PDL0, PDL1 and on land on the paddles it drives, in ascending order,
-//  and a paddle it does not drive is left for the other player.
-//
-//  ONE BUTTON LINE PER PLAYER in multiplayer. Player 1's pb0 bindings reach
-//  PB0 and player 2's reach PB1, so a two-player game that reads the two lines
-//  separately can tell the players apart -- which OR-ing every controller's
-//  buttons together made impossible. A player's pb1 and pb2 bindings are kept
-//  in the profile and ignored here, and PB2 is unused. In single-source mode
-//  the one controller drives PB0-PB2 exactly as before.
+//  Every playing controller's last reading, placed where its route puts it:
+//  its own PDL0, PDL1 and on land on the paddles it drives, in order, and its
+//  button bindings on the lines its target is wired to. A paddle or a line
+//  it does not drive is left absent, for the other player or for rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 GamePortContribution ControllerInputService::BuildMergedLocked() const
 {
     GamePortContribution  merged;
-    size_t                axis    = 0;
-    size_t                logical = 0;
+    size_t                player       = 0;
+    size_t                i            = 0;
 
 
 
-    for (const auto & [token, driver] : m_drivers)
+    for (player = 0; player < PlayerSlotPolicy::kPlayerCount; player++)
     {
-        MultiplayerSetup::AxisSet  axes   = GetDriverAxesLocked (driver.unit);
-        std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (GetLiveMultiplayerLocked(), driver.unit);
+        std::optional<PlayerTargetRules::Route>  route   = PlayerSlotPolicy::GetDriverRoute (m_slots, m_entries, player, m_axisCount, m_hasJoyport);
+        auto                                     found   = m_drivers.end();
+        const GamePortContribution             * logical = nullptr;
 
-        if (!driver.logical.has_value() || !IsDriverLocked (driver.unit))
+        // A player in a jack closes the jack's switches, added below, and
+        // reaches no paddle input and no button line.
+        if (!route.has_value() || PlayerModeRules::IsOnJoyport (m_entries, player, m_hasJoyport))
         {
             continue;
         }
 
-        // `logical` counts only the axes this driver plays, so it can never
-        // outrun `axis` and never leaves the array. It is bounded anyway:
-        // the invariant is one the reader can follow and the analyzer cannot.
-        for (axis = 0, logical = 0; axis < axes.size() && logical < driver.logical->paddle.size(); axis++)
+        found = m_drivers.find (ControllerTokens::UnitToToken (m_slots[player].holder.value()));
+
+        if (found == m_drivers.end() || !found->second.logical.has_value())
         {
-            if (axes.test (axis))
+            continue;
+        }
+
+        logical = &found->second.logical.value();
+
+        for (i = 0; i < route->paddles.size() && i < logical->paddle.size(); i++)
+        {
+            if (route->paddles[i].has_value() && route->paddles[i].value() < merged.paddle.size())
             {
-                merged.paddle[axis] = driver.logical->paddle[logical++];
+                merged.paddle[route->paddles[i].value()] = logical->paddle[i];
             }
         }
 
-        AddJoyportSwitches (player, driver.logical->switches, merged);
-
-        if (!player.has_value())
+        for (i = 0; i < route->buttons.size(); i++)
         {
-            merged.buttons |= driver.logical->buttons;
-            continue;
-        }
-
-        if (driver.logical->buttons.test (0))
-        {
-            merged.buttons.set (player.value());
+            if (route->buttons[i].has_value() && logical->buttons.test (i))
+            {
+                merged.buttons.set (route->buttons[i].value());
+            }
         }
     }
+
+    AddJoyportSwitchesLocked (merged);
 
     return merged;
 }
@@ -1818,36 +2197,66 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AddJoyportSwitches
+//  AddJoyportSwitchesLocked
 //
-//  One driver's Atari switches onto the Joyport's jacks. In multiplayer the
-//  player's slot is the jack, slot 1 left and slot 2 right, whatever paddles
-//  the slot drives; in single-source mode the one controller appears on both
-//  jacks, so a two-player game played by passing the controller reads it on
-//  either. A jack no driver reaches stays open.
+//  Each Joyport jack carries the switches of the player JoyportJackRules
+//  gives it: one player driving alone is on both jacks, two split them, and
+//  a jack held for a player who left reads open. What paddles a slot maps to
+//  plays no part. A jack given to Player 1 on the arrow keys is marked for
+//  the mixer, which reads the keys.
+//
+//  THE JACKS ARE LEFT UNSET when no controller's reading reaches them and
+//  the keys are not split from anything, so the controllers release as they
+//  always have and the keys alone keep both jacks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::AddJoyportSwitches (
-    const std::optional<size_t>  & player,
-    const JoystickSwitches       & switches,
-    GamePortContribution         & merged)
+void ControllerInputService::AddJoyportSwitchesLocked (GamePortContribution & merged) const
 {
-    JoyportJacks  jacks = merged.jacks.value_or (JoyportJacks());
+    JoyportJackRules::JackSources          sources   = JoyportJackRules::AssignJacks (JoyportJackRules::ReducePlayers (m_slots, m_entries, m_hasJoyport));
+    bool                                   isKeys    = m_entries[0].kind == PlayerEntryKind::ArrowKeys;
+    JoyportJacks                           jacks;
+    std::bitset<JoyportJacks::kJackCount>  keyJacks;
+    bool                                   isRead    = false;
+    size_t                                 jack      = 0;
 
 
 
-    if (!player.has_value())
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
     {
-        jacks.jack[JoyportJacks::kLeftJack]  |= switches;
-        jacks.jack[JoyportJacks::kRightJack] |= switches;
-    }
-    else if (player.value() < JoyportJacks::kJackCount)
-    {
-        jacks.jack[player.value()] |= switches;
+        size_t  player = (sources[jack] == JoyportJackSource::Player1) ? 0 : 1;
+        auto    found  = m_drivers.end();
+
+        if (sources[jack] == JoyportJackSource::None)
+        {
+            continue;
+        }
+
+        if (player == 0 && isKeys)
+        {
+            keyJacks.set (jack);
+            continue;
+        }
+
+        if (!m_slots[player].holder.has_value())
+        {
+            continue;
+        }
+
+        found = m_drivers.find (ControllerTokens::UnitToToken (m_slots[player].holder.value()));
+
+        if (found != m_drivers.end() && found->second.logical.has_value())
+        {
+            jacks.jack[jack] = found->second.logical->switches;
+            isRead           = true;
+        }
     }
 
-    merged.jacks = jacks;
+    if (isRead || (keyJacks.any() && !keyJacks.all()))
+    {
+        merged.jacks    = jacks;
+        merged.keyJacks = keyJacks;
+    }
 }
 
 

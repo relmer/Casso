@@ -104,6 +104,26 @@ public:
     }
 
 
+    TEST_METHOD (AltF4IsLeftForWindowsToCloseTheWindow)
+    {
+        constexpr LPARAM            kAltContext = 0x20000000;
+        std::unique_ptr<TestShell>  shell       = std::make_unique<TestShell>();
+        IDxuiHostClient *           host        = shell.get();
+        Recorder                    rec;
+
+
+
+        shell->SetKeyOwnerFn (MakeResolver (rec));
+
+        Assert::IsTrue (host->OnKeyDown (VK_F4, kAltContext) == DxuiMessageResult::NotHandled,
+                        L"Alt+F4 must reach DefWindowProc so it becomes SC_CLOSE");
+        Assert::AreEqual (0, rec.calls, L"Alt+F4 must not be offered to the guest or the chrome");
+
+        // Plain F4 is still an ordinary key.
+        Assert::IsTrue (host->OnKeyDown (VK_F4, 0) == DxuiMessageResult::Handled);
+    }
+
+
     TEST_METHOD (AChromeOwnedKeyArmsTheSwallow_AGuestKeyDoesNot)
     {
         std::unique_ptr<TestShell>  shell = std::make_unique<TestShell>();

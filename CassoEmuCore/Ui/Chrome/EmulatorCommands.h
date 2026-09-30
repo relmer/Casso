@@ -71,22 +71,19 @@ public:
     using CheckFn    = std::function<bool (WORD commandId)>;
     using LabelFn    = std::function<std::wstring (WORD commandId)>;
 
-    // Raised when the user picks a row of the paddle-source list.
-    using PaddleSourcePickedFn = std::function<void (const InputModeRules::PaddleSource &)>;
+    // Raised when the user picks an entry in a player's submenu.
+    using PlayerPickedFn = std::function<void (size_t player, const PlayerEntry & entry)>;
 
-    // Raised when the user picks a profile for one controller. Empty for Default.
+    // Raised when the user picks a mode in a player's submenu.
+    using PlayerModeFn = std::function<void (size_t player, PlayerMode mode)>;
+
+    // Raised when the user picks a profile for one controller. Empty for the
+    // mode's built-in profile.
     using ProfilePickedFn = std::function<void (const ControllerUnitKey & unit, const std::string & profileName)>;
 
-    // One controller's part of the Profiles submenu: its model's profiles,
-    // its own active one, and the header over them -- empty when it is the
-    // only controller listed, where a title would say nothing.
-    struct ProfileSection
-    {
-        ControllerUnitKey         unit;
-        std::wstring              header;
-        std::vector<std::string>  names;
-        std::string               active;
-    };
+    // Raised by New... in a profile section, for the controller the section
+    // is under.
+    using NewProfileFn = std::function<void (const ControllerUnitKey & unit)>;
 
     // Ids for the toolbar entries that are not menu commands. Menu command
     // ids start at 40001, so nothing collides.
@@ -97,6 +94,11 @@ public:
     static constexpr int  kIdMouse   = 6;
 
     static constexpr int  kMenuCount = 7;
+
+    // Widest the paddle picker's label is drawn on the strip. The label moves
+    // with what is playing, and every entry to its right moves with it, so it
+    // is capped (FR-008b).
+    static constexpr float  kPickerLabelMaxDip = 120.0f;
 
     EmulatorCommands ();
 
@@ -143,13 +145,17 @@ public:
     std::vector<DxuiPopupMenuItem>  GetThemeItems   () const;
     std::vector<DxuiPopupMenuItem>  GetMonitorItems () const;
 
-    // What drives the paddle axes: every attached controller, then the keys
-    // and the mouse, exactly one checked (FR-008). The rows are rebuilt only
-    // by the setter, so a surface holding the previous list must be handed
-    // GetPaddleSourceItems() again. A menu still on screen with the previous
-    // list keeps those rows alive through its items.
-    void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
-    void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
+    // What drives the paddle axes: a row for each player, each opening a
+    // submenu of that player's entries with a profile section at its foot
+    // (FR-008, FR-028). The rows are rebuilt only by the setter, so a surface
+    // holding the previous list must be handed GetPaddlePickerItems() again.
+    // A menu still on screen with the previous list keeps those rows alive
+    // through its items.
+    void  SetPicker          (const InputModeRules::Picker & picker);
+    void  SetPlayerPickedFn  (PlayerPickedFn fn)            { m_onPlayerPicked  = std::move (fn); }
+    void  SetPlayerModeFn    (PlayerModeFn fn)              { m_onPlayerMode    = std::move (fn); }
+    void  SetProfilePickedFn (ProfilePickedFn fn)           { m_onProfilePicked = std::move (fn); }
+    void  SetNewProfileFn    (NewProfileFn fn)              { m_onNewProfile    = std::move (fn); }
 
     // Mouse mode: a plain toggle on the strip, because it toggles one thing.
     // It is NOT in the paddle-source picker: it drives the //c's IOU mouse,
@@ -160,35 +166,15 @@ public:
                            std::function<bool()> isOffered,
                            std::function<void()> toggle);
 
-    // The Sirius Joyport: a checkable row in the paddle picker, in a group of
-    // its own below Multiplayer and above Profiles. It is not a source -- it
-    // sits on the game port whichever source drives -- so it is not one of
-    // the rows only one of which is checked. Left out on a machine that
-    // cannot take one.
-    void  SetJoyportFns (std::function<bool()> isOn,
-                         std::function<bool()> isOffered,
-                         std::function<void()> toggle);
 
-    std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems        () const;
-    std::vector<DxuiPopupMenuItem>  GetPaddlePickerItems        () const;
-    std::wstring                    GetCheckedPaddleSourceLabel () const;
+    std::vector<DxuiPopupMenuItem>  GetPlayerItems       () const;
+    std::vector<DxuiPopupMenuItem>  GetPaddlePickerItems () const;
+    std::wstring                    GetPickerLabel       () const;
 
-    // Which drawing the picker wears: the checked source's own, and a gamepad
+    // Which drawing the picker wears: the driving source's own, and a gamepad
     // while nothing is driving -- what COULD go there is the useful answer,
     // and the disabled ink already says it is not there (FR-008b).
-    InputMonoGlyphKind              GetCheckedPaddleSourceGlyph () const;
-
-    // The Profiles submenu under the paddle picker: a section for each
-    // controller in play, each listing its model's profiles with Default
-    // first and its own active one checked (empty means Default; names match
-    // ignoring case), then New... With no sections the submenu is left out.
-    // Each row carries its controller and name by value, so a row from a list
-    // rebuilt since still picks what it says.
-    void  SetProfileSections (std::vector<ProfileSection> sections);
-    void  SetProfilePickedFn (ProfilePickedFn fn)          { m_onProfilePicked = std::move (fn); }
-    void  SetNewProfileFn    (std::function<void ()> fn)   { m_onNewProfile    = std::move (fn); }
-
-    std::vector<DxuiPopupMenuItem>  GetProfileItems () const;
+    InputMonoGlyphKind              GetPickerGlyph       () const;
 
     // Fills the toolbar: eleven entries in strip order, the LED as the printer
     // entry's decoration and
@@ -202,6 +188,13 @@ private:
     std::shared_ptr<DxuiCommand>  FindMutable          (int commandId);
     void                          RebuildActionTips    ();
 
+    std::vector<DxuiPopupMenuItem>  BuildPlayerSubmenu (size_t player, const InputModeRules::PlayerRow & row);
+    void                            AddModeChoices     (size_t                                                 player,
+                                                        const std::vector<InputModeRules::PlayerModeChoice>  & modes,
+                                                        std::vector<DxuiPopupMenuItem>                       & items);
+    void                            AddProfileSection  (const InputModeRules::PlayerProfileSection & section,
+                                                        std::vector<DxuiPopupMenuItem>             & items);
+
 
     DispatchFn  m_dispatch;
     CheckFn     m_isChecked;
@@ -213,22 +206,17 @@ private:
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>  m_themeRows;
     std::vector<std::shared_ptr<DxuiCommand>>  m_colorRows;
-    std::vector<std::shared_ptr<DxuiCommand>>  m_paddleSourceRows;
 
-    std::vector<InputModeRules::PaddleSource>  m_paddleSources;
-    PaddleSourcePickedFn                       m_onPaddleSourcePicked;
+    // The picker as last set, and the player rows built from it, each a
+    // submenu of its player's entries and profiles.
+    InputModeRules::Picker                     m_picker;
+    std::vector<DxuiPopupMenuItem>             m_playerItems;
+    PlayerPickedFn                             m_onPlayerPicked;
+    PlayerModeFn                               m_onPlayerMode;
 
-    std::shared_ptr<DxuiCommand>               m_joyportRow;
-    std::function<bool()>                      m_isJoyportOffered;
 
-    // The Profiles submenu: its rows as built from the sections, the row that
-    // opens it, and its New... row.
-    std::vector<ProfileSection>                m_profileSections;
-    std::vector<DxuiPopupMenuItem>             m_profileItems;
-    std::shared_ptr<DxuiCommand>               m_profilesRow;
-    std::shared_ptr<DxuiCommand>               m_newProfileRow;
     ProfilePickedFn                            m_onProfilePicked;
-    std::function<void ()>                     m_onNewProfile;
+    NewProfileFn                               m_onNewProfile;
 
     std::wstring  m_machineName;
     int           m_themeIndex = -1;

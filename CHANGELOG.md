@@ -8,10 +8,55 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-09-29: The one where controllers Just Work™
+
+### Added
+
+- GH #156: Controllers are assigned to Player 1 and Player 2 automatically, in
+  the order they are connected or first used. If a player's controller
+  disconnects, their place is kept for it until it reconnects, and a notice
+  shows which controller each player has. A controller can still be assigned
+  by hand.
+- GH #156: Each player's controller has a mode: Joystick, Joyport left,
+  Joyport right, Paddle or Two paddles. Player 2's controller works the same
+  way as Player 1's unless set otherwise, and with Player 1 on one Joyport
+  jack, Player 2 takes the other.
+- GH #156: In Two paddles mode, one controller works as two paddles: its
+  sticks or D-pad, or on a joystick like the VKBsim Gladiator, the stick and
+  the throttle.
+- GH #156: A throttle or slider on a controller, joystick or flight stick works
+  like a real paddle's knob, staying where it is left.
+- GH #156: Profiles are saved per input mode, so each controller keeps its own
+  joystick, paddle and Joyport profiles, and switching modes no longer means
+  remapping. Built-in Default, Paddles and Joyport profiles are included. The
+  built-in Joyport profile maps every stick, the D-pad and the fire buttons,
+  so the controller Just Works™ the way you'd expect.
+- GH #156: The Controllers page has opinions about your fire buttons. Try one.
+  Trust us.
+
+### Changed
+
+- GH #156: Two players no longer need the Multiplayer checkbox, which is gone:
+  Player 1 and Player 2 are at the top of the Controllers page, and a second
+  player plays as soon as Player 2 has a controller. The Joyport turns on when
+  a player picks one of its jacks.
+- GH #156: The Settings window can be resized, and remembers its size.
+- GH #156: The Controllers page puts each input's mapping on the left and its
+  live view on the right. An input with more than four controls mapped to it
+  scrolls.
+- GH #156: Paddle speed is offered only in paddle profiles, and is faster by
+  default. Joysticks always play position.
+- GH #156: Notices stack instead of replacing each other.
+
 ### Fixed
 
 - Changes to the Windows animation, menu delay, keyboard cue, and mouse-wheel
   settings now take effect in a running Casso instead of at its next start.
+- Alt+F4 now closes Casso's main window.
+- GH #156: The Controllers page no longer misses quick button presses, and its
+  stick and paddle views keep up with the controller.
+- GH #156: Unplugging the controller being edited keeps its edits and turns its
+  settings off until it's plugged back in.
 
 ## [1.28.1] - 2026-09-27: The one with less crashing
 

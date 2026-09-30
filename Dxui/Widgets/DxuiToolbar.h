@@ -253,6 +253,7 @@ private:
     static bool          IsPointInRect  (const RECT & rc, int x, int y);
     static std::wstring  GetButtonText  (const DxuiCommand & cmd);
 
+    std::wstring  GetFittedButtonText  (const DxuiCommand & cmd, IDxuiTextRenderer * text, float fontPx) const;
     const Slot *  FindSlot             (int commandId) const;
     Slot       *  FindSlot             (int commandId);
     int           MeasureLabelPx       (const wchar_t * text, float fontPx) const;

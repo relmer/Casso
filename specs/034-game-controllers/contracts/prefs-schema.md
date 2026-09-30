@@ -13,8 +13,9 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
       "xinput:045e:0b13": {
         "deadzone": 0.24,
         "profiles": [
-          { "name": "Default", "default": true, "mapping": { "...": "..." } },
-          { "name": "Lode Runner (D-pad)", "mapping": { "...": "..." } }
+          { "name": "Default", "default": true, "profileMode": "joystick", "mapping": { "...": "..." } },
+          { "name": "Paddles", "paddles": true, "profileMode": "paddle", "mapping": { "...": "..." } },
+          { "name": "Lode Runner (D-pad)", "profileMode": "joystick", "mapping": { "...": "..." } }
         ]
       }
     },
@@ -27,12 +28,33 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
     "activeProfiles": {
       "xinput/product:045e:02e0":   "Lode Runner (D-pad)",
       "xinput/product:045e:02e0:2": ""
-    }
+    },
+    "paddleActiveProfiles": {
+      "xinput/product:045e:02e0":   "Breakout (triggers)"
+    },
+    "joyportActiveProfiles": {}
+  }
   }
 }
 ```
 
 `activeProfiles` maps a unit token to the name of that controller's active profile, one of its model's profiles. An empty name is the Default, the same as no entry. An entry is kept even when it names the Default, since its presence is what stops a legacy `controllerProfile` from being moved onto that controller again (below).
+
+### Profile kinds (2026-09-27)
+
+Profiles have three kinds, Joystick, Paddle and Joyport (FR-043, spec 036 FR-020), and each controller has a chosen profile per kind:
+
+| Key | Value | Rules |
+|---|---|---|
+| `profiles[n].profileMode` | `joystick`, `paddle` or `joyport` | Written for every profile. Absent (a file written before this change): a profile with the `joyport` flag stays Joyport; otherwise one whose mapping binds `pdl0` and not `pdl1` is Paddle, else Joystick. An unrecognized value is classified the same way, and the profile is kept. A built-in profile takes its kind's mode whatever the file holds |
+| `profiles[n].paddles` | `true` | Marks the built-in Paddles profile, as `default` marks Default and `joyport` marks Joyport. A user profile with the name Paddles in a file written before this change is read as the built-in one |
+| `activeProfiles` | Unit token to Joystick profile name | The key kept from before; empty name or no entry = Default |
+| `paddleActiveProfiles` | Unit token to Paddle profile name | Empty name or no entry = Paddles |
+| `joyportActiveProfiles` | Unit token to Joyport profile name | Empty name or no entry = Joyport |
+
+On read, an `activeProfiles` entry whose profile is now a Paddle profile (the built-in Paddles, or a user profile classified Paddle) moves to `paddleActiveProfiles`, unless that controller already has an entry there; either way it leaves `activeProfiles`. The rules below for `activeProfiles` apply to all three maps.
+
+(Superseded 2026-09-27: profiles had two modes, normal and Joyport, with Paddles as a normal-mode starting point and one `activeProfiles` map for normal mode.)
 
 ### Mapping object
 
@@ -66,7 +88,51 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
 | An `activeProfiles` entry whose key is not a unit token, or whose value is not a string | Entry dropped and reported; that controller uses Default |
 | An `activeProfiles` name its model has no profile of | Kept; the controller uses Default until a profile of that name exists |
 
+### Players and last holders (2026-09-27)
+
+Two keys join the `controllers` section (research R19, R21):
+
+```json
+"controllers": {
+  "players": [
+    { "entry": "controller", "controller": "xinput/product:045e:0b13", "mode": "joystick" },
+    { "entry": "automatic", "mode": "paddle" }
+  ],
+  "lastHolders": [ "xinput/product:045e:0b13", "dinput:231d:0121/guid:{01661270}" ]
+}
+```
+
+| Key | Value | Rules |
+|---|---|---|
+| `players` | Array of exactly two objects, Player 1 then Player 2 | Absent = the one-time adoption has not run (below). Written in full whenever an entry or a mode changes |
+| `players[n].entry` | `automatic`, `controller`, `keys`, `mouse` or `disabled` | `keys` and `mouse` valid for Player 1 only, `disabled` for Player 2 only; an invalid or unknown value reads as `automatic` and is reported once |
+| `players[n].controller` | Unit token | Required for `controller`; an unreadable token reads as `automatic` and is reported |
+| `players[n].mode` | `joystick`, `joyportLeft`, `joyportRight`, `paddle`, `twoPaddles` (2026-09-28), or for Player 2 `sameAsPlayer1` | The player's mode (FR-037, FR-039). An unrecognized value reads as `joystick`; a Player 2 with no `mode` key reads as `sameAsPlayer1`, and a Player 1 with none as `joystick`; except that a legacy `maps` (below) is read in its place; `sameAsPlayer1` on Player 1 reads as `joystick`. A mode that puts both players on one jack is normalized: Player 2 returns to `sameAsPlayer1`. (Superseded 2026-09-28: `joystick` or `paddle`, absent reading as `joystick` for both players.) |
+| `players[n].maps` | Target token as in the per-machine block below | (Superseded 2026-09-27: no longer written.) Read only when `mode` is absent: a single paddle (`paddle0`-`paddle3`) reads as Paddle mode, anything else as Joystick. It was: absent = follow the active profile (FR-043), kept for paddles the machine lacks (FR-035) |
+| `lastHolders` | Array of two unit tokens or `null` | Only for the notice rule (FR-044); an unreadable entry reads as `null`, which means the next Automatic assignment to that slot shows a notice |
+
+- Both entries picking one controller are normalized on load: Player 2's entry becomes `automatic` (FR-036). (Superseded 2026-09-27: two overlapping user-set targets no longer exist, since the modes place the players.)
+- Entries are also normalized for their mode: Player 1's `keys` plays in Joystick mode and `mouse` in Paddle mode. (2026-09-28, later: `mouse` keeps `twoPaddles` and otherwise plays in Paddle mode; `keys` leaves `paddle` and `twoPaddles` for Joystick.) (2026-09-28: `keys` plays in Joystick or a Joyport mode.)
+- (2026-09-28) Migration from the Joyport setting: at launch, a global `gamePortAdapter` of `siriusJoyport`, or where it is absent the launched machine's `$cassoUiPrefs.gamePortAdapter` of `siriusJoyport`, sets Player 1's `mode` to `joyportLeft` and Player 2's to `sameAsPlayer1`. It runs only while no player has a saved `mode`, since the saved modes mark it done; the global key is then removed from the global prefs, and each machine's `$cassoUiPrefs.gamePortAdapter` is left for older builds (spec 036 FR-002).
+- `players` never holds what Automatic chose; that lives only in `lastHolders` and never assigns a controller (FR-011).
+
+### One-time adoption from the launched machine
+
+Runs at launch when `controllers.players` is absent, reading the launched machine's `$cassoUiPrefs` block, then writes `players` and `lastHolders` so it never runs again:
+
+| Machine key | Becomes |
+|---|---|
+| `arrowsToJoystick: true` | Player 1 `keys` |
+| `pointerMapping: "paddle"` | Player 1 `mouse`, unless `arrowsToJoystick` already gave Player 1 the keys |
+| `controller` | Player 1's entry in `lastHolders` only; Player 1 stays `automatic` (unless it has the keys or the mouse) |
+| `multiplayer` with `enabled: true` | Each filled slot becomes that player's `controller` entry, and its `maps` its mode (a single paddle is Paddle); Player 1's slot outranks the three rows above |
+| anything else, or nothing | `automatic`; Player 2 is `automatic` when the block is absent or not enabled |
+
+`lastHolders` starts as two `null`s, apart from Player 1's adopted `controller` above, and fills as slots are held, by a pick as much as by Automatic (FR-044). Other machines' `controller`, `multiplayer`, `arrowsToJoystick` and paddle `pointerMapping` values are ignored from then on and left in their files, so an older build keeps reading its own keys.
+
 ## Per machine: `$cassoUiPrefs` block
+
+**Superseded for selection (2026-09-27)**: this build writes neither `controller` nor `multiplayer`, and reads them only for the one-time adoption above and for the `controllerProfile` move (FR-029), which still keys on the machine's `controller`. A `pointerMapping` of `mouse`, the //c IOU mouse, stays per machine. The rest of this section is the schema older builds write.
 
 Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside `arrowsToJoystick` and `pointerMapping`.
 
@@ -86,7 +152,7 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 }
 ```
 
-- A selection is written as the unit token: `dinput:044f:b10a/guid:{8E8A...}` for DirectInput and `xinput/product:<vvvv>:<pppp>` for XInput, with `:<n>` from 2 up for a second controller of one product. A file written before product keys holds `xinput/slot:<n>`, where `<n>` is 0-3; it still loads, and a player slot holding one is moved onto the product key of the controller in that slot and saved. The MODEL token stays `xinput` (FR-018a), so profiles and deadzone are unaffected. A file holding a bare `xinput`, which is what every file written before this shipped holds, still loads: it reads as an Xbox-class controller with no slot and matches whichever one is connected.
+- A selection is written as the unit token: `dinput:044f:b10a/guid:{8E8A...}` for DirectInput and `xinput/product:<vvvv>:<pppp>` for XInput, with `:<n>` from 2 up for a second controller of one product. A file written before product keys holds `xinput/slot:<n>`, where `<n>` is 0-3; it still loads, and a player slot holding one is moved onto the product key of the controller in that slot and saved. The MODEL token stays `xinput` (FR-018a), so profiles and dead zone are unaffected. A file holding a bare `xinput`, which is what every file written before this shipped holds, still loads: it reads as an Xbox-class controller with no slot and matches whichever one is connected.
 - `maps` is one of `joystick0` (PDL0/PDL1), `joystick1` (PDL2/PDL3), `paddle0`, `paddle1`, `paddle2`, `paddle3`. An unknown token reads as `joystick0`, which every machine with a game port can play.
 - The block is always written, with both slots and with `enabled` false when the mode is off, because the block is spliced key by key and an omitted key would leave a setup the user turned off in the file. Absent and `"enabled": false` read the same.
 - An absent block is the default: a machine with only `controller` saved behaves exactly as before (FR-037, FR-038).
@@ -103,3 +169,5 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 - Round-trip of every field through `InMemoryFileSystem`.
 - Each rule in the table above, including that a rejected entry is reported rather than silently replaced.
 - Profile lookup by model token and name, the interface GH #78 will use.
+- (2026-09-27) `players` and `lastHolders` round trip; each invalid value in the players table reads as documented and is reported; a repeated controller is normalized; `mode` round trips and a legacy `maps` reads as the mode; `profileMode`, `paddles` and the three active-profile maps round trip; a profile without `profileMode` is classified as above; a Joystick choice of a Paddle profile moves to `paddleActiveProfiles` unless one is there; every row of the adoption table, including that adoption runs once and that other machines' keys are left in their files.
+- (2026-09-28) Every `mode` token round trips; a Player 2 with no `mode` reads `sameAsPlayer1`; both players on one jack is normalized; the migration's three cases (global `siriusJoyport`, absent global with a machine's `siriusJoyport`, global `none`), that it runs only while no `mode` is saved, and that the global key is removed.

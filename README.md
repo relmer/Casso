@@ -78,56 +78,44 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
-<a id="v1-28"></a>
-### [2026-09-25 · 1.28] Sirius Joyport
+<a id="v1-29"></a>
+### [2026-09-29 · 1.29] Controllers Just Work™
 
-Casso now emulates the Sirius Joyport, which let Apple ][, ][+ and //e games
-read Atari 2600 joysticks. Turn it on from the controller picker or the
-Machine tab in Settings, and your controller's stick and fire button drive the
-Joyport, with each player on their own jack in multiplayer. While it's on, the
-Controllers page draws an Atari joystick and lights each direction and the
-fire button as you press them.
+Setting up controllers is now much simpler. Controllers are assigned to Player
+1 and Player 2 automatically, in the order you connect them or the order you
+first use them. Player 2's controller works the same way as Player 1's unless
+you pick otherwise: as a joystick, one or two paddles, or an Atari joystick on
+the other jack of the Sirius Joyport. In Joyport mode, every stick, D-pad and
+fire button on the controller is mapped for you, so two Xbox controllers can
+play a two-player Joyport game with no setup at all.
 
-<p align="center"><img src="Assets/joyport-settings.png" alt="The Controllers page in Settings with the Sirius Joyport on: a VKB Gladiator's X and Y axes on the Joyport's left/right and up/down and a button on fire, beside a top-down drawing of an Atari joystick with its right marker lit and the stick leaning right" width="540" /></p>
+Profiles are now saved per input mode, so each controller keeps its own
+joystick, paddle and Joyport setups, and switching between them no longer means
+remapping. One controller's sticks or D-pad can work as separate paddles if you
+like, and controllers, joysticks and flight sticks with a throttle or slider now
+work like a real paddle's knob. The Controllers page also shows more responsive
+views of sticks, paddles and buttons, and we may have snuck in an amusing
+surprise or two there too.
 
-<a id="v1-27"></a>
-### [2026-09-24 · 1.27] Separate controller profiles for each player
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="50%" align="center"><img src="Assets/controllers-1-29-twopaddles.png" alt="The Controllers page in Settings with one Xbox One S controller in Two paddles mode: its left stick X on PDL0 and right stick X on PDL1, each with a Paddle speed slider at 768/s and a live bar beside it at 206 and 76, with the A and B buttons on PB0 and PB1" width="100%" /><br /><sub>Two paddles on one controller</sub></td>
+  <td valign="top" width="50%" align="center"><img src="Assets/controllers-1-29-multiplayer.png" alt="The Controllers page in Settings for two players, both on Automatic: the Xbox Series X|S controller for Player 1 in Joystick mode and the Xbox One S controller for Player 2, whose mode follows Player 1 as Automatic (joystick), with the Series X|S left stick on PDL0 and PDL1 and its live stick readout off center" width="100%" /><br /><sub>Two players, assigned automatically</sub></td>
+</tr>
+</table>
 
-Each controller can now have its own profile, chosen from the Profiles menu on
-the Controllers drop-down, so in multiplayer each player can use the mapping
-that suits them.
-
-<p align="center"><img src="Assets/controllers-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: the Profiles submenu lists each player's Xbox controller under its own header, with Default checked for Player 1, Inverted checked for Player 2, and New... at the bottom" width="700" /></p>
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="41%" align="center"><img src="Assets/controllers-1-29-joyport.png" alt="The Controllers page in Settings with the Sirius Joyport: Player 1 on Automatic with the Xbox Series X|S controller on the left jack, and Player 2 on Automatic with the Xbox One S controller, which resolves to the right jack. The left stick, right stick and D-pad all drive left/right and up/down, a scrolling list of buttons and triggers fires, and a top-down drawing of an Atari joystick lights its right marker" width="100%" /><br /><sub>Two players on the Joyport</sub></td>
+  <td valign="top" width="59%" align="center"><img src="Assets/controllers-1-29-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: a submenu for each player, and Player 1's submenu open under three headings, Controller with Automatic, the Xbox Series X|S controller, the Xbox One S controller checked and keys as a joystick, Mode with Joystick checked above the two Joyport jacks, Paddle and Two paddles, and Profile with Default checked and New... at the bottom" width="100%" /><br /><sub>Controller, mode and profile on the toolbar</sub></td>
+</tr>
+</table>
 
 <a id="v1-26"></a>
 ### [2026-09-19 · 1.26] A real installer
 
 Casso installs from an MSIX package, which adds it to Start and puts `casso`
 and `cassocli` on PATH.
-
-<a id="v1-25"></a>
-### [2026-09-16 · 1.25] Game controllers and joysticks
-
-Game controllers can now be mapped to the Apple's game ports. Xbox controllers,
-gamepads, and joysticks appear in the controller picker, and selected devices
-are saved per machine. A new Controllers page in Settings provides full
-customization of mapping controller inputs to the Apple's game inputs, as well
-as dead zone and calibration. These customizations can be stored in profiles so
-that custom mappings best suited to specific games are just a click away. The
-existing option of mapping keyboard or mouse to joystick/paddle inputs is still
-available.
-
-Multiplayer mode supports two controllers at once, each mapped to a joystick or
-to separate paddles, with each player getting one button input. Note that the
-physical Apple //c hardware only supports two paddle inputs, so it can support
-multiplayer with paddles but only a single player with a joystick.
-
-<table align="center" width="100%">
-<tr>
-  <td valign="top" width="50%" align="center"><img src="Assets/controllers-single.png" alt="The Controllers page in Settings for one player: a VKB Gladiator joystick with its X and Y axes on PDL0 and PDL1, two buttons on PB0 and PB1, a live stick readout, the deadzone slider and automatic calibration" width="100%" /><br /><sub>One player</sub></td>
-  <td valign="top" width="50%" align="center"><img src="Assets/controllers-multiplayer.png" alt="The Controllers page in Settings for two players: an Xbox One S controller on joystick 0 and an Xbox Series X|S controller on joystick 1, with the first player's stick mapped to PDL0 and PDL1 and the A button on PB0" width="100%" /><br /><sub>Multiplayer</sub></td>
-</tr>
-</table>
 
 <a id="v1-23"></a>
 ### [2026-09-06 · 1.23] It finds its voice
@@ -203,6 +191,9 @@ Each links to its full write-up in [docs/WhatsNew.md](docs/WhatsNew.md).
 
 | Date | Release | Highlights |
 |---|---|---|
+| 2026-09-25 | [1.28](docs/WhatsNew.md#v1-28) | Sirius Joyport |
+| 2026-09-24 | [1.27](docs/WhatsNew.md#v1-27) | Separate controller profiles for each player |
+| 2026-09-16 | [1.25](docs/WhatsNew.md#v1-25) | Game controllers and joysticks |
 | 2026-09-10 | [1.24](docs/WhatsNew.md#v1-24) | The //e's own character ROM, Applesoft round-trip fixes, and a faster //c startup |
 | 2026-08-31 | [1.22](docs/WhatsNew.md#v1-22) | Nibble images (`.nib`, `.nb2`), and disk decoding up to 100x faster |
 | 2026-08-29 | [1.21](docs/WhatsNew.md#v1-21) | A real-time 3D desk scene: period monitors and drives modeled in CAD, lit and shadowed |
@@ -432,11 +423,12 @@ timing-sensitive arrow input behaves the way it did on real hardware. An Input
 Debug panel (**Ctrl+Shift+I**) logs host → guest key events, the `$C000`/`$C010`
 strobe, Open/Closed-Apple state, and synthesized paddle reads.
 
-Physical game controllers — Xbox controllers, gamepads, and joysticks — map onto
-the same paddle and button inputs, configured on the **Controllers** page in
-Settings with per-game profiles, and a multiplayer mode puts two controllers on
-the game port at once. A Sirius Joyport can be attached to the ][, ][+ or //e,
-putting a controller on the Atari joystick switches that Joyport games read.
+Physical game controllers (Xbox controllers, gamepads, joysticks and flight
+sticks) can drive the Apple's paddles and buttons too. Controllers are assigned
+to Player 1 and Player 2 automatically, and each works as a joystick, one or two
+paddles, or an Atari joystick on either jack of a Sirius Joyport on the ][, ][+
+or //e, with profiles for each configured on the **Controllers** page in
+Settings.
 
 ### Assembler and CLI
 

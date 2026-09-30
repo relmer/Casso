@@ -457,6 +457,32 @@ void DxuiPainter::SetClipRect (const RECT * clipPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetClipRect
+//
+//  The clip in the coordinates SetClipRect was given, the origin taken back
+//  off, so a caller can set it again as it found it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPainter::GetClipRect (RECT & clipPx) const
+{
+    if (m_hasClip)
+    {
+        clipPx.left   = m_clipPx.left   - (LONG) m_originXPx;
+        clipPx.top    = m_clipPx.top    - (LONG) m_originYPx;
+        clipPx.right  = m_clipPx.right  - (LONG) m_originXPx;
+        clipPx.bottom = m_clipPx.bottom - (LONG) m_originYPx;
+    }
+
+    return m_hasClip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NdcFromPixel
 //
 ////////////////////////////////////////////////////////////////////////////////
