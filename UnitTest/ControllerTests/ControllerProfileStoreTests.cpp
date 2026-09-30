@@ -664,35 +664,44 @@ namespace ControllerTests
         // One profile object as ToJson wrote it, or null.
         static const JsonValue * FindWrittenProfile (const JsonValue & written, const std::string & token, const std::string & name)
         {
+            HRESULT            hr       = S_OK;
             const JsonValue *  models   = nullptr;
             const JsonValue *  model    = nullptr;
             const JsonValue *  profiles = nullptr;
+            const JsonValue *  profile  = nullptr;
+            bool               hasKey   = false;
             std::string        found;
 
-            if (!written.HasObject ("models", models) || models == nullptr)
-            {
-                return nullptr;
-            }
 
-            if (!models->HasObject (token, model) || model == nullptr)
-            {
-                return nullptr;
-            }
 
-            if (!model->HasArray ("profiles", profiles) || profiles == nullptr)
-            {
-                return nullptr;
-            }
+            // Each null test stands on its own: joined to its lookup, it is one
+            // the build server's code analysis does not carry to the
+            // dereference that follows.
+            hasKey = written.HasObject ("models", models);
+            CBR (hasKey);
+            CBR (models != nullptr);
+
+            hasKey = models->HasObject (token, model);
+            CBR (hasKey);
+            CBR (model != nullptr);
+
+            hasKey = model->HasArray ("profiles", profiles);
+            CBR (hasKey);
+            CBR (profiles != nullptr);
 
             for (size_t i = 0; i < profiles->GetArraySize(); i++)
             {
-                if (profiles->GetArrayElement (i).HasString ("name", found) && found == name)
+                if (!profiles->GetArrayElement (i).HasString ("name", found) || found != name)
                 {
-                    return &profiles->GetArrayElement (i);
+                    continue;
                 }
+
+                profile = &profiles->GetArrayElement (i);
+                break;
             }
 
-            return nullptr;
+        Error:
+            return profile;
         }
 
 
