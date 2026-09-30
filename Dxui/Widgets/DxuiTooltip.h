@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Theme/IDxuiTheme.h"
 
 
 class DxuiHwndSource;

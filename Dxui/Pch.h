@@ -49,12 +49,15 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../CassoCore/Ehm.h"
+#include "../Ehm/Ehm.h"
 
 #include "Core/DxuiThread.h"
 
+#ifndef DXUI_COMPTR_ALIAS_DEFINED
+#define DXUI_COMPTR_ALIAS_DEFINED
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
+#endif
 
 #include "Core/DxuiAnimation.h"
 #include "Core/DxuiDpiScaler.h"

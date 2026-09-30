@@ -1,9 +1,5 @@
 #include "Pch.h"
 
-#include "Window/DxuiPropertySheet.h"
-#include "Window/DxuiPropertyPage.h"
-#include "Window/DxuiButtonRow.h"
-#include "Core/DxuiDpiScaler.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

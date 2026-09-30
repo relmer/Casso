@@ -5,7 +5,6 @@
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
 
-#include "Widgets/DxuiScrollPanel.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -2,9 +2,6 @@
 
 #include "Ui/Settings/JoyportSwitchView.h"
 
-#include "Render/IDxuiPainter.h"
-#include "Theme/IDxuiTheme.h"
-
 
 
 

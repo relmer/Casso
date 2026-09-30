@@ -8,15 +8,6 @@
 #include "Ui/Settings/PaddleBarView.h"
 #include "Ui/Settings/ProfileDialogOverlay.h"
 
-#include "Window/DxuiPropertyPage.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiInfoBanner.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiScrollPanel.h"
-#include "Widgets/DxuiSlider.h"
-
 
 class DxuiHwndSource;
 

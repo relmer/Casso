@@ -2,10 +2,6 @@
 
 #include "Ui/Dialogs/SalvageDialogContent.h"
 
-#include "Render/IDxuiPainter.h"
-#include "Render/IDxuiTextRenderer.h"
-#include "Theme/IDxuiTheme.h"
-
 
 
 

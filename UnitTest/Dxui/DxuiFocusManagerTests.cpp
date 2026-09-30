@@ -2,8 +2,6 @@
 
 #include "MockDxuiControl.h"
 
-#include "Widgets/DxuiScrollPanel.h"
-#include "Window/DxuiPropertyPage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -9,8 +9,10 @@
 //  Dxui — public umbrella header.
 //
 //  This is the single public chokepoint for Dxui's system-header surface.
-//  Consumers include this header (typically from their own Pch.h) instead of
-//  pulling in DirectX / Direct2D / DirectWrite / DCOMP / WIC headers directly.
+//  Consumers include this header (typically from their own Pch.h) and no other
+//  Dxui header; scripts/CheckStyle.ps1 rejects a direct include from outside
+//  Dxui/. It brings the DirectX / Direct2D / DirectWrite / DCOMP / WIC headers
+//  the public headers use, so consumers need not include those either.
 //
 //  THREADING: Dxui is UI-thread-only. All public Dxui APIs must be called on
 //  the host window message-pump thread. The DXUI_ASSERT_UI_THREAD() macro
@@ -23,6 +25,14 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <d3d11.h>
+#include <d2d1_3.h>
+#include <d2d1helper.h>
+#include <dwrite_3.h>
+#include <dxgi1_3.h>
+#include <dcomp.h>
+#include <wincodec.h>
+#include <dwmapi.h>
 #include <ole2.h>
 #include <oleidl.h>
 
@@ -42,44 +52,6 @@
 #include <vector>
 
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DirectX / COM forward declarations.
-//
-//  These interfaces appear in the public Dxui headers ONLY as pointers
-//  (raw or `ComPtr<T>`, which stores a `T*`), never by value, as a base
-//  class, or with inline method calls. Forward declarations therefore
-//  satisfy the public surface, so consumers never parse the full
-//  d3d11 / d2d1 / dwrite / dxgi / dcomp header tree. Dxui's own
-//  translation units get the complete definitions via `Pch.h`.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct ID3D11Device;
-struct ID3D11DeviceContext;
-struct ID3D11RenderTargetView;
-struct ID3D11VertexShader;
-struct ID3D11PixelShader;
-struct ID3D11InputLayout;
-struct ID3D11Buffer;
-struct ID3D11BlendState;
-struct ID3D11RasterizerState;
-struct ID3D11DepthStencilState;
-struct ID2D1Factory1;
-struct ID2D1Device;
-struct ID2D1DeviceContext;
-struct ID2D1Bitmap;
-struct ID2D1Bitmap1;
-struct IDWriteFactory;
-struct IDWriteTextFormat;
-struct IDXGISurface;
-struct IDXGISwapChain1;
-struct IDCompositionDevice;
-struct IDCompositionTarget;
-struct IDCompositionVisual;
 
 
 
@@ -126,6 +98,11 @@ struct IDCompositionVisual;
 #include "Core/DxuiPanZoom.h"
 #include "Core/DxuiViewport.h"
 #include "Core/DxuiFocusManager.h"
+#include "Core/DxuiUnicodeSymbols.h"
+#include "Core/DxuiFrameRate.h"
+#include "Core/DxuiSystemSettings.h"
+#include "Core/DxuiTextElide.h"
+#include "Core/DxuiSlide.h"
 
 // ComPtr alias needed by Render/* headers below. Defined in the
 // umbrella so any consumer including Dxui.h (typically via their
@@ -141,9 +118,12 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Render/IDxuiTextRenderer.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
+#include "Render/Dxui3DRenderer.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
 #include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiColor.h"
+#include "Theme/DxuiTheme.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiComboBox.h"
@@ -162,6 +142,18 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiTreeView.h"
+#include "Widgets/DxuiScrollbar.h"
+#include "Widgets/DxuiScrollPanel.h"
+#include "Widgets/DxuiSurface.h"
+#include "Widgets/DxuiShadowedText.h"
+#include "Widgets/DxuiIconButton.h"
+#include "Widgets/DxuiWarningBadge.h"
+#include "Widgets/DxuiInfoBanner.h"
+#include "Widgets/DxuiTimedInfoBanner.h"
+#include "Widgets/DxuiActionBanner.h"
+#include "Widgets/DxuiNoticeStack.h"
+#include "Widgets/DxuiHudNotice.h"
+#include "Widgets/DxuiOrbitControl.h"
 #include "Window/DxuiDragDropTarget.h"
 #include "Window/DxuiDragRegion.h"
 #include "Window/DxuiCaptionBar.h"
@@ -173,3 +165,6 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Window/DxuiDialogWindow.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Window/DxuiPropertySheet.h"
+#include "Window/DxuiRenderTarget.h"
+#include "Window/DxuiButtonRow.h"
+#include "Window/DxuiMessageBox.h"

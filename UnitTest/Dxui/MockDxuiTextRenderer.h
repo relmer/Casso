@@ -106,6 +106,14 @@ public:
                                    float                glyphWidthDip,
                                    float                maxWidthDip);
 
+    HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
+                              int              srcWidthPx,
+                              int              srcHeightPx,
+                              float            destXDip,
+                              float            destYDip,
+                              float            destWidthDip,
+                              float            destHeightDip) override;
+
     HRESULT  DrawIconBitmap (const uint32_t * srcBgraPremul,
                              int              srcWidthPx,
                              int              srcHeightPx,

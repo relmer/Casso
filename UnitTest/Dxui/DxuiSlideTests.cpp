@@ -1,8 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiSlide.h"
-#include "Core/DxuiAnimation.h"
-#include "Widgets/DxuiPopupMenu.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

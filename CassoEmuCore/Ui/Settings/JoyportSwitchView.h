@@ -3,8 +3,6 @@
 #include "Pch.h"
 
 #include "Controllers/ControllerTypes.h"
-#include "Core/IDxuiControl.h"
-#include "Render/IDxuiTextRenderer.h"
 
 
 

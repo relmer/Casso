@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiSearchBox.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -5,8 +5,6 @@
 #include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/ControllersPageState.h"
 
-#include "Window/DxuiPropertySheet.h"
-
 #include "SettingsPanelState.h"
 #include "SettingsMachineCatalog.h"
 #include "SettingsDisplayCrtBridge.h"

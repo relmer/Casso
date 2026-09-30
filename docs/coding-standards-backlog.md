@@ -672,7 +672,7 @@ EHM macro**, which is 8 production files:
 | `CassoEmuCore/Ui/DriveWidgetController.cpp` | 161 |
 | `CassoEmuCore/Core/CpuFactory.cpp` | 44 |
 
-(`CassoCore/Ehm.cpp` also matches and is exempt, it implements the macros.)
+(`Ehm/Ehm.cpp` also matches and is exempt, it implements the macros.)
 
 Spot-checking three confirms the concern is real, and `DxuiDwm.cpp` shows why
 it matters: its only `HRESULT` mention is the comment *"Best-effort: ignore

@@ -1,9 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiNoticeStack.h"
-#include "Widgets/DxuiPopupMenu.h"
-#include "Core/DxuiAnimation.h"
-#include "Core/DxuiDpiScaler.h"
 #include "MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

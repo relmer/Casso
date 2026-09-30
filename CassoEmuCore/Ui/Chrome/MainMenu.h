@@ -46,12 +46,12 @@ public:
 
     void  Show           ();
     void  Dispatch       (WORD commandId) const     { m_commands.Dispatch (commandId); }
-    void  PaintStrip     (DxuiPainter             & painter,
-                          DxuiTextRenderer        & text,
+    void  PaintStrip     (IDxuiPainter            & painter,
+                          IDxuiTextRenderer       & text,
                           const ChromeVisualState & visual,
                           const CassoTheme       & theme);
-    void  PaintDropdown  (DxuiPainter             & painter,
-                          DxuiTextRenderer        & text,
+    void  PaintDropdown  (IDxuiPainter            & painter,
+                          IDxuiTextRenderer       & text,
                           const ChromeVisualState & visual,
                           const CassoTheme       & theme);
     void  Open           (MainMenuId menu, bool openedByKeyboard);

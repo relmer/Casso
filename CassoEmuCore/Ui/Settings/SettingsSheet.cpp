@@ -8,9 +8,6 @@
 #include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
-#include "Core/DxuiSystemSettings.h"
-#include "Widgets/DxuiLabel.h"
-#include "Window/DxuiButtonRow.h"
 #include "resource.h"
 
 

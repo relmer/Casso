@@ -219,6 +219,18 @@ public:
         return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
     }
 
+    // Blit an opaque BGRA8 frame (e.g. an emulator framebuffer) scaled into
+    // the destination rect. Implementations keep the frame in its own cached
+    // GPU bitmap, separate from the icon cache, and re-upload the pixels on
+    // every call.
+    virtual HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
+                                      int              srcWidthPx,
+                                      int              srcHeightPx,
+                                      float            destXDip,
+                                      float            destYDip,
+                                      float            destWidthDip,
+                                      float            destHeightDip)           = 0;
+
     // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested
     // from an HICON) into the target. Implementations cache the source
     // pixels in a GPU bitmap; callers should keep the buffer stable
@@ -277,6 +289,11 @@ public:
         outWidthDip  = 0.0f;
         outHeightDip = 0.0f;
         return E_NOTIMPL;
+    }
+
+    HRESULT  DrawFramebuffer (const uint32_t *, int, int, float, float, float, float) override
+    {
+        return S_OK;
     }
 
     HRESULT  DrawIconBitmap (const uint32_t *, int, int, float, float, float, float) override

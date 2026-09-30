@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
 
 
@@ -68,20 +69,8 @@ public:
     float                GetFontSizeDip () const { return m_fontDip; }
     DxuiTextHAlign       GetHAlign      () const { return m_hAlign; }
 
-    //
-    //  Legacy theme-less paint. Draws with the pinned explicit color
-    //  (SetColor) -- role resolution needs a theme, so consumers that
-    //  use this overload must set an explicit color. Kept for pre-role
-    //  call sites; the tree paints through the theme overload below.
-    //
-    //  A label that never pinned a color has nothing but the fallback
-    //  white here, which is why this overload is the wrong one to reach
-    //  for: pass the theme and the label follows it.
-    //
-    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
-    {
-        DrawResolved (painter, text, m_argb, (m_fontDip > 0.0f) ? m_fontDip : s_kFallbackFontDip);
-    }
+    // Legacy theme-less paint; draws with the color pinned by SetColor.
+    void  Paint (IDxuiTextRenderer & text) const;
 
     //
     //  IDxuiControl overrides — additive shims so DxuiLabel slots
@@ -94,43 +83,14 @@ public:
         m_scaler.SetDpi (scaler.GetDpi());
     }
 
-    //
-    //  Themed paint. Resolves the color from the semantic role (unless an
-    //  explicit color was pinned) and the font size from the theme's body
-    //  font when left at the sentinel -- so a plain label carries no color
-    //  or size of its own and tracks the active theme automatically.
-    //
-    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
-    {
-        uint32_t  argb = m_useThemeRole ? (uint32_t) theme.TextColor (m_role) : m_argb;
-        float     dip  = (m_fontDip > 0.0f) ? m_fontDip : theme.BodyFont().sizeDip;
-
-        DrawResolved (painter, text, argb, dip);
-    }
+    // Themed paint; resolves color and font size from the theme.
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
-    void  DrawResolved (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t argb, float fontDip) const
-    {
-        HRESULT  hr = S_OK;
-
-        UNREFERENCED_PARAMETER (painter);
-
-        hr = text.DrawString (m_text.c_str(),
-                              (float) m_boundsDip.left,
-                              (float) m_boundsDip.top,
-                              (float) (m_boundsDip.right  - m_boundsDip.left),
-                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                              argb,
-                              m_scaler.ToPxf (fontDip),
-                              m_fontFace.c_str(),
-                              m_hAlign,
-                              m_vAlign,
-                              m_weight);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    void  DrawResolved (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
 
 
     static constexpr float  s_kFallbackFontDip = 13.0f;

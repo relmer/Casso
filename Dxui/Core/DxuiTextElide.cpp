@@ -2,7 +2,7 @@
 
 #include "Core/DxuiTextElide.h"
 
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 #include "Render/IDxuiTextRenderer.h"
 
 

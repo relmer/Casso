@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Render/IDxuiTextRenderer.h"
 #include "DxuiScrollbar.h"
 
 

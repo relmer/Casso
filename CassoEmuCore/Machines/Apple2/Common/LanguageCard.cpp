@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/LanguageCard.h"
+#include "Core/DramPowerOnPattern.h"
 #include "Devices/IMmu.h"
 #include "Core/Prng.h"
 
@@ -342,9 +343,9 @@ void LanguageCard::SoftReset()
 //
 //  PowerCycle
 //
-//  FR-035 / audit §10: re-seed all six LC RAM banks (main bank1/bank2/
-//  high + aux bank1/bank2/high) from the shared Prng. SoftReset semantics
-//  are applied to the flag state.
+//  Refill all six LC RAM banks (main bank1/bank2/high + aux bank1/bank2/
+//  high) with the DRAM power-on pattern. SoftReset semantics are applied
+//  to the flag state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -352,12 +353,12 @@ void LanguageCard::PowerCycle (Prng & prng)
 {
     SoftReset();
 
-    prng.Fill (m_ramBank1Main.data(), m_ramBank1Main.size());
-    prng.Fill (m_ramBank2Main.data(), m_ramBank2Main.size());
-    prng.Fill (m_ramMainHigh.data  (), m_ramMainHigh.size  ());
-    prng.Fill (m_ramBank1Aux.data  (), m_ramBank1Aux.size  ());
-    prng.Fill (m_ramBank2Aux.data  (), m_ramBank2Aux.size  ());
-    prng.Fill (m_ramAuxHigh.data   (), m_ramAuxHigh.size   ());
+    DramPowerOnPattern::Fill (m_ramBank1Main.data(), m_ramBank1Main.size(), prng);
+    DramPowerOnPattern::Fill (m_ramBank2Main.data(), m_ramBank2Main.size(), prng);
+    DramPowerOnPattern::Fill (m_ramMainHigh.data(),  m_ramMainHigh.size(),  prng);
+    DramPowerOnPattern::Fill (m_ramBank1Aux.data(),  m_ramBank1Aux.size(),  prng);
+    DramPowerOnPattern::Fill (m_ramBank2Aux.data(),  m_ramBank2Aux.size(),  prng);
+    DramPowerOnPattern::Fill (m_ramAuxHigh.data(),   m_ramAuxHigh.size(),   prng);
 }
 
 
