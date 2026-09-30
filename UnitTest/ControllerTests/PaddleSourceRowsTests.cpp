@@ -463,7 +463,7 @@ namespace ControllerTests
             picker            = InputModeRules::BuildPicker (source);
 
             Assert::IsTrue   (picker.rows[1].profiles.has_value());
-            Assert::AreEqual (std::wstring (L"Xbox Controller (045e:0b13)"), picker.rows[1].profiles->header);
+            Assert::AreEqual (std::wstring (L"Profiles"),                    picker.rows[1].profiles->header);
             Assert::IsTrue   (picker.rows[1].profiles->unit == Pad (source));
             Assert::IsTrue   (picker.rows[1].profiles->names == std::vector<std::string> { "Default", "Paddles", "Swapped" });
             Assert::AreEqual (size_t (1), picker.rows[1].profiles->checked, L"the active profile, matched ignoring case");
@@ -627,22 +627,26 @@ namespace ControllerTests
             commands.SetPicker (MakeTwoPlaying (source));
             children = commands.GetPlayerItems()[1].children;
 
-            Assert::AreEqual (size_t (4 + 1 + 4 + 1 + 1 + 3 + 1), children.size(),
-                              L"four entries, a separator, four modes, a separator, a header, three profiles, New...");
-            Assert::IsTrue   (children[2].command->IsChecked(), L"Player 2's pick");
-            Assert::IsTrue   (children[4].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::AreEqual (std::wstring (L"Automatic (joystick)"), children[5].command->label);
-            Assert::AreEqual (std::wstring (L"Joystick"),         children[6].command->label);
-            Assert::AreEqual (std::wstring (L"Paddle"),           children[7].command->label);
-            Assert::AreEqual (std::wstring (L"Two paddles"),      children[8].command->label);
-            Assert::IsTrue   (children[6].command->IsChecked(),   L"the player's mode");
-            Assert::IsFalse  (children[5].command->IsChecked() || children[7].command->IsChecked() || children[8].command->IsChecked());
-            Assert::IsTrue   (children[9].kind == DxuiPopupMenuItem::Kind::Separator);
-            Assert::IsTrue   (children[10].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), children[10].command->label);
-            Assert::AreEqual (std::wstring (L"Default"),          children[11].command->label);
-            Assert::IsTrue   (children[11].command->IsChecked(),  L"with nothing chosen, the built-in profile");
-            Assert::IsFalse  (children[12].command->IsChecked());
+            Assert::AreEqual (size_t (1 + 4 + 1 + 1 + 4 + 1 + 1 + 3 + 1), children.size(),
+                              L"a header, four entries, a separator, a header, four modes, a separator, a header, three profiles, New...");
+            Assert::IsTrue   (children[0].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::AreEqual (std::wstring (L"Controllers"),      children[0].command->label);
+            Assert::IsTrue   (children[3].command->IsChecked(),   L"Player 2's pick");
+            Assert::IsTrue   (children[5].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::IsTrue   (children[6].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::AreEqual (std::wstring (L"Modes"),            children[6].command->label);
+            Assert::AreEqual (std::wstring (L"Automatic (joystick)"), children[7].command->label);
+            Assert::AreEqual (std::wstring (L"Joystick"),         children[8].command->label);
+            Assert::AreEqual (std::wstring (L"Paddle"),           children[9].command->label);
+            Assert::AreEqual (std::wstring (L"Two paddles"),      children[10].command->label);
+            Assert::IsTrue   (children[8].command->IsChecked(),   L"the player's mode");
+            Assert::IsFalse  (children[7].command->IsChecked() || children[9].command->IsChecked() || children[10].command->IsChecked());
+            Assert::IsTrue   (children[11].kind == DxuiPopupMenuItem::Kind::Separator);
+            Assert::IsTrue   (children[12].kind == DxuiPopupMenuItem::Kind::Header);
+            Assert::AreEqual (std::wstring (L"Profiles"),         children[12].command->label);
+            Assert::AreEqual (std::wstring (L"Default"),          children[13].command->label);
+            Assert::IsTrue   (children[13].command->IsChecked(),  L"with nothing chosen, the built-in profile");
+            Assert::IsFalse  (children[14].command->IsChecked());
             Assert::AreEqual (std::wstring (L"New..."),           children.back().command->label);
         }
 
@@ -651,7 +655,7 @@ namespace ControllerTests
         //  the Joyport is in effect.
         TEST_METHOD (PickingAMode_RaisesThePlayerAndTheMode)
         {
-            constexpr size_t                kPaddleRow = 6;   // four entries and a separator, then Joystick
+            constexpr size_t                kPaddleRow = 8;   // a header, four entries, a separator and a header, then Joystick
             EmulatorCommands                commands;
             InputModeRules::PickerSource    source     = MakeSource();
             std::vector<DxuiPopupMenuItem>  children;
@@ -694,13 +698,13 @@ namespace ControllerTests
             commands.SetPlayerPickedFn ([&] (size_t p, const PlayerEntry & entry) { player = p; picked = entry; });
             commands.SetPicker (InputModeRules::BuildPicker (source));
 
-            commands.GetPlayerItems()[1].children[2].command->dispatch();
+            commands.GetPlayerItems()[1].children[3].command->dispatch();
 
             Assert::AreEqual (size_t (1), player);
             Assert::IsTrue   (picked.kind == PlayerEntryKind::Controller);
             Assert::IsTrue   (picked.unit == Stick (source), L"the entry picks the controller it lists");
 
-            commands.GetPlayerItems()[0].children[3].command->dispatch();
+            commands.GetPlayerItems()[0].children[4].command->dispatch();
 
             Assert::AreEqual (size_t (0), player);
             Assert::IsTrue   (picked.kind == PlayerEntryKind::ArrowKeys);
@@ -719,12 +723,12 @@ namespace ControllerTests
             commands.SetPicker (MakeTwoPlaying (source));
             children = commands.GetPlayerItems()[1].children;
 
-            children[12].command->dispatch();
+            children[14].command->dispatch();
 
             Assert::IsTrue   (unit == Stick (source), L"for the controller the section is under");
             Assert::AreEqual (std::string ("Paddles"), name);
 
-            children[11].command->dispatch();
+            children[13].command->dispatch();
 
             Assert::AreEqual (std::string(), name, L"the built-in profile is picked as the empty name");
         }
@@ -772,7 +776,7 @@ namespace ControllerTests
             source.devices.clear();
             commands.SetPicker (InputModeRules::BuildPicker (source));
 
-            stale[3].command->dispatch();
+            stale[4].command->dispatch();
 
             Assert::IsTrue (picked.kind == PlayerEntryKind::ArrowKeys, L"the keys, not what now sits at that index");
         }
@@ -789,7 +793,7 @@ namespace ControllerTests
             {
                 std::vector<DxuiPopupMenuItem>  held = commands.GetPlayerItems();
 
-                oldRow = held[0].children[0].command;
+                oldRow = held[0].children[1].command;
 
                 commands.SetPicker (InputModeRules::BuildPicker (source));
 
