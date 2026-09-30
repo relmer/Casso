@@ -31,6 +31,15 @@ Run `/speckit-specify` with the text below as a new feature once 035 closes.
    typed tools (run a command in a mode, step, set a breakpoint, read memory,
    take a screenshot) to the existing debug channel, for AI clients without
    shell access. No change inside Casso. GS2's author ships one.
+6. **Code and data analysis in the code pane.** A recursive-descent pass from
+   known entry points (reset, IRQ and NMI vectors, PC, breakpoints, symbols)
+   follows branches, JSR and JMP, stops at RTS, RTI and indirect jumps, and
+   marks what it reaches as code and the rest as data. Combined with an
+   executed map: every address the CPU has fetched as an opcode is code,
+   which settles indirect jumps, jump tables and pushed-address returns that
+   a static pass cannot. User data directives and debug files still win.
+   The linear disassembly of files (`Disassembler::Disassemble`) is
+   unchanged.
 
 ## Notes for planning
 
