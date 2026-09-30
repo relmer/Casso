@@ -599,6 +599,15 @@ description: "Task list for 034 physical game controllers"
 - [X] T249 A message beside each lit button light, from one static table of 37, never the previous pick. Tests first: `ControllersPageLiveTests::FunMessages_PickNeverRepeatsThePrevious`, `Press_ShowsAMessageUntilTheLightGoesDark`; then `ButtonLightView` (`PickFunMessage`, `SetMessageBounds`, `PaintFunMessage`) and its row in `ControllersPage::Layout`
 - [X] T250 The top drop-downs: each mode drop-down fitted to its widest label, the entries filling to it, and Editing matching the entries. Test: `ControllersPageLayoutTests::DropDowns_FitTheWidestModeAndEditingMatchesTheEntries`; then `ControllersPage::GetModeWidthPx` and `StretchPlayerRows`
 
+## Phase 31: Message Fade, Alt+F4, Warning Glyph, Disconnect (FR-019, FR-023, FR-025; 2026-09-29, later)
+
+- [X] T251 Button messages fade over 2 s and a new press restarts the fade; a 4 DIP gap; proportional entry and mode column widths; PB1 on the second button for a throttle's paddle (a01fb81d)
+- [X] T252 The Joyport's button message, starting at the art's left edge (9fac76f4, 68dc03a6); revised message strings (e587b119)
+- [X] T253 Alt+F4 left unclaimed so Windows closes the main window; test in `ShellKeyWiringTests` (c4f6f378)
+- [X] T254 The outlined MDL2 Warning glyph on shared-control warnings; test in `ControllersPageLayoutTests` (71946434)
+- [X] T255 The edited controller stays listed as "(not connected)" with its controls disabled; any other disconnected controller leaves the list; tests in `ControllersPageStateTests` (21118131, 159c43da)
+- [ ] T256 Pre-merge gates, recorded in `validation.md` under "Phase 31"
+
 ---
 
 ## Dependencies and Execution Order
