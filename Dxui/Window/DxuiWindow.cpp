@@ -876,6 +876,31 @@ RECT DxuiWindow::FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetGrownRect
+//
+//  FitRectToMaxSize with the window's own size as the floor, so a dimension
+//  the content does not exceed keeps its size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx)
+{
+    SIZE  sizePx  = { windowPx.right - windowPx.left, windowPx.bottom - windowPx.top };
+    SIZE  grownPx = { std::max (sizePx.cx, maxPx.cx), std::max (sizePx.cy, maxPx.cy) };
+
+
+
+    outPx = FitRectToMaxSize (windowPx, grownPx, workPx);
+
+    return outPx.right - outPx.left > sizePx.cx || outPx.bottom - outPx.top > sizePx.cy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FitToMaxSize
 //
 //  Sizes the window to TryGetMaxClientSizePx within its monitor's work area.
@@ -883,6 +908,39 @@ RECT DxuiWindow::FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, co
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiWindow::FitToMaxSize()
+{
+    ResizeToMaxSize (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GrowToMaxSize
+//
+//  Grows the window toward TryGetMaxClientSizePx within its monitor's work
+//  area, and leaves it alone when the content fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::GrowToMaxSize()
+{
+    ResizeToMaxSize (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResizeToMaxSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::ResizeToMaxSize (bool growOnly)
 {
     HRESULT      hr      = S_OK;
     HWND         hwnd    = GetHwnd();
@@ -893,6 +951,7 @@ void DxuiWindow::FitToMaxSize()
     SIZE         maxPx   = {};
     bool         hasMax  = false;
     bool         isSame  = false;
+    bool         grows   = false;
     BOOL         done    = FALSE;
 
 
@@ -909,7 +968,16 @@ void DxuiWindow::FitToMaxSize()
     done    = GetMonitorInfoW (monitor, &info);
     CWRA (done);
 
-    fitted = FitRectToMaxSize (rect, maxPx, info.rcWork);
+    if (growOnly)
+    {
+        grows = TryGetGrownRect (rect, maxPx, info.rcWork, fitted);
+        BAIL_OUT_IF (!grows, S_OK);
+    }
+    else
+    {
+        fitted = FitRectToMaxSize (rect, maxPx, info.rcWork);
+    }
+
     isSame = EqualRect (&fitted, &rect) != FALSE;
     BAIL_OUT_IF (isSame, S_OK);
 
@@ -921,6 +989,7 @@ void DxuiWindow::FitToMaxSize()
 Error:
     return;
 }
+
 
 
 

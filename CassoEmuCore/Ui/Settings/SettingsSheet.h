@@ -235,8 +235,11 @@ private:
     // list (CreateChild), raw pointer for layout / text updates. Null pre-Create.
     DxuiLabel               * m_restartNotice = nullptr;
 
-    // The window's size in DIPs, and what it was when the sheet opened.
-    SIZE  GetSizeDip () const;
+    // The window's size in DIPs, and what it was when the sheet opened or
+    // last grew to fit its content. Any other size is one the user chose.
+    SIZE  GetSizeDip     () const;
+    bool  IsUserResized  () const;
+    void  GrowToContent  ();
 
     SIZE                      m_openedSizeDip = {};
 

@@ -785,17 +785,61 @@ void SettingsSheet::OnCancel()
 
 bool SettingsSheet::TryStoreResizedSize()
 {
-    SIZE  sizeDip   = GetSizeDip();
-    bool  isResized = sizeDip.cx != m_openedSizeDip.cx || sizeDip.cy != m_openedSizeDip.cy;
-
-
-
-    if (m_prefs == nullptr || !isResized)
+    if (m_prefs == nullptr || !IsUserResized())
     {
         return false;
     }
 
-    return SettingsSheetSize::TryStoreSizeDip (*m_prefs, sizeDip);
+    return SettingsSheetSize::TryStoreSizeDip (*m_prefs, GetSizeDip());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsUserResized
+//
+//  The sheet is not at the size it opened at or last grew to, so the user
+//  dragged it there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::IsUserResized() const
+{
+    SIZE  sizeDip = GetSizeDip();
+
+
+
+    return sizeDip.cx != m_openedSizeDip.cx || sizeDip.cy != m_openedSizeDip.cy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GrowToContent
+//
+//  A page whose content grew after the sheet opened -- the Controllers page
+//  gaining a controller's settings, say -- would otherwise scroll in a sheet
+//  with room to grow. The sheet grows to fit, within the work area, unless
+//  the user has resized it this visit. It does not shrink when the content
+//  does, so it holds still while the content comes and goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::GrowToContent()
+{
+    if (IsUserResized())
+    {
+        return;
+    }
+
+    GrowToMaxSize();
+    m_openedSizeDip = GetSizeDip();
 }
 
 
@@ -895,6 +939,7 @@ void SettingsSheet::OnDialogTick()
     }
 
     UpdatePreviewCompose();
+    GrowToContent();
 }
 
 

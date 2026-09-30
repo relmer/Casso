@@ -515,6 +515,26 @@ public:
         Assert::AreEqual (860L,  capped.right);
         Assert::AreEqual (1400L, capped.bottom);
     }
+
+
+    //  Content taller than the window grows it, kept inside the work area,
+    //  and never narrows a window wider than the content; content that fits
+    //  leaves the window alone.
+    TEST_METHOD (TryGetGrownRect_GrowsOnlyWhereTheContentExceedsTheWindow)
+    {
+        RECT  work    = { 0, 0, 2000, 1400 };
+        RECT  grown   = {};
+        RECT  kept    = {};
+        bool  isGrown = DxuiWindow::TryGetGrownRect (RECT { 100, 300, 1000, 1180 }, SIZE { 760, 1300 }, work, grown);
+        bool  isKept  = DxuiWindow::TryGetGrownRect (RECT { 100, 100, 1000, 1180 }, SIZE { 760, 900 },  work, kept);
+
+        Assert::IsTrue   (isGrown);
+        Assert::AreEqual (100L,  grown.left);
+        Assert::AreEqual (100L,  grown.top);
+        Assert::AreEqual (1000L, grown.right);
+        Assert::AreEqual (1400L, grown.bottom);
+        Assert::IsFalse  (isKept);
+    }
 };
 
 

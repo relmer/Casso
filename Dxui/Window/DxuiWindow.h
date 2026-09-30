@@ -215,6 +215,19 @@ public:
     //
     void     FitToMaxSize ();
 
+    //
+    //  The window rect grown to maxPx in whichever dimension maxPx exceeds
+    //  it, cut to the work area and kept inside it; false when it would not
+    //  grow in either dimension.
+    //
+    static bool  TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx);
+
+    //
+    //  Like FitToMaxSize, but never shrinks the window. For content that
+    //  grows while the window is open.
+    //
+    void     GrowToMaxSize ();
+
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
 
@@ -354,6 +367,7 @@ private:
                                       bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
+    void               ResizeToMaxSize   (bool growOnly);
 
     //
     //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
