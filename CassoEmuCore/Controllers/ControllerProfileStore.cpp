@@ -872,7 +872,7 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
     // Present in any form, `players` means the adoption has run: an
     // unreadable value plays both players on Automatic rather than adopting
     // again from whichever machine happens to launch next.
-    if (controllers.HasArray (s_kpszPlayersKey, playersArr) && playersArr != nullptr)
+    if (controllers.HasArray (s_kpszPlayersKey, playersArr))
     {
         players        = PlayerEntries();
         hasPlayerModes = HasAnyPlayerMode (*playersArr);
@@ -884,7 +884,7 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
         outRejected.push_back (s_kpszPlayersKey);
     }
 
-    if (controllers.HasArray (s_kpszLastHoldersKey, holdersArr) && holdersArr != nullptr)
+    if (controllers.HasArray (s_kpszLastHoldersKey, holdersArr))
     {
         ReadLastHolders (*holdersArr, lastHolders, outRejected);
     }
@@ -893,27 +893,27 @@ void ControllerProfileStore::FromJson (const JsonValue & controllers, std::vecto
         outRejected.push_back (s_kpszLastHoldersKey);
     }
 
-    if (controllers.HasObject (s_kpszModelsKey, modelsObj) && modelsObj != nullptr)
+    if (controllers.HasObject (s_kpszModelsKey, modelsObj))
     {
         ReadModels (*modelsObj, outRejected);
     }
 
-    if (controllers.HasObject (s_kpszCalibrationKey, calibrationObj) && calibrationObj != nullptr)
+    if (controllers.HasObject (s_kpszCalibrationKey, calibrationObj))
     {
         ReadCalibrations (*calibrationObj, outRejected);
     }
 
-    if (controllers.HasObject (s_kpszActiveKey, activeObj) && activeObj != nullptr)
+    if (controllers.HasObject (s_kpszActiveKey, activeObj))
     {
         ReadActiveProfiles (*activeObj, activeProfiles, outRejected);
     }
 
-    if (controllers.HasObject (s_kpszPaddleActive, activeObj) && activeObj != nullptr)
+    if (controllers.HasObject (s_kpszPaddleActive, activeObj))
     {
         ReadActiveProfiles (*activeObj, paddleActiveProfiles, outRejected);
     }
 
-    if (controllers.HasObject (s_kpszJoyportActive, activeObj) && activeObj != nullptr)
+    if (controllers.HasObject (s_kpszJoyportActive, activeObj))
     {
         ReadActiveProfiles (*activeObj, joyportActiveProfiles, outRejected);
     }
@@ -1388,7 +1388,7 @@ void ControllerProfileStore::ReadModels (const JsonValue & modelsObj, std::vecto
 
         isReadable = entry.second.GetType() == JsonType::Object &&
                      (!HasMember (entry.second, s_kpszProfilesKey) ||
-                      (entry.second.HasArray (s_kpszProfilesKey, profilesArr) && profilesArr != nullptr));
+                      entry.second.HasArray (s_kpszProfilesKey, profilesArr));
 
         if (!isReadable)
         {
@@ -1402,7 +1402,7 @@ void ControllerProfileStore::ReadModels (const JsonValue & modelsObj, std::vecto
             settings.deadzone = std::clamp ((float) deadzone, 0.0f, DeadzoneShaper::kMaxDeadzone);
         }
 
-        if (entry.second.HasArray (s_kpszProfilesKey, profilesArr) && profilesArr != nullptr)
+        if (entry.second.HasArray (s_kpszProfilesKey, profilesArr))
         {
             for (i = 0; i < profilesArr->GetArraySize(); i++)
             {
@@ -1769,14 +1769,6 @@ bool ControllerProfileStore::ReadProfile (const JsonValue & profileObj, Controll
         return false;
     }
 
-    // Tested on its own. Joined to the lookup above by ||, the null test is
-    // one the code analysis on the build server does not carry to the
-    // dereference below.
-    if (mappingObj == nullptr)
-    {
-        return false;
-    }
-
     isDefault = profileObj.HasBool (s_kpszDefaultKey, isDefault) && isDefault;
     isJoyport = profileObj.HasBool (s_kpszJoyportKey, isJoyport) && isJoyport;
     isPaddles = profileObj.HasBool (s_kpszPaddlesKey, isPaddles) && isPaddles;
@@ -1876,11 +1868,6 @@ bool ControllerProfileStore::ReadAxisBindings (const JsonValue & mappingObj, con
     }
 
     if (!mappingObj.HasArray (pszKey, bindingsArr))
-    {
-        return false;
-    }
-
-    if (bindingsArr == nullptr)
     {
         return false;
     }
@@ -1993,11 +1980,6 @@ bool ControllerProfileStore::ReadButtonBindings (const JsonValue & mappingObj, c
         return false;
     }
 
-    if (bindingsArr == nullptr)
-    {
-        return false;
-    }
-
     for (i = 0; i < bindingsArr->GetArraySize(); i++)
     {
         const JsonValue &  bindingObj = bindingsArr->GetArrayElement (i);
@@ -2075,11 +2057,6 @@ bool ControllerProfileStore::ReadCalibration (const std::string & token, const J
     if (entry.GetType() != JsonType::Object ||
         !entry.HasString (s_kpszModeKey, mode) ||
         !entry.HasArray (s_kpszAxesKey, axesArr))
-    {
-        return false;
-    }
-
-    if (axesArr == nullptr)
     {
         return false;
     }

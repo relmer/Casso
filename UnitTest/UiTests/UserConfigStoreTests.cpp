@@ -1221,7 +1221,7 @@ public:
         const JsonValue *  uiPrefs = nullptr;
         bool               found   = doc.HasObject ("$cassoUiPrefs", uiPrefs);
 
-        Assert::IsTrue (found && uiPrefs != nullptr, L"no $cassoUiPrefs block");
+        Assert::IsTrue (found, L"no $cassoUiPrefs block");
         return uiPrefs;
     }
 
