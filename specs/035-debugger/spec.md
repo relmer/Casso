@@ -887,6 +887,11 @@ and only breakpoint commands are listed.
    of one, **Then** the rest of the newest matching line appears in gray, and
    Right arrow accepts it; F8 steps back through the lines that start with
    what is typed, and F7 opens a list of earlier lines to pick from.
+10. **Given** a //e with RAMRD set and the language card reading RAM bank 2,
+    **When** the user types `map` (in GSSquared mode, or its Casso form in
+    another mode), **Then** each address range is listed with where reads
+    and writes go: $0200-$BFFF reads from auxiliary RAM, $D000-$DFFF from
+    language card bank 2, and so on.
 
 ---
 
@@ -1969,6 +1974,9 @@ trace, with the next instructions shown below it.
   commands in every mode.
 - **SC-035**: From the trace pane alone, with no mouse, a user can step, step
   over, step out and run, and see the next instruction before it runs.
+- **SC-036**: On a //e with the language card and auxiliary memory switched
+  into each of their combinations, `map` shows, for 100% of address ranges,
+  the same read and write targets the machine then uses.
 
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
