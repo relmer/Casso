@@ -79,7 +79,7 @@ public:
     };
 
     // The profiles at the foot of a player's submenu, for the controller
-    // playing there, under a "Profiles" heading; `checked` is the active one.
+    // playing there, under a "Profile" heading; `checked` is the active one.
     struct PlayerProfileSection
     {
         ControllerUnitKey         unit;

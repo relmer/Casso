@@ -708,9 +708,9 @@ void EmulatorCommands::SetPicker (const InputModeRules::Picker & picker)
 //
 //  EmulatorCommands::BuildPlayerSubmenu
 //
-//  Under a "Controllers" heading, the player's entries, exactly one checked;
-//  below a separator and a "Modes" heading, the player's modes, one checked;
-//  then the "Profiles" section below another separator while a controller
+//  Under a "Controller" heading, the player's entries, exactly one checked;
+//  below a separator and a "Mode" heading, the player's modes, one checked;
+//  then the "Profile" section below another separator while a controller
 //  plays there.
 //
 //  EACH ENTRY CARRIES WHAT IT PICKS BY VALUE, rather than an index to look up
@@ -730,7 +730,7 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::BuildPlayerSubmenu (
 
 
 
-    items.push_back (DxuiPopupMenuItem::ForHeader (L"Controllers"));
+    items.push_back (DxuiPopupMenuItem::ForHeader (L"Controller"));
 
     for (i = 0; i < row.choices.size(); i++)
     {
@@ -756,7 +756,7 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::BuildPlayerSubmenu (
     if (!row.modes.empty())
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        items.push_back (DxuiPopupMenuItem::ForHeader (L"Modes"));
+        items.push_back (DxuiPopupMenuItem::ForHeader (L"Mode"));
         AddModeChoices (player, row.modes, items);
     }
 

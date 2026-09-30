@@ -355,7 +355,7 @@ std::optional<InputModeRules::PlayerProfileSection> InputModeRules::BuildProfile
     }
 
     section.unit   = device->unit;
-    section.header = L"Profiles";
+    section.header = L"Profile";
     section.names  = choices->second.names;
 
     for (i = 0; i < section.names.size(); i++)

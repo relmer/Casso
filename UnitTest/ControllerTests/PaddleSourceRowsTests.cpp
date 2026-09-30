@@ -463,7 +463,7 @@ namespace ControllerTests
             picker            = InputModeRules::BuildPicker (source);
 
             Assert::IsTrue   (picker.rows[1].profiles.has_value());
-            Assert::AreEqual (std::wstring (L"Profiles"),                    picker.rows[1].profiles->header);
+            Assert::AreEqual (std::wstring (L"Profile"),                     picker.rows[1].profiles->header);
             Assert::IsTrue   (picker.rows[1].profiles->unit == Pad (source));
             Assert::IsTrue   (picker.rows[1].profiles->names == std::vector<std::string> { "Default", "Paddles", "Swapped" });
             Assert::AreEqual (size_t (1), picker.rows[1].profiles->checked, L"the active profile, matched ignoring case");
@@ -630,11 +630,11 @@ namespace ControllerTests
             Assert::AreEqual (size_t (1 + 4 + 1 + 1 + 4 + 1 + 1 + 3 + 1), children.size(),
                               L"a header, four entries, a separator, a header, four modes, a separator, a header, three profiles, New...");
             Assert::IsTrue   (children[0].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::AreEqual (std::wstring (L"Controllers"),      children[0].command->label);
+            Assert::AreEqual (std::wstring (L"Controller"),       children[0].command->label);
             Assert::IsTrue   (children[3].command->IsChecked(),   L"Player 2's pick");
             Assert::IsTrue   (children[5].kind == DxuiPopupMenuItem::Kind::Separator);
             Assert::IsTrue   (children[6].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::AreEqual (std::wstring (L"Modes"),            children[6].command->label);
+            Assert::AreEqual (std::wstring (L"Mode"),             children[6].command->label);
             Assert::AreEqual (std::wstring (L"Automatic (joystick)"), children[7].command->label);
             Assert::AreEqual (std::wstring (L"Joystick"),         children[8].command->label);
             Assert::AreEqual (std::wstring (L"Paddle"),           children[9].command->label);
@@ -643,7 +643,7 @@ namespace ControllerTests
             Assert::IsFalse  (children[7].command->IsChecked() || children[9].command->IsChecked() || children[10].command->IsChecked());
             Assert::IsTrue   (children[11].kind == DxuiPopupMenuItem::Kind::Separator);
             Assert::IsTrue   (children[12].kind == DxuiPopupMenuItem::Kind::Header);
-            Assert::AreEqual (std::wstring (L"Profiles"),         children[12].command->label);
+            Assert::AreEqual (std::wstring (L"Profile"),          children[12].command->label);
             Assert::AreEqual (std::wstring (L"Default"),          children[13].command->label);
             Assert::IsTrue   (children[13].command->IsChecked(),  L"with nothing chosen, the built-in profile");
             Assert::IsFalse  (children[14].command->IsChecked());
