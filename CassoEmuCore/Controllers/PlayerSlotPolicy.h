@@ -209,7 +209,8 @@ public:
 
     static bool         IsRealInput        (const ControllerSample       & sample,
                                             const ControllerCalibration  * calibration,
-                                            float                          deadzone);
+                                            float                          deadzone,
+                                            const ControllerSample       * rest = nullptr);
 
     static bool         IsOnePlaying       (const PlayerSlots & slots, const PlayerEntries & entries);
     static bool         IsDrivingSlot      (const PlayerSlot & slot);

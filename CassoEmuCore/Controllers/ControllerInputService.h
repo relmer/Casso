@@ -268,6 +268,11 @@ private:
         // slot places them. Absent while it contributes nothing.
         std::optional<GamePortContribution>  logical;
 
+        // Its first reading after it connected, calibrated. Only a change
+        // from it counts as use, so a stick or throttle left off center at
+        // launch does not claim a slot.
+        ControllerSample                     rest;
+
         // The kind of profile the mapping was resolved for. A change of the
         // player's mode, or of the Joyport, resolves it again.
         ProfileMode                          mode        = ProfileMode::Joystick;
@@ -286,7 +291,7 @@ private:
     bool                   PrepareWatch         (std::vector<DriverRead> & reads, bool isWatchDue, ControllerWaitSources & wait);
     void                   ReadDriver           (DriverRead & read, bool isActive);
     void                   EvaluateDriver       (DriverRead & read, float elapsedSeconds, bool isActive, ControllerWaitSources & wait, bool & outNeedsPoll);
-    ControllerSample       RecordReading        (const DriverRead & read, HRESULT hr, const ControllerSample & sample, bool isConnected, bool & outHasFlipped);
+    ControllerSample       RecordReading        (const DriverRead & read, HRESULT hr, const ControllerSample & sample, bool isConnected, bool & outHasFlipped, ControllerSample & outRest);
     void                   ForgetIdleEvaluators ();
     void                   Publish              (const GamePortContribution & merged);
     void                   ReleaseContribution  ();

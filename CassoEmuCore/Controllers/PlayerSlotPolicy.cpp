@@ -639,15 +639,21 @@ std::array<PlayerAxisTarget, PlayerSlotPolicy::kPlayerCount> PlayerSlotPolicy::G
 //  point where it counts as a button, or any axis outside its dead zone once
 //  calibrated. The dead zone is what already defines rest for the controller,
 //  so the same edge that moves a game's paddle is the one that claims a slot.
+//  Given where the controller rested when it connected, an axis or trigger is
+//  judged by how far it moved from there, so one left off center, such as a
+//  drifting stick or a throttle at an end, is not taken as use.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PlayerSlotPolicy::IsRealInput (
     const ControllerSample       & sample,
     const ControllerCalibration  * calibration,
-    float                          deadzone)
+    float                          deadzone,
+    const ControllerSample       * rest)
 {
     ControllerSample  calibrated = (calibration != nullptr) ? calibration->Apply (sample) : sample;
+    size_t            i          = 0;
+    float             resting    = 0.0f;
 
 
 
@@ -664,17 +670,21 @@ bool PlayerSlotPolicy::IsRealInput (
         }
     }
 
-    for (float trigger : calibrated.triggers)
+    for (i = 0; i < calibrated.triggers.size(); i++)
     {
-        if (trigger > ButtonBinding::kTriggerThreshold)
+        resting = (rest != nullptr) ? rest->triggers[i] : 0.0f;
+
+        if (calibrated.triggers[i] - resting > ButtonBinding::kTriggerThreshold)
         {
             return true;
         }
     }
 
-    for (float axis : calibrated.axes)
+    for (i = 0; i < calibrated.axes.size(); i++)
     {
-        if (std::fabs (axis) > deadzone)
+        resting = (rest != nullptr) ? rest->axes[i] : 0.0f;
+
+        if (std::fabs (calibrated.axes[i] - resting) > deadzone)
         {
             return true;
         }

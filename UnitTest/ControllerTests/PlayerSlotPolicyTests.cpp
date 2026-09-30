@@ -800,6 +800,34 @@ namespace ControllerTests
         }
 
 
+        //  A stick or trigger left off center when the controller connected
+        //  is judged from where it rested, so it does not claim a slot until
+        //  it moves.
+        TEST_METHOD (RealInput_IsJudgedFromWhereItRestedAtConnect)
+        {
+            static constexpr float  kRestingStick   = 0.6f;
+            static constexpr float  kRestingTrigger = 0.5f;
+
+            ControllerSample  rest;
+            ControllerSample  sample;
+
+            rest.connected   = true;
+            rest.axes[3]     = kRestingStick;
+            rest.triggers[0] = kRestingTrigger;
+            sample           = rest;
+
+            Assert::IsTrue  (PlayerSlotPolicy::IsRealInput (sample, nullptr, kDeadzone), L"judged from center, the resting stick reads as a push");
+            Assert::IsFalse (PlayerSlotPolicy::IsRealInput (sample, nullptr, kDeadzone, &rest), L"judged from its rest, it is not in use");
+
+            sample.axes[3] = kRestingStick - kDeadzone - kNudge;
+            Assert::IsTrue  (PlayerSlotPolicy::IsRealInput (sample, nullptr, kDeadzone, &rest), L"a move of more than the dead zone is");
+
+            sample.axes[3]     = kRestingStick;
+            sample.triggers[0] = kRestingTrigger + ButtonBinding::kTriggerThreshold + kNudge;
+            Assert::IsTrue  (PlayerSlotPolicy::IsRealInput (sample, nullptr, kDeadzone, &rest), L"and so is a trigger pulled past its threshold from rest");
+        }
+
+
         //
         //  Queries
         //
