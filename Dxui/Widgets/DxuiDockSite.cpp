@@ -1880,6 +1880,54 @@ LPCWSTR DxuiDockSite::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::GetDragMarks
+//
+//  The hovered target's area shaded in the accent color, a hovered strip's
+//  group tinted with the gap its tab will take, then every target square,
+//  the hovered one outlined in the accent color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & theme) const
+{
+    std::vector<DxuiDockDragMark>   marks;
+    const DxuiDockDropZone        * hover = GetHoveredZone();
+    int                             line  = std::max (1, (int) std::lround (m_scaler.ToPxf (1.0f)));
+    uint32_t                        tint  = (theme.Accent() & 0x00FFFFFFu) | 0x50000000u;
+
+
+
+    if (!IsDragging())
+    {
+        return marks;
+    }
+
+    if (hover != nullptr)
+    {
+        marks.push_back ({ hover->preview, tint, 0 });
+    }
+
+    if (m_stripGroup >= 0 && m_stripGroup < (int) m_groups.size())
+    {
+        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetBounds(),        tint,                                         0 });
+        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & 0x00FFFFFFu) | 0xA0000000u, 0 });
+    }
+
+    for (const DxuiDockDropZone & zone : m_zones)
+    {
+        marks.push_back ({ zone.target, theme.ControlBackground(),                         0    });
+        marks.push_back ({ zone.target, (&zone == hover) ? theme.Accent() : theme.Border(), line });
+    }
+
+    return marks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::Paint
 //
 //  The strips, a seam down each sash, and during a drag the drop zones with
@@ -1890,7 +1938,6 @@ LPCWSTR DxuiDockSite::GetCursorForPoint (POINT clientPx) const
 void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     float                      line   = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    const DxuiDockDropZone   * hover  = GetHoveredZone();
     auto                       fill   = [&] (const RECT & r, uint32_t argb)
     {
         painter.FillRect ((float) r.left, (float) r.top,
@@ -1920,30 +1967,23 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     PaintEdges (painter, text, theme);
 
-    if (!IsDragging())
+    if (!IsDragging() || m_marksElsewhere)
     {
         return;
     }
 
-    if (hover != nullptr)
+    for (const DxuiDockDragMark & mark : GetDragMarks (theme))
     {
-        fill (hover->preview, (theme.Accent() & 0x00FFFFFFu) | 0x50000000u);
-    }
-
-    //  A hovered strip tints the whole group the panes will fill and marks
-    //  the gap their tab will take.
-    if (m_stripGroup >= 0 && m_stripGroup < (int) m_groups.size())
-    {
-        fill (m_groups[(size_t) m_stripGroup]->GetBounds(),        (theme.Accent() & 0x00FFFFFFu) | 0x50000000u);
-        fill (m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & 0x00FFFFFFu) | 0xA0000000u);
-    }
-
-    for (const DxuiDockDropZone & zone : m_zones)
-    {
-        fill (zone.target, theme.ControlBackground());
-        painter.OutlineRect ((float) zone.target.left, (float) zone.target.top,
-                             (float) (zone.target.right - zone.target.left),
-                             (float) (zone.target.bottom - zone.target.top),
-                             line, (&zone == hover) ? theme.Accent() : theme.Border());
+        if (mark.outlinePx == 0)
+        {
+            fill (mark.rect, mark.argb);
+        }
+        else
+        {
+            painter.OutlineRect ((float) mark.rect.left, (float) mark.rect.top,
+                                 (float) (mark.rect.right - mark.rect.left),
+                                 (float) (mark.rect.bottom - mark.rect.top),
+                                 (float) mark.outlinePx, mark.argb);
+        }
     }
 }

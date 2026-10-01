@@ -7048,7 +7048,7 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     window->SetOnMappedCommand     ([this]       (int commandId)             { return OnMappedCommand (commandId); });
     window->SetOnCaptionDrag       ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, false); });
     window->SetOnCaptionDragEnd    ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, true);  });
-    window->SetOnCaptionDragCancel ([this]                                   { m_dockSite->CancelDrag(); Invalidate(); });
+    window->SetOnCaptionDragCancel ([this]                                   { m_dockSite->CancelDrag(); HideDragMarks(); Invalidate(); });
     window->SetOnClosed            ([this, pane]                             { CloseFloatingPane (pane); });
 
     if (rect.right > rect.left && rect.bottom > rect.top)
@@ -7431,6 +7431,58 @@ bool DebuggerWindow::RouteFloatKey (const std::wstring & pane, const DxuiKeyEven
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ShowDragMarks
+//
+//  The drop targets of a floating window's drag, drawn in an overlay above
+//  the floating windows, which would cover them in this window's own paint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowDragMarks()
+{
+    HRESULT  hr     = S_OK;
+    RECT     client = {};
+    POINT    origin = {};
+
+
+
+    BAIL_OUT_IF (m_theme == nullptr, S_OK);
+
+    m_dockSite->SetDragMarksDrawnElsewhere (true);
+
+    GetClientRect  (GetHwnd(), &client);
+    ClientToScreen (GetHwnd(), &origin);
+    OffsetRect     (&client, origin.x, origin.y);
+
+    hr = m_dragOverlay.Show (GetHwnd(), client, m_dockSite->GetDragMarks (*m_theme));
+    CHRA (hr);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HideDragMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::HideDragMarks()
+{
+    m_dragOverlay.Hide();
+    m_dockSite->SetDragMarksDrawnElsewhere (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnFloatDrag
 //
 //  A floating window moved by its title bar shows this window's drop zones
@@ -7460,18 +7512,21 @@ void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, boo
         ev.kind        = DxuiMouseEventKind::Move;
         ev.positionDip = client;
         (void) m_dockSite->OnMouse (ev);
+        ShowDragMarks();
         Invalidate();
         return;
     }
 
     if (!m_dockSite->IsDragging())
     {
+        HideDragMarks();
         return;
     }
 
     //  Released outside the site, the pane stays floating where it was put;
     //  released over a zone it docks there, which the site reports.
     (void) m_dockSite->EndDrag (inside ? client : POINT { area.right + 1, area.bottom + 1 });
+    HideDragMarks();
     Invalidate();
 
     if (!inside)

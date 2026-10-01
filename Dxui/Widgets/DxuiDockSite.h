@@ -12,6 +12,27 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockDragMark
+//
+//  One rectangle a drag shows over the site: a drop target, the area the
+//  hovered target would give the panes, or a hovered strip's tint and gap.
+//  `outlinePx` of 0 fills the rectangle; any other width outlines it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiDockDragMark
+{
+    RECT      rect      = {};
+    uint32_t  argb      = 0;
+    int       outlinePx = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite
 //
 //  A docking area: it makes a set of pane controls match a DxuiPaneLayout.
@@ -148,6 +169,13 @@ public:
     bool                        IsDragging     () const { return !m_dragPane.empty(); }
     const std::wstring &        GetDraggedPane () const { return m_dragPane; }
     const DxuiDockDropZone *    GetHoveredZone () const;
+
+    //  What a drag shows, in site pixels, top to bottom. A window whose
+    //  floating windows would cover the site draws these in an overlay above
+    //  them instead, and tells the site not to paint them.
+    std::vector<DxuiDockDragMark>  GetDragMarks               (const IDxuiTheme & theme) const;
+    void                           SetDragMarksDrawnElsewhere (bool elsewhere) { m_marksElsewhere = elsewhere; }
+
     size_t                      GetGroupCount  () const { return m_groups.size(); }
     DxuiTabGroup *              GetGroup       (size_t index) const { return m_groups[index].get(); }
 
@@ -256,16 +284,17 @@ private:
     FloatFn                                       m_onFloat;
     FloatFn                                       m_onTearOff;
 
-    std::wstring                                  m_dragPane;
-    std::vector<std::wstring>                     m_dragPanes;
-    int                                           m_stripGroup = -1;
-    int                                           m_stripIndex = -1;
-    std::vector<DxuiDockDropZone>                 m_zones;
-    int                                           m_hoverZone  = -1;
-    int                                           m_sashDrag   = -1;
-    std::vector<EdgeTab>                          m_edgeTabs;
-    std::wstring                                  m_slidPane;
-    RECT                                          m_slidRect   = {};
-    DxuiDockSide                                  m_slidEdge   = DxuiDockSide::Left;
-    bool                                          m_arranging  = false;
+    std::wstring                   m_dragPane;
+    std::vector<std::wstring>      m_dragPanes;
+    int                            m_stripGroup     = -1;
+    int                            m_stripIndex     = -1;
+    std::vector<DxuiDockDropZone>  m_zones;
+    int                            m_hoverZone      = -1;
+    bool                           m_marksElsewhere = false;
+    int                            m_sashDrag       = -1;
+    std::vector<EdgeTab>           m_edgeTabs;
+    std::wstring                   m_slidPane;
+    RECT                           m_slidRect       = {};
+    DxuiDockSide                   m_slidEdge       = DxuiDockSide::Left;
+    bool                           m_arranging      = false;
 };

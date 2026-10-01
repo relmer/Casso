@@ -171,6 +171,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiStatusBar.h"
 #include "Widgets/DxuiFramebufferView.h"
 #include "Window/DxuiDragDropTarget.h"
+#include "Window/DxuiDragOverlay.h"
 #include "Window/DxuiDragDropSource.h"
 #include "Window/DxuiDragRegion.h"
 #include "Window/DxuiCaptionBar.h"

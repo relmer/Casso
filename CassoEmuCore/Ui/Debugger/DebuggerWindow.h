@@ -391,6 +391,8 @@ private:
     bool                         RouteFloatMouse   (const std::wstring & pane, const DxuiMouseEvent & ev);
     bool                         RouteFloatKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
+    void                         ShowDragMarks     ();
+    void                         HideDragMarks     ();
     void                         DockFloatingPane  (const std::wstring & pane);
     void                         SetBreakpointColumns ();
 
@@ -531,6 +533,7 @@ private:
     HINSTANCE                                                                        m_hInstance          = nullptr;
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>                        m_floats;
     std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
+    DxuiDragOverlay                                                                  m_dragOverlay;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
     std::wstring                                                                     m_tornOffPane;

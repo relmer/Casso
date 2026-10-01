@@ -220,6 +220,7 @@
     <ClCompile Include="Theme\DxuiLightTheme.cpp" />
     <ClCompile Include="Theme\DxuiDarkTheme.cpp" />
     <ClCompile Include="Window\DxuiDragDropTarget.cpp" />
+    <ClCompile Include="Window\DxuiDragOverlay.cpp" />
     <ClCompile Include="Window\DxuiDragRegion.cpp" />
     <ClCompile Include="Window\DxuiCaptionBar.cpp" />
     <ClCompile Include="Window\DxuiSystemButton.cpp" />
@@ -322,6 +323,7 @@
     <ClInclude Include="Core\DxuiStandardCommand.h" />
     <ClInclude Include="Core\DxuiIconImage.h" />
     <ClInclude Include="Window\DxuiDragDropSource.h" />
+    <ClInclude Include="Window\DxuiDragOverlay.h" />
     <ClInclude Include="Theme\DxuiLightTheme.h" />
     <ClInclude Include="Theme\DxuiDarkTheme.h" />
     <ClInclude Include="Window\DxuiDragDropTarget.h" />
