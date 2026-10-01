@@ -159,6 +159,7 @@
     <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowMenuBar.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionEffect.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionTouches.cpp" />
     <ClCompile Include="Ui\Debugger\BranchArrow.cpp" />

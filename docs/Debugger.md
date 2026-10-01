@@ -34,7 +34,7 @@ The debugger reads each line in one of five modes.
   format.
 
 Switch with `MODE MONITOR`, `MODE GSSQUARED`, `MODE WINDBG`, `MODE CASSO`
-and `MODE APPLEWIN`, or from the Dialect menu; `MODE` alone shows the current
+and `MODE APPLEWIN`, or from the **Dialect** drop-down on the console's toolbar; `MODE` alone shows the current
 mode. Batch mode starts in the mode `--mode` gives.
 
 ### The `/` prefix
@@ -490,13 +490,26 @@ toggle on, the text is found as a plain substring, ignoring case. Enter and F3
 find the next match, Shift+Enter and Shift+F3 the one before, and Escape
 closes the bar.
 
+### Menus and toolbars
+
+The menu bar holds **File** (open a source file, open a symbol or debug file,
+load and save breakpoints, save the trace), **Edit** (copy, select all, find,
+find next and find previous), **View** (every pane), **Debug** (run, break,
+stop debugging, reset, power cycle, restart under debugger, the steps, run to
+cursor, show next statement, step by source line and trace), **Window**
+(device panels and **Reset window layout**) and **Tools** (**Keyboard
+scheme**). The command bar below it holds the run and step buttons as icons,
+each tip giving the command and its key in the scheme in force, and Trace.
+The console has a toolbar of its own with **Dialect**, which sets the words
+the console and the memory Address box read.
+
 ### Panes and docking
 
 Every pane can be moved. Drag a tab onto the drop zones that appear to dock it
 beside another pane, against an edge of the window, or as a tab of another
 group; drag a divider to resize. A tab dragged out of the window floats in a
 window of its own. Every pane, docked or floating, has a close button; the
-**View** drop-down lists every pane and shows the chosen one where it was,
+**View** menu lists every pane and shows the chosen one where it was,
 docked or floating. Right-click a pane, or
 press Shift+F10, for **Dock to**, which offers each edge, each group, Float and
 Auto hide; Alt+Shift with an arrow key moves the focused pane. The pin on a
@@ -527,7 +540,7 @@ window.
 
 ### Device panels
 
-**Panels** lists the machine's devices: the Disk II controller, the //e MMU
+**Window > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
 and its memory map, the video switches, the keyboard, the Mockingboard, the
 printer card and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the

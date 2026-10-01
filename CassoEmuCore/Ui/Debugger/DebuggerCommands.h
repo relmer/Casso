@@ -40,10 +40,6 @@ public:
 
     static constexpr int  kShowNext    = 100;
     static constexpr int  kTrace       = 101;
-    static constexpr int  kPanels      = 102;
-    static constexpr int  kKeyScheme   = 103;
-    static constexpr int  kMode        = 104;
-    static constexpr int  kView        = 105;
 
     struct Handlers
     {
@@ -72,6 +68,7 @@ private:
         DxuiToolbar::Kind    kind       = DxuiToolbar::Kind::Command;
         int                  group      = 0;
         bool                 checkable  = false;
+        bool                 iconOnly   = false;
     };
 
     static const std::vector<Row> &  GetRows ();

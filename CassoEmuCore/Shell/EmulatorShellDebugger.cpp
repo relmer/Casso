@@ -464,6 +464,24 @@ void EmulatorShell::PauseDebugger()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RunEmulatorCommand
+//
+//  The debugger's menu bar offers some of the main window's own commands;
+//  they go to the main window as its menu would send them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunEmulatorCommand (int commandId)
+{
+    PostMessageW (m_hwnd, WM_COMMAND, MAKEWPARAM (commandId, 0), 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetCodeViewSuffix
 //
 //  Nothing for the first code view, 2 to 4 for the others, as the CPU

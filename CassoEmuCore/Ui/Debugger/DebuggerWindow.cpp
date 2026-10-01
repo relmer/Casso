@@ -175,6 +175,7 @@ Error:
 
 void DebuggerWindow::OnCreate()
 {
+    m_menuBar           = CreateChild<DxuiMenuBar>   ();
     m_commandBar        = CreateChild<DxuiToolbar>   ();
     m_codeList          = CreateChild<DxuiListView>  ();
     m_codeLists[0]      = m_codeList;
@@ -194,6 +195,7 @@ void DebuggerWindow::OnCreate()
     m_traceList         = CreateChild<DxuiListView>  ();
     m_traceHint         = CreateChild<DxuiLabel>     ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
+    m_consoleBar        = CreateChild<DxuiToolbar>   ();
     //  The memory bar before its Address box, so the box paints over the strip.
     m_memoryBar         = CreateChild<DxuiToolbar>   ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
@@ -290,7 +292,9 @@ void DebuggerWindow::OnCreate()
 
 void DebuggerWindow::ConfigureWidgets()
 {
+    ConfigureMenuBar();
     ConfigureCommandBar();
+    ConfigureConsoleBar();
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
@@ -461,7 +465,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->EnableSeeMore   (L"\uE712", L"See more");
     m_commandBar->SetEntries      (m_commands->BuildEntries());
 
-    SetCommandBarMenus();
+    SetWindowMenus();
 }
 
 
@@ -488,98 +492,6 @@ std::shared_ptr<DxuiCommand> DebuggerWindow::MakeMenuCommand (const std::wstring
     command->dispatch  = std::move (chosen);
 
     return command;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SetCommandBarMenus
-//
-//  The drop-downs: every debug window with the shown ones checked, the
-//  machine's device panels, the command dialects and the key schemes, each
-//  checked where it is the one in force. Rebuilt whenever
-//  what they list changes, since the rows carry the state they were built
-//  with.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SetCommandBarMenus()
-{
-    std::vector<DxuiPopupMenuItem>  windows;
-    std::vector<DxuiPopupMenuItem>  panels;
-    std::vector<DxuiPopupMenuItem>  modes;
-    std::vector<DxuiPopupMenuItem>  schemes;
-
-
-
-    m_menuCommands.clear();
-
-    if (m_snapshot != nullptr)
-    {
-        for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
-        {
-            std::string  id   = panel.id;
-            bool         open = panel.open;
-
-            m_menuCommands.push_back (MakeMenuCommand (Widen (panel.title), open, [this, id, open]
-            {
-                RunAction (DebuggerActions::GetPanel (id, !open, GetMode()));
-            }));
-
-            panels.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-        }
-    }
-
-    for (const auto & [mode, label] : { std::pair { CommandMode::AppleWin,  L"AppleWin"  },
-                                        std::pair { CommandMode::Monitor,   L"Monitor"   },
-                                        std::pair { CommandMode::GSSquared, L"GSSquared" },
-                                        std::pair { CommandMode::WinDbg,    L"WinDbg"    },
-                                        std::pair { CommandMode::Casso,     L"Casso"     } })
-    {
-        bool  current = (m_snapshot != nullptr) && m_snapshot->mode == mode;
-
-        m_menuCommands.push_back (MakeMenuCommand (label, current, [this, mode]
-        {
-            RunAction (DebuggerActions::GetSetMode (mode, GetMode()));
-        }));
-
-        modes.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
-    {
-        //  Applying the scheme rebuilds these rows, this one among them, so
-        //  it is the last thing the row does.
-        m_menuCommands.push_back (MakeMenuCommand (DebuggerKeySchemes::GetMap (scheme).GetName(), scheme == m_keyScheme, [this, scheme]
-        {
-            if (m_host != nullptr)
-            {
-                m_host->SetDebuggerKeyScheme (DebuggerKeySchemes::GetName (scheme));
-            }
-
-            ApplyKeyScheme (scheme);
-        }));
-
-        schemes.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    for (const std::wstring & pane : GetViewMenuPanes())
-    {
-        m_menuCommands.push_back (MakeMenuCommand (GetPaneTitle (pane), IsPaneShown (pane), [this, pane]
-        {
-            ShowPane (pane);
-        }));
-
-        windows.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    m_commandBar->SetDropDownItems (DebuggerCommands::kView,      std::move (windows));
-    m_commandBar->SetDropDownItems (DebuggerCommands::kPanels,    std::move (panels));
-    m_commandBar->SetDropDownItems (DebuggerCommands::kMode,      std::move (modes));
-    m_commandBar->SetDropDownItems (DebuggerCommands::kKeyScheme, std::move (schemes));
 }
 
 
@@ -2181,8 +2093,8 @@ DebuggerKeyScheme DebuggerWindow::GetSavedKeyScheme() const
 //
 //  DebuggerWindow::ApplyKeyScheme
 //
-//  The Keys drop-down is rebuilt too, since its rows carry the scheme that
-//  was checked when they were built.
+//  The menu bar is rebuilt too, since its rows carry the keys of the scheme
+//  that was in force when they were built.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2205,9 +2117,9 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
         m_commands->ApplyKeyScheme (scheme);
     }
 
-    if (m_commandBar != nullptr)
+    if (m_menuBar != nullptr)
     {
-        SetCommandBarMenus();
+        SetWindowMenus();
     }
 }
 
@@ -2800,6 +2712,7 @@ void DebuggerWindow::LayoutWidgets()
     int   width    = m_widthDip;
     int   height   = m_heightDip;
     int   captionH = GetCaptionHeightPx();
+    int   menuH    = DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi());
     //  FLUSH UNDER THE CAPTION, AND THE PANES FLUSH UNDER IT. The strip
     //  carries its own margin around its buttons; padding it as well put
     //  body color between the caption and the buttons, which reads as a gap
@@ -2820,6 +2733,13 @@ void DebuggerWindow::LayoutWidgets()
     //  drops its labels one at a time and finally into See more, so it never
     //  runs off the edge. The renderer it measures and draws its icons with
     //  arrives with the backend, after the window was built.
+    //  The menu bar first, under the caption, as Visual Studio's is.
+    m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
+    m_menuBar->SetHostClientRect         (RECT { 0, 0, width, height });
+    m_menuBar->Layout                    (RECT { 0, rowY, width, rowY + menuH }, m_scaler);
+
+    rowY += menuH;
+
     m_commandBar->SetTextRenderer   (GetTextRenderer());
     m_commandBar->SetHostClientRect (RECT { 0, 0, width, height });
     m_commandBar->Layout (RECT { pad, rowY, width - pad, rowY + buttonH }, m_scaler);
@@ -2834,6 +2754,7 @@ void DebuggerWindow::LayoutWidgets()
     UpdateCodeLines();
     PlaceMemoryBar();
     PlaceBreakpointBar();
+    PlaceConsoleBar();
     PlaceFindBar();
     ClipPaneControls();
 }
@@ -3130,6 +3051,10 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_consoleFrame = std::make_unique<DebuggerPaneFrame> (L"Console");
+    //  The console's toolbar, which holds its dialect, is a place held at the
+    //  pane's top, which PlaceConsoleBar fills.
+    m_consoleBarSlot = std::make_unique<DebuggerPaneFrame> (L"Console commands");
+    m_consoleFrame->AddPart (m_consoleBarSlot.get(), barHeight);
     //  The find bar is a slot over the output that PlaceFindBar fills, shown
     //  only while find is open.
     m_findBar = std::make_unique<DebuggerPaneFrame> (L"Find");
@@ -3783,7 +3708,7 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
     m_dockSite->Relayout();
     m_pendingShowPane = pane;
     ShowPendingPane();
-    SetCommandBarMenus();
+    SetWindowMenus();
     Invalidate();
 }
 
@@ -3847,7 +3772,7 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
         m_closedPanes.insert (pane);
         m_syncFloats = true;
         m_dockSite->Relayout();
-        SetCommandBarMenus();
+        SetWindowMenus();
         SaveLayout();
         Invalidate();
         return;
@@ -3987,7 +3912,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     }
 
     m_menuCommands.clear();
-    SetCommandBarMenus();
+    SetWindowMenus();
 
     //  A disassembly view that does not follow the PC can take it over, and
     //  any but the first can close.
@@ -4164,7 +4089,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     }
 
     m_menuCommands.clear();
-    SetCommandBarMenus();
+    SetWindowMenus();
 
     for (auto & [label, action] : items)
     {
@@ -4204,7 +4129,7 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
 
 
     m_menuCommands.clear();
-    SetCommandBarMenus();
+    SetWindowMenus();
 
     for (const auto & [command, label, accelerator] : s_kEdits)
     {
@@ -4497,12 +4422,17 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar })
     {
         if (strip->WantsTick())
         {
             strip->TickMenus (now);
         }
+    }
+
+    if (m_menuBar->WantsTick())
+    {
+        m_menuBar->TickMenus (now);
     }
 
     if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
@@ -4527,6 +4457,7 @@ void DebuggerWindow::RenderFrame()
     CarryTornOffPane();
     PlaceMemoryBar();
     PlaceBreakpointBar();
+    PlaceConsoleBar();
     PlaceFindBar();
     ClipPaneControls();
 
@@ -4690,7 +4621,8 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     if (GetMenuState() != m_menuState)
     {
         m_menuState = GetMenuState();
-        SetCommandBarMenus();
+        SetWindowMenus();
+        SetConsoleBarMenus();
     }
 }
 
@@ -5654,6 +5586,12 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
+    //  And the console's.
+    if ((barTip == nullptr || *barTip == L'\0') && m_consoleBar != nullptr && m_consoleBar->IsVisible())
+    {
+        barTip = m_consoleBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
     if (barTip == nullptr || *barTip == L'\0')
     {
         barTip = GetFindBarTip (clientPx, cell);
@@ -6566,8 +6504,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  The command bar first: it owns its strip and whatever menu it has
-    //  open.
+    //  The menu bar first, then the command bar: each owns its strip and
+    //  whatever menu it has open.
+    if (m_routingPane.empty() && RouteMenuBarMouse (ev))
+    {
+        return true;
+    }
+
     if (m_routingPane.empty() && RouteCommandBarMouse (ev))
     {
         return true;
@@ -6582,6 +6525,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  Then the breakpoints pane's toolbar.
     if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) && RouteBreakpointBarMouse (ev))
+    {
+        return true;
+    }
+
+    //  And the console's.
+    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kConsole) && RouteConsoleBarMouse (ev))
     {
         return true;
     }
@@ -6799,7 +6748,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     }
 
     if (GetSourceSlotOf (pane) >= 0)          { return { m_sourceDocs[(size_t) GetSourceSlotOf (pane)].banner, m_sourceDocs[(size_t) GetSourceSlotOf (pane)].view }; }
-    if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
+    if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox, m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
@@ -8219,7 +8168,7 @@ void DebuggerWindow::ShowHistoryList()
     }
 
     m_menuCommands.clear();
-    SetCommandBarMenus();
+    SetWindowMenus();
 
     for (auto it = lines.rbegin(); it != lines.rend() && menu.size() < s_kMaxRows; ++it)
     {
@@ -8299,6 +8248,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     bool            handled = false;
 
 
+
+    //  The menu bar takes the keys while one of its menus is open, and Alt
+    //  with a letter opens the menu it marks.
+    if (RouteMenuBarKey (ev, handled))
+    {
+        return handled;
+    }
 
     //  A watch being edited takes every key: Enter keeps what was typed,
     //  Escape leaves the watch as it was.

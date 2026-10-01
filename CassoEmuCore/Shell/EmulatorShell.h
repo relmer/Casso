@@ -514,6 +514,7 @@ private:
     void    RunDebuggerCommandInMode (const std::string & line, CommandMode mode) override;
     void    RunDebuggerAction        (const DebuggerAction & action) override;
     void    PauseDebugger            () override;
+    void    RunEmulatorCommand       (int commandId) override;
     void    SetDebuggerCodeLines     (int lines, int view) override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address, int view) override;
     void    SetDebuggerCodeTop       (Word top, int view) override;

@@ -18,11 +18,6 @@ static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up
 static constexpr const wchar_t *  s_kGlyphRunToCursor = L"";         // MDL2 has no arrow into a bar, so the entry draws its own icon
 static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
-static constexpr const wchar_t *  s_kGlyphPanels      = L"\uE950";   // chip
-static constexpr const wchar_t *  s_kGlyphKeys        = L"\uE765";   // keyboard
-static constexpr const wchar_t *  s_kGlyphMode        = L"\uE943";   // braces
-static constexpr const wchar_t *  s_kGlyphFind        = L"\uE721";   // magnifier, as the search box draws it
-static constexpr const wchar_t *  s_kGlyphView        = L"\uE890";   // eye
 
 
 
@@ -32,8 +27,10 @@ static constexpr const wchar_t *  s_kGlyphView        = L"\uE890";   // eye
 //
 //  DebuggerCommands::GetRows
 //
-//  Running and stopping first, then where the code pane looks, then the
-//  choices that change what the window shows.
+//  Running and stopping first, then where the code pane looks and the trace.
+//  The run and step buttons are icons alone, as Visual Studio's are; each tip
+//  gives the command and its key. The choices that change what the window
+//  shows live in the menu bar, and the dialect in the console's own bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,19 +38,14 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
-        { kRun,         L"Run",           s_kGlyphRun,         L"Run until something stops the machine",           DxuiToolbar::Kind::Command,  0, false },
-        { kPause,       L"Pause",         s_kGlyphPause,       L"Stop the running machine",                        DxuiToolbar::Kind::Command,  0, false },
-        { kStepInto,    L"Step into",     s_kGlyphStepInto,    L"Step one instruction, into a call",               DxuiToolbar::Kind::Command,  1, false },
-        { kStepOver,    L"Step over",     s_kGlyphStepOver,    L"Step one instruction, over a call",               DxuiToolbar::Kind::Command,  1, false },
-        { kStepOut,     L"Step out",      s_kGlyphStepOut,     L"Run to the return of the current call",           DxuiToolbar::Kind::Command,  1, false },
-        { kRunToCursor, L"Run to cursor", s_kGlyphRunToCursor, L"Run until the selected line",                     DxuiToolbar::Kind::Command,  1, false },
-        { kShowNext,    L"Show next",     s_kGlyphShowNext,    L"Bring the code panes to the next statement",      DxuiToolbar::Kind::Command,  2, false },
-        { kTrace,       L"Trace",         s_kGlyphTrace,       L"Record every instruction the machine runs",       DxuiToolbar::Kind::Toggle,   2, true  },
-        { kFind,        L"Find",          s_kGlyphFind,        L"Search the console's output",                     DxuiToolbar::Kind::Command,  3, false },
-        { kView,        L"View",          s_kGlyphView,        L"Show one of the debugger's windows",              DxuiToolbar::Kind::DropDown, 4, false },
-        { kPanels,      L"Panels",        s_kGlyphPanels,      L"Open a panel for one of the machine's devices",   DxuiToolbar::Kind::DropDown, 4, false },
-        { kMode,        L"Dialect",       s_kGlyphMode,        L"Choose the command dialect for the console",      DxuiToolbar::Kind::DropDown, 4, false },
-        { kKeyScheme,   L"Keys",          s_kGlyphKeys,        L"Choose which editor's keyboard shortcuts to use", DxuiToolbar::Kind::DropDown, 4, false },
+        { kRun,         L"Run",           s_kGlyphRun,         L"Run until something stops the machine",           DxuiToolbar::Kind::Command,  0, false, true  },
+        { kPause,       L"Pause",         s_kGlyphPause,       L"Stop the running machine",                        DxuiToolbar::Kind::Command,  0, false, true  },
+        { kStepInto,    L"Step into",     s_kGlyphStepInto,    L"Step one instruction, into a call",               DxuiToolbar::Kind::Command,  1, false, true  },
+        { kStepOver,    L"Step over",     s_kGlyphStepOver,    L"Step one instruction, over a call",               DxuiToolbar::Kind::Command,  1, false, true  },
+        { kStepOut,     L"Step out",      s_kGlyphStepOut,     L"Run to the return of the current call",           DxuiToolbar::Kind::Command,  1, false, true  },
+        { kRunToCursor, L"Run to cursor", s_kGlyphRunToCursor, L"Run until the selected line",                     DxuiToolbar::Kind::Command,  1, false, true  },
+        { kShowNext,    L"Show next",     s_kGlyphShowNext,    L"Bring the code panes to the next statement",      DxuiToolbar::Kind::Command,  2, false, true  },
+        { kTrace,       L"Trace",         s_kGlyphTrace,       L"Record every instruction the machine runs",       DxuiToolbar::Kind::Toggle,   2, true,  false },
     };
 
 
@@ -130,9 +122,10 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
     {
         DxuiToolbar::Entry  entry;
 
-        entry.command = Find (row.id);
-        entry.kind    = row.kind;
-        entry.group   = row.group;
+        entry.command  = Find (row.id);
+        entry.kind     = row.kind;
+        entry.group    = row.group;
+        entry.iconOnly = row.iconOnly;
 
         if (row.id == kRunToCursor)
         {

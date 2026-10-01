@@ -6,6 +6,7 @@
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDockSite.h"
+#include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
@@ -57,6 +58,10 @@ public:
     //  A control's action, run directly with its echo shown (FR-135). A host
     //  with no session to run it on, as a test's is, has nothing to do.
     virtual void  RunDebuggerAction       (const DebuggerAction &)          {}
+    //  One of the emulator's own menu commands (a resource IDM_ id), such as
+    //  Reset or Restart under debugger, which the debugger's menu bar offers
+    //  too. A host with no emulator, as a test's is, has nothing to do.
+    virtual void  RunEmulatorCommand      (int commandId)                   { (void) commandId; }
     //  How many lines the code pane has room for, measured by the window.
     virtual void  SetDebuggerCodeLines    (int lines, int view)             = 0;
     //  A code view: 0 is the first, 1 to 3 the others. An address given for
@@ -269,6 +274,16 @@ protected:
     void                                               RunBreakpointStep      (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelectedBreakpoints () const;
 
+    //  Protected so a test can read the menu bar's menus as a click opens
+    //  them, and the command bar's and the console bar's entries.
+    static constexpr int  kDialectEntry = 1;
+
+    void                                  SetWindowMenus     ();
+    void                                  SetConsoleBarMenus ();
+    const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
+    DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
+    DxuiToolbar *                         GetConsoleBar      () const { return m_consoleBar; }
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -347,11 +362,21 @@ private:
     static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
-    void     SetCommandBarMenus  ();
     std::string  GetMenuState   () const;
     void     RunCommandBarEntry  (int id);
     bool     IsCommandBarEntryEnabled (int id) const;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
+    void     ConfigureMenuBar     ();
+    bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
+    bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
+    std::shared_ptr<DxuiCommand>  MakeKeyedMenuCommand (int id, const std::wstring & label);
+    std::shared_ptr<DxuiCommand>  MakeEditMenuCommand  (DxuiStandardCommand command, const std::wstring & label, const std::wstring & accelerator);
+    void     ResetPaneLayout      ();
+    void     OpenSourceFile       ();
+    void     OpenSymbolFile       ();
+    void     ConfigureConsoleBar  ();
+    void     PlaceConsoleBar      ();
+    bool     RouteConsoleBarMouse (const DxuiMouseEvent & ev);
     void     ConfigureMemoryBar   ();
     void     SetMemoryBarMenus    ();
     void     AddMemoryHistory     (const std::wstring & text);
@@ -537,6 +562,11 @@ private:
     uint32_t                                        m_offeredSuggestionSerial = 0;
 
     DxuiToolbar                                                                    * m_commandBar         = nullptr;
+    DxuiMenuBar                                                                    * m_menuBar            = nullptr;
+    std::vector<DxuiMenuBarItem>                                                     m_menuBarItems;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_consoleBarSlot;
+    DxuiToolbar                                                                    * m_consoleBar         = nullptr;
+    std::shared_ptr<DxuiCommand>                                                     m_dialectCommand;
     std::unique_ptr<DebuggerCommands>                                                m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_menuCommands;
     DxuiDockSite                                                                   * m_dockSite           = nullptr;
