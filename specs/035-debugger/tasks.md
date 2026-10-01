@@ -1075,7 +1075,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T346 Owner review 2026-10-01: undoing a breakpoint edit keeps the hit count the breakpoint had before the edit
 - [X] T347 Owner review 2026-10-01: a toggle for the instruction rows under source lines (Debug menu and the source pane's toolbar); rows are built only while the PC is in that file
 - [X] T348 Owner review 2026-10-01: make the result color a theme token, with a legible value chosen for each Casso theme and system light and dark
-- [ ] T349 Owner review 2026-10-01: build document tab groups properly so the document compass's inner split targets create a new document tab group beside the target, as Visual Studio does, distinct from docking to the edge
+- [X] T349 Owner review 2026-10-01: build document tab groups properly so the document compass's inner split targets create a new document tab group beside the target, as Visual Studio does, distinct from docking to the edge
 - [ ] T350 Owner decision 2026-10-01: rename Debug > Stop debugging to "Detach": it closes the debugger and leaves the machine running at full speed; Restart under debugger stays
 - [ ] T351 Owner decision 2026-10-01: save the closed fixed panes in their own setting in GlobalUserPrefs (e.g. `debuggerClosedPanes`), not as a line inside `debuggerLayout`; read an old layout that carries the line once and move it
 - [ ] T352 Owner decision 2026-10-01: when the text gives no assembler clue, or equal clues, use as65 (Casso's own assembler) and drop the extension and Merlin/ca65 tie-breaks; a file with no clues colors the same under every assembler

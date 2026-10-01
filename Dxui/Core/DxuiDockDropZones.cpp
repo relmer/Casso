@@ -26,8 +26,22 @@ std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPa
     long                           midY     = (area.top + area.bottom) / 2;
     long                           half     = kSquareDip / 2;
     long                           step     = kSquareDip + kGapDip;
+    RECT                           well     = {};
+    bool                           hasWell  = false;
 
 
+
+    //  The document well: every document group's area together.
+    for (const DxuiPaneLayout::GroupRect & group : groups)
+    {
+        if (isDocument && isDocument (group))
+        {
+            well    = hasWell ? RECT { std::min (well.left, group.rect.left), std::min (well.top, group.rect.top),
+                                       std::max (well.right, group.rect.right), std::max (well.bottom, group.rect.bottom) }
+                              : group.rect;
+            hasWell = true;
+        }
+    }
 
     for (DxuiDockSide side : kSides)
     {
@@ -87,7 +101,8 @@ std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPa
             zone.side       = side;
             zone.targetPane = group.active;
             zone.target     = MakeSquare (cx + ring * dx, cy + ring * dy);
-            zone.preview    = GetHalf (group.rect, side);
+            zone.preview    = GetHalf (document ? well : group.rect, side);
+            zone.besideWell = document;
             zones.push_back (zone);
         }
     }
@@ -129,11 +144,15 @@ const DxuiDockDropZone * DxuiDockDropZones::HitTest (const std::vector<DxuiDockD
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDockDropZones::Apply (const DxuiDockDropZone & zone, DxuiPaneLayout & layout, const std::wstring & pane)
+bool DxuiDockDropZones::Apply (const DxuiDockDropZone & zone, DxuiPaneLayout & layout, const std::wstring & pane,
+                               const DxuiPaneLayout::GroupFn & isDocument)
 {
     switch (zone.kind)
     {
     case DxuiDockDropZone::Kind::Side:
+        return zone.besideWell ? layout.DockBesideWell (pane, zone.targetPane, zone.side, isDocument)
+                               : layout.DockToSide     (pane, zone.targetPane, zone.side);
+
     case DxuiDockDropZone::Kind::Split:
         return layout.DockToSide (pane, zone.targetPane, zone.side);
 

@@ -154,7 +154,15 @@ public:
     //  that is not there.
     bool  DockToSide  (const std::wstring & pane, const std::wstring & target, DxuiDockSide side);
     bool  DockToEdge  (const std::wstring & pane, DxuiDockSide side);
-    bool  TabWith     (const std::wstring & pane, const std::wstring & target);
+
+    //  Beside the document well: the smallest part of the tree holding every
+    //  group `isDocument` picks, as Visual Studio's outer compass squares over
+    //  a document group dock a pane.
+    using GroupFn = std::function<bool (const std::vector<std::wstring> & panes)>;
+    bool  DockBesideWell (const std::wstring & pane, const std::wstring & target, DxuiDockSide side,
+                          const GroupFn & isDocument);
+
+    bool  TabWith    (const std::wstring & pane, const std::wstring & target);
     bool  TabWithAt   (const std::wstring & pane, const std::wstring & target, int index);
     bool  Float       (const std::wstring & pane, const std::wstring & monitorKey, const RECT & rectDip);
     bool  AutoHide    (const std::wstring & pane, DxuiDockSide edge);
@@ -203,6 +211,8 @@ private:
     static Node *                 FindParent   (Node * node, const Node * child);
     static Node *                 FindSubtree  (Node * node, const std::wstring & pane, const std::vector<std::wstring> & panes);
     static void                   CollectPanes (const Node * node, std::vector<std::wstring> & out);
+    static int                    CountDocumentGroups (const Node * node, const GroupFn & isDocument);
+    static Node *                 FindWell     (Node * node, const GroupFn & isDocument, int count);
     static bool                   RemoveFrom   (std::unique_ptr<Node> & slot, const std::wstring & pane);
     static bool                   HasShown     (const Node * node, const ShownFn & shown);
     static SIZE                   GetMinimum   (const Node * node, const ShownFn & shown, const MinSizeFn & minSize);

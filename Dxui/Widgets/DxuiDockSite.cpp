@@ -1779,7 +1779,8 @@ bool DxuiDockSite::DropOnZone (const DxuiDockDropZone & zone)
 
 
 
-    if (m_dragPanes.empty() || !DxuiDockDropZones::Apply (zone, m_layout, m_dragPanes.front()))
+    if (m_dragPanes.empty() || !DxuiDockDropZones::Apply (zone, m_layout, m_dragPanes.front(),
+                                                                  [this] (const std::vector<std::wstring> & panes) { return IsDocumentGroup (panes); }))
     {
         return false;
     }

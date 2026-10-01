@@ -512,6 +512,98 @@ bool DxuiPaneLayout::DockToSide (const std::wstring & pane, const std::wstring &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPaneLayout::DockBesideWell
+//
+//  Beside the whole document well rather than one group in it: a split of
+//  the smallest subtree holding every document group. With no document group
+//  left once the pane is taken out, it docks beside the target's group.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPaneLayout::DockBesideWell (const std::wstring & pane, const std::wstring & target, DxuiDockSide side,
+                                     const GroupFn & isDocument)
+{
+    Node *  well  = nullptr;
+    int     count = 0;
+
+
+
+    if (pane == target || !Contains (pane) || !IsDocked (target))
+    {
+        return false;
+    }
+
+    Detach (pane);
+    count = CountDocumentGroups (m_root.get(), isDocument);
+    well  = (count > 0) ? FindWell (m_root.get(), isDocument, count) : nullptr;
+    well  = (well != nullptr) ? well : FindGroup (m_root.get(), target);
+    Split (*well, MakeTabs (pane), side);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::CountDocumentGroups
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPaneLayout::CountDocumentGroups (const Node * node, const GroupFn & isDocument)
+{
+    if (node == nullptr)
+    {
+        return 0;
+    }
+
+    if (node->kind == Node::Kind::Tabs)
+    {
+        return (isDocument && isDocument (node->panes)) ? 1 : 0;
+    }
+
+    return CountDocumentGroups (node->first.get(), isDocument) + CountDocumentGroups (node->second.get(), isDocument);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::FindWell
+//
+//  The deepest node under `node` holding all `count` document groups.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneLayoutNode * DxuiPaneLayout::FindWell (Node * node, const GroupFn & isDocument, int count)
+{
+    Node *  found = nullptr;
+
+
+
+    if (node == nullptr || CountDocumentGroups (node, isDocument) < count)
+    {
+        return nullptr;
+    }
+
+    if (node->kind == Node::Kind::Split)
+    {
+        found = FindWell (node->first.get(), isDocument, count);
+        found = (found != nullptr) ? found : FindWell (node->second.get(), isDocument, count);
+    }
+
+    return (found != nullptr) ? found : node;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPaneLayout::DockToEdge
 //
 //  Against the window's own edge: a split of the whole tree. A pane already

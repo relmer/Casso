@@ -28,6 +28,7 @@ struct DxuiDockDropZone
     std::wstring  targetPane;
     RECT          target     = {};
     RECT          preview    = {};
+    bool          besideWell = false;
 };
 
 
@@ -70,7 +71,11 @@ public:
     static const DxuiDockDropZone *  HitTest (const std::vector<DxuiDockDropZone> & zones, POINT point);
 
     //  Carries the drop out; false when it changed nothing.
-    static bool  Apply (const DxuiDockDropZone & zone, DxuiPaneLayout & layout, const std::wstring & pane);
+    //  A side square of a document group's outer ring docks beside the whole
+    //  document well, which isDocument picks out; an inner split square
+    //  makes a new tab group beside the one group.
+    static bool  Apply (const DxuiDockDropZone & zone, DxuiPaneLayout & layout, const std::wstring & pane,
+                        const DxuiPaneLayout::GroupFn & isDocument = nullptr);
 
 private:
     static RECT  MakeSquare  (long centerX, long centerY);
