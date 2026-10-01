@@ -633,6 +633,7 @@
     <ClCompile Include="Dxui\DxuiTabGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteDragMarksTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteDragTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCaptionDragTrackerDpiTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteFloatingTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTests.cpp" />

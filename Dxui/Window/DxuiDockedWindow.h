@@ -81,6 +81,7 @@ protected:
     bool  OnMappedCommand (int commandId) override;
     bool  OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     void  OnWindowPlaced () override;
+    void  OnDpiChanged   (UINT newDpi) override;
 
 private:
     void  OnMoveLoopTick ();

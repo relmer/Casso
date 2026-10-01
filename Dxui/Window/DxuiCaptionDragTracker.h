@@ -45,6 +45,10 @@ public:
     //  Once a frame, for a loop whose end was not reported.
     Event  OnPoll    (bool buttonDown, SIZE windowSize);
 
+    //  The window moved to a monitor at another scale, which resized it:
+    //  `windowSize` is its size now, and still a move's.
+    void   Rebase    (SIZE windowSize);
+
     bool   IsDragging () const { return m_dragging; }
 
 private:
