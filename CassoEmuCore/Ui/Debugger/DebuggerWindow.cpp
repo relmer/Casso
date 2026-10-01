@@ -4020,8 +4020,33 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     //  (FR-113).
     if (slot >= 0 && m_documents.IsOpen (slot))
     {
+        std::vector<DxuiPopupMenuItem>  syntax;
+        SourcePane                    * source = m_sourceDocs[(size_t) slot].pane.get();
+
+
+
         m_menuCommands.push_back (MakeMenuCommand (L"Close", false, [this, slot] { CloseSourceDocument (slot); }));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+
+        //  Whose grammar colors the document, for a file its text misleads.
+        for (SourceSyntax::Assembler each : { SourceSyntax::Assembler::Any, SourceSyntax::Assembler::As65,
+                                              SourceSyntax::Assembler::Merlin, SourceSyntax::Assembler::Ca65 })
+        {
+            m_menuCommands.push_back (MakeMenuCommand (SourceSyntax::GetAssemblerLabel (each), source->GetAssemblerChoice() == each, [this, source, each]
+            {
+                source->SetAssembler (each);
+
+                if (m_snapshot != nullptr)
+                {
+                    source->Apply (*m_snapshot);
+                }
+            }));
+
+            syntax.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+        }
+
+        m_menuCommands.push_back (MakeMenuCommand (L"Syntax", false, [] {}));
+        menu.push_back (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (syntax)));
         menu.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 

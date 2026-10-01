@@ -66,6 +66,48 @@ void SourcePane::SetStyle (const Style & style)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::SetAssembler
+//
+//  The user's choice of whose grammar colors this document, or Any to go by
+//  what the file's text shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::SetAssembler (SourceSyntax::Assembler assembler)
+{
+    if (assembler == m_assemblerChoice)
+    {
+        return;
+    }
+
+    m_assemblerChoice = assembler;
+    m_isStyleStale    = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetAssembler
+//
+//  The grammar this document is colored with: the user's choice, or the one
+//  its text shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SourceSyntax::Assembler SourcePane::GetAssembler() const
+{
+    return (m_assemblerChoice != SourceSyntax::Assembler::Any) ? m_assemblerChoice : m_detected;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::Apply
 //
 //  A debug file loaded again starts the document over. Its file is found when
@@ -144,9 +186,10 @@ void SourcePane::SetFile (int fileId)
         return;
     }
 
-    m_docFileId      = fileId;
-    m_isDropped      = false;
-    m_pendingTopLine = 0;
+    m_docFileId       = fileId;
+    m_isDropped       = false;
+    m_pendingTopLine  = 0;
+    m_assemblerChoice = SourceSyntax::Assembler::Any;
 
     if (fileId < 0)
     {
@@ -255,6 +298,7 @@ void SourcePane::LoadFile (int fileId)
     m_isDropped = false;
     m_foundPath = lookup.path;
     m_lines     = SplitLines (lookup.text);
+    m_detected  = SourceSyntax::DetectAssembler (m_lines, SourcePathList::Utf8ToWide (GetFileName (fileId)));
 }
 
 
@@ -342,7 +386,7 @@ void SourcePane::Rebuild()
             }
         }
 
-        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineBytes, lineOperands));
+        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineBytes, lineOperands, GetAssembler()));
         m_rowsDisabled     = disabled;
         m_rowsLineBytes    = m_state->lineBytes;
         m_rowsLineOperands = m_state->lineOperands;
@@ -573,6 +617,7 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
     m_isDropped = true;
     m_droppedAt = m_docFileId;
     m_fileId    = (recordIndex >= 0 && recordIndex < (int) m_state->files.size()) ? m_state->files[(size_t) recordIndex].id : -1;
+    m_detected  = SourceSyntax::DetectAssembler (m_lines, (m_fileId >= 0) ? SourcePathList::Utf8ToWide (GetFileName (m_fileId)) : lookup.path);
     m_rowsFileId = -2;
 
     Rebuild();
@@ -877,9 +922,9 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SourcePane::IsInstructionLine (const std::wstring & line)
+bool SourcePane::IsInstructionLine (const std::wstring & line, SourceSyntax::Assembler assembler)
 {
-    for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (line))
+    for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (line, assembler))
     {
         if (run.token == SourceSyntax::Token::Mnemonic)
         {
@@ -910,7 +955,8 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
                                                       const std::set<int> & disabledLines,
                                                       const Style         & style,
                                                       const std::map<int, std::wstring> & lineBytes,
-                                                      const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands)
+                                                      const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands,
+                                                      SourceSyntax::Assembler assembler)
 {
     std::vector<DxuiTextView::Row>  rows;
     int                             width  = (int) std::to_wstring (lines.size()).size();
@@ -973,7 +1019,7 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
 
             row.cells.emplace_back();
 
-            if (found != lineOperands.end() && IsInstructionLine (lines[i]))
+            if (found != lineOperands.end() && IsInstructionLine (lines[i], assembler))
             {
                 row.cells.back() = found->second.first;
 
@@ -993,7 +1039,7 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
 
         if (style.syntax.mnemonic != 0)
         {
-            for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (lines[i]))
+            for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (lines[i], assembler))
             {
                 row.spans.push_back ({ 2, run.start, run.length, style.syntax.Get (run.token) });
             }

@@ -77,6 +77,12 @@ public:
 
     //  Rows are rebuilt with the next Apply when the style changes.
     void  SetStyle      (const Style & style);
+
+    //  Whose grammar colors the text: Any goes by what the file shows. Rows
+    //  are rebuilt with the next Apply when it changes.
+    void                     SetAssembler       (SourceSyntax::Assembler assembler);
+    SourceSyntax::Assembler  GetAssemblerChoice () const { return m_assemblerChoice; }
+    SourceSyntax::Assembler  GetAssembler       () const;
     void  Apply         (const DebuggerViewSnapshot & snapshot);
 
     //  The file this document shows, or -1 for none; a new file is found
@@ -137,10 +143,11 @@ public:
                                                        const std::set<int> & disabledLines = {},
                                                        const Style         & style         = {},
                                                        const std::map<int, std::wstring> & lineBytes = {},
-                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands = {});
+                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands = {},
+                                                       SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
 
     //  Whether a line's opcode is a 65C02 mnemonic, so that it is one instruction.
-    static bool  IsInstructionLine (const std::wstring & line);
+    static bool  IsInstructionLine (const std::wstring & line, SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
 
     //  The command a double click on a line sends: clearing the breakpoint
     //  already on it, or setting one.
@@ -207,5 +214,7 @@ private:
     std::set<int>                                                      m_disabledIds;
     Style                                                              m_style;
     bool                                                               m_isStyleStale    = false;
+    SourceSyntax::Assembler                                            m_assemblerChoice = SourceSyntax::Assembler::Any;
+    SourceSyntax::Assembler                                            m_detected        = SourceSyntax::Assembler::As65;
     int                                                                m_rowsFileId      = -2;
 };

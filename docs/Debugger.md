@@ -375,6 +375,10 @@ source view.
   disassembly by instruction.
 - `BP file:line` sets a breakpoint on the first instruction of a line, at
   each place a macro body line was expanded.
+- Source is colored with the grammar of the assembler that wrote it: as65,
+  Merlin or ca65, chosen from the file's directives and labels, then its
+  extension. The Syntax entry on a document's tab menu sets it for that
+  document.
 
 ## The call stack
 
