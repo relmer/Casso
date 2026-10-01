@@ -19,7 +19,8 @@ struct DebuggerAction;
 //  the table on either side of the action. Undoing a step takes each
 //  breakpoint back to its before state straight from the table entry saved
 //  with the step, with no command built, parsed or echoed, and redoing takes
-//  it forward again. Either prints one line saying what it did.
+//  it forward again. Either prints one line for each breakpoint it changed,
+//  saying what happened to it.
 //
 //  A breakpoint added again gets a new id, so a step refers to each
 //  breakpoint by a handle of its own and the history keeps the id each handle
@@ -42,10 +43,10 @@ public:
     void  Record  (DebugSession & session, const Change & change);
 
     //  Takes the newest step back or forward straight from the table entries
-    //  saved with it, and gives the one console line that says what it
+    //  saved with it, and gives one console line for each breakpoint it
     //  restored or removed. False when there is nothing to undo or redo.
-    bool  TryUndo (DebugSession & session, std::string & line);
-    bool  TryRedo (DebugSession & session, std::string & line);
+    bool  TryUndo (DebugSession & session, std::vector<std::string> & lines);
+    bool  TryRedo (DebugSession & session, std::vector<std::string> & lines);
 
     bool  CanUndo () const { return !m_undo.empty(); }
     bool  CanRedo () const { return !m_redo.empty(); }
@@ -90,7 +91,7 @@ private:
 
     static std::map<int, BreakpointInfo>  ListById    (DebugSession & session);
     static std::map<int, Saved>           SaveAll     (DebugSession & session);
-    static std::string                    Describe    (const std::vector<Outcome> & outcomes);
+    static std::vector<std::string>       Describe    (const std::vector<Outcome> & outcomes);
     static bool                           IsSame      (const BreakpointInfo & left, const BreakpointInfo & right);
     static bool                           HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right);
 

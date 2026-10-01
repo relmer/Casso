@@ -182,7 +182,7 @@ namespace BreakpointUndoLineTests
         }
 
 
-        TEST_METHOD (UndoingDeleteAllPrintsACount)
+        TEST_METHOD (UndoingDeleteAllPrintsALinePerBreakpoint)
         {
             UndoLineRig               rig;
             std::vector<std::string>  lines;
@@ -194,8 +194,7 @@ namespace BreakpointUndoLineTests
             rig.Step ({ DebuggerActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
             lines = rig.Do (BreakpointStep::Kind::Undo);
 
-            Assert::AreEqual ((size_t) 1, lines.size());
-            Assert::AreEqual (std::string ("Restored 2 breakpoints"), lines[0]);
+            Assert::AreEqual ((size_t) 2, lines.size());
         }
     };
 }

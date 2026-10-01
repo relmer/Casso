@@ -1071,8 +1071,8 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T342 Owner review 2026-10-01: Window > Reset window layout also reopens closed panes
 - [X] T343 Owner review 2026-10-01: the memory Address box never moves into the "..." overflow; it shrinks to a minimum width before anything clips
 - [ ] T344 Owner review 2026-10-01: the breakpoints pane's toolbar and columns must match Visual Studio's exactly (vs-reference/vs-breakpoints-toolbar.png, -new-menu.png, -commands.png, -columns.png): New drop-down, Delete, Delete all, Disable all (in place of VS's two search-criteria buttons), Undo, Redo, Go to source code, Go to disassembly, Show columns drop-down, Export, Import, with VS's icons; and the columns VS lists that apply to Casso (Name, Condition, Labels, Hit count, Filter, When hit, Function, File, Address, Data), Name always on
-- [ ] T345 Owner review 2026-10-01: an undo or redo that changes several breakpoints prints one line per breakpoint saying what happened to it (e.g. "Restored breakpoint 3 (exec C000)"), not a count
-- [ ] T346 Owner review 2026-10-01: undoing a breakpoint edit keeps the hit count the breakpoint had before the edit
+- [X] T345 Owner review 2026-10-01: an undo or redo that changes several breakpoints prints one line per breakpoint saying what happened to it (e.g. "Restored breakpoint 3 (exec C000)"), not a count
+- [X] T346 Owner review 2026-10-01: undoing a breakpoint edit keeps the hit count the breakpoint had before the edit
 - [X] T347 Owner review 2026-10-01: a toggle for the instruction rows under source lines (Debug menu and the source pane's toolbar); rows are built only while the PC is in that file
 - [X] T348 Owner review 2026-10-01: make the result color a theme token, with a legible value chosen for each Casso theme and system light and dark
 - [ ] T349 Owner review 2026-10-01: build document tab groups properly so the document compass's inner split targets create a new document tab group beside the target, as Visual Studio does, distinct from docking to the edge

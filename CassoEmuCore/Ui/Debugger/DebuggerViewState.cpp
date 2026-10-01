@@ -1844,7 +1844,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
     std::vector<std::string>         lines;
     BreakpointHistory::ActionRunner  act;
     BreakpointHistory::LineRunner    run;
-    std::string                      summary;
+    std::vector<std::string>         summary;
 
 
 
@@ -1875,7 +1875,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
     case BreakpointStep::Kind::Undo:
         if (m_breakpointHistory.TryUndo (session, summary))
         {
-            lines.push_back (summary);
+            lines.insert (lines.end(), summary.begin(), summary.end());
         }
 
         break;
@@ -1883,7 +1883,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
     case BreakpointStep::Kind::Redo:
         if (m_breakpointHistory.TryRedo (session, summary))
         {
-            lines.push_back (summary);
+            lines.insert (lines.end(), summary.begin(), summary.end());
         }
 
         break;

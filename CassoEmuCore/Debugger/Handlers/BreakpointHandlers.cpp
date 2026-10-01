@@ -1455,7 +1455,7 @@ int BreakpointHandlers::Add (DebugSession & session, const SavedEntry & saved)
 //  BreakpointHandlers::Replace
 //
 //  Puts a saved entry in place of breakpoint `id`, under that same id, with
-//  its hit count at zero, as an edit does.
+//  the hit count it was saved with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1466,10 +1466,8 @@ void BreakpointHandlers::Replace (DebugSession & session, int id, const SavedEnt
 
 
 
-    breakpoint.id   = id;
-    breakpoint.hits = 0;
-    watchpoint.id   = id;
-    watchpoint.hits = 0;
+    breakpoint.id = id;
+    watchpoint.id = id;
 
     session.GetBreakpoints().TryClear (id);
     session.GetWatchpoints().TryClear (id);

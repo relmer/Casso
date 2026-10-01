@@ -73,14 +73,14 @@ void BreakpointHistory::Record (DebugSession & session, const Change & change)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointHistory::TryUndo (DebugSession & session, std::string & line)
+bool BreakpointHistory::TryUndo (DebugSession & session, std::vector<std::string> & lines)
 {
     Step                  step;
     std::vector<Outcome>  outcomes;
 
 
 
-    line.clear();
+    lines.clear();
 
     if (m_undo.empty())
     {
@@ -95,7 +95,7 @@ bool BreakpointHistory::TryUndo (DebugSession & session, std::string & line)
         outcomes.push_back (Apply (session, *entry, entry->after, entry->before, entry->savedBefore));
     }
 
-    line = Describe (outcomes);
+    lines = Describe (outcomes);
     m_redo.push_back (std::move (step));
     return true;
 }
@@ -110,14 +110,14 @@ bool BreakpointHistory::TryUndo (DebugSession & session, std::string & line)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointHistory::TryRedo (DebugSession & session, std::string & line)
+bool BreakpointHistory::TryRedo (DebugSession & session, std::vector<std::string> & lines)
 {
     Step                  step;
     std::vector<Outcome>  outcomes;
 
 
 
-    line.clear();
+    lines.clear();
 
     if (m_redo.empty())
     {
@@ -132,7 +132,7 @@ bool BreakpointHistory::TryRedo (DebugSession & session, std::string & line)
         outcomes.push_back (Apply (session, entry, entry.before, entry.after, entry.savedAfter));
     }
 
-    line = Describe (outcomes);
+    lines = Describe (outcomes);
     m_undo.push_back (std::move (step));
     return true;
 }
@@ -160,17 +160,14 @@ DebuggerAction BreakpointHistory::GetFlagsAction (int id, const BreakpointInfo &
 //
 //  BreakpointHistory::Describe
 //
-//  One console line for a whole undo or redo: the breakpoint and what it is
-//  when the step touched one, or counts when it touched several.
+//  One console line for each breakpoint an undo or redo changed, saying
+//  what happened to it, or one line saying none changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BreakpointHistory::Describe (const std::vector<Outcome> & outcomes)
+std::vector<std::string> BreakpointHistory::Describe (const std::vector<Outcome> & outcomes)
 {
-    const Outcome  * only     = nullptr;
-    int              restored = 0;
-    int              removed  = 0;
-    std::string      text;
+    std::vector<std::string>  lines;
 
 
 
@@ -181,35 +178,18 @@ std::string BreakpointHistory::Describe (const std::vector<Outcome> & outcomes)
             continue;
         }
 
-        only = &outcome;
-        (outcome.kind == Outcome::Kind::Removed ? removed : restored)++;
+        lines.push_back (std::format ("{} breakpoint {} ({})",
+                                      outcome.kind == Outcome::Kind::Removed ? "Removed" : "Restored",
+                                      outcome.id,
+                                      BreakpointHandlers::Describe (outcome.info)));
     }
 
-    if (restored + removed == 0)
+    if (lines.empty())
     {
-        return "No breakpoint changed";
+        lines.push_back ("No breakpoint changed");
     }
 
-    if (restored + removed == 1)
-    {
-        return std::format ("{} breakpoint {} ({})",
-                            only->kind == Outcome::Kind::Removed ? "Removed" : "Restored",
-                            only->id,
-                            BreakpointHandlers::Describe (only->info));
-    }
-
-    if (restored > 0)
-    {
-        text = std::format ("Restored {} breakpoint{}", restored, restored == 1 ? "" : "s");
-    }
-
-    if (removed > 0)
-    {
-        text += text.empty() ? std::format ("Removed {} breakpoint{}", removed, removed == 1 ? "" : "s")
-                             : std::format (", removed {}", removed);
-    }
-
-    return text;
+    return lines;
 }
 
 
