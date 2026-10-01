@@ -117,6 +117,10 @@ public:
     //  it is reported to the drag start handler as a drag of the active tab.
     void  SetOnTitleDragStart (DragFn fn)     { m_onTitleDrag   = std::move (fn); }
 
+    //  Forgets a press on the title bar or its buttons, for a drag another
+    //  window took over: that window gets the button's release, not this one.
+    void  CancelPress () { m_titlePressed = false; m_titleDragged = false; m_pressButton = -1; }
+
     //  A document tab's close button closes its pane; a tool window's close
     //  button shows only while its active pane can close.
     void  SetOnCloseTab    (CloseTabFn fn)    { m_onCloseTab    = std::move (fn); }

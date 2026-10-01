@@ -614,6 +614,7 @@
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteFloatingTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockSiteTearOffTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />

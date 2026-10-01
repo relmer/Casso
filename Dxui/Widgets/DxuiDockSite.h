@@ -72,6 +72,12 @@ public:
     void  SetNewTab    (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::NewTabFn add);
     void  SetOnFloatRequested (FloatFn fn)            { m_onFloat   = std::move (fn); }
 
+    //  A pane's tab dragged off its strip, or a lone pane's title bar dragged,
+    //  floats the pane at once under the pointer instead of starting a drag
+    //  here, so the floating window carries the rest of the drag. Without a
+    //  handler, or in a floating window's site, the drag stays in the site.
+    void  SetOnTearOff        (FloatFn fn)            { m_onTearOff = std::move (fn); }
+
     //  Which panes are documents: a group holding one has its tabs along its
     //  top; any other group is a tool window, with a title bar. With no
     //  predicate every group is a document group.
@@ -216,6 +222,7 @@ private:
     static constexpr wchar_t  kAutoHideLabel[] = L"Auto hide";
 
     void          WireGroup     (DxuiTabGroup * group);
+    bool          TearOff       (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip);
     void          UpdateStripTarget (POINT pointDip);
     void          ClearStripTarget  ();
     bool          DropOnStrip   (int group, int index);
@@ -247,6 +254,7 @@ private:
     DxuiTabGroup::NewTabShownFn                   m_newTabShown;
     DxuiTabGroup::NewTabFn                        m_newTab;
     FloatFn                                       m_onFloat;
+    FloatFn                                       m_onTearOff;
 
     std::wstring                                  m_dragPane;
     std::vector<std::wstring>                     m_dragPanes;

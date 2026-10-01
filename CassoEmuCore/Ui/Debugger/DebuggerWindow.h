@@ -367,6 +367,8 @@ private:
     void                         SetFocusedControl (IDxuiControl * control);
     HWND                         GetRoutingHwnd    () const;
     void                         RequestFloat      (const std::wstring & pane, POINT clientPx);
+    void                         TearOffPane       (const std::wstring & pane, POINT clientPx);
+    void                         CarryTornOffPane  ();
     void                         SyncFloats        ();
     void                         FloatControls     (const std::wstring & pane);
     void                         DockControls      (const std::wstring & pane);
@@ -516,6 +518,7 @@ private:
     std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
+    std::wstring                                                                     m_tornOffPane;
     std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = { true, true, true };
     std::vector<size_t>                                                              m_breakpointOrder;
     int                                                                              m_breakpointSort     = -1;

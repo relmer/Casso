@@ -3142,6 +3142,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_syncFloats = true;
 
     m_dockSite->SetOnFloatRequested ([this] (const std::wstring & pane, POINT clientPx) { RequestFloat (pane, clientPx); });
+    m_dockSite->SetOnTearOff        ([this] (const std::wstring & pane, POINT clientPx) { TearOffPane  (pane, clientPx); });
 
     //  Every change the user makes is saved as it happens, so a crash or a
     //  closed emulator loses nothing.
@@ -4223,6 +4224,7 @@ void DebuggerWindow::RenderFrame()
     m_tracePane->FollowScroll();
 
     SyncFloats();
+    CarryTornOffPane();
     PlaceMemoryBar();
     PlaceFindBar();
     ClipPaneControls();
@@ -6849,6 +6851,70 @@ void DebuggerWindow::RequestFloat (const std::wstring & pane, POINT clientPx)
         m_dockSite->Relayout();
         m_syncFloats = true;
         SaveLayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TearOffPane
+//
+//  A pane's tab dragged off its strip, or a lone pane's title bar dragged,
+//  floats the pane at once under the cursor (FR-125). This window lets the
+//  mouse go so the floating window, once the frame makes it, can carry the
+//  rest of the drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::TearOffPane (const std::wstring & pane, POINT clientPx)
+{
+    RequestFloat (pane, clientPx);
+
+    if (m_dockSite->GetPaneLayout().IsFloating (pane))
+    {
+        m_tornOffPane = pane;
+        ReleaseCapture();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CarryTornOffPane
+//
+//  The floating window a pane was just torn off into takes over the drag by
+//  its title bar, while the button that started it is still down. The
+//  system's move loop then shows this window's drop zones and docks the pane
+//  where it is released, as a drag of any floating window does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CarryTornOffPane()
+{
+    std::wstring  pane       = std::move (m_tornOffPane);
+    bool          buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    HWND          hwnd       = nullptr;
+
+
+
+    m_tornOffPane.clear();
+
+    if (pane.empty() || !buttonDown || !m_floats.contains (pane))
+    {
+        return;
+    }
+
+    hwnd = m_floats[pane]->GetHwnd();
+
+    if (hwnd != nullptr && IsWindowVisible (hwnd))
+    {
+        PostMessage (hwnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
     }
 }
 

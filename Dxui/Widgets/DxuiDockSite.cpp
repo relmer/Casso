@@ -288,12 +288,19 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         }
     });
 
-    group->SetOnDragStart ([this, group] (int index, POINT)
+    group->SetOnDragStart ([this, group] (int index, POINT pointDip)
     {
-        BeginDrag (GetPaneOf (group->GetContent (index)));
+        std::wstring  pane = GetPaneOf (group->GetContent (index));
+
+
+
+        if (!TearOff (group, pane, pointDip))
+        {
+            BeginDrag (pane);
+        }
     });
 
-    group->SetOnTitleDragStart ([this, group] (int index, POINT)
+    group->SetOnTitleDragStart ([this, group] (int index, POINT pointDip)
     {
         std::vector<std::wstring>  panes;
 
@@ -302,6 +309,11 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         for (int i = 0; i < (int) group->GetTabCount(); i++)
         {
             panes.push_back (GetPaneOf (group->GetContent (i)));
+        }
+
+        if (panes.size() == 1 && TearOff (group, panes.front(), pointDip))
+        {
+            return;
         }
 
         BeginGroupDrag (panes, GetPaneOf (group->GetContent (index)));
@@ -1223,6 +1235,38 @@ bool DxuiDockSite::MovePaneByArrow (const std::wstring & pane, DxuiDockSide dire
     }
 
     return moved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TearOff
+//
+//  The group forgets its press, since the floating window the application
+//  makes takes the button's release; a slid-out pane slides back first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip)
+{
+    if (!m_onTearOff || IsFloatingSite() || pane.empty())
+    {
+        return false;
+    }
+
+    group->CancelPress();
+
+    if (pane == m_slidPane)
+    {
+        m_slidPane.clear();
+        Arrange();
+    }
+
+    m_onTearOff (pane, pointDip);
+    return true;
 }
 
 
