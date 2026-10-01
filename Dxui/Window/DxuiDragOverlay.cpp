@@ -187,7 +187,7 @@ void DxuiDragOverlay::Hide()
 //  DxuiDragOverlay::RenderMarks
 //
 //  Clears the image to fully transparent, then lays each mark over it. An
-//  outlined mark is four filled strips along the inside of its rectangle.
+//  outlined mark is the strips DxuiDockSite::GetOutlineStrips gives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,10 +211,10 @@ void DxuiDragOverlay::RenderMarks (const std::vector<DxuiDockDragMark> & marks, 
             continue;
         }
 
-        BlendRect (RECT { r.left,      r.top,        r.right,  r.top + t    }, mark.argb, width, height, pixels);
-        BlendRect (RECT { r.left,      r.bottom - t, r.right,  r.bottom     }, mark.argb, width, height, pixels);
-        BlendRect (RECT { r.left,      r.top + t,    r.left + t, r.bottom - t }, mark.argb, width, height, pixels);
-        BlendRect (RECT { r.right - t, r.top + t,    r.right,  r.bottom - t }, mark.argb, width, height, pixels);
+        for (const RECT & strip : DxuiDockSite::GetOutlineStrips (mark))
+        {
+            BlendRect (strip, mark.argb, width, height, pixels);
+        }
     }
 }
 

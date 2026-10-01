@@ -17,7 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPaneLayout::GroupRect> & groups,
-                                                        const RECT & area, const std::wstring & pane)
+                                                        const RECT & area, const std::wstring & pane,
+                                                        const GroupTestFn & isDocument)
 {
     static constexpr DxuiDockSide  kSides[] = { DxuiDockSide::Left, DxuiDockSide::Top, DxuiDockSide::Right, DxuiDockSide::Bottom };
     std::vector<DxuiDockDropZone>  zones;
@@ -45,8 +46,9 @@ std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPa
 
     for (const DxuiPaneLayout::GroupRect & group : groups)
     {
-        long              cx  = (group.rect.left + group.rect.right) / 2;
-        long              cy  = (group.rect.top + group.rect.bottom) / 2;
+        long              cx       = (group.rect.left + group.rect.right) / 2;
+        long              cy       = (group.rect.top + group.rect.bottom) / 2;
+        bool              document = false;
         DxuiDockDropZone  tab;
 
         if (group.panes.size() == 1 && group.panes[0] == pane)
@@ -60,16 +62,31 @@ std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPa
         tab.preview    = group.rect;
         zones.push_back (tab);
 
+        document = isDocument && isDocument (group);
+
         for (DxuiDockSide side : kSides)
         {
             DxuiDockDropZone  zone;
-            long              x = cx + ((side == DxuiDockSide::Left) ? -step : (side == DxuiDockSide::Right)  ? step : 0);
-            long              y = cy + ((side == DxuiDockSide::Top)  ? -step : (side == DxuiDockSide::Bottom) ? step : 0);
+            long              dx   = (side == DxuiDockSide::Left) ? -step : (side == DxuiDockSide::Right)  ? step : 0;
+            long              dy   = (side == DxuiDockSide::Top)  ? -step : (side == DxuiDockSide::Bottom) ? step : 0;
+            long              ring = document ? 2 : 1;
 
-            zone.kind       = DxuiDockDropZone::Kind::Side;
+            if (document)
+            {
+                DxuiDockDropZone  split;
+
+                split.kind       = DxuiDockDropZone::Kind::Split;
+                split.side       = side;
+                split.targetPane = group.active;
+                split.target     = MakeSquare (cx + dx, cy + dy);
+                split.preview    = GetHalf (group.rect, side);
+                zones.push_back (split);
+            }
+
+            zone.kind      = DxuiDockDropZone::Kind::Side;
             zone.side       = side;
             zone.targetPane = group.active;
-            zone.target     = MakeSquare (x, y);
+            zone.target     = MakeSquare (cx + ring * dx, cy + ring * dy);
             zone.preview    = GetHalf (group.rect, side);
             zones.push_back (zone);
         }
@@ -117,6 +134,7 @@ bool DxuiDockDropZones::Apply (const DxuiDockDropZone & zone, DxuiPaneLayout & l
     switch (zone.kind)
     {
     case DxuiDockDropZone::Kind::Side:
+    case DxuiDockDropZone::Kind::Split:
         return layout.DockToSide (pane, zone.targetPane, zone.side);
 
     case DxuiDockDropZone::Kind::Tab:

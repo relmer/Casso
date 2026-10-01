@@ -138,6 +138,9 @@ public:
     //  Where tab `index` is drawn, its strip rect moved by the scroll, and
     //  where the + button is; an empty rect when there is none.
     RECT  GetTabScreenRect (int index) const;
+
+    //  Where the last press of a tab fell, from that tab's top left.
+    POINT  GetGrabOffset   () const { return m_grabOffset; }
     RECT  GetNewTabRect    () const;
 
     //  A gap opened ahead of tab `index` (the tab count for the end) where a
@@ -239,6 +242,7 @@ private:
     int               m_pressed       = -1;
     int               m_pressX        = 0;
     int               m_pressY        = 0;
+    POINT             m_grabOffset    = {};
     Style             m_style         = Style::Explorer;
     uint32_t          m_outlineArgb   = 0;
     DragOutFn         m_dragOut;

@@ -337,11 +337,35 @@ void DxuiTabGroup::SetActive (int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabGroup::GetGrabOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiTabGroup::GetGrabOffset (bool tab) const
+{
+    RECT  title = GetTitleRect();
+
+
+
+    if (tab)
+    {
+        return m_strip.GetGrabOffset();
+    }
+
+    return POINT { m_pressedAt.x - title.left, m_pressedAt.y - title.top };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabGroup::HasStrip
 //
 //  A document group always shows its tabs. A tool window shows them only
 //  when there is a choice to make or a + to offer: a single pane's title bar
-//  says all a tab would.
+//  says all a tab would. A pane being torn off keeps its tab while carried.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -352,7 +376,7 @@ bool DxuiTabGroup::HasStrip() const
         return true;
     }
 
-    return m_tabs.size() > 1 || (m_newTab && m_newTabShown && m_newTabShown (*this));
+    return m_stripForced || m_tabs.size() > 1 || (m_newTab && m_newTabShown && m_newTabShown (*this));
 }
 
 

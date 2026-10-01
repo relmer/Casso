@@ -7626,8 +7626,57 @@ void DebuggerWindow::CarryTornOffPane()
 
     if (hwnd != nullptr && IsWindowVisible (hwnd))
     {
+        PlaceUnderGrab (pane);
         PostMessage (hwnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceUnderGrab
+//
+//  A pane torn off by its tab floats with that tab in a strip along the
+//  window's bottom, and a pane torn off by its title bar with that title
+//  bar; either way the window goes where the cursor holds the spot it
+//  pressed, rather than centered on the cursor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceUnderGrab (const std::wstring & pane)
+{
+    DxuiDockedWindow  & window  = *m_floats[pane];
+    DxuiDockSite      & site    = window.GetSite();
+    POINT               grab    = m_dockSite->GetTearOffGrab();
+    RECT                grabbed = {};
+    RECT                rect    = window.GetScreenRect();
+    POINT               anchor  = {};
+    POINT               cursor  = {};
+
+
+
+    if (m_dockSite->WasTearOffFromTab())
+    {
+        site.SetCarriedPane (pane);
+        grabbed = site.GetCarriedTabRect();
+    }
+    else if (site.GetGroupCount() > 0)
+    {
+        grabbed = site.GetGroup (0)->GetTitleRect();
+    }
+
+    if (grabbed.right <= grabbed.left || !GetCursorPos (&cursor))
+    {
+        return;
+    }
+
+    anchor = POINT { grabbed.left + grab.x, grabbed.top + grab.y };
+    ClientToScreen (window.GetHwnd(), &anchor);
+    OffsetRect (&rect, cursor.x - anchor.x, cursor.y - anchor.y);
+    window.SetScreenRect (rect);
 }
 
 
@@ -7778,7 +7827,7 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     window->SetOnMappedCommand     ([this]       (int commandId)             { return OnMappedCommand (commandId); });
     window->SetOnCaptionDrag       ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, false); });
     window->SetOnCaptionDragEnd    ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, true);  });
-    window->SetOnCaptionDragCancel ([this]                                   { m_dockSite->CancelDrag(); HideDragMarks(); Invalidate(); });
+    window->SetOnCaptionDragCancel ([this, pane]                             { DropCarriedTab (pane); m_dockSite->CancelDrag(); HideDragMarks(); Invalidate(); });
     window->SetOnClosed            ([this, pane]                             { CloseFloatingPane (pane); });
     window->SetOnFilesDropped      ([this] (const std::vector<std::wstring> & paths) { return OnFilesDropped (paths); });
     window->SetAcceptsDroppedFiles (true);
@@ -8238,6 +8287,31 @@ void DebuggerWindow::HideDragMarks()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::DropCarriedTab
+//
+//  A torn-off pane that is still floating once its drag ends loses the tab
+//  strip it was carried by.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::DropCarriedTab (const std::wstring & pane)
+{
+    auto  found = m_floats.find (pane);
+
+
+
+    if (found != m_floats.end() && found->second != nullptr)
+    {
+        found->second->GetSite().SetCarriedPane (L"");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnFloatDrag
 //
 //  A floating window moved by its title bar shows this window's drop zones
@@ -8255,6 +8329,12 @@ void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, boo
 
 
     ScreenToClient (GetHwnd(), &client);
+
+    if (ended)
+    {
+        DropCarriedTab (pane);
+    }
+
     inside = client.x >= area.left && client.x < area.right && client.y >= area.top && client.y < area.bottom;
 
     if (!ended)

@@ -128,10 +128,11 @@ bool DxuiTabStrip::OnLButtonDown (int x, int y)
     }
     else if (hit >= 0)
     {
-        m_pressed  = hit;
-        m_pressX   = x;
-        m_pressY   = y;
-        m_dragging = false;
+        m_pressed    = hit;
+        m_pressX     = x;
+        m_pressY     = y;
+        m_dragging   = false;
+        m_grabOffset = POINT { x - GetTabScreenRect (hit).left, y - GetTabScreenRect (hit).top };
     }
 
     return wasHit;

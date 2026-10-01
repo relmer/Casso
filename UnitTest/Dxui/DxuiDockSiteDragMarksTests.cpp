@@ -77,14 +77,16 @@ namespace DxuiDockSiteDragMarksTests
 
             std::vector<DxuiDockDragMark>  marks    = rig.site.GetDragMarks (rig.theme);
             size_t                         outlines = 0;
+            size_t                         dotted   = 0;
 
             for (const DxuiDockDragMark & mark : marks)
             {
-                outlines += (mark.outlinePx > 0) ? 1 : 0;
+                outlines += (mark.outlinePx > 0 && !mark.dotted) ? 1 : 0;
+                dotted   += mark.dotted ? 1 : 0;
             }
 
             Assert::IsTrue   (outlines > 0, L"each target square is outlined");
-            Assert::AreEqual (outlines * 2, marks.size(), L"each target is a fill and an outline");
+            Assert::AreEqual (outlines * 2 + dotted, marks.size(), L"each target is a fill and an outline, and a split target adds its dotted picture");
 
             rig.site.CancelDrag();
             Assert::IsTrue (rig.site.GetDragMarks (rig.theme).empty(), L"the marks go when the drag ends");
@@ -102,7 +104,10 @@ namespace DxuiDockSiteDragMarksTests
 
 
             rig.site.BeginDrag (L"console");
-            marks = rig.site.GetDragMarks (rig.theme).size();
+            for (const DxuiDockDragMark & mark : rig.site.GetDragMarks (rig.theme))
+            {
+                marks += mark.dotted ? DxuiDockSite::GetOutlineStrips (mark).size() : 1;
+            }
 
             Assert::AreEqual (resting + marks, rig.CountPaintCalls(), L"the site paints the marks itself");
 

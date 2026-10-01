@@ -121,6 +121,14 @@ public:
     //  window took over: that window gets the button's release, not this one.
     void  CancelPress () { m_titlePressed = false; m_titleDragged = false; m_pressButton = -1; }
 
+    //  Where the last press of a tab (`tab`) or of the title bar fell, from
+    //  the top left of the tab or title bar it pressed.
+    POINT  GetGrabOffset (bool tab) const;
+
+    //  A tool window shows its tab strip even for a single pane, as a pane
+    //  being torn off does while it is carried.
+    void  SetStripForced (bool forced) { m_stripForced = forced; }
+
     //  A document tab's close button closes its pane; a tool window's close
     //  button shows only while its active pane can close.
     void  SetOnCloseTab    (CloseTabFn fn)    { m_onCloseTab    = std::move (fn); }
@@ -192,6 +200,7 @@ private:
     int                  m_active        = -1;
     Kind                 m_kind          = Kind::Document;
     bool                 m_focusedLook   = false;
+    bool                 m_stripForced   = false;
     uint32_t             m_indicatorArgb = 0;
     IDxuiTextRenderer  * m_measure       = nullptr;   // the renderer of the last paint, which outlives the group
     DxuiDpiScaler        m_scaler;

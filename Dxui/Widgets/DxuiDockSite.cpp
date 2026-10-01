@@ -192,6 +192,7 @@ void DxuiDockSite::Arrange()
         int             active   = 0;
         bool            document = !m_isDocument;
         bool            focused  = false;
+        bool            carried  = false;
 
         while (group->GetTabCount() > 0)
         {
@@ -210,6 +211,7 @@ void DxuiDockSite::Arrange()
             active    = (pane == groups[i].active) ? (int) group->GetTabCount() : active;
             document  = document || m_isDocument (pane);
             focused   = focused || pane == m_focusedPane;
+            carried   = carried || (!m_carriedPane.empty() && pane == m_carriedPane);
 
             group->AddTab         (found->second.title, found->second.content);
             group->SetLeadingMark (found->second.content, found->second.leadMark);
@@ -223,6 +225,7 @@ void DxuiDockSite::Arrange()
 
         group->SetKind        (document ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow);
         group->SetFocusedLook (focused);
+        group->SetStripForced (carried);
         group->SetActive      (active);
         group->Layout         (groups[i].rect, m_scaler);
     }
@@ -294,7 +297,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
 
 
 
-        if (!TearOff (group, pane, pointDip))
+        if (!TearOff (group, pane, pointDip, true))
         {
             BeginDrag (pane);
         }
@@ -311,7 +314,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
             panes.push_back (GetPaneOf (group->GetContent (i)));
         }
 
-        if (panes.size() == 1 && TearOff (group, panes.front(), pointDip))
+        if (panes.size() == 1 && TearOff (group, panes.front(), pointDip, false))
         {
             return;
         }
@@ -1243,6 +1246,197 @@ bool DxuiDockSite::MovePaneByArrow (const std::wstring & pane, DxuiDockSide dire
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::SetCarriedPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetCarriedPane (const std::wstring & pane)
+{
+    if (pane == m_carriedPane)
+    {
+        return;
+    }
+
+    m_carriedPane = pane;
+    Arrange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetCarriedTabRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDockSite::GetCarriedTabRect() const
+{
+    DxuiTabGroup  * group = m_carriedPane.empty() ? nullptr : FindGroupOf (m_carriedPane);
+    auto            found = m_panes.find (m_carriedPane);
+
+
+
+    if (group == nullptr || found == m_panes.end())
+    {
+        return RECT {};
+    }
+
+    return group->GetTabRect (group->IndexOf (found->second.content));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::IsDocumentGroup
+//
+//  As Arrange decides a group's kind: with no predicate every group is a
+//  document group, and a floating window holds none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::IsDocumentGroup (const std::vector<std::wstring> & panes) const
+{
+    bool  document = !m_isDocument;
+
+
+
+    for (const std::wstring & pane : panes)
+    {
+        document = document || m_isDocument (pane);
+    }
+
+    return document && m_onDock == nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::FindGroupOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTabGroup * DxuiDockSite::FindGroupOf (const std::wstring & pane) const
+{
+    auto            found = m_panes.find (pane);
+    DxuiTabGroup  * group = nullptr;
+
+
+
+    if (found == m_panes.end() || found->second.content == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (const std::unique_ptr<DxuiTabGroup> & candidate : m_groups)
+    {
+        group = (group == nullptr && candidate->IndexOf (found->second.content) >= 0) ? candidate.get() : group;
+    }
+
+    return group;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::AddDottedHalf
+//
+//  A split square's picture: a dotted outline of the half of the square on
+//  its side, where the new tab group would go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::AddDottedHalf (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, uint32_t argb, int line) const
+{
+    RECT  r     = zone.target;
+    long  inset = m_scaler.ToPx (6);
+    long  dot   = std::max (1L, (long) line);
+    long  midX  = (r.left + r.right) / 2;
+    long  midY  = (r.top + r.bottom) / 2;
+
+
+
+    r = RECT { r.left + inset, r.top + inset, r.right - inset, r.bottom - inset };
+
+    switch (zone.side)
+    {
+    case DxuiDockSide::Left:   r.right  = midX; break;
+    case DxuiDockSide::Right:  r.left   = midX; break;
+    case DxuiDockSide::Top:    r.bottom = midY; break;
+    case DxuiDockSide::Bottom: r.top    = midY; break;
+    default:                                    break;
+    }
+
+    marks.push_back ({ r, argb, (int) dot, true });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetOutlineStrips
+//
+//  The filled rectangles that draw an outlined mark: four strips along the
+//  inside of its rectangle, or for a dotted one a square dot every other
+//  dot's width along each side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<RECT> DxuiDockSite::GetOutlineStrips (const DxuiDockDragMark & mark)
+{
+    const RECT &       r = mark.rect;
+    long               t = mark.outlinePx;
+    std::vector<RECT>  strips;
+
+
+
+    if (t <= 0)
+    {
+        return strips;
+    }
+
+    if (!mark.dotted)
+    {
+        strips.push_back (RECT { r.left,      r.top,        r.right,    r.top + t    });
+        strips.push_back (RECT { r.left,      r.bottom - t, r.right,    r.bottom     });
+        strips.push_back (RECT { r.left,      r.top + t,    r.left + t, r.bottom - t });
+        strips.push_back (RECT { r.right - t, r.top + t,    r.right,    r.bottom - t });
+        return strips;
+    }
+
+    for (long x = r.left; x + t <= r.right; x += 2 * t)
+    {
+        strips.push_back (RECT { x, r.top,        x + t, r.top + t });
+        strips.push_back (RECT { x, r.bottom - t, x + t, r.bottom  });
+    }
+
+    for (long y = r.top + 2 * t; y + t <= r.bottom - t; y += 2 * t)
+    {
+        strips.push_back (RECT { r.left,      y, r.left + t, y + t });
+        strips.push_back (RECT { r.right - t, y, r.right,    y + t });
+    }
+
+    return strips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::TearOff
 //
 //  The group forgets its press, since the floating window the application
@@ -1250,12 +1444,15 @@ bool DxuiDockSite::MovePaneByArrow (const std::wstring & pane, DxuiDockSide dire
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip)
+bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab)
 {
     if (!m_onTearOff || IsFloatingSite() || pane.empty())
     {
         return false;
     }
+
+    m_tearGrab    = group->GetGrabOffset (fromTab);
+    m_tearFromTab = fromTab;
 
     group->CancelPress();
 
@@ -1321,12 +1518,22 @@ void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, cons
 
     m_dragPane  = active;
     m_dragPanes = panes;
-    m_zones     = DxuiDockDropZones::Build (m_layout.Arrange (GetDockedArea(), m_shown, m_minSize), GetDockedArea(), active);
+    m_zones     = DxuiDockDropZones::Build (m_layout.Arrange (GetDockedArea(), m_shown, m_minSize), GetDockedArea(), active,
+                                            [this] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
     m_hoverZone = -1;
 
     if (panes.size() > 1)
     {
         std::erase_if (m_zones, [&] (const DxuiDockDropZone & zone) { return dragged (zone.targetPane); });
+    }
+
+    //  A tab drop shades the pane's body, never its tabs, so the tabs stay in
+    //  view where the dropped one will join them.
+    for (DxuiDockDropZone & zone : m_zones)
+    {
+        DxuiTabGroup  * group = (zone.kind == DxuiDockDropZone::Kind::Tab) ? FindGroupOf (zone.targetPane) : nullptr;
+
+        zone.preview = (group != nullptr) ? group->GetBodyRect() : zone.preview;
     }
 
     ClearStripTarget();
@@ -1909,7 +2116,7 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
 
     if (m_stripGroup >= 0 && m_stripGroup < (int) m_groups.size())
     {
-        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetBounds(),        tint,                                         0 });
+        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetBodyRect(),      tint,                                         0 });
         marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & 0x00FFFFFFu) | 0xA0000000u, 0 });
     }
 
@@ -1917,6 +2124,11 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
     {
         marks.push_back ({ zone.target, theme.ControlBackground(),                         0    });
         marks.push_back ({ zone.target, (&zone == hover) ? theme.Accent() : theme.Border(), line });
+
+        if (zone.kind == DxuiDockDropZone::Kind::Split)
+        {
+            AddDottedHalf (marks, zone, theme.Border(), line);
+        }
     }
 
     return marks;
@@ -1977,6 +2189,13 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         if (mark.outlinePx == 0)
         {
             fill (mark.rect, mark.argb);
+        }
+        else if (mark.dotted)
+        {
+            for (const RECT & dot : GetOutlineStrips (mark))
+            {
+                fill (dot, mark.argb);
+            }
         }
         else
         {

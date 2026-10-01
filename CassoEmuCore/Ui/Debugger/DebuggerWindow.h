@@ -440,6 +440,8 @@ private:
     void                         RequestFloat      (const std::wstring & pane, POINT clientPx);
     void                         TearOffPane       (const std::wstring & pane, POINT clientPx);
     void                         CarryTornOffPane  ();
+    void                         PlaceUnderGrab    (const std::wstring & pane);
+    void                         DropCarriedTab    (const std::wstring & pane);
     void                         SyncFloats        ();
     void                         FloatControls     (const std::wstring & pane);
     void                         DockControls      (const std::wstring & pane);

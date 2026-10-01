@@ -16,7 +16,8 @@
 //
 //  One rectangle a drag shows over the site: a drop target, the area the
 //  hovered target would give the panes, or a hovered strip's tint and gap.
-//  `outlinePx` of 0 fills the rectangle; any other width outlines it.
+//  `outlinePx` of 0 fills the rectangle; any other width outlines it, in
+//  dots of that size when `dotted`, as a split target's picture is drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +26,7 @@ struct DxuiDockDragMark
     RECT      rect      = {};
     uint32_t  argb      = 0;
     int       outlinePx = 0;
+    bool      dotted    = false;
 };
 
 
@@ -124,6 +126,21 @@ public:
     void  SetFloating     (PaneFn dock);
     bool  IsFloatingSite  () const { return m_onDock != nullptr; }
 
+    //  The pane a tear-off carries: while it is set, the group holding the
+    //  pane shows its tab strip even for one pane, so the floating window
+    //  moves with the tab the user grabbed. Empty when no tear-off is under
+    //  way.
+    void                  SetCarriedPane (const std::wstring & pane);
+    const std::wstring &  GetCarriedPane () const { return m_carriedPane; }
+
+    //  Where the carried pane's tab lies in this site, or an empty rect.
+    RECT  GetCarriedTabRect () const;
+
+    //  Where in the grabbed tab, or the grabbed title bar, the last tear-off
+    //  was pressed, from that rect's top left; and whether it was a tab.
+    POINT  GetTearOffGrab      () const { return m_tearGrab; }
+    bool   WasTearOffFromTab   () const { return m_tearFromTab; }
+
     //  Lays the panes out again in the current bounds.
     void  Relayout     ();
 
@@ -210,6 +227,9 @@ public:
 
     static bool  Contains (const RECT & rect, POINT point);
 
+    //  The filled rectangles that draw an outlined mark, solid or dotted.
+    static std::vector<RECT>  GetOutlineStrips (const DxuiDockDragMark & mark);
+
     static constexpr int  kSashDip      = 6;
     static constexpr int  kSlideMinDip  = 240;
 
@@ -250,12 +270,15 @@ private:
     static constexpr wchar_t  kAutoHideLabel[] = L"Auto hide";
 
     void          WireGroup     (DxuiTabGroup * group);
-    bool          TearOff       (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip);
+    bool          TearOff       (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab);
     void          UpdateStripTarget (POINT pointDip);
     void          ClearStripTarget  ();
     bool          DropOnStrip   (int group, int index);
     bool          DropOnZone    (const DxuiDockDropZone & zone);
     void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
+    bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
+    DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
+    void          AddDottedHalf (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, uint32_t argb, int line) const;
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;
@@ -297,4 +320,7 @@ private:
     RECT                           m_slidRect       = {};
     DxuiDockSide                   m_slidEdge       = DxuiDockSide::Left;
     bool                           m_arranging      = false;
+    std::wstring                   m_carriedPane;
+    POINT                          m_tearGrab       = {};
+    bool                           m_tearFromTab    = false;
 };
