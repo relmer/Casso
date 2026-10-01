@@ -162,21 +162,22 @@ public:
     //
     //  The accent that marks what has focus. A blue accent on a blue-tinted
     //  background reads as more of the same, not as a highlight, so where the
-    //  background carries a hue near the accent's this is a vivid magenta, or
-    //  the accent's complement where the background is itself near magenta.
-    //  Either is made vivid, since a pale color is a pastel that a one-pixel
-    //  line loses. On a gray background, or one tinted another way, it is the
+    //  background carries a hue near the accent's this is the soft lavender
+    //  Visual Studio's dark theme draws around a focused tool window, or the
+    //  accent's complement, made vivid, where the background is itself near
+    //  magenta. On a gray background, or one tinted another way, it is the
     //  accent itself.
     //
     static uint32_t ComputeFocusAccent (uint32_t accent, uint32_t background)
     {
-        constexpr float  s_kMinTintSat   = 0.15f;    // below this a background is gray
-        constexpr float  s_kSameHueDeg   = 60.0f;    // hues this close read as one color
-        constexpr float  s_kHalfTurnDeg  = 180.0f;
-        constexpr float  s_kFullTurnDeg  = 360.0f;
-        constexpr float  s_kMagentaDeg   = 300.0f;
-        constexpr float  s_kVividSat     = 0.8f;     // the least saturation of the substitute
-        constexpr float  s_kVividValue   = 0.95f;    // and the least brightness
+        constexpr float     s_kMinTintSat  = 0.15f;   // below this a background is gray
+        constexpr float     s_kSameHueDeg  = 60.0f;   // hues this close read as one color
+        constexpr float     s_kHalfTurnDeg = 180.0f;
+        constexpr float     s_kFullTurnDeg = 360.0f;
+        constexpr float     s_kMagentaDeg  = 300.0f;
+        constexpr float     s_kVividSat    = 0.8f;   // the least saturation of the substitute
+        constexpr float     s_kVividValue  = 0.95f;   // and the least brightness
+        constexpr uint32_t  s_kLavenderRgb = 0x009184EEu;   // Visual Studio's focus outline
 
         float  ah  = 0.0f;
         float  as  = 0.0f;
@@ -184,7 +185,6 @@ public:
         float  bh  = 0.0f;
         float  bs  = 0.0f;
         float  bv  = 0.0f;
-        float  hue = s_kMagentaDeg;
 
         ToHsv (accent,     ah, as, av);
         ToHsv (background, bh, bs, bv);
@@ -194,12 +194,12 @@ public:
             return accent;
         }
 
-        if (GetHueDistance (hue, bh) <= s_kSameHueDeg)
+        if (GetHueDistance (s_kMagentaDeg, bh) > s_kSameHueDeg)
         {
-            hue = std::fmod (ah + s_kHalfTurnDeg, s_kFullTurnDeg);
+            return (accent & 0xFF000000u) | s_kLavenderRgb;
         }
 
-        return FromHsv (hue, (std::max) (as, s_kVividSat), (std::max) (av, s_kVividValue), accent & 0xFF000000u);
+        return FromHsv (std::fmod (ah + s_kHalfTurnDeg, s_kFullTurnDeg), (std::max) (as, s_kVividSat), (std::max) (av, s_kVividValue), accent & 0xFF000000u);
     }
 
 

@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DxuiColorTests
 //
 //  The focus accent: the theme's accent where it stands apart from the
-//  background, and magenta where the background shares its hue.
+//  background, and lavender where the background shares its hue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,13 +26,10 @@ public:
     static int  Blue  (uint32_t argb) { return (int) ( argb        & 0xFFu); }
 
 
-    TEST_METHOD (ABlueAccentOnABlueBackgroundTurnsMagenta)
+    //  Visual Studio's dark theme focus outline, sampled from a screenshot.
+    TEST_METHOD (ABlueAccentOnABlueBackgroundTurnsLavender)
     {
-        uint32_t  focus = DxuiColor::ComputeFocusAccent (0xFF4EA8FFu, 0xFF1B2433u);
-
-        Assert::IsTrue (Red (focus) >= 0xF0 && Blue (focus) >= 0xF0, L"magenta, not orange");
-        Assert::IsTrue (Green (focus) <= 0x40, L"saturated, not pastel");
-        Assert::AreEqual (0xFF000000u, focus & 0xFF000000u, L"opaque as the accent is");
+        Assert::AreEqual (0xFF9184EEu, DxuiColor::ComputeFocusAccent (0xFF4EA8FFu, 0xFF1B2433u));
     }
 
 
@@ -47,14 +44,10 @@ public:
     }
 
 
-    //  Retro's pale phosphor green on its green panels: the complement is a
-    //  vivid magenta, not the pastel pink a pale accent's complement would be.
-    TEST_METHOD (APaleAccentsComplementIsVivid)
+    //  Retro's pale phosphor green on its green panels.
+    TEST_METHOD (APaleGreenAccentOnAGreenBackgroundTurnsLavender)
     {
-        uint32_t  focus = DxuiColor::ComputeFocusAccent (0xFF8AFF8Au, 0xFF0E2612u);
-
-        Assert::IsTrue (Red (focus) >= 0xF0 && Blue (focus) >= 0xF0, L"magenta");
-        Assert::IsTrue (Green (focus) <= 0x40, L"saturated, not pastel");
+        Assert::AreEqual (0xFF9184EEu, DxuiColor::ComputeFocusAccent (0xFF8AFF8Au, 0xFF0E2612u));
     }
 
 
