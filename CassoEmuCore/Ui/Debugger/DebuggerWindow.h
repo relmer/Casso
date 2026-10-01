@@ -266,6 +266,9 @@ private:
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
     static constexpr int    kMarkerColumnDip       = 20;
+    //  The breakpoint icon's size in a list cell, which the source view's
+    //  gutter draws it at too.
+    static constexpr int    kBreakpointIconDip     = 16;
     static constexpr int    kGutterColumnDip       = 24;
     static constexpr int    kCodeInstructionColumn = 5;
 
@@ -539,7 +542,7 @@ private:
     DxuiButton                                                                     * m_pokeButton         = nullptr;
     std::array<SourceDocument, SourceDocuments::kMaxDocuments>                       m_sourceDocs;
     SourceDocuments                                                                  m_documents;
-    bool                                                                             m_showBody           = false;
+    int                                                                              m_macroLevel         = 0;
     std::wstring                                                                     m_sourceLoadedFor;
     std::pair<int, int>                                                              m_pcPlace            = { -1, 0 };
     std::vector<SourceDocuments::Saved>                                              m_pendingSourceDocs;

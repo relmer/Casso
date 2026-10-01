@@ -92,6 +92,10 @@ private:
     //  How much width the actions take, including the gap to the text.
     float  GetActionColumnPx (const DxuiDpiScaler & scaler) const;
 
+    //  One action's width: its label and the standard margin either side,
+    //  never narrower than the standard button.
+    static float  GetActionWidthDip (const DxuiButton & action);
+
     //  Mutable because measuring the height has to tell the notice how much of
     //  its trailing edge is spoken for, and measuring is const to every caller.
     mutable DxuiInfoBanner                      m_banner;

@@ -42,6 +42,19 @@ public:
     using RunFn  = std::function<void (const std::string & line)>;
     using GoToFn = std::function<void (Word address)>;
 
+    //  How the PC's line and breakpoints are drawn: the disassembly pane's
+    //  own marker color, row fill and breakpoint icons, so the two panes
+    //  mark a line alike. No icons draws a bullet in the marker column.
+    struct Style
+    {
+        uint32_t                               pcMarkerArgb = 0;
+        uint32_t                               pcRowArgb    = 0;
+        std::shared_ptr<const DxuiIconImage>   enabledIcon;
+        std::shared_ptr<const DxuiIconImage>   disabledIcon;
+
+        bool operator== (const Style & other) const = default;
+    };
+
     SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run, GoToFn goTo);
 
     SourcePane (const SourcePane &)             = delete;
@@ -56,6 +69,9 @@ public:
     bool  HasBanner     () const { return !m_banner->GetText().empty(); }
 
     void  Configure     (HWND hwnd);
+
+    //  Rows are rebuilt with the next Apply when the style changes.
+    void  SetStyle      (const Style & style);
     void  Apply         (const DebuggerViewSnapshot & snapshot);
 
     //  The file this document shows, or -1 for none; a new file is found
@@ -64,7 +80,11 @@ public:
     int   GetFile       () const { return m_docFileId; }
 
     //  Whether the PC's place is the macro body rather than the invocation.
-    void  SetShowBody   (bool showBody) { m_showBody = showBody; }
+    void  SetShowBody   (bool showBody) { m_macroLevel = showBody ? -1 : 0; }
+
+    //  Which of the lines at PC is its place: 0 the invocation outside every
+    //  macro, each level one macro further in, -1 the body line itself.
+    void  SetMacroLevel (int level) { m_macroLevel = level; }
 
     //  The banner's Show body button asks the window, which keeps the choice
     //  for every document.
@@ -98,14 +118,17 @@ public:
     //  The pieces, apart from any view.
     static std::vector<std::wstring>       SplitLines (const std::string & text);
     static std::vector<DxuiTextView::Row>  BuildRows  (const std::vector<std::wstring> & lines, int markedLine,
-                                                       const std::set<int> & breakpointLines);
+                                                       const std::set<int> & breakpointLines,
+                                                       const std::set<int> & disabledLines = {},
+                                                       const Style         & style         = {});
 
     //  The command a double click on a line sends: clearing the breakpoint
     //  already on it, or setting one.
     static std::string  GetToggleLine (const DebuggerViewSnapshot::SourceState & state, int fileId, int line);
 
     static std::wstring  GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
-                                        int depth, bool showingBody, const std::string & bodyName, int bodyLine);
+                                        int depth, bool showingBody, const std::string & bodyName, int bodyLine,
+                                        const std::string & invokedByName = std::string(), int invokedByLine = 0);
 
     //  What to say when the file was found in a folder other than the one the
     //  debug file records -- a copy in another search folder -- or empty.
@@ -115,6 +138,16 @@ public:
     //  Whether a macro's body can be offered: not when it is in the file that
     //  could not be found.
     static bool          CanShowBody   (bool hasText, int depth, int bodyFileId, int fileId);
+
+    //  The level the banner's button goes to: from outside every macro to the
+    //  body line, and from a body back out one invocation at a time.
+    static int           GetNextMacroLevel (int level, int deepest);
+
+    //  The level a request resolves to, -1 being the deepest.
+    static int           GetMacroLevel (const DebuggerViewSnapshot::SourceState & state, int level);
+
+    //  The file and line at a level, -1 being the body line.
+    static std::pair<int, int>  GetPlace (const DebuggerViewSnapshot::SourceState & state, int level);
 
 private:
     static constexpr int  kTabWidth = 8;
@@ -143,9 +176,13 @@ private:
     int                                               m_droppedAt       = -1;
     std::wstring                                      m_foundPath;
     std::vector<std::wstring>                         m_lines;
-    bool                                              m_showBody        = false;
+    int                                               m_macroLevel      = 0;
     int                                               m_rowsLine        = -1;
     bool                                              m_followPending   = false;
     std::set<int>                                     m_rowsBreakpoints;
+    std::set<int>                                     m_rowsDisabled;
+    std::set<int>                                     m_disabledIds;
+    Style                                             m_style;
+    bool                                              m_isStyleStale    = false;
     int                                               m_rowsFileId      = -2;
 };

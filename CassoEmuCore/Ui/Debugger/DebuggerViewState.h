@@ -143,6 +143,10 @@ struct DebuggerViewSnapshot
         int                           depth        = 0;
         bool                          stepBySource = false;
 
+        //  Every line at PC, outermost first: the invocation, each macro it
+        //  expands, and the body line last. A level counts from the front.
+        std::vector<std::pair<int, int>>  places;
+
         //  Each breakpoint on a line in any file: file, line, breakpoint id.
         std::vector<std::tuple<int, int, int>>  breakpointLines;
 

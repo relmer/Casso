@@ -621,6 +621,11 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
         state.bodyFileId = atPc.back().file;
         state.bodyLine   = atPc.back().line;
         state.depth      = atPc.back().depth;
+
+        for (const SourcePosition & position : atPc)
+        {
+            state.places.push_back ({ position.file, position.line });
+        }
     }
 
     //  Every view's rows, as the window paints them, and the copy in `code`.

@@ -45,6 +45,27 @@ void SourcePane::Configure (HWND hwnd)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::SetStyle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::SetStyle (const Style & style)
+{
+    if (style == m_style)
+    {
+        return;
+    }
+
+    m_style        = style;
+    m_isStyleStale = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::Apply
 //
 //  A debug file loaded again starts the document over. Its file is found when
@@ -81,12 +102,22 @@ void SourcePane::Apply (const DebuggerViewSnapshot & snapshot)
         m_loadedFor  = loadedFor;
         m_fileId     = -1;
         m_isDropped  = false;
-        m_showBody   = false;
+        m_macroLevel = 0;
         m_rowsFileId = -2;
     }
 
     m_state  = snapshot.source;
     keepDrop = m_isDropped && m_docFileId == m_droppedAt;
+
+    m_disabledIds.clear();
+
+    for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+    {
+        if (!bp.enabled)
+        {
+            m_disabledIds.insert (bp.id);
+        }
+    }
 
     if (m_docFileId >= 0 && m_docFileId != m_fileId && !keepDrop)
     {
@@ -242,11 +273,15 @@ void SourcePane::Rebuild()
 {
     int                                   marked       = (GetShownFileId() == m_fileId) ? GetShownLine() : -1;
     std::set<int>                         breakpoints;
-    const DebugSourceFile               * body         = nullptr;
+    std::set<int>                         disabled;
     bool                                  isRowsStale  = false;
     int                                   top          = m_view->GetTopLine();
     int                                   depth        = 0;
+    int                                   level        = GetMacroLevel (*m_state, m_macroLevel);
     bool                                  holdsPc      = false;
+    std::pair<int, int>                   shown        = GetPlace (*m_state, (level > 0) ? level : -1);
+    std::pair<int, int>                   invokedBy    = (level > 0) ? GetPlace (*m_state, level - 1) : std::pair<int, int> { -1, 0 };
+    std::string                           invokedName;
     std::wstring                          bannerText;
     std::wstring                          elsewhere;
 
@@ -257,16 +292,33 @@ void SourcePane::Rebuild()
         if (std::get<0> (bp) == m_fileId)
         {
             breakpoints.insert (std::get<1> (bp));
+
+            if (m_disabledIds.contains (std::get<2> (bp)))
+            {
+                disabled.insert (std::get<1> (bp));
+            }
         }
     }
 
-    isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints;
+    //  A line with an enabled breakpoint and a disabled one shows enabled.
+    for (const std::tuple<int, int, int> & bp : m_state->breakpointLines)
+    {
+        if (std::get<0> (bp) == m_fileId && !m_disabledIds.contains (std::get<2> (bp)))
+        {
+            disabled.erase (std::get<1> (bp));
+        }
+    }
+
+    isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
+                  m_rowsDisabled != disabled || m_isStyleStale;
 
     if (isRowsStale)
     {
         bool  isNewLine = m_rowsLine != marked || m_rowsFileId != m_fileId;
 
-        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints));
+        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style));
+        m_rowsDisabled = disabled;
+        m_isStyleStale = false;
         m_view->SetTopLine (top);
 
         if (isNewLine && marked > 0)
@@ -279,18 +331,19 @@ void SourcePane::Rebuild()
         m_rowsBreakpoints = std::move (breakpoints);
     }
 
-    for (const DebugSourceFile & record : m_state->files)
-    {
-        body = (record.id == m_state->bodyFileId) ? &record : body;
-    }
-
     //  Only the document the PC is in speaks of the macro: the invocation's,
-    //  or the body's while the body is shown.
-    holdsPc = m_fileId >= 0 && (m_fileId == m_state->fileId || (m_showBody && m_fileId == m_state->bodyFileId));
+    //  or the shown level's while a body is shown.
+    holdsPc = m_fileId >= 0 && (m_fileId == m_state->fileId || (level > 0 && m_fileId == shown.first));
     depth   = (holdsPc && CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId)) ? m_state->depth : 0;
 
-    bannerText = GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, m_showBody,
-                                body != nullptr ? body->name : std::string(), m_state->bodyLine);
+    //  A level's invocation in the same file goes by its line alone.
+    if (invokedBy.first >= 0 && invokedBy.first != shown.first)
+    {
+        invokedName = GetFileName (invokedBy.first);
+    }
+
+    bannerText = GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, level > 0,
+                                GetFileName (shown.first), shown.second, invokedName, invokedBy.second);
     elsewhere  = m_isDropped ? std::wstring() : GetFoundElsewhereText (GetFileName (m_fileId), m_state->debugFilePath, m_foundPath);
 
     if (!elsewhere.empty())
@@ -313,7 +366,7 @@ void SourcePane::Rebuild()
     //  click.
     if (m_banner->GetAction (0) != nullptr)
     {
-        m_banner->GetAction (0)->SetLabel (m_showBody ? L"Show invocation" : L"Show body");
+        m_banner->GetAction (0)->SetLabel (level > 0 ? L"Show invocation" : L"Show body");
     }
 }
 
@@ -533,7 +586,7 @@ void SourcePane::ToggleBody()
 
 int SourcePane::GetShownFileId() const
 {
-    return (m_showBody && m_state->depth > 0) ? m_state->bodyFileId : m_state->fileId;
+    return GetPlace (*m_state, GetMacroLevel (*m_state, m_macroLevel)).first;
 }
 
 
@@ -548,7 +601,40 @@ int SourcePane::GetShownFileId() const
 
 int SourcePane::GetShownLine() const
 {
-    return (m_showBody && m_state->depth > 0) ? m_state->bodyLine : m_state->line;
+    return GetPlace (*m_state, GetMacroLevel (*m_state, m_macroLevel)).second;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetPlace
+//
+//  The file and line at a level, -1 being the body line. A state with no
+//  places has only its two ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<int, int> SourcePane::GetPlace (const DebuggerViewSnapshot::SourceState & state, int level)
+{
+    const std::vector<std::pair<int, int>> & places = state.places;
+
+
+
+    if (places.empty())
+    {
+        return (level != 0 && state.depth > 0) ? std::pair<int, int> { state.bodyFileId, state.bodyLine }
+                                               : std::pair<int, int> { state.fileId, state.line };
+    }
+
+    if (level < 0 || level >= (int) places.size())
+    {
+        return places.back();
+    }
+
+    return places[(size_t) level];
 }
 
 
@@ -647,26 +733,54 @@ std::vector<std::wstring> SourcePane::SplitLines (const std::string & text)
 //  SourcePane::BuildRows
 //
 //  A marker, the line number and the text. The marker is the triangle on the
-//  marked line and a bullet on a line with a breakpoint.
+//  marked line. With the style's icons, as the disassembly pane draws them,
+//  a breakpoint is its icon in the view's gutter and the marked line takes
+//  the PC's row fill and marker color; without them, a bullet in the marker.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wstring> & lines, int markedLine,
-                                                      const std::set<int> & breakpointLines)
+                                                      const std::set<int> & breakpointLines,
+                                                      const std::set<int> & disabledLines,
+                                                      const Style         & style)
 {
     std::vector<DxuiTextView::Row>  rows;
-    int                             width = (int) std::to_wstring (lines.size()).size();
+    int                             width  = (int) std::to_wstring (lines.size()).size();
+    bool                            icons  = style.enabledIcon != nullptr;
 
 
 
     for (size_t i = 0; i < lines.size(); i++)
     {
-        int           number = (int) i + 1;
-        std::wstring  marker = breakpointLines.contains (number) ? std::wstring (1, s_kchBullet) : std::wstring (L" ");
+        int                number   = (int) i + 1;
+        bool               isMarked = number == markedLine;
+        std::wstring       marker;
+        DxuiTextView::Row  row;
 
-        marker += (number == markedLine) ? std::wstring (s_kpszTriangleRight) : std::wstring (L" ");
+        if (!icons)
+        {
+            marker = breakpointLines.contains (number) ? std::wstring (1, s_kchBullet) : std::wstring (L" ");
+        }
 
-        rows.push_back ({ { marker, std::format (L"{:>{}}", number, width), lines[i] } });
+        marker += isMarked ? std::wstring (s_kpszTriangleRight) : std::wstring (L" ");
+        row.cells = { marker, std::format (L"{:>{}}", number, width), lines[i] };
+
+        if (icons && breakpointLines.contains (number))
+        {
+            row.icon = disabledLines.contains (number) ? style.disabledIcon : style.enabledIcon;
+        }
+
+        if (isMarked)
+        {
+            row.background = style.pcRowArgb;
+
+            if (style.pcMarkerArgb != 0)
+            {
+                row.spans.push_back ({ 0, (int) marker.size() - 1, 1, style.pcMarkerArgb });
+            }
+        }
+
+        rows.push_back (std::move (row));
     }
 
     return rows;
@@ -720,9 +834,11 @@ std::string SourcePane::GetToggleLine (const DebuggerViewSnapshot::SourceState &
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
-                                        int depth, bool showingBody, const std::string & bodyName, int bodyLine)
+                                        int depth, bool showingBody, const std::string & bodyName, int bodyLine,
+                                        const std::string & invokedByName, int invokedByLine)
 {
     std::string  text;
+    std::string  invokedBy;
 
 
 
@@ -754,8 +870,15 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
 
     if (depth > 0)
     {
+        //  The invocation that produced the shown line: the next level out.
+        if (showingBody && invokedByLine > 0)
+        {
+            invokedBy = invokedByName.empty() ? std::format (", invoked by line {}", invokedByLine)
+                                              : std::format (", invoked by {} line {}", invokedByName, invokedByLine);
+        }
+
         text += text.empty() ? "" : "\n";
-        text += showingBody ? std::format ("Showing the macro body: {} line {}.", bodyName, bodyLine)
+        text += showingBody ? std::format ("Showing the macro body: {} line {}{}.", bodyName, bodyLine, invokedBy)
                             : std::format ("Stopped inside a macro. Its body line is {} line {}.", bodyName, bodyLine);
     }
 
@@ -816,4 +939,56 @@ std::wstring SourcePane::GetFoundElsewhereText (const std::string & fileName, co
 bool SourcePane::CanShowBody (bool hasText, int depth, int bodyFileId, int fileId)
 {
     return depth > 0 && (hasText || bodyFileId != fileId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetNextMacroLevel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SourcePane::GetNextMacroLevel (int level, int deepest)
+{
+    if (deepest <= 0)
+    {
+        return 0;
+    }
+
+    if (level < 0 || level > deepest)
+    {
+        level = deepest;
+    }
+
+    return (level == 0) ? deepest : level - 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetMacroLevel
+//
+//  Outside every macro there is only level 0. Without the places between,
+//  the body line is level 1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SourcePane::GetMacroLevel (const DebuggerViewSnapshot::SourceState & state, int level)
+{
+    int  deepest = state.places.empty() ? 1 : (int) state.places.size() - 1;
+
+
+
+    if (state.depth == 0)
+    {
+        return 0;
+    }
+
+    return (level < 0 || level > deepest) ? deepest : level;
 }

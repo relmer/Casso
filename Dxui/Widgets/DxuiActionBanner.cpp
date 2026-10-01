@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiActionBanner.h"
+#include "Window/DxuiButtonRow.h"
 
 
 
@@ -103,12 +104,38 @@ float DxuiActionBanner::GetActionColumnPx (const DxuiDpiScaler & scaler) const
         //  the trailing edge pad the first button is inset by. Leaving the pad
         //  out reserves less than Layout then uses, so the text runs the last
         //  few pixels underneath the first button.
-        width = scaler.ToPxf (s_kActionWidthDip) * (float) count
-              + scaler.ToPxf (s_kActionGapDip)   * (float) count
+        for (const std::unique_ptr<DxuiButton> & action : m_actions)
+        {
+            width += scaler.ToPxf (GetActionWidthDip (*action));
+        }
+
+        width += scaler.ToPxf (s_kActionGapDip)   * (float) count
               + scaler.ToPxf (s_kEdgePadDip);
     }
 
     return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiActionBanner::GetActionWidthDip
+//
+//  A fixed width put a longer label such as "Show invocation" against the
+//  button's sides, so each is sized to its label as dialog buttons are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiActionBanner::GetActionWidthDip (const DxuiButton & action)
+{
+    float  width = (float) DxuiButtonRow::GetWidthForLabel (action.GetAccessibleName());
+
+
+
+    return (width > s_kActionWidthDip) ? width : s_kActionWidthDip;
 }
 
 
@@ -175,7 +202,6 @@ float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler
 
 void DxuiActionBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    float  actionW    = scaler.ToPxf (s_kActionWidthDip);
     float  actionH    = scaler.ToPxf (s_kActionHeightDip);
     float  gap        = scaler.ToPxf (s_kActionGapDip);
     float  edge       = scaler.ToPxf (s_kEdgePadDip);
@@ -198,7 +224,7 @@ void DxuiActionBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
     for (i = m_actions.size(); i > 0; i--)
     {
         RECT   slot = {};
-        float  left = right - actionW;
+        float  left = right - scaler.ToPxf (GetActionWidthDip (*m_actions[i - 1]));
 
         slot.left   = (LONG) left;
         slot.right  = (LONG) right;

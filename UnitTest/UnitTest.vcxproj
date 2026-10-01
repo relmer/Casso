@@ -260,6 +260,8 @@
     <ClCompile Include="DebuggerTests\MonitorSlotNoteTests.cpp" />
     <ClCompile Include="DebuggerTests\StepSoundTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceBannerNoFileTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceMacroLevelTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceLineMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\TracePaneHomeKeyTests.cpp" />
     <ClCompile Include="DebuggerTests\TracePaneKeysTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
@@ -537,6 +539,7 @@
     <ClCompile Include="UiTests\DxuiAddressBarTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewFindOptionsTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTextViewGutterTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
@@ -636,6 +639,7 @@
     <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiActionBannerWidthTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />

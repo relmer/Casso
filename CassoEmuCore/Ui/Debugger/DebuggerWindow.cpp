@@ -244,6 +244,7 @@ void DebuggerWindow::OnCreate()
             [this] (Word address)             { ShowCode (address); });
 
         document.pane->SetOnToggleBody ([this] { ToggleMacroBody(); });
+        document.view->SetGutter       (kGutterColumnDip, kBreakpointIconDip);
         document.view->SetVisible   (false);
         document.banner->SetVisible (false);
     }
@@ -1174,12 +1175,12 @@ void DebuggerWindow::ApplySource()
         m_sourceLoadedFor = loadedFor;
         m_documents.Clear();
         m_pcPlace         = { -1, 0 };
-        m_showBody        = false;
+        m_macroLevel      = 0;
     }
 
     if (source.has_value())
     {
-        m_showBody = m_showBody && source->depth > 0;
+        m_macroLevel = SourcePane::GetMacroLevel (*source, m_macroLevel);
 
         RestoreSourceDocuments();
         FollowPcSource();
@@ -1195,8 +1196,9 @@ void DebuggerWindow::ApplySource()
         std::wstring                 title;
         DxuiTabGroup::LeadingMark    mark;
 
+        document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false) });
         document.pane->SetFile     (m_documents.GetFileId (slot));
-        document.pane->SetShowBody (m_showBody);
+        document.pane->SetMacroLevel (m_macroLevel);
         document.pane->Apply       (*m_snapshot);
 
         //  Each document's tab is titled with its file's name.
@@ -1270,8 +1272,7 @@ void DebuggerWindow::ApplySource()
 void DebuggerWindow::FollowPcSource()
 {
     const DebuggerViewSnapshot::SourceState & source = *m_snapshot->source;
-    bool                                      inBody = m_showBody && source.depth > 0;
-    std::pair<int, int>                       place  = { inBody ? source.bodyFileId : source.fileId, inBody ? source.bodyLine : source.line };
+    std::pair<int, int>                       place  = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
 
 
 
@@ -1410,8 +1411,12 @@ void DebuggerWindow::RestoreSourceDocuments()
 
 void DebuggerWindow::ToggleMacroBody()
 {
-    m_showBody = !m_showBody;
-    m_pcPlace  = { -1, 0 };
+    if (m_snapshot != nullptr && m_snapshot->source.has_value())
+    {
+        m_macroLevel = SourcePane::GetNextMacroLevel (m_macroLevel, SourcePane::GetMacroLevel (*m_snapshot->source, -1));
+    }
+
+    m_pcPlace = { -1, 0 };
 
     if (m_snapshot != nullptr && m_snapshot->source.has_value())
     {

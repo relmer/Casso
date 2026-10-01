@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiIconImage.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
 
@@ -38,10 +39,24 @@
 class DxuiTextView : public IDxuiControl
 {
 public:
+    //  A run of a cell's characters drawn in a color of their own.
+    struct Span
+    {
+        int       cell   = 0;
+        int       start  = 0;
+        int       length = 0;
+        uint32_t  argb   = 0;
+    };
+
+    //  A row's fill spans the view's width on every line it takes; its icon
+    //  is drawn in the gutter, on its first line.
     struct Row
     {
-        std::vector<std::wstring>  cells;
-        bool                       warning = false;
+        std::vector<std::wstring>              cells;
+        bool                                   warning    = false;
+        uint32_t                               background = 0;
+        std::shared_ptr<const DxuiIconImage>   icon;
+        std::vector<Span>                      spans;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -69,6 +84,11 @@ public:
     void  SetIconFace      (const wchar_t * face) { m_iconFace = face; }
     void  SetOwnerWindow   (HWND hwnd)            { m_hwnd = hwnd; }
     void  SetOnContextMenu (ContextMenuFn fn)     { m_onContextMenu = std::move (fn); }
+
+    //  A column ahead of the text for each row's icon, none by default. The
+    //  icon is drawn at the given size, centered in the column.
+    void  SetGutter        (int widthDip, int iconDip) { m_gutterDip = widthDip; m_gutterIconDip = iconDip; }
+    int   GetGutterPx      () const               { return m_scaler.ToPx (m_gutterDip); }
 
     //  The face's size as a multiple of the theme's, and how far the text
     //  color goes from the background toward the theme's foreground (1 is
@@ -208,7 +228,13 @@ private:
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int column,
-                                     int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo) const;
+                                     int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
+                                     const std::vector<uint32_t> & colors) const;
+    int           GetTextLeft       () const;
+
+    //  Each character of a row's text, its cells joined by tabs: its span's
+    //  color, or 0 for the view's own.
+    std::vector<uint32_t>  GetRowColors (const Row & row) const;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;
@@ -223,6 +249,8 @@ private:
     bool               m_cellPinned    = false;
     float              m_zoom          = 1.0f;
     float              m_textStrength  = 1.0f;
+    int                m_gutterDip     = 0;
+    int                m_gutterIconDip = 0;
     UINT               m_measuredDpi   = 0;
     int                m_topLine       = 0;
     bool               m_followEnd     = false;

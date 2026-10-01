@@ -125,7 +125,7 @@ void DxuiTextView::SetTopLine (int line)
 
 int DxuiTextView::GetTextColumns (bool scrollbar) const
 {
-    int  width = (int) (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (s_kPadDip) * 2;
+    int  width = (int) (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (s_kPadDip) * 2 - GetGutterPx();
 
 
 
@@ -365,7 +365,7 @@ DxuiTextView::Position DxuiTextView::HitTest (POINT point) const
     Position  pos;
     int       pad       = m_scaler.ToPx (s_kPadDip);
     int       y         = point.y - (int) m_boundsDip.top - pad;
-    int       x         = point.x - (int) m_boundsDip.left - pad;
+    int       x         = point.x - GetTextLeft();
     int       lineIndex = 0;
     int       column    = 0;
     int       last      = 0;
@@ -1195,20 +1195,40 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font)
 {
-    HRESULT       hr        = S_OK;
-    const Line &  line      = m_lines[(size_t) lineIndex];
-    const Row &   row       = m_rows[(size_t) line.row];
-    int           left      = (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip);
-    int           y         = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + (lineIndex - m_topLine) * m_cellHeightPx;
-    int           last      = (int) row.cells.size() - 1;
-    Position      from      = (std::min) (m_anchor, m_caret);
-    Position      to        = (std::max) (m_anchor, m_caret);
-    bool          selected  = HasSelection() && from.row <= line.row && line.row <= to.row;
-    int           selFrom   = (line.row == from.row) ? from.offset : 0;
-    int           selTo     = (line.row == to.row)   ? to.offset   : INT_MAX;
-    uint32_t      selArgb   = theme.SelectionBackground();
+    HRESULT                  hr       = S_OK;
+    const Line             & line     = m_lines[(size_t) lineIndex];
+    const Row              & row      = m_rows[(size_t) line.row];
+    int                      left     = GetTextLeft();
+    int                      y        = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + (lineIndex - m_topLine) * m_cellHeightPx;
+    int                      last     = (int) row.cells.size() - 1;
+    Position                 from     = (std::min) (m_anchor, m_caret);
+    Position                 to       = (std::max) (m_anchor, m_caret);
+    bool                     selected = HasSelection() && from.row <= line.row && line.row <= to.row;
+    int                      selFrom  = (line.row == from.row) ? from.offset : 0;
+    int                      selTo    = (line.row == to.row)   ? to.offset   : INT_MAX;
+    uint32_t                 selArgb  = theme.SelectionBackground();
+    std::vector<uint32_t>    colors   = GetRowColors (row);
+    int                      gutter   = GetGutterPx();
 
 
+
+    //  A row's fill runs across the view on each of its lines, gutter and all.
+    if (row.background != 0)
+    {
+        painter.FillRect ((float) m_boundsDip.left, (float) y, (float) (m_boundsDip.right - m_boundsDip.left), (float) m_cellHeightPx,
+                          row.background);
+    }
+
+    if (line.first && row.icon != nullptr && !row.icon->bgraPremul.empty() && gutter > 0)
+    {
+        float  iconPx = m_scaler.ToPxf ((float) m_gutterIconDip);
+
+        hr = text.DrawIconBitmap (row.icon->bgraPremul.data(), row.icon->width, row.icon->height,
+                                  (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f,
+                                  (float) y + ((float) m_cellHeightPx - iconPx) * 0.5f,
+                                  iconPx, iconPx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     if (line.first && row.warning)
     {
@@ -1235,7 +1255,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                GetCellStart (row, c + 1) - column - (int) cell.size(), selFrom, selTo, selArgb);
         }
 
-        DrawRun (text, theme, font, y, column, GetCellBase (row, c), cell, selected, selFrom, selTo);
+        DrawRun (text, theme, font, y, column, GetCellBase (row, c), cell, selected, selFrom, selTo, colors);
     }
 
     if (last >= 0)
@@ -1249,7 +1269,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                0, selFrom, selTo, selArgb);
         }
 
-        DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo);
+        DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo, colors);
     }
 }
 
@@ -1277,33 +1297,104 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
                             const std::wstring   & chars,
                             bool                   selected,
                             int                    selFrom,
-                            int                    selTo) const
+                            int                    selTo,
+                            const std::vector<uint32_t> & colors) const
 {
     HRESULT   hr     = S_OK;
-    int       left   = (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip);
+    int       left   = GetTextLeft();
     int       count  = (int) chars.size();
     int       first  = selected ? std::clamp (selFrom - flatStart, 0, count) : count;
     int       end    = selected ? std::clamp (selTo - flatStart, first, count) : count;
     uint32_t  normal = DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
-    int       from[] = { 0, first, end };
-    int       to[]   = { first, end, count };
+    int       start  = 0;
+    auto      colorAt = [&] (int i)
+                        {
+                            size_t  flat = (size_t) (flatStart + i);
+
+                            if (i >= first && i < end)
+                            {
+                                return theme.Foreground();
+                            }
+
+                            return (flat < colors.size() && colors[flat] != 0) ? colors[flat] : normal;
+                        };
 
 
 
-    for (int part = 0; part < 3; part++)
+    //  Each run of one color is drawn on its own, from its first cell.
+    while (start < count)
     {
-        if (to[part] <= from[part])
+        uint32_t  argb = colorAt (start);
+        int       stop = start + 1;
+
+        while (stop < count && colorAt (stop) == argb)
         {
-            continue;
+            stop++;
         }
 
-        hr = text.DrawString (chars.substr ((size_t) from[part], (size_t) (to[part] - from[part])).c_str(),
-                              (float) (left + (column + from[part]) * m_cellAdvance), (float) y,
-                              (float) ((to[part] - from[part] + 1) * m_cellAdvance), (float) m_cellHeightPx,
-                              (part == 1) ? theme.Foreground() : normal, font.sizeDip, font.face,
+        hr = text.DrawString (chars.substr ((size_t) start, (size_t) (stop - start)).c_str(),
+                              (float) (left + (column + start) * m_cellAdvance), (float) y,
+                              (float) ((stop - start + 1) * m_cellAdvance), (float) m_cellHeightPx,
+                              argb, font.sizeDip, font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        start = stop;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetTextLeft
+//
+//  Where the text's first column starts: past the pad and the gutter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetTextLeft() const
+{
+    return (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip) + GetGutterPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetRowColors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
+{
+    std::vector<uint32_t>  colors;
+
+
+
+    if (row.spans.empty())
+    {
+        return colors;
+    }
+
+    colors.assign ((size_t) GetRowLength (row), 0u);
+
+    for (const Span & span : row.spans)
+    {
+        int  base   = GetCellBase (row, span.cell);
+        int  length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
+
+        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length; i++)
+        {
+            colors[(size_t) (base + i)] = span.argb;
+        }
+    }
+
+    return colors;
 }
 
 
@@ -1323,7 +1414,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
 
 void DxuiTextView::FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const
 {
-    int  left      = (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip);
+    int  left      = GetTextLeft();
     int  first     = (std::max) (selFrom, flatStart);
     int  end       = (std::min) (selTo, flatStart + count);
     int  separator = flatStart + count;
