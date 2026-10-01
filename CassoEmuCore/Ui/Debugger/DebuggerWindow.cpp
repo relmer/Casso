@@ -498,8 +498,9 @@ std::shared_ptr<DxuiCommand> DebuggerWindow::MakeMenuCommand (const std::wstring
 //
 //  DebuggerWindow::SetCommandBarMenus
 //
-//  The drop-downs: the machine's device panels, the command dialects and the
-//  key schemes, each checked where it is the one in force. Rebuilt whenever
+//  The drop-downs: every debug window with the shown ones checked, the
+//  machine's device panels, the command dialects and the key schemes, each
+//  checked where it is the one in force. Rebuilt whenever
 //  what they list changes, since the rows carry the state they were built
 //  with.
 //
@@ -507,6 +508,7 @@ std::shared_ptr<DxuiCommand> DebuggerWindow::MakeMenuCommand (const std::wstring
 
 void DebuggerWindow::SetCommandBarMenus()
 {
+    std::vector<DxuiPopupMenuItem>  windows;
     std::vector<DxuiPopupMenuItem>  panels;
     std::vector<DxuiPopupMenuItem>  modes;
     std::vector<DxuiPopupMenuItem>  schemes;
@@ -564,6 +566,17 @@ void DebuggerWindow::SetCommandBarMenus()
         schemes.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
+    for (const std::wstring & pane : GetViewMenuPanes())
+    {
+        m_menuCommands.push_back (MakeMenuCommand (GetPaneTitle (pane), IsPaneShown (pane), [this, pane]
+        {
+            ShowPane (pane);
+        }));
+
+        windows.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    m_commandBar->SetDropDownItems (DebuggerCommands::kView,      std::move (windows));
     m_commandBar->SetDropDownItems (DebuggerCommands::kPanels,    std::move (panels));
     m_commandBar->SetDropDownItems (DebuggerCommands::kMode,      std::move (modes));
     m_commandBar->SetDropDownItems (DebuggerCommands::kKeyScheme, std::move (schemes));
@@ -3140,7 +3153,7 @@ void DebuggerWindow::ConfigureDockSite()
 //
 //  The source pane shows while a debug file is loaded, a memory window while
 //  it is open, and a device panel while its device is present and its panel
-//  open (FR-044); the rest always show.
+//  open (FR-044); the rest show until their close buttons close them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3149,6 +3162,11 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     std::string  diagnosticsId;
 
 
+
+    if (m_closedPanes.contains (pane))
+    {
+        return false;
+    }
 
     if (GetSourceSlotOf (pane) >= 0)
     {
@@ -3491,13 +3509,30 @@ bool DebuggerWindow::IsDocumentPane (const std::wstring & pane) const
 //
 //  DebuggerWindow::CanClosePane
 //
-//  What can be opened again can close: any Disassembly view but the first,
-//  any memory window but the first, a source document, and a device panel.
-//  The fixed panes have nothing to reopen them from.
+//  Every pane can close, since the View menu opens any of them again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::CanClosePane (const std::wstring & pane) const
+bool DebuggerWindow::CanClosePane (const std::wstring &) const
+{
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsFixedPane
+//
+//  A pane the window always holds: the first Disassembly view, the first
+//  memory window and the tool windows. Closing one only hides it; the
+//  others close for real and open again from the snapshot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsFixedPane (const std::wstring & pane) const
 {
     std::string  diagnosticsId;
 
@@ -3507,7 +3542,7 @@ bool DebuggerWindow::CanClosePane (const std::wstring & pane) const
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
         {
-            return true;
+            return false;
         }
     }
 
@@ -3515,11 +3550,157 @@ bool DebuggerWindow::CanClosePane (const std::wstring & pane) const
     {
         if (pane == DebuggerLayout::GetMemoryPaneId (window))
         {
-            return true;
+            return false;
         }
     }
 
-    return GetSourceSlotOf (pane) >= 0 || DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId);
+    return GetSourceSlotOf (pane) < 0 && !DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetViewMenuPanes
+//
+//  What the View menu lists, in its order: the Disassembly views and the
+//  open source documents, then the tool windows, then the device panels of
+//  the machine's devices.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
+{
+    std::vector<std::wstring>  panes;
+
+
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        panes.push_back (DebuggerLayout::GetCodePaneId (view));
+    }
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        if (m_documents.IsOpen (slot))
+        {
+            panes.push_back (DebuggerLayout::GetSourcePaneId (slot));
+        }
+    }
+
+    panes.push_back (DebuggerLayout::kRegisters);
+    panes.push_back (DebuggerLayout::kStack);
+    panes.push_back (DebuggerLayout::kCallStack);
+
+    for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    {
+        panes.push_back (DebuggerLayout::GetMemoryPaneId (window));
+    }
+
+    panes.push_back (DebuggerLayout::kBreakpoints);
+    panes.push_back (DebuggerLayout::kWatches);
+    panes.push_back (DebuggerLayout::kTrace);
+    panes.push_back (DebuggerLayout::kConsole);
+
+    if (m_snapshot != nullptr)
+    {
+        for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
+        {
+            panes.push_back (DebuggerLayout::GetDiagnosticsPaneId (panel.id));
+        }
+    }
+
+    return panes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPane
+//
+//  A View menu choice: a closed pane opens where the layout still keeps it,
+//  docked or floating, and the pane comes forward. A pane the snapshot opens
+//  comes forward once the snapshot shows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPane (const std::wstring & pane)
+{
+    std::string  diagnosticsId;
+
+
+
+    m_closedPanes.erase (pane);
+
+    if (!IsPaneShown (pane))
+    {
+        for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
+        {
+            if (pane == DebuggerLayout::GetCodePaneId (view) && m_host != nullptr)
+            {
+                m_host->SetDebuggerCodeAddress ((m_snapshot != nullptr) ? m_snapshot->pc : (Word) 0, view);
+            }
+        }
+
+        for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+        {
+            if (pane == DebuggerLayout::GetMemoryPaneId (window) && m_host != nullptr)
+            {
+                m_host->SetDebuggerMemoryWindow (window, m_memoryPanes[0]->GetTopAddress());
+            }
+        }
+
+        if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
+        {
+            RunAction (DebuggerActions::GetPanel (diagnosticsId, true, GetMode()));
+        }
+    }
+
+    m_syncFloats = true;
+    m_dockSite->Relayout();
+    m_pendingShowPane = pane;
+    ShowPendingPane();
+    SetCommandBarMenus();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPendingPane
+//
+//  The pane the View menu chose comes forward once it shows: its tab is
+//  selected, an auto-hidden one slides out, and a floating one's window is
+//  raised.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPendingPane()
+{
+    std::wstring  pane = m_pendingShowPane;
+
+
+
+    if (pane.empty() || !IsPaneShown (pane))
+    {
+        return;
+    }
+
+    m_pendingShowPane.clear();
+    m_dockSite->ActivatePane (pane);
+
+    if (m_floats.contains (pane) && m_floats[pane]->GetHwnd() != nullptr)
+    {
+        m_floats[pane]->Show (true);
+    }
 }
 
 
@@ -3531,7 +3712,8 @@ bool DebuggerWindow::CanClosePane (const std::wstring & pane) const
 //  DebuggerWindow::ClosePane
 //
 //  A close button on a document tab or a tool window's title bar, carried
-//  out as the pane's own Close menu item would.
+//  out as the pane's own Close menu item would. A fixed pane hides, keeping
+//  its place in the layout, until the View menu shows it again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3541,6 +3723,17 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
     int          slot = GetSourceSlotOf (pane);
 
 
+
+    if (IsFixedPane (pane))
+    {
+        m_closedPanes.insert (pane);
+        m_syncFloats = true;
+        m_dockSite->Relayout();
+        SetCommandBarMenus();
+        SaveLayout();
+        Invalidate();
+        return;
+    }
 
     if (slot >= 0)
     {
@@ -4539,6 +4732,7 @@ void DebuggerWindow::ApplySnapshot()
     ApplySource();
     ApplyDiagnostics();
     KeepOpenViews();
+    ShowPendingPane();
 
     //  CODE, DATA or CONSOLE: the pane comes forward, even from an edge. The
     //  keys stay where they were, so the next command can be typed; CONSOLE
@@ -6573,6 +6767,11 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
         return diagnostics->GetTitle();
     }
 
+    if (pane.starts_with (L"code"))
+    {
+        return L"Disassembly " + pane.substr (4);
+    }
+
     return pane.starts_with (L"memory") ? L"Memory " + pane.substr (6) : pane;
 }
 
@@ -7228,21 +7427,14 @@ void DebuggerWindow::SortBreakpoints (BreakpointColumns::Column column)
 //
 //  DebuggerWindow::CloseFloatingPane
 //
-//  A pane that can be opened again closes, keeping its floating place, so
-//  it opens there again. A pane with nothing to reopen it docks back where
-//  it came from instead of going for good.
+//  The pane closes, keeping its floating place, so the View menu opens it
+//  there again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::CloseFloatingPane (const std::wstring & pane)
 {
-    if (CanClosePane (pane))
-    {
-        ClosePane (pane);
-        return;
-    }
-
-    DockFloatingPane (pane);
+    ClosePane (pane);
 }
 
 

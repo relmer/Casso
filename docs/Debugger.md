@@ -491,7 +491,9 @@ closes the bar.
 Every pane can be moved. Drag a tab onto the drop zones that appear to dock it
 beside another pane, against an edge of the window, or as a tab of another
 group; drag a divider to resize. A tab dragged out of the window floats in a
-window of its own; closing that window docks it back. Right-click a pane, or
+window of its own. Every pane, docked or floating, has a close button; the
+**View** drop-down lists every pane and shows the chosen one where it was,
+docked or floating. Right-click a pane, or
 press Shift+F10, for **Dock to**, which offers each edge, each group, Float and
 Auto hide; Alt+Shift with an arrow key moves the focused pane. The pin on a
 pane's title bar hides it too. An auto-hidden pane is a tab on the window's

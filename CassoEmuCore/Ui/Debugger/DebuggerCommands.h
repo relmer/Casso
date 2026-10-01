@@ -43,6 +43,7 @@ public:
     static constexpr int  kPanels      = 102;
     static constexpr int  kKeyScheme   = 103;
     static constexpr int  kMode        = 104;
+    static constexpr int  kView        = 105;
 
     struct Handlers
     {

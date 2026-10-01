@@ -243,6 +243,13 @@ protected:
     const DxuiPaneLayout &  GetPaneLayout     () const;
     DxuiPaneLayout &        EditPaneLayout    ();
 
+    //  Protected so a test can work the View menu as a click does: the
+    //  panes it lists, and showing or closing one.
+    std::vector<std::wstring>  GetViewMenuPanes () const;
+    void                       ShowPane         (const std::wstring & pane);
+    void                       ClosePane        (const std::wstring & pane);
+    bool                       IsPaneShown      (const std::wstring & pane) const;
+
     //  Protected so a test can read the breakpoints pane's columns (FR-117)
     //  and the breakpoint each row shows once sorted.
     void                                          ApplyBreakpoints       ();
@@ -357,10 +364,10 @@ private:
     void     ImportBreakpoints       ();
     std::wstring  GetMemoryBarLabel (int id) const;
     static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
-    bool     IsPaneShown        (const std::wstring & pane) const;
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
-    void     ClosePane          (const std::wstring & pane);
+    bool     IsFixedPane        (const std::wstring & pane) const;
+    void     ShowPendingPane    ();
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> extra);
@@ -604,4 +611,10 @@ private:
     POINT                                                                            m_sourceClickAt      = {};
     std::vector<std::unique_ptr<DiagnosticsPane>>                                    m_diagPanes;
     std::set<std::string>                                                            m_diagOpen;
+
+    //  The fixed panes closed from their close buttons, which the View menu
+    //  shows again where the layout still keeps them, and a pane the View
+    //  menu opened that comes forward once the next snapshot shows it.
+    std::set<std::wstring>                                                           m_closedPanes;
+    std::wstring                                                                     m_pendingShowPane;
 };

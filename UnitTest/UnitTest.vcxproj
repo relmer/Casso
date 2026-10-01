@@ -240,6 +240,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowFloatCloseTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowViewMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTabFocusTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTextSizeTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceDocumentsTests.cpp" />

@@ -13,17 +13,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace DebuggerFloatCloseTests
+namespace DebuggerViewMenuTests
 {
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  FloatCloseHost
+    //  ViewMenuHost
     //
-    //  A host that keeps nothing but the memory windows it was told to close.
+    //  A host that keeps the memory windows it was told to open or close.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    class FloatCloseHost : public IDebuggerWindowHost
+    class ViewMenuHost : public IDebuggerWindowHost
     {
     public:
         void  RunDebuggerCommand      (const std::string &)                      override {}
@@ -44,9 +44,9 @@ namespace DebuggerFloatCloseTests
 
         void  SetDebuggerMemoryWindow (int window, std::optional<Word> address) override
         {
-            if (!address.has_value())
+            if (address.has_value())
             {
-                closedMemory.push_back (window);
+                openedMemory.push_back (window);
             }
         }
 
@@ -63,7 +63,7 @@ namespace DebuggerFloatCloseTests
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
-        std::vector<int>  closedMemory;
+        std::vector<int>  openedMemory;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -75,16 +75,16 @@ namespace DebuggerFloatCloseTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  FloatCloseWindow
+    //  ViewMenuWindow
     //
     //  The debugger window with its controls built and no HWND.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    class FloatCloseWindow : public DebuggerWindow
+    class ViewMenuWindow : public DebuggerWindow
     {
     public:
-        FloatCloseWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
+        ViewMenuWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
             m_theme = &theme;
             m_host  = &host;
@@ -93,6 +93,10 @@ namespace DebuggerFloatCloseTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::CloseFloatingPane;
+        using DebuggerWindow::ClosePane;
+        using DebuggerWindow::ShowPane;
+        using DebuggerWindow::IsPaneShown;
+        using DebuggerWindow::GetViewMenuPanes;
         using DebuggerWindow::GetPaneLayout;
         using DebuggerWindow::EditPaneLayout;
     };
@@ -103,24 +107,23 @@ namespace DebuggerFloatCloseTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  DebuggerWindowFloatCloseTests
+    //  DebuggerWindowViewMenuTests
     //
-    //  The close button on a floating pane's window closes the pane, which
-    //  keeps its floating place to open in again.
+    //  Every pane closes from its close button, and the View menu lists every
+    //  debug window and shows a closed one where it last was.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    TEST_CLASS (DebuggerWindowFloatCloseTests)
+    TEST_CLASS (DebuggerWindowViewMenuTests)
     {
     public:
 
-        TEST_METHOD (ClosingAFloatingMemoryWindowClosesItAndKeepsItFloating)
+        TEST_METHOD (ClosingADockedFixedPaneHidesItInPlace)
         {
-            CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
-            FloatCloseHost    host;
-            FloatCloseWindow  window (theme, host);
-            DxuiDpiScaler     scaler;
-            std::wstring      pane   = DebuggerLayout::GetMemoryPaneId (2);
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            ViewMenuHost    host;
+            ViewMenuWindow  window (theme, host);
+            DxuiDpiScaler   scaler;
 
 
 
@@ -128,23 +131,23 @@ namespace DebuggerFloatCloseTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (pane, L"monitor", RECT { 100, 100, 500, 400 }), L"memory 2 is in the layout");
+            window.ClosePane (DebuggerLayout::kRegisters);
 
-            window.CloseFloatingPane (pane);
+            Assert::IsFalse (window.IsPaneShown (DebuggerLayout::kRegisters), L"the registers closed");
+            Assert::IsTrue  (window.GetPaneLayout().IsDocked (DebuggerLayout::kRegisters), L"the layout keeps its place");
 
-            Assert::AreEqual ((size_t) 1, host.closedMemory.size(), L"the memory window closed");
-            Assert::AreEqual (2, host.closedMemory[0]);
-            Assert::IsTrue   (window.GetPaneLayout().IsFloating (pane), L"it opens floating again");
+            window.ShowPane (DebuggerLayout::kRegisters);
+
+            Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kRegisters), L"the View menu shows it again");
         }
 
 
-        TEST_METHOD (ClosingAFloatingFixedPaneClosesItAndKeepsItFloating)
+        TEST_METHOD (ClosingAFloatingFixedPaneKeepsItFloating)
         {
-            CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
-            FloatCloseHost    host;
-            FloatCloseWindow  window (theme, host);
-            DxuiDpiScaler     scaler;
-            std::wstring      pane   = DebuggerLayout::kRegisters;
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            ViewMenuHost    host;
+            ViewMenuWindow  window (theme, host);
+            DxuiDpiScaler   scaler;
 
 
 
@@ -152,11 +155,63 @@ namespace DebuggerFloatCloseTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (pane, L"monitor", RECT { 100, 100, 500, 400 }));
+            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
 
-            window.CloseFloatingPane (pane);
+            window.CloseFloatingPane (DebuggerLayout::kWatches);
 
-            Assert::IsTrue (window.GetPaneLayout().IsFloating (pane), L"the View menu opens it floating again");
+            Assert::IsFalse (window.IsPaneShown (DebuggerLayout::kWatches), L"the watches closed");
+            Assert::IsTrue  (window.GetPaneLayout().IsFloating (DebuggerLayout::kWatches), L"it opens floating again");
+
+            window.ShowPane (DebuggerLayout::kWatches);
+
+            Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kWatches));
+            Assert::IsTrue (window.GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
+        }
+
+
+        TEST_METHOD (ViewMenuListsEveryDebugWindow)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            ViewMenuHost               host;
+            ViewMenuWindow             window (theme, host);
+            std::vector<std::wstring>  panes;
+
+
+
+            window.OnCreate();
+            panes = window.GetViewMenuPanes();
+
+            for (const wchar_t * pane : { DebuggerLayout::kCode,  DebuggerLayout::kRegisters, DebuggerLayout::kStack,
+                                          DebuggerLayout::kCallStack, DebuggerLayout::kBreakpoints, DebuggerLayout::kWatches,
+                                          DebuggerLayout::kTrace, DebuggerLayout::kConsole })
+            {
+                Assert::IsTrue (std::ranges::find (panes, std::wstring (pane)) != panes.end(), pane);
+            }
+
+            for (int memory = 1; memory <= DebuggerViewState::kMaxMemoryWindows; memory++)
+            {
+                Assert::IsTrue (std::ranges::find (panes, DebuggerLayout::GetMemoryPaneId (memory)) != panes.end());
+            }
+        }
+
+
+        TEST_METHOD (ShowingAClosedMemoryWindowOpensIt)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            ViewMenuHost    host;
+            ViewMenuWindow  window (theme, host);
+            DxuiDpiScaler   scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            window.ShowPane (DebuggerLayout::GetMemoryPaneId (3));
+
+            Assert::AreEqual ((size_t) 1, host.openedMemory.size(), L"the memory window opened");
+            Assert::AreEqual (3, host.openedMemory[0]);
         }
     };
 }
