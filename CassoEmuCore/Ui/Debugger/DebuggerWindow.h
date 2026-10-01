@@ -201,6 +201,7 @@ protected:
     //  and search it as the find bar does.
     void             AppendConsole   (const std::vector<std::string> & lines);
     void             OpenFind        ();
+    void             OpenFindIn      (const std::wstring & pane);
     void             CloseFind       ();
     void             FindInPane      (bool forward);
     std::wstring     GetFindPane     () const { return m_findPane; }
@@ -292,12 +293,14 @@ protected:
     //  Protected so a test can read the menu bar's menus as a click opens
     //  them, and the command bar's and the console bar's entries.
     static constexpr int  kDialectEntry = 1;
+    static constexpr int  kFindEntry    = 2;
 
     void                                  SetWindowMenus     ();
     void                                  SetConsoleBarMenus ();
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
     DxuiToolbar *                         GetConsoleBar      () const { return m_consoleBar; }
+    DxuiToolbar *                         GetSourceBar       (int slot) const { return m_sourceDocs[(size_t) slot].bar; }
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
@@ -314,8 +317,10 @@ private:
     {
         DxuiTextView                        * view        = nullptr;
         DxuiActionBanner                    * banner      = nullptr;
+        DxuiToolbar                         * bar         = nullptr;
         std::unique_ptr<SourcePane>           pane;
         std::unique_ptr<DebuggerPaneFrame>    frame;
+        std::unique_ptr<DebuggerPaneFrame>    barSlot;
         std::unique_ptr<DebuggerPaneFrame>    findSlot;
         bool                                  shown       = false;
         bool                                  bannerShown = false;
@@ -401,6 +406,10 @@ private:
     void     ConfigureConsoleBar  ();
     void     PlaceConsoleBar      ();
     bool     RouteConsoleBarMouse (const DxuiMouseEvent & ev);
+    DxuiToolbar::Entry  MakeFindEntry (const std::wstring & pane);
+    void     ConfigureSourceBars  ();
+    void     PlaceSourceBars      ();
+    bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     void     ConfigureMemoryBar   ();
     void     SetMemoryBarMenus    ();
     void     AddMemoryHistory     (const std::wstring & text);

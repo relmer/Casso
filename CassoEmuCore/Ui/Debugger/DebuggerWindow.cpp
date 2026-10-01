@@ -235,6 +235,7 @@ void DebuggerWindow::OnCreate()
     {
         document.view   = CreateChild<DxuiTextView>();
         document.banner = CreateChild<DxuiActionBanner>();
+        document.bar    = CreateChild<DxuiToolbar>();
         document.pane   = std::make_unique<SourcePane> (
             document.view, document.banner,
             [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
@@ -297,6 +298,7 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureMenuBar();
     ConfigureCommandBar();
     ConfigureConsoleBar();
+    ConfigureSourceBars();
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
@@ -2764,7 +2766,24 @@ void DebuggerWindow::PlaceFindBar()
 
 void DebuggerWindow::OpenFind()
 {
-    std::wstring  target   = GetFindTarget();
+    OpenFindIn (GetFindTarget());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenFindIn
+//
+//  Opens the find bar in the pane given, as the search button on that
+//  pane's toolbar does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenFindIn (const std::wstring & target)
+{
     std::wstring  saved    = m_routingPane;
     std::wstring  selected;
 
@@ -3064,6 +3083,7 @@ void DebuggerWindow::LayoutWidgets()
     PlaceMemoryBar();
     PlaceBreakpointBar();
     PlaceConsoleBar();
+    PlaceSourceBars();
     PlaceFindBar();
     ClipPaneControls();
 }
@@ -3439,8 +3459,8 @@ void DebuggerWindow::ConfigureDockSite()
 
 
 
-    //  A source document is its find slot, shown while find searches it,
-    //  and its banner over its text.
+    //  A source document is its toolbar, its find slot, shown while find
+    //  searches it, and its banner over its text.
     for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
     {
         SourceDocument  & document = m_sourceDocs[(size_t) slot];
@@ -3448,7 +3468,9 @@ void DebuggerWindow::ConfigureDockSite()
         std::wstring      id       = DebuggerLayout::GetSourcePaneId (slot);
 
         document.frame    = std::make_unique<DebuggerPaneFrame> (L"Source");
+        document.barSlot  = std::make_unique<DebuggerPaneFrame> (L"Source commands");
         document.findSlot = std::make_unique<DebuggerPaneFrame> (L"Find");
+        document.frame->AddPart (document.barSlot.get(), barHeight);
         document.frame->AddPart (document.findSlot.get(), boxHeight, [this, id] { return m_findOpen && m_findPane == id; });
         document.frame->AddPart (document.banner,
                                  [each] (int width, const DxuiDpiScaler & scaler) { return (int) each->banner->GetPreferredHeightPx ((float) width, scaler); },
@@ -4834,6 +4856,14 @@ void DebuggerWindow::RenderFrame()
         }
     }
 
+    for (SourceDocument & document : m_sourceDocs)
+    {
+        if (document.bar->WantsTick())
+        {
+            document.bar->TickMenus (now);
+        }
+    }
+
     if (m_menuBar->WantsTick())
     {
         m_menuBar->TickMenus (now);
@@ -4864,6 +4894,7 @@ void DebuggerWindow::RenderFrame()
     PlaceMemoryBar();
     PlaceBreakpointBar();
     PlaceConsoleBar();
+    PlaceSourceBars();
     PlaceFindBar();
     ClipPaneControls();
 
@@ -6001,6 +6032,17 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         barTip = m_consoleBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
+    //  And each source document's.
+    for (int slot = 0; slot < (int) m_sourceDocs.size() && (barTip == nullptr || *barTip == L'\0'); slot++)
+    {
+        DxuiToolbar  * bar = m_sourceDocs[(size_t) slot].bar;
+
+        if (m_routingPane == GetBarRoutingPane (DebuggerLayout::GetSourcePaneId (slot)) && bar != nullptr && bar->IsVisible())
+        {
+            barTip = bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+        }
+    }
+
     if (barTip == nullptr || *barTip == L'\0')
     {
         barTip = GetFindBarTip (clientPx, cell);
@@ -6963,6 +7005,15 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  And each source document's.
+    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
+    {
+        if (m_routingPane == GetBarRoutingPane (DebuggerLayout::GetSourcePaneId (slot)) && RouteSourceBarMouse (m_sourceDocs[(size_t) slot].bar, ev))
+        {
+            return true;
+        }
+    }
+
     //  A press on a disassembly or source tab sets the step mode as a press
     //  inside that pane does.
     if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
@@ -7172,7 +7223,13 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
         }
     }
 
-    if (GetSourceSlotOf (pane) >= 0)          { return { m_sourceDocs[(size_t) GetSourceSlotOf (pane)].banner, m_sourceDocs[(size_t) GetSourceSlotOf (pane)].view }; }
+    if (GetSourceSlotOf (pane) >= 0)
+    {
+        const SourceDocument & document = m_sourceDocs[(size_t) GetSourceSlotOf (pane)];
+
+        return { document.barSlot.get(), document.bar, document.banner, document.view };
+    }
+
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }

@@ -2,6 +2,7 @@
 
 #include "Core/DxuiStandardCommand.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -511,7 +512,7 @@ void DebuggerWindow::ConfigureConsoleBar()
     m_consoleBar->SetTextRenderer (GetTextRenderer());
     m_consoleBar->SetPopupHost    (GetPopupHost());
     m_consoleBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_consoleBar->SetEntries      ({ dialect });
+    m_consoleBar->SetEntries      ({ dialect, MakeFindEntry (DebuggerLayout::kConsole) });
     m_consoleBar->SetVisible      (false);
 
     SetConsoleBarMenus();
@@ -649,6 +650,160 @@ bool DebuggerWindow::RouteConsoleBarMouse (const DxuiMouseEvent & ev)
 
     case DxuiMouseEventKind::Up:
         return m_consoleBar->OnToolbarLButtonUp (x, y);
+
+    default:
+        return open;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MakeFindEntry
+//
+//  The search button on a pane's toolbar, which opens that pane's find bar
+//  as Ctrl+F does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar::Entry DebuggerWindow::MakeFindEntry (const std::wstring & pane)
+{
+    auto                command = std::make_shared<DxuiCommand>();
+    DxuiToolbar::Entry  entry;
+
+
+
+    command->id       = kFindEntry;
+    command->label    = L"Find";
+    command->glyph    = s_kpszMdl2Search;
+    command->tip      = L"Find (Ctrl+F)\nFind text in this pane";
+    command->dispatch = [this, pane] { OpenFindIn (pane); };
+
+    entry.command = command;
+    entry.kind    = DxuiToolbar::Kind::Command;
+
+    return entry;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ConfigureSourceBars
+//
+//  Each source document's toolbar, which holds its search button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ConfigureSourceBars()
+{
+    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
+    {
+        DxuiToolbar  * bar = m_sourceDocs[(size_t) slot].bar;
+
+        bar->SetTextRenderer (GetTextRenderer());
+        bar->SetPopupHost    (GetPopupHost());
+        bar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+        bar->SetEntries      ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
+        bar->SetVisible      (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceSourceBars
+//
+//  As the console's: each bar sits in the place held at the top of its
+//  document and goes with the document into a floating window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceSourceBars()
+{
+    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
+    {
+        SourceDocument  & document = m_sourceDocs[(size_t) slot];
+        bool              shown    = document.barSlot != nullptr && document.barSlot->IsVisible();
+        DxuiWindow      * host     = nullptr;
+        RECT              place    = {};
+
+        document.bar->SetVisible (shown);
+
+        if (!shown)
+        {
+            continue;
+        }
+
+        host  = GetPaneHost (DebuggerLayout::GetSourcePaneId (slot));
+        place = document.barSlot->GetBounds();
+
+        document.bar->SetTextRenderer   (host->GetTextRenderer());
+        document.bar->SetPopupHost      (host->GetPopupHost());
+        document.bar->SetHostClientRect (host->GetBounds());
+        document.bar->Layout            (place, m_scaler);
+
+        host->SetChildClip (document.bar, place);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteSourceBarMouse
+//
+//  As the console's: the strip takes the left button, and the right button
+//  over it opens the pane's own menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteSourceBarMouse (DxuiToolbar * bar, const DxuiMouseEvent & ev)
+{
+    int   x     = ev.positionDip.x;
+    int   y     = ev.positionDip.y;
+    RECT  strip = bar->GetBounds();
+    bool  open  = bar->IsMenuOpen();
+    bool  over  = bar->IsVisible() && DxuiDockSite::Contains (strip, POINT { x, y });
+
+
+
+    if (!over && !open)
+    {
+        bar->OnToolbarMouseLeave();
+        return false;
+    }
+
+    if ((ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Up) && ev.button != DxuiMouseButton::Left && !open)
+    {
+        return false;
+    }
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        if (m_routingPane.empty())
+        {
+            UpdateTooltip (ev.positionDip);
+        }
+
+        return bar->OnToolbarMouseMove (x, y);
+
+    case DxuiMouseEventKind::Down:
+        return bar->OnToolbarLButtonDown (x, y);
+
+    case DxuiMouseEventKind::Up:
+        return bar->OnToolbarLButtonUp (x, y);
 
     default:
         return open;

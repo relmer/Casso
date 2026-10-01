@@ -260,6 +260,7 @@
     <ClCompile Include="DebuggerTests\MemoryPaneColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerToolbarGlyphTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerPaneFindButtonTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsVisualsTests.cpp" />
     <ClCompile Include="DebuggerTests\BranchArrowTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyArrowTests.cpp" />
