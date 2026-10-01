@@ -417,6 +417,11 @@ in: `P` on a `JSR` with an interrupt pending runs the handler, then the call,
 and stops after it. A breakpoint in the handler still stops there. A step
 into stops on the handler's first instruction.
 
+A step over or a step out given while a run is in progress pauses the run
+and steps from the instruction it stopped on, as if the machine had been
+paused first. A breakpoint reached before the pause takes effect stops
+there instead, and the step is dropped.
+
 ## The instruction trace
 
 `HISTORY ON` records every instruction the machine runs, keeping the newest

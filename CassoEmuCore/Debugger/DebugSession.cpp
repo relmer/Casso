@@ -1241,6 +1241,7 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_assemblyAddress.reset();
     m_assemblyOpcodes.reset();
     m_nextStep.reset();
+    m_stepAfterPause.reset();
     m_stepsLeft     = 0;
     m_stepCycles    = 0;
     m_isStepPending = false;
@@ -1646,6 +1647,30 @@ void DebugSession::OnStopped (const StopEvent & stop)
     StopEvent  event = stop;
 
 
+
+    //  The pause a step asked for has stopped the run: the step starts here.
+    //  Any other stop got there first and is reported, and the step dropped.
+    if (m_stepAfterPause.has_value())
+    {
+        DebugCommand  step = *m_stepAfterPause;
+        Reply         started;
+
+
+
+        m_stepAfterPause.reset();
+
+        if (event.reason == StopReason::Pause)
+        {
+            m_state = RunState::Paused;
+            UpdateHookInstalled();
+            ExecuteRun (step, started);
+
+            if (started.status == CommandStatus::Ok)
+            {
+                return;
+            }
+        }
+    }
 
     //  One step of a counted step has ended. The next begins here, or, when
     //  the run that ended was started from ExecuteRun and has not returned
@@ -2092,7 +2117,8 @@ void DebugSession::ExecuteStepFilter (const DebugCommand & command, Reply & repl
 //
 //  DebugSession::ExecuteRun
 //
-//  A run while one is in progress is an error. A run on a free-running
+//  A run while one is in progress is an error, save a step over or step out,
+//  which pauses the run and steps from there. A run on a free-running
 //  machine adopts it. The state is set before the run starts because a
 //  synchronous target delivers the stop before StartRun returns.
 //
@@ -2112,6 +2138,17 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     bool                   isOuter    = false;
 
 
+
+    //  A step over or step out while a run is in progress pauses the run and
+    //  starts from where it stops, as it would had the machine been stopped
+    //  first (FR-139). The stop that ends the run starts the step.
+    if (m_state == RunState::DebugRun && !command.hasA1 &&
+        (command.verb == DebugVerb::StepOver || command.verb == DebugVerb::StepOut))
+    {
+        m_stepAfterPause = command;
+        m_target.RequestPause();
+        return;
+    }
 
     if (m_state == RunState::DebugRun || m_state == RunState::Stepping)
     {
