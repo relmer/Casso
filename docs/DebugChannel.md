@@ -6,7 +6,9 @@ pipe that carries the same debugger commands you type in the debugger window
 or give to `CassoCli debug`, and gets back structured replies.
 
 This page covers turning the channel on, reaching it from the command line,
-and the protocol itself, which is everything a client needs.
+and the protocol itself, which is everything a client needs. An AI agent
+driving the channel through `CassoCli` should start with
+[DebuggerForAgents.md](DebuggerForAgents.md).
 
 ## Opening the channel
 
