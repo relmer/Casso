@@ -599,7 +599,28 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                           false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_text.empty() && !m_placeholder.empty())
+    //  Text the field offers after its own, such as a completion, in the
+    //  muted color, drawn only while the caret is at the end it would extend.
+    if (!m_ghost.empty() && m_caret == m_text.size() && selStart == selEnd)
+    {
+        uint32_t  ghostArgb = (m_theme == nullptr) ? s_kFallbackPlaceholder : m_theme->ForegroundMuted();
+
+        hr = text.DrawString (m_ghost.c_str(),
+                              x + padL + fullTextW - m_scrollPx,
+                              y,
+                              std::max (innerW - fullTextW + m_scrollPx, 1.0f),
+                              h,
+                              ghostArgb,
+                              fontPx,
+                              GetFace(),
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal,
+                              false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (m_text.empty() && m_ghost.empty() && !m_placeholder.empty())
     {
         uint32_t  phArgb = (m_theme == nullptr) ? s_kFallbackPlaceholder
                          : m_placeholderItalic  ? m_theme->ForegroundDisabled()

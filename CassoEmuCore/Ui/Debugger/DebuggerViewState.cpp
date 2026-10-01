@@ -71,6 +71,8 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     snapshot.goTo           = m_goTo;
     snapshot.showPane       = m_showPane;
     snapshot.showPaneSerial = m_showPaneSerial;
+    snapshot.suggestion       = m_suggestion;
+    snapshot.suggestionSerial = m_suggestionSerial;
     snapshot.machine        = session.GetTarget().GetMachineInfo().name;
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
@@ -1425,6 +1427,9 @@ std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (
 
 
     reply = ExecuteWindowLine (session, line, mode);
+
+    m_suggestion = reply.suggestion;
+    ++m_suggestionSerial;
 
     lines.push_back (DebugSession::GetPrompt (mode) + line);
     lines.insert (lines.end(), reply.text.begin(), reply.text.end());

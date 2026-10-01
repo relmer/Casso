@@ -145,6 +145,13 @@ in gray after the caret in the command box; Tab runs nothing but takes it into
 the box, and any other key drops it. A command given the wrong arguments is
 answered with its syntax line.
 
+The command box completes as PowerShell does. Tab completes the command word
+from the current mode's commands, and pressing it again steps through the
+other matches; Shift+Tab steps back. The newest earlier line that starts with
+what is typed shows in gray, and Right arrow at the end of the line takes it.
+F8 steps back through the earlier lines that start with what is typed, and F7
+lists the earlier lines to pick from.
+
 Every command that changes breakpoints, watches, memory, registers, flags,
 symbols, disks or settings prints one line saying what changed, such as
 "Removed breakpoint 3 (exec C000)" or "Removed watch 0 (0400)".

@@ -193,6 +193,11 @@ struct DebuggerViewSnapshot
     std::wstring                          showPane;
     uint32_t                              showPaneSerial = 0;
 
+    //  The line the last console line's reply offers instead of it (FR-127),
+    //  empty for none. The window offers it once, when the serial changes.
+    std::string                           suggestion;
+    uint32_t                              suggestionSerial = 0;
+
     //  Every device of the machine that publishes a panel, whether its panel
     //  is open, and the rows of each open one.
     struct PanelInfo
@@ -559,8 +564,10 @@ private:
     Word                                         m_memoryAddress = 0x0000;
     std::optional<uint64_t>                      m_traceTop;
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
-    std::wstring                                 m_showPane;
-    uint32_t                                     m_showPaneSerial = 0;
+    std::wstring  m_showPane;
+    uint32_t      m_showPaneSerial   = 0;
+    std::string   m_suggestion;
+    uint32_t      m_suggestionSerial = 0;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
 

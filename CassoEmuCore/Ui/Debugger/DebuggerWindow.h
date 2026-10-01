@@ -13,6 +13,7 @@
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/BranchArrow.h"
+#include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
@@ -290,6 +291,9 @@ private:
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
     bool     RouteFindKey     (const DxuiKeyEvent & ev, bool & handled);
+    bool     RouteCompletionKey (const DxuiKeyEvent & ev);
+    void     RefreshCommandGhost ();
+    void     ShowHistoryList  ();
     void     ConfigureFindBar ();
     void     PlaceFindBar     ();
     void     SetFindBarVisible (bool shown);
@@ -462,6 +466,8 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
     ConsoleHistory                                  m_consoleHistory;
+    CommandCompletion                               m_completion;
+    uint32_t                                        m_offeredSuggestionSerial = 0;
 
     DxuiToolbar                                                                    * m_commandBar         = nullptr;
     std::unique_ptr<DebuggerCommands>                                                m_commands;

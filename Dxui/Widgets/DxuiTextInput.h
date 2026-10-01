@@ -90,6 +90,7 @@ public:
     //  Fixed text ahead of what is typed, as a command prompt shows: drawn in
     //  the field, never part of the text, and out of the caret's reach.
     void  SetPrompt      (const std::wstring & text)  { m_prompt = text; }
+    void  SetGhostText   (const std::wstring & text)  { m_ghost = text; }
 
     //  Draws the placeholder in italics and the disabled color, as File
     //  Explorer's search box draws its hint.
@@ -106,6 +107,7 @@ public:
     void  SetDoubleClickMetrics (UINT timeMs, int widthPx, int heightPx) { m_doubleClickMs = timeMs; m_doubleClickCx = widthPx; m_doubleClickCy = heightPx; }
 
     const std::wstring & GetText           () const { return m_text;    }
+    const std::wstring & GetGhostText      () const { return m_ghost;   }
     const RECT         & GetRect           () const { return m_boundsDip;    }
     bool                 IsFocused         () const { return m_focused; }
     bool                 IsEnabled         () const { return m_enabled; }
@@ -179,6 +181,7 @@ private:
     std::wstring         m_text;
     std::wstring         m_placeholder;
     std::wstring         m_prompt;
+    std::wstring         m_ghost;
     mutable float        m_promptPx          = 0.0f;
     size_t               m_maxLen            = 64;
     size_t               m_caret             = 0;

@@ -3979,6 +3979,8 @@ void DebuggerWindow::RenderFrame()
         AppendConsole (console);
     }
 
+    RefreshCommandGhost();
+
     for (DxuiListView * list : GetLists())
     {
         list->Tick (now);
@@ -4279,6 +4281,16 @@ void DebuggerWindow::ApplySnapshot()
     //  that dialect's own help command in its hint.
     m_commandBox->SetPrompt      (GetPromptText (m_snapshot->mode));
     m_commandBox->SetPlaceholder (std::format (L"Command (Enter to run, {} for help)", GetHelpCommand (m_snapshot->mode)));
+
+    //  A reply's suggestion is offered once, against the box as it stands.
+    m_completion.SetMode (m_snapshot->mode);
+
+    if (m_snapshot->suggestionSerial != m_offeredSuggestionSerial)
+    {
+        m_offeredSuggestionSerial = m_snapshot->suggestionSerial;
+        m_completion.OfferSuggestion (Widen (m_snapshot->suggestion), m_commandBox->GetText());
+    }
+
     m_tracePane->Apply      (m_snapshot->trace);
 
     rows.clear();
@@ -7057,6 +7069,151 @@ bool DebuggerWindow::RouteDockKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RouteCompletionKey
+//
+//  The command line's completion keys (FR-128, FR-131): Tab takes the gray
+//  suggestion, or completes the command word and cycles through the matches,
+//  Shift+Tab backward; Right arrow at the end of the line takes the gray
+//  earlier line; F8 steps back through earlier lines starting with the typed
+//  text; F7 lists the earlier lines to pick from. Tab in an empty box with
+//  nothing to offer still moves the focus. Returns true when the key was
+//  used here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteCompletionKey (const DxuiKeyEvent & ev)
+{
+    std::wstring  text      = m_commandBox->GetText();
+    std::wstring  result;
+    bool          atEnd     = m_commandBox->GetSelectionStart() == text.size() && m_commandBox->GetSelectionEnd() == text.size();
+    bool          isChanged = false;
+
+
+
+    switch (ev.vk)
+    {
+    case VK_TAB:
+        isChanged = (!ev.shift && m_completion.TryAcceptSuggestion (text, result)) || m_completion.TryComplete (text, !ev.shift, result);
+
+        if (!isChanged && text.empty())
+        {
+            return false;
+        }
+
+        break;
+
+    case VK_RIGHT:
+        if (ev.shift || !atEnd || !m_completion.TryAcceptHistory (text, m_consoleHistory.GetLines(), result))
+        {
+            return false;
+        }
+
+        isChanged = true;
+        break;
+
+    case VK_F8:
+        isChanged = !ev.shift && m_completion.TrySearchHistory (text, m_consoleHistory.GetLines(), result);
+        break;
+
+    case VK_F7:
+        ShowHistoryList();
+        return true;
+
+    default:
+        return false;
+    }
+
+    if (isChanged)
+    {
+        m_commandBox->SetText (result);
+        m_commandBox->SetSelection (result.size(), result.size());
+    }
+
+    RefreshCommandGhost();
+    Invalidate();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RefreshCommandGhost
+//
+//  The gray text after the caret: the last reply's suggestion while the box
+//  is as it was when offered, otherwise the newest earlier line that starts
+//  with what is typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RefreshCommandGhost()
+{
+    const std::wstring &  text  = m_commandBox->GetText();
+    bool                  atEnd = m_commandBox->GetSelectionStart() == text.size() && m_commandBox->GetSelectionEnd() == text.size();
+
+
+
+    m_commandBox->SetGhostText (m_completion.GetGhost (text, atEnd, m_consoleHistory.GetLines()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowHistoryList
+//
+//  The earlier lines, newest first, in a menu over the command line; picking
+//  one puts it in the box to edit or run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowHistoryList()
+{
+    static constexpr size_t           s_kMaxRows = 30;
+    const std::vector<std::wstring> & lines      = m_consoleHistory.GetLines();
+    std::vector<DxuiPopupMenuItem>    menu;
+    RECT                              box        = m_commandBox->GetBounds();
+
+
+
+    if (lines.empty())
+    {
+        return;
+    }
+
+    m_menuCommands.clear();
+    SetCommandBarMenus();
+
+    for (auto it = lines.rbegin(); it != lines.rend() && menu.size() < s_kMaxRows; ++it)
+    {
+        std::wstring  line = *it;
+
+
+
+        m_menuCommands.push_back (MakeMenuCommand (line, false, [this, line]
+        {
+            m_commandBox->SetText (line);
+            m_commandBox->SetSelection (line.size(), line.size());
+            SetFocusedControl (m_commandBox);
+            RefreshCommandGhost();
+            Invalidate();
+        }));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), box.left, box.top, std::move (menu));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnKey
 //
 //  Enter in a box submits it. The text input has no submit event of its own,
@@ -7119,6 +7276,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         m_commandBox->GetSelectionStart() == m_commandBox->GetSelectionEnd() && m_consoleView->HasSelection())
     {
         m_consoleView->CopySelection();
+        return true;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && !ev.ctrl && !ev.alt && RouteCompletionKey (ev))
+    {
         return true;
     }
 
