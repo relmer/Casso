@@ -118,4 +118,11 @@ public:
     // a no-op so a mock or a simple painter compiles unchanged.
     virtual void   PushClip (float xPx, float yPx, float widthPx, float heightPx) { (void) xPx; (void) yPx; (void) widthPx; (void) heightPx; }
     virtual void   PopClip  ()                                                    {}
+
+    // While set, everything drawn up to the batch's end takes coverage away
+    // from what is under it instead of drawing over it: a shape of alpha a
+    // leaves (1 - a) of each pixel, alpha included, so a composited window
+    // shows the desktop through it. Source-over cannot do that, since it
+    // never lowers an opaque pixel's alpha. Cleared by the next batch.
+    virtual void   SetErase (bool erase)                                          { (void) erase; }
 };

@@ -656,6 +656,7 @@
     <ClCompile Include="Dxui\DxuiDockSitePaneMenuTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockCarryAndCompassTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDragMarkVisibilityTests.cpp" />
     <ClCompile Include="Dxui\DxuiDocumentWellDockTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTearOffTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupOverflowTests.cpp" />

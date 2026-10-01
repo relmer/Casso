@@ -105,6 +105,7 @@ public:
     float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
     void    PushClip       (float xPx, float yPx, float widthPx, float heightPx) override;
     void    PopClip        ()                                                    override;
+    void    SetErase       (bool erase)                                          override { m_erase = erase; }
 
     int     GetPendingVertexCount () const { return (int) m_vertices.size(); }
 
@@ -210,6 +211,7 @@ private:
     ComPtr<ID3D11InputLayout>         m_layout;
     ComPtr<ID3D11Buffer>              m_vertexBuffer;
     ComPtr<ID3D11BlendState>          m_blendState;
+    ComPtr<ID3D11BlendState>          m_eraseBlendState;
     ComPtr<ID3D11RasterizerState>     m_rasterState;
     ComPtr<ID3D11DepthStencilState>   m_depthState;
 
@@ -217,6 +219,7 @@ private:
     int                               m_viewportWidthPx      = 0;
     int                               m_viewportHeightPx     = 0;
     bool                              m_betweenBeginEnd      = false;
+    bool                              m_erase                = false;
     float                             m_globalAlpha          = 1.0f;
     float                             m_originXPx            = 0.0f;
     float                             m_originYPx            = 0.0f;

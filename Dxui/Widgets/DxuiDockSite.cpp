@@ -1472,6 +1472,55 @@ void DxuiDockSite::AddDottedHalf (std::vector<DxuiDockDragMark> & marks, const D
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::AddGlyph
+//
+//  A square's picture of a window: its frame in the muted text color, and
+//  in the accent color the part the dropped pane would take -- the half on
+//  the square's side, or for a tab drop the whole window below a title.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::AddGlyph (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, const IDxuiTheme & theme, int line) const
+{
+    long  inset = m_scaler.ToPx (6);
+    RECT  frame = { zone.target.left + inset, zone.target.top + inset, zone.target.right - inset, zone.target.bottom - inset };
+    RECT  fill  = frame;
+    long  midX  = (frame.left + frame.right) / 2;
+    long  midY  = (frame.top + frame.bottom) / 2;
+
+
+
+    if (frame.right <= frame.left || frame.bottom <= frame.top)
+    {
+        return;
+    }
+
+    if (zone.kind == DxuiDockDropZone::Kind::Tab)
+    {
+        fill.top = std::min (fill.bottom, fill.top + 3 * (long) line);
+    }
+    else
+    {
+        switch (zone.side)
+        {
+        case DxuiDockSide::Left:   fill.right  = midX; break;
+        case DxuiDockSide::Right:  fill.left   = midX; break;
+        case DxuiDockSide::Top:    fill.bottom = midY; break;
+        case DxuiDockSide::Bottom: fill.top    = midY; break;
+        default:                                       break;
+        }
+    }
+
+    marks.push_back ({ fill,  theme.Accent(),          0    });
+    marks.push_back ({ frame, theme.ForegroundMuted(), line });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::GetOutlineStrips
 //
 //  The filled rectangles that draw an outlined mark: four strips along the
@@ -2207,14 +2256,23 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
         marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & 0x00FFFFFFu) | 0xA0000000u, 0 });
     }
 
+    //  Each square stands out from the page under it: an elevated fill, an
+    //  edge in the muted text color, and a picture in the accent color of
+    //  where the pane would go.
     for (const DxuiDockDropZone & zone : m_zones)
     {
-        marks.push_back ({ zone.target, theme.ControlBackground(),                         0    });
-        marks.push_back ({ zone.target, (&zone == hover) ? theme.Accent() : theme.Border(), line });
+        bool  hovered = (&zone == hover);
+
+        marks.push_back ({ zone.target, theme.BackgroundElevated(),                            0                         });
+        marks.push_back ({ zone.target, hovered ? theme.Accent() : theme.ForegroundMuted(), hovered ? 2 * line : line });
 
         if (zone.kind == DxuiDockDropZone::Kind::Split)
         {
-            AddDottedHalf (marks, zone, theme.Border(), line);
+            AddDottedHalf (marks, zone, theme.Accent(), line);
+        }
+        else
+        {
+            AddGlyph (marks, zone, theme, line);
         }
     }
 

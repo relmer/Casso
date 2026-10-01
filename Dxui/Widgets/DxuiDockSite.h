@@ -287,6 +287,7 @@ private:
     bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
     void          AddDottedHalf (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, uint32_t argb, int line) const;
+    void          AddGlyph      (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, const IDxuiTheme & theme, int line) const;
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;

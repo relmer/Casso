@@ -1101,6 +1101,6 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T372 Owner review 2026-10-02: undo for the registers, stack, memory and watch panes gets toolbar Undo and Redo buttons; each tip and context menu item says what it undoes, e.g. "Undo changed 2 bytes at $0300"
 - [X] T373 Owner direction 2026-10-02, following Visual Studio: the disassembly pane, not the source pane, can show source. Remove the instruction rows and code bytes from source documents (T268, T316, T347); give the disassembly pane a toolbar with check boxes Addresses, Code bytes, Source, Symbols, Line numbers (vs-reference/vs-disassembly-viewing-options.png), Source and Line numbers available when a debug file maps the code, the choices saved
 - [X] T374 Owner review 2026-10-02: hovering the disassembly's breakpoint column shows a gray breakpoint glyph on lines that can take a breakpoint (an instruction, not a comment or data), to show a click sets one
-- [ ] T375 Owner review 2026-10-02: a torn-off pane being dragged is still opaque near tab strips; T339's gradient transparency is not visible
-- [ ] T376 Owner review 2026-10-02: Visual Studio's drop-target compasses (T325) are not visible during a drag; find why and show them
+- [X] T375 Owner review 2026-10-02: a torn-off pane being dragged is still opaque near tab strips; T339's gradient transparency is not visible
+- [X] T376 Owner review 2026-10-02: Visual Studio's drop-target compasses (T325) are not visible during a drag; find why and show them
 - [ ] T377 Owner review 2026-10-02: Detach must truly detach: decide and implement what attached and detached mean (see the owner's question)

@@ -82,6 +82,10 @@ public:
     //  take away that much of it.
     static std::vector<DxuiDockDragMark>  GetHeaderFade (const RECT & rowPx);
 
+    //  Draws those bands in the painter's erase mode, so they lower the row's
+    //  alpha rather than darken it.
+    static void  PaintHeaderFade (IDxuiPainter & painter, const RECT & rowPx);
+
 protected:
     void  OnCreate      () override;
     void  OnWindowClose () override;

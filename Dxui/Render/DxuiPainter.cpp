@@ -85,6 +85,7 @@ void DxuiPainter::Shutdown()
     m_depthState.Reset();
     m_rasterState.Reset();
     m_blendState.Reset();
+    m_eraseBlendState.Reset();
     m_layout.Reset();
     m_ps.Reset();
     m_vs.Reset();
@@ -251,6 +252,13 @@ HRESULT DxuiPainter::CreatePipelineState()
     hr = m_device->CreateBlendState (&blend, &m_blendState);
     CHRA (hr);
 
+    // Erase: every channel of what is there scaled by (1 - source alpha).
+    blend.RenderTarget[0].SrcBlend      = D3D11_BLEND_ZERO;
+    blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
+
+    hr = m_device->CreateBlendState (&blend, &m_eraseBlendState);
+    CHRA (hr);
+
     raster.FillMode        = D3D11_FILL_SOLID;
     raster.CullMode        = D3D11_CULL_NONE;
     raster.ScissorEnable   = FALSE;
@@ -342,6 +350,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_viewportHeightPx = viewportHeightPx;
     m_vertices.clear();
     m_clips.clear();
+    m_erase            = false;
     m_betweenBeginEnd  = true;
 
 Error:
@@ -1201,7 +1210,7 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
     m_context->RSSetViewports (1, &vp);
 
     m_context->OMSetRenderTargets (1, rtvs, nullptr);
-    m_context->OMSetBlendState        (m_blendState.Get(), blendFactor, 0xFFFFFFFF);
+    m_context->OMSetBlendState        (m_erase ? m_eraseBlendState.Get() : m_blendState.Get(), blendFactor, 0xFFFFFFFF);
     m_context->OMSetDepthStencilState (m_depthState.Get(), 0);
     m_context->RSSetState             (m_rasterState.Get());
 
