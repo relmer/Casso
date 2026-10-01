@@ -94,7 +94,7 @@ namespace DebuggerTests
                                             lookup.text  = MakeText();
                                             return lookup;
                                         },
-                                        [] (const std::string &) {},
+                                        [] (const DebuggerActionBuilder &) {},
                                         [] (Word) {});
 
 

@@ -40,7 +40,7 @@ class SourcePane
 public:
     using FindFn = std::function<SourceLookup (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                                const std::string & programKey)>;
-    using RunFn  = std::function<void (const std::string & line)>;
+    using RunFn  = std::function<void (const DebuggerActionBuilder & build)>;
     using GoToFn = std::function<void (Word address)>;
 
     //  How the PC's line and breakpoints are drawn: the disassembly pane's
@@ -130,6 +130,7 @@ public:
     //  The command a double click on a line sends: clearing the breakpoint
     //  already on it, or setting one.
     static std::string  GetToggleLine (const DebuggerViewSnapshot::SourceState & state, int fileId, int line);
+    static std::optional<DebuggerAction>  GetToggleAction (const DebuggerViewSnapshot::SourceState & state, int fileId, int line, CommandMode mode);
 
     static std::wstring  GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
                                         int depth, bool showingBody, const std::string & bodyName, int bodyLine,

@@ -38,9 +38,10 @@ public:
     static constexpr uint8_t  kMarkRom     = 2;
     static constexpr uint8_t  kMarkChanged = 3;
 
-    using CommandFn = std::function<void (const std::string & line)>;
+    //  An edit's bytes, which the window writes at the address directly.
+    using PatchFn = std::function<void (Word address, std::span<const Byte> bytes)>;
 
-    void  SetOnCommand (CommandFn fn) { m_onCommand = std::move (fn); }
+    void  SetOnPatch (PatchFn fn) { m_onPatch = std::move (fn); }
 
     //  The bytes a snapshot read for this window, one region per byte; an
     //  unreadable (I/O) byte is empty. A byte whose value differs from the
@@ -84,5 +85,5 @@ private:
     mutable std::vector<std::optional<Byte>>    m_bytes;
     std::vector<MemoryRegion>                   m_regions;
     mutable std::vector<Edit>                   m_history;
-    CommandFn                                   m_onCommand;
+    PatchFn                                     m_onPatch;
 };

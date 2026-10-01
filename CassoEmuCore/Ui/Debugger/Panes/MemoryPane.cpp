@@ -25,13 +25,18 @@ static constexpr int       s_kLeadRows = 8;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MemoryPane::MemoryPane (int id, DxuiHexView * view, MoveFn move, RunFn run, RunFn note) :
+MemoryPane::MemoryPane (int id, DxuiHexView * view, MoveFn move, ActionFn run, RunFn note) :
     m_id   (id),
     m_view (view),
     m_move (std::move (move)),
     m_note (std::move (note))
 {
-    m_model.SetOnCommand (std::move (run));
+    m_model.SetOnPatch ([run = std::move (run)] (Word address, std::span<const Byte> bytes)
+    {
+        std::vector<Byte>  values (bytes.begin(), bytes.end());
+
+        run ([address, values] (CommandMode mode) { return DebuggerActions::GetPatch (address, values, mode); });
+    });
     m_view->SetSource (&m_model);
 }
 

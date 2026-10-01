@@ -87,7 +87,7 @@ namespace DebuggerTests
                                             lookup.text  = "; main\n        lda #$41\n";
                                             return lookup;
                                         },
-                                        [] (const std::string &) {},
+                                        [] (const DebuggerActionBuilder &) {},
                                         [] (Word) {});
 
 
@@ -107,7 +107,7 @@ namespace DebuggerTests
             DxuiActionBanner  banner;
             SourcePane        pane (&view, &banner,
                                     [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
-                                    [] (const std::string &) {},
+                                    [] (const DebuggerActionBuilder &) {},
                                     [] (Word) {});
 
 
@@ -137,7 +137,7 @@ namespace DebuggerTests
 
                                             return lookup;
                                         },
-                                        [] (const std::string &) {},
+                                        [] (const DebuggerActionBuilder &) {},
                                         [] (Word) {});
             DebuggerViewSnapshot  snapshot;
 

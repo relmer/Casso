@@ -28,10 +28,11 @@
 class MemoryPane
 {
 public:
-    using MoveFn = std::function<void (int id, Word first)>;
-    using RunFn  = std::function<void (const std::string & line)>;
+    using  MoveFn   = std::function<void (int id, Word first)>;
+    using  RunFn    = std::function<void (const std::string & line)>;
+    using  ActionFn = std::function<void (const DebuggerActionBuilder & build)>;
 
-    MemoryPane (int id, DxuiHexView * view, MoveFn move, RunFn run, RunFn note);
+    MemoryPane (int id, DxuiHexView * view, MoveFn move, ActionFn run, RunFn note);
 
     //  The view holds a pointer to this pane's model, so a pane never moves.
     MemoryPane (const MemoryPane &)             = delete;

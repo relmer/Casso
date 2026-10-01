@@ -28,6 +28,9 @@ struct DebuggerAction
     std::optional<CommandMode>  echoMode;
 };
 
+//  Builds an action in the session's mode, for a pane that does not know it.
+using DebuggerActionBuilder = std::function<DebuggerAction (CommandMode mode)>;
+
 
 
 
@@ -67,6 +70,11 @@ public:
     static DebuggerAction  GetTraceToggle      (bool isOn, CommandMode mode);
     static DebuggerAction  GetSetMode          (CommandMode target, CommandMode mode);
     static DebuggerAction  GetSetRegister      (const std::string & name, Byte value, CommandMode mode);
+    static DebuggerAction  GetPatch            (Word address, std::span<const Byte> bytes, CommandMode mode);
+    static DebuggerAction  GetCallStackMode    (const std::string & mechanism, CommandMode mode);
+    static DebuggerAction  GetSaveHistory      (const std::string & path, CommandMode mode);
+    static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
+    static DebuggerAction  GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode);
 
     //  The action a keyboard-scheme action takes, which is the action its
     //  button takes. The cursor actions use the selected code line (toggling

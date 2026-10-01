@@ -76,7 +76,7 @@ namespace DebuggerTests
             DxuiHexView                             view;
             std::vector<std::string>                sent;
             MemoryPane                              pane (1, &view, [] (int, Word) {},
-                                                          [&sent] (const std::string & line) { sent.push_back (line); },
+                                                          [&sent] (const DebuggerActionBuilder & build) { sent.push_back (build (CommandMode::AppleWin).echo); },
                                                           [] (const std::string &) {});
             DebuggerViewSnapshot::MemoryWindow      window;
             const Byte                              typed[] = { 0x22 };

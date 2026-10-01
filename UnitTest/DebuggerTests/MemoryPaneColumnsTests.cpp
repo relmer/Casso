@@ -28,7 +28,7 @@ namespace DebuggerTests
         TEST_METHOD (AWindowStartsAtSixteenValuesARow)
         {
             DxuiHexView  view;
-            MemoryPane   pane (1, &view, [] (int, Word) {}, [] (const std::string &) {}, [] (const std::string &) {});
+            MemoryPane   pane (1, &view, [] (int, Word) {}, [] (const DebuggerActionBuilder &) {}, [] (const std::string &) {});
 
 
 
@@ -42,7 +42,7 @@ namespace DebuggerTests
         TEST_METHOD (WordsMakeARowOfTwiceTheBytes)
         {
             DxuiHexView  view;
-            MemoryPane   pane (1, &view, [] (int, Word) {}, [] (const std::string &) {}, [] (const std::string &) {});
+            MemoryPane   pane (1, &view, [] (int, Word) {}, [] (const DebuggerActionBuilder &) {}, [] (const std::string &) {});
 
 
 
@@ -58,7 +58,7 @@ namespace DebuggerTests
         {
             DxuiHexView  view;
             Word         asked = 0;
-            MemoryPane   pane  (1, &view, [&asked] (int, Word first) { asked = first; }, [] (const std::string &) {}, [] (const std::string &) {});
+            MemoryPane   pane  (1, &view, [&asked] (int, Word first) { asked = first; }, [] (const DebuggerActionBuilder &) {}, [] (const std::string &) {});
 
 
 

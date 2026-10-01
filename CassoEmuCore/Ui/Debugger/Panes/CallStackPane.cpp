@@ -49,7 +49,12 @@ void CallStackPane::Configure()
     });
 
     m_modeButton->SetLabel   (GetModeLabel (m_mechanism));
-    m_modeButton->SetOnClick ([this] { m_run (GetNextModeLine (m_mechanism)); });
+    m_modeButton->SetOnClick ([this]
+    {
+        std::string  mechanism = GetNextMechanism (m_mechanism);
+
+        m_run ([mechanism] (CommandMode mode) { return DebuggerActions::GetCallStackMode (mechanism, mode); });
+    });
 }
 
 
@@ -166,17 +171,32 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
 //
 //  CallStackPane::GetNextModeLine
 //
-//  Hybrid, recorded, walk, and round again.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CallStackPane::GetNextModeLine (CallStackMechanism current)
 {
+    return "CALLS MODE " + GetNextMechanism (current);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetNextMechanism
+//
+//  Hybrid, recorded, walk, and round again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CallStackPane::GetNextMechanism (CallStackMechanism current)
+{
     switch (current)
     {
-    case CallStackMechanism::Hybrid:   return "CALLS MODE RECORDED";
-    case CallStackMechanism::Recorded: return "CALLS MODE WALK";
-    default:                           return "CALLS MODE HYBRID";
+    case CallStackMechanism::Hybrid:   return "RECORDED";
+    case CallStackMechanism::Recorded: return "WALK";
+    default:                           return "HYBRID";
     }
 }
 

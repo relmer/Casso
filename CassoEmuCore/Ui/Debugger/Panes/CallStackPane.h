@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/Reply.h"
+#include "Ui/Debugger/DebuggerActions.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiListView.h"
 
@@ -30,7 +31,7 @@
 class CallStackPane
 {
 public:
-    using RunFn  = std::function<void (const std::string & line)>;
+    using RunFn  = std::function<void (const DebuggerActionBuilder & build)>;
     using ShowFn = std::function<void (Word address)>;
 
     //  One row as the list shows it. address is where activating it moves
@@ -55,6 +56,7 @@ public:
 
     static std::vector<Row>  GetRows      (const CallStackData & data);
     static std::string       GetNextModeLine (CallStackMechanism current);
+    static std::string       GetNextMechanism (CallStackMechanism current);
     static std::wstring      GetModeLabel (CallStackMechanism mechanism);
 
 private:

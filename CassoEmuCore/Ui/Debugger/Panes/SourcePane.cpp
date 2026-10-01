@@ -522,19 +522,15 @@ void SourcePane::OnClick (POINT atDip)
 
 void SourcePane::OnDoubleClick (POINT atDip)
 {
-    std::optional<int>  line = GetLineAt (atDip);
-    std::string         toggle;
+    std::optional<int>  line  = GetLineAt (atDip);
+    int                 file  = m_fileId;
 
 
 
-    if (line.has_value())
+    //  The window builds the action at once, in the session's mode.
+    if (line.has_value() && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
     {
-        toggle = GetToggleLine (*m_state, m_fileId, *line);
-    }
-
-    if (!toggle.empty())
-    {
-        m_run (toggle);
+        m_run ([this, file, at = *line] (CommandMode mode) { return *GetToggleAction (*m_state, file, at, mode); });
     }
 }
 
@@ -838,11 +834,33 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
 
 std::string SourcePane::GetToggleLine (const DebuggerViewSnapshot::SourceState & state, int fileId, int line)
 {
+    std::optional<DebuggerAction>  action = GetToggleAction (state, fileId, line, CommandMode::AppleWin);
+
+
+
+    return action.has_value() ? action->echo : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetToggleAction
+//
+//  Clears the breakpoint on the line by its id, or sets one there. Nothing
+//  for a file with no record in the debug file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebuggerAction> SourcePane::GetToggleAction (const DebuggerViewSnapshot::SourceState & state, int fileId, int line, CommandMode mode)
+{
     for (const std::tuple<int, int, int> & bp : state.breakpointLines)
     {
         if (std::get<0> (bp) == fileId && std::get<1> (bp) == line)
         {
-            return std::format ("BPC {}", std::get<2> (bp));
+            return DebuggerActions::GetClearBreakpoint (std::get<2> (bp), mode);
         }
     }
 
@@ -850,11 +868,11 @@ std::string SourcePane::GetToggleLine (const DebuggerViewSnapshot::SourceState &
     {
         if (record.id == fileId)
         {
-            return std::format ("BP {}:{}", record.name, line);
+            return DebuggerActions::GetSourceBreakpoint (record.name, line, mode);
         }
     }
 
-    return std::string();
+    return std::nullopt;
 }
 
 

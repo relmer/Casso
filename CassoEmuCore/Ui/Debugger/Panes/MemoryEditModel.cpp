@@ -237,17 +237,8 @@ bool MemoryEditModel::Undo()
 
 void MemoryEditModel::SendPatch (Word address, std::span<const Byte> bytes) const
 {
-    std::string  line = std::format ("PATCH {:04X}", address);
-
-
-
-    for (Byte value : bytes)
+    if (m_onPatch)
     {
-        line += std::format (" {:02X}", value);
-    }
-
-    if (m_onCommand)
-    {
-        m_onCommand (line);
+        m_onPatch (address, bytes);
     }
 }

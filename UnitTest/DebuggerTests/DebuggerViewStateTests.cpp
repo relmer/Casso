@@ -3178,7 +3178,7 @@ namespace DebuggerViewStateTests
                                             lookup.text  = (record.id == 0) ? s_kMainText : "; macros\n\n\n\n        sta $0400\n";
                                             return lookup;
                                         },
-                                        [&] (const std::string & line) { ran = line; },
+                                        [&] (const DebuggerActionBuilder & build) { ran = build (CommandMode::AppleWin).echo; },
                                         [] (Word) {});
             DebuggerViewSnapshot  snapshot;
 
@@ -3218,7 +3218,7 @@ namespace DebuggerViewStateTests
             SourceLookup          dropped;
             SourcePane            pane (&view, &banner,
                                         [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
-                                        [] (const std::string &) {},
+                                        [] (const DebuggerActionBuilder &) {},
                                         [] (Word) {});
 
 

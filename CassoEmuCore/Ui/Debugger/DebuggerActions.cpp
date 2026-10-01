@@ -335,6 +335,121 @@ DebuggerAction DebuggerActions::GetSetRegister (const std::string & name, Byte v
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetPatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetPatch (Word address, std::span<const Byte> bytes, CommandMode mode)
+{
+    std::string     line = std::format ("PATCH {:04X}", address);
+    DebuggerAction  action;
+
+
+
+    for (Byte value : bytes)
+    {
+        line += std::format (" {:02X}", value);
+    }
+
+    action               = Make (DebugVerb::PatchBytes, line, mode);
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    action.command.values.assign (bytes.begin(), bytes.end());
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSourceBreakpoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SetSourceBreakpoint, std::format ("BP {}:{}", fileName, line), mode);
+
+
+
+    action.command.text  = fileName;
+    action.command.count = (uint32_t) line;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetCallStackMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetCallStackMode (const std::string & mechanism, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SetCallStackMode, "CALLS MODE " + mechanism, mode);
+
+
+
+    action.command.text = mechanism;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSaveHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSaveHistory (const std::string & path, CommandMode mode)
+{
+    static constexpr const char * kVerb   = "HISTORY SAVE ";
+    std::string                   line    = DebuggerViewState::GetLineWithFileName (kVerb, path);
+    DebuggerAction                action  = Make (DebugVerb::SaveHistory, line, mode);
+
+
+
+    //  The file name as the line carries it, quoted when it needs to be, as
+    //  the parser leaves it.
+    action.command.text = line.substr (strlen (kVerb));
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetAddWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetAddWatch (Word address, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddWatch, std::format ("W {:04X}", address), mode);
+
+
+
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetForKey
 //
 ////////////////////////////////////////////////////////////////////////////////

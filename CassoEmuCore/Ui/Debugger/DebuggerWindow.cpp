@@ -214,7 +214,7 @@ void DebuggerWindow::OnCreate()
         m_memoryPanes[(size_t) (id - 1)] = std::make_unique<MemoryPane> (
             id, view,
             [this] (int window, Word first)          { if (m_host != nullptr) { m_host->SetDebuggerMemoryWindow (window, first); } },
-            [this] (const std::string & line)        { RunCommand (line); },
+            [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
             [this] (const std::string & line)        { AppendConsole ({ line }); });
 
         view->SetVisible (id == 1);
@@ -236,7 +236,7 @@ void DebuggerWindow::OnCreate()
             {
                 return (m_host != nullptr) ? m_host->FindDebuggerSource (record, path, key) : SourceLookup();
             },
-            [this] (const std::string & line) { RunCommand (line); },
+            [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
             [this] (Word address)             { ShowCode (address); });
 
         document.pane->SetOnToggleBody ([this] { ToggleMacroBody(); });
@@ -247,7 +247,7 @@ void DebuggerWindow::OnCreate()
 
     m_callStackPane = std::make_unique<CallStackPane> (
         m_callStackList, m_callStackButton,
-        [this] (const std::string & line) { RunCommand (line); },
+        [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
         [this] (Word address)             { ShowCode (address); });
 
     //  Every device panel the window can place; each shows while its device
@@ -7807,7 +7807,7 @@ void DebuggerWindow::SaveTrace()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    RunCommand (DebuggerViewState::GetLineWithFileName ("HISTORY SAVE ", TextEncoding::WideToNarrow (chosen.wstring())));
+    RunAction (DebuggerActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;
