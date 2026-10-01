@@ -205,6 +205,29 @@ DebuggerAction DebuggerActions::GetClearBreakpoint (int id, CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetBreakpointStep
+//
+//  The lines the step runs are echoed one by one as they run, in AppleWin's
+//  words, so the action itself carries no echo.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetBreakpointStep (BreakpointStep step)
+{
+    DebuggerAction  action;
+
+
+
+    action.breakpointStep = std::move (step);
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetClearWatch
 //
 ////////////////////////////////////////////////////////////////////////////////

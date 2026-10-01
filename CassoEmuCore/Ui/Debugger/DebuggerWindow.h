@@ -16,6 +16,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/CommandCompletion.h"
+#include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
@@ -252,6 +253,15 @@ protected:
     DxuiListView *                                GetBreakpointList      () const { return m_breakpointList; }
     void                                          SetSnapshotForTest     (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); }
 
+    //  Protected so a test can work the breakpoints pane's toolbar (FR-119)
+    //  as a click does, and see which of its buttons can act.
+    DxuiToolbar *                                      GetBreakpointBar       () const { return m_breakpointBar; }
+    bool                                               IsBreakpointBarEnabled (int id) const;
+    void                                               RunBreakpointBarEntry  (int id);
+    void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access);
+    void                                               RunBreakpointStep      (BreakpointStep step);
+    std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelectedBreakpoints () const;
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -340,6 +350,12 @@ private:
     void     SetMemoryBarMenus    ();
     void     AddMemoryHistory     (const std::wstring & text);
     bool     RouteMemoryBarMouse  (const DxuiMouseEvent & ev);
+    void     ConfigureBreakpointBar  ();
+    void     SetBreakpointBarMenus   ();
+    void     PlaceBreakpointBar      ();
+    bool     RouteBreakpointBarMouse (const DxuiMouseEvent & ev);
+    void     ExportBreakpoints       ();
+    void     ImportBreakpoints       ();
     std::wstring  GetMemoryBarLabel (int id) const;
     static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
     bool     IsPaneShown        (const std::wstring & pane) const;
@@ -551,6 +567,10 @@ private:
     DxuiToolbar                                                                    * m_memoryBar          = nullptr;
     std::unique_ptr<MemoryBarCommands>                                               m_memoryCommands;
     std::unique_ptr<MemoryAddressEntry>                                              m_addressEntry;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_breakpointFrame;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_breakpointSlot;
+    DxuiToolbar                                                                    * m_breakpointBar      = nullptr;
+    std::unique_ptr<BreakpointBarCommands>                                           m_breakpointCommands;
     std::vector<std::wstring>                                                        m_memoryHistory;
     MemoryPane                                                                    * m_activePane         = nullptr;
     std::string                                                                      m_machine;

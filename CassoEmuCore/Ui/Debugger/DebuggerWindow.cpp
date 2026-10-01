@@ -197,6 +197,7 @@ void DebuggerWindow::OnCreate()
     //  The memory bar before its Address box, so the box paints over the strip.
     m_memoryBar         = CreateChild<DxuiToolbar>   ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
+    m_breakpointBar     = CreateChild<DxuiToolbar>   ();
     m_findBox           = CreateChild<DxuiTextInput> ();
     m_findCaseButton    = CreateChild<DxuiButton>    (L"Aa");
     m_findWordButton    = CreateChild<DxuiButton>    (L"ab");
@@ -301,6 +302,7 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     ConfigureMemoryBar();
+    ConfigureBreakpointBar();
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -395,7 +397,7 @@ void DebuggerWindow::ConfigureWidgets()
 
         if (bp != nullptr)
         {
-            RunAction (DebuggerActions::GetEnableBreakpoint (bp->id, checked, GetMode()));
+            RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("{} {}", checked ? "BPE" : "BPD", bp->id) }, {} });
         }
     });
 
@@ -2851,6 +2853,7 @@ void DebuggerWindow::LayoutWidgets()
 
     UpdateCodeLines();
     PlaceMemoryBar();
+    PlaceBreakpointBar();
     PlaceFindBar();
     ClipPaneControls();
 }
@@ -3048,6 +3051,13 @@ void DebuggerWindow::ConfigureDockSite()
     m_traceFrame->AddPart (m_traceHint, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); });
     m_traceFrame->AddPart (m_traceList);
 
+    //  The breakpoints pane is its toolbar over its rows (FR-119). The bar is a
+    //  place held at the pane's top, which PlaceBreakpointBar fills.
+    m_breakpointSlot  = std::make_unique<DebuggerPaneFrame> (L"Breakpoint commands");
+    m_breakpointFrame = std::make_unique<DebuggerPaneFrame> (L"Breakpoints");
+    m_breakpointFrame->AddPart (m_breakpointSlot.get(), barHeight);
+    m_breakpointFrame->AddPart (m_breakpointList);
+
     //  A disassembly view is a frame over its lines.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
@@ -3065,7 +3075,7 @@ void DebuggerWindow::ConfigureDockSite()
 
     m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kRegisters,   L"Registers",   m_registerList);
-    m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointList);
+    m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_watchList);
     m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_stackList);
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
@@ -3756,20 +3766,6 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         }
     }
 
-    //  The breakpoints pane's columns, each checked while it shows (FR-118);
-    //  Name always shows, so it is not offered.
-    if (pane == DebuggerLayout::kBreakpoints)
-    {
-        for (size_t i = 1; i < BreakpointColumns::kCount; i++)
-        {
-            m_menuCommands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
-                                                       [this, i] { ToggleBreakpointColumn ((BreakpointColumns::Column) i); }));
-            menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-        }
-
-        menu.push_back (DxuiPopupMenuItem::ForSeparator());
-    }
-
     for (const DxuiDockSite::MenuItem & item : items)
     {
         m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { (void) action(); }));
@@ -4061,8 +4057,8 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ L"Go to disassembly", [this, bp] { ShowCode (bp.address); } });
         }
 
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunAction (DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode())); } });
-        items.push_back ({ L"Remove",                           [this, bp] { RunAction (DebuggerActions::GetClearBreakpoint (bp.id, GetMode())); } });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("{} {}", bp.enabled ? "BPD" : "BPE", bp.id) }, {} }); } });
+        items.push_back ({ L"Remove",                           [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("BPC {}", bp.id) }, {} }); } });
 
         //  Its type and the fields that type needs, in a dialog; the result is
         //  the BPEDIT line a person could have typed (FR-094).
@@ -4072,7 +4068,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
             if (definition.has_value())
             {
-                RunCommand (std::format ("BPEDIT {} {}", bp.id, *definition));
+                RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("BPEDIT {} {}", bp.id, *definition) }, {} });
             }
         } });
     }
@@ -4197,7 +4193,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar })
     {
         if (strip->WantsTick())
         {
@@ -4226,6 +4222,7 @@ void DebuggerWindow::RenderFrame()
     SyncFloats();
     CarryTornOffPane();
     PlaceMemoryBar();
+    PlaceBreakpointBar();
     PlaceFindBar();
     ClipPaneControls();
 
@@ -5346,6 +5343,12 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         barTip = m_memoryBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
+    //  And the breakpoints pane's.
+    if ((barTip == nullptr || *barTip == L'\0') && m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
+    {
+        barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
     if (barTip == nullptr || *barTip == L'\0')
     {
         barTip = GetFindBarTip (clientPx, cell);
@@ -6268,6 +6271,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Then the breakpoints pane's toolbar.
+    if (m_routingPane.empty() && RouteBreakpointBarMouse (ev))
+    {
+        return true;
+    }
+
     //  A press on a disassembly or source tab sets the step mode as a press
     //  inside that pane does.
     if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
@@ -6483,7 +6492,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (GetSourceSlotOf (pane) >= 0)          { return { m_sourceDocs[(size_t) GetSourceSlotOf (pane)].banner, m_sourceDocs[(size_t) GetSourceSlotOf (pane)].view }; }
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
-    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
+    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
     if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }

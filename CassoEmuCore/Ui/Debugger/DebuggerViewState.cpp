@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/BreakpointImport.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/InstructionEffect.h"
 
@@ -75,6 +76,8 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     snapshot.showPaneSerial = m_showPaneSerial;
     snapshot.suggestion       = m_suggestion;
     snapshot.suggestionSerial = m_suggestionSerial;
+    snapshot.canUndoBreakpoints = m_breakpointHistory.CanUndo();
+    snapshot.canRedoBreakpoints = m_breakpointHistory.CanRedo();
     snapshot.machine        = session.GetTarget().GetMachineInfo().name;
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
@@ -1623,6 +1626,11 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
 
 
 
+    if (action.breakpointStep.has_value())
+    {
+        return ExecuteBreakpointStep (session, *action.breakpointStep);
+    }
+
     if (verb == DebugVerb::ListPanels || verb == DebugVerb::OpenPanel || verb == DebugVerb::ClosePanel)
     {
         reply.command = action.command.sourceName;
@@ -1646,6 +1654,99 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
     lines.insert (lines.end(), reply.text.begin(), reply.text.end());
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ExecuteBreakpointStep
+//
+//  The lines run in AppleWin's words whatever the session's mode, since the
+//  pane builds them and the undo list replays them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step)
+{
+    std::vector<std::string>       lines;
+    BreakpointHistory::LineRunner  run;
+
+
+
+    run = [this, &session, &lines] (const std::string & line)
+    {
+        Reply  reply = ExecuteSessionLine (session, line, CommandMode::AppleWin);
+
+        lines.push_back (DebugSession::GetPrompt (CommandMode::AppleWin) + line);
+        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        return reply;
+    };
+
+    switch (step.kind)
+    {
+    case BreakpointStep::Kind::Undo:
+        m_breakpointHistory.TryUndo (session, run);
+        break;
+
+    case BreakpointStep::Kind::Redo:
+        m_breakpointHistory.TryRedo (session, run);
+        break;
+
+    case BreakpointStep::Kind::Import:
+        m_breakpointHistory.Record (session, [this, &session, &step, &run, &lines] { ImportBreakpoints (session, step.path, run, lines); });
+        break;
+
+    default:
+        m_breakpointHistory.Record (session, [&step, &run]
+        {
+            for (const std::string & line : step.lines)
+            {
+                run (line);
+            }
+        });
+        break;
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ImportBreakpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::ImportBreakpoints (
+    DebugSession                         & session,
+    const std::string                    & path,
+    const BreakpointHistory::LineRunner  & run,
+    std::vector<std::string>             & lines)
+{
+    IFileSystem  * files   = session.GetFileSystem();
+    std::string    script;
+    int            skipped = 0;
+    HRESULT        hr      = S_OK;
+
+
+
+    CBRF (files != nullptr, lines.push_back ("This session cannot read or write host files."));
+
+    hr = files->ReadAllText (session.ResolvePath (path), script);
+    CHRF (hr, lines.push_back (std::format ("{} could not be read.", path)));
+
+    skipped = BreakpointImport::Run (session, script, run);
+    lines.push_back (std::format ("Imported the breakpoints{}; skipped {} line{} that {} not breakpoints.",
+                                  session.GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are"));
+
+Error:
+    return;
 }
 
 

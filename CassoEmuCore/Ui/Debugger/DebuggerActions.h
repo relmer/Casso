@@ -21,11 +21,33 @@ struct DebuggerViewSnapshot;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+struct BreakpointStep
+{
+    //  Lines: the AppleWin lines run as one undo step. Import: the
+    //  breakpoint lines of the file at `path`, as one step. Undo and Redo
+    //  take the newest step back or forward.
+    enum class Kind
+    {
+        Lines,
+        Import,
+        Undo,
+        Redo,
+    };
+
+    Kind                      kind = Kind::Lines;
+    std::vector<std::string>  lines;
+    std::string               path;
+};
+
 struct DebuggerAction
 {
-    DebugCommand                command;
-    std::string                 echo;
-    std::optional<CommandMode>  echoMode;
+    DebugCommand                   command;
+    std::string                    echo;
+    std::optional<CommandMode>     echoMode;
+
+    //  A breakpoints pane action, which runs in place of `command` and goes
+    //  on the pane's undo list (FR-120).
+    std::optional<BreakpointStep>  breakpointStep;
 };
 
 //  Builds an action in the session's mode, for a pane that does not know it.
@@ -65,6 +87,7 @@ public:
     static DebuggerAction  GetEnableBreakpoint (int id, bool enable, CommandMode mode);
     static DebuggerAction  GetClearBreakpoint  (int id, CommandMode mode);
     static DebuggerAction  GetClearWatch       (int id, CommandMode mode);
+    static DebuggerAction  GetBreakpointStep   (BreakpointStep step);
     static DebuggerAction  GetPanel            (const std::string & id, bool open, CommandMode mode);
     static DebuggerAction  GetPoke             (Word address, Byte value, CommandMode mode);
     static DebuggerAction  GetTraceToggle      (bool isOn, CommandMode mode);

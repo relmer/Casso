@@ -3,6 +3,7 @@
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/Reply.h"
+#include "Ui/Debugger/BreakpointHistory.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/InstructionTouches.h"
@@ -213,6 +214,10 @@ struct DebuggerViewSnapshot
     std::vector<StackLine>                stack;
     CallStackData                         callStack;
     std::vector<BreakpointLine>           breakpoints;
+
+    //  Whether the breakpoints pane has a step to undo or redo (FR-120).
+    bool                                  canUndoBreakpoints = false;
+    bool                                  canRedoBreakpoints = false;
     std::vector<WatchLine>                watches;
     std::vector<AutoWatchLine>            autoWatches;
     std::optional<SourceState>            source;
@@ -511,6 +516,12 @@ public:
     //  parser (FR-135). CPU thread only.
     std::vector<std::string>  ExecuteAction (DebugSession & session, const DebuggerAction & action);
 
+    //  A breakpoints pane action as one undo step, or its undo or redo:
+    //  each line it runs behind AppleWin's prompt, then that line's reply.
+    //  An import ends with how many of the file's lines were skipped.
+    //  CPU thread only.
+    std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step);
+
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.
     static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode, bool isAssembling);
@@ -537,6 +548,7 @@ private:
     void  MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply);
     void  GoToMemory     (int window, Word address);
     void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
+    void  ImportBreakpoints (DebugSession & session, const std::string & path, const BreakpointHistory::LineRunner & run, std::vector<std::string> & lines);
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
@@ -634,6 +646,8 @@ private:
     };
 
     mutable LastStop  m_lastStop;
+
+    BreakpointHistory  m_breakpointHistory;
 
     //  Mutable so a build can close the panel of a device that has left.
     mutable std::set<std::string>  m_openPanels;

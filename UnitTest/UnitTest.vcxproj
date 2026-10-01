@@ -236,6 +236,8 @@
     <ClCompile Include="DebuggerTests\StepWhileRunningTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerPaneActionTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointColumnsTests.cpp" />
+    <ClCompile Include="DebuggerTests\BreakpointHistoryTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowFloatCloseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTabFocusTests.cpp" />

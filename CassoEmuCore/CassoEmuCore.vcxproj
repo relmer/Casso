@@ -154,7 +154,11 @@
     <ClCompile Include="Ui\Debugger\BreakpointColumns.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
     <ClCompile Include="Ui\Debugger\StopChanges.cpp" />
+    <ClCompile Include="Ui\Debugger\BreakpointBarCommands.cpp" />
+    <ClCompile Include="Ui\Debugger\BreakpointHistory.cpp" />
+    <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionEffect.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionTouches.cpp" />
     <ClCompile Include="Ui\Debugger\BranchArrow.cpp" />
@@ -546,6 +550,9 @@
     <ClInclude Include="Ui\Debugger\BreakpointColumns.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
     <ClInclude Include="Ui\Debugger\StopChanges.h" />
+    <ClInclude Include="Ui\Debugger\BreakpointBarCommands.h" />
+    <ClInclude Include="Ui\Debugger\BreakpointHistory.h" />
+    <ClInclude Include="Ui\Debugger\BreakpointImport.h" />
     <ClInclude Include="Ui\Debugger\DebuggerActions.h" />
     <ClInclude Include="Ui\Debugger\InstructionEffect.h" />
     <ClInclude Include="Ui\Debugger\InstructionTouches.h" />
