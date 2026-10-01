@@ -352,6 +352,12 @@ bool DebugExpressionEvaluator::TryReadOperand (
         return true;
     }
 
+    //  WinDbg writes a register @a, @x, @y, @sp, @pc or @fl.
+    if (lead == '@' && syntax == NumberSyntax::WinDbg && pos + 1 < text.size() && isalpha ((unsigned char) text[pos + 1]))
+    {
+        return TryReadWinDbgRegister (text, pos, token, error);
+    }
+
     // @n is search result n, resolved by the session like a symbol.
     if (lead == '@')
     {
@@ -413,6 +419,13 @@ bool DebugExpressionEvaluator::TryReadOperand (
         }
 
         return isNumber;
+    }
+
+    //  WinDbg reads a bare word as a number before a register, so a is $0A.
+    if (syntax == NumberSyntax::WinDbg && upper == "A")
+    {
+        token.value = 0x0A;
+        return true;
     }
 
     if (IsRegisterName (upper))
@@ -524,6 +537,55 @@ bool DebugExpressionEvaluator::IsRegisterName (const std::string & upperName)
 {
     return upperName == "A" || upperName == "X" || upperName == "Y" ||
            upperName == "P" || upperName == "S" || upperName == "PC";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugExpressionEvaluator::TryReadWinDbgRegister
+//
+//  WinDbg's @a, @x, @y, @sp, @pc or @fl at pos, as the register.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugExpressionEvaluator::TryReadWinDbgRegister (
+    const std::string  & text,
+    size_t             & pos,
+    ExpressionToken    & token,
+    std::string        & error)
+{
+    static constexpr std::pair<const char *, const char *>  kNames[] =
+    {
+        { "A", "A" }, { "X", "X" }, { "Y", "Y" }, { "SP", "S" }, { "PC", "PC" }, { "FL", "P" },
+    };
+    size_t       start = pos;
+    std::string  upper;
+
+
+
+    ++pos;
+
+    while (pos < text.size() && (isalnum ((unsigned char) text[pos]) || text[pos] == '_'))
+    {
+        upper += (char) toupper ((unsigned char) text[pos]);
+        ++pos;
+    }
+
+    for (const auto & [windbg, register6502] : kNames)
+    {
+        if (upper == windbg)
+        {
+            token.kind = ExpressionToken::Kind::Register;
+            token.name = register6502;
+            return true;
+        }
+    }
+
+    error = std::format ("{} is not a register. The registers are @a, @x, @y, @sp, @pc and @fl.", text.substr (start, pos - start));
+    return false;
 }
 
 

@@ -531,7 +531,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
 
 
-    if (takesIf && !TryParseIfClause (args.tokens, command, error))
+    if (takesIf && !TryParseIfClause (args.tokens, command, error, args.context->GetNumberSyntax()))
     {
         return false;
     }
@@ -556,7 +556,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         if (isConditional)
         {
             command.verb = DebugVerb::SetConditionalBreakpoint;
-            return TryParseCondition ("PC", args.tokens, 0, command, error);
+            return TryParseCondition ("PC", args.tokens, 0, command, error, args.context->GetNumberSyntax());
         }
 
         [[fallthrough]];
@@ -593,7 +593,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
     case DebugVerb::ClearBreakpoint:
     case DebugVerb::DisableBreakpoint:
     case DebugVerb::EnableBreakpoint:
-        return TryParseIdOrAll (args.tokens, command, error);
+        return TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax());
 
     // BPCHANGE # flags keeps the flags' case: E and e differ. BPEDIT # def
     // carries the new definition for the handler to parse as its own line.
@@ -607,7 +607,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
             return false;
         }
 
-        if (!TryParseIdOrAll (args.tokens, command, error))
+        if (!TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax()))
         {
             return false;
         }
@@ -647,7 +647,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, std::string & error)
+bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax)
 {
     auto         isIf       = [] (const std::string & token) { return ToUpper (token) == "IF"; };
     auto         found      = std::find_if (tokens.begin(), tokens.end(), isIf);
@@ -671,7 +671,7 @@ bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, 
         return false;
     }
 
-    hr = DebugExpressionEvaluator::Parse (expression, command.expression, error);
+    hr = DebugExpressionEvaluator::Parse (expression, command.expression, error, syntax);
     return SUCCEEDED (hr);
 }
 
@@ -1122,7 +1122,7 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
     case DebugVerb::DisableZeroPagePointer:
     case DebugVerb::EnableZeroPagePointer:
     case DebugVerb::ClearBookmark:
-        return TryParseIdOrAll (args.tokens, command, error);
+        return TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax());
 
     case DebugVerb::GoToBookmark:
         if (args.tokens.empty())
@@ -1137,7 +1137,7 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
             return false;
         }
 
-        return TryParseIdOrAll (args.tokens, command, error);
+        return TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax());
 
     default:
         command.text = args.rest;
@@ -2114,7 +2114,7 @@ bool AppleWinParser::TryParseSearchWord (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseIdOrAll (const Tokens & tokens, DebugCommand & command, std::string & error)
+bool AppleWinParser::TryParseIdOrAll (const Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax)
 {
     if (tokens.empty())
     {
@@ -2128,7 +2128,7 @@ bool AppleWinParser::TryParseIdOrAll (const Tokens & tokens, DebugCommand & comm
         return true;
     }
 
-    if (!TryParseCount (tokens[0], command.count))
+    if (!TryParseCount (tokens[0], command.count, syntax))
     {
         error = std::format ("{} is not an id.", tokens[0]);
         return false;
@@ -2155,7 +2155,8 @@ bool AppleWinParser::TryParseCondition (
     const Tokens       & tokens,
     size_t               first,
     DebugCommand       & command,
-    std::string        & error)
+    std::string        & error,
+    NumberSyntax         syntax)
 {
     static constexpr const char * kOperators[] = { "<=", ">=", "!=", "!", "=", "<", ">" };
     std::string  rest;
@@ -2183,6 +2184,6 @@ bool AppleWinParser::TryParseCondition (
         return false;
     }
 
-    hr = DebugExpressionEvaluator::Parse (subject + op + rest, command.expression, error);
+    hr = DebugExpressionEvaluator::Parse (subject + op + rest, command.expression, error, syntax);
     return SUCCEEDED (hr);
 }

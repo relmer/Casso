@@ -61,9 +61,9 @@ public:
     static bool  TryParseRange       (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool  TryParseSourceLine  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool  TryParseSearchItems (const std::string & items, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
-    static bool  TryParseIdOrAll     (const Tokens & tokens, DebugCommand & command, std::string & error);
-    static bool  TryParseIfClause    (Tokens & tokens, DebugCommand & command, std::string & error);
-    static bool  TryParseCondition   (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error);
+    static bool  TryParseIdOrAll     (const Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
+    static bool  TryParseIfClause    (Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
+    static bool  TryParseCondition   (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
 
 private:
 

@@ -151,6 +151,7 @@ private:
     static bool  TryReadOperand           (const std::string & text, size_t & pos, NumberSyntax syntax, ExpressionToken & token, std::string & error);
     static bool  TryReadOperator          (const std::string & text, size_t & pos, std::span<const OperatorSpelling> table, ExpressionOperator & op);
     static bool  TryParseNumber           (const std::string & digits, int base, int32_t & value);
+    static bool  TryReadWinDbgRegister    (const std::string & text, size_t & pos, ExpressionToken & token, std::string & error);
     static bool  IsRegisterName           (const std::string & upperName);
     static bool  IsUnary                  (ExpressionOperator op);
     static int   GetPrecedence            (ExpressionOperator op);

@@ -140,8 +140,9 @@ static constexpr WinDbgExclusion s_kExclusions[] =
 //  WinDbgParser::Parse
 //
 //  `!name` is an engine command. `?` needs no space before its expression,
-//  as in WinDbg. Numbers in expressions are read with WinDbg's prefixes
-//  (`0x300`, `0n10`) except inside `ea`'s quoted text.
+//  as in WinDbg. Every argument is read as typed, through a context that
+//  reads WinDbg's prefixes (`0x300`, `0n10`) and registers (`@a`); no text
+//  is rewritten and parsed again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,6 +157,7 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
     size_t                     restFrom  = 0;
     size_t                     bangName  = (first == std::string::npos) ? std::string::npos : line.find_first_not_of (" \t", first + 1);
     const WinDbgExclusion    * exclusion = nullptr;
+    WinDbgExpressionContext    windbg (context);
 
 
 
@@ -198,20 +200,10 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
         return result;
     }
 
-    if (name != "ea")
-    {
-        rest = NormalizeNumbers (rest);
-    }
-
-    if (name != "ea" && name != "r" && name != "x" && name != ".help")
-    {
-        rest = RewriteRegisters (rest);
-    }
-
     tokens                   = Split (rest);
     build.command.sourceName = name;
 
-    if (!TryBuild (name, tokens, rest, context, build))
+    if (!TryBuild (name, tokens, rest, windbg, build))
     {
         result.status = build.isDeferred ? ParseStatus::NotAvailable
                       : build.error.empty() ? ParseStatus::Unknown
@@ -569,7 +561,7 @@ bool WinDbgParser::TryBuildIdOrAll (const std::string & name, const Tokens & arg
         return false;
     }
 
-    return AppleWinParser::TryParseIdOrAll (args, build.command, build.error);
+    return AppleWinParser::TryParseIdOrAll (args, build.command, build.error, NumberSyntax::WinDbg);
 }
 
 
@@ -894,7 +886,7 @@ bool WinDbgParser::TryBuildAddressBreakpoint (
 
     command.verb = DebugVerb::SetBreakpoint;
 
-    if (!isComparison && !AppleWinParser::TryParseIfClause (tokens, command, build.error))
+    if (!isComparison && !AppleWinParser::TryParseIfClause (tokens, command, build.error, context.GetNumberSyntax()))
     {
         return false;
     }
@@ -914,7 +906,7 @@ bool WinDbgParser::TryBuildAddressBreakpoint (
     if (isComparison)
     {
         command.verb = DebugVerb::SetConditionalBreakpoint;
-        return AppleWinParser::TryParseCondition ("PC", tokens, 0, command, build.error);
+        return AppleWinParser::TryParseCondition ("PC", tokens, 0, command, build.error, context.GetNumberSyntax());
     }
 
     if (tokens.empty())
@@ -954,7 +946,7 @@ bool WinDbgParser::TryBuildWatchpoint (
 
 
 
-    if (!AppleWinParser::TryParseIfClause (tokens, command, build.error))
+    if (!AppleWinParser::TryParseIfClause (tokens, command, build.error, context.GetNumberSyntax()))
     {
         return false;
     }
@@ -1162,7 +1154,7 @@ bool WinDbgParser::TryBuildText (
     command.verb  = DebugVerb::EnterBytes;
     command.hasA1 = true;
 
-    if (!AppleWinParser::TryEvaluate (NormalizeNumbers (args[0]), context, command.a1, build.error))
+    if (!AppleWinParser::TryEvaluate (args[0], context, command.a1, build.error))
     {
         return false;
     }
@@ -1269,7 +1261,7 @@ bool WinDbgParser::TrySplitLength (const Tokens & args, size_t first, std::strin
 
     if (token.size() > 1 && token[0] == 'l')
     {
-        length = NormalizeNumbers (args[first].substr (1));
+        length = args[first].substr (1);
         next   = first + 1;
         return true;
     }
@@ -1318,221 +1310,6 @@ bool WinDbgParser::TryEvaluate (
 
     value = (uint32_t) result;
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::NormalizeNumbers
-//
-//  WinDbg's `0x` hex and `0n` decimal prefixes as AppleWin's `$` and `#`,
-//  where the prefix starts a number rather than sitting inside a name or a
-//  path such as `C:\0x1.txt`, and the number stands alone rather than
-//  starting a file name such as 0x1.txt. A bare number is hex in both, so
-//  it needs nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string WinDbgParser::NormalizeNumbers (const std::string & text)
-{
-    std::string  result;
-    size_t       i        = 0;
-    char         quote    = 0;
-    bool         isStart  = false;
-    char         prefix   = 0;
-    size_t       end      = 0;
-
-
-
-    while (i < text.size())
-    {
-        if (quote == 0 && (text[i] == '"' || text[i] == '\''))
-        {
-            quote = text[i];
-        }
-        else if (text[i] == quote)
-        {
-            quote = 0;
-        }
-
-        if (quote == 0 && (i == 0 || isspace ((unsigned char) text[i - 1])) && IsPath (text.substr (i, text.find_first_of (" \t", i) - i)))
-        {
-            end     = text.find_first_of (" \t", i);
-            end     = (end == std::string::npos) ? text.size() : end;
-            result += text.substr (i, end - i);
-            i       = end;
-            continue;
-        }
-
-        isStart  = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$' ||
-                               text[i - 1] == '\\' || text[i - 1] == '/');
-        prefix   = (i + 1 < text.size()) ? (char) tolower ((unsigned char) text[i + 1]) : 0;
-
-        if (quote == 0 && isStart && text[i] == '0' && IsWholeNumber (text, i + 2, prefix))
-        {
-            result += (prefix == 'x') ? '$' : '#';
-            i      += 2;
-            continue;
-        }
-
-        result += text[i];
-        i++;
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::IsWholeNumber
-//
-//  At least one digit of the prefix's base from first, ended by the text's
-//  end or by a character no name or number holds.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WinDbgParser::IsWholeNumber (const std::string & text, size_t first, char prefix)
-{
-    size_t  end = first;
-
-
-
-    if (prefix != 'x' && prefix != 'n')
-    {
-        return false;
-    }
-
-    while (end < text.size() && (prefix == 'x' ? isxdigit ((unsigned char) text[end]) : isdigit ((unsigned char) text[end])))
-    {
-        end++;
-    }
-
-    if (end == first)
-    {
-        return false;
-    }
-
-    return end == text.size() || !(isalnum ((unsigned char) text[end]) || text[end] == '_' || text[end] == '.');
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::IsPath
-//
-//  A token with a directory separator or a file extension is a file path,
-//  whose digits are part of the file's name rather than a number.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WinDbgParser::IsPath (const std::string & token)
-{
-    size_t  dot = token.rfind ('.');
-
-
-
-    if (token.find_first_of ("/\\") != std::string::npos)
-    {
-        return true;
-    }
-
-    return dot != std::string::npos && dot + 1 < token.size() && isalpha ((unsigned char) token[dot + 1]);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::RewriteRegisters
-//
-//  WinDbg writes a register @a, @x, @y, @sp, @pc or @fl, and reads a bare
-//  word as a number before a register, so a bare a is $0A. AppleWin reads a
-//  bare register name as the register and @n as a search result, so @reg
-//  becomes the bare name and a bare a takes the $ prefix. Quoted text is
-//  left alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string WinDbgParser::RewriteRegisters (const std::string & text)
-{
-    static constexpr std::pair<const char *, const char *>  kNames[] =
-    {
-        { "a", "A" }, { "x", "X" }, { "y", "Y" }, { "sp", "S" }, { "pc", "PC" }, { "fl", "P" },
-    };
-    std::string  result;
-    size_t       i       = 0;
-    char         quote   = 0;
-    bool         isStart = false;
-    bool         isAt    = false;
-    size_t       end     = 0;
-    std::string  word;
-    std::string  replaced;
-
-
-
-    while (i < text.size())
-    {
-        if (quote == 0 && (text[i] == '"' || text[i] == '\''))
-        {
-            quote = text[i];
-        }
-        else if (text[i] == quote)
-        {
-            quote = 0;
-        }
-
-        isStart = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || strchr ("_$#.@", text[i - 1]) != nullptr);
-        isAt    = text[i] == '@';
-
-        if (quote != 0 || !isStart || !(isAt || isalpha ((unsigned char) text[i])))
-        {
-            result += text[i++];
-            continue;
-        }
-
-        end = isAt ? i + 1 : i;
-
-        while (end < text.size() && (isalnum ((unsigned char) text[end]) || text[end] == '_' || text[end] == '.'))
-        {
-            end++;
-        }
-
-        word = ToLower (text.substr (isAt ? i + 1 : i, end - (isAt ? i + 1 : i)));
-
-        if (!isAt && word == "a")
-        {
-            result += "$" + text.substr (i, end - i);
-            i       = end;
-            continue;
-        }
-
-        replaced = text.substr (i, end - i);
-
-        for (const auto & [windbg, applewin] : kNames)
-        {
-            if (isAt && word == windbg)
-            {
-                replaced = applewin;
-            }
-        }
-
-        result += replaced;
-        i       = end;
-    }
-
-    return result;
 }
 
 

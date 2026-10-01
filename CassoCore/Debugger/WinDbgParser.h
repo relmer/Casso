@@ -93,13 +93,9 @@ private:
     static std::string  ToLower                  (const std::string & text);
     static std::string  ToUpper                  (const std::string & text);
     static std::string  GetTail                  (const std::string & text, size_t first);
-    static std::string  NormalizeNumbers         (const std::string & text);
-    static std::string  RewriteRegisters         (const std::string & text);
     static std::string  StripBackquotes          (const std::string & text);
     static bool         HasIf                    (const Tokens & tokens);
-    static bool         IsPath                   (const std::string & token);
 
-    static bool  IsWholeNumber              (const std::string & text, size_t first, char prefix);
     static bool  TryFindExclusion           (const std::string & name, const WinDbgExclusion *& exclusion);
     static bool  TryParseEngine             (const std::string & line, const IDebugExpressionContext & context, WinDbgParseResult & result);
     static bool  TryBuild                   (const std::string & name, const Tokens & args, const std::string & rest, const IDebugExpressionContext & context, Build & build);

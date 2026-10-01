@@ -964,8 +964,8 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T235 Make AppleWinParser, and the Casso mode that shares it, build structured commands and dispatch them directly per FR-135 (contradicts)
 - [X] T236 Make GSSquaredParser build structured commands directly instead of its 25 ParseAppleWin rewrites; replies quote the GSSquared line as typed, per FR-135 (contradicts)
 - [X] T237 Make MonitorParser build structured commands directly, with no intermediate command text, per FR-135 (contradicts)
-- [ ] T238 Make WinDbgParser build structured commands directly, with no intermediate command text, per FR-135 (contradicts)
-- [ ] T239 Add a test per dialect that every command reaches the debugger without any command text being parsed a second time, and that every reply quotes the line as typed, per FR-135 (missing)
+- [X] T238 Make WinDbgParser build structured commands directly, with no intermediate command text, per FR-135 (contradicts)
+- [X] T239 Add a test per dialect that every command reaches the debugger without any command text being parsed a second time, and that every reply quotes the line as typed, per FR-135 (missing)
 - [ ] T240 Add topic help: plain help lists the sections and how to ask for each, help all lists everything, help <section> lists one, in every mode, per FR-125, US18/AC1-2, SC-033 (missing)
 - [ ] T241 Add help search: keyword ignoring case, * and ? wildcards, /regex/, and a no-match reply; a word that is both a section and a command follows the edge case, per FR-126, US18/AC3 (missing)
 - [ ] T242 Generate docs/Debugger-Commands.md per mode from the help command table, with a test that fails when they differ, per FR-130, SC-034 (missing)
@@ -1022,5 +1022,5 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T293 Found on 2026-09-30: make overflow a general toolbar behavior in Dxui: any toolbar or command bar whose items do not fit its width puts the ones that do not fit in a "..." drop-down, in the debugger's main toolbar, every pane bar and Casso Explorer alike; replace the memory bar's one-off overflow with it
 - [X] T294 Found on 2026-09-30: the console's text caret keeps blinking while Casso is not the active app; a caret blinks only while its window is active and the box has focus (all Dxui text inputs)
 - [ ] T295 Found on 2026-09-30: drop the disassembly pane's Result column and append each result to the operand text, in a dimmer color, under one column titled "Operand and result", so the result no longer pushes the pane wide
-- [ ] T296 Found on 2026-09-30: after the WinDbg `!` change (T258), a breakpoint id written `0n3` in a `!` command is no longer read as 3, because `TryParseIdOrAll` has no expression context; read WinDbg prefixes there too, with a test
+- [X] T296 Found on 2026-09-30: after the WinDbg `!` change (T258), a breakpoint id written `0n3` in a `!` command is no longer read as 3, because `TryParseIdOrAll` has no expression context; read WinDbg prefixes there too, with a test
 - [ ] T297 Found on 2026-09-30: a relative path in a script run with no current directory is echoed as nothing ("Saved the profile."); resolve relative paths against the process's current directory (or the script's folder for RUN) in every case, so a reply always gives the resolved path
