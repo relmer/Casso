@@ -36,9 +36,10 @@ void GSSquaredFormatter::Format (Reply & reply)
 //
 //  GSSquaredFormatter::TryFormatData
 //
-//  A deposit prints nothing, as GSSquared's does, though the reply carries
-//  the rows written. Clearing one breakpoint or watch prints nothing too. A
-//  watch that was just set is reported by its id, and a list by its entries.
+//  A deposit says how many bytes it wrote and where, and clearing one
+//  breakpoint or watch keeps the AppleWin line saying which, though
+//  GSSquared's own print nothing: every change is confirmed. A watch that
+//  was just set is reported by its id, and a list by its entries.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,13 +49,18 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 
 
 
-    if (reply.verb == DebugVerb::EnterBytes)
+    if (auto * v = std::get_if<MemoryData> (&data); v != nullptr && reply.verb == DebugVerb::EnterBytes)
     {
-        return true;
-    }
+        size_t  count = 0;
 
-    if ((reply.verb == DebugVerb::ClearBreakpoint || reply.verb == DebugVerb::ClearWatch) && std::holds_alternative<MessageData> (data))
-    {
+
+
+        for (const MemoryRow & row : v->rows)
+        {
+            count += row.bytes.size();
+        }
+
+        lines.push_back (std::format ("Wrote {} byte{} at {}", count, count == 1 ? "" : "s", FormatAddress (v->rows.empty() ? (Word) 0 : v->rows.front().address)));
         return true;
     }
 

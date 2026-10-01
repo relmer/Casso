@@ -1933,7 +1933,8 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
         return true;
 
     case DebugVerb::SetBudget:
-        m_budget = (command.count == 0) ? std::nullopt : std::optional<uint64_t> (command.count);
+        m_budget   = (command.count == 0) ? std::nullopt : std::optional<uint64_t> (command.count);
+        reply.data = MessageData { { m_budget.has_value() ? std::format ("Budget set to {} cycles.", *m_budget) : std::string ("Budget removed.") } };
         return true;
 
     case DebugVerb::Pause:

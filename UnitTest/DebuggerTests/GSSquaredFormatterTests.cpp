@@ -376,9 +376,9 @@ namespace DebuggerTests
             Assert::IsTrue   (lookup.text[0].ends_with ("0028: WIDTH (constant)"), std::wstring (lookup.text[0].begin(), lookup.text[0].end()).c_str());
         }
 
-        //  GSSquared prints nothing for a deposit, though the reply carries
-        //  the rows written.
-        TEST_METHOD (Deposit_PrintsNothing)
+        //  GSSquared's own deposit prints nothing; here it says what it wrote,
+        //  as every change is confirmed.
+        TEST_METHOD (Deposit_SaysWhatItWrote)
         {
             Reply  reply;
 
@@ -388,11 +388,13 @@ namespace DebuggerTests
             reply.data = MakeMemory (0x300, { 0xA9, 0x41 });
             GSSquaredFormatter::Format (reply);
 
-            Assert::IsTrue (reply.text.empty());
+            Assert::AreEqual ((size_t) 1, reply.text.size());
+            Assert::AreEqual (std::string ("Wrote 2 bytes at 00/0300"), reply.text[0]);
         }
 
-        //  GSSquared's nobp and nowatch print nothing when they clear one.
-        TEST_METHOD (ClearingOneBreakpointOrWatch_PrintsNothing)
+        //  GSSquared's own nobp and nowatch print nothing; here they say
+        //  which one they cleared.
+        TEST_METHOD (ClearingOneBreakpointOrWatch_SaysWhich)
         {
             Reply  breakpoint;
             Reply  watch;
@@ -407,8 +409,8 @@ namespace DebuggerTests
             GSSquaredFormatter::Format (breakpoint);
             GSSquaredFormatter::Format (watch);
 
-            Assert::IsTrue (breakpoint.text.empty());
-            Assert::IsTrue (watch.text.empty());
+            Assert::AreEqual (std::string ("Breakpoint #0 cleared."), breakpoint.text.at (0));
+            Assert::AreEqual (std::string ("Watch #0 cleared."),      watch.text.at (0));
         }
 
         //  A reply kind GSSquared has no layout for keeps the AppleWin text,
