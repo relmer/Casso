@@ -58,6 +58,8 @@ namespace DebuggerWindowClosedPaneTests
         IHostDialogs &  GetHostDialogs()         noexcept override { return m_dialogs; }
         std::string     GetDebuggerKeyScheme()            override { return {}; }
         std::string     GetDebuggerLayout()               override { return layout; }
+        std::string     GetDebuggerClosedPanes()          override { return closedPanes; }
+        void            SetDebuggerClosedPanes (const std::string & text) override { closedPanes = text; }
         std::string     GetDebuggerOpenViews()            override { return {}; }
 
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
@@ -65,6 +67,7 @@ namespace DebuggerWindowClosedPaneTests
 
         std::vector<int>  openedMemory;
         std::string       layout;
+        std::string       closedPanes;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -152,19 +155,33 @@ namespace DebuggerWindowClosedPaneTests
         }
 
 
-        TEST_METHOD (TheClosedLineRoundTrips)
+        TEST_METHOD (TheClosedPanesTextRoundTrips)
         {
             std::set<std::wstring>  closed = { DebuggerLayout::kTrace, DebuggerLayout::kStack };
             std::set<std::wstring>  read;
+
+
+
+            DebuggerLayout::ReadClosedPanes (DebuggerLayout::ClosedPanesToText (closed), read);
+            Assert::IsTrue (read == closed);
+
+            DebuggerLayout::ReadClosedPanes (L"", read);
+            Assert::IsTrue (read.empty());
+        }
+
+
+        TEST_METHOD (TheOldClosedLineIsTakenFromTheLayout)
+        {
+            std::set<std::wstring>  read;
             std::wstring            layout = DebuggerLayout::MakeDefault().ToText();
-            std::wstring            text   = DebuggerLayout::AddClosedPanes (layout, closed);
+            std::wstring            text   = std::wstring (L"closed ") + DebuggerLayout::kTrace + L"\n" + layout;
 
 
 
             Assert::AreEqual (layout, DebuggerLayout::TakeClosedPanes (text, read));
-            Assert::IsTrue   (read == closed);
+            Assert::IsTrue   (read == std::set<std::wstring> { DebuggerLayout::kTrace });
 
-            Assert::AreEqual (layout, DebuggerLayout::TakeClosedPanes (layout, read), L"an older layout has nothing closed");
+            Assert::AreEqual (layout, DebuggerLayout::TakeClosedPanes (layout, read), L"a layout without the line has nothing closed");
             Assert::IsTrue   (read.empty());
         }
     };

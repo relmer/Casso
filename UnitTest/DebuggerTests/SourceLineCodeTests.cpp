@@ -99,20 +99,5 @@ namespace DebuggerTests
                                   return span.cell == 2 && span.start == 10 && span.length == 3 && span.argb == 0xFF000011u;
                               }), L"the mnemonic");
         }
-
-
-
-        TEST_METHOD (TheDarkenedColorsKeepTheirHue)
-        {
-            SourceSyntax::Colors  colors;
-
-
-
-            colors.mnemonic = 0xFF6496C8;
-            colors          = colors.GetDarkened();
-
-            Assert::AreEqual (0xFF3C5A78u, colors.mnemonic);
-            Assert::AreEqual (0u,          colors.string, L"no color stays none");
-        }
     };
 }

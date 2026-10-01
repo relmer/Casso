@@ -244,6 +244,10 @@ struct GlobalUserPrefs
     // the window cannot read gives the default arrangement.
     std::string  debuggerLayout;
 
+    // The debugger's fixed panes the user closed, as pane ids separated by
+    // spaces, so they stay closed in the next session.
+    std::string  debuggerClosedPanes;
+
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one
     // following the PC, memory windows 2 to 4, and device panels. The layout

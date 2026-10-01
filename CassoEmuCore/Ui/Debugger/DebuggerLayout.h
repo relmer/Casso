@@ -68,11 +68,14 @@ public:
     //  gives the default.
     static DxuiPaneLayout  Restore     (const std::wstring & text);
 
-    //  The fixed panes the user closed ride ahead of the layout text on a line
-    //  of their own, so they stay closed in the next session. Take returns the
-    //  layout text with that line removed.
-    static std::wstring    AddClosedPanes  (const std::wstring & text, const std::set<std::wstring> & closed);
-    static std::wstring    TakeClosedPanes (const std::wstring & text, std::set<std::wstring> & closed);
+    //  The fixed panes the user closed, saved in a setting of their own so they
+    //  stay closed in the next session: pane ids separated by spaces.
+    static std::wstring    ClosedPanesToText   (const std::set<std::wstring> & closed);
+    static void            ReadClosedPanes     (const std::wstring & text, std::set<std::wstring> & closed);
+
+    //  Older builds saved the closed panes on a line ahead of the layout text.
+    //  Take returns the layout text with that line removed.
+    static std::wstring    TakeClosedPanes     (const std::wstring & text, std::set<std::wstring> & closed);
 
     static std::vector<std::wstring>  GetPaneIds ();
 

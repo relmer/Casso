@@ -39,37 +39,41 @@ uint32_t SourceSyntax::Colors::Get (Token token) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourceSyntax::Colors::GetDarkened
+//  SourceSyntax::Colors::GetBlended
 //
-//  Each channel at three fifths, alpha kept; a color of 0, none, stays none.
+//  Each channel halfway to the background's, alpha kept, so the colors fade
+//  toward the page: lighter on a light theme, darker on a dark one. A color
+//  of 0, none, stays none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourceSyntax::Colors SourceSyntax::Colors::GetDarkened() const
+SourceSyntax::Colors SourceSyntax::Colors::GetBlended (uint32_t backgroundArgb) const
 {
-    constexpr uint32_t  kKeep    = 3;
-    constexpr uint32_t  kOutOf   = 5;
-    Colors              darkened = *this;
+    constexpr uint32_t  kHalves = 2;
+    Colors              blended = *this;
 
 
 
-    for (uint32_t * color : { &darkened.mnemonic, &darkened.directive, &darkened.symbol, &darkened.number,
-                              &darkened.string, &darkened.comment, &darkened.address, &darkened.bytes })
+    for (uint32_t * color : { &blended.mnemonic, &blended.directive, &blended.symbol, &blended.number,
+                              &blended.string, &blended.comment, &blended.address, &blended.bytes })
     {
         uint32_t  argb = *color;
+        uint32_t  mix  = argb & 0xFF000000u;
 
         if (argb == 0)
         {
             continue;
         }
 
-        *color = (argb & 0xFF000000u) |
-                 ((((argb >> 16) & 0xFFu) * kKeep / kOutOf) << 16) |
-                 ((((argb >> 8)  & 0xFFu) * kKeep / kOutOf) << 8) |
-                 (((argb         & 0xFFu) * kKeep / kOutOf));
+        for (uint32_t shift : { 16u, 8u, 0u })
+        {
+            mix |= (((argb >> shift) & 0xFFu) + ((backgroundArgb >> shift) & 0xFFu)) / kHalves << shift;
+        }
+
+        *color = mix;
     }
 
-    return darkened;
+    return blended;
 }
 
 
@@ -508,25 +512,22 @@ std::vector<SourceSyntax::Run> SourceSyntax::GetMerlinRuns (const std::wstring &
 //  SourceSyntax::DetectAssembler
 //
 //  Each assembler's own directives, label forms and origin count for it, and
-//  the one with the most decides. The extension decides only between the
-//  assemblers tied for the most, or when the text shows none of them: ca65's
-//  .s, .inc and .mac, and as65 for everything else. A tie the extension does
-//  not settle goes to Merlin, then ca65. Neither cc65's debug file nor a
-//  Merlin listing records the assembler, so the file's text is all there is
-//  to go on.
+//  the one with the most decides. Text with no clue, or with equal clues for
+//  the most, is as65's, Casso's own assembler; the file's extension plays no
+//  part, so a file with no clues reads the same whatever it is called.
+//  Neither cc65's debug file nor a Merlin listing records the assembler, so
+//  the file's text is all there is to go on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::wstring> & lines, const std::wstring & fileName)
+SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::wstring> & lines)
 {
-    int                        merlin    = 0;
-    int                        ca65      = 0;
-    int                        as65      = 0;
-    int                        most      = 0;
-    size_t                     dot       = fileName.find_last_of (L'.');
-    std::wstring               extension = (dot == std::wstring::npos) ? std::wstring() : fileName.substr (dot);
-    Assembler                  byName    = Assembler::As65;
-    Listing                    listing   = DetectListing (lines);
+    int                        merlin  = 0;
+    int                        ca65    = 0;
+    int                        as65    = 0;
+    int                        most    = 0;
+    int                        leaders = 0;
+    Listing                    listing = DetectListing (lines);
     std::vector<std::wstring>  sources;
 
 
@@ -539,7 +540,8 @@ SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::ws
             sources.push_back (GetListingSource (line, listing));
         }
 
-        return DetectAssembler (sources, fileName);
+        return DetectAssembler (sources);
+
     }
 
     for (const std::wstring & line : lines)
@@ -585,17 +587,12 @@ SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::ws
         as65   += IsAs65OnlyOpcode (word) ? 1 : 0;
     }
 
-    for (wchar_t & ch : extension)
-    {
-        ch = (wchar_t) towlower (ch);
-    }
+    most    = (std::max) ({ merlin, ca65, as65 });
+    leaders = (merlin == most ? 1 : 0) + (ca65 == most ? 1 : 0) + (as65 == most ? 1 : 0);
 
-    byName = (extension == L".s" || extension == L".inc" || extension == L".mac") ? Assembler::Ca65 : Assembler::As65;
-    most   = (std::max) ({ merlin, ca65, as65 });
-
-    if (most == 0 || (byName == Assembler::Ca65 && ca65 == most) || (byName == Assembler::As65 && as65 == most))
+    if (most == 0 || leaders > 1)
     {
-        return byName;
+        return Assembler::As65;
     }
 
     if (merlin == most)

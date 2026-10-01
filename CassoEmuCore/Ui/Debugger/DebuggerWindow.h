@@ -112,6 +112,12 @@ public:
     virtual std::string  GetDebuggerLayout    ()                           = 0;
     virtual void         SetDebuggerLayout    (const std::string & text)   = 0;
 
+    //  The fixed panes the user closed, in DebuggerLayout's text for them,
+    //  kept in a setting of their own. A host that keeps no preferences, as a
+    //  test's is, has none closed.
+    virtual std::string  GetDebuggerClosedPanes ()                         { return {}; }
+    virtual void         SetDebuggerClosedPanes (const std::string &)      {}
+
     //  Which optional views were open, in DebuggerViewState's text for them,
     //  kept the same way.
     virtual std::string  GetDebuggerOpenViews ()                           = 0;
@@ -328,6 +334,7 @@ protected:
     static constexpr int  kCodeEntry    = 3;
 
     void                                  SetWindowMenus     ();
+    void                                  Detach             ();
     static std::wstring                   GetViewMenuGroup   (const std::wstring & pane);
     void                                  SetConsoleBarMenus ();
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
@@ -524,6 +531,7 @@ private:
     void                         FloatControls     (const std::wstring & pane);
     void                         DockControls      (const std::wstring & pane);
     void                         SaveLayout        ();
+    std::wstring                 ReadSavedLayout   ();
     bool                         RouteFloatMouse   (const std::wstring & pane, const DxuiMouseEvent & ev);
     bool                         RouteFloatKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);

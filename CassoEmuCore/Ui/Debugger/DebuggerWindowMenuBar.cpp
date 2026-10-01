@@ -14,6 +14,37 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::Detach
+//
+//  Closes the debugger and leaves the machine running: a stopped machine is
+//  resumed first, as Run resumes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::Detach()
+{
+    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
+    HWND  hwnd   = GetHwnd();
+
+
+
+    if (paused)
+    {
+        (void) OnMappedCommand (DebuggerCommands::kRun);
+    }
+
+    if (hwnd != nullptr)
+    {
+        PostMessageW (hwnd, WM_CLOSE, 0, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ConfigureMenuBar
 //
 //  The window's menu bar, under the caption as Visual Studio's is. Its rows
@@ -267,7 +298,7 @@ void DebuggerWindow::SetWindowMenus()
     //  steps and how they step.
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRun,   L"Run"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kPause, L"Break"));
-    add (debug, MakeMenuCommand (L"Stop debugging", false, [this] { PostMessageW (GetHwnd(), WM_CLOSE, 0, 0); }));
+    add (debug, MakeMenuCommand (L"Detach", false, [this] { Detach(); }));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
     add (debug, emulator (L"Reset",                  IDM_MACHINE_RESET));
     add (debug, emulator (L"Power cycle",            IDM_MACHINE_POWERCYCLE));

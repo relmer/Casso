@@ -47,16 +47,15 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (TheTextOutweighsTheExtension)
+        TEST_METHOD (AnOriginOrATieIsAs65)
         {
             std::vector<std::wstring>  as65 = { L"        *= $300", L"start   lda   #0", L"        rts" };
             std::vector<std::wstring>  tied = { L"]loop   LDA   #0", L"@next:  rts" };
 
 
 
-            Assert::IsTrue (Assembler::As65   == SourceSyntax::DetectAssembler (as65, L"prog.s"),  L"an as65 origin in a .s file");
-            Assert::IsTrue (Assembler::Merlin == SourceSyntax::DetectAssembler (tied, L"prog.a65"), L"a tie of signs is not settled by an extension neither has");
-            Assert::IsTrue (Assembler::Ca65   == SourceSyntax::DetectAssembler (tied, L"prog.s"),   L"the extension settles a tie it is part of");
+            Assert::IsTrue (Assembler::As65 == SourceSyntax::DetectAssembler (as65), L"an as65 origin");
+            Assert::IsTrue (Assembler::As65 == SourceSyntax::DetectAssembler (tied), L"a tie of signs goes to as65");
         }
 
 
@@ -78,8 +77,8 @@ namespace DebuggerTests
             Assert::IsTrue (Listing::Merlin == SourceSyntax::DetectListing (merlin));
             Assert::IsTrue (Listing::Ca65   == SourceSyntax::DetectListing (ca65), L"a heading line does not hide a listing");
             Assert::IsTrue (Listing::None   == SourceSyntax::DetectListing (plain));
-            Assert::IsTrue (Assembler::Merlin == SourceSyntax::DetectAssembler (merlin, L"PI.LST"), L"read from the listing's source");
-            Assert::IsTrue (Assembler::Ca65   == SourceSyntax::DetectAssembler (ca65,   L"t.lst"));
+            Assert::IsTrue (Assembler::Merlin == SourceSyntax::DetectAssembler (merlin), L"read from the listing's source");
+            Assert::IsTrue (Assembler::Ca65   == SourceSyntax::DetectAssembler (ca65));
         }
 
 

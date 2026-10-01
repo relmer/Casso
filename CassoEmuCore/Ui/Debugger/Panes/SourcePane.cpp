@@ -340,7 +340,7 @@ void SourcePane::LoadFile (int fileId)
     m_isDropped = false;
     m_foundPath = lookup.path;
     m_lines     = SplitLines (lookup.text);
-    m_detected  = SourceSyntax::DetectAssembler (m_lines, SourcePathList::Utf8ToWide (GetFileName (fileId)));
+    m_detected  = SourceSyntax::DetectAssembler (m_lines);
     m_listing   = SourceSyntax::DetectListing (m_lines);
 }
 
@@ -683,7 +683,7 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
     m_isDropped = true;
     m_droppedAt = m_docFileId;
     m_fileId    = (recordIndex >= 0 && recordIndex < (int) m_state->files.size()) ? m_state->files[(size_t) recordIndex].id : -1;
-    m_detected  = SourceSyntax::DetectAssembler (m_lines, (m_fileId >= 0) ? SourcePathList::Utf8ToWide (GetFileName (m_fileId)) : lookup.path);
+    m_detected  = SourceSyntax::DetectAssembler (m_lines);
     m_listing   = SourceSyntax::DetectListing (m_lines);
     m_rowsFileId = -2;
 
@@ -714,7 +714,7 @@ void SourcePane::ShowLoose (const std::wstring & path, const std::string & text,
     m_isLooseSource = isSource;
     m_fileId        = -1;
     m_foundPath     = path;
-    m_detected      = SourceSyntax::DetectAssembler (m_lines, path);
+    m_detected      = SourceSyntax::DetectAssembler (m_lines);
     m_listing       = SourceSyntax::DetectListing (m_lines);
     m_rowsFileId    = -2;
 

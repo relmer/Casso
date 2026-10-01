@@ -1076,9 +1076,9 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T347 Owner review 2026-10-01: a toggle for the instruction rows under source lines (Debug menu and the source pane's toolbar); rows are built only while the PC is in that file
 - [X] T348 Owner review 2026-10-01: make the result color a theme token, with a legible value chosen for each Casso theme and system light and dark
 - [X] T349 Owner review 2026-10-01: build document tab groups properly so the document compass's inner split targets create a new document tab group beside the target, as Visual Studio does, distinct from docking to the edge
-- [ ] T350 Owner decision 2026-10-01: rename Debug > Stop debugging to "Detach": it closes the debugger and leaves the machine running at full speed; Restart under debugger stays
-- [ ] T351 Owner decision 2026-10-01: save the closed fixed panes in their own setting in GlobalUserPrefs (e.g. `debuggerClosedPanes`), not as a line inside `debuggerLayout`; read an old layout that carries the line once and move it
-- [ ] T352 Owner decision 2026-10-01: when the text gives no assembler clue, or equal clues, use as65 (Casso's own assembler) and drop the extension and Merlin/ca65 tie-breaks; a file with no clues colors the same under every assembler
-- [ ] T353 Owner decision 2026-10-01: instruction rows under source lines blend 50% toward the background in every theme (lighter on light themes, darker on dark), replacing the 60% darkening
+- [X] T350 Owner decision 2026-10-01: rename Debug > Stop debugging to "Detach": it closes the debugger and leaves the machine running at full speed; Restart under debugger stays
+- [X] T351 Owner decision 2026-10-01: save the closed fixed panes in their own setting in GlobalUserPrefs (e.g. `debuggerClosedPanes`), not as a line inside `debuggerLayout`; read an old layout that carries the line once and move it
+- [X] T352 Owner decision 2026-10-01: when the text gives no assembler clue, or equal clues, use as65 (Casso's own assembler) and drop the extension and Merlin/ca65 tie-breaks; a file with no clues colors the same under every assembler
+- [X] T353 Owner decision 2026-10-01: instruction rows under source lines blend 50% toward the background in every theme (lighter on light themes, darker on dark), replacing the 60% darkening
 - [ ] T354 Found 2026-10-01 on screen: the memory pane's toolbar still has a "+" button for a new memory window; remove it (View > Memory opens memory windows). The Disassembly tab strip's "+" tab has the same problem when the group holds other panes; replace it with View > Disassembly
 - [ ] T355 Finish T329: each pane's find widget is its own; two panes can have their find widgets open at the same time

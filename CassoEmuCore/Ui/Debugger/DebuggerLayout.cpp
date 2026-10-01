@@ -220,28 +220,52 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerLayout::AddClosedPanes
+//  DebuggerLayout::ClosedPanesToText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerLayout::AddClosedPanes (const std::wstring & text, const std::set<std::wstring> & closed)
+std::wstring DebuggerLayout::ClosedPanesToText (const std::set<std::wstring> & closed)
 {
-    std::wstring  line = kClosedPrefix;
+    std::wstring  text;
 
 
-
-    if (closed.empty())
-    {
-        return text;
-    }
 
     for (const std::wstring & pane : closed)
     {
-        line += L' ';
-        line += pane;
+        if (!text.empty())
+        {
+            text += L' ';
+        }
+
+        text += pane;
     }
 
-    return line + L"\n" + text;
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::ReadClosedPanes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerLayout::ReadClosedPanes (const std::wstring & text, std::set<std::wstring> & closed)
+{
+    std::wistringstream  panes (text);
+    std::wstring         pane;
+
+
+
+    closed.clear();
+
+    while (panes >> pane)
+    {
+        closed.insert (pane);
+    }
 }
 
 
@@ -259,9 +283,7 @@ std::wstring DebuggerLayout::AddClosedPanes (const std::wstring & text, const st
 
 std::wstring DebuggerLayout::TakeClosedPanes (const std::wstring & text, std::set<std::wstring> & closed)
 {
-    size_t               end   = text.find (L'\n');
-    std::wistringstream  panes;
-    std::wstring         pane;
+    size_t  end = text.find (L'\n');
 
 
 
@@ -272,12 +294,7 @@ std::wstring DebuggerLayout::TakeClosedPanes (const std::wstring & text, std::se
         return text;
     }
 
-    panes.str (text.substr (wcslen (kClosedPrefix), end - wcslen (kClosedPrefix)));
-
-    while (panes >> pane)
-    {
-        closed.insert (pane);
-    }
+    ReadClosedPanes (text.substr (wcslen (kClosedPrefix), end - wcslen (kClosedPrefix)), closed);
 
     return text.substr (end + 1);
 }

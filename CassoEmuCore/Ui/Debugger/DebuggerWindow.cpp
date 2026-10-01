@@ -1315,7 +1315,7 @@ void DebuggerWindow::ApplySource()
 
         document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
                                        (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u, GetResultArgb(),
-                                       GetSyntaxColors().GetDarkened() });
+                                       GetSyntaxColors().GetBlended ((m_theme != nullptr) ? m_theme->ContentBackground() : 0u) });
         document.pane->SetShowCode (m_showSourceCode);
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
@@ -3862,6 +3862,51 @@ void DebuggerWindow::ClipPaneControls()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ReadSavedLayout
+//
+//  The saved layout text, with the closed panes read into m_closedPanes from
+//  their own setting. A layout an older build saved carries them on a line
+//  ahead of the text instead; that line is moved to the setting once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::ReadSavedLayout()
+{
+    std::wstring            savedText;
+    std::wstring            layoutText;
+    std::set<std::wstring>  legacy;
+
+
+
+    m_closedPanes.clear();
+
+    if (m_host == nullptr)
+    {
+        return {};
+    }
+
+    savedText  = SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout());
+    layoutText = DebuggerLayout::TakeClosedPanes (savedText, legacy);
+
+    DebuggerLayout::ReadClosedPanes (SourcePathList::Utf8ToWide (m_host->GetDebuggerClosedPanes()), m_closedPanes);
+
+    if (layoutText != savedText)
+    {
+        m_closedPanes.insert (legacy.begin(), legacy.end());
+
+        m_host->SetDebuggerClosedPanes (SourcePathList::WideToUtf8 (DebuggerLayout::ClosedPanesToText (m_closedPanes)));
+        m_host->SetDebuggerLayout      (SourcePathList::WideToUtf8 (layoutText));
+    }
+
+    return layoutText;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ConfigureDockSite
 //
 //  Every pane goes to the site under its layout id. The source pane and the
@@ -4006,8 +4051,7 @@ void DebuggerWindow::ConfigureDockSite()
     {
         SetTopLayer (pane.empty() ? std::vector<IDxuiControl *>() : GetPaneControls (pane));
     });
-    savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
-    savedText = DebuggerLayout::TakeClosedPanes (savedText, m_closedPanes);
+    savedText = ReadSavedLayout();
     std::erase_if (m_closedPanes, [this] (const std::wstring & pane) { return !IsFixedPane (pane); });
 
     restored = DebuggerLayout::Restore (savedText);
@@ -8880,7 +8924,8 @@ void DebuggerWindow::SaveLayout()
 
     if (m_host != nullptr)
     {
-        m_host->SetDebuggerLayout (SourcePathList::WideToUtf8 (DebuggerLayout::AddClosedPanes (layout.ToText(), m_closedPanes)));
+        m_host->SetDebuggerLayout      (SourcePathList::WideToUtf8 (layout.ToText()));
+        m_host->SetDebuggerClosedPanes (SourcePathList::WideToUtf8 (DebuggerLayout::ClosedPanesToText (m_closedPanes)));
     }
 }
 

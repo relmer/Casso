@@ -62,10 +62,11 @@ public:
         uint32_t  address   = 0;
         uint32_t  bytes     = 0;
 
-        uint32_t  Get (Token token) const;
+        uint32_t  Get        (Token token) const;
 
-        //  Each color darkened, for text shown under the source it explains.
-        Colors    GetDarkened() const;
+        //  Each color faded halfway to the background, for text shown under
+        //  the source it explains.
+        Colors    GetBlended (uint32_t backgroundArgb) const;
         bool operator== (const Colors & other) const = default;
     };
 
@@ -92,9 +93,8 @@ public:
     static std::wstring  GetListingSource (const std::wstring & line, Listing listing);
 
     //  The assembler a file was written for, from its directives, labels and
-    //  origin; its extension only when the text shows none of them, and as65
-    //  when neither does.
-    static Assembler  DetectAssembler (const std::vector<std::wstring> & lines, const std::wstring & fileName);
+    //  origin; as65 when the text shows none of them or a tie.
+    static Assembler  DetectAssembler (const std::vector<std::wstring> & lines);
 
     //  What the user picks an assembler by.
     static const wchar_t *  GetAssemblerLabel (Assembler assembler);

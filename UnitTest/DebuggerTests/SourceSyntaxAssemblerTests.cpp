@@ -101,10 +101,9 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (Assembler::Merlin == SourceSyntax::DetectAssembler (merlin, L"CLOCK.S"));
-            Assert::IsTrue (Assembler::Ca65   == SourceSyntax::DetectAssembler (ca65,   L"main.a65"), L"the text outweighs the extension");
-            Assert::IsTrue (Assembler::As65   == SourceSyntax::DetectAssembler (plain,  L"prog.a65"));
-            Assert::IsTrue (Assembler::Ca65   == SourceSyntax::DetectAssembler (plain,  L"prog.s"), L"a tie goes by the extension");
+            Assert::IsTrue (Assembler::Merlin == SourceSyntax::DetectAssembler (merlin));
+            Assert::IsTrue (Assembler::Ca65   == SourceSyntax::DetectAssembler (ca65));
+            Assert::IsTrue (Assembler::As65   == SourceSyntax::DetectAssembler (plain));
         }
 
 
