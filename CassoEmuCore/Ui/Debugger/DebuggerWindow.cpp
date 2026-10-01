@@ -4464,6 +4464,34 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ClosePaneOfFocus
+//
+//  Closes the pane holding the focus, when there is one and it can close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ClosePaneOfFocus()
+{
+    std::wstring  pane = GetPaneOfFocus();
+
+
+
+    if (pane.empty() || !CanClosePane (pane))
+    {
+        return false;
+    }
+
+    ClosePane (pane);
+    Invalidate();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetPaneOfFocus
 //
 //  The pane holding the focused control, including the parts of a frame.
@@ -4529,17 +4557,24 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
 //
 //  DebuggerWindow::ShowDockToMenu
 //
-//  The Dock To choices for a pane as a context menu (FR-042); the one chosen
-//  runs through the site like a drop would.
+//  The menu of a pane's tab or title bar, as Visual Studio's: the pane's own
+//  actions, then Dock, Dock in tab group, Auto hide, Move to new window (from
+//  a tab), All to new window and Close, with the Dock To choices of FR-042 in
+//  a submenu. The one chosen runs through the site like a drop would.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 {
-    std::vector<DxuiDockSite::MenuItem>  items = m_dockSite->GetDockToMenu (pane);
+    RECT                                 tab     = {};
+    std::wstring                         tip;
+    bool                                 fromTab = m_routingPane.empty() && !m_dockSite->GetTabAt (clientPx, tab, tip).empty();
+    std::vector<DxuiDockSite::MenuItem>  items   = m_dockSite->GetPaneMenu (pane, fromTab);
+    std::vector<DxuiDockSite::MenuItem>  dockTo  = m_dockSite->GetDockToMenu (pane);
     std::vector<DxuiPopupMenuItem>       menu;
-    DxuiHwndSource                     * host  = GetMenuHost();
-    int                                  slot  = GetSourceSlotOf (pane);
+    std::vector<DxuiPopupMenuItem>       sides;
+    DxuiHwndSource                     * host    = GetMenuHost();
+    int                                  slot    = GetSourceSlotOf (pane);
 
 
 
@@ -4552,8 +4587,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     m_menuCommands.clear();
     SetWindowMenus();
 
-    //  A disassembly view that does not follow the PC can take it over, and
-    //  any but the first can close.
+    //  A disassembly view that does not follow the PC can take it over.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         if (pane != DebuggerLayout::GetCodePaneId (view) || m_snapshot == nullptr)
@@ -4567,29 +4601,19 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
         }
 
-        if (view > 0)
-        {
-            m_menuCommands.push_back (MakeMenuCommand (L"Close", false, [this, view] { if (m_host != nullptr) { m_host->CloseDebuggerCodeView (view); } }));
-            menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-        }
-
         if (!menu.empty())
         {
             menu.push_back (DxuiPopupMenuItem::ForSeparator());
         }
     }
 
-    //  A source document closes from its own tab, and only that file's
-    //  (FR-113).
+    //  A source document's own items.
     if (slot >= 0 && m_documents.IsOpen (slot))
     {
         std::vector<DxuiPopupMenuItem>  syntax;
         SourcePane                    * source = m_sourceDocs[(size_t) slot].pane.get();
 
 
-
-        m_menuCommands.push_back (MakeMenuCommand (L"Close", false, [this, slot] { CloseSourceDocument (slot); }));
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
 
         //  Whose grammar colors the document, for a file its text misleads.
         for (SourceSyntax::Assembler each : { SourceSyntax::Assembler::Any, SourceSyntax::Assembler::As65,
@@ -4613,29 +4637,37 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         menu.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
-    //  A memory window other than the first closes from its own tab, as a
-    //  disassembly view does.
-    for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
-    {
-        if (pane == DebuggerLayout::GetMemoryPaneId (window))
-        {
-            m_menuCommands.push_back (MakeMenuCommand (L"Close", false, [this, window]
-            {
-                if (m_host != nullptr)
-                {
-                    m_host->SetDebuggerMemoryWindow (window, std::nullopt);
-                }
-            }));
-
-            menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-            menu.push_back (DxuiPopupMenuItem::ForSeparator());
-        }
-    }
-
     for (const DxuiDockSite::MenuItem & item : items)
     {
-        m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { (void) action(); }));
+        if (item.label.empty())
+        {
+            menu.push_back (DxuiPopupMenuItem::ForSeparator());
+            continue;
+        }
+
+        m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { if (action) { (void) action(); } }));
+        m_menuCommands.back()->accelerator = item.accelerator;
+        m_menuCommands.back()->isEnabled   = [enabled = item.enabled] { return enabled; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    //  The keyboard's Dock To choices, each edge and each other group, ahead
+    //  of Close.
+    for (const DxuiDockSite::MenuItem & item : dockTo)
+    {
+        if (!m_dockSite->GetPaneLayout().IsDocked (pane) || item.label == L"Auto hide" || item.label == L"Float")
+        {
+            continue;
+        }
+
+        m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { (void) action(); }));
+        sides.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    if (!sides.empty() && menu.size() >= 2)
+    {
+        m_menuCommands.push_back (MakeMenuCommand (L"Dock to", false, [] {}));
+        menu.insert (menu.end() - 2, DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (sides)));
     }
 
     DxuiContextMenu::Show (*host, clientPx.x, clientPx.y, std::move (menu));
@@ -8086,6 +8118,9 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     params.createNoActivate = true;
     params.toolWindow       = true;
 
+    //  Composited, so the row of a dragged tab can fade over a tab strip.
+    params.composited       = true;
+
     hr = window->Create (params);
 
     if (FAILED (hr))
@@ -8129,7 +8164,7 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     window->SetOnMappedCommand     ([this]       (int commandId)             { return OnMappedCommand (commandId); });
     window->SetOnCaptionDrag       ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, false); });
     window->SetOnCaptionDragEnd    ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, true);  });
-    window->SetOnCaptionDragCancel ([this, pane]                             { DropCarriedTab (pane); m_dockSite->CancelDrag(); HideDragMarks(); Invalidate(); });
+    window->SetOnCaptionDragCancel ([this, pane]                             { DropCarriedTab (pane); SetFloatFade (pane, false); m_dockSite->CancelDrag(); HideDragMarks(); Invalidate(); });
     window->SetOnClosed            ([this, pane]                             { CloseFloatingPane (pane); });
     window->SetOnFilesDropped      ([this] (const std::vector<std::wstring> & paths) { return OnFilesDropped (paths); });
     window->SetAcceptsDroppedFiles (true);
@@ -8614,6 +8649,31 @@ void DebuggerWindow::DropCarriedTab (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::SetFloatFade
+//
+//  A floating pane dragged over a tab strip fades the row of its own tab or
+//  title, so the strip it would drop into shows through.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetFloatFade (const std::wstring & pane, bool on)
+{
+    auto  found = m_floats.find (pane);
+
+
+
+    if (found != m_floats.end() && found->second != nullptr)
+    {
+        found->second->SetHeaderFade (on);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnFloatDrag
 //
 //  A floating window moved by its title bar shows this window's drop zones
@@ -8635,6 +8695,7 @@ void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, boo
     if (ended)
     {
         DropCarriedTab (pane);
+        SetFloatFade   (pane, false);
     }
 
     inside = client.x >= area.left && client.x < area.right && client.y >= area.top && client.y < area.bottom;
@@ -8649,6 +8710,7 @@ void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, boo
         ev.kind        = DxuiMouseEventKind::Move;
         ev.positionDip = client;
         (void) m_dockSite->OnMouse (ev);
+        SetFloatFade (pane, m_dockSite->GetStripTargetGroup() >= 0);
         ShowDragMarks();
         Invalidate();
         return;
@@ -9111,6 +9173,12 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         }
 
         Invalidate();
+        return true;
+    }
+
+    //  Shift+Esc closes the pane that has the focus, as in Visual Studio.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && ev.shift && !ev.ctrl && !ev.alt && ClosePaneOfFocus())
+    {
         return true;
     }
 

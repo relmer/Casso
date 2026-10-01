@@ -71,6 +71,17 @@ public:
     void  SetScreenRect (const RECT & rectPx);
     RECT  GetScreenRect () const;
 
+    //  While on, the row of the site's carried tab, or of its title bar,
+    //  fades so a tab strip under the window shows through it. It shows
+    //  only in a window created composited.
+    void  SetHeaderFade (bool on);
+    bool  IsHeaderFaded () const { return m_headerFade; }
+
+    //  The bands that fade a row, given in pixels: black, most opaque at the
+    //  row's left edge and gone halfway across, so drawn over the row they
+    //  take away that much of it.
+    static std::vector<DxuiDockDragMark>  GetHeaderFade (const RECT & rowPx);
+
 protected:
     void  OnCreate      () override;
     void  OnWindowClose () override;
@@ -82,13 +93,18 @@ protected:
     bool  OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     void  OnWindowPlaced () override;
     void  OnDpiChanged   (UINT newDpi) override;
+    bool  HasModalOverlay   () const override { return m_headerFade; }
+    void  PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
+    static constexpr int    kFadeBands    = 16;
+    static constexpr float  kFadeMaxErase = 0.7f;
+
     void  OnMoveLoopTick ();
     void  Report         (DxuiCaptionDragTracker::Event ev);
     SIZE  GetScreenSize  () const;
 
-    DxuiDockSite            * m_site = nullptr;
+    DxuiDockSite            * m_site         = nullptr;
     MouseFn                   m_onMouse;
     KeyFn                     m_onKey;
     PointFn                   m_onDrag;
@@ -98,4 +114,5 @@ private:
     CommandFn                 m_onCommand;
     FilesFn                   m_onFiles;
     DxuiCaptionDragTracker    m_drag;
+    bool                      m_headerFade   = false;
 };

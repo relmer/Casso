@@ -257,6 +257,9 @@ protected:
     //  Protected so a test can see which pane has the focus border.
     std::wstring    GetPaneOfFocus () const;
 
+    //  Protected so a test can press Shift+Esc's close.
+    bool            ClosePaneOfFocus ();
+
     //  Protected so a test can work the memory bar as a click does, and see
     //  which of its entries a narrow pane moves into its overflow menu.
     DxuiToolbar *                      GetMemoryBar         () const { return m_memoryBar; }
@@ -489,6 +492,7 @@ private:
     void                         CarryTornOffPane  ();
     void                         PlaceUnderGrab    (const std::wstring & pane);
     void                         DropCarriedTab    (const std::wstring & pane);
+    void                         SetFloatFade      (const std::wstring & pane, bool on);
     void                         SyncFloats        ();
     void                         FloatControls     (const std::wstring & pane);
     void                         DockControls      (const std::wstring & pane);

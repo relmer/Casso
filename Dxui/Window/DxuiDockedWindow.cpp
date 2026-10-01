@@ -33,6 +33,111 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockedWindow::SetHeaderFade
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::SetHeaderFade (bool on)
+{
+    if (m_headerFade == on)
+    {
+        return;
+    }
+
+    m_headerFade = on;
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::GetHeaderFade
+//
+//  Equal bands across the left half of the row, each taking away less than
+//  the one before, the last nearly nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiDockDragMark> DxuiDockedWindow::GetHeaderFade (const RECT & rowPx)
+{
+    std::vector<DxuiDockDragMark>  bands;
+    long                           reach = (rowPx.right - rowPx.left) / 2;
+    DxuiDockDragMark               band;
+
+
+
+    if (reach <= 0 || rowPx.bottom <= rowPx.top)
+    {
+        return bands;
+    }
+
+    for (int i = 0; i < kFadeBands; i++)
+    {
+        float  erase = kFadeMaxErase * (float) (kFadeBands - i) / (float) kFadeBands;
+
+        band.rect   = RECT { rowPx.left + reach * i / kFadeBands, rowPx.top, rowPx.left + reach * (i + 1) / kFadeBands, rowPx.bottom };
+        band.argb   = (uint32_t) std::lround (erase * 255.0f) << 24;
+
+        if (band.rect.right > band.rect.left)
+        {
+            bands.push_back (band);
+        }
+    }
+
+    return bands;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::PaintModalOverlay
+//
+//  The header fade, drawn after the page's text so it fades that too. In a
+//  composited window the black bands lower the alpha of what is under them,
+//  so the desktop shows through.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    DxuiTabGroup  * group = nullptr;
+    RECT            row   = {};
+    UINT            dpi   = GetDpi();
+
+
+
+    UNREFERENCED_PARAMETER (text);
+    UNREFERENCED_PARAMETER (theme);
+
+    if (m_site == nullptr || m_site->GetGroupCount() == 0)
+    {
+        return;
+    }
+
+    group = m_site->GetGroup (0);
+    row   = m_site->GetCarriedPane().empty() ? group->GetTitleRect() : group->GetStripRect();
+    row   = RECT { MulDiv (row.left,  (int) dpi, USER_DEFAULT_SCREEN_DPI), MulDiv (row.top,    (int) dpi, USER_DEFAULT_SCREEN_DPI),
+                   MulDiv (row.right, (int) dpi, USER_DEFAULT_SCREEN_DPI), MulDiv (row.bottom, (int) dpi, USER_DEFAULT_SCREEN_DPI) };
+
+    for (const DxuiDockDragMark & band : GetHeaderFade (row))
+    {
+        painter.FillRect ((float) band.rect.left, (float) band.rect.top,
+                          (float) (band.rect.right - band.rect.left), (float) (band.rect.bottom - band.rect.top), band.argb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockedWindow::OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////

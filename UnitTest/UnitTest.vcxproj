@@ -252,6 +252,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowFileDropTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowViewMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowPaneBarTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowShiftEscTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTabFocusTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTextSizeTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceDocumentsTests.cpp" />
@@ -634,8 +635,10 @@
     <ClCompile Include="Dxui\DxuiDockSiteDragMarksTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteDragTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerDpiTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockedWindowFadeTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteFloatingTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockSitePaneMenuTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockCarryAndCompassTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTearOffTests.cpp" />

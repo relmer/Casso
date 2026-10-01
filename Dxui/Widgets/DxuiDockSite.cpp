@@ -1221,6 +1221,92 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::GetPaneMenu
+//
+//  Dock returns a floating or hidden pane to its place. Dock in tab group
+//  tabs a tool window in with the documents. Auto hide pins the pane to the
+//  edge its pin would. Move to new window floats the pane; All to new
+//  window floats its group, which a floating window can hold only when the
+//  group is the pane alone. Close is the application's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstring & pane, bool fromTab)
+{
+    std::vector<MenuItem>      items;
+    std::vector<MenuItem>      dockTo     = GetDockToMenu (pane);
+    std::vector<std::wstring>  mine       = m_layout.GetGroup (pane);
+    bool                       docked     = m_layout.IsDocked (pane);
+    bool                       canFloat   = docked && m_onFloat != nullptr && !IsFloatingSite();
+    bool                       canClose   = m_onClosePane && (!m_canClosePane || m_canClosePane (pane));
+    std::wstring               documents;
+    MenuItem                   autoHide   = { kAutoHideLabel, nullptr, false };
+    MenuItem                   dock       = { L"Dock", nullptr, false };
+    auto                       commit     = [this] (bool changed)
+    {
+        if (changed)
+        {
+            Arrange();
+            NotifyChanged();
+        }
+
+        return changed;
+    };
+    auto                       floatPane  = [this, pane]
+    {
+        RECT  area = m_boundsDip;
+
+        m_onFloat (pane, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
+        return true;
+    };
+
+
+
+    if (!m_layout.Contains (pane))
+    {
+        return items;
+    }
+
+    for (const MenuItem & item : dockTo)
+    {
+        autoHide = (item.label == kAutoHideLabel) ? item : autoHide;
+        dock     = (!docked && item.label == L"Dock") ? item : dock;
+    }
+
+    //  The documents' group, when this pane is a tool window outside it.
+    for (const DxuiPaneLayout::GroupRect & group : m_layout.Arrange (GetDockedArea(), m_shown, m_minSize))
+    {
+        bool  holdsDocument = m_isDocument && std::any_of (group.panes.begin(), group.panes.end(), m_isDocument);
+        bool  holdsMe       = std::find (group.panes.begin(), group.panes.end(), pane) != group.panes.end();
+
+        documents = (documents.empty() && holdsDocument && !holdsMe) ? group.active : documents;
+    }
+
+    documents = (m_isDocument && !m_isDocument (pane)) ? documents : std::wstring();
+
+    items.push_back ({ L"Dock", dock.action, dock.action != nullptr });
+    items.push_back ({ L"Dock in tab group", [this, pane, documents, commit] { return commit (m_layout.TabWith (pane, documents)); },
+                       !documents.empty() && !IsFloatingSite() });
+    items.push_back ({ kAutoHideLabel, autoHide.action, autoHide.action != nullptr });
+
+    if (fromTab)
+    {
+        items.push_back ({ L"Move to new window", floatPane, canFloat });
+    }
+
+    items.push_back ({ L"All to new window", floatPane, canFloat && mine.size() == 1 });
+    items.push_back ({ L"", nullptr, false });
+    items.push_back ({ L"Close", [this, pane] { m_onClosePane (pane); return true; }, canClose, L"Shift+Esc" });
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::MovePaneByArrow
 //
 ////////////////////////////////////////////////////////////////////////////////
