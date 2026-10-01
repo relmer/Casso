@@ -245,7 +245,8 @@ enum class DebugVerb
 //  DebugCommand
 //
 //  One parsed command. sourceName is the name as typed, for replies and
-//  errors. A budget, when present, applies to the run this command starts.
+//  errors. symbolTable is the table a symbol command acts on, as a bare name
+//  such as USER, and is empty for every enabled table. A budget, when present, applies to the run this command starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,6 +266,7 @@ struct DebugCommand
     std::vector<Byte>        mask;         // per byte of values: bits a search must match
     Expression               expression;
     std::string              text;
+    std::string              symbolTable;
     uint32_t                 count    = 0;
     std::optional<uint64_t>  budget;
     std::optional<uint64_t>  first;        // HISTORY: the window's first entry

@@ -1155,17 +1155,24 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
 //
 //  `SYM` alone reports counts. `SYM<table>` takes `CLEAR`, `LOAD "file"
 //  [,offset]`, `SAVE "file"`, `ON`, `OFF`, `name = addr`, `! name` or
-//  `~ name`, or a name or address to look up. The table is carried by the
-//  command's name.
+//  `~ name`, or a name or address to look up. The table, the word after
+//  SYM, goes in symbolTable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    size_t       equals = args.rest.find ('=');
-    std::string  first  = args.tokens.empty() ? std::string() : ToUpper (args.tokens[0]);
+    static constexpr const char * kPrefix = "SYM";
+    size_t                        equals  = args.rest.find ('=');
+    std::string                   first   = args.tokens.empty() ? std::string() : ToUpper (args.tokens[0]);
+    std::string                   name    = ToUpper (command.sourceName);
 
 
+
+    if (command.verb == DebugVerb::LookupSymbol && name.starts_with (kPrefix))
+    {
+        command.symbolTable = name.substr (strlen (kPrefix));
+    }
 
     if (command.verb != DebugVerb::LookupSymbol)
     {
@@ -1333,7 +1340,7 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
 
     if (command.verb == DebugVerb::SetBudget)
     {
-        if (args.tokens.empty() || !TryParseCount (args.tokens[0], command.count))
+        if (args.tokens.empty() || !TryParseCount (args.tokens[0], command.count, args.context->GetNumberSyntax()))
         {
             error = "BUDGET takes a number of cycles in decimal, up to 4294967295. Use BUDGET 0 to remove the budget.";
             return false;
@@ -1413,6 +1420,7 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
     static constexpr const char * kUsage = "HISTORY takes ON, OFF, SAVE and a file name, or a first entry and a count in decimal.";
     std::string                   first;
     uint64_t                      value  = 0;
+    NumberSyntax                  syntax = args.context->GetNumberSyntax();
 
 
 
@@ -1444,7 +1452,7 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
         return true;
     }
 
-    if (args.tokens.size() > 2 || !TryParseDecimal (args.tokens[0], value))
+    if (args.tokens.size() > 2 || !TryParseDecimal (args.tokens[0], value, syntax))
     {
         error = kUsage;
         return false;
@@ -1454,7 +1462,7 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
 
     if (args.tokens.size() == 2)
     {
-        if (!TryParseDecimal (args.tokens[1], value) || value == 0 || value > UINT32_MAX)
+        if (!TryParseDecimal (args.tokens[1], value, syntax) || value == 0 || value > UINT32_MAX)
         {
             error = kUsage;
             return false;
@@ -1479,13 +1487,13 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value)
+bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value, NumberSyntax syntax)
 {
     uint64_t  wide = 0;
 
 
 
-    if (!TryParseDecimal (text, wide) || wide > UINT32_MAX)
+    if (!TryParseDecimal (text, wide, syntax) || wide > UINT32_MAX)
     {
         return false;
     }
@@ -1502,24 +1510,74 @@ bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value)
 //
 //  AppleWinParser::TryParseDecimal
 //
-//  Digits, with or without the # that marks a decimal number elsewhere.
+//  Digits, with or without the # that marks a decimal number elsewhere. In
+//  WinDbg's syntax 0n also marks decimal, and 0x or $ marks hex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value)
+bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value, NumberSyntax syntax)
 {
-    static constexpr size_t  kMaxDigits = 18;
-    std::string              digits     = text.starts_with ('#') ? text.substr (1) : text;
+    static constexpr size_t  kMaxDigits    = 18;
+    static constexpr size_t  kMaxHexDigits = 15;
+    static constexpr int     kHex          = 16;
+    std::string              upper         = ToUpper (text);
+    std::string              digits        = text.starts_with ('#') ? text.substr (1) : text;
+    int                      radix         = 10;
 
 
 
-    if (digits.empty() || digits.size() > kMaxDigits || digits.find_first_not_of ("0123456789") != std::string::npos)
+    if (syntax == NumberSyntax::WinDbg)
+    {
+        if      (upper.starts_with ("0N")) { digits = text.substr (2); }
+        else if (upper.starts_with ("0X")) { digits = text.substr (2); radix = kHex; }
+        else if (upper.starts_with ("$"))  { digits = text.substr (1); radix = kHex; }
+    }
+
+    if (digits.empty() || digits.size() > (radix == kHex ? kMaxHexDigits : kMaxDigits) ||
+        digits.find_first_not_of (radix == kHex ? "0123456789ABCDEFabcdef" : "0123456789") != std::string::npos)
     {
         return false;
     }
 
-    value = std::stoull (digits);
+    value = std::stoull (digits, nullptr, radix);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::IsNumberOrRange
+//
+//  Text made of digits, $ prefixes and a range's period, rather than a name;
+//  in WinDbg's syntax each end may also carry 0x or 0n.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::IsNumberOrRange (const std::string & text, NumberSyntax syntax)
+{
+    static constexpr const char * kNumberChars = "0123456789ABCDEFabcdef$.";
+    std::string                   upper        = ToUpper (text);
+    size_t                        prefix       = std::string::npos;
+
+
+
+    while (syntax == NumberSyntax::WinDbg)
+    {
+        prefix = upper.find ("0X");
+        prefix = (prefix == std::string::npos) ? upper.find ("0N") : prefix;
+
+        if (prefix == std::string::npos || (prefix > 0 && upper[prefix - 1] != '.'))
+        {
+            break;
+        }
+
+        upper.erase (prefix, 2);
+    }
+
+    return upper.find_first_not_of (kNumberChars) == std::string::npos;
 }
 
 
@@ -1589,9 +1647,8 @@ bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugComman
 
 bool AppleWinParser::TryParseSkipArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    static constexpr const char * kNumberChars = "0123456789ABCDEFabcdef$.";
-    std::string                   first;
-    std::string                   ignored;
+    std::string  first;
+    std::string  ignored;
 
 
 
@@ -1632,7 +1689,7 @@ bool AppleWinParser::TryParseSkipArguments (const Arguments & args, DebugCommand
 
     command.verb = DebugVerb::AddStepFilter;
 
-    if (first.find_first_not_of (kNumberChars) != std::string::npos)
+    if (!IsNumberOrRange (first, args.context->GetNumberSyntax()))
     {
         command.text = first;
     }
@@ -1767,7 +1824,7 @@ bool AppleWinParser::TryParseSourceLine (const std::string & text, const IDebugE
     file = text.substr (0, colon);
     line = text.substr (colon + 1);
 
-    if (!TryParseCount (line, command.count) || TryEvaluate (file, context, unused, error))
+    if (!TryParseCount (line, command.count, context.GetNumberSyntax()) || TryEvaluate (file, context, unused, error))
     {
         return false;
     }

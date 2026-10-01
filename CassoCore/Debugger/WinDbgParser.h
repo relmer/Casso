@@ -96,10 +96,8 @@ private:
     static std::string  NormalizeNumbers         (const std::string & text);
     static std::string  RewriteRegisters         (const std::string & text);
     static std::string  StripBackquotes          (const std::string & text);
-    static std::string  NormalizeEngineArguments (const std::string & text, const Tokens & tokens);
     static bool         HasIf                    (const Tokens & tokens);
     static bool         IsPath                   (const std::string & token);
-    static bool         TryReadNumber            (const std::string & token, uint64_t & value);
 
     static bool  IsWholeNumber              (const std::string & text, size_t first, char prefix);
     static bool  TryFindExclusion           (const std::string & name, const WinDbgExclusion *& exclusion);

@@ -586,13 +586,13 @@ void SymbolHandlers::Remove (DebugSession & session, const DebugCommand & comman
 //
 //  SymbolHandlers::TryGetTable
 //
-//  SYM<table> carries its table in the name; SYM alone carries none.
+//  The command's table; SYM alone and GSSquared's x carry none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SymbolHandlers::TryGetTable (const DebugCommand & command, SymbolTableId & table)
 {
-    return SymbolTable::TryGetTableId (command.sourceName, table);
+    return SymbolTable::TryGetTableId (command.symbolTable, table);
 }
 
 

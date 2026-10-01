@@ -431,6 +431,22 @@ namespace DebuggerTests
             Assert::AreEqual ((uint32_t) 1000,               ParseOk ("!budget 1000").command.count);
         }
 
+        //  A `!` line reaches AppleWin mode's parser as typed, so an error
+        //  quotes WinDbg's prefixed numbers rather than AppleWin's $ form, and
+        //  a prefixed range is still a range rather than a name.
+        TEST_METHOD (Bang_ErrorsQuoteThePrefixedNumbersAsTyped)
+        {
+            WinDbgParseResult  skip = ParseOk ("!skip 0x300.0x310");
+
+
+
+            Assert::AreEqual (std::string ("0x10000 is outside $0000-$FFFF."),  ParseFails ("!bload f.bin 0x10000", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("0x310.0x300 ends before it begins."), ParseFails ("!skip 0x310.0x300",  ParseStatus::Invalid).error);
+            Assert::IsTrue   (skip.command.text.empty(), L"a prefixed range is not a name");
+            Assert::AreEqual ((Word) 0x0300, skip.command.a1);
+            Assert::AreEqual ((Word) 0x0310, skip.command.a2);
+        }
+
         //  An error quotes the command as it was typed in WinDbg mode, never
         //  the AppleWin command with the same effect.
         TEST_METHOD (Error_QuotesTheWinDbgName)

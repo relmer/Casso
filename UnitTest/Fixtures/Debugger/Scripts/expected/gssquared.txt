@@ -80,7 +80,7 @@ Error: command not available
        E1/0300 is in bank E1. Only bank 00 exists on this machine.
 >map
 Error: command not available
-       MAP needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU.
+       map needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU.
 >switches
 TEXT       on
 MIXED      off

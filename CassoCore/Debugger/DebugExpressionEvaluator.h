@@ -1,6 +1,6 @@
 #pragma once
 
-class IDebugExpressionContext;
+#include "Debugger/IDebugExpressionContext.h"
 
 
 
@@ -119,7 +119,10 @@ enum class EvaluationMode
 class DebugExpressionEvaluator
 {
 public:
-    static HRESULT  Parse            (const std::string & text, Expression & expression, std::string & error);
+    static HRESULT  Parse            (const std::string             & text,
+                                      Expression                    & expression,
+                                      std::string                   & error,
+                                      NumberSyntax                    syntax = NumberSyntax::AppleWin);
     static HRESULT  Evaluate         (const Expression              & expression,
                                       const IDebugExpressionContext & context,
                                       int32_t                       & value,
@@ -143,9 +146,9 @@ private:
     static const OperatorSpelling  s_kBinaryOperators[18];
     static const OperatorSpelling  s_kUnaryOperators[7];
 
-    static bool  TryParseOperandPosition  (const std::string & text, size_t & pos, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
+    static bool  TryParseOperandPosition  (const std::string & text, size_t & pos, NumberSyntax syntax, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
     static bool  TryParseOperatorPosition (const std::string & text, size_t & pos, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
-    static bool  TryReadOperand           (const std::string & text, size_t & pos, ExpressionToken & token, std::string & error);
+    static bool  TryReadOperand           (const std::string & text, size_t & pos, NumberSyntax syntax, ExpressionToken & token, std::string & error);
     static bool  TryReadOperator          (const std::string & text, size_t & pos, std::span<const OperatorSpelling> table, ExpressionOperator & op);
     static bool  TryParseNumber           (const std::string & digits, int base, int32_t & value);
     static bool  IsRegisterName           (const std::string & upperName);

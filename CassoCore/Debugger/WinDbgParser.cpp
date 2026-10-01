@@ -6,6 +6,7 @@
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDebugExpressionContext.h"
+#include "Debugger/WinDbgExpressionContext.h"
 
 
 
@@ -309,7 +310,7 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
         return true;
     }
 
-    parsed                    = AppleWinParser::Parse (NormalizeEngineArguments (text, tokens), context);
+    parsed                    = AppleWinParser::Parse (text, WinDbgExpressionContext (context));
     result.status             = parsed.status;
     result.command            = parsed.command;
     result.command.sourceName = "!" + tokens[0];
@@ -1446,85 +1447,6 @@ bool WinDbgParser::IsPath (const std::string & token)
     }
 
     return dot != std::string::npos && dot + 1 < token.size() && isalpha ((unsigned char) token[dot + 1]);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::TryReadNumber
-//
-//  One whole token that is a prefixed number: `0x` or `$` hex, `0n` or `#`
-//  decimal, up to 32 bits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WinDbgParser::TryReadNumber (const std::string & token, uint64_t & value)
-{
-    static constexpr uint64_t  kLimit     = 0xFFFFFFFF;
-    static constexpr size_t    kMaxDigits = 10;
-    std::string                lower      = ToLower (token);
-    std::string                digits;
-    int                        radix      = 0;
-
-
-
-    if      (lower.starts_with ("0x")) { digits = lower.substr (2); radix = 16; }
-    else if (lower.starts_with ("0n")) { digits = lower.substr (2); radix = 10; }
-    else if (lower.starts_with ("$"))  { digits = lower.substr (1); radix = 16; }
-    else if (lower.starts_with ("#"))  { digits = lower.substr (1); radix = 10; }
-
-    if (radix == 0 || digits.empty() || digits.size() > kMaxDigits ||
-        digits.find_first_not_of (radix == 16 ? "0123456789abcdef" : "0123456789") != std::string::npos)
-    {
-        return false;
-    }
-
-    value = std::stoull (digits, nullptr, radix);
-    return value <= kLimit;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::NormalizeEngineArguments
-//
-//  A `!` line for AppleWinParser. ECHO's text is printed as typed. BUDGET
-//  and HISTORY take decimal numbers, so a prefixed number becomes its
-//  decimal digits. The rest have their numbers normalized.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string WinDbgParser::NormalizeEngineArguments (const std::string & text, const Tokens & tokens)
-{
-    std::string  name   = ToLower (tokens[0]);
-    std::string  result = tokens[0];
-    uint64_t     value  = 0;
-
-
-
-    if (name == "echo")
-    {
-        return text;
-    }
-
-    if (name != "budget" && name != "history")
-    {
-        return NormalizeNumbers (text);
-    }
-
-    for (size_t i = 1; i < tokens.size(); i++)
-    {
-        result += ' ';
-        result += TryReadNumber (tokens[i], value) ? std::to_string (value) : tokens[i];
-    }
-
-    return result;
 }
 
 

@@ -174,6 +174,7 @@
     <ClCompile Include="Debugger\InstructionSemantics.cpp" />
     <ClCompile Include="Debugger\EffectiveAddress.cpp" />
     <ClCompile Include="Debugger\SymbolFileReader.cpp" />
+    <ClCompile Include="Debugger\WinDbgExpressionContext.cpp" />
     <ClCompile Include="Debugger\WinDbgParser.cpp" />
     <ClCompile Include="Directive.cpp" />
     <ClCompile Include="Parser.cpp" />
@@ -252,6 +253,7 @@
     <ClInclude Include="Debugger\MonitorState.h" />
     <ClInclude Include="Debugger\EffectiveAddress.h" />
     <ClInclude Include="Debugger\SymbolFileReader.h" />
+    <ClInclude Include="Debugger\WinDbgExpressionContext.h" />
     <ClInclude Include="Debugger\WinDbgParser.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />

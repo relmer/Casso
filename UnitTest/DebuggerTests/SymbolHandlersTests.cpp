@@ -94,6 +94,27 @@ namespace DebuggerTests
 
 
 
+        //  GSSquared's symbol commands act on the User table, which travels
+        //  with the command rather than in the word typed.
+        TEST_METHOD (GSSquared_SymbolCommands_ActOnTheUserTable)
+        {
+            Rig    rig;
+            Reply  clear;
+
+
+
+            rig.RunOk ("SYM LIFE = 300");
+            rig.RunOk ("MODE GSSQUARED");
+
+            Assert::IsTrue   (rig.RunOk ("slookup 300").text.at (0).find ("LIFE") != std::string::npos);
+            clear = rig.RunOk ("sclear");
+            Assert::AreEqual (std::string ("sclear"), clear.command);
+            Assert::AreEqual ((size_t) 0, rig.session.GetSymbols().GetCount (SymbolTableId::User));
+            Assert::IsTrue   (rig.session.GetSymbols().GetCount (SymbolTableId::Main) > 0, L"the ROM symbols stay");
+        }
+
+
+
         TEST_METHOD (SYM_Load_Cc65DebugFile_GivesLinesAndSymbols)
         {
             Rig  rig;

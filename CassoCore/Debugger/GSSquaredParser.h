@@ -115,7 +115,7 @@ private:
     static void         ParseHelp          (Line & line);
     static void         ParseMove          (Line & line, const std::string & word, Word first, Word last, Word dest);
     static void         ParseCassoCommand  (Line & line, const std::string & text);
-    static void         AddSymbolCommand   (Line & line, DebugVerb verb, const std::string & text);
+    static void         AddSymbolCommand   (Line & line, const std::string & word, DebugVerb verb, const std::string & text);
     static DebugCommand MakeCommand        (DebugVerb verb, const std::string & word);
     static void         AddCommand         (Line & line, const DebugCommand & command);
     static void         AddRange           (Line & line, DebugCommand command, Word first, Word last, bool hasLast);

@@ -26,7 +26,7 @@ static constexpr GSSquaredCommand  s_kCommands[] =
     { "load",    nullptr },
     { "save",    nullptr },
     { "move",    nullptr },
-    { "verify",  "VERIFY is accepted by GSSquared and does nothing there either." },
+    { "verify",  "verify is accepted by GSSquared and does nothing there either." },
     { "watch",   nullptr },
     { "nowatch", nullptr },
     { "help",    nullptr },
@@ -36,7 +36,7 @@ static constexpr GSSquaredCommand  s_kCommands[] =
     { "nobp",    nullptr },
     { "list",    nullptr },
     { "l",       nullptr },
-    { "map",     "MAP needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU." },
+    { "map",     "map needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU." },
     { "debug",   nullptr },
     { "nodebug", nullptr },
     { "sload",   nullptr },
@@ -44,8 +44,8 @@ static constexpr GSSquaredCommand  s_kCommands[] =
     { "slookup", nullptr },
     { "m",       "M needs a IIgs: it sets the 65816's accumulator width, and this machine has a 6502." },
     { "x",       "X needs a IIgs: it sets the 65816's index width, and this machine has a 6502." },
-    { "video",   "VIDEO is not available here: the emulator window shows the screen." },
-    { "novideo", "NOVIDEO is not available here: the emulator window shows the screen." },
+    { "video",   "video is not available here: the emulator window shows the screen." },
+    { "novideo", "novideo is not available here: the emulator window shows the screen." },
     { "s",       nullptr },
     { "o",       nullptr },
     { "r",       nullptr },
@@ -238,7 +238,7 @@ bool GSSquaredParser::TryParseWord (Line & line)
     {
         if (count < 2)
         {
-            SetInvalid (line, "SET takes an address and one or more bytes.");
+            SetInvalid (line, "set takes an address and one or more bytes.");
             return true;
         }
 
@@ -248,7 +248,7 @@ bool GSSquaredParser::TryParseWord (Line & line)
     {
         if (count != 3 || line.tokens[1].find ('.') == std::string::npos)
         {
-            SetInvalid (line, "MOVE takes a range and a destination: move first.last dest.");
+            SetInvalid (line, "move takes a range and a destination: move first.last dest.");
         }
         else if (TryParseRange (line, line.tokens[1], value, last) && TryParseAddress (line, line.tokens[2], dest))
         {
@@ -371,7 +371,7 @@ void GSSquaredParser::ParseBreakpoint (Line & line)
 
     if (!TryGetIfClause (line.tokens, 2, expression))
     {
-        SetInvalid (line, "BP takes an address or a range, and optionally IF and an expression.");
+        SetInvalid (line, "bp takes an address or a range, and optionally IF and an expression.");
         return;
     }
 
@@ -464,8 +464,8 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
 {
     static constexpr Word  kIoFirst = 0xC000;
     static constexpr Word  kIoLast  = 0xC0FF;
-    std::string            name     = isIo ? "BPI" : "BPD";
-    DebugCommand           command  = MakeCommand (DebugVerb::None, ToLower (name));
+    std::string            name     = isIo ? "bpi" : "bpd";
+    DebugCommand           command  = MakeCommand (DebugVerb::None, name);
     std::string            access;
     std::string            expression;
     Word                   first    = 0;
@@ -511,7 +511,7 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
 
     if (isIo && (first < kIoFirst || last > kIoLast))
     {
-        SetInvalid (line, "BPI takes an address in the I/O page, $C000-$C0FF.");
+        SetInvalid (line, "bpi takes an address in the I/O page, $C000-$C0FF.");
         return;
     }
 
@@ -549,7 +549,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
 
     if (line.tokens.size() != 2)
     {
-        SetInvalid (line, "NOBP takes a breakpoint id or address.");
+        SetInvalid (line, "nobp takes a breakpoint id or address.");
         return;
     }
 
@@ -616,7 +616,7 @@ void GSSquaredParser::ParseWatch (Line & line)
     {
         if (line.tokens.size() != 2 || line.tokens[1].find_first_not_of ("0123456789") != std::string::npos)
         {
-            SetInvalid (line, "NOWATCH takes a watch id.");
+            SetInvalid (line, "nowatch takes a watch id.");
             return;
         }
 
@@ -636,7 +636,7 @@ void GSSquaredParser::ParseWatch (Line & line)
 
     if (line.tokens.size() > 2)
     {
-        SetInvalid (line, "WATCH takes an address or a range.");
+        SetInvalid (line, "watch takes an address or a range.");
         return;
     }
 
@@ -680,7 +680,7 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 
     if (line.tokens.size() != 3)
     {
-        SetInvalid (line, isLoad ? "LOAD takes a file name and an address." : "SAVE takes a file name and a range.");
+        SetInvalid (line, isLoad ? "load takes a file name and an address." : "save takes a file name and a range.");
         return;
     }
 
@@ -711,9 +711,9 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 //  GSSquaredParser::ParseSymbols
 //
 //  `sload "file"`, `slookup addr` and `sclear`, as SYM LOAD, SYM addr and
-//  SYM CLEAR against the User table, so sclear clears what sload loaded and
-//  the ROM symbols stay. These keep SYM as the command's sourceName, because
-//  the symbol handlers look the table up from it.
+//  SYM CLEAR. sload and sclear act on the User table, so sclear clears what
+//  sload loaded and the ROM symbols stay. Each keeps the word as typed; the table travels as
+//  the command's symbolTable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -730,19 +730,19 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
     }
     else if (count != 2)
     {
-        SetInvalid (line, word == "sload" ? "SLOAD takes a file name." : "SLOOKUP takes an address.");
+        SetInvalid (line, word == "sload" ? "sload takes a file name." : "slookup takes an address.");
     }
     else if (word == "sload" && line.tokens[1].find (',', line.tokens[1].rfind ('"') + 1) != std::string::npos)
     {
-        SetInvalid (line, "SLOAD takes a file name and no offset.");
+        SetInvalid (line, "sload takes a file name and no offset.");
     }
     else if (word == "sload")
     {
-        AddSymbolCommand (line, DebugVerb::LoadSymbols, std::format ("\"{}\"", Unquote (line.tokens[1])));
+        AddSymbolCommand (line, word, DebugVerb::LoadSymbols, std::format ("\"{}\"", Unquote (line.tokens[1])));
     }
     else if (TryParseAddress (line, line.tokens[1], value))
     {
-        AddSymbolCommand (line, DebugVerb::LookupSymbol, FormatHex (value));
+        AddSymbolCommand (line, word, DebugVerb::LookupSymbol, FormatHex (value));
     }
 }
 
@@ -754,18 +754,19 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
 //
 //  GSSquaredParser::AddSymbolCommand
 //
-//  A command against the User symbol table, which SYM as its sourceName
-//  selects.
+//  A symbol command under the word typed: sload loads the User table, and
+//  slookup searches every enabled table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GSSquaredParser::AddSymbolCommand (Line & line, DebugVerb verb, const std::string & text)
+void GSSquaredParser::AddSymbolCommand (Line & line, const std::string & word, DebugVerb verb, const std::string & text)
 {
-    DebugCommand  command = MakeCommand (verb, "SYM");
+    DebugCommand  command = MakeCommand (verb, word);
 
 
 
-    command.text = text;
+    command.text        = text;
+    command.symbolTable = (verb == DebugVerb::LookupSymbol) ? std::string() : "USER";
     AddCommand (line, command);
 }
 
@@ -807,7 +808,7 @@ void GSSquaredParser::ParseRegister (Line & line)
 
     if (name.empty())
     {
-        SetInvalid (line, "R takes a register and a value. The registers are A, X, Y, P, S, and PC.");
+        SetInvalid (line, "r takes a register and a value. The registers are A, X, Y, P, S, and PC.");
         return;
     }
 
@@ -851,7 +852,7 @@ void GSSquaredParser::ParsePanel (Line & line, bool isClose)
 
     if (count > 2 || (isClose && count != 2))
     {
-        SetInvalid (line, isClose ? "NODEBUG takes a panel name." : "DEBUG takes a panel name or nothing.");
+        SetInvalid (line, isClose ? "nodebug takes a panel name." : "debug takes a panel name or nothing.");
         return;
     }
 
@@ -867,7 +868,7 @@ void GSSquaredParser::ParsePanel (Line & line, bool isClose)
 
     if (!isClose && ToUpper (command.text) == "CLOSE")
     {
-        SetInvalid (line, "DEBUG takes a panel name or nothing. Use NODEBUG name to close a panel.");
+        SetInvalid (line, "debug takes a panel name or nothing. Use nodebug name to close a panel.");
         return;
     }
 
@@ -929,7 +930,7 @@ void GSSquaredParser::ParseMove (Line & line, const std::string & word, Word fir
 //  GSSquaredParser::ParseNoArguments
 //
 //  A word that takes nothing: help, sclear, and the step and run additions.
-//  sclear keeps SYM as its sourceName, which selects the symbol table.
+//  sclear acts on the User symbol table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -937,7 +938,7 @@ void GSSquaredParser::ParseNoArguments (Line & line, DebugVerb verb)
 {
     static constexpr uint32_t  kOneStep = 1;
     std::string                word     = ToLower (line.tokens[0]);
-    DebugCommand               command  = MakeCommand (verb, verb == DebugVerb::ClearSymbols ? "SYM" : word);
+    DebugCommand               command  = MakeCommand (verb, word);
 
 
 
@@ -950,6 +951,11 @@ void GSSquaredParser::ParseNoArguments (Line & line, DebugVerb verb)
     if (verb == DebugVerb::StepInto || verb == DebugVerb::StepOver || verb == DebugVerb::StepOut)
     {
         command.count = kOneStep;
+    }
+
+    if (verb == DebugVerb::ClearSymbols)
+    {
+        command.symbolTable = "USER";
     }
 
     AddCommand (line, command);

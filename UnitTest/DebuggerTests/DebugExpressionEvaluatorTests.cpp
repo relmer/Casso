@@ -85,6 +85,28 @@ namespace DebuggerTests
 
 
 
+        //  WinDbg's 0x and 0n prefixes are numbers only in WinDbg's syntax.
+        TEST_METHOD (Numbers_WinDbgPrefixes)
+        {
+            MockExpressionContext  appleWin;
+            MockExpressionContext  winDbg;
+
+
+
+            winDbg.syntax = NumberSyntax::WinDbg;
+
+            Expect      (winDbg,   "0x300",      0x300);
+            Expect      (winDbg,   "0X1f",       0x1F);
+            Expect      (winDbg,   "0n10",       10);
+            Expect      (winDbg,   "0n10+0x10",  26);
+            Expect      (winDbg,   "$300",       0x300);
+            Expect      (winDbg,   "300",        0x300);
+            ExpectError (winDbg,   "0n1A",       "0n1A is not a decimal number.");
+            ExpectError (appleWin, "0x300",      "not a hex number");
+        }
+
+
+
         TEST_METHOD (Operators)
         {
             MockExpressionContext context;

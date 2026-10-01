@@ -340,7 +340,8 @@ namespace DebuggerTests
             Refused ("load \"prog.bin\"", ParseStatus::Invalid);
         }
 
-        //  SYM's name selects the symbol table, so these keep it.
+        //  The User table travels as its own argument, so each command keeps
+        //  the word as typed.
         TEST_METHOD (Symbols_LoadLookUpAndClear)
         {
             DebugCommand  load   = One ("sload \"labels.sym\"");
@@ -351,7 +352,9 @@ namespace DebuggerTests
             AssertVerb (DebugVerb::LoadSymbols,  load,              "sload");
             AssertVerb (DebugVerb::LookupSymbol, lookup,            "slookup");
             AssertVerb (DebugVerb::ClearSymbols, One ("sclear"),    "sclear");
-            Assert::AreEqual (std::string ("SYM"), load.sourceName);
+            Assert::AreEqual (std::string ("sload"),   load.sourceName);
+            Assert::AreEqual (std::string ("slookup"), lookup.sourceName);
+            Assert::AreEqual (std::string ("sclear"),  One ("sclear").sourceName);
             Assert::IsTrue   (lookup.text.find ("FDED") != std::string::npos);
         }
 
@@ -429,8 +432,12 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue  (close.error.find ("DEBUG") != std::string::npos, Widen (close.error).c_str());
-            Assert::IsTrue  (close.error.find ("PANEL") == std::string::npos, Widen (close.error).c_str());
+            Assert::AreEqual (std::string ("debug takes a panel name or nothing. Use nodebug name to close a panel."), close.error);
+            Assert::AreEqual (std::string ("nodebug takes a panel name."),              Refused ("nodebug",   ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("sload takes a file name."),                 Refused ("sload",     ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("slookup takes an address."),                Refused ("slookup",   ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("bpi takes an address in the I/O page, $C000-$C0FF."), Refused ("bpi 300 r", ParseStatus::Invalid).error);
+            Assert::IsTrue   (Refused ("map", ParseStatus::NotAvailable).error.starts_with ("map "), L"map");
             Assert::AreEqual (std::string ("debug"), One ("debug \"list\"").sourceName);
             AssertVerb (DebugVerb::ListPanels, One ("debug \"list\""), "debug \"list\"");
         }

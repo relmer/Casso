@@ -2,8 +2,7 @@
 
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/DebugCommand.h"
-
-class IDebugExpressionContext;
+#include "Debugger/IDebugExpressionContext.h"
 
 
 
@@ -109,8 +108,9 @@ private:
     static bool    TryParseSkipArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseCallsArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseHistoryArguments  (const Arguments & args, DebugCommand & command, std::string & error);
-    static bool    TryParseDecimal           (const std::string & text, uint64_t & value);
-    static bool    TryParseCount             (const std::string & text, uint32_t & value);
+    static bool    TryParseDecimal           (const std::string & text, uint64_t & value, NumberSyntax syntax = NumberSyntax::AppleWin);
+    static bool    TryParseCount             (const std::string & text, uint32_t & value, NumberSyntax syntax = NumberSyntax::AppleWin);
+    static bool    IsNumberOrRange           (const std::string & text, NumberSyntax syntax);
     static bool    TryParsePanelArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseSkipRange  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryParseValues     (const Tokens & tokens, size_t first, ValueWidth width, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);

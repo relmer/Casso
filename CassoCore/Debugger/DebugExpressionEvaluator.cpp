@@ -62,14 +62,15 @@ const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUn
 //  Converts infix text to postfix. A bare name that matches a register is the
 //  register, a bare name made only of hex digits is a number, and any other
 //  name is a symbol, resolved when the expression is evaluated. $ forces hex
-//  and # forces decimal.
+//  and # forces decimal; in WinDbg's syntax 0x and 0n do the same.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DebugExpressionEvaluator::Parse (
     const std::string  & text,
     Expression         & expression,
-    std::string        & error)
+    std::string        & error,
+    NumberSyntax         syntax)
 {
     HRESULT        hr            = S_OK;
     OperatorStack  stack;
@@ -92,7 +93,7 @@ HRESULT DebugExpressionEvaluator::Parse (
             continue;
         }
 
-        isValid = expectOperand ? TryParseOperandPosition  (text, pos, expectOperand, stack, expression, error)
+        isValid = expectOperand ? TryParseOperandPosition  (text, pos, syntax, expectOperand, stack, expression, error)
                                 : TryParseOperatorPosition (text, pos, expectOperand, stack, expression, error);
         CBR (isValid);
     }
@@ -182,7 +183,7 @@ HRESULT DebugExpressionEvaluator::ParseAndEvaluate (
 
     value = 0;
 
-    hr = Parse (text, expression, error);
+    hr = Parse (text, expression, error, context.GetNumberSyntax());
     CHR (hr);
 
     hr = Evaluate (expression, context, value, error);
@@ -208,6 +209,7 @@ Error:
 bool DebugExpressionEvaluator::TryParseOperandPosition (
     const std::string  & text,
     size_t             & pos,
+    NumberSyntax         syntax,
     bool               & expectOperand,
     OperatorStack      & stack,
     Expression         & expression,
@@ -232,7 +234,7 @@ bool DebugExpressionEvaluator::TryParseOperandPosition (
         return true;
     }
 
-    isRead = TryReadOperand (text, pos, token, error);
+    isRead = TryReadOperand (text, pos, syntax, token, error);
 
     if (isRead)
     {
@@ -324,6 +326,7 @@ bool DebugExpressionEvaluator::TryParseOperatorPosition (
 bool DebugExpressionEvaluator::TryReadOperand (
     const std::string  & text,
     size_t             & pos,
+    NumberSyntax         syntax,
     ExpressionToken    & token,
     std::string        & error)
 {
@@ -395,6 +398,18 @@ bool DebugExpressionEvaluator::TryReadOperand (
         if (!isNumber)
         {
             error = std::format ("{} is not a {} number.", text.substr (start, pos - start), lead == '#' ? "decimal" : "hex");
+        }
+
+        return isNumber;
+    }
+
+    if (syntax == NumberSyntax::WinDbg && upper.size() > 2 && (upper.starts_with ("0X") || upper.starts_with ("0N")))
+    {
+        isNumber = TryParseNumber (word.substr (2), upper[1] == 'N' ? 10 : 16, token.value);
+
+        if (!isNumber)
+        {
+            error = std::format ("{} is not a {} number.", word, upper[1] == 'N' ? "decimal" : "hex");
         }
 
         return isNumber;
