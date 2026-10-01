@@ -86,11 +86,18 @@ public:
         std::wstring  homePane;
     };
 
+    //  A pane that was alone in its group also keeps the panes on the other
+    //  side of the split it left, which side it lay on, and the split's ratio,
+    //  so docking it back splits them again rather than tabbing it in.
     struct AutoHidden
     {
-        std::wstring  pane;
-        DxuiDockSide  edge = DxuiDockSide::Left;
-        std::wstring  homePane;
+        std::wstring               pane;
+        DxuiDockSide               edge      = DxuiDockSide::Left;
+        std::wstring               homePane;
+        bool                       homeSplit = false;
+        DxuiDockSide               homeSide  = DxuiDockSide::Left;
+        float                      homeRatio = 0.5f;
+        std::vector<std::wstring>  homeSiblings;
     };
 
     //  One monitor, as the application identifies it.
@@ -193,6 +200,9 @@ private:
     static std::unique_ptr<Node>  CloneNode    (const Node * node);
     static std::unique_ptr<Node>  MakeTabs     (const std::wstring & pane);
     static Node *                 FindGroup    (Node * node, const std::wstring & pane);
+    static Node *                 FindParent   (Node * node, const Node * child);
+    static Node *                 FindSubtree  (Node * node, const std::wstring & pane, const std::vector<std::wstring> & panes);
+    static void                   CollectPanes (const Node * node, std::vector<std::wstring> & out);
     static bool                   RemoveFrom   (std::unique_ptr<Node> & slot, const std::wstring & pane);
     static bool                   HasShown     (const Node * node, const ShownFn & shown);
     static SIZE                   GetMinimum   (const Node * node, const ShownFn & shown, const MinSizeFn & minSize);

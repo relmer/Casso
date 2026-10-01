@@ -134,6 +134,106 @@ DxuiPaneLayoutNode * DxuiPaneLayout::FindGroup (Node * node, const std::wstring 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPaneLayout::FindParent
+//
+//  The split directly holding `child`, or null.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneLayoutNode * DxuiPaneLayout::FindParent (Node * node, const Node * child)
+{
+    Node *  found = nullptr;
+
+
+
+    if (node == nullptr || node->kind != Node::Kind::Split)
+    {
+        return nullptr;
+    }
+
+    if (node->first.get() == child || node->second.get() == child)
+    {
+        return node;
+    }
+
+    found = FindParent (node->first.get(), child);
+    return (found != nullptr) ? found : FindParent (node->second.get(), child);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::FindSubtree
+//
+//  The largest node holding `pane` whose panes are all among `panes`: what
+//  is left of the side of a split a pane was taken from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneLayoutNode * DxuiPaneLayout::FindSubtree (Node * node, const std::wstring & pane, const std::vector<std::wstring> & panes)
+{
+    std::vector<std::wstring>  held;
+    bool                       allListed = true;
+
+
+
+    if (node == nullptr || FindGroup (node, pane) == nullptr)
+    {
+        return nullptr;
+    }
+
+    CollectPanes (node, held);
+
+    for (const std::wstring & each : held)
+    {
+        allListed = allListed && (std::find (panes.begin(), panes.end(), each) != panes.end());
+    }
+
+    if (allListed || node->kind != Node::Kind::Split)
+    {
+        return allListed ? node : nullptr;
+    }
+
+    return (FindGroup (node->first.get(), pane) != nullptr) ? FindSubtree (node->first.get(), pane, panes)
+                                                           : FindSubtree (node->second.get(), pane, panes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::CollectPanes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPaneLayout::CollectPanes (const Node * node, std::vector<std::wstring> & out)
+{
+    if (node == nullptr)
+    {
+        return;
+    }
+
+    if (node->kind == Node::Kind::Tabs)
+    {
+        out.insert (out.end(), node->panes.begin(), node->panes.end());
+        return;
+    }
+
+    CollectPanes (node->first.get(),  out);
+    CollectPanes (node->second.get(), out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPaneLayout::IsDocked
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -604,6 +704,9 @@ bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & moni
 bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
 {
     AutoHidden  entry;
+    Node *      group  = FindGroup (m_root.get(), pane);
+    Node *      parent = nullptr;
+    bool        first  = false;
 
 
 
@@ -615,6 +718,20 @@ bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
     entry.pane     = pane;
     entry.edge     = edge;
     entry.homePane = IsDocked (pane) ? GetNeighbor (pane) : std::wstring();
+    parent         = (group != nullptr && group->panes.size() == 1) ? FindParent (m_root.get(), group) : nullptr;
+
+    if (parent != nullptr)
+    {
+        first              = (parent->first.get() == group);
+        entry.homeSplit    = true;
+        entry.homeRatio    = parent->ratio;
+        entry.homeSide     = parent->horizontal ? (first ? DxuiDockSide::Left : DxuiDockSide::Right)
+                                                : (first ? DxuiDockSide::Top  : DxuiDockSide::Bottom);
+        CollectPanes (first ? parent->second.get() : parent->first.get(), entry.homeSiblings);
+        entry.homeSplit    = !entry.homeSiblings.empty();
+        entry.homePane     = !entry.homeSplit ? entry.homePane
+                           : (first ? entry.homeSiblings.front() : entry.homeSiblings.back());
+    }
 
     for (const Floating & floating : m_floating)
     {
@@ -642,7 +759,9 @@ bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
 bool DxuiPaneLayout::DockBack (const std::wstring & pane)
 {
     std::wstring  home;
-    Node *        group = nullptr;
+    AutoHidden    place;
+    Node *        group   = nullptr;
+    Node *        subtree = nullptr;
 
 
 
@@ -658,13 +777,20 @@ bool DxuiPaneLayout::DockBack (const std::wstring & pane)
 
     for (const AutoHidden & hidden : m_autoHidden)
     {
-        home = (hidden.pane == pane) ? hidden.homePane : home;
+        home  = (hidden.pane == pane) ? hidden.homePane : home;
+        place = (hidden.pane == pane) ? hidden : place;
     }
 
     Detach (pane);
-    group = home.empty() ? nullptr : FindGroup (m_root.get(), home);
+    group   = home.empty() ? nullptr : FindGroup (m_root.get(), home);
+    subtree = (group != nullptr && place.homeSplit) ? FindSubtree (m_root.get(), home, place.homeSiblings) : nullptr;
 
-    if (group != nullptr)
+    if (subtree != nullptr)
+    {
+        Split (*subtree, MakeTabs (pane), place.homeSide);
+        subtree->ratio = place.homeRatio;
+    }
+    else if (group != nullptr)
     {
         group->panes.push_back (pane);
         group->active = (int) group->panes.size() - 1;
