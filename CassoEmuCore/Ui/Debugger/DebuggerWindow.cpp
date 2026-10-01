@@ -466,6 +466,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_tooltip.SetMonospace        (true);
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
+    m_commandBar->SetGrabHandle   (true);
     m_commandBar->SetEntries      (m_commands->BuildEntries());
 
     SetWindowMenus();
@@ -3660,16 +3661,55 @@ void DebuggerWindow::LayoutWidgets()
 
     rowY += menuH;
 
+    //  The command bar takes a band along the edge it is docked to, at its
+    //  place along that edge, as long as its entries need or the edge
+    //  allows; the panes fill the rest.
     m_commandBar->SetTextRenderer   (GetTextRenderer());
     m_commandBar->SetHostClientRect (RECT { 0, 0, width, height });
-    m_commandBar->Layout (RECT { pad, rowY, width - pad, rowY + buttonH }, m_scaler);
-    m_tooltip.SetDpi          (m_scaler.GetDpi());
-    m_tooltip.SetViewportSize (width, height);
+    m_commandBar->SetVertical       (m_barDock.IsVertical());
 
-    top  = rowY + buttonH;
-    barY = height - pad;
+    {
+        int   natural = m_commandBar->GetNaturalLengthPx (m_scaler);
+        int   edgeLen = m_barDock.IsVertical() ? height - rowY : width - pad * 2;
+        int   length  = (std::min) (natural, edgeLen);
+        int   offset  = CommandBarDock::ClampOffset (px (m_barDock.offsetDip), edgeLen, length);
+        int   left    = pad;
+        int   right   = width - pad;
+        RECT  bar     = {};
 
-    m_dockSite->Layout (RECT { pad, top, width - pad, barY }, m_scaler);
+        top       = rowY;
+        barY      = height - pad;
+        m_barArea = RECT { 0, rowY, width, height };
+
+        switch (m_barDock.edge)
+        {
+        case CommandBarDock::Edge::Top:
+            bar  = RECT { pad + offset, rowY, pad + offset + length, rowY + buttonH };
+            top  = rowY + buttonH;
+            break;
+
+        case CommandBarDock::Edge::Bottom:
+            bar  = RECT { pad + offset, height - buttonH, pad + offset + length, height };
+            barY = height - buttonH;
+            break;
+
+        case CommandBarDock::Edge::Left:
+            bar  = RECT { 0, rowY + offset, buttonH, rowY + offset + length };
+            left = buttonH;
+            break;
+
+        case CommandBarDock::Edge::Right:
+            bar   = RECT { width - buttonH, rowY + offset, width, rowY + offset + length };
+            right = width - buttonH;
+            break;
+        }
+
+        m_commandBar->Layout (bar, m_scaler);
+        m_tooltip.SetDpi          (m_scaler.GetDpi());
+        m_tooltip.SetViewportSize (width, height);
+
+        m_dockSite->Layout (RECT { left, top, right, barY }, m_scaler);
+    }
 
     UpdateCodeLines();
     PlaceMemoryBar();
@@ -4059,6 +4099,8 @@ std::wstring DebuggerWindow::ReadSavedLayout()
     layoutText = DebuggerLayout::TakeClosedPanes (savedText, legacy);
 
     DebuggerLayout::ReadClosedPanes (SourcePathList::Utf8ToWide (m_host->GetDebuggerClosedPanes()), m_closedPanes);
+
+    m_barDock = CommandBarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock()));
 
     if (layoutText != savedText)
     {
@@ -7639,6 +7681,11 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
 
 
 
+    if (RouteCommandBarDrag (ev))
+    {
+        return true;
+    }
+
     if (!over && !m_commandBar->IsMenuOpen())
     {
         m_commandBar->OnToolbarMouseLeave();
@@ -7663,6 +7710,76 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
     default:
         return m_commandBar->IsMenuOpen();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteCommandBarDrag
+//
+//  A press on the command bar's grab handle carries the bar: while the
+//  button is down the bar docks to the edge nearest the pointer, at the
+//  place that keeps the handle under it, and the release saves that place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteCommandBarDrag (const DxuiMouseEvent & ev)
+{
+    POINT           at    = ev.positionDip;
+    RECT            bar   = m_commandBar->GetBounds();
+    int             along = 0;
+    CommandBarDock  dock;
+
+
+
+    if (!m_barDragging)
+    {
+        if (ev.kind != DxuiMouseEventKind::Down || m_commandBar->IsMenuOpen() || !m_commandBar->IsOnGrip (at.x, at.y))
+        {
+            return false;
+        }
+
+        along         = m_barDock.IsVertical() ? at.y - bar.top : at.x - bar.left;
+        //  Across the top or bottom the bar starts a margin in from the
+        //  window's edge, so the grab point counts it.
+        m_barGrab     = POINT { along + m_scaler.ToPx (8), along };
+        m_barDragging = true;
+
+        GetRoutedTooltip().HideImmediate();
+        return true;
+    }
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        dock = CommandBarDock::PickForDrop (at, m_barGrab, m_barArea, m_scaler.GetDpi());
+
+        if (!(dock == m_barDock))
+        {
+            m_barDock = dock;
+            LayoutWidgets();
+        }
+
+        break;
+
+    case DxuiMouseEventKind::Up:
+        m_barDragging = false;
+
+        if (m_host != nullptr)
+        {
+            m_host->SetDebuggerCommandBarDock (SourcePathList::WideToUtf8 (m_barDock.ToText()));
+        }
+
+        break;
+
+    default:
+        break;
+    }
+
+    return true;
 }
 
 

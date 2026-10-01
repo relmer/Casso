@@ -536,6 +536,8 @@ private:
     void         SetDebuggerLayout    (const std::string & text) override;
     std::string  GetDebuggerClosedPanes () override;
     void         SetDebuggerClosedPanes (const std::string & text) override;
+    std::string  GetDebuggerCommandBarDock () override;
+    void         SetDebuggerCommandBarDock (const std::string & text) override;
     std::string  GetDebuggerOpenViews () override;
     void         SetDebuggerOpenViews (const std::string & text) override;
     std::string  GetDebuggerPlacementKey () const;

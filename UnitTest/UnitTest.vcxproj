@@ -672,6 +672,8 @@
     <ClCompile Include="Dxui\DxuiToolbarCustomOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarDisabledTipTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarShrinkTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarVerticalTests.cpp" />
+    <ClCompile Include="DebuggerTests\CommandBarDockTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuSubmenuPlacementTests.cpp" />

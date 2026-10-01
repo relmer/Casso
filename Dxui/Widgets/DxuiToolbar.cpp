@@ -988,20 +988,45 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     int           freeLeft        = 0;
     int           freeRight       = 0;
     const Slot  * previousVisible = nullptr;
+    RECT          bounds          = boundsDip;
+    int           grip            = m_grip ? scaler.ToPx (kGripDp) : 0;
 
 
 
-    PlanForWidth (boundsDip.right - boundsDip.left, scaler);
+    //  The grab handle takes the strip's leading end; the entries lay out in
+    //  what is left.
+    m_gripRect = {};
+
+    if (m_grip && m_vertical)
+    {
+        m_gripRect  = RECT { bounds.left, bounds.top, bounds.right, bounds.top + grip };
+        bounds.top += grip;
+    }
+    else if (m_grip)
+    {
+        m_gripRect   = RECT { bounds.left, bounds.top, bounds.left + grip, bounds.bottom };
+        bounds.left += grip;
+    }
+
+    m_barRect = boundsDip;
+
+    if (m_vertical)
+    {
+        PlanForWidth   (bounds.bottom - bounds.top, scaler);
+        LayoutVertical (bounds);
+        SetBounds      (m_barRect);
+        return;
+    }
+
+    PlanForWidth (bounds.right - bounds.left, scaler);
 
     marginY  = m_scaler.ToPx (GetSpacingDp (Spacing::BtnMarginY));
     btnGap   = m_scaler.ToPx (GetSpacingDp (Spacing::BtnGap));
     groupGap = m_scaler.ToPx (GetSpacingDp (Spacing::GroupGap));
     barPad   = m_scaler.ToPx (GetSpacingDp (Spacing::BarPadX));
-    x        = boundsDip.left + barPad;
-    top      = boundsDip.top + marginY;
-    bottom   = boundsDip.bottom - marginY;
-
-    m_barRect = boundsDip;
+    x        = bounds.left + barPad;
+    top      = bounds.top + marginY;
+    bottom   = bounds.bottom - marginY;
 
     for (Slot & slot : m_slots)
     {
@@ -1036,10 +1061,10 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         index++;
     }
 
-    PlaceTrailingEntries (boundsDip.right - barPad);
+    PlaceTrailingEntries (bounds.right - barPad);
 
-    freeLeft  = boundsDip.left + barPad;
-    freeRight = boundsDip.right - barPad;
+    freeLeft  = bounds.left + barPad;
+    freeRight = bounds.right - barPad;
 
     for (const Slot & slot : m_slots)
     {
@@ -1070,6 +1095,93 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
     LayoutFlyout();
     SetBounds (m_barRect);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::LayoutVertical
+//
+//  Places the entries top to bottom, each as its icon in a cell as tall as
+//  the collapsed entry is wide, so the See more plan made for the strip's
+//  height holds. An entry with no icon keeps its label, as it has nothing
+//  else to show.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::LayoutVertical (const RECT & bounds)
+{
+    int           margin   = m_scaler.ToPx (GetSpacingDp (Spacing::BtnMarginY));
+    int           btnGap   = m_scaler.ToPx (GetSpacingDp (Spacing::BtnGap));
+    int           groupGap = m_scaler.ToPx (GetSpacingDp (Spacing::GroupGap));
+    int           barPad   = m_scaler.ToPx (GetSpacingDp (Spacing::BarPadX));
+    int           y        = bounds.top + barPad;
+    const Slot  * previous = nullptr;
+
+
+
+    for (Slot & slot : m_slots)
+    {
+        int  height = 0;
+
+        if (slot.hidden)
+        {
+            slot.rc      = RECT {};
+            slot.hovered = false;
+            slot.pressed = false;
+            continue;
+        }
+
+        if (previous != nullptr)
+        {
+            y += (previous->entry.group != slot.entry.group) ? groupGap : btnGap;
+        }
+
+        slot.labeled = !HasGlyph (slot);
+        height       = GetEntryWidthPx (slot, false);
+        slot.rc      = RECT { bounds.left + margin, y, bounds.right - margin, y + height };
+        y           += height;
+        previous     = &slot;
+
+        if (slot.entry.custom != nullptr)
+        {
+            slot.entry.custom->Layout (slot.rc, slot.labeled, m_scaler);
+        }
+    }
+
+    m_freeRect = {};
+
+    if (m_flyoutOpen)
+    {
+        CloseFlyout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetNaturalLengthPx
+//
+//  Planned against a length nothing overflows, so only the entries that
+//  always live in See more are left off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbar::GetNaturalLengthPx (const DxuiDpiScaler & scaler)
+{
+    int  grip = m_grip ? scaler.ToPx (kGripDp) : 0;
+
+
+
+    PlanForWidth (INT_MAX / 4, scaler);
+
+    return grip + GetTotalWidthPx (m_vertical ? 0 : (int) m_slots.size());
 }
 
 
@@ -1877,6 +1989,61 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::PaintGrip
+//
+//  Visual Studio's grab handle: a double row of dots across the strip's
+//  leading end, running along the strip's thickness.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PaintGrip (IDxuiPainter & painter, const IDxuiTheme & theme)
+{
+    float     dot    = (std::max) (1.0f, m_scaler.ToPxf (2.0f));
+    float     step   = dot * 2.0f;
+    float     margin = (float) m_scaler.ToPx (GetSpacingDp (Spacing::BtnMarginY)) + dot;
+    float     cx     = 0.0f;
+    float     cy     = 0.0f;
+    float     run    = 0.0f;
+    uint32_t  ink    = theme.ForegroundDisabled();
+
+
+
+    if (!m_grip || m_gripRect.right <= m_gripRect.left)
+    {
+        return;
+    }
+
+    cx = (float) (m_gripRect.left + m_gripRect.right) * 0.5f;
+    cy = (float) (m_gripRect.top  + m_gripRect.bottom) * 0.5f;
+
+    if (m_vertical)
+    {
+        run = (float) (m_gripRect.right - m_gripRect.left) - margin * 2.0f;
+
+        for (float x = (float) m_gripRect.left + margin; x + dot <= (float) m_gripRect.left + margin + run; x += step)
+        {
+            painter.FillRect (x, cy - step * 0.5f, dot, dot, ink);
+            painter.FillRect (x, cy + step * 0.5f - dot, dot, dot, ink);
+        }
+    }
+    else
+    {
+        run = (float) (m_gripRect.bottom - m_gripRect.top) - margin * 2.0f;
+
+        for (float y = (float) m_gripRect.top + margin; y + dot <= (float) m_gripRect.top + margin + run; y += step)
+        {
+            painter.FillRect (cx - step * 0.5f, y, dot, dot, ink);
+            painter.FillRect (cx + step * 0.5f - dot, y, dot, dot, ink);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::Paint
 //
 //  A bottom hairline separates the strip from whatever is below it; entries
@@ -1905,7 +2072,13 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     }
 
     painter.FillRect (bl, btTop, bw, bhAll, strip);
-    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.ContentEdge());
+
+    if (!m_vertical)
+    {
+        painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.ContentEdge());
+    }
+
+    PaintGrip (painter, theme);
 
     for (Slot & slot : m_slots)
     {

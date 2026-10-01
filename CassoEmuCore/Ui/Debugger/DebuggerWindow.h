@@ -16,6 +16,7 @@
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/BranchArrow.h"
+#include "Ui/Debugger/CommandBarDock.h"
 #include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
@@ -117,6 +118,11 @@ public:
     //  test's is, has none closed.
     virtual std::string  GetDebuggerClosedPanes ()                         { return {}; }
     virtual void         SetDebuggerClosedPanes (const std::string &)      {}
+
+    //  Where the command bar is docked, in CommandBarDock's text, kept the
+    //  same way. A host with no preferences keeps it across the top.
+    virtual std::string  GetDebuggerCommandBarDock ()                      { return {}; }
+    virtual void         SetDebuggerCommandBarDock (const std::string &)   {}
 
     //  Which optional views were open, in DebuggerViewState's text for them,
     //  kept the same way.
@@ -488,6 +494,7 @@ private:
     void     RunCommandBarEntry  (int id);
     bool     IsCommandBarEntryEnabled (int id) const;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
+    bool     RouteCommandBarDrag  (const DxuiMouseEvent & ev);
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -810,4 +817,12 @@ private:
     //  menu opened that comes forward once the next snapshot shows it.
     std::set<std::wstring>                                                           m_closedPanes;
     std::wstring                                                                     m_pendingShowPane;
+
+    //  The command bar's edge and place along it, and a drag of its grab
+    //  handle in progress, with where in the bar the handle was taken and
+    //  the region under the menu bar it docks around.
+    CommandBarDock                                                                   m_barDock;
+    RECT                                                                             m_barArea     = {};
+    bool                                                                             m_barDragging = false;
+    POINT                                                                            m_barGrab     = {};
 };

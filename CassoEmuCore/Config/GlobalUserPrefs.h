@@ -248,6 +248,10 @@ struct GlobalUserPrefs
     // spaces, so they stay closed in the next session.
     std::string  debuggerClosedPanes;
 
+    // Where the debugger's command bar is docked: its edge and its place
+    // along it, as "left 120".
+    std::string  debuggerCommandBarDock;
+
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one
     // following the PC, memory windows 2 to 4, and device panels. The layout

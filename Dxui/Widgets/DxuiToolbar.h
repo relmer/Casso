@@ -197,6 +197,26 @@ public:
     static constexpr int    kCompactBandDp  = 26;
     static constexpr float  kCompactIconDip = 12.0f;
 
+    //  A strip docked against a side edge: its entries run top to bottom as
+    //  icons, unrotated, with no labels, so the band is as wide as a
+    //  horizontal strip is tall.
+    void  SetVertical      (bool vertical)               { m_vertical = vertical; }
+    bool  IsVertical       () const                      { return m_vertical; }
+
+    //  A strip the user can move: a grab handle at its leading end, which
+    //  the host hit-tests to start a drag. The handle takes kGripDp off the
+    //  strip's length.
+    void  SetGrabHandle    (bool grip)                   { m_grip = grip; }
+    RECT  GetGripRect      () const                      { return m_gripRect; }
+    bool  IsOnGrip         (int x, int y) const          { return m_grip && IsPointInRect (m_gripRect, x, y); }
+
+    static constexpr int    kGripDp         = 12;
+
+    //  The strip's length along its axis with nothing collapsed into See
+    //  more: every label shown when horizontal, icons alone when vertical,
+    //  and the grab handle included.
+    int   GetNaturalLengthPx (const DxuiDpiScaler & scaler);
+
     enum class Spacing
     {
         BtnMarginY,
@@ -368,6 +388,8 @@ private:
     RECT          GetFlyoutKeepAliveRc () const;
     void          LayoutFlyout         ();
     void          PlaceTrailingEntries (int rightPx);
+    void          LayoutVertical       (const RECT & bounds);
+    void          PaintGrip            (IDxuiPainter & painter, const IDxuiTheme & theme);
     void          OpenFlyout           (bool byKeyboard);
     void          CloseFlyout          ();
     void          OpenDropDown         (int commandId);
@@ -413,6 +435,9 @@ private:
     std::shared_ptr<DxuiCommand>    m_seeMore;
 
     bool                     m_compact        = false;
+    bool                     m_vertical       = false;
+    bool                     m_grip           = false;
+    RECT                     m_gripRect       = {};
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;
