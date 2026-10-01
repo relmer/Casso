@@ -5167,8 +5167,7 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
 //
 //  The menu of a pane's tab or title bar, as Visual Studio's: the pane's own
 //  actions, then Dock, Dock in tab group, Auto hide, Move to new window (from
-//  a tab), All to new window and Close, with the Dock To choices of FR-042 in
-//  a submenu. The one chosen runs through the site like a drop would.
+//  a tab), All to new window and Close. The one chosen runs through the site like a drop would.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5178,9 +5177,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     std::wstring                         tip;
     bool                                 fromTab = m_routingPane.empty() && !m_dockSite->GetTabAt (clientPx, tab, tip).empty();
     std::vector<DxuiDockSite::MenuItem>  items   = m_dockSite->GetPaneMenu (pane, fromTab);
-    std::vector<DxuiDockSite::MenuItem>  dockTo  = m_dockSite->GetDockToMenu (pane);
     std::vector<DxuiPopupMenuItem>       menu;
-    std::vector<DxuiPopupMenuItem>       sides;
     DxuiHwndSource                     * host    = GetMenuHost();
     int                                  slot    = GetSourceSlotOf (pane);
 
@@ -5257,25 +5254,6 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         m_menuCommands.back()->accelerator = item.accelerator;
         m_menuCommands.back()->isEnabled   = [enabled = item.enabled] { return enabled; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    //  The keyboard's Dock To choices, each edge and each other group, ahead
-    //  of Close.
-    for (const DxuiDockSite::MenuItem & item : dockTo)
-    {
-        if (!m_dockSite->GetPaneLayout().IsDocked (pane) || item.label == L"Auto hide" || item.label == L"Float")
-        {
-            continue;
-        }
-
-        m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { (void) action(); }));
-        sides.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    if (!sides.empty() && menu.size() >= 2)
-    {
-        m_menuCommands.push_back (MakeMenuCommand (L"Dock to", false, [] {}));
-        menu.insert (menu.end() - 2, DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (sides)));
     }
 
     DxuiContextMenu::Show (*host, clientPx.x, clientPx.y, std::move (menu));
@@ -8709,6 +8687,11 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     if (pane == DebuggerLayout::kCallStack)
     {
         return m_callStackFrame.get();
+    }
+
+    if (pane == DebuggerLayout::kBreakpoints)
+    {
+        return m_breakpointFrame.get();
     }
 
     if (pane == DebuggerLayout::kTrace)

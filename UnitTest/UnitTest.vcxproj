@@ -243,6 +243,7 @@
     <ClCompile Include="DebuggerTests\BreakpointUndoDetailTests.cpp" />
     <ClCompile Include="DebuggerTests\DirectPaneActionTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointVsLayoutTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerBreakpointPaneContentTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowCommandTipTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowMenuBarTests.cpp" />

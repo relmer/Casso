@@ -342,6 +342,7 @@ protected:
     void                                          KeepOpenViews          ();
     DxuiListView *                                GetBreakpointList      () const { return m_breakpointList; }
     void                                          SetSnapshotForTest     (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); }
+    IDxuiControl *                                GetPaneContentForTest  (const std::wstring & pane) const { return GetPaneContent (pane); }
 
     //  Protected so a test can work the breakpoints pane's toolbar (FR-119)
     //  as a click does, and see which of its buttons can act.
