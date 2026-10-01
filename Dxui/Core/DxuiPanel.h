@@ -128,12 +128,19 @@ public:
     size_t            GetChildCount () const                   override { return m_children.size(); }
     IDxuiControl *    GetChild      (size_t index) const       override { return (index < m_children.size()) ? m_children[index].raw : nullptr; }
 
+    //  A rectangle a child's painting stays inside, as a pane's controls stay
+    //  inside the pane: fills and text past it are cut off.
+    void              SetChildClip    (const IDxuiControl * child, const RECT & clip) { m_childClips[child] = clip; }
+    void              ClearChildClip  (const IDxuiControl * child)                    { m_childClips.erase (child); }
+    bool              TryGetChildClip (const IDxuiControl * child, RECT & clip) const;
+
 protected:
     void              OnVisibilityChanged() override;
 
 private:
     void              AppendChild  (std::unique_ptr<IDxuiControl> child);
     void              MarkDirty    ();
+    void              PaintChild   (IDxuiControl * child, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     //
     //  Unified child entry. Owned entries hold `owned` (a unique_ptr
@@ -149,11 +156,12 @@ private:
         std::unique_ptr<IDxuiControl>   owned;
     };
 
-    std::vector<ChildSlot>        m_children;
-    std::vector<IDxuiControl *>   m_topLayer;
-    std::unique_ptr<IDxuiLayout>  m_layout;
-    bool                          m_dirty         = false;
-    RECT                          m_lastBoundsDip = {};
-    DxuiDpiScaler                 m_lastScaler;
-    bool                          m_haveLast      = false;
+    std::vector<ChildSlot>                          m_children;
+    std::vector<IDxuiControl *>                     m_topLayer;
+    std::unordered_map<const IDxuiControl *, RECT>  m_childClips;
+    std::unique_ptr<IDxuiLayout>                    m_layout;
+    bool                                            m_dirty         = false;
+    RECT                                            m_lastBoundsDip = {};
+    DxuiDpiScaler                                   m_lastScaler;
+    bool                                            m_haveLast      = false;
 };

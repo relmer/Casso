@@ -210,6 +210,15 @@ protected:
     DxuiListView  * GetWatchList   () const { return m_watchList; }
     DxuiTextInput * GetPokeBox     () const { return m_pokeBox; }
 
+    //  Protected so a test can see which pane has the focus border.
+    std::wstring    GetPaneOfFocus () const;
+
+    //  Protected so a test can see the memory bar's buttons, and which of
+    //  them a narrow pane moves into its overflow menu.
+    std::vector<DxuiButton *>  GetMemoryButtons    () const;
+    DxuiButton *               GetMemoryMoreButton () const { return m_memoryMoreButton; }
+    std::vector<DxuiButton *>  GetMemoryOverflow   () const { return m_memoryOverflow; }
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -293,7 +302,6 @@ private:
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
     void     ClosePane          (const std::wstring & pane);
-    std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> extra);
@@ -328,6 +336,8 @@ private:
     void     AddMemoryWindow    ();
     void     RemoveMemoryWindow ();
     void     PlaceMemoryBar     ();
+    void     ShowMemoryOverflow ();
+    void     ClipPaneControls   ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
     bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
@@ -374,7 +384,6 @@ private:
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;
-    std::vector<DxuiButton *>    GetMemoryButtons  () const;
     std::vector<MemoryPane *>    GetOpenMemoryPanes () const;
     MemoryPane *                 GetActiveMemoryPane () const;
     MemoryPane *                 GetFocusedMemoryPane () const;
@@ -481,6 +490,8 @@ private:
     DxuiButton                                                                     * m_groupButton        = nullptr;
     DxuiButton                                                                     * m_addMemoryButton    = nullptr;
     DxuiButton                                                                     * m_removeMemoryButton = nullptr;
+    DxuiButton                                                                     * m_memoryMoreButton   = nullptr;
+    std::vector<DxuiButton *>                                                        m_memoryOverflow;
     MemoryPane                                                                     * m_activePane         = nullptr;
     std::string                                                                      m_machine;
     DxuiTextView                                                                   * m_consoleView        = nullptr;

@@ -470,7 +470,7 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
     {
         if (slot.raw->IsVisible() && std::find (m_topLayer.begin(), m_topLayer.end(), slot.raw) == m_topLayer.end())
         {
-            slot.raw->Paint (painter, text, theme);
+            PaintChild (slot.raw, painter, text, theme);
 
 #if defined (DXUI_DEBUG_BOUNDS)
             //
@@ -516,9 +516,76 @@ void DxuiPanel::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         if (isChild && child->IsVisible())
         {
-            child->Paint (painter, text, theme);
+            PaintChild (child, painter, text, theme);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintChild
+//
+//  One child, inside its clip when it has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPanel::PaintChild (IDxuiControl * child, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    HRESULT  hr      = S_OK;
+    RECT     clip    = {};
+    bool     clipped = TryGetChildClip (child, clip);
+    float    width   = 0.0f;
+    float    height  = 0.0f;
+
+
+
+    if (!clipped)
+    {
+        child->Paint (painter, text, theme);
+        return;
+    }
+
+    width  = (float) (std::max) (0L, clip.right  - clip.left);
+    height = (float) (std::max) (0L, clip.bottom - clip.top);
+
+    painter.PushClip ((float) clip.left, (float) clip.top, width, height);
+    hr = text.PushClipRect ((float) clip.left, (float) clip.top, width, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    child->Paint (painter, text, theme);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    painter.PopClip();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetChildClip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPanel::TryGetChildClip (const IDxuiControl * child, RECT & clip) const
+{
+    auto  found = m_childClips.find (child);
+
+
+
+    if (found == m_childClips.end())
+    {
+        return false;
+    }
+
+    clip = found->second;
+    return true;
 }
 
 

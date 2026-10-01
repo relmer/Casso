@@ -424,6 +424,8 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
     {
         group->SetFocusedLook (found != m_panes.end() && group->IndexOf (found->second.content) >= 0);
     }
+
+    m_slidGroup.SetFocusedLook (!m_slidPane.empty() && m_slidPane == pane);
 }
 
 

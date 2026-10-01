@@ -78,6 +78,56 @@ public:
         painter.FillConvexQuad (0.0f, 0.0f, kSizePx, 0.0f, kSizePx, kSizePx, 0.0f, kRadiusPx, 0xFFFFFFFF);
         Assert::AreEqual (6 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"FillConvexQuad");
     }
+
+
+    //  A fill wholly outside the clip draws nothing, one partly inside draws,
+    //  and the clip ends at its PopClip.
+    TEST_METHOD (PushClip_DropsWhatFallsOutside)
+    {
+        constexpr int  kVerticesPerQuad = 6;
+
+        DxuiPainter  painter;
+
+
+
+        painter.PushClip (0.0f, 0.0f, 10.0f, 10.0f);
+
+        painter.FillRect (20.0f, 20.0f, 5.0f, 5.0f, 0xFFFFFFFF);
+        Assert::AreEqual (0, painter.GetPendingVertexCount(), L"outside the clip");
+
+        painter.FillRect (5.0f, 5.0f, 10.0f, 10.0f, 0xFFFFFFFF);
+        Assert::AreEqual (kVerticesPerQuad, painter.GetPendingVertexCount(), L"partly inside");
+
+        painter.PopClip();
+
+        painter.FillRect (20.0f, 20.0f, 5.0f, 5.0f, 0xFFFFFFFF);
+        Assert::AreEqual (2 * kVerticesPerQuad, painter.GetPendingVertexCount(), L"after the clip is popped");
+    }
+
+
+    TEST_METHOD (TryClipRect_CutsToTheOverlap)
+    {
+        D2D1_RECT_F  clip = { 0.0f, 0.0f, 10.0f, 10.0f };
+        float        x0   = 5.0f;
+        float        y0   = -5.0f;
+        float        x1   = 15.0f;
+        float        y1   = 5.0f;
+
+
+
+        Assert::IsTrue   (DxuiPainter::TryClipRect (clip, x0, y0, x1, y1));
+        Assert::AreEqual (5.0f,  x0);
+        Assert::AreEqual (0.0f,  y0);
+        Assert::AreEqual (10.0f, x1);
+        Assert::AreEqual (5.0f,  y1);
+
+        x0 = 11.0f;
+        y0 = 0.0f;
+        x1 = 12.0f;
+        y1 = 5.0f;
+
+        Assert::IsFalse  (DxuiPainter::TryClipRect (clip, x0, y0, x1, y1), L"no overlap");
+    }
 };
 
 }   // namespace UiTests

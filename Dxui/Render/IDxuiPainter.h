@@ -112,4 +112,10 @@ public:
     // mock or a simple painter compiles unchanged.
     virtual void   SetOrigin (float xPx, float yPx)                           { (void) xPx; (void) yPx; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
+
+    // A rectangle nothing drawn after it reaches outside of, until the
+    // matching PopClip. Clips nest, each inside the one before. Defaulted to
+    // a no-op so a mock or a simple painter compiles unchanged.
+    virtual void   PushClip (float xPx, float yPx, float widthPx, float heightPx) { (void) xPx; (void) yPx; (void) widthPx; (void) heightPx; }
+    virtual void   PopClip  ()                                                    {}
 };

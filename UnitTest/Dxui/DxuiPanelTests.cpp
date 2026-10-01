@@ -450,5 +450,64 @@ public:
         Assert::AreEqual ((LONG) 60,  b.GetBounds().left);
         Assert::AreEqual ((LONG) 140, b.GetBounds().right);
     }
+
+
+    //  The clips a painter is given, and how many times the child had painted
+    //  when each was pushed and popped.
+    class ClipRecordingPainter : public MockDxuiPainter
+    {
+    public:
+        explicit ClipRecordingPainter (const MockDxuiControl & child) : m_child (child) {}
+
+        void  PushClip (float xPx, float yPx, float widthPx, float heightPx) override
+        {
+            pushed.push_back (RECT { (LONG) xPx, (LONG) yPx, (LONG) (xPx + widthPx), (LONG) (yPx + heightPx) });
+            paintsAtPush = m_child.paintCount;
+        }
+
+        void  PopClip() override
+        {
+            popped++;
+            paintsAtPop = m_child.paintCount;
+        }
+
+        std::vector<RECT>  pushed;
+        int                popped       = 0;
+        int                paintsAtPush = -1;
+        int                paintsAtPop  = -1;
+
+    private:
+        const MockDxuiControl  & m_child;
+    };
+
+
+    TEST_METHOD (ChildClip_WrapsTheChildsPaintOnly)
+    {
+        DxuiPanel              panel;
+        MockDxuiControl      & clipped   = panel.Add<MockDxuiControl>();
+        MockDxuiControl      & unclipped = panel.Add<MockDxuiControl>();
+        ClipRecordingPainter   painter (clipped);
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        RECT                   clip      = MakeRect (10, 20, 110, 70);
+
+
+
+        panel.SetChildClip (&clipped, clip);
+        panel.Paint (painter, text, theme);
+
+        Assert::AreEqual ((size_t) 1, painter.pushed.size(),          L"one clip, for the one clipped child");
+        Assert::IsTrue   (EqualRect (&clip, &painter.pushed[0]) != FALSE);
+        Assert::AreEqual (1, painter.popped);
+        Assert::AreEqual (0, painter.paintsAtPush,                    L"pushed before the child paints");
+        Assert::AreEqual (1, painter.paintsAtPop,                     L"popped after it");
+        Assert::AreEqual (1, unclipped.paintCount);
+
+        panel.ClearChildClip (&clipped);
+        painter.pushed.clear();
+        panel.Paint (painter, text, theme);
+
+        Assert::AreEqual ((size_t) 0, painter.pushed.size(),          L"cleared");
+    }
 };
 

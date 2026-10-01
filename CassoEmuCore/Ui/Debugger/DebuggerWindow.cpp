@@ -199,6 +199,7 @@ void DebuggerWindow::OnCreate()
     m_groupButton       = CreateChild<DxuiButton>    (L"Bytes");
     m_addMemoryButton   = CreateChild<DxuiButton>    (L"+ Memory");
     m_removeMemoryButton = CreateChild<DxuiButton>   (L"- Memory");
+    m_memoryMoreButton  = CreateChild<DxuiButton>    (std::wstring (1, s_kchEllipsis));
     m_findBox           = CreateChild<DxuiTextInput> ();
     m_findCaseBox       = CreateChild<DxuiCheckbox>  (L"Match case");
     m_findWordBox       = CreateChild<DxuiCheckbox>  (L"Match whole word");
@@ -315,6 +316,8 @@ void DebuggerWindow::ConfigureWidgets()
     //  the keyboard's sake but not shown.
     m_addMemoryButton->SetVisible (false);
     m_removeMemoryButton->SetOnClick ([this] { RemoveMemoryWindow(); });
+    m_memoryMoreButton->SetOnClick   ([this] { ShowMemoryOverflow(); });
+    m_memoryMoreButton->SetVisible   (false);
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -880,6 +883,8 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
     {
         targets.push_back (button);
     }
+
+    targets.push_back (m_memoryMoreButton);
 
     targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox, m_pokeBox });
 
@@ -2496,6 +2501,7 @@ void DebuggerWindow::LayoutWidgets()
     UpdateCodeLines();
     PlaceMemoryBar();
     PlaceFindBar();
+    ClipPaneControls();
 }
 
 
@@ -2544,13 +2550,17 @@ void DebuggerWindow::UpdateCodeLines()
 
 void DebuggerWindow::PlaceMemoryBar()
 {
-    auto                 px    = [this] (int dip) { return m_scaler.ToPx (dip); };
-    int                  pad   = px (6);
-    DebuggerPaneFrame  * bar   = nullptr;
-    MemoryPane         * owner = GetActiveMemoryPane();
-    RECT                 slot  = {};
-    int                  x     = 0;
-    auto                 isHere = [this] (size_t i)
+    auto                         px      = [this] (int dip) { return m_scaler.ToPx (dip); };
+    int                          pad     = px (6);
+    DebuggerPaneFrame          * bar     = nullptr;
+    MemoryPane                 * owner   = GetActiveMemoryPane();
+    RECT                         slot    = {};
+    int                          x       = 0;
+    int                          buttonW = px (80);
+    int                          moreW   = px (30);
+    int                          fits    = 0;
+    std::vector<DxuiButton *>    buttons;
+    auto                         isHere  = [this] (size_t i)
     {
         return m_memoryBars[i] != nullptr && m_memoryBars[i]->IsVisible() &&
                !m_floats.contains (DebuggerLayout::GetMemoryPaneId ((int) i + 1));
@@ -2573,7 +2583,7 @@ void DebuggerWindow::PlaceMemoryBar()
 
     //  A hidden box keeps no focus, or it would go on taking the keys; they
     //  go back to the command line, as they do when the find bar closes.
-    for (IDxuiControl * control : { (IDxuiControl *) m_memoryBox, (IDxuiControl *) m_pokeBox })
+    for (IDxuiControl * control : { (IDxuiControl *) m_memoryBox, (IDxuiControl *) m_pokeBox, (IDxuiControl *) m_memoryMoreButton })
     {
         control->SetVisible (bar != nullptr);
 
@@ -2593,8 +2603,11 @@ void DebuggerWindow::PlaceMemoryBar()
         }
     }
 
+    m_memoryOverflow.clear();
+
     if (bar == nullptr)
     {
+        m_memoryMoreButton->SetVisible (false);
         return;
     }
 
@@ -2604,10 +2617,137 @@ void DebuggerWindow::PlaceMemoryBar()
     m_memoryBox->Layout (RECT { x, slot.top, x + px (150), slot.bottom }, m_scaler);  x += px (150) + pad;
     m_pokeBox->Layout   (RECT { x, slot.top, x + px (190), slot.bottom }, m_scaler);  x += px (190) + pad;
 
-    for (DxuiButton * button : GetMemoryButtons())
+    //  A button that does not fit goes into the overflow menu, and the
+    //  overflow button takes the room at the end of what does.
+    buttons = GetMemoryButtons();
+    fits    = (int) buttons.size();
+
+    if (x + fits * (buttonW + pad) - pad > slot.right)
     {
-        button->Layout (RECT { x, slot.top, x + px (80), slot.bottom }, m_scaler);
-        x += px (80) + pad;
+        fits = 0;
+
+        while (fits + 1 < (int) buttons.size() && x + (fits + 1) * (buttonW + pad) + moreW <= slot.right)
+        {
+            fits++;
+        }
+    }
+
+    for (size_t i = 0; i < buttons.size(); i++)
+    {
+        bool  shown = (int) i < fits;
+
+        buttons[i]->SetVisible (shown);
+
+        if (!shown)
+        {
+            if (m_focusMgr.GetFocusedControl() == buttons[i])
+            {
+                m_focusMgr.SetFocused (m_commandBox);
+            }
+
+            m_memoryOverflow.push_back (buttons[i]);
+            continue;
+        }
+
+        buttons[i]->Layout (RECT { x, slot.top, x + buttonW, slot.bottom }, m_scaler);
+        x += buttonW + pad;
+    }
+
+    m_memoryMoreButton->SetVisible (!m_memoryOverflow.empty());
+
+    if (m_memoryOverflow.empty() && m_focusMgr.GetFocusedControl() == m_memoryMoreButton)
+    {
+        m_focusMgr.SetFocused (m_commandBox);
+    }
+
+    if (!m_memoryOverflow.empty())
+    {
+        m_memoryMoreButton->Layout (RECT { x, slot.top, x + moreW, slot.bottom }, m_scaler);
+    }
+
+    SetChildClip (m_memoryBox,        slot);
+    SetChildClip (m_pokeBox,          slot);
+    SetChildClip (m_memoryMoreButton, slot);
+
+    for (DxuiButton * button : buttons)
+    {
+        SetChildClip (button, slot);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowMemoryOverflow
+//
+//  The memory buttons a narrow pane had no room for, as a menu under the
+//  overflow button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowMemoryOverflow()
+{
+    std::vector<DxuiPopupMenuItem>  menu;
+    DxuiHwndSource                * host   = GetPopupHost();
+    RECT                            anchor = m_memoryMoreButton->GetBounds();
+
+
+
+    if (host == nullptr || m_memoryOverflow.empty())
+    {
+        return;
+    }
+
+    m_menuCommands.clear();
+    SetCommandBarMenus();
+
+    for (DxuiButton * button : m_memoryOverflow)
+    {
+        m_menuCommands.push_back (MakeMenuCommand (button->GetAccessibleName(), false, [button] { button->Click(); }));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::Show (*host, anchor.left, anchor.bottom, std::move (menu));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClipPaneControls
+//
+//  Each pane's controls paint inside the pane, so nothing a control draws
+//  past its edge lands on a neighbor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ClipPaneControls()
+{
+    for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
+    {
+        IDxuiControl  * content = GetPaneContent (pane);
+        RECT            clip    = {};
+
+
+
+        if (content == nullptr)
+        {
+            continue;
+        }
+
+        clip = content->GetBounds();
+
+        SetChildClip (content, clip);
+
+        for (IDxuiControl * control : GetPaneControls (pane))
+        {
+            SetChildClip (control, clip);
+        }
     }
 }
 
@@ -3102,6 +3242,7 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
 std::wstring DebuggerWindow::GetPaneOfFocus() const
 {
     IDxuiControl  * focused = GetFocused();
+    std::wstring    owner;
 
 
 
@@ -3134,6 +3275,16 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
         {
             return DebuggerLayout::GetDiagnosticsPaneId (pane->GetId());
         }
+    }
+
+    //  A pane docked as a frame -- a disassembly view, the call stack, a
+    //  memory window -- holds its focusable controls inside the frame, so
+    //  the dock site, which knows only the frame, cannot place them.
+    owner = GetPaneOfControl (focused);
+
+    if (!owner.empty())
+    {
+        return owner;
     }
 
     return m_dockSite->GetPaneOf (focused);
@@ -3667,6 +3818,8 @@ void DebuggerWindow::RenderFrame()
     SyncFloats();
     PlaceMemoryBar();
     PlaceFindBar();
+    ClipPaneControls();
+
     for (SourceDocument & document : m_sourceDocs)
     {
         document.pane->FollowMarkedLine();
@@ -5630,6 +5783,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             {
                 button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
             }
+
+            m_memoryMoreButton->SetMouse (x, y, m_memoryMoreButton->HitTest (x, y) && lbDown);
         }
 
         for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })

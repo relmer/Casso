@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DxuiColorTests
 //
 //  The focus accent: the theme's accent where it stands apart from the
-//  background, and its complement where the background shares its hue.
+//  background, and magenta where the background shares its hue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,12 +26,24 @@ public:
     static int  Blue  (uint32_t argb) { return (int) ( argb        & 0xFFu); }
 
 
-    TEST_METHOD (ABlueAccentOnABlueBackgroundTurnsOrange)
+    TEST_METHOD (ABlueAccentOnABlueBackgroundTurnsMagenta)
     {
         uint32_t  focus = DxuiColor::ComputeFocusAccent (0xFF4EA8FFu, 0xFF1B2433u);
 
-        Assert::IsTrue (Red (focus) > Green (focus) && Green (focus) > Blue (focus), L"a warm color, red over green over blue");
+        Assert::IsTrue (Red (focus) >= 0xF0 && Blue (focus) >= 0xF0, L"magenta, not orange");
+        Assert::IsTrue (Green (focus) <= 0x40, L"saturated, not pastel");
         Assert::AreEqual (0xFF000000u, focus & 0xFF000000u, L"opaque as the accent is");
+    }
+
+
+    //  Magenta would not stand out on a magenta background, so the accent's
+    //  complement is used there instead.
+    TEST_METHOD (AMagentaAccentOnAMagentaBackgroundTurnsToItsComplement)
+    {
+        uint32_t  focus = DxuiColor::ComputeFocusAccent (0xFFFF4EFFu, 0xFF331B33u);
+
+        Assert::IsTrue (Green (focus) >= 0xF0, L"green");
+        Assert::IsTrue (Red (focus) <= 0x40 && Blue (focus) <= 0x40, L"saturated, not pastel");
     }
 
 

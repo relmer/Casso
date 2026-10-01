@@ -103,8 +103,12 @@ public:
     void    SetGlobalAlpha (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
     void    SetOrigin      (float xPx, float yPx)   override { m_originXPx = xPx; m_originYPx = yPx; }
     float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
+    void    PushClip       (float xPx, float yPx, float widthPx, float heightPx) override;
+    void    PopClip        ()                                                    override;
 
     int     GetPendingVertexCount () const { return (int) m_vertices.size(); }
+
+    static bool  TryClipRect (const D2D1_RECT_F & clip, float & x0, float & y0, float & x1, float & y1);
 
 private:
     static constexpr size_t  kInitialVertexCapacity = 1024;
@@ -190,6 +194,12 @@ private:
                                   float       nx[4],
                                   float       ny[4],
                                   float       offset[4]);
+    static Vertex LerpCorners    (const Vertex & topLeft,
+                                  const Vertex & topRight,
+                                  const Vertex & bottomLeft,
+                                  const Vertex & bottomRight,
+                                  float          u,
+                                  float          v);
 
 
     ID3D11Device                    * m_device  = nullptr;   // non-owning
@@ -212,4 +222,5 @@ private:
     float                             m_originYPx            = 0.0f;
 
     std::vector<Vertex>               m_vertices;
+    std::vector<D2D1_RECT_F>          m_clips;                  // screen pixels, innermost last
 };

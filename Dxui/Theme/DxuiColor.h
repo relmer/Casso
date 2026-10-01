@@ -162,10 +162,11 @@ public:
     //
     //  The accent that marks what has focus. A blue accent on a blue-tinted
     //  background reads as more of the same, not as a highlight, so where the
-    //  background carries a hue near the accent's this is the accent's
-    //  complement -- orange for blue -- made vivid, since a pale accent's
-    //  complement is a pastel that a one-pixel line loses. On a gray
-    //  background, or one tinted another way, it is the accent itself.
+    //  background carries a hue near the accent's this is a vivid magenta, or
+    //  the accent's complement where the background is itself near magenta.
+    //  Either is made vivid, since a pale color is a pastel that a one-pixel
+    //  line loses. On a gray background, or one tinted another way, it is the
+    //  accent itself.
     //
     static uint32_t ComputeFocusAccent (uint32_t accent, uint32_t background)
     {
@@ -173,33 +174,48 @@ public:
         constexpr float  s_kSameHueDeg   = 60.0f;    // hues this close read as one color
         constexpr float  s_kHalfTurnDeg  = 180.0f;
         constexpr float  s_kFullTurnDeg  = 360.0f;
-        constexpr float  s_kVividSat     = 0.8f;     // the least saturation of a complement
+        constexpr float  s_kMagentaDeg   = 300.0f;
+        constexpr float  s_kVividSat     = 0.8f;     // the least saturation of the substitute
         constexpr float  s_kVividValue   = 0.95f;    // and the least brightness
 
-        float  ah    = 0.0f;
-        float  as    = 0.0f;
-        float  av    = 0.0f;
-        float  bh    = 0.0f;
-        float  bs    = 0.0f;
-        float  bv    = 0.0f;
-        float  apart = 0.0f;
+        float  ah  = 0.0f;
+        float  as  = 0.0f;
+        float  av  = 0.0f;
+        float  bh  = 0.0f;
+        float  bs  = 0.0f;
+        float  bv  = 0.0f;
+        float  hue = s_kMagentaDeg;
 
         ToHsv (accent,     ah, as, av);
         ToHsv (background, bh, bs, bv);
 
-        apart = std::fabs (ah - bh);
-        apart = (apart > s_kHalfTurnDeg) ? s_kFullTurnDeg - apart : apart;
-
-        if (bs < s_kMinTintSat || apart > s_kSameHueDeg)
+        if (bs < s_kMinTintSat || GetHueDistance (ah, bh) > s_kSameHueDeg)
         {
             return accent;
         }
 
-        return FromHsv (std::fmod (ah + s_kHalfTurnDeg, s_kFullTurnDeg), (std::max) (as, s_kVividSat), (std::max) (av, s_kVividValue), accent & 0xFF000000u);
+        if (GetHueDistance (hue, bh) <= s_kSameHueDeg)
+        {
+            hue = std::fmod (ah + s_kHalfTurnDeg, s_kFullTurnDeg);
+        }
+
+        return FromHsv (hue, (std::max) (as, s_kVividSat), (std::max) (av, s_kVividValue), accent & 0xFF000000u);
     }
 
 
 private:
+    //  The angle between two hues in degrees, 0..180.
+    static float GetHueDistance (float a, float b)
+    {
+        constexpr float  s_kHalfTurnDeg = 180.0f;
+        constexpr float  s_kFullTurnDeg = 360.0f;
+
+        float  apart = std::fabs (a - b);
+
+        return (apart > s_kHalfTurnDeg) ? s_kFullTurnDeg - apart : apart;
+    }
+
+
     //  Hue in degrees, saturation and value 0..1.
     static void ToHsv (uint32_t argb, float & h, float & s, float & v)
     {

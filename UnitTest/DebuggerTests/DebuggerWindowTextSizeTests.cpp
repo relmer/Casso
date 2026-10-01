@@ -120,6 +120,10 @@ namespace DebuggerTests
         using DebuggerWindow::GetMenuCommands;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::GetPaneOfControl;
+        using DebuggerWindow::GetPaneOfFocus;
+        using DebuggerWindow::GetMemoryButtons;
+        using DebuggerWindow::GetMemoryMoreButton;
+        using DebuggerWindow::GetMemoryOverflow;
         using DebuggerWindow::GetWatchEditor;
 
         //  A key as the window's message handling delivers it: to the window
@@ -937,6 +941,23 @@ namespace DebuggerTests
             window.Type (L"12");
             Assert::AreEqual (std::wstring(), window.GetPokeBox()->GetText(), L"and nothing is typed into the hidden box");
         }
+
+
+        //  A disassembly view is docked as a frame over its lines, so the
+        //  focused list is not itself what the dock site places.
+        TEST_METHOD (AFocusedListInsideAFrameMarksItsPane)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window);
+            window.FocusControl (window.GetCodeList (0));
+
+            Assert::AreEqual (DebuggerLayout::GetCodePaneId (0), window.GetPaneOfFocus(), L"the disassembly pane has the focus border");
+        }
     };
 
 
@@ -1053,6 +1074,93 @@ namespace DebuggerTests
             //  A floated pane takes its controls with it; the editor opens
             //  over the watch list, so it has to be one of them.
             Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfControl (window.GetWatchEditor()));
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerWindowPaneBoundsTests
+    //
+    //  A pane's controls stay inside the pane: each paints inside a clip of
+    //  the pane's bounds, and a bar button with no room goes into the bar's
+    //  overflow menu rather than past the pane's edge.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerWindowPaneBoundsTests)
+    {
+    public:
+
+        TEST_METHOD (MemoryButtonsWithNoRoomMoveToTheOverflowMenu)
+        {
+            static constexpr LONG  kWidths[] = { 760, 900, 1100, 1400, 1800 };
+
+            CassoTheme          theme       = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window      (theme, host);
+            DxuiDpiScaler       scaler;
+            bool                overflowed  = false;
+
+
+
+            DebuggerWindowFocusTests::Build (window);
+            window.TakeSnapshot (DebuggerWindowFocusTests::MakeSnapshot ("Apple2e", true));
+            scaler.SetDpi (96);
+
+            for (LONG width : kWidths)
+            {
+                RECT    bar    = {};
+                size_t  shown  = 0;
+
+                window.Layout (RECT { 0, 0, width, 840 }, scaler);
+
+                Assert::IsTrue (window.TryGetChildClip (window.GetMemoryBox(), bar), L"the memory bar's controls are clipped to the bar");
+
+                for (DxuiButton * button : window.GetMemoryButtons())
+                {
+                    if (button->IsVisible())
+                    {
+                        shown++;
+                        Assert::IsTrue (button->GetBounds().right <= bar.right, std::format (L"a shown button stays inside the pane at width {}", width).c_str());
+                    }
+                }
+
+                Assert::AreEqual (window.GetMemoryButtons().size(), shown + window.GetMemoryOverflow().size(), L"every button is shown or in the overflow menu");
+                Assert::AreEqual (!window.GetMemoryOverflow().empty(), window.GetMemoryMoreButton()->IsVisible(), L"the overflow button shows only with something in it");
+
+                if (window.GetMemoryMoreButton()->IsVisible())
+                {
+                    overflowed = true;
+                    Assert::IsTrue (window.GetMemoryMoreButton()->GetBounds().right <= bar.right, L"the overflow button stays inside the pane");
+                }
+            }
+
+            Assert::IsTrue (overflowed, L"some width leaves too little room for every button");
+        }
+
+
+        TEST_METHOD (APaneControlPaintsInsideItsPane)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            RECT                clip   = {};
+            RECT                list   = {};
+
+
+
+            DebuggerWindowFocusTests::Build (window);
+
+            Assert::IsTrue (window.TryGetChildClip (window.GetCodeList (0), clip), L"the disassembly list has a clip");
+
+            list = window.GetCodeList (0)->GetBounds();
+
+            Assert::IsTrue (clip.left <= list.left && clip.top <= list.top && list.right <= clip.right && list.bottom <= clip.bottom,
+                            L"the clip is its pane, which holds the list");
         }
     };
 }

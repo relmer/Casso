@@ -341,6 +341,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_viewportWidthPx  = viewportWidthPx;
     m_viewportHeightPx = viewportHeightPx;
     m_vertices.clear();
+    m_clips.clear();
     m_betweenBeginEnd  = true;
 
 Error:
@@ -433,20 +434,166 @@ void DxuiPainter::PushQuad (
     Vertex  br = bottomRight;
     float   x0 = xPx + m_originXPx;
     float   y0 = yPx + m_originYPx;
+    float   x1 = x0 + widthPx;
+    float   y1 = y0 + heightPx;
+    float   u0 = 0.0f;
+    float   v0 = 0.0f;
+    float   u1 = 1.0f;
+    float   v1 = 1.0f;
 
 
 
     // The origin is applied HERE and only here: every primitive, spans and
-    // arcs included, reaches the vertex buffer through this function.
-    NdcFromPixel (x0,            y0,            tl.x, tl.y);
-    NdcFromPixel (x0 + widthPx,  y0,            tr.x, tr.y);
-    NdcFromPixel (x0,            y0 + heightPx, bl.x, bl.y);
-    NdcFromPixel (x0 + widthPx,  y0 + heightPx, br.x, br.y);
+    // arcs included, reaches the vertex buffer through this function. So
+    // is the clip, which cuts the quad down and carries every attribute at
+    // the new corners, color and shape position alike, to match.
+    if (!m_clips.empty())
+    {
+        if (!TryClipRect (m_clips.back(), x0, y0, x1, y1))
+        {
+            return;
+        }
+
+        if (widthPx > 0.0f)
+        {
+            u0 = (x0 - xPx - m_originXPx) / widthPx;
+            u1 = (x1 - xPx - m_originXPx) / widthPx;
+        }
+
+        if (heightPx > 0.0f)
+        {
+            v0 = (y0 - yPx - m_originYPx) / heightPx;
+            v1 = (y1 - yPx - m_originYPx) / heightPx;
+        }
+
+        tl = LerpCorners (topLeft, topRight, bottomLeft, bottomRight, u0, v0);
+        tr = LerpCorners (topLeft, topRight, bottomLeft, bottomRight, u1, v0);
+        bl = LerpCorners (topLeft, topRight, bottomLeft, bottomRight, u0, v1);
+        br = LerpCorners (topLeft, topRight, bottomLeft, bottomRight, u1, v1);
+    }
+
+    NdcFromPixel (x0, y0, tl.x, tl.y);
+    NdcFromPixel (x1, y0, tr.x, tr.y);
+    NdcFromPixel (x0, y1, bl.x, bl.y);
+    NdcFromPixel (x1, y1, br.x, br.y);
 
     // Two triangles per quad: (tl, tr, bl) and (bl, tr, br). Append all six in
     // one insert so the vector grows/size-checks once rather than six times
     // (the six 24-byte copies are the same either way; Vertex is a POD).
     m_vertices.insert (m_vertices.end(), { tl, tr, bl, bl, tr, br });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryClipRect
+//
+//  Cuts the rectangle from (x0, y0) to (x1, y1) down to the part inside the
+//  clip. False when nothing of it is left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPainter::TryClipRect (const D2D1_RECT_F & clip, float & x0, float & y0, float & x1, float & y1)
+{
+    x0 = (std::max) (x0, clip.left);
+    y0 = (std::max) (y0, clip.top);
+    x1 = (std::min) (x1, clip.right);
+    y1 = (std::min) (y1, clip.bottom);
+
+    return x0 < x1 && y0 < y1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LerpCorners
+//
+//  A vertex at fraction (u, v) across a quad, every attribute interpolated
+//  from its four corners as the rasterizer would.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPainter::Vertex DxuiPainter::LerpCorners (
+    const Vertex & topLeft,
+    const Vertex & topRight,
+    const Vertex & bottomLeft,
+    const Vertex & bottomRight,
+    float          u,
+    float          v)
+{
+    constexpr size_t  kFloats = sizeof (Vertex) / sizeof (float);
+
+
+
+    Vertex         out;
+    const float  * tl  = reinterpret_cast<const float *> (&topLeft);
+    const float  * tr  = reinterpret_cast<const float *> (&topRight);
+    const float  * bl  = reinterpret_cast<const float *> (&bottomLeft);
+    const float  * br  = reinterpret_cast<const float *> (&bottomRight);
+    float        * dst = reinterpret_cast<float *> (&out);
+
+
+
+    for (size_t i = 0; i < kFloats; i++)
+    {
+        float  top    = tl[i] + (tr[i] - tl[i]) * u;
+        float  bottom = bl[i] + (br[i] - bl[i]) * u;
+
+        dst[i] = top + (bottom - top) * v;
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushClip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::PushClip (float xPx, float yPx, float widthPx, float heightPx)
+{
+    D2D1_RECT_F  clip = { xPx + m_originXPx, yPx + m_originYPx, xPx + m_originXPx + widthPx, yPx + m_originYPx + heightPx };
+
+
+
+    if (!m_clips.empty())
+    {
+        if (!TryClipRect (m_clips.back(), clip.left, clip.top, clip.right, clip.bottom))
+        {
+            clip = { clip.left, clip.top, clip.left, clip.top };
+        }
+    }
+
+    m_clips.push_back (clip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PopClip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::PopClip()
+{
+    if (!m_clips.empty())
+    {
+        m_clips.pop_back();
+    }
 }
 
 
