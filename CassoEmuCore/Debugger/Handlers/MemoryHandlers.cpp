@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 
 #include "Config/IFileSystem.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/BinaryImageReader.h"
 #include "Debugger/DebugSession.h"
@@ -551,6 +552,9 @@ std::string MemoryHandlers::LoadCompanion (DebugSession & session, IFileSystem &
     size_t                        slash         = name.find_last_of ("/\\:");
     size_t                        dot           = name.rfind ('.');
     std::string                   base          = name;
+    std::string                   resolved;
+    std::string                   line;
+    DebugCommand                  symbols;
     Reply                         loaded;
 
 
@@ -571,12 +575,25 @@ std::string MemoryHandlers::LoadCompanion (DebugSession & session, IFileSystem &
             continue;
         }
 
-        loaded = session.ExecuteLine (std::format ("SYM LOAD \"{}\"", sibling), CommandMode::AppleWin);
+        resolved            = TextEncoding::WideToNarrow (session.ResolvePath (sibling));
+        symbols.verb        = DebugVerb::LoadSymbols;
+        symbols.sourceName  = "BLOAD";
+        symbols.text        = std::format ("\"{}\"", resolved);
+        loaded              = session.Execute (symbols);
         AppleWinFormatter::Format (loaded);
 
+        //  The file was never typed, so its line always gives the path it
+        //  was read from.
         if (loaded.status == CommandStatus::Ok && !loaded.text.empty())
         {
-            return loaded.text.front();
+            line = loaded.text.front();
+
+            if (line.ends_with ('.') && line.find (" from ") == std::string::npos)
+            {
+                line.insert (line.size() - 1, " from " + resolved);
+            }
+
+            return line;
         }
 
         return loaded.error.detail.empty() ? std::string() : std::format ("{} was not loaded: {}", sibling, loaded.error.detail);
