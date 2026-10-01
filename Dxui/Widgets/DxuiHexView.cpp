@@ -716,8 +716,8 @@ void DxuiHexView::PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & the
             fill.top    -= margin;
             fill.bottom += margin;
 
-            FillCell (text, fill, theme.SelectionBackground());
-            argb = theme.Foreground();
+            FillCell (text, fill, GetSelectionFill (theme));
+            argb = GetSelectionInk (theme);
         }
 
         DrawCell (text, cell, chars, argb, font);
@@ -1034,6 +1034,54 @@ RECT DxuiHexView::GetValueSelectionRect (uint64_t first, const RECT & cell) cons
     }
 
     return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetSelectionFill
+//
+//  A theme's selection can sit close to its background, which reads as faint
+//  once the accent is gone from a view without focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiHexView::GetSelectionFill (const IDxuiTheme & theme)
+{
+    return DxuiColor::ComputeFillForContrast (theme.SelectionBackground(), theme.ContentBackground(), kSelectionFillContrast);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetSelectionInk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiHexView::GetSelectionInk (const IDxuiTheme & theme)
+{
+    constexpr float     kTextContrast = 4.5f;   // WCAG AA for text
+    constexpr uint32_t  kWhite        = 0xFFFFFFFF;
+    constexpr uint32_t  kBlack        = 0xFF000000;
+    uint32_t            fill          = GetSelectionFill (theme);
+    uint32_t            ink           = DxuiColor::ChooseInkFor (fill, theme.Foreground(), theme.ContentBackground());
+
+
+
+    //  Lifting the fill off the background can bring it close to the theme's
+    //  own inks; white or black then reads where they do not.
+    if (DxuiColor::ComputeContrastRatio (ink, fill) < kTextContrast)
+    {
+        ink = DxuiColor::ChooseInkFor (fill, kWhite, kBlack);
+    }
+
+    return ink;
 }
 
 
@@ -2824,7 +2872,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         }
         else if (selected)
         {
-            FillCell (text, GetValueSelectionRect (offset, cell), theme.SelectionBackground());
+            FillCell (text, GetValueSelectionRect (offset, cell), GetSelectionFill (theme));
         }
 
         shown = FormatValue (value, present);
@@ -2836,7 +2884,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
             shown.replace (0, m_pending.size(), m_pending);
         }
 
-        DrawCell (text, cell, shown.c_str(), selected ? theme.Foreground() : argb, font);
+        DrawCell (text, cell, shown.c_str(), selected ? GetSelectionInk (theme) : argb, font);
     }
 
     //  The text column, a byte at a time.
@@ -2856,8 +2904,8 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         }
         else if (IsByteSelected (offset))
         {
-            FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), theme.SelectionBackground());
-            argb = theme.Foreground();
+            FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), GetSelectionFill (theme));
+            argb = GetSelectionInk (theme);
         }
 
         DrawCell (text, txtRect, charOf.c_str(), argb, font);

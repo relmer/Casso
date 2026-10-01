@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/Reply.h"
+#include "Ui/Debugger/ByteChanges.h"
 #include "Widgets/DxuiHexView.h"
 
 
@@ -46,8 +47,12 @@ public:
 
     //  The bytes a snapshot read for this window, one region per byte; an
     //  unreadable (I/O) byte is empty. A byte whose value differs from the
-    //  one the previous snapshot read at its address is marked changed.
+    //  one an earlier snapshot read at its address is marked changed, as
+    //  ByteChanges says, whether the machine or an edit changed it.
     void  SetContents (Word first, std::vector<std::optional<Byte>> bytes, std::vector<MemoryRegion> regions);
+
+    //  Whether the machine is stopped, which holds the changed marks.
+    void  SetPaused   (bool isPaused) { m_isPaused = isPaused; }
 
     uint64_t  GetByteCount () const override { return kAddressSpace; }
     void      ReadBytes    (uint64_t offset, std::span<uint8_t> out) const override;
@@ -70,6 +75,10 @@ public:
     bool  CanRedo      () const { return !m_redo.empty(); }
     void  ClearHistory ()       { m_history.clear(); m_redo.clear(); }
 
+    //  The newest edit Undo or Redo would act on, as "changed 2 bytes at $0300".
+    std::wstring  GetUndoText () const;
+    std::wstring  GetRedoText () const;
+
 private:
     static constexpr uint64_t  kAddressSpace = 0x10000;
 
@@ -83,12 +92,13 @@ private:
     bool  TryGetShown   (uint64_t address, size_t & outIndex) const;
     void  SendPatch     (Word address, std::span<const Byte> bytes) const;
 
-    Word                                        m_first = 0;
-    std::vector<bool>                           m_changed;
-    Word                                        m_phase = 0;
-    mutable std::vector<std::optional<Byte>>    m_bytes;
-    std::vector<MemoryRegion>                   m_regions;
-    mutable std::vector<Edit>                   m_history;
-    mutable std::vector<Edit>                   m_redo;
-    PatchFn                                     m_onPatch;
+    Word                                      m_first    = 0;
+    ByteChanges                               m_changes;
+    Word                                      m_phase    = 0;
+    bool                                      m_isPaused = true;
+    mutable std::vector<std::optional<Byte>>  m_bytes;
+    std::vector<MemoryRegion>                 m_regions;
+    mutable std::vector<Edit>                 m_history;
+    mutable std::vector<Edit>                 m_redo;
+    PatchFn                                   m_onPatch;
 };

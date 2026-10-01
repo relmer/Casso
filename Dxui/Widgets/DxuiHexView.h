@@ -271,6 +271,15 @@ public:
 
     static constexpr int  kWheelRows = 3;
 
+    //  The fill behind selected bytes, focused or not, and the ink on it:
+    //  the theme's selection, moved off the background until it reaches WCAG
+    //  AA contrast for a non-text mark, and whichever of the foreground and
+    //  the background reads better over it.
+    static constexpr float  kSelectionFillContrast = 3.0f;
+
+    static uint32_t  GetSelectionFill (const IDxuiTheme & theme);
+    static uint32_t  GetSelectionInk  (const IDxuiTheme & theme);
+
     //  The most bytes Copy takes.
     static constexpr uint64_t  kMaxCopyBytes = 16 * 1024 * 1024;
 

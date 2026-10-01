@@ -44,6 +44,11 @@ struct DxuiCommand
     std::function<bool()>          isEnabled;
     std::function<std::wstring()>  labelText;
 
+    //  The tooltip when it moves with state, as "Undo changed 2 bytes at
+    //  $0300"; absent, the static tip. Cheap and free of side effects, as the
+    //  four above are.
+    std::function<std::wstring()>  tipText;
+
     //  Run when a menu's highlight moves onto the row, by pointer or key,
     //  for a row whose effect is shown before it is chosen. Unlike the four
     //  functors above it acts, and it runs only on that move, never on paint.
@@ -63,4 +68,7 @@ struct DxuiCommand
     //  What a toolbar draws: the short form when there is one, else the same
     //  text a menu row would show.
     std::wstring  GetShortText () const { return shortLabel.empty() ? GetLabelText() : shortLabel; }
+
+    //  The dynamic tooltip when supplied, else the static one.
+    std::wstring  GetTipText   () const { return tipText ? tipText() : tip; }
 };

@@ -14,19 +14,21 @@
 
 void MemoryEditModel::SetContents (Word first, std::vector<std::optional<Byte>> bytes, std::vector<MemoryRegion> regions)
 {
-    size_t  previous = 0;
+    ByteChanges::Seen  seen;
 
 
 
-    m_changed.assign (bytes.size(), false);
-
+    //  Compared with what the snapshots read, not with what an edit put on
+    //  screen at once, so an edit shows in the changed color as a step does.
     for (size_t i = 0; i < bytes.size(); i++)
     {
-        if (bytes[i].has_value() && TryGetShown ((uint64_t) first + i, previous) && m_bytes[previous].has_value())
+        if (bytes[i].has_value())
         {
-            m_changed[i] = *m_bytes[previous] != *bytes[i];
+            seen.push_back ({ (Word) ((first + i) & 0xFFFF), *bytes[i] });
         }
     }
+
+    m_changes.Update (m_isPaused, seen);
 
     m_first   = first;
     m_bytes   = std::move (bytes);
@@ -126,7 +128,7 @@ void MemoryEditModel::ReadMarks (uint64_t offset, std::span<uint8_t> out) const
     {
         out[i] = kMarkNone;
 
-        if (TryGetShown (GetAddressOf (offset + i), index) && index < m_changed.size() && m_changed[index])
+        if (TryGetShown (GetAddressOf (offset + i), index) && m_changes.IsChanged (GetAddressOf (offset + i)))
         {
             out[i] = kMarkChanged;
         }
@@ -283,4 +285,34 @@ void MemoryEditModel::SendPatch (Word address, std::span<const Byte> bytes) cons
     {
         m_onPatch (address, bytes);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::GetUndoText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryEditModel::GetUndoText() const
+{
+    return m_history.empty() ? std::wstring() : ByteChanges::GetEditText (m_history.back().address, m_history.back().written.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::GetRedoText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryEditModel::GetRedoText() const
+{
+    return m_redo.empty() ? std::wstring() : ByteChanges::GetEditText (m_redo.back().address, m_redo.back().written.size());
 }

@@ -18,8 +18,9 @@
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/BranchArrow.h"
+<<<<<<< HEAD
+#include "Ui/Debugger/ByteChanges.h"
 #include "Ui/Debugger/CommandBarDock.h"
-#include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
@@ -29,6 +30,7 @@
 #include "Ui/Debugger/RegisterHistory.h"
 #include "Ui/Debugger/StackHistory.h"
 #include "Ui/Debugger/StopChanges.h"
+#include "Ui/Debugger/UndoBarCommands.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -179,6 +181,10 @@ public:
     ~DebuggerWindow() override;
 
     static DxuiListView::Cell  GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb);
+
+    //  An Undo or Redo item and tip: "Undo changed 2 bytes at $0300", or the
+    //  bare verb when there is nothing to say.
+    static std::wstring        GetUndoLabel            (bool redo, const std::wstring & text);
 
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host);
     void     RenderFrame ();
@@ -345,6 +351,10 @@ protected:
     void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access);
     void                                               RunBreakpointStep      (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelectedBreakpoints () const;
+
+    //  Protected so a test can work the registers, stack and watch panes'
+    //  Undo and Redo bars as a click does.
+    DxuiToolbar *  GetUndoBar (const std::wstring & pane) const;
 
     //  Protected so a test can read the menu bar's menus as a click opens
     //  them, and the command bar's and the console bar's entries.
@@ -536,7 +546,9 @@ private:
     bool     RouteBreakpointBarMouse (const DxuiMouseEvent & ev);
     void     ExportBreakpoints       ();
     void     ImportBreakpoints       ();
-    std::wstring  GetMemoryBarLabel (int id) const;
+    std::wstring  GetMemoryBarLabel  (int id) const;
+    std::wstring  GetMemoryBarTip    (int id) const;
+    bool          IsMemoryBarEnabled (int id) const;
     static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
@@ -638,6 +650,10 @@ private:
     uint32_t  GetTargetRowArgb     () const;
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
+
+    //  The disassembly views' bytes, for the changed color in their bytes
+    //  column.
+    void      UpdateCodeChanges    ();
     uint32_t  GetResultArgb        () const;
     SourceSyntax::Colors  GetSyntaxColors () const;
     DebuggerTextColors::Set  GetTextColors () const;
@@ -668,6 +684,7 @@ private:
     std::string                             m_menuState;
     uint32_t                                m_goToSerial         = 0;
     StopChanges                             m_stopChanges;
+    ByteChanges                             m_codeChanges;
 
     //  What each row of the watch pane is, since the list mixes headings,
     //  automatic watches and the user's own: an automatic row carries its
@@ -801,48 +818,74 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_breakpointSlot;
     DxuiToolbar                                                                    * m_breakpointBar      = nullptr;
     std::unique_ptr<BreakpointBarCommands>                                           m_breakpointCommands;
-    std::vector<std::wstring>                                                        m_memoryHistory;
-    MemoryPane                                                                    * m_activePane         = nullptr;
-    std::string                                                                      m_machine;
-    DxuiTextView                                                                   * m_consoleView        = nullptr;
-    DxuiTextInput                                                                  * m_commandBox         = nullptr;
-    bool                                                                             m_findOpen           = false;
-    std::wstring                                                                     m_findPane;
-    DxuiWindow                                                                     * m_findBarHost        = nullptr;
-    std::wstring                                                                     m_findStatusText;
-    DxuiTextInput                                                                  * m_findBox            = nullptr;
-    DxuiButton                                                                     * m_findCaseButton     = nullptr;
-    DxuiButton                                                                     * m_findWordButton     = nullptr;
-    DxuiButton                                                                     * m_findRegexButton    = nullptr;
-    bool                                                                             m_findMatchCase      = false;
-    bool                                                                             m_findWholeWord      = false;
-    bool                                                                             m_findRegex          = false;
-    DxuiButton                                                                     * m_findPrevButton     = nullptr;
-    DxuiButton                                                                     * m_findNextButton     = nullptr;
-    DxuiButton                                                                     * m_findCloseButton    = nullptr;
-    DxuiLabel                                                                      * m_findStatus         = nullptr;
-    FindWidgetPlate                                                                * m_findPlate          = nullptr;
-    DxuiButton                                                                     * m_findChevronButton  = nullptr;
-    DxuiButton                                                                     * m_findSelectionButton = nullptr;
-    bool                                                                             m_findInSelection    = false;
-    int                                                                              m_findHistoryAt      = -1;
-    std::map<std::wstring, FindState>                                                m_findStates;
-    DxuiTextInput                                                                  * m_memoryBox          = nullptr;
-    std::array<SourceDocument, SourceDocuments::kMaxDocuments>                       m_sourceDocs;
-    SourceDocuments                                                                  m_documents;
-    int                                                                              m_macroLevel         = 0;
-    std::wstring                                                                     m_sourceLoadedFor;
-    std::pair<int, int>                                                              m_pcPlace            = { -1, 0 };
-    std::vector<SourceDocuments::Saved>                                              m_pendingSourceDocs;
-    int                                                                              m_activeSource       = 0;
-    std::map<int, std::wstring>                                                      m_looseSources;
-    int                                                                              m_nextLooseId        = kFirstLooseFileId;
-    std::wstring                                                                     m_pendingLooseSource;
-    bool                                                                             m_showSourceCode     = true;
-    uint64_t                                                                         m_sourceClickMs      = 0;
-    POINT                                                                            m_sourceClickAt      = {};
-    std::vector<std::unique_ptr<DiagnosticsPane>>                                    m_diagPanes;
-    std::set<std::string>                                                            m_diagOpen;
+
+    //  The registers, stack and watch panes are each a bar of Undo and Redo
+    //  over the pane's list, as the breakpoints pane is its bar over its rows.
+    struct PaneUndoBar
+    {
+        std::wstring                         pane;
+        DxuiListView                       * list = nullptr;
+        DxuiToolbar                        * bar  = nullptr;
+        std::unique_ptr<DebuggerPaneFrame>   slot;
+        std::unique_ptr<DebuggerPaneFrame>   frame;
+        std::unique_ptr<UndoBarCommands>     commands;
+    };
+
+    static constexpr size_t  kRegisterUndoBar = 0;
+    static constexpr size_t  kStackUndoBar    = 1;
+    static constexpr size_t  kWatchUndoBar    = 2;
+    static constexpr size_t  kUndoBarCount    = 3;
+
+    std::array<PaneUndoBar, kUndoBarCount>  m_undoBars;
+
+    void          ConfigureUndoBars  ();
+    void          PlaceUndoBars      ();
+    bool          RouteUndoBarMouse  (const DxuiMouseEvent & ev);
+    void          RunPaneUndo        (size_t index, bool redo);
+    bool          IsPaneUndoEnabled  (size_t index, bool redo) const;
+    std::wstring  GetPaneUndoTip     (size_t index, bool redo) const;
+    std::vector<std::wstring>                                     m_memoryHistory;
+    MemoryPane                                                  * m_activePane          = nullptr;
+    std::string                                                   m_machine;
+    DxuiTextView                                                * m_consoleView         = nullptr;
+    DxuiTextInput                                               * m_commandBox          = nullptr;
+    bool                                                          m_findOpen            = false;
+    std::wstring                                                  m_findPane;
+    DxuiWindow                                                  * m_findBarHost         = nullptr;
+    std::wstring                                                  m_findStatusText;
+    DxuiTextInput                                               * m_findBox             = nullptr;
+    DxuiButton                                                  * m_findCaseButton      = nullptr;
+    DxuiButton                                                  * m_findWordButton      = nullptr;
+    DxuiButton                                                  * m_findRegexButton     = nullptr;
+    bool                                                          m_findMatchCase       = false;
+    bool                                                          m_findWholeWord       = false;
+    bool                                                          m_findRegex           = false;
+    DxuiButton                                                  * m_findPrevButton      = nullptr;
+    DxuiButton                                                  * m_findNextButton      = nullptr;
+    DxuiButton                                                  * m_findCloseButton     = nullptr;
+    DxuiLabel                                                   * m_findStatus          = nullptr;
+    FindWidgetPlate                                             * m_findPlate           = nullptr;
+    DxuiButton                                                  * m_findChevronButton   = nullptr;
+    DxuiButton                                                  * m_findSelectionButton = nullptr;
+    bool                                                          m_findInSelection     = false;
+    int                                                           m_findHistoryAt       = -1;
+    std::map<std::wstring, FindState>                             m_findStates;
+    DxuiTextInput                                               * m_memoryBox           = nullptr;
+    std::array<SourceDocument, SourceDocuments::kMaxDocuments>    m_sourceDocs;
+    SourceDocuments                                               m_documents;
+    int                                                           m_macroLevel          = 0;
+    std::wstring                                                  m_sourceLoadedFor;
+    std::pair<int, int>                                           m_pcPlace             = { -1, 0 };
+    std::vector<SourceDocuments::Saved>                           m_pendingSourceDocs;
+    int                                                           m_activeSource        = 0;
+    std::map<int, std::wstring>                                   m_looseSources;
+    int                                                           m_nextLooseId         = kFirstLooseFileId;
+    std::wstring                                                  m_pendingLooseSource;
+    bool                                                          m_showSourceCode      = true;
+    uint64_t                                                      m_sourceClickMs       = 0;
+    POINT                                                         m_sourceClickAt       = {};
+    std::vector<std::unique_ptr<DiagnosticsPane>>                 m_diagPanes;
+    std::set<std::string>                                         m_diagOpen;
 
     //  The fixed panes closed from their close buttons, which the View menu
     //  shows again where the layout still keeps them, and a pane the View

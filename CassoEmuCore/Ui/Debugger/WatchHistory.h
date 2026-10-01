@@ -25,7 +25,7 @@ class WatchHistory
 public:
     //  An edit the pane made: what undoes it, and the actions it ran. Clears
     //  what could be redone.
-    void  Record (DebuggerViewState::WatchUndo undo, std::vector<DebuggerAction> edit);
+    void  Record (DebuggerViewState::WatchUndo undo, std::vector<DebuggerAction> edit, std::wstring text = {});
 
     //  Notes the watch each pending move made, from a new snapshot.
     void  OnSnapshot (const DebuggerViewSnapshot & now);
@@ -40,6 +40,15 @@ public:
     bool  CanUndo () const { return !m_undo.empty(); }
     bool  CanRedo () const { return !m_redo.empty(); }
 
+    //  The newest step Undo or Redo would act on, as "changed watch 3", or
+    //  empty when there is none.
+    std::wstring  GetUndoText () const { return m_undo.empty() ? std::wstring() : m_undo.back().text; }
+    std::wstring  GetRedoText () const { return m_redo.empty() ? std::wstring() : m_redo.back().text; }
+
+    //  What an edit of a watch row's cell does: the address column of a
+    //  watch moves it, and a value column changes what it shows.
+    static std::wstring  GetEditText (const DebuggerViewSnapshot & snapshot, std::optional<int> watchId, std::optional<int> autoIndex, int column);
+
     void  Clear ();
 
 private:
@@ -47,6 +56,7 @@ private:
     {
         DebuggerViewState::WatchUndo  undo;
         std::vector<DebuggerAction>   edit;
+        std::wstring                  text;
     };
 
     std::vector<Step>  m_undo;

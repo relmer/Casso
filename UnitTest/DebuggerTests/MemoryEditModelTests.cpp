@@ -98,6 +98,7 @@ namespace DebuggerTests
                 Assert::AreEqual ((int) (i == 5 ? MemoryEditModel::kMarkChanged : MemoryEditModel::kMarkNone), (int) marks[(size_t) i]);
             }
 
+            rig.model.SetPaused   (false);
             rig.model.SetContents (0x0300, bytes, regions);
             rig.model.ReadMarks   (0x0300, marks);
             Assert::AreEqual ((int) MemoryEditModel::kMarkNone, (int) marks[5], L"unchanged since the read before");

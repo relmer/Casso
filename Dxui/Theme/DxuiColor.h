@@ -97,6 +97,41 @@ public:
 
 
     //
+    //  `fill` itself when it reaches `minRatio` WCAG contrast against
+    //  `background`, else `fill` moved away from the background in fixed
+    //  steps -- lightened on a dark background, darkened on a light one --
+    //  until it does. Used for a selection that must read as one whether or
+    //  not its view has focus.
+    //
+    static uint32_t ComputeFillForContrast (uint32_t fill, uint32_t background, float minRatio)
+    {
+        constexpr int    s_kMaxSteps  = 32;
+        constexpr float  s_kLightStep = 0.06f;
+        constexpr float  s_kDarkMul   = 0.94f;
+
+        bool      lighten = ComputeRelativeLuminance (background) < 0.5f;
+        uint32_t  cur     = fill;
+        int       i       = 0;
+
+        for (i = 0; i < s_kMaxSteps && ComputeContrastRatio (cur, background) < minRatio; ++i)
+        {
+            cur = lighten ? Lighten (cur, s_kLightStep) : Scale (cur, s_kDarkMul);
+        }
+
+        return cur;
+    }
+
+
+    //
+    //  Of two inks, the one with more contrast against `fill`.
+    //
+    static uint32_t ChooseInkFor (uint32_t fill, uint32_t ink, uint32_t alternate)
+    {
+        return (ComputeContrastRatio (ink, fill) >= ComputeContrastRatio (alternate, fill)) ? ink : alternate;
+    }
+
+
+    //
     //  Lightens a color toward white by fraction `f` (0 = unchanged, 1 = white).
     //
     static uint32_t Lighten (uint32_t argb, float f)

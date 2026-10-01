@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/WatchHistory.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -12,9 +13,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WatchHistory::Record (DebuggerViewState::WatchUndo undo, std::vector<DebuggerAction> edit)
+void WatchHistory::Record (DebuggerViewState::WatchUndo undo, std::vector<DebuggerAction> edit, std::wstring text)
 {
-    m_undo.push_back ({ std::move (undo), std::move (edit) });
+    m_undo.push_back ({ std::move (undo), std::move (edit), std::move (text) });
     m_redo.clear();
 }
 
@@ -117,4 +118,32 @@ void WatchHistory::Clear()
 {
     m_undo.clear();
     m_redo.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHistory::GetEditText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WatchHistory::GetEditText (const DebuggerViewSnapshot & snapshot, std::optional<int> watchId, std::optional<int> autoIndex, int column)
+{
+    std::wstring  text;
+
+
+
+    if (watchId.has_value())
+    {
+        text = std::format (L"{} watch {}", (column == 0) ? L"moved" : L"changed", *watchId);
+    }
+    else if (autoIndex.has_value() && *autoIndex >= 0 && *autoIndex < (int) snapshot.autoWatches.size())
+    {
+        text = L"changed " + TextEncoding::NarrowToWide (snapshot.autoWatches[(size_t) *autoIndex].label);
+    }
+
+    return text;
 }

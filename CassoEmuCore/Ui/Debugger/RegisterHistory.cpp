@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/RegisterHistory.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -115,4 +116,34 @@ void RegisterHistory::Clear()
 {
     m_undo.clear();
     m_redo.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RegisterHistory::GetUndoText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring RegisterHistory::GetUndoText() const
+{
+    return m_undo.empty() ? std::wstring() : L"changed register " + TextEncoding::NarrowToWide (m_undo.back().name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RegisterHistory::GetRedoText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring RegisterHistory::GetRedoText() const
+{
+    return m_redo.empty() ? std::wstring() : L"changed register " + TextEncoding::NarrowToWide (m_redo.back().name);
 }

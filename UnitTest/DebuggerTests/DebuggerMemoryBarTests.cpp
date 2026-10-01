@@ -284,6 +284,13 @@ namespace DebuggerTests
                 const wchar_t  * tip    = nullptr;
                 int              id     = strip->GetEntryCommandId (i);
 
+                //  Undo and Redo are disabled with nothing to act on, and a disabled
+                //  button gives no tip.
+                if (id == MemoryBarCommands::kUndo || id == MemoryBarCommands::kRedo)
+                {
+                    continue;
+                }
+
                 if (!strip->IsEntryShown (i) || !strip->TryGetEntryRect (id, entry))
                 {
                     continue;

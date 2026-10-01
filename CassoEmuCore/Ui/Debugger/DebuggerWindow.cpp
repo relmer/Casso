@@ -319,6 +319,7 @@ void DebuggerWindow::ConfigureWidgets()
 
     ConfigureMemoryBar();
     ConfigureBreakpointBar();
+    ConfigureUndoBars();
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -548,6 +549,8 @@ void DebuggerWindow::ConfigureMemoryBar()
 
     handlers.dispatch  = [this] (int id) { RunMemoryBarEntry (id); };
     handlers.getLabel  = [this] (int id) { return GetMemoryBarLabel (id); };
+    handlers.isEnabled = [this] (int id) { return IsMemoryBarEnabled (id); };
+    handlers.getTip    = [this] (int id) { return GetMemoryBarTip (id); };
 
     m_memoryCommands = std::make_unique<MemoryBarCommands>  (std::move (handlers));
     m_addressEntry   = std::make_unique<MemoryAddressEntry> (m_memoryBox);
@@ -659,6 +662,69 @@ std::wstring DebuggerWindow::GetMemoryBarLabel (int id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::IsMemoryBarEnabled
+//
+//  Undo and Redo, while the active window has an edit to take back or make
+//  again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsMemoryBarEnabled (int id) const
+{
+    MemoryPane  * pane = GetActiveMemoryPane();
+
+
+
+    if (id == MemoryBarCommands::kUndo)
+    {
+        return pane != nullptr && pane->CanUndo();
+    }
+
+    if (id == MemoryBarCommands::kRedo)
+    {
+        return pane != nullptr && pane->CanRedo();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMemoryBarTip
+//
+//  Undo's and Redo's tips say what they would act on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetMemoryBarTip (int id) const
+{
+    MemoryPane    * pane = GetActiveMemoryPane();
+    std::wstring    text;
+
+
+
+    if (pane != nullptr && id == MemoryBarCommands::kUndo && pane->CanUndo())
+    {
+        text = GetUndoLabel (false, pane->GetUndoText());
+    }
+    else if (pane != nullptr && id == MemoryBarCommands::kRedo && pane->CanRedo())
+    {
+        text = GetUndoLabel (true, pane->GetRedoText());
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RunMemoryBarEntry
 //
 //  The drop-downs open from the strip; a choice from one comes back through
@@ -676,6 +742,11 @@ void DebuggerWindow::RunMemoryBarEntry (int id)
 
     case MemoryBarCommands::kRefresh:
         GetActiveMemoryPane()->Refresh();
+        break;
+
+    case MemoryBarCommands::kUndo:
+    case MemoryBarCommands::kRedo:
+        UndoMemoryEdit (GetActiveMemoryPane(), id == MemoryBarCommands::kRedo);
         break;
 
     default:
@@ -1202,6 +1273,7 @@ void DebuggerWindow::ApplyMemoryWindows()
         {
             open[(size_t) (window.id - 1)] = true;
             m_memoryPanes[(size_t) (window.id - 1)]->SetChangedColor (GetChangedArgb());
+            m_memoryPanes[(size_t) (window.id - 1)]->SetPaused       (m_snapshot->isPaused);
 
             //  Bytes are edited while the machine is stopped, as Visual
             //  Studio's memory window allows: a running machine would
@@ -3807,6 +3879,7 @@ void DebuggerWindow::LayoutWidgets()
     UpdateCodeLines();
     PlaceMemoryBar();
     PlaceBreakpointBar();
+    PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceFindBar();
@@ -4275,6 +4348,16 @@ void DebuggerWindow::ConfigureDockSite()
     m_breakpointFrame->AddPart (m_breakpointSlot.get(), barHeight);
     m_breakpointFrame->AddPart (m_breakpointList);
 
+    //  The registers, stack and watch panes are each their Undo and Redo bar
+    //  over their list, the bar a place PlaceUndoBars fills.
+    for (PaneUndoBar & each : m_undoBars)
+    {
+        each.slot  = std::make_unique<DebuggerPaneFrame> (L"Undo commands");
+        each.frame = std::make_unique<DebuggerPaneFrame> (GetPaneTitle (each.pane));
+        each.frame->AddPart (each.slot.get(), barHeight);
+        each.frame->AddPart (each.list);
+    }
+
     //  A disassembly view is a frame over its lines.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
@@ -4291,10 +4374,10 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kRegisters,   L"Registers",   m_registerList);
+    m_dockSite->AddPane (DebuggerLayout::kRegisters,   L"Registers",   m_undoBars[kRegisterUndoBar].frame.get());
     m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_watchList);
-    m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_stackList);
+    m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_undoBars[kWatchUndoBar].frame.get());
+    m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_undoBars[kStackUndoBar].frame.get());
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
 
@@ -5279,12 +5362,12 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
         if (memory->CanUndo())
         {
-            items.push_back ({ L"Undo", [this, memory] { UndoMemoryEdit (memory, false); } });
+            items.push_back ({ GetUndoLabel (false, memory->GetUndoText()), [this, memory] { UndoMemoryEdit (memory, false); } });
         }
 
         if (memory->CanRedo())
         {
-            items.push_back ({ L"Redo", [this, memory] { UndoMemoryEdit (memory, true); } });
+            items.push_back ({ GetUndoLabel (true, memory->GetRedoText()), [this, memory] { UndoMemoryEdit (memory, true); } });
         }
     }
 
@@ -5541,12 +5624,12 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         if (m_watchHistory.CanUndo())
         {
-            items.push_back ({ L"Undo", [this] { UndoWatchEdit (false); } });
+            items.push_back ({ GetUndoLabel (false, m_watchHistory.GetUndoText()), [this] { UndoWatchEdit (false); } });
         }
 
         if (m_watchHistory.CanRedo())
         {
-            items.push_back ({ L"Redo", [this] { UndoWatchEdit (true); } });
+            items.push_back ({ GetUndoLabel (true, m_watchHistory.GetRedoText()), [this] { UndoWatchEdit (true); } });
         }
     }
     else if (list == m_stackList && row >= 0 && row < (int) s.stack.size())
@@ -5563,12 +5646,12 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         if (m_stackHistory.CanUndo())
         {
-            items.push_back ({ L"Undo", [this] { UndoStackEdit (false); } });
+            items.push_back ({ GetUndoLabel (false, m_stackHistory.GetUndoText()), [this] { UndoStackEdit (false); } });
         }
 
         if (m_stackHistory.CanRedo())
         {
-            items.push_back ({ L"Redo", [this] { UndoStackEdit (true); } });
+            items.push_back ({ GetUndoLabel (true, m_stackHistory.GetRedoText()), [this] { UndoStackEdit (true); } });
         }
     }
     else if (list == m_callStackList && row >= 0 && row < (int) CallStackPane::GetRows (s.callStack).size())
@@ -5592,12 +5675,12 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         if (m_registerHistory.CanUndo())
         {
-            items.push_back ({ L"Undo", [this] { UndoRegisterEdit (false); } });
+            items.push_back ({ GetUndoLabel (false, m_registerHistory.GetUndoText()), [this] { UndoRegisterEdit (false); } });
         }
 
         if (m_registerHistory.CanRedo())
         {
-            items.push_back ({ L"Redo", [this] { UndoRegisterEdit (true); } });
+            items.push_back ({ GetUndoLabel (true, m_registerHistory.GetRedoText()), [this] { UndoRegisterEdit (true); } });
         }
     }
     else if (list == m_traceList)
@@ -5662,9 +5745,9 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
-        if (strip->WantsTick())
+        if (strip != nullptr && strip->WantsTick())
         {
             strip->TickMenus (now);
         }
@@ -5711,6 +5794,7 @@ void DebuggerWindow::RenderFrame()
     CarryTornOffPane();
     PlaceMemoryBar();
     PlaceBreakpointBar();
+    PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceFindBar();
@@ -5806,6 +5890,13 @@ void DebuggerWindow::ApplyCodeView (int view)
         cells[6].argb = GetAnnotationArgb();
         cells[4].argb = syntax.symbol;
 
+        //  A byte that changed shows in the changed color, whether code or an
+        //  edit changed it.
+        for (const auto & [first, last] : m_codeChanges.GetChangedRanges (line.address, line.bytes))
+        {
+            cells[3].colorRanges.push_back ({ first, last, GetChangedArgb() });
+        }
+
         for (const SourceSyntax::Run & run : SourceSyntax::GetInstructionRuns (cells[5].text))
         {
             cells[5].colorRanges.push_back ({ run.start, run.start + run.length, syntax.Get (run.token) });
@@ -5893,6 +5984,8 @@ void DebuggerWindow::ApplySnapshot()
     std::vector<std::vector<DxuiListView::Cell>>  rows;
 
 
+
+    UpdateCodeChanges();
 
     //  Each disassembly view open, and which follows the PC: once a second
     //  view is open, the follower's tab carries the PC's yellow dot and says
@@ -6049,7 +6142,14 @@ void DebuggerWindow::ApplySnapshot()
     //  $01FF down, so the pane turns it over.
     for (auto it = m_snapshot->stack.rbegin(); it != m_snapshot->stack.rend(); ++it)
     {
-        rows.push_back ({ { std::format (L"${:04X}", it->address) }, { std::format (L"{:02X}", it->value) } });
+        DxuiListView::Cell  value = { std::format (L"{:02X}", it->value) };
+
+        if (m_stopChanges.IsChanged (std::format ("S:{:04X}", it->address)))
+        {
+            value.argb = GetChangedArgb();
+        }
+
+        rows.push_back ({ { std::format (L"${:04X}", it->address) }, value });
     }
 
     m_stackList->SetRows (std::move (rows));
@@ -6232,7 +6332,7 @@ void DebuggerWindow::EndWatchEdit (bool commit)
 
         if (undo.has_value())
         {
-            m_watchHistory.Record (std::move (*undo), actions);
+            m_watchHistory.Record (std::move (*undo), actions, WatchHistory::GetEditText (*m_snapshot, watchId, autoAt, m_watchEdit.column));
         }
     }
 
@@ -6517,6 +6617,63 @@ void DebuggerWindow::KeepOpenViews()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::UpdateCodeChanges
+//
+//  The bytes every disassembly view shows, kept by address so a view that
+//  scrolls compares a byte with what any view last showed there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateCodeChanges()
+{
+    ByteChanges::Seen  seen;
+
+
+
+    //  Another machine's bytes did not change; they are someone else's.
+    if (m_snapshot->machine != m_machine)
+    {
+        m_codeChanges.Clear();
+    }
+
+    for (const std::vector<DebuggerViewSnapshot::CodeLine> & lines : m_snapshot->codeViews)
+    {
+        for (const DebuggerViewSnapshot::CodeLine & line : lines)
+        {
+            ByteChanges::Seen  row = ByteChanges::ParseRowBytes (line.address, line.bytes);
+
+            seen.insert (seen.end(), row.begin(), row.end());
+        }
+    }
+
+    m_codeChanges.Update (m_snapshot->isPaused, seen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetUndoLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetUndoLabel (bool redo, const std::wstring & text)
+{
+    std::wstring  verb = redo ? L"Redo" : L"Undo";
+
+
+
+    return text.empty() ? verb : verb + L" " + text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::UpdateChanges
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -6540,6 +6697,11 @@ void DebuggerWindow::UpdateChanges()
     for (const DebuggerViewSnapshot::AutoWatchLine & line : m_snapshot->autoWatches)
     {
         values["A:" + line.key] = line.value;
+    }
+
+    for (const auto & entry : m_snapshot->stack)
+    {
+        values[std::format ("S:{:04X}", entry.address)] = std::format ("{:02X}", entry.value);
     }
 
     m_stopChanges.Update (m_snapshot->isPaused, std::move (values));
@@ -7122,7 +7284,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -7186,6 +7348,16 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
     {
         barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
+    //  And the registers, stack and watch panes'.
+    for (const PaneUndoBar & each : m_undoBars)
+    {
+        if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (each.pane) &&
+            each.bar != nullptr && each.bar->IsVisible())
+        {
+            barTip = each.bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+        }
     }
 
     //  And the console's.
@@ -8223,6 +8395,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Then the registers, stack and watch panes' Undo and Redo.
+    if (RouteUndoBarMouse (ev))
+    {
+        return true;
+    }
+
     //  And the console's.
     if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kConsole) && RouteConsoleBarMouse (ev))
     {
@@ -8476,11 +8654,11 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     }
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
-    if (pane == DebuggerLayout::kRegisters)   { return { m_registerList, m_registerEditor }; }
+<<<<<<< HEAD
+    if (pane == DebuggerLayout::kRegisters)   { return { m_undoBars[kRegisterUndoBar].slot.get(), m_registerList, m_registerEditor, m_undoBars[kRegisterUndoBar].bar }; }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
-    if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
-    if (pane == DebuggerLayout::kStack)       { return { m_stackList, m_stackEditor };   }
-    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
+    if (pane == DebuggerLayout::kWatches)     { return { m_undoBars[kWatchUndoBar].slot.get(), m_watchList, m_watchEditor, m_undoBars[kWatchUndoBar].bar }; }
+    if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)

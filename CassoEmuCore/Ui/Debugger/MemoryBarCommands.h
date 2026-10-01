@@ -13,8 +13,8 @@
 //  MemoryBarCommands
 //
 //  What a memory window's bar shows, after Visual Studio's memory window: the
-//  Address box with its history, Refresh, and the Columns and grouping
-//  drop-downs; View > Memory opens another window. The bar is a DxuiToolbar,
+//  Address box with its history, Refresh, the Columns and grouping drop-downs,
+//  and Undo and Redo for the window's own edits; View > Memory opens another window. The bar is a DxuiToolbar,
 //  so what does not fit goes into its "..." menu as on every other strip.
 //
 //  The window owns the behavior: it hands over one dispatch, one enabled test
@@ -29,12 +29,15 @@ public:
     static constexpr int  kRefresh   = 2;
     static constexpr int  kColumns   = 3;
     static constexpr int  kGrouping  = 4;
+    static constexpr int  kUndo      = 5;
+    static constexpr int  kRedo      = 6;
 
     struct Handlers
     {
         std::function<void (int id)>          dispatch;
         std::function<bool (int id)>          isEnabled;
         std::function<std::wstring (int id)>  getLabel;
+        std::function<std::wstring (int id)>  getTip;
     };
 
     explicit MemoryBarCommands (Handlers handlers);

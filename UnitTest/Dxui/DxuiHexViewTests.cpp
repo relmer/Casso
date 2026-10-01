@@ -801,7 +801,7 @@ public:
 
         for (const RecordedTextCall & call : text.Calls())
         {
-            if ((call.kind == RecordedTextKind::FillRect) && (call.argb == theme.SelectionBackground()))
+            if ((call.kind == RecordedTextKind::FillRect) && (call.argb == DxuiHexView::GetSelectionFill (theme)))
             {
                 fills++;
             }

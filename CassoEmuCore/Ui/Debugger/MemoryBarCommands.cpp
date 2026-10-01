@@ -8,6 +8,8 @@
 
 
 static constexpr const wchar_t *  s_kGlyphRefresh = s_kpszMdl2Refresh;   // circular arrow
+static constexpr const wchar_t *  s_kGlyphUndo    = s_kpszMdl2Undo;      // arrow curling back to the left
+static constexpr const wchar_t *  s_kGlyphRedo    = s_kpszMdl2Redo;      // arrow curling over to the right
 
 
 
@@ -17,7 +19,7 @@ static constexpr const wchar_t *  s_kGlyphRefresh = s_kpszMdl2Refresh;   // circ
 //
 //  MemoryBarCommands::GetRows
 //
-//  Where to look, then how to lay the bytes out.
+//  Where to look, then how to lay the bytes out, then undo.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +31,8 @@ const std::vector<MemoryBarCommands::Row> & MemoryBarCommands::GetRows()
         { kRefresh,   L"Refresh",           s_kGlyphRefresh,    L"Read this window's bytes again",                                               DxuiToolbar::Kind::Command,  0, true  },
         { kColumns,   L"Columns",           nullptr,            L"Values in each row, or as many as fit",                                        DxuiToolbar::Kind::DropDown, 1, false },
         { kGrouping,  L"Group by bytes",    nullptr,            L"Show each value as a byte, a word or a long",                                  DxuiToolbar::Kind::DropDown, 1, false },
+        { kUndo,      L"Undo",              s_kGlyphUndo,       L"Undo the last change made in this window",                                     DxuiToolbar::Kind::Command,  2, true  },
+        { kRedo,      L"Redo",              s_kGlyphRedo,       L"Redo the change just undone",                                                  DxuiToolbar::Kind::Command,  2, true  },
     };
 
 
@@ -78,6 +82,13 @@ MemoryBarCommands::MemoryBarCommands (Handlers handlers)
             std::wstring  text = m_handlers.getLabel ? m_handlers.getLabel (id) : std::wstring();
 
             return text.empty() ? label : text;
+        };
+
+        command->tipText = [this, id, tip = std::wstring (row.tip)]
+        {
+            std::wstring  text = m_handlers.getTip ? m_handlers.getTip (id) : std::wstring();
+
+            return text.empty() ? tip : text;
         };
 
         m_commands.push_back (std::move (command));

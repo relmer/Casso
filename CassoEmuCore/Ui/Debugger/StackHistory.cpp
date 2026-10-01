@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/StackHistory.h"
+#include "Ui/Debugger/ByteChanges.h"
 
 
 
@@ -115,4 +116,34 @@ void StackHistory::Clear()
 {
     m_undo.clear();
     m_redo.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StackHistory::GetUndoText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring StackHistory::GetUndoText() const
+{
+    return m_undo.empty() ? std::wstring() : ByteChanges::GetEditText (m_undo.back().address, 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StackHistory::GetRedoText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring StackHistory::GetRedoText() const
+{
+    return m_redo.empty() ? std::wstring() : ByteChanges::GetEditText (m_redo.back().address, 1);
 }

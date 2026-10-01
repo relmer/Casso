@@ -51,6 +51,9 @@ public:
     //  The ink for a byte that changed since the previous snapshot.
     void  SetChangedColor (uint32_t argb) { m_changedArgb = argb; }
 
+    //  Whether the machine is stopped, which holds the changed marks.
+    void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }
+
     //  The bytes the snapshot read for this window. The first one places the
     //  view there; later ones leave the view where the user has it.
     void  Apply (const DebuggerViewSnapshot::MemoryWindow & window);
@@ -78,6 +81,11 @@ public:
     bool  CanUndo () const { return m_view->IsEditable() && m_model.CanUndo(); }
     bool  CanRedo () const { return m_view->IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
+
+    //  What Undo and Redo would take back or make again, as "changed 2 bytes
+    //  at $0300", or empty when there is nothing.
+    std::wstring  GetUndoText () const { return CanUndo() ? m_model.GetUndoText() : std::wstring(); }
+    std::wstring  GetRedoText () const { return CanRedo() ? m_model.GetRedoText() : std::wstring(); }
 
     //  Where a read should start to hold the rows on screen, or nothing when
     //  the last read already holds them.

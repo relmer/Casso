@@ -154,6 +154,9 @@
     <ClCompile Include="Ui\Debugger\BreakpointColumns.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
     <ClCompile Include="Ui\Debugger\StopChanges.cpp" />
+    <ClCompile Include="Ui\Debugger\ByteChanges.cpp" />
+    <ClCompile Include="Ui\Debugger\UndoBarCommands.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowUndoBars.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointHistory.cpp" />
     <ClCompile Include="Ui\Debugger\RegisterHistory.cpp" />
@@ -560,6 +563,8 @@
     <ClInclude Include="Ui\Debugger\BreakpointColumns.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
     <ClInclude Include="Ui\Debugger\StopChanges.h" />
+    <ClInclude Include="Ui\Debugger\ByteChanges.h" />
+    <ClInclude Include="Ui\Debugger\UndoBarCommands.h" />
     <ClInclude Include="Ui\Debugger\BreakpointBarCommands.h" />
     <ClInclude Include="Ui\Debugger\BreakpointHistory.h" />
     <ClInclude Include="Ui\Debugger\RegisterHistory.h" />

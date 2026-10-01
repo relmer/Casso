@@ -1338,10 +1338,12 @@ const wchar_t * DxuiToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
             continue;
         }
 
-        if (!cmd->tip.empty())
+        m_tipText = cmd->GetTipText();
+
+        if (!m_tipText.empty())
         {
             anchor = slot.rc;
-            tip    = cmd->tip.c_str();
+            tip    = m_tipText.c_str();
         }
         else if (!slot.labeled)
         {

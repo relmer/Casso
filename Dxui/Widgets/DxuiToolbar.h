@@ -441,4 +441,7 @@ private:
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;
+
+    //  The tip GetTooltipAt last returned, held so its pointer stays good.
+    mutable std::wstring     m_tipText;
 };
