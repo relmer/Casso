@@ -3117,36 +3117,36 @@ bool DebuggerWindow::HasTopLayer() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::PaintBranchArrow
+//  DebuggerWindow::GetBranchArrow
 //
-//  From the PC's branch, jump or call to the row it goes to, in the PC
-//  marker's color, drawn only while the PC's row is in view. A target off the
-//  rows runs the line to that edge.
+//  Where the PC's branch, jump or call arrow lies in a view, in pixels, and
+//  where it goes. Either end scrolled out of view runs the line to that edge
+//  of the rows, so the arrow stays drawn while any part of it crosses them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
+bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
 {
     static constexpr size_t                              s_kInstructionColumn = 5;
     DxuiListView                                       * list                 = m_codeLists[(size_t) view];
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines                = GetCodeLines (view);
     int                                                  current              = -1;
     int                                                  target               = -1;
+    int                                                  firstRow             = 0;
+    int                                                  endRow               = 0;
     RECT                                                 bounds               = {};
-    RECT                                                 source               = {};
-    RECT                                                 goesTo               = {};
-    BranchArrow::Input                                   input;
-    BranchArrow::Result                                  arrow;
+    RECT                                                 column               = {};
+    RECT                                                 cell                 = {};
     float                                                scale                = 1.0f;
     float                                                top                  = 0.0f;
-    int                                                  shown                = 0;
+    float                                                bottom               = 0.0f;
     int                                                  rowPx                = 0;
 
 
 
     if (list == nullptr || !m_codeOpen[(size_t) view] || !list->IsVisible() || !IsRoutable (list))
     {
-        return;
+        return false;
     }
 
     for (size_t i = 0; i < lines.size(); i++)
@@ -3154,55 +3154,162 @@ void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
         current = lines[i].isCurrent ? (int) i : current;
     }
 
+    firstRow = list->GetTopRow();
+
     if (current < 0 || !lines[(size_t) current].target.has_value() ||
-        !list->GetCellTextRectPx (current, s_kInstructionColumn, source))
+        !list->GetCellTextRectPx (firstRow, s_kInstructionColumn, column))
     {
-        return;
+        return false;
     }
+
+    goesTo  = *lines[(size_t) current].target;
+    isTaken = lines[(size_t) current].isTargetTaken;
 
     for (size_t i = 0; i < lines.size(); i++)
     {
-        target = (lines[i].address == *lines[(size_t) current].target) ? (int) i : target;
+        target = (lines[i].address == goesTo) ? (int) i : target;
     }
 
     bounds = list->GetBounds();
-    rowPx  = source.bottom - source.top;
+    rowPx  = column.bottom - column.top;
     scale  = (float) rowPx / (float) (std::max) (1, list->GetRowHeightDip());
-    top    = (float) (bounds.top + source.top - (current - list->GetTopRow()) * rowPx);
-    shown  = (std::min) (list->GetVisibleRowCapacity(), list->GetRowCount() - list->GetTopRow());
+    endRow = firstRow + (std::min) (list->GetVisibleRowCapacity(), list->GetRowCount() - firstRow);
+    top    = (float) (bounds.top + column.top);
+    bottom = top + (float) ((endRow - firstRow) * rowPx);
 
-    input.mnemonicX     = (float) (bounds.left + source.left);
-    input.sourceY       = (float) (bounds.top + (source.top + source.bottom) / 2);
-    input.isTargetBelow = (target >= 0) ? target > current : *lines[(size_t) current].target > lines[(size_t) current].address;
-    input.edgeY         = input.isTargetBelow ? top + (float) (shown * rowPx) : top;
+    input.mnemonicX     = (float) (bounds.left + column.left);
+    input.isTargetBelow = (target >= 0) ? target > current : goesTo > lines[(size_t) current].address;
+    input.edgeY         = input.isTargetBelow ? bottom : top;
+    input.sourceEdgeY   = input.isTargetBelow ? top : bottom;
     input.marginPx     *= scale;
     input.stubPx       *= scale;
     input.radiusPx     *= scale;
     input.headPx       *= scale;
 
-    if (target >= 0 && list->GetCellTextRectPx (target, s_kInstructionColumn, goesTo))
+    //  A source out of view counts only while the line runs on across the
+    //  rows: above them toward a target below, or below toward one above.
+    if (current < firstRow || current >= endRow)
     {
-        input.targetY = (float) (bounds.top + (goesTo.top + goesTo.bottom) / 2);
+        bool  above = current < firstRow;
+
+        if (above != input.isTargetBelow ||
+            (target >= 0 && (above ? target < firstRow : target >= endRow)))
+        {
+            return false;
+        }
+    }
+    else if (list->GetCellTextRectPx (current, s_kInstructionColumn, cell))
+    {
+        input.sourceY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
+    }
+
+    if (target >= 0 && list->GetCellTextRectPx (target, s_kInstructionColumn, cell))
+    {
+        input.targetY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
     }
 
     //  Scrolled sideways past the mnemonics, there is no room for it.
-    if (input.mnemonicX - input.marginPx - input.stubPx < (float) bounds.left)
+    return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintBranchArrow
+//
+//  The arrow from GetBranchArrow, in the PC marker's color, or in the
+//  disabled color for a branch the flags as they stand will not take.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
+{
+    BranchArrow::Input   input;
+    BranchArrow::Result  arrow;
+    Word                 goesTo  = 0;
+    bool                 isTaken = true;
+    uint32_t             argb    = 0;
+    float                width   = 1.5f;
+
+
+
+    if (!GetBranchArrow (view, input, goesTo, isTaken))
     {
         return;
     }
 
+    argb  = isTaken ? GetPcMarkerArgb() : ((m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080);
+    width = 1.5f * input.radiusPx / BranchArrow::Input().radiusPx;
     arrow = BranchArrow::Build (input);
 
     for (const BranchArrow::Segment & segment : arrow.segments)
     {
-        painter.DrawLine (segment.x0, segment.y0, segment.x1, segment.y1, 1.5f * scale, GetPcMarkerArgb());
+        painter.DrawLine (segment.x0, segment.y0, segment.x1, segment.y1, width, argb);
     }
 
     if (arrow.hasHead)
     {
         painter.FillConvexQuad (arrow.head[0], arrow.head[1], arrow.head[2], arrow.head[3],
-                                arrow.head[4], arrow.head[5], arrow.head[4], arrow.head[5], GetPcMarkerArgb());
+                                arrow.head[4], arrow.head[5], arrow.head[4], arrow.head[5], argb);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClickBranchArrow
+//
+//  A double-click on a view's branch arrow goes to where it points, as Go to
+//  would. The second press within the system's double-click time and
+//  distance of the first counts as the double-click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
+{
+    BranchArrow::Input  input;
+    Word                goesTo  = 0;
+    bool                isTaken = true;
+    DWORD               now     = GetTickCount();
+    bool                isPair  = false;
+
+
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        input = BranchArrow::Input();
+
+        if (!GetBranchArrow (view, input, goesTo, isTaken) ||
+            !BranchArrow::HitTest (input, (float) pointPx.x, (float) pointPx.y))
+        {
+            continue;
+        }
+
+        isPair = m_arrowPressTick != 0 && now - m_arrowPressTick <= GetDoubleClickTime() &&
+                 std::abs (pointPx.x - m_arrowPressPx.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
+                 std::abs (pointPx.y - m_arrowPressPx.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
+
+        m_arrowPressTick = isPair ? 0 : now;
+        m_arrowPressPx   = pointPx;
+
+        if (isPair)
+        {
+            m_activeCode = view;
+            ShowCode (goesTo);
+        }
+
+        return isPair;
+    }
+
+    m_arrowPressTick = 0;
+
+    return false;
 }
 
 
@@ -4003,11 +4110,9 @@ void DebuggerWindow::ApplyCodeView (int view)
                   { Widen (line.bytes) },
                   { Widen (line.label) },
                   { Widen (line.instruction) },
-                  { Widen (line.annotation) },
-                  { Widen (line.effect) } };
+                  GetOperandAndResultCell (line.annotation, line.effect) };
 
         cells[6].argb = GetAnnotationArgb();
-        cells[7].argb = GetEffectArgb();
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -5249,8 +5354,7 @@ void DebuggerWindow::ConfigureCodeList (int view)
                         { L"Bytes",       0, false, DxuiTextHAlign::Left },
                         { L"Label",       0, false, DxuiTextHAlign::Left },
                         { L"Instruction", 0, false, DxuiTextHAlign::Left },
-                        { L"Operand",     0, false, DxuiTextHAlign::Left },
-                        { L"Result",      0, false, DxuiTextHAlign::Left } });
+                        { L"Operand and result", 0, false, DxuiTextHAlign::Left } });
 
     //  A breakpoint is set from the gutter (see ClickGutter), as in an editor.
     //  The rest of the pane is TEXT (FR-076): a drag selects characters, a
@@ -5660,16 +5764,31 @@ uint32_t DebuggerWindow::GetAnnotationArgb() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetEffectArgb
+//  DebuggerWindow::GetOperandAndResultCell
 //
-//  What the instruction WILL do, told apart from what it reads by color: the
-//  editor's teal for a value about to change, never the annotation's green.
+//  What an instruction reads, then what it would leave behind, in one cell:
+//  the result follows the operand in the muted color, so it needs no column
+//  of its own to push the pane wide.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DebuggerWindow::GetEffectArgb() const
+DxuiListView::Cell DebuggerWindow::GetOperandAndResultCell (const std::string & annotation, const std::string & effect)
 {
-    return IsDarkTheme() ? 0xFF4EC9B0 : 0xFF0F7B72;
+    DxuiListView::Cell  cell;
+    std::wstring        result = Widen (effect);
+
+
+
+    cell.text = Widen (annotation);
+
+    if (!result.empty())
+    {
+        cell.text += cell.text.empty() ? L"" : L"  ";
+        cell.dimRanges.emplace_back ((int) cell.text.size(), (int) (cell.text.size() + result.size()));
+        cell.text += result;
+    }
+
+    return cell;
 }
 
 
@@ -5833,6 +5952,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
         NoteTabFocus (ev.positionDip);
+    }
+
+    //  A double-click on a branch arrow goes to where it points.
+    if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left &&
+        ClickBranchArrow (ev.positionDip))
+    {
+        return true;
     }
 
     //  Then the site: its strips, its sashes and a drag in progress lie over

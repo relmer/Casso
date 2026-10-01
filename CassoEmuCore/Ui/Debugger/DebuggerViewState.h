@@ -44,6 +44,10 @@ struct DebuggerViewSnapshot
         std::optional<Word>  target;
         std::string          annotation;
 
+        //  False for a branch on the PC's line that the flags as they stand
+        //  will not take; true wherever that is not known.
+        bool                 isTargetTaken = true;
+
         //  What executing this instruction would leave behind, on the PC's
         //  line alone: no other line's register values are known (FR-107).
         std::string          effect;

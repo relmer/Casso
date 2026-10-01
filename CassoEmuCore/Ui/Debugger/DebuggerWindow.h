@@ -12,6 +12,7 @@
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
+#include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
@@ -136,6 +137,8 @@ public:
     DebuggerWindow() = default;
     ~DebuggerWindow() override;
 
+    static DxuiListView::Cell  GetOperandAndResultCell (const std::string & annotation, const std::string & effect);
+
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host);
     void     RenderFrame ();
 
@@ -159,6 +162,8 @@ protected:
     void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasTopLayer     () const override;
     void     PaintBranchArrow (IDxuiPainter & painter, int view);
+    bool     GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
+    bool     ClickBranchArrow (POINT pointPx);
 
     //  Protected so a test can apply one as the keys do.
     void     ApplyTextZoom   (float zoom);
@@ -382,7 +387,6 @@ private:
     uint32_t  GetTargetRowArgb     () const;
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
-    uint32_t  GetEffectArgb        () const;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;
@@ -435,6 +439,8 @@ private:
     DxuiTextInput                         * m_watchEditor        = nullptr;
     WatchEdit                               m_watchEdit;
     POINT                                   m_lastPressPx        = {};
+    POINT                                   m_arrowPressPx       = {};
+    DWORD                                   m_arrowPressTick     = 0;
 
     //  The watch pane's own undo history (FR-097), apart from every memory
     //  window's: Ctrl+Z in the watch pane puts back its last edit only.

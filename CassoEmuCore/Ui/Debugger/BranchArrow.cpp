@@ -24,27 +24,33 @@ BranchArrow::Result BranchArrow::Build (const Input & input)
     float   x      = end - input.stubPx;
     float   r      = input.radiusPx;
     float   stopY  = input.targetY.value_or (input.edgeY);
+    float   startY = input.sourceEdgeY;
 
 
 
-    if (input.targetY.has_value() && std::fabs (*input.targetY - input.sourceY) < 2.0f * r)
+    if (input.sourceY.has_value() && input.targetY.has_value() && std::fabs (*input.targetY - *input.sourceY) < 2.0f * r)
     {
         return result;
     }
 
-    //  Off the PC's mnemonic, then round the corner toward the target.
-    result.segments.push_back ({ end, input.sourceY, x + r, input.sourceY });
-    AddCorner (result, x + r, input.sourceY + dir * r, r, input.isTargetBelow ? 270.0f : 90.0f, 180.0f);
+    //  Off the PC's mnemonic, then round the corner toward the target. A
+    //  source out of view enters from its edge instead.
+    if (input.sourceY.has_value())
+    {
+        result.segments.push_back ({ end, *input.sourceY, x + r, *input.sourceY });
+        AddCorner (result, x + r, *input.sourceY + dir * r, r, input.isTargetBelow ? 270.0f : 90.0f, 180.0f);
+        startY = *input.sourceY + dir * r;
+    }
 
     if (!input.targetY.has_value())
     {
-        result.segments.push_back ({ x, input.sourceY + dir * r, x, stopY });
+        result.segments.push_back ({ x, startY, x, stopY });
         return result;
     }
 
     //  Down (or up) the left of the mnemonics, round into the target's row,
     //  and on to the arrowhead.
-    result.segments.push_back ({ x, input.sourceY + dir * r, x, stopY - dir * r });
+    result.segments.push_back ({ x, startY, x, stopY - dir * r });
     AddCorner (result, x + r, stopY - dir * r, r, 180.0f, input.isTargetBelow ? 90.0f : 270.0f);
     result.segments.push_back ({ x + r, stopY, end - input.headPx, stopY });
 
@@ -57,6 +63,48 @@ BranchArrow::Result BranchArrow::Build (const Input & input)
     result.head[5] = stopY + input.headPx * 0.8f;
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BranchArrow::HitTest
+//
+//  Whether a point lies on the arrow: within a few pixels of its upright, or
+//  of the row it leaves or enters, between the upright and the mnemonics.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BranchArrow::HitTest (const Input & input, float x, float y)
+{
+    constexpr float  kSlopPx = 4.0f;
+    float            end     = input.mnemonicX - input.marginPx;
+    float            upright = end - input.stubPx;
+    float            fromY   = input.sourceY.value_or (input.sourceEdgeY);
+    float            toY     = input.targetY.value_or (input.edgeY);
+    float            lowY    = (std::min) (fromY, toY);
+    float            highY   = (std::max) (fromY, toY);
+    bool             onRow   = false;
+
+
+
+    if (x < upright - kSlopPx || x > end + kSlopPx || y < lowY - kSlopPx || y > highY + kSlopPx)
+    {
+        return false;
+    }
+
+    if (std::fabs (x - upright) <= kSlopPx)
+    {
+        return true;
+    }
+
+    onRow = (input.sourceY.has_value() && std::fabs (y - *input.sourceY) <= kSlopPx) ||
+            (input.targetY.has_value() && std::fabs (y - *input.targetY) <= kSlopPx);
+
+    return onRow;
 }
 
 

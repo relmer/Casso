@@ -1919,6 +1919,11 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
             row.effect     = row.isCurrent ? GetEffect (session, now, touches,
                                                         (Word) (line.instruction.address + line.instruction.bytes.size()))
                                            : std::string();
+
+            if (row.isCurrent && row.target.has_value() && touches.isKnown)
+            {
+                row.isTargetTaken = touches.after.pc == *row.target;
+            }
         }
 
         if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))

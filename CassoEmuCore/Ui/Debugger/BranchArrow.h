@@ -12,7 +12,9 @@
 //  it goes. It leaves the instruction's mnemonic to the left, turns through a
 //  rounded corner toward the target, runs along the left of the mnemonics,
 //  and turns again into an arrowhead that points at the target's mnemonic.
-//  A target out of view runs the line to that edge of the rows and stops.
+//  A target out of view runs the line to that edge of the rows and stops;
+//  a source out of view starts the line at the other edge, so an arrow with
+//  either end, or both, scrolled away can still be followed.
 //
 //  Pure geometry in pixels, so the window only paints what this gives it.
 //
@@ -32,10 +34,11 @@ public:
     struct Input
     {
         float                 mnemonicX     = 0.0f;   // left of the mnemonics
-        float                 sourceY       = 0.0f;   // middle of the PC's row
+        std::optional<float>  sourceY;   // middle of the PC's row, if in view
         std::optional<float>  targetY;   // middle of the target's row, if in view
         bool                  isTargetBelow = true;
         float                 edgeY         = 0.0f;   // top or bottom of the rows, toward the target
+        float                 sourceEdgeY   = 0.0f;   // the other edge, where an out-of-view source enters
         float                 marginPx      = 3.0f;   // the gap left before a mnemonic
         float                 stubPx        = 12.0f;   // how far the line stands off to the left
         float                 radiusPx      = 4.0f;
@@ -49,7 +52,8 @@ public:
         float                 head[6] = {};       // tip, then the two back corners
     };
 
-    static Result  Build (const Input & input);
+    static Result  Build   (const Input & input);
+    static bool    HitTest (const Input & input, float x, float y);
 
 private:
     static constexpr int  kCornerSteps = 6;
