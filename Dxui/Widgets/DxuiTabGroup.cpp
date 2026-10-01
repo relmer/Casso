@@ -593,6 +593,56 @@ bool DxuiTabGroup::IsChromeAt (POINT pointDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabGroup::GetInsertIndexAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTabGroup::GetInsertIndexAt (POINT pointDip) const
+{
+    if (!HasStrip())
+    {
+        return (int) m_tabs.size();
+    }
+
+    return m_strip.GetInsertIndexAt (pointDip.x);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabGroup::SetInsertGap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabGroup::SetInsertGap (int index, int widthPx)
+{
+    m_strip.SetInsertGap (HasStrip() ? index : -1, widthPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabGroup::GetInsertGapRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTabGroup::GetInsertGapRect() const
+{
+    return HasStrip() ? m_strip.GetInsertGapRect() : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabGroup::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -950,7 +1000,11 @@ bool DxuiTabGroup::OnMouse (const DxuiMouseEvent & ev)
             {
                 m_titleDragged = true;
 
-                if (m_onDragStart && m_active >= 0)
+                if (m_onTitleDrag && m_active >= 0)
+                {
+                    m_onTitleDrag (m_active, p);
+                }
+                else if (m_onDragStart && m_active >= 0)
                 {
                     m_onDragStart (m_active, p);
                 }

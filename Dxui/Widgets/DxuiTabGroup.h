@@ -113,6 +113,10 @@ public:
     void  SetOnDragStart   (DragFn fn)        { m_onDragStart   = std::move (fn); }
     void  SetOnTitleButton (TitleButtonFn fn) { m_onTitleButton = std::move (fn); }
 
+    //  A drag of the title bar, which moves the whole group; with no handler
+    //  it is reported to the drag start handler as a drag of the active tab.
+    void  SetOnTitleDragStart (DragFn fn)     { m_onTitleDrag   = std::move (fn); }
+
     //  A document tab's close button closes its pane; a tool window's close
     //  button shows only while its active pane can close.
     void  SetOnCloseTab    (CloseTabFn fn)    { m_onCloseTab    = std::move (fn); }
@@ -136,6 +140,13 @@ public:
     //  Whether a point is on the group's own chrome -- its title bar or its
     //  tabs -- rather than on the pane it shows.
     bool  IsChromeAt   (POINT pointDip) const;
+
+    //  Where a tab dropped at a point lands among this group's tabs, and the
+    //  gap opened there while it hovers (see DxuiTabStrip::SetInsertGap).
+    //  A group showing no tabs takes a drop after its one tab.
+    int   GetInsertIndexAt (POINT pointDip) const;
+    void  SetInsertGap     (int index, int widthPx);
+    RECT  GetInsertGapRect () const;
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -183,6 +194,7 @@ private:
     DxuiTabStrip         m_strip;
     ActivatedFn          m_onActivated;
     DragFn               m_onDragStart;
+    DragFn               m_onTitleDrag;
     TitleButtonFn        m_onTitleButton;
     CloseTabFn           m_onCloseTab;
     CanCloseFn           m_canClose;

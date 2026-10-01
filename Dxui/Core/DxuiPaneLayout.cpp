@@ -493,6 +493,61 @@ bool DxuiPaneLayout::TabWith (const std::wstring & pane, const std::wstring & ta
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPaneLayout::TabWithAt
+//
+//  Into the target's group ahead of the tab at `index` (the group's count for
+//  the end), as the active tab. Within its own group the pane moves there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPaneLayout::TabWithAt (const std::wstring & pane, const std::wstring & target, int index)
+{
+    Node *  group = nullptr;
+    Node *  from  = nullptr;
+    int     at    = 0;
+    int     was   = 0;
+
+
+
+    if (pane == target || !Contains (pane) || !IsDocked (target))
+    {
+        return false;
+    }
+
+    group = FindGroup (m_root.get(), target);
+    from  = FindGroup (m_root.get(), pane);
+    at    = std::clamp (index, 0, (int) group->panes.size());
+
+    if (from == group)
+    {
+        was = (int) (std::find (group->panes.begin(), group->panes.end(), pane) - group->panes.begin());
+        at  = (at > was) ? at - 1 : at;
+
+        if (at == was)
+        {
+            return false;
+        }
+
+        group->panes.erase  (group->panes.begin() + was);
+        group->panes.insert (group->panes.begin() + at, pane);
+        group->active = at;
+        return true;
+    }
+
+    Detach (pane);
+    group = FindGroup (m_root.get(), target);
+    at    = std::clamp (index, 0, (int) group->panes.size());
+    group->panes.insert (group->panes.begin() + at, pane);
+    group->active = at;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPaneLayout::Float
 //
 //  Into a window of its own. A floating pane moved elsewhere keeps the home

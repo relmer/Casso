@@ -289,6 +289,20 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         BeginDrag (GetPaneOf (group->GetContent (index)));
     });
 
+    group->SetOnTitleDragStart ([this, group] (int index, POINT)
+    {
+        std::vector<std::wstring>  panes;
+
+
+
+        for (int i = 0; i < (int) group->GetTabCount(); i++)
+        {
+            panes.push_back (GetPaneOf (group->GetContent (i)));
+        }
+
+        BeginGroupDrag (panes, GetPaneOf (group->GetContent (index)));
+    });
+
     group->SetOnTitleButton ([this, group] (DxuiTabGroup::TitleButton button, int index, POINT pointDip)
     {
         OnTitleButton (button, GetPaneOf (group->GetContent (index)), pointDip);
@@ -1139,22 +1153,225 @@ bool DxuiDockSite::MovePaneByArrow (const std::wstring & pane, DxuiDockSide dire
 
 void DxuiDockSite::BeginDrag (const std::wstring & pane)
 {
-    if (pane.empty())
+    BeginGroupDrag (std::vector<std::wstring> { pane }, pane);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::BeginGroupDrag
+//
+//  A group dragged whole offers no zone on itself, since every drop there
+//  would put it back where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, const std::wstring & active)
+{
+    auto  dragged = [&panes] (const std::wstring & pane)
+    {
+        return std::find (panes.begin(), panes.end(), pane) != panes.end();
+    };
+
+
+
+    if (active.empty() || !dragged (active))
     {
         return;
     }
 
     //  A slid-out pane slides back as its drag starts, so the drop zones
     //  beneath it show; it stays hidden against its edge unless dropped.
-    if (pane == m_slidPane)
+    if (active == m_slidPane)
     {
         m_slidPane.clear();
         Arrange();
     }
 
-    m_dragPane  = pane;
-    m_zones     = DxuiDockDropZones::Build (m_layout.Arrange (GetDockedArea(), m_shown, m_minSize), GetDockedArea(), pane);
+    m_dragPane  = active;
+    m_dragPanes = panes;
+    m_zones     = DxuiDockDropZones::Build (m_layout.Arrange (GetDockedArea(), m_shown, m_minSize), GetDockedArea(), active);
     m_hoverZone = -1;
+
+    if (panes.size() > 1)
+    {
+        std::erase_if (m_zones, [&] (const DxuiDockDropZone & zone) { return dragged (zone.targetPane); });
+    }
+
+    ClearStripTarget();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::UpdateStripTarget
+//
+//  The group whose tabs or title bar lie under the pointer takes the drop,
+//  opening a gap where it would land. A group the drag would leave as it is
+//  -- the dragged group itself, or a pane's own group of one -- takes none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::UpdateStripTarget (POINT pointDip)
+{
+    int  found = -1;
+    int  index = -1;
+
+
+
+    for (size_t i = 0; i < m_groups.size() && found < 0; i++)
+    {
+        DxuiTabGroup  * group  = m_groups[i].get();
+        size_t          inside = 0;
+
+        if (!group->IsVisible() || !group->IsChromeAt (pointDip))
+        {
+            continue;
+        }
+
+        for (int t = 0; t < (int) group->GetTabCount(); t++)
+        {
+            inside += std::find (m_dragPanes.begin(), m_dragPanes.end(), GetPaneOf (group->GetContent (t))) != m_dragPanes.end() ? 1 : 0;
+        }
+
+        if (inside == group->GetTabCount() || (inside > 0 && m_dragPanes.size() > 1))
+        {
+            break;
+        }
+
+        found = (int) i;
+        index = group->GetInsertIndexAt (pointDip);
+    }
+
+    if (found == m_stripGroup && index == m_stripIndex)
+    {
+        return;
+    }
+
+    ClearStripTarget();
+    m_stripGroup = found;
+    m_stripIndex = index;
+
+    if (found >= 0)
+    {
+        m_groups[(size_t) found]->SetInsertGap (index, m_scaler.ToPx (kInsertGapDip));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::ClearStripTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::ClearStripTarget()
+{
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->SetInsertGap (-1, 0);
+    }
+
+    m_stripGroup = -1;
+    m_stripIndex = -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::DropOnStrip
+//
+//  The dragged panes go into the group ahead of the tab at `index`, in their
+//  order, and the pane dragged is the one shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::DropOnStrip (int group, int index)
+{
+    DxuiTabGroup               * target  = (group >= 0 && group < (int) m_groups.size()) ? m_groups[(size_t) group].get() : nullptr;
+    std::wstring                 anchor;
+    std::vector<std::wstring>    panes;
+    bool                         changed = false;
+    int                          at      = index;
+
+
+
+    if (target == nullptr)
+    {
+        return false;
+    }
+
+    for (int t = 0; t < (int) target->GetTabCount() && anchor.empty(); t++)
+    {
+        std::wstring  pane = GetPaneOf (target->GetContent (t));
+
+        if (std::find (m_dragPanes.begin(), m_dragPanes.end(), pane) == m_dragPanes.end())
+        {
+            anchor = pane;
+        }
+    }
+
+    if (anchor.empty())
+    {
+        return false;
+    }
+
+    for (const std::wstring & pane : m_dragPanes)
+    {
+        changed = m_layout.TabWithAt (pane, anchor, at) || changed;
+        panes   = m_layout.GetGroup (anchor);
+        at      = (int) (std::find (panes.begin(), panes.end(), pane) - panes.begin()) + 1;
+    }
+
+    return m_layout.Activate (m_dragPane) || changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::DropOnZone
+//
+//  The zone's operation moves the first pane; the rest follow it into its
+//  new group, in order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::DropOnZone (const DxuiDockDropZone & zone)
+{
+    std::vector<std::wstring>  panes;
+    int                        at      = 0;
+
+
+
+    if (m_dragPanes.empty() || !DxuiDockDropZones::Apply (zone, m_layout, m_dragPanes.front()))
+    {
+        return false;
+    }
+
+    for (size_t i = 1; i < m_dragPanes.size(); i++)
+    {
+        panes   = m_layout.GetGroup (m_dragPanes.front());
+        at      = (int) (std::find (panes.begin(), panes.end(), m_dragPanes[i - 1]) - panes.begin()) + 1;
+        (void) m_layout.TabWithAt (m_dragPanes[i], m_dragPanes.front(), at);
+    }
+
+    (void) m_layout.Activate (m_dragPane);
+    return true;
 }
 
 
@@ -1176,6 +1393,8 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     std::optional<DxuiDockDropZone>    zone;
     std::wstring                       pane    = m_dragPane;
     bool                               changed = false;
+    int                                strip   = -1;
+    int                                index   = -1;
 
 
 
@@ -1184,24 +1403,40 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     {
         zone = *hit;
     }
+    else
+    {
+        UpdateStripTarget (pointDip);
+        strip = m_stripGroup;
+        index = m_stripIndex;
+    }
 
-    m_dragPane.clear();
+    ClearStripTarget();
     m_zones.clear();
     m_hoverZone = -1;
 
     if (pane.empty())
     {
+        m_dragPanes.clear();
         return false;
     }
 
+    //  A group dropped outside floats only the pane shown: a floating window
+    //  holds one pane.
     if (zone.has_value())
     {
-        changed = DxuiDockDropZones::Apply (*zone, m_layout, pane);
+        changed = DropOnZone (*zone);
+    }
+    else if (strip >= 0)
+    {
+        changed = DropOnStrip (strip, index);
     }
     else if (!Contains (m_boundsDip, pointDip) && m_onFloat)
     {
         m_onFloat (pane, pointDip);
     }
+
+    m_dragPane.clear();
+    m_dragPanes.clear();
 
     if (changed)
     {
@@ -1320,6 +1555,15 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         {
             zone        = DxuiDockDropZones::HitTest (m_zones, ev.positionDip);
             m_hoverZone = (zone != nullptr) ? (int) (zone - m_zones.data()) : -1;
+
+            if (zone != nullptr)
+            {
+                ClearStripTarget();
+            }
+            else
+            {
+                UpdateStripTarget (ev.positionDip);
+            }
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
@@ -1539,6 +1783,14 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     if (hover != nullptr)
     {
         fill (hover->preview, (theme.Accent() & 0x00FFFFFFu) | 0x50000000u);
+    }
+
+    //  A hovered strip tints the whole group the panes will fill and marks
+    //  the gap their tab will take.
+    if (m_stripGroup >= 0 && m_stripGroup < (int) m_groups.size())
+    {
+        fill (m_groups[(size_t) m_stripGroup]->GetBounds(),        (theme.Accent() & 0x00FFFFFFu) | 0x50000000u);
+        fill (m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & 0x00FFFFFFu) | 0xA0000000u);
     }
 
     for (const DxuiDockDropZone & zone : m_zones)

@@ -148,6 +148,7 @@ public:
     bool  DockToSide  (const std::wstring & pane, const std::wstring & target, DxuiDockSide side);
     bool  DockToEdge  (const std::wstring & pane, DxuiDockSide side);
     bool  TabWith     (const std::wstring & pane, const std::wstring & target);
+    bool  TabWithAt   (const std::wstring & pane, const std::wstring & target, int index);
     bool  Float       (const std::wstring & pane, const std::wstring & monitorKey, const RECT & rectDip);
     bool  AutoHide    (const std::wstring & pane, DxuiDockSide edge);
     bool  DockBack    (const std::wstring & pane);

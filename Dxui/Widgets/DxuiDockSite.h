@@ -143,6 +143,20 @@ public:
     void  BeginDrag (const std::wstring & pane);
     bool  EndDrag   (POINT pointDip);
 
+    //  A drag of a whole group, from its title bar: the panes move together,
+    //  in order, with `active` still the one shown.
+    void                               BeginGroupDrag  (const std::vector<std::wstring> & panes, const std::wstring & active);
+    const std::vector<std::wstring> &  GetDraggedPanes () const { return m_dragPanes; }
+
+    //  While a drag hovers a group's tabs or title bar, that group and where
+    //  among its tabs the drop would land; -1 for neither. A drop there tabs
+    //  the dragged panes into the group at that place.
+    int   GetStripTargetGroup () const { return m_stripGroup; }
+    int   GetStripTargetIndex () const { return m_stripIndex; }
+
+    //  The gap a hovered strip opens for the dropped tab.
+    static constexpr int  kInsertGapDip = 96;
+
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
@@ -192,6 +206,10 @@ private:
     static constexpr wchar_t  kAutoHideLabel[] = L"Auto hide";
 
     void          WireGroup     (DxuiTabGroup * group);
+    void          UpdateStripTarget (POINT pointDip);
+    void          ClearStripTarget  ();
+    bool          DropOnStrip   (int group, int index);
+    bool          DropOnZone    (const DxuiDockDropZone & zone);
     void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
 
     DxuiPaneLayout                                m_layout;
@@ -220,6 +238,9 @@ private:
     FloatFn                                       m_onFloat;
 
     std::wstring                                  m_dragPane;
+    std::vector<std::wstring>                     m_dragPanes;
+    int                                           m_stripGroup = -1;
+    int                                           m_stripIndex = -1;
     std::vector<DxuiDockDropZone>                 m_zones;
     int                                           m_hoverZone  = -1;
     int                                           m_sashDrag   = -1;

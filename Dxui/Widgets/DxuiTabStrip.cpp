@@ -867,7 +867,85 @@ RECT DxuiTabStrip::GetTabScreenRect (int index) const
 
 
 
+    if (m_gapIndex >= 0 && index >= m_gapIndex)
+    {
+        shift += m_gapPx;
+    }
+
     return RECT { r.left + shift, r.top, r.right + shift, r.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetInsertGapRect
+//
+//  The room opened ahead of the gap's tab, or past the last tab; empty while
+//  no gap is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTabStrip::GetInsertGapRect() const
+{
+    long  left  = 0;
+    int   shift = GetArrowWidthPx() - m_scrollPx;
+
+
+
+    if (m_gapIndex < 0)
+    {
+        return RECT {};
+    }
+
+    if (m_gapIndex < (int) m_tabs.size())
+    {
+        left = m_tabs[(size_t) m_gapIndex].rect.left + shift;
+    }
+    else
+    {
+        left = (m_tabs.empty() ? m_boundsDip.left : m_tabs.back().rect.right + shift);
+    }
+
+    return RECT { left, m_boundsDip.top, left + m_gapPx, m_boundsDip.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetInsertIndexAt
+//
+//  Ahead of the tab whose left half holds `x`, or after it for its right
+//  half; past the last tab, the tab count. The tabs are taken where they are
+//  drawn, so a pointer inside an open gap keeps that gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTabStrip::GetInsertIndexAt (int x) const
+{
+    int   index = 0;
+    RECT  tab   = {};
+
+
+
+    while (index < (int) m_tabs.size())
+    {
+        tab = GetTabScreenRect (index);
+
+        if (x < (tab.left + tab.right) / 2)
+        {
+            break;
+        }
+
+        index++;
+    }
+
+    return index;
 }
 
 

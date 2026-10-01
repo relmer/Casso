@@ -140,6 +140,15 @@ public:
     RECT  GetTabScreenRect (int index) const;
     RECT  GetNewTabRect    () const;
 
+    //  A gap opened ahead of tab `index` (the tab count for the end) where a
+    //  dragged tab will land: the tabs from `index` on are drawn `widthPx`
+    //  further right. An index of -1 closes it. GetInsertIndexAt is the gap a
+    //  drop at `x` opens, by which half of a tab the point is over.
+    void  SetInsertGap      (int index, int widthPx) { m_gapIndex = index; m_gapPx = widthPx; }
+    int   GetInsertGapIndex () const                 { return m_gapIndex; }
+    RECT  GetInsertGapRect  () const;
+    int   GetInsertIndexAt  (int x) const;
+
     //  In the document and tool-window styles, where along the strip the
     //  selected tab joins its pane, flares and all, so the host can break
     //  the pane's border there. False while no selected tab shows.
@@ -248,5 +257,7 @@ private:
     const wchar_t *   m_iconFace      = L"Segoe MDL2 Assets";
     bool              m_enabled       = true;
     bool              m_focused       = false;
+    int               m_gapIndex      = -1;
+    int               m_gapPx         = 0;
     DxuiDpiScaler     m_scaler;
 };
