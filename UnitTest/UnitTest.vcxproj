@@ -240,7 +240,10 @@
     <ClCompile Include="DebuggerTests\BreakpointUndoLineTests.cpp" />
     <ClCompile Include="DebuggerTests\DirectPaneActionTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointBarTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowCommandTipTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowMenuBarTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowThemePreviewTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowViewCascadeTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowFloatCloseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowPaneFindTests.cpp" />
@@ -636,7 +639,9 @@
     <ClCompile Include="Dxui\DxuiTabGroupOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
+    <ClCompile Include="Dxui\DxuiMenuBarRelayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPopupMenuPreviewTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanZoomTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />

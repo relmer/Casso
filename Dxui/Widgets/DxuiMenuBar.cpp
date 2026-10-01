@@ -150,6 +150,14 @@ void DxuiMenuBar::SetItems (std::vector<DxuiMenuBarItem> items)
     {
         m_focusedIndex = 0;
     }
+
+    //  A bar already on the strip places the new titles now. A host that
+    //  rebuilds its menus between layouts otherwise leaves every title rect
+    //  empty: nothing draws on the strip and no click lands on a title.
+    if (m_stripRect.right > m_stripRect.left)
+    {
+        Layout (m_stripRect.left, m_stripRect.top, m_stripRect.right - m_stripRect.left, m_dpi, m_textRendererForMeasure);
+    }
 }
 
 
@@ -645,17 +653,32 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
     // The three guards the original ladder re-tested at each step: a key is
     // only interesting while open, menu-switching also needs menus, and
     // row navigation also needs rows.
-    bool  hasMenus  = m_isOpen && menuCount > 0;
-    bool  hasRows   = hasMenus && count > 0;
-    bool  isPrevKey = vk == VK_LEFT  || (vk == VK_TAB && (GetKeyState (VK_SHIFT) & 0x8000));
-    bool  isNextKey = vk == VK_RIGHT || vk == VK_TAB;
-    bool  handled   = false;
+    bool  hasMenus    = m_isOpen && menuCount > 0;
+    bool  hasRows     = hasMenus && count > 0;
+    bool  isPrevKey   = vk == VK_LEFT  || (vk == VK_TAB && (GetKeyState (VK_SHIFT) & 0x8000));
+    bool  isNextKey   = vk == VK_RIGHT || vk == VK_TAB;
+    bool  handled     = false;
+    bool  onCascade   = false;
+    bool  inCascade   = false;
+    bool  intoCascade = false;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (m_isOpen && (vk == VK_ESCAPE || vk == VK_F10))
+    entry       = hasRows ? GetEntryAt (m_openIndex, GetHighlightIndex()) : nullptr;
+    onCascade   = entry != nullptr && entry->kind == DxuiPopupMenuItem::Kind::Submenu;
+    inCascade   = hasRows && m_dropdown.HasOpenChild();
+    intoCascade = onCascade && (vk == VK_RIGHT || vk == VK_RETURN || vk == VK_SPACE);
+
+    //  A cascade takes the keys while it is open, and Right or Enter on its
+    //  row opens it, as a Windows menu bar's does. Left and Escape close it
+    //  and leave its parent open.
+    if (inCascade || intoCascade)
+    {
+        handled = m_dropdown.OnKey (vk);
+    }
+    else if (m_isOpen && (vk == VK_ESCAPE || vk == VK_F10))
     {
         Close();
         handled = true;

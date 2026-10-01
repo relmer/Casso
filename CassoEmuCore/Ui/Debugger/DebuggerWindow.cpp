@@ -4869,6 +4869,10 @@ void DebuggerWindow::RenderFrame()
         m_menuBar->TickMenus (now);
     }
 
+    //  A menu dismissed by a click outside closes in its own popup, so the
+    //  theme it previewed is put back here.
+    EndThemePreview();
+
     if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
     {
         GetPopupHost()->GetContextMenu().Tick (now);
@@ -5986,9 +5990,44 @@ void DebuggerWindow::EditRegister (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::IsAnyMenuOpen
+//
+//  Whether the menu bar, a toolbar's drop-down or a context menu is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsAnyMenuOpen() const
+{
+    DxuiHwndSource  * popups = GetPopupHost();
+    bool              open   = false;
+
+
+
+    open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
+
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar })
+    {
+        open = open || (bar != nullptr && bar->IsMenuOpen());
+    }
+
+    for (const SourceDocument & document : m_sourceDocs)
+    {
+        open = open || (document.bar != nullptr && document.bar->IsMenuOpen());
+    }
+
+    return open;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::UpdateTooltip
 //
-//  Over the flags on P's row, what each letter is, one to a line.
+//  Over the flags on P's row, what each letter is, one to a line. No tip
+//  shows while a menu is open, so none ever lies over its rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6004,6 +6043,12 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     DxuiTooltip        & tip    = GetRoutedTooltip();
 
 
+
+    if (IsAnyMenuOpen())
+    {
+        tip.HideImmediate();
+        return;
+    }
 
     //  The command bar's entries: what each does and its key in the scheme
     //  in force.
@@ -6851,12 +6896,23 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
+    //  The tip follows the hover and goes the moment a press opens a menu,
+    //  as Casso Explorer's toolbar tips do.
     switch (ev.kind)
     {
-    case DxuiMouseEventKind::Move: return m_commandBar->OnToolbarMouseMove   (x, y);
-    case DxuiMouseEventKind::Down: return m_commandBar->OnToolbarLButtonDown (x, y);
-    case DxuiMouseEventKind::Up:   return m_commandBar->OnToolbarLButtonUp   (x, y);
-    default:                       return m_commandBar->IsMenuOpen();
+    case DxuiMouseEventKind::Move:
+        UpdateTooltip (ev.positionDip);
+        return m_commandBar->OnToolbarMouseMove (x, y);
+
+    case DxuiMouseEventKind::Down:
+        GetRoutedTooltip().HideImmediate();
+        return m_commandBar->OnToolbarLButtonDown (x, y);
+
+    case DxuiMouseEventKind::Up:
+        return m_commandBar->OnToolbarLButtonUp (x, y);
+
+    default:
+        return m_commandBar->IsMenuOpen();
     }
 }
 

@@ -213,6 +213,7 @@ namespace DebuggerMenuBarTests
             DxuiDpiScaler                           scaler;
             const std::vector<DxuiPopupMenuItem>  * view   = nullptr;
             const DxuiPopupMenuItem               * row    = nullptr;
+            size_t                                  rows   = 0;
 
 
 
@@ -222,7 +223,13 @@ namespace DebuggerMenuBarTests
 
             view = MenuRows::GetMenu (window.GetMenuBarItems(), L"&View");
             Assert::IsNotNull (view);
-            Assert::AreEqual (window.GetViewMenuPanes().size(), view->size(), L"a row for every debug window");
+
+            for (const DxuiPopupMenuItem & item : *view)
+            {
+                rows += (item.kind == DxuiPopupMenuItem::Kind::Submenu) ? item.children.size() : 1;
+            }
+
+            Assert::AreEqual (window.GetViewMenuPanes().size(), rows, L"a row for every debug window");
 
             row = MenuRows::GetRow (*view, L"Registers");
             Assert::IsNotNull (row);

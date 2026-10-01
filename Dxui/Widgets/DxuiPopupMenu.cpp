@@ -1512,6 +1512,13 @@ void DxuiPopupMenu::SetHover (int index)
         m_onHighlight (index);
     }
 
+    //  The row's own preview, which a submenu's rows have too: the owner's
+    //  highlight callback is installed on the root menu only.
+    if (index >= 0 && index < (int) m_rows.size() && m_rows[(size_t) index].command != nullptr && m_rows[(size_t) index].command->preview)
+    {
+        m_rows[(size_t) index].command->preview();
+    }
+
     // Re-read: a listener that resized or reskinned the owner can have taken
     // the popup down, which leaves nothing to render.
     if (m_activePopup != nullptr)

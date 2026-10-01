@@ -222,6 +222,11 @@ protected:
     void             ApplyTheme      (const std::string & name);
     const std::string &  GetThemeName () const { return m_themeName; }
 
+    //  A Theme row under the highlight shows its theme at once; the theme in
+    //  force when the menu opened comes back if it closes without a choice.
+    void                 PreviewTheme    (const std::string & name);
+    void                 EndThemePreview ();
+
     //  Protected so a test can hand the window a snapshot as a frame does.
     void             TakeSnapshot    (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
 
@@ -296,11 +301,18 @@ protected:
     static constexpr int  kFindEntry    = 2;
 
     void                                  SetWindowMenus     ();
+    static std::wstring                   GetViewMenuGroup   (const std::wstring & pane);
     void                                  SetConsoleBarMenus ();
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
     DxuiToolbar *                         GetConsoleBar      () const { return m_consoleBar; }
     DxuiToolbar *                         GetSourceBar       (int slot) const { return m_sourceDocs[(size_t) slot].bar; }
+    DxuiMenuBar *                         GetMenuBar         () const { return m_menuBar; }
+
+    //  Protected so a test can see whether a tip shows over the command bar,
+    //  and that none shows while a menu is open.
+    const DxuiTooltip &  GetTooltip    () const { return m_tooltip; }
+    bool                 IsAnyMenuOpen () const;
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
@@ -537,6 +549,7 @@ private:
     DxuiFocusManager                        m_focusMgr;
     DebuggerKeyScheme                       m_keyScheme          = DebuggerKeySchemes::kDefault;
     std::string                             m_themeName;
+    std::optional<std::string>              m_themeBeforePreview;
     CassoTheme                              m_ownTheme;
     DxuiLightTheme                          m_lightTheme;
     DxuiDarkTheme                           m_darkTheme;
