@@ -453,8 +453,8 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"sta "), window.GetFindBox()->GetText());
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"AppleWin steps on Space, but not from the find box");
 
+            Assert::AreEqual (std::wstring (L"STA "), window.GetConsoleView()->GetSelectionText(), L"found as typed; case does not matter by default");
             Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
-            Assert::AreEqual (std::wstring (L"STA "), window.GetConsoleView()->GetSelectionText(), L"case does not matter by default");
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"and Enter runs nothing");
         }
 
@@ -472,10 +472,9 @@ namespace DebuggerTests
             window.Press ('F', true);
             window.Type  (L"sta");
 
-            Assert::IsTrue   (window.Press (VK_F3), L"F3 from the find box");
-            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText());
+            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText(), L"typing finds the first");
 
-            Assert::IsTrue   (window.Press (VK_F3));
+            Assert::IsTrue   (window.Press (VK_F3), L"F3 from the find box");
             Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"the next one, on the last line");
             Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindStatus());
 

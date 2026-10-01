@@ -293,6 +293,16 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         textColor = (textColor & s_kDisabledMask);
     }
 
+    //  A toolbar button draws nothing behind its label until the pointer is
+    //  on it or it is checked, as a toolbar's entries do.
+    if (m_variant == Variant::Toolbar)
+    {
+        bool  active = m_enabled && (m_hover || m_pressed || m_emphasis);
+
+        color       = !active ? 0u : ((m_pressed || m_emphasis) ? pressed : hover);
+        borderColor = active ? borderColor : 0u;
+    }
+
     painter.FillRoundedRect ((float) m_boundsDip.left,
                              (float) m_boundsDip.top,
                              (float) (m_boundsDip.right  - m_boundsDip.left),
@@ -300,7 +310,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
                              color);
 
-    if (m_emphasis)
+    if (m_emphasis && m_variant != Variant::Toolbar)
     {
         painter.OutlineRoundedRect ((float) m_boundsDip.left,
                                     (float) m_boundsDip.top,

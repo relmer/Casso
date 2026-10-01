@@ -210,7 +210,7 @@ namespace DebuggerFindWidgetPerPaneTests
 
             Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
             Assert::AreEqual (std::wstring (L"sta"), window.GetFindBoxOf (source)->GetText(), L"the text went to the box with the keys");
-            Assert::AreEqual (std::wstring (L"STA"), window.GetSourceView (0)->GetSelectionText(), L"and the document is searched");
+            Assert::AreEqual (0, _wcsicmp (L"sta", window.GetSourceView (0)->GetSelectionText().c_str()), L"and the document is searched");
             Assert::IsFalse  (window.GetConsoleView()->HasSelection(), L"not the console");
         }
     };

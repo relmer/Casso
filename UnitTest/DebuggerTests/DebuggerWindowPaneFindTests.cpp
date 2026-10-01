@@ -175,8 +175,7 @@ namespace DebuggerPaneFindTests
 
             window.Type (L"sta");
 
-            Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
-            Assert::AreEqual (std::wstring (L"STA"), window.GetSourceView (0)->GetSelectionText(), L"the first match in the document");
+            Assert::AreEqual (std::wstring (L"STA"), window.GetSourceView (0)->GetSelectionText(), L"typing finds the first match in the document");
             Assert::IsFalse  (window.GetConsoleView()->HasSelection(), L"the console is not searched");
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"and nothing runs");
 

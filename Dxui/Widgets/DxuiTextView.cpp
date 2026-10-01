@@ -684,7 +684,6 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
 
 DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount)
 {
-    std::vector<std::wstring>  texts;
     std::vector<FindMatch>     matches;
     Position                   from   = forward ? (std::max) (m_anchor, m_caret) : (std::min) (m_anchor, m_caret);
     FindResult                 result = FindResult::Wrapped;
@@ -695,22 +694,8 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
     outIndex = 0;
     outCount = 0;
 
-    texts.reserve (m_rows.size());
-
-    for (const Row & row : m_rows)
-    {
-        texts.push_back (GetRowText (row));
-    }
-
-    if (FindAllInRows (texts, needle, matchCase, wholeWord, isRegex, matches) && m_scoped)
-    {
-        std::erase_if (matches, [this] (const FindMatch & match)
-        {
-            Position  end { match.start.row, match.start.offset + match.length };
-
-            return match.start < m_scopeStart || m_scopeEnd < end;
-        });
-    }
+    (void) GetScopedMatches (needle, matchCase, wholeWord, isRegex, matches);
+    m_highlights = matches;
 
     if (matches.empty())
     {
@@ -746,6 +731,168 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
     outIndex = (int) pick + 1;
     outCount = (int) matches.size();
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SelectMatchInView
+//
+//  A match is on screen when the line it starts on is one the view shows.
+//  Without one there, the first starting below the top of the view is taken,
+//  going round to the first in the text when there is none below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView::FindResult DxuiTextView::SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount)
+{
+    std::vector<FindMatch>  matches;
+    int                     cap    = GetLineCap();
+    size_t                  pick   = 0;
+    FindResult              result = FindResult::Found;
+
+
+
+    outIndex = 0;
+    outCount = 0;
+
+    (void) GetScopedMatches (needle, matchCase, wholeWord, isRegex, matches);
+    m_highlights = matches;
+
+    if (matches.empty())
+    {
+        return FindResult::NotFound;
+    }
+
+    auto  onScreen = std::ranges::find_if (matches, [this, cap] (const FindMatch & match)
+    {
+        int  line = GetLineOfPosition (match.start);
+
+        return line >= m_topLine && line < m_topLine + cap;
+    });
+
+    auto  below = std::ranges::find_if (matches, [this] (const FindMatch & match) { return GetLineOfPosition (match.start) >= m_topLine; });
+
+    if (onScreen != matches.end())
+    {
+        pick = (size_t) (onScreen - matches.begin());
+    }
+    else if (below != matches.end())
+    {
+        pick = (size_t) (below - matches.begin());
+    }
+    else
+    {
+        result = FindResult::Wrapped;
+    }
+
+    m_anchor = matches[pick].start;
+    m_caret  = Position { matches[pick].start.row, matches[pick].start.offset + matches[pick].length };
+    ScrollToPosition (m_anchor);
+
+    outIndex = (int) pick + 1;
+    outCount = (int) matches.size();
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetScopedMatches
+//
+//  Every match in the text, less those outside the scope while find in
+//  selection is on. False when the needle is not a valid expression.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::GetScopedMatches (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, std::vector<FindMatch> & outMatches) const
+{
+    std::vector<std::wstring>  texts;
+    bool                       valid = false;
+
+
+
+    texts.reserve (m_rows.size());
+
+    for (const Row & row : m_rows)
+    {
+        texts.push_back (GetRowText (row));
+    }
+
+    valid = FindAllInRows (texts, needle, matchCase, wholeWord, isRegex, outMatches);
+
+    if (valid && m_scoped)
+    {
+        std::erase_if (outMatches, [this] (const FindMatch & match)
+        {
+            Position  end { match.start.row, match.start.offset + match.length };
+
+            return match.start < m_scopeStart || m_scopeEnd < end;
+        });
+    }
+
+    return valid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetFindHighlightFill
+//
+//  3:1 is what WCAG asks of a mark that is not text. A dark background
+//  takes the accent lighter, a light one darker.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTextView::GetFindHighlightFill (const IDxuiTheme & theme)
+{
+    constexpr float  kMinRatio = 3.0f;
+    constexpr int    kMaxSteps = 40;
+
+
+
+    uint32_t  background = theme.ContentBackground() | 0xFF000000u;
+    uint32_t  fill       = theme.WarningAccent()     | 0xFF000000u;
+    bool      darkBack   = DxuiColor::ComputeRelativeLuminance (background) < 0.18f;
+
+
+
+    for (int step = 0; step < kMaxSteps && DxuiColor::ComputeContrastRatio (fill, background) < kMinRatio; step++)
+    {
+        fill = darkBack ? DxuiColor::Lighten (fill, 0.1f) : DxuiColor::Darken (fill, 0.9f);
+    }
+
+    return fill;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetFindHighlightText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTextView::GetFindHighlightText (const IDxuiTheme & theme)
+{
+    uint32_t  fill  = GetFindHighlightFill (theme);
+    uint32_t  fore  = theme.Foreground()        | 0xFF000000u;
+    uint32_t  back  = theme.ContentBackground() | 0xFF000000u;
+
+
+
+    return (DxuiColor::ComputeContrastRatio (fore, fill) >= DxuiColor::ComputeContrastRatio (back, fill)) ? fore : back;
 }
 
 
@@ -1283,6 +1430,10 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     uint32_t                 selArgb  = theme.SelectionBackground();
     std::vector<uint32_t>    colors   = GetRowColors (row);
     int                      gutter   = GetGutterPx();
+    uint32_t                 litArgb  = GetFindHighlightFill (theme);
+    uint32_t                 litText  = GetFindHighlightText (theme);
+    uint32_t                 litEdge  = (litText == (theme.Foreground() | 0xFF000000u)) ? theme.ContentBackground() : theme.Foreground();
+    std::vector<bool>        lit;
 
 
 
@@ -1318,6 +1469,21 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    //  A highlighted match's characters are drawn in the color that reads on
+    //  its fill.
+    for (const FindMatch & match : m_highlights)
+    {
+        if (match.start.row == line.row)
+        {
+            lit.resize ((size_t) GetRowLength (row) + 1, false);
+
+            for (int i = match.start.offset; i < match.start.offset + match.length && i < (int) lit.size(); i++)
+            {
+                lit[(size_t) i] = true;
+            }
+        }
+    }
+
     for (int c = 0; line.first && c < last; c++)
     {
         const std::wstring &  cell   = row.cells[(size_t) c];
@@ -1329,7 +1495,8 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                GetCellStart (row, c + 1) - column - (int) cell.size(), selFrom, selTo, selArgb);
         }
 
-        DrawRun (text, theme, font, y, column, GetCellBase (row, c), cell, selected, selFrom, selTo, colors);
+        FillHighlights (painter, y, column, GetCellBase (row, c), (int) cell.size(), line.row, litArgb, litEdge);
+        DrawRun (text, theme, font, y, column, GetCellBase (row, c), cell, selected, selFrom, selTo, colors, lit, litText);
     }
 
     if (last >= 0)
@@ -1343,7 +1510,8 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                0, selFrom, selTo, selArgb);
         }
 
-        DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo, colors);
+        FillHighlights (painter, y, column, GetCellBase (row, last) + line.start, line.length, line.row, litArgb, litEdge);
+        DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo, colors, lit, litText);
     }
 }
 
@@ -1372,7 +1540,9 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
                             bool                   selected,
                             int                    selFrom,
                             int                    selTo,
-                            const std::vector<uint32_t> & colors) const
+                            const std::vector<uint32_t> & colors,
+                            const std::vector<bool>     & lit,
+                            uint32_t                      litArgb) const
 {
     HRESULT   hr     = S_OK;
     int       left   = GetTextLeft();
@@ -1384,6 +1554,11 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
     auto      colorAt = [&] (int i)
                         {
                             size_t  flat = (size_t) (flatStart + i);
+
+                            if (flat < lit.size() && lit[flat])
+                            {
+                                return litArgb;
+                            }
 
                             if (i >= first && i < end)
                             {
@@ -1469,6 +1644,49 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
     }
 
     return colors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::FillHighlights
+//
+//  Each highlighted match on the row that falls in the `count` characters
+//  starting at `flatStart`, the way the selection is filled. The selected
+//  match, the one the search is at, is also outlined in `edge`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::FillHighlights (IDxuiPainter & painter, int y, int column, int flatStart, int count, int row, uint32_t argb, uint32_t edge) const
+{
+    int       left = GetTextLeft();
+    Position  from = (std::min) (m_anchor, m_caret);
+    Position  to   = (std::max) (m_anchor, m_caret);
+
+
+
+    for (const FindMatch & match : m_highlights)
+    {
+        int  first = (std::max) (match.start.offset, flatStart);
+        int  end   = (std::min) (match.start.offset + match.length, flatStart + count);
+
+        if (match.start.row != row || end <= first)
+        {
+            continue;
+        }
+
+        FillSelectedRange (painter, y, column, flatStart, count, 0, match.start.offset, match.start.offset + match.length, argb);
+
+        if (from == match.start && to == Position { row, match.start.offset + match.length })
+        {
+            painter.OutlineRect ((float) (left + (column + first - flatStart) * m_cellAdvance), (float) y,
+                                 (float) ((end - first) * m_cellAdvance), (float) m_cellHeightPx,
+                                 m_scaler.ToPxf (2.0f), edge);
+        }
+    }
 }
 
 

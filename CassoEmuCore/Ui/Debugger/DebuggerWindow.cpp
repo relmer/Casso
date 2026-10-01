@@ -1026,9 +1026,14 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
     targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox });
 
-    for (IDxuiControl * control : GetFindControls())
+    //  Every pane's find widget, open or not, its buttons before its box: the
+    //  option toggles lie inside the box, and a press on one is the toggle's.
+    for (const auto & [pane, state] : m_findStates)
     {
-        targets.push_back (control);
+        if (state.box != nullptr)
+        {
+            targets.insert (targets.end(), { state.caseButton, state.wordButton, state.regexButton, state.prevButton, state.nextButton, state.selButton, state.closeButton, state.box });
+        }
     }
 
     return targets;
@@ -2710,8 +2715,13 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
     state.box->SetVisible    (false);
     state.status->SetVisible (false);
 
+    //  Every match is found and highlighted as the text is typed.
+    state.box->SetOnChange ([this, pane] (const std::wstring &) { ActivateFind (pane); SearchAsTyped(); });
+
+    //  Flat and borderless, as a pane toolbar's buttons are.
     for (DxuiButton * button : { state.chevron, state.caseButton, state.wordButton, state.regexButton, state.prevButton, state.nextButton, state.selButton, state.closeButton })
     {
+        button->SetVariant (DxuiButton::Variant::Toolbar);
         button->SetVisible (false);
     }
 
@@ -3445,6 +3455,11 @@ void DebuggerWindow::CloseFind()
     m_findStatusText.clear();
     m_findStatus->SetText (m_findStatusText);
 
+    if (GetFindView() != nullptr)
+    {
+        GetFindView()->ClearFindHighlights();
+    }
+
     if (GetFindFrame() != nullptr)
     {
         GetFindFrame()->Relayout();
@@ -3535,6 +3550,57 @@ void DebuggerWindow::FindInPane (bool forward)
     m_findStatusText = GetFindStatusText (result, index, count);
     m_findStatus->SetText (m_findStatusText);
 
+    //  With the widget closed there is nothing to say what the marks are.
+    if (!m_findOpen)
+    {
+        GetFindView()->ClearFindHighlights();
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SearchAsTyped
+//
+//  Each change to the find box searches again, as Visual Studio Code's
+//  does: every match is highlighted and the first on screen selected, or,
+//  with none on screen, the first after it, scrolled into view. An empty
+//  box clears the marks and the count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SearchAsTyped()
+{
+    DxuiTextView              * view   = GetFindView();
+    std::wstring                needle = m_findBox->GetText();
+    DxuiTextView::FindResult    result = DxuiTextView::FindResult::NotFound;
+    int                         index  = 0;
+    int                         count  = 0;
+
+
+
+    if (view == nullptr)
+    {
+        return;
+    }
+
+    if (needle.empty())
+    {
+        view->ClearFindHighlights();
+        m_findStatusText.clear();
+    }
+    else
+    {
+        result           = view->SelectMatchInView (needle, m_findMatchCase, m_findWholeWord, m_findRegex, index, count);
+        m_findStatusText = GetFindStatusText (result, index, count);
+    }
+
+    m_findStatus->SetText (m_findStatusText);
     Invalidate();
 }
 
@@ -6991,9 +7057,9 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
 {
     for (const auto & [pane, state] : m_findStates)
     {
+        //  The toggles lie inside the box, so the box is asked last.
         const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
         {
-            { state.box,         L"Text to find in this pane"             },
             { state.caseButton,  L"Find only text in the same case"      },
             { state.wordButton,  L"Find only whole words"                },
             { state.regexButton, L"Find by regular expression"           },
@@ -7002,6 +7068,7 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
             { state.selButton,   L"Find in selection"                    },
             { state.chevron,     L"Replace is not available: this text is read-only" },
             { state.closeButton, L"Close the find bar"                   },
+            { state.box,         L"Text to find in this pane"             },
         };
 
         for (const auto & [control, tip] : tips)
@@ -10030,6 +10097,22 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
     if (sash != nullptr)
     {
         return sash;
+    }
+
+    //  The find widget floats over its pane's text: the I-beam over its box,
+    //  and the arrow over its buttons and the rest of it, not the text's
+    //  I-beam beneath.
+    for (const auto & [findPane, state] : m_findStates)
+    {
+        if (state.plate == nullptr || !IsRoutable (state.plate) || !state.plate->IsVisible() || !DxuiDockSite::Contains (state.plate->GetBounds(), clientPx))
+        {
+            continue;
+        }
+
+        bool  onButton = std::ranges::any_of (std::initializer_list<const DxuiButton *> { state.chevron, state.caseButton, state.wordButton, state.regexButton, state.prevButton, state.nextButton, state.selButton, state.closeButton },
+                                              [clientPx] (const DxuiButton * button) { return button->IsVisible() && DxuiDockSite::Contains (button->GetBounds(), clientPx); });
+
+        return (!onButton && DxuiDockSite::Contains (state.box->GetBounds(), clientPx)) ? IDC_IBEAM : IDC_ARROW;
     }
 
     for (DxuiListView * list : GetLists())

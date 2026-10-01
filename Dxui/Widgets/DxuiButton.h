@@ -36,9 +36,12 @@ public:
     // contrast against its white label). Link renders as accent-colored
     // text with no fill/border (a clickable hyperlink); the consumer wires
     // SetOnClick to open the URL. A button cannot be given an arbitrary,
-    // non-theme color -- every fill/text derives from IDxuiTheme.
-    enum class Variant { Default, Primary, Link };
-    void  SetVariant  (Variant variant) { m_variant = variant; }
+    // non-theme color -- every fill/text derives from IDxuiTheme. Toolbar
+    // is flat and borderless until hovered, pressed or emphasized, as a
+    // toolbar's entries are; emphasis then reads as checked.
+    enum class Variant { Default, Primary, Link, Toolbar };
+    void     SetVariant  (Variant variant) { m_variant = variant; }
+    Variant  GetVariant  () const { return m_variant; }
 
     // How the label is trimmed when it does not fit the button's box. Off by
     // default: most buttons are sized to their label, and a caller that has

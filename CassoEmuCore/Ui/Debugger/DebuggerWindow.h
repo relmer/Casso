@@ -487,6 +487,7 @@ private:
     void     CreateFindWidget (const std::wstring & pane);
     std::wstring  GetFindPaneOfControl (const IDxuiControl * control) const;
     void     RecordFindHistory ();
+    void     SearchAsTyped    ();
     DebuggerPaneFrame * GetFindFrame  () const;
     static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();

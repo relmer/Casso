@@ -158,6 +158,24 @@ public:
     void  ClearFindScope          ()       { m_scoped = false; }
     bool  IsFindScoped            () const { return m_scoped; }
 
+    //  The search as it is typed: every match is highlighted, and the first
+    //  one on screen is selected; with none on screen, the first after the
+    //  top of the view is, scrolled into view. outIndex and outCount are as
+    //  SelectMatch gives them.
+    FindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount);
+
+    //  Every match of the last search, each drawn on a fill that stands out
+    //  from the text around it.
+    const std::vector<FindMatch> &  GetFindHighlights   () const { return m_highlights; }
+    void                            ClearFindHighlights ()       { m_highlights.clear(); }
+
+    //  The fill under a match: the theme's warning accent, made darker or
+    //  lighter until it has at least 3:1 contrast with the text's background,
+    //  and the color of the characters on it, whichever of the foreground and
+    //  the background has more contrast with the fill.
+    static uint32_t  GetFindHighlightFill (const IDxuiTheme & theme);
+    static uint32_t  GetFindHighlightText (const IDxuiTheme & theme);
+
     //  Every match in the rows, in order. False when the needle is not a valid
     //  regular expression.
     static bool  FindAllInRows (const std::vector<std::wstring> & rows,
@@ -233,6 +251,8 @@ private:
     static bool   TryFindOnce       (const std::vector<std::wstring> & rows, const std::wstring & needle, bool wholeWord, bool forward, Position from, Position & outStart);
     static bool   IsWordChar        (wchar_t ch) { return iswalnum (ch) || ch == L'_'; }
     static bool   IsWholeWordAt     (const std::wstring & text, size_t at, size_t length);
+    bool          GetScopedMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, std::vector<FindMatch> & outMatches) const;
+    void          FillHighlights    (IDxuiPainter & painter, int y, int column, int flatStart, int count, int row, uint32_t argb, uint32_t edge) const;
 
     //  A copy in lower case, one character for one.
     static std::wstring  GetLowered (const std::wstring & text);
@@ -244,7 +264,7 @@ private:
     void          FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int column,
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
-                                     const std::vector<uint32_t> & colors) const;
+                                     const std::vector<uint32_t> & colors, const std::vector<bool> & lit, uint32_t litArgb) const;
     int           GetTextLeft       () const;
 
     //  Each character of a row's text, its cells joined by tabs: its span's
@@ -259,29 +279,30 @@ private:
     //  The face's advance, which is rarely a whole number of pixels. Columns
     //  are placed by it rather than by the rounded cell width, so a line split
     //  into selected and unselected runs lands where the whole line would.
-    float     m_cellAdvance   = 0.0f;
-    int       m_cellHeightPx  = 0;
-    bool      m_cellPinned    = false;
-    float     m_zoom          = 1.0f;
-    float     m_textStrength  = 1.0f;
-    int       m_gutterDip     = 0;
-    int       m_gutterIconDip = 0;
-    UINT      m_measuredDpi   = 0;
-    int       m_topLine       = 0;
-    bool      m_followEnd     = false;
-    bool      m_atEnd         = true;
-    Position  m_anchor;
-    Position  m_caret;
-    bool      m_scoped        = false;
-    Position  m_scopeStart;
-    Position  m_scopeEnd;
-    Position  m_lastClick;
-    int64_t   m_lastClickMs   = 0;
-    bool      m_dragging      = false;
-    bool      m_wordDrag      = false;
-    Position  m_wordFirst;
-    Position  m_wordLast;
-    HWND      m_hwnd          = nullptr;
+    float                   m_cellAdvance   = 0.0f;
+    int                     m_cellHeightPx  = 0;
+    bool                    m_cellPinned    = false;
+    float                   m_zoom          = 1.0f;
+    float                   m_textStrength  = 1.0f;
+    int                     m_gutterDip     = 0;
+    int                     m_gutterIconDip = 0;
+    UINT                    m_measuredDpi   = 0;
+    int                     m_topLine       = 0;
+    bool                    m_followEnd     = false;
+    bool                    m_atEnd         = true;
+    Position                m_anchor;
+    Position                m_caret;
+    bool                    m_scoped        = false;
+    Position                m_scopeStart;
+    Position                m_scopeEnd;
+    std::vector<FindMatch>  m_highlights;
+    Position                m_lastClick;
+    int64_t                 m_lastClickMs   = 0;
+    bool                    m_dragging      = false;
+    bool                    m_wordDrag      = false;
+    Position                m_wordFirst;
+    Position                m_wordLast;
+    HWND                    m_hwnd          = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
