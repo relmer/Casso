@@ -40,6 +40,18 @@ public:
     static std::string     MakeScript     (DebugSession & session);
     static std::string     Describe       (const BreakpointInfo & info);
 
+    // One entry of either table as it stands, kept so an undo can add it
+    // back exactly as it was, with no definition built or parsed.
+    struct SavedEntry
+    {
+        bool        isWatchpoint = false;
+        Breakpoint  breakpoint;
+        Watchpoint  watchpoint;
+    };
+
+    static bool            TrySave        (DebugSession & session, int id, SavedEntry & saved);
+    static int             Add            (DebugSession & session, const SavedEntry & saved);
+
 private:
     static constexpr int   kOpcodeCount  = 256;
     static constexpr int   kBrkSelector  = 0;

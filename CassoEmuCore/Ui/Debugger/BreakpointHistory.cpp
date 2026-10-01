@@ -20,14 +20,17 @@
 
 void BreakpointHistory::Record (DebugSession & session, const Change & change)
 {
-    std::map<int, BreakpointInfo>  before = ListById (session);
+    std::map<int, BreakpointInfo>  before      = ListById (session);
+    std::map<int, Saved>           savedBefore = SaveAll (session);
     std::map<int, BreakpointInfo>  after;
+    std::map<int, Saved>           savedAfter;
     Step                           step;
 
 
 
     change();
-    after = ListById (session);
+    after      = ListById (session);
+    savedAfter = SaveAll (session);
 
     for (const auto & [id, info] : before)
     {
@@ -35,11 +38,11 @@ void BreakpointHistory::Record (DebugSession & session, const Change & change)
 
         if (now == after.end())
         {
-            step.push_back ({ GetHandle (id), info, std::nullopt });
+            step.push_back ({ GetHandle (id), info, std::nullopt, savedBefore[id], std::nullopt });
         }
         else if (!IsSame (info, now->second))
         {
-            step.push_back ({ GetHandle (id), info, now->second });
+            step.push_back ({ GetHandle (id), info, now->second, savedBefore[id], savedAfter[id] });
         }
     }
 
@@ -47,7 +50,7 @@ void BreakpointHistory::Record (DebugSession & session, const Change & change)
     {
         if (!before.contains (id))
         {
-            step.push_back ({ GetHandle (id), std::nullopt, info });
+            step.push_back ({ GetHandle (id), std::nullopt, info, std::nullopt, savedAfter[id] });
         }
     }
 
@@ -86,7 +89,7 @@ bool BreakpointHistory::TryUndo (DebugSession & session, const ActionRunner & ru
 
     for (auto entry = step.rbegin(); entry != step.rend(); ++entry)
     {
-        Apply (session, run, *entry, entry->after, entry->before);
+        Apply (session, run, *entry, entry->after, entry->before, entry->savedBefore);
     }
 
     m_redo.push_back (std::move (step));
@@ -119,7 +122,7 @@ bool BreakpointHistory::TryRedo (DebugSession & session, const ActionRunner & ru
 
     for (const Entry & entry : step)
     {
-        Apply (session, run, entry, entry.before, entry.after);
+        Apply (session, run, entry, entry.before, entry.after, entry.savedAfter);
     }
 
     m_undo.push_back (std::move (step));
@@ -159,7 +162,8 @@ void BreakpointHistory::Apply (
     const ActionRunner                   & run,
     const Entry                          & entry,
     const std::optional<BreakpointInfo>  & from,
-    const std::optional<BreakpointInfo>  & to)
+    const std::optional<BreakpointInfo>  & to,
+    const std::optional<Saved>           & saved)
 {
     std::optional<int>  id;
 
@@ -167,7 +171,11 @@ void BreakpointHistory::Apply (
 
     if (!from.has_value())
     {
-        Add (session, run, entry.handle, *to);
+        if (saved.has_value())
+        {
+            Add (session, entry.handle, *saved);
+        }
+
         return;
     }
 
@@ -203,38 +211,14 @@ void BreakpointHistory::Apply (
 //
 //  BreakpointHistory::Add
 //
-//  The definition adds the breakpoint with a new id, found as the one id
-//  that was not there before; the handle takes it.
+//  The breakpoint handler adds the saved entry back as it was, under a new
+//  id that the handle takes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointHistory::Add (DebugSession & session, const ActionRunner & run, int handle, const BreakpointInfo & to)
+void BreakpointHistory::Add (DebugSession & session, int handle, const Saved & saved)
 {
-    std::map<int, BreakpointInfo>  before = ListById (session);
-    std::map<int, BreakpointInfo>  after;
-    BreakpointInfo                 fresh;
-
-
-
-    run (DebuggerActions::GetDefineBreakpoint (BreakpointHandlers::MakeDefinition (to), session.GetMode()));
-    after = ListById (session);
-
-    for (const auto & [id, info] : after)
-    {
-        if (before.contains (id))
-        {
-            continue;
-        }
-
-        m_ids[handle] = id;
-
-        if (!HasSameFlags (info, to))
-        {
-            run (GetFlagsAction (id, to, session.GetMode()));
-        }
-
-        return;
-    }
+    m_ids[handle] = BreakpointHandlers::Add (session, saved);
 }
 
 
@@ -324,6 +308,35 @@ std::map<int, BreakpointInfo> BreakpointHistory::ListById (DebugSession & sessio
     for (const BreakpointInfo & info : list.breakpoints)
     {
         byId[info.id] = info;
+    }
+
+    return byId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::SaveAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<int, BreakpointHistory::Saved> BreakpointHistory::SaveAll (DebugSession & session)
+{
+    std::map<int, Saved>  byId;
+
+
+
+    for (const Breakpoint & entry : session.GetBreakpoints().GetAll())
+    {
+        (void) BreakpointHandlers::TrySave (session, entry.id, byId[entry.id]);
+    }
+
+    for (const Watchpoint & entry : session.GetWatchpoints().GetAll())
+    {
+        (void) BreakpointHandlers::TrySave (session, entry.id, byId[entry.id]);
     }
 
     return byId;

@@ -66,6 +66,10 @@ public:
     int   AddBrk           ();
     int   AddInterrupt     ();
 
+    //  Adds a copy of an entry under a new id, its hit count started afresh,
+    //  for an undo that brings back a deleted breakpoint as it was.
+    int   AddCopy          (const Breakpoint & entry);
+
     bool  TryClear         (int id);
     void  ClearAll         ();
     void  ClearKind        (BreakpointKind kind);

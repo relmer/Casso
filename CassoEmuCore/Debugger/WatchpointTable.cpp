@@ -204,6 +204,30 @@ bool WatchpointTable::TrySetFlags (int id, bool temporary, bool stops)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::AddCopy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int WatchpointTable::AddCopy (const Watchpoint & entry)
+{
+    Watchpoint  copy = entry;
+
+
+
+    copy.id   = m_nextId++;
+    copy.hits = 0;
+
+    m_entries.push_back (copy);
+    Publish();
+    return copy.id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::TryAdopt
 //
 //  Inserts an entry under the id it carries, for BPEDIT. Fails if the id is

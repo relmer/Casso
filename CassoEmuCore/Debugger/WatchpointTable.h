@@ -97,6 +97,10 @@ public:
     bool   TryAdopt         (const Watchpoint & entry);
     bool   TryFind          (int id, Watchpoint & entry) const;
 
+    //  Adds a copy of an entry under a new id, its hit count started afresh,
+    //  for an undo that brings back a deleted watchpoint as it was.
+    int    AddCopy          (const Watchpoint & entry);
+
     const std::vector<Watchpoint> &  GetAll () const { return m_entries; }
 
     bool   HasEnabled       () const;

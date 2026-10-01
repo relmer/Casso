@@ -1405,6 +1405,53 @@ std::string BreakpointHandlers::MakeScript (DebugSession & session)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHandlers::TrySave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TrySave (DebugSession & session, int id, SavedEntry & saved)
+{
+    saved = {};
+
+    if (session.GetBreakpoints().TryFind (id, saved.breakpoint))
+    {
+        return true;
+    }
+
+    saved.isWatchpoint = session.GetWatchpoints().TryFind (id, saved.watchpoint);
+    return saved.isWatchpoint;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::Add
+//
+//  Adds a saved entry back to its table under a new id, with its kind,
+//  range, condition, enabled state and When hit setting as they were.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointHandlers::Add (DebugSession & session, const SavedEntry & saved)
+{
+    int  id = saved.isWatchpoint ? session.GetWatchpoints().AddCopy (saved.watchpoint)
+                                 : session.GetBreakpoints().AddCopy (saved.breakpoint);
+
+
+
+    session.OnStopConditionsChanged();
+    return id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHandlers::TryFindInfo
 //
 ////////////////////////////////////////////////////////////////////////////////

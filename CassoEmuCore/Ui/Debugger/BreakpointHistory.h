@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Reply.h"
 
 class  DebugSession;
@@ -17,8 +18,8 @@ struct DebuggerAction;
 //  step: what every breakpoint was before it and after it, found by listing
 //  the table on either side of the action. Undoing a step runs the commands
 //  that take each breakpoint back to its before state -- a deleted one is
-//  added again from its definition, then given its enabled state and When
-//  hit setting -- and redoing runs the commands that take it forward again.
+//  added again straight from the table entry saved with the step, with no
+//  definition built or parsed -- and redoing takes it forward again.
 //
 //  A breakpoint added again gets a new id, so a step refers to each
 //  breakpoint by a handle of its own and the history keeps the id each handle
@@ -55,23 +56,30 @@ public:
 
 private:
     //  One breakpoint's part in a step: its state before and after, either
-    //  missing where the breakpoint did not exist.
+    //  missing where the breakpoint did not exist, and the table entry on
+    //  each side to add it back from.
+    using Saved = BreakpointHandlers::SavedEntry;
+
     struct Entry
     {
         int                            handle = 0;
         std::optional<BreakpointInfo>  before;
         std::optional<BreakpointInfo>  after;
+        std::optional<Saved>           savedBefore;
+        std::optional<Saved>           savedAfter;
     };
 
     using Step = std::vector<Entry>;
 
     void                 Apply        (DebugSession & session, const ActionRunner & run, const Entry & entry,
-                                       const std::optional<BreakpointInfo> & from, const std::optional<BreakpointInfo> & to);
-    void                 Add          (DebugSession & session, const ActionRunner & run, int handle, const BreakpointInfo & to);
+                                       const std::optional<BreakpointInfo> & from, const std::optional<BreakpointInfo> & to,
+                                       const std::optional<Saved> & saved);
+    void                 Add          (DebugSession & session, int handle, const Saved & saved);
     int                  GetHandle    (int id);
     std::optional<int>   GetLiveId    (DebugSession & session, int handle, const BreakpointInfo & expected) const;
 
     static std::map<int, BreakpointInfo>  ListById    (DebugSession & session);
+    static std::map<int, Saved>           SaveAll     (DebugSession & session);
     static bool                           IsSame      (const BreakpointInfo & left, const BreakpointInfo & right);
     static bool                           HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right);
 
