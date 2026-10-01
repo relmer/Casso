@@ -458,5 +458,5 @@ bytes, words and longs.
 and its memory map, the video switches, the keyboard, the Mockingboard, the
 printer card and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the
-device has them. `PANEL LIST`, `PANEL name` and `PANEL CLOSE name` do the same
-from the command box.
+device has them. `PANEL LIST`, `PANEL name` and `PANEL CLOSE name` (or
+`PANEL name CLOSE`) do the same from the command box.

@@ -187,7 +187,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "PAGEUP",      H::DisplayAndPanels,   "PAGEUP",                                         "Move the code pane up a page"                                                            },
     { "PAGEUP256",   H::DisplayAndPanels,   "PAGEUP256",                                      "Move the code pane back $100 bytes"                                                      },
     { "PAGEUP4K",    H::DisplayAndPanels,   "PAGEUP4K",                                       "Move the code pane back $1000 bytes"                                                     },
-    { "PANEL",       H::DisplayAndPanels,   "PANEL [LIST|name|CLOSE name]",                   "List the device panels, or open or close one"                                            },
+    { "PANEL",       H::DisplayAndPanels,   "PANEL [LIST|name|CLOSE name|name CLOSE]",        "List the device panels, or open or close one"                                            },
     { "RET",         H::DisplayAndPanels,   "RET",                                            "Move the code pane to the return address"                                                },
     { "V",           H::DisplayAndPanels,   "V",                                              "Move the code pane down one instruction"                                                 },
     { "VIDEOINFO",   H::DisplayAndPanels,   "VIDEOINFO",                                      "Show the video scanner's position"                                                       },

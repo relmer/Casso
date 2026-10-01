@@ -85,6 +85,21 @@ namespace DebuggerTests
         }
 
 
+        //  The name-first form, PANEL name CLOSE, closes the panel too.
+        TEST_METHOD (Panel_NameFirstClose_ClosesPanel)
+        {
+            AppleWinParseResult  close  = ParseOk ("PANEL disk close");
+            AppleWinParseResult  spaced = ParseOk ("PANEL Disk II CLOSE");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::ClosePanel, (int) close.command.verb);
+            Assert::AreEqual (std::string ("disk"),        close.command.text);
+            Assert::AreEqual ((int) DebugVerb::ClosePanel, (int) spaced.command.verb);
+            Assert::AreEqual (std::string ("Disk II"),     spaced.command.text);
+        }
+
+
         TEST_METHOD (Names_IgnoreCase_HexWithAndWithoutDollar)
         {
             Assert::AreEqual ((int) DebugVerb::SetReadWatchpoint, (int) ParseOk ("bpmr C019").command.verb);

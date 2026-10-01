@@ -1531,7 +1531,7 @@ bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value
 //  AppleWinParser::TryParsePanelArguments
 //
 //  PANEL and PANEL LIST list the device panels; PANEL name opens one and PANEL
-//  CLOSE name closes it. The name is the rest of the line, so a title that
+//  CLOSE name or PANEL name CLOSE closes it. The name is the rest of the line, so a title that
 //  holds a space works; which panels exist is the window's to know.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1553,6 +1553,16 @@ bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugComman
     {
         error = "Use PANEL LIST to list the device panels, PANEL name to open one, or PANEL CLOSE name to close one.";
         return false;
+    }
+
+    //  The name-first form, PANEL name CLOSE, closes too.
+    if (!close && args.tokens.size() >= 2 && ToUpper (args.tokens.back()) == "CLOSE")
+    {
+        Tokens  name (args.tokens.begin(), args.tokens.end() - 1);
+
+        command.verb = DebugVerb::ClosePanel;
+        command.text = Join (name, 0);
+        return true;
     }
 
     //  A panel's title can hold a space ("Disk II"), so every word after the
