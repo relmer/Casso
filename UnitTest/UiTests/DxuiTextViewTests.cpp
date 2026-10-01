@@ -402,4 +402,36 @@ public:
         Assert::IsTrue   (view.SelectMatch (L"JUMP", true, false, true) == DxuiTextView::FindResult::Found);
         Assert::AreEqual (view.GetLineCount() - 4, view.GetTopLine(), L"the match's line shows, at the bottom of the view, not the row's first");
     }
+
+    //  A view that follows its end stays at the bottom through a smaller
+    //  layout, and keeps its place through new rows once scrolled up.
+    TEST_METHOD (FollowEnd_StaysAtTheBottomThroughALayout)
+    {
+        DxuiTextView                    view;
+        std::vector<DxuiTextView::Row>  rows;
+
+
+
+        for (int i = 0; i < 100; i++)
+        {
+            rows.push_back (MakeRow ({ std::format (L"line {}", i) }));
+        }
+
+        view.SetFollowEnd (true);
+        LayOut (view, 400, 12 + 16 * 10);
+        view.SetRows (rows);
+        view.SetTopLine (view.GetLineCount());
+
+        LayOut (view, 400, 12 + 16 * 5);
+        Assert::AreEqual (95, view.GetTopLine(), L"still at the bottom after shrinking");
+
+        LayOut (view, 400, 0);
+        LayOut (view, 400, 12 + 16 * 10);
+        Assert::AreEqual (90, view.GetTopLine(), L"still at the bottom after a collapse");
+
+        view.SetTopLine (20);
+        rows.push_back (MakeRow ({ L"more" }));
+        view.SetRows (rows);
+        Assert::AreEqual (20, view.GetTopLine(), L"scrolled up, new rows keep its place");
+    }
 };

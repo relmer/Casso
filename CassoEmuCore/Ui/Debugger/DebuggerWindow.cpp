@@ -392,6 +392,7 @@ void DebuggerWindow::ConfigureWidgets()
     //  selection that runs through the text as an editor's does, and Ctrl+C
     //  to copy it.
     m_consoleView->SetOwnerWindow (GetHwnd());
+    m_consoleView->SetFollowEnd (true);
 
     //  Activating a breakpoint shows its address; its checkbox turns it on
     //  and off, as Visual Studio's Breakpoints window does.
@@ -1679,6 +1680,51 @@ void DebuggerWindow::NoteViewFocus (bool isSource)
     if (m_snapshot->source->stepBySource != isSource)
     {
         m_host->RunDebuggerCommand (DebuggerViewState::GetSourceStepLine (isSource, m_snapshot->mode));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::NoteTabFocus
+//
+//  A press on a pane's tab: a disassembly or source tab counts as a press
+//  inside that pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::NoteTabFocus (POINT pointDip)
+{
+    RECT          tab  = {};
+    std::wstring  tip;
+    std::wstring  pane = m_dockSite->GetTabAt (pointDip, tab, tip);
+    int           slot = GetSourceSlotOf (pane);
+
+
+
+    if (pane.empty())
+    {
+        return;
+    }
+
+    if (slot >= 0)
+    {
+        m_activeSource = slot;
+        NoteViewFocus (true);
+        return;
+    }
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (pane == DebuggerLayout::GetCodePaneId (view))
+        {
+            m_activeCode = view;
+            NoteViewFocus (false);
+            return;
+        }
     }
 }
 
@@ -4680,7 +4726,9 @@ DiagnosticsPane * DebuggerWindow::GetDiagnosticsPane (const std::wstring & pane)
 void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 {
     std::vector<DxuiTextView::Row>  rows;
-    bool                            atEnd = m_consoleView->GetTopLine() + m_consoleView->GetLineCap() >= m_consoleView->GetLineCount();
+    bool                            atEnd   = m_consoleView->IsAtEnd();
+    int                             top     = m_consoleView->GetTopLine();
+    int                             dropped = 0;
 
 
 
@@ -4693,7 +4741,8 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 
     if ((int) m_console.size() > kConsoleLineLimit)
     {
-        m_console.erase (m_console.begin(), m_console.end() - kConsoleLineLimit);
+        dropped = (int) m_console.size() - kConsoleLineLimit;
+        m_console.erase (m_console.begin(), m_console.begin() + dropped);
     }
 
     for (const std::string & line : m_console)
@@ -4706,12 +4755,9 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 
     m_consoleView->SetRows (std::move (rows));
 
-    //  A console scrolled back to read stays where it was; one at its end
-    //  follows the output.
-    if (atEnd)
-    {
-        m_consoleView->SetTopLine (m_consoleView->GetLineCount());
-    }
+    //  A console scrolled back to read stays on the same text, even as the
+    //  oldest lines go; one at its end follows the output.
+    m_consoleView->SetTopLine (atEnd ? m_consoleView->GetLineCount() : top - dropped);
 
     //  Output to a console out of sight marks its tab (FR-041).
     if (m_dockSite != nullptr && !m_consoleView->IsVisible())
@@ -5727,6 +5773,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     if (m_routingPane.empty() && RouteCommandBarMouse (ev))
     {
         return true;
+    }
+
+    //  A press on a disassembly or source tab sets the step mode as a press
+    //  inside that pane does.
+    if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    {
+        NoteTabFocus (ev.positionDip);
     }
 
     //  Then the site: its strips, its sashes and a drag in progress lie over

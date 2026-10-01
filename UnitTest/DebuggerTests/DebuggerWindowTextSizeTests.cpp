@@ -1163,4 +1163,71 @@ namespace DebuggerTests
                             L"the clip is its pane, which holds the list");
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerWindowConsoleScrollTests
+    //
+    //  The console follows its output while at the bottom, stays where the
+    //  user scrolled it, and follows again once scrolled back to the bottom.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerWindowConsoleScrollTests)
+    {
+    public:
+
+        static std::vector<std::string>  MakeLines (int count)
+        {
+            std::vector<std::string>  lines;
+
+            for (int i = 0; i < count; i++)
+            {
+                lines.push_back (std::format ("line {}", i));
+            }
+
+            return lines;
+        }
+
+
+        static bool  IsAtBottom (DxuiTextView * view)
+        {
+            return view->GetTopLine() + view->GetLineCap() >= view->GetLineCount();
+        }
+
+
+        TEST_METHOD (OutputKeepsAScrolledConsoleWhereItWas)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+            DxuiTextView      * view   = nullptr;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            view = window.GetConsoleView();
+            view->SetCellSize (8, 16);
+            view->Layout (RECT { 0, 0, 400, 300 }, scaler);
+            window.AppendConsole (MakeLines (200));
+
+            Assert::IsTrue   (IsAtBottom (view), L"follows the output");
+            Assert::IsTrue   (view->GetTopLine() > 10, L"the output overflows the view");
+
+            view->SetTopLine (10);
+            window.AppendConsole ({ "SRC OFF" });
+            Assert::AreEqual (10, view->GetTopLine(), L"stays where scrolled");
+
+            view->SetTopLine (view->GetLineCount());
+            window.AppendConsole ({ "more" });
+            Assert::IsTrue   (IsAtBottom (view), L"follows again from the bottom");
+        }
+    };
 }

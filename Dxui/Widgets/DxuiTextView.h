@@ -83,6 +83,11 @@ public:
     void  SetTopLine   (int line);
     void  ScrollLines  (int delta) { SetTopLine (m_topLine + delta); }
 
+    //  A view that follows its end, as a console does: at the bottom, it stays
+    //  there through new rows and a layout; scrolled up, new rows keep its place.
+    void  SetFollowEnd (bool follow) { m_followEnd = follow; }
+    bool  IsAtEnd      () const { return m_atEnd; }
+
     //  The drawn line a row starts on, which differs from the row once a row
     //  above it has wrapped. -1 for a row not laid out.
     int   GetFirstLineOfRow (int row) const;
@@ -197,6 +202,8 @@ private:
     float              m_textStrength  = 1.0f;
     UINT               m_measuredDpi   = 0;
     int                m_topLine       = 0;
+    bool               m_followEnd     = false;
+    bool               m_atEnd         = true;
     Position           m_anchor;
     Position           m_caret;
     Position           m_lastClick;

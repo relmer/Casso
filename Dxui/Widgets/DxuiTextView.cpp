@@ -21,7 +21,7 @@ void DxuiTextView::SetRows (std::vector<Row> rows)
     m_rows     = std::move (rows);
     m_anchor   = Position();
     m_caret    = Position();
-    m_topLine  = 0;
+    m_topLine  = m_followEnd ? m_topLine : 0;
     m_dragging = false;
 
     Rebuild();
@@ -108,6 +108,7 @@ void DxuiTextView::SetTopLine (int line)
 
 
     m_topLine = (std::max) (0, (std::min) (line, maxTop));
+    m_atEnd   = m_topLine >= maxTop;
 
     SyncScrollbar();
 }
@@ -268,7 +269,7 @@ void DxuiTextView::Rebuild()
         BuildLines (GetTextColumns (true));
     }
 
-    SetTopLine (m_topLine);
+    SetTopLine ((m_followEnd && m_atEnd) ? INT_MAX : m_topLine);
 }
 
 

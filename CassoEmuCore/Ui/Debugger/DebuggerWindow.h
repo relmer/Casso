@@ -342,6 +342,7 @@ private:
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
     bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource);
+    void     NoteTabFocus       (POINT pointDip);
     void     ApplySource        ();
     void     FollowPcSource     ();
     void     OpenSourceDocument (int fileId, int line, bool activate);
