@@ -1265,7 +1265,7 @@ void DebuggerWindow::ApplySource()
         DxuiTabGroup::LeadingMark    mark;
 
         document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
-                                       (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u, GetResultArgb(),
+                                       GetTextColors().muted, GetResultArgb(),
                                        GetSyntaxColors().GetBlended ((m_theme != nullptr) ? m_theme->ContentBackground() : 0u) });
         document.pane->SetShowCode (m_showSourceCode);
         document.pane->SetFile     (m_documents.GetFileId (slot));
@@ -7496,33 +7496,40 @@ uint32_t DebuggerWindow::GetTargetRowArgb() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetTextColors
+//
+//  Every text color the panes draw, made readable against the theme's
+//  content background.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerTextColors::Set DebuggerWindow::GetTextColors() const
+{
+    uint32_t  background = (m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000;
+    uint32_t  foreground = (m_theme != nullptr) ? m_theme->Foreground()        : 0xFFFFFFFF;
+    uint32_t  muted      = (m_theme != nullptr) ? m_theme->ForegroundMuted()   : 0xFFC0C0C0;
+    uint32_t  result     = (m_theme != nullptr) ? m_theme->resultText          : 0u;
+
+
+
+    return DebuggerTextColors::Make (background, foreground, muted, result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetSyntaxColors
 //
-//  Visual Studio's code colors for the theme's darkness, as the comment color
-//  already is: the keyword blue for a mnemonic, the control purple for a
-//  directive, the type teal for a symbol, and its number and string colors.
-//  A listing's address takes the theme's text color and its bytes the muted
-//  one, as the source pane's bytes column has them.
+//  Visual Studio's code colors for the theme's darkness; see DebuggerTextColors.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 SourceSyntax::Colors DebuggerWindow::GetSyntaxColors() const
 {
-    SourceSyntax::Colors  colors;
-    bool                  dark   = IsDarkTheme();
-
-
-
-    colors.mnemonic  = dark ? 0xFF569CD6 : 0xFF0000FF;
-    colors.directive = dark ? 0xFFC586C0 : 0xFFAF00DB;
-    colors.symbol    = dark ? 0xFF4EC9B0 : 0xFF2B91AF;
-    colors.number    = dark ? 0xFFB5CEA8 : 0xFF098658;
-    colors.string    = dark ? 0xFFD69D85 : 0xFFA31515;
-    colors.comment   = GetAnnotationArgb();
-    colors.address   = (m_theme != nullptr) ? m_theme->Foreground()      : 0u;
-    colors.bytes     = (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u;
-
-    return colors;
+    return GetTextColors().syntax;
 }
 
 
@@ -7540,12 +7547,7 @@ SourceSyntax::Colors DebuggerWindow::GetSyntaxColors() const
 
 uint32_t DebuggerWindow::GetResultArgb() const
 {
-    if (m_theme != nullptr && m_theme->resultText != 0)
-    {
-        return m_theme->resultText;
-    }
-
-    return IsDarkTheme() ? 0xFF4EC9E0 : 0xFF00727D;
+    return GetTextColors().result;
 }
 
 
@@ -7562,7 +7564,7 @@ uint32_t DebuggerWindow::GetResultArgb() const
 
 uint32_t DebuggerWindow::GetAnnotationArgb() const
 {
-    return IsDarkTheme() ? 0xFF57A64A : 0xFF008000;
+    return GetTextColors().annotation;
 }
 
 
@@ -7613,7 +7615,7 @@ DxuiListView::Cell DebuggerWindow::GetOperandAndResultCell (const std::string & 
 
 uint32_t DebuggerWindow::GetChangedArgb() const
 {
-    return IsDarkTheme() ? 0xFFFF6B68 : 0xFFD00000;
+    return GetTextColors().changed;
 }
 
 

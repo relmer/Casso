@@ -505,7 +505,8 @@ void DxuiMenuBar::Close()
 {
     DXUI_ASSERT_UI_THREAD();
 
-    m_isOpen = false;
+    m_isOpen      = false;
+    m_cuesToggled = false;
     m_dropdown.Hide();
 }
 
@@ -617,6 +618,43 @@ bool DxuiMenuBar::HandleAltKey (wchar_t ch)
     }
 
     return matched >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::TrackAltTap
+//
+//  Follows the Windows rule for access-key underlines: pressing and releasing
+//  Alt with no other key between toggles them on, and the next such tap turns
+//  them off; closing a menu also turns them off. A host passes every key
+//  transition here. Returns true when the release toggled the cues, so the
+//  host can claim it and repaint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiMenuBar::TrackAltTap (DxuiKeyEventKind kind, WPARAM vk)
+{
+    bool  isAlt   = vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU;
+    bool  toggled = false;
+
+
+
+    if (kind == DxuiKeyEventKind::Down)
+    {
+        m_altTapArmed = isAlt;
+    }
+    else if (kind == DxuiKeyEventKind::Up && isAlt && m_altTapArmed)
+    {
+        m_altTapArmed = false;
+        m_cuesToggled = !m_cuesToggled;
+        toggled       = true;
+    }
+
+    return toggled;
 }
 
 
@@ -1530,7 +1568,8 @@ void DxuiMenuBar::ParseMnemonic (
 //
 //  Menu mnemonic underlines appear when (a) the system says to underline
 //  access keys at all times, (b) the user is holding Alt (the convention
-//  for "show me the access keys") or (c) the menu was opened via keyboard
+//  for "show me the access keys"), (c) a tap of Alt toggled them on (see
+//  TrackAltTap) or (d) the menu was opened via keyboard
 //  (F10 or Alt+mnemonic) -- keyboard navigation implies the user wants to
 //  see the access keys. Mouse-opened menus stay clean unless Alt is also
 //  pressed.
@@ -1540,12 +1579,12 @@ void DxuiMenuBar::ParseMnemonic (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiMenuBar::ShouldShowMnemonicCues (bool openedByKeyboard)
+bool DxuiMenuBar::ShouldShowMnemonicCues (bool openedByKeyboard) const
 {
     if (DxuiSystemSettings::Instance().AlwaysShowKeyboardCues())
     {
         return true;
     }
 
-    return openedByKeyboard || (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
+    return openedByKeyboard || m_cuesToggled || (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
 }

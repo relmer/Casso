@@ -2842,7 +2842,16 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         // -- claim and repaint --
         case WM_CHAR:          isHandled = IsClaimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
         case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:    isHandled = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes); break;
+        case WM_SYSKEYDOWN:
+            isHandled           = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes);
+            m_sysKeyDownClaimed = isHandled && msg == WM_SYSKEYDOWN;
+            break;
+
+        //  The character TranslateMessage makes from a claimed Alt+key. Left
+        //  to DefWindowProc it asks for a Win32 menu this window does not
+        //  have, and Windows beeps. An unclaimed Alt+key, such as Alt+Space
+        //  for the window menu, still reaches DefWindowProc.
+        case WM_SYSCHAR:       isHandled = m_sysKeyDownClaimed; break;
         case WM_TIMER:         isHandled = IsClaimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
                                                       RepaintOnClaim::Yes); break;
 

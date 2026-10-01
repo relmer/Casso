@@ -170,6 +170,7 @@
     <ClCompile Include="Ui\Debugger\SourceSyntax.cpp" />
     <ClCompile Include="Ui\Debugger\ConsoleHistory.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerKeySchemes.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerTextColors.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerThemes.cpp" />
     <ClCompile Include="Ui\Debugger\DroppedFiles.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\MemoryEditModel.cpp" />
@@ -572,6 +573,7 @@
     <ClInclude Include="Ui\Debugger\SourceSyntax.h" />
     <ClInclude Include="Ui\Debugger\ConsoleHistory.h" />
     <ClInclude Include="Ui\Debugger\DebuggerKeySchemes.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerTextColors.h" />
     <ClInclude Include="Ui\Debugger\DebuggerThemes.h" />
     <ClInclude Include="Ui\Debugger\DroppedFiles.h" />
     <ClInclude Include="Ui\Debugger\Panes\MemoryEditModel.h" />

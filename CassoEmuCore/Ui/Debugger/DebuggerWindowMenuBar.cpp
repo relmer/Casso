@@ -201,9 +201,7 @@ void DebuggerWindow::SetWindowMenus()
     std::vector<DxuiPopupMenuItem>               edit;
     std::vector<DxuiPopupMenuItem>               view;
     std::vector<DxuiPopupMenuItem>               debug;
-    std::vector<DxuiPopupMenuItem>               window;
     std::vector<DxuiPopupMenuItem>               tools;
-    std::vector<DxuiPopupMenuItem>               panels;
     std::vector<DxuiPopupMenuItem>               schemes;
     std::vector<DxuiPopupMenuItem>               themes;
     std::shared_ptr<DxuiCommand>                 row;
@@ -294,6 +292,10 @@ void DebuggerWindow::SetWindowMenus()
         view[cascadeAt[i]] = DxuiPopupMenuItem::ForSubmenu (row, std::move (cascadeRows[i]));
     }
 
+    //  View ends with the arrangement put back as it first was.
+    view.push_back (DxuiPopupMenuItem::ForSeparator());
+    add (view, MakeMenuCommand (L"Reset window layout", false, [this] { ResetPaneLayout(); }));
+
     //  Debug: running and stopping, the machine's own restarts, then the
     //  steps and how they step.
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRun,   L"Run"));
@@ -329,29 +331,6 @@ void DebuggerWindow::SetWindowMenus()
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
-
-    //  Window: the machine's device panels, a cascade of their own, and the
-    //  arrangement put back as it first was.
-    if (m_snapshot != nullptr)
-    {
-        for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
-        {
-            std::string  id   = panel.id;
-            bool         open = panel.open;
-
-            add (panels, MakeMenuCommand (TextEncoding::NarrowToWide (panel.title), open, [this, id, open]
-            {
-                RunAction (DebuggerActions::GetPanel (id, !open, GetMode()));
-            }));
-        }
-    }
-
-    row            = MakeMenuCommand (L"Device panels", false, [] {});
-    row->isEnabled = [hasPanels = !panels.empty()] { return hasPanels; };
-    m_menuCommands.push_back (row);
-    window.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (panels)));
-    window.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (window, MakeMenuCommand (L"Reset window layout", false, [this] { ResetPaneLayout(); }));
 
     //  Tools: which editor's keys the window takes.
     for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
@@ -407,7 +386,6 @@ void DebuggerWindow::SetWindowMenus()
         { L"&Edit",   0, std::move (edit)   },
         { L"&View",   0, std::move (view)   },
         { L"&Debug",  0, std::move (debug)  },
-        { L"&Window", 0, std::move (window) },
         { L"&Tools",  0, std::move (tools)  },
     };
 
@@ -537,6 +515,9 @@ bool DebuggerWindow::RouteMenuBarKey (const DxuiKeyEvent & ev, bool & handled)
 
 
 
+    //  Every press starts or ends a tap of Alt; OnKeyUp sees the release.
+    (void) m_menuBar->TrackAltTap (ev.kind, ev.vk);
+
     if (owns)
     {
         handled = (ev.kind != DxuiKeyEventKind::Down) || m_menuBar->OnKey (ev);
@@ -560,6 +541,37 @@ bool DebuggerWindow::RouteMenuBarKey (const DxuiKeyEvent & ev, bool & handled)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnKeyUp
+//
+//  The release that ends a tap of Alt toggles the menu bar's access-key
+//  underlines. Claiming it keeps it from DefWindowProc, which would enter
+//  the window menu's modal loop. Every other release goes on as before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DebuggerWindow::OnKeyUp (WPARAM vk, LPARAM lParam)
+{
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
+
+
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_menuBar != nullptr && m_menuBar->TrackAltTap (DxuiKeyEventKind::Up, vk))
+    {
+        Invalidate();
+        result = DxuiMessageResult::Handled;
+    }
+
+    return result;
 }
 
 

@@ -518,11 +518,11 @@ closes the bar.
 
 The menu bar holds **File** (open a source file, open a symbol or debug file,
 load and save breakpoints, save the trace), **Edit** (copy, select all, find,
-find next and find previous), **View** (every pane), **Debug** (run, break,
+find next and find previous), **View** (every pane, the device panels, and
+**Reset window layout**), **Debug** (run, break,
 detach, reset, power cycle, restart under debugger, the steps, run to
-cursor, show next statement, step by source line and trace), **Window**
-(device panels and **Reset window layout**) and **Tools** (**Keyboard
-scheme**). The command bar below it holds the run and step buttons as icons,
+cursor, show next statement, step by source line and trace) and **Tools**
+(**Keyboard scheme**). The command bar below it holds the run and step buttons as icons,
 each tip giving the command and its key in the scheme in force, and Trace.
 **Detach** closes the debugger and leaves the machine running, resuming it
 first if it is stopped.

@@ -195,13 +195,12 @@ namespace DebuggerMenuBarTests
                 titles.push_back (item.label);
             }
 
-            Assert::AreEqual (6, (int) titles.size());
+            Assert::AreEqual (5, (int) titles.size());
             Assert::AreEqual (std::wstring (L"&File"),   titles[0]);
             Assert::AreEqual (std::wstring (L"&Edit"),   titles[1]);
             Assert::AreEqual (std::wstring (L"&View"),   titles[2]);
             Assert::AreEqual (std::wstring (L"&Debug"),  titles[3]);
-            Assert::AreEqual (std::wstring (L"&Window"), titles[4]);
-            Assert::AreEqual (std::wstring (L"&Tools"),  titles[5]);
+            Assert::AreEqual (std::wstring (L"&Tools"),  titles[4]);
         }
 
 
@@ -226,7 +225,9 @@ namespace DebuggerMenuBarTests
 
             for (const DxuiPopupMenuItem & item : *view)
             {
-                rows += (item.kind == DxuiPopupMenuItem::Kind::Submenu) ? item.children.size() : 1;
+                bool  isPane = item.kind == DxuiPopupMenuItem::Kind::Command && item.command->label != L"Reset window layout";
+
+                rows += (item.kind == DxuiPopupMenuItem::Kind::Submenu) ? item.children.size() : (isPane ? 1 : 0);
             }
 
             Assert::AreEqual (window.GetViewMenuPanes().size(), rows, L"a row for every debug window");
@@ -311,34 +312,6 @@ namespace DebuggerMenuBarTests
         }
 
 
-        TEST_METHOD (WindowMenuCascadesTheDevicePanels)
-        {
-            CassoTheme     theme    = CassoTheme::MakeSkeuomorphic();
-            MenuBarHost    host;
-            MenuBarWindow  window   (theme, host);
-            auto                       snapshot = std::make_shared<DebuggerViewSnapshot>();
-            const DxuiPopupMenuItem  * panels   = nullptr;
-
-
-
-            snapshot->panels = { { "mmu", "Memory map", true }, { "disk", "Disk II", false } };
-
-            window.OnCreate();
-            window.SetSnapshotForTest (snapshot);
-            window.SetWindowMenus();
-
-            panels = MenuRows::GetRow (window.GetMenuBarItems(), L"&Window", L"Device panels");
-            Assert::IsNotNull (panels);
-            Assert::IsTrue    (panels->kind == DxuiPopupMenuItem::Kind::Submenu);
-            Assert::AreEqual  (2, (int) panels->children.size());
-            Assert::IsTrue    (panels->children[0].command->IsChecked(),  L"the open panel is checked");
-            Assert::IsFalse   (panels->children[1].command->IsChecked());
-
-            panels->children[1].command->dispatch();
-            Assert::AreEqual (1, host.actions, L"choosing a panel opens it");
-        }
-
-
         TEST_METHOD (ResetWindowLayoutPutsAFloatingPaneBack)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
@@ -355,7 +328,7 @@ namespace DebuggerMenuBarTests
 
             Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
 
-            reset = MenuRows::GetRow (window.GetMenuBarItems(), L"&Window", L"Reset window layout");
+            reset = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Reset window layout");
             Assert::IsNotNull (reset);
             reset->command->dispatch();
 

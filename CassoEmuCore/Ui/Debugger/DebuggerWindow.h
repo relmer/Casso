@@ -9,6 +9,7 @@
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Widgets/DxuiLabel.h"
@@ -498,6 +499,7 @@ private:
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
+    DxuiMessageResult  OnKeyUp    (WPARAM vk, LPARAM lParam) override;
     std::shared_ptr<DxuiCommand>  MakeKeyedMenuCommand (int id, const std::wstring & label);
     std::shared_ptr<DxuiCommand>  MakeEditMenuCommand  (DxuiStandardCommand command, const std::wstring & label, const std::wstring & accelerator);
     void     ResetPaneLayout      ();
@@ -624,6 +626,7 @@ private:
     uint32_t  GetChangedArgb       () const;
     uint32_t  GetResultArgb        () const;
     SourceSyntax::Colors  GetSyntaxColors () const;
+    DebuggerTextColors::Set  GetTextColors () const;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;

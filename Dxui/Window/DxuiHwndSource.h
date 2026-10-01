@@ -820,6 +820,7 @@ private:
     bool  m_synthetic               = false;
     bool  m_adoptMode               = false;
     bool  m_classRegistered         = false;
+    bool  m_sysKeyDownClaimed       = false;
 
     IDxuiHostClient *                 m_client             = nullptr;
 

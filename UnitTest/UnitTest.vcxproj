@@ -285,6 +285,7 @@
     <ClCompile Include="DebuggerTests\ConsoleHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowThemeTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerTextColorsTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />
     <ClCompile Include="DebuggerTests\Win32PipeTransportTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgCommandSweepTests.cpp" />
@@ -661,6 +662,8 @@
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarRelayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiMenuBarAltTapTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHwndSourceSysCharTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuPreviewTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanZoomTests.cpp" />

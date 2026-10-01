@@ -1995,6 +1995,9 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 
 
+    // Any key down ends or starts an Alt tap; see OnKeyUp.
+    (void) m_mainMenu.TrackAltTap (DxuiKeyEventKind::Down, vk);
+
     if (!lifetime.owns_lock())
     {
         return DxuiMessageResult::Handled;
@@ -2093,6 +2096,14 @@ Error:
 DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
+
+    // A tap of Alt on its own toggles the menu's access-key underlines, and a
+    // stopped machine draws no frame to show them, so the window repaints.
+    // The release still reaches the guest below, since Alt is also Open Apple.
+    if (m_mainMenu.TrackAltTap (DxuiKeyEventKind::Up, vk))
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
 
     // Caps Lock is not part of the //e keyboard matrix, and OnKeyDown kept
     // its press from the guest. Its release must not reach the guest either,

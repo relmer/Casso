@@ -114,6 +114,8 @@ public:
     int   GetFocusedMenu    () const { return m_focusedIndex;                       }
 
     bool  HandleAltKey      (wchar_t ch);
+    bool  TrackAltTap       (DxuiKeyEventKind kind, WPARAM vk);
+    bool  AreCuesToggled    () const { return m_cuesToggled;                        }
     bool  HandleKey         (WPARAM vk);
     bool  HandleMouseMove   (int x, int y);
     void  ClearHover        ();
@@ -186,7 +188,7 @@ private:
     int   ToRowIndex          (int itemIndex) const;
     const DxuiPopupMenuItem *  GetEntryAt (int menuIndex, int rowIndex) const;
 
-    static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
+    bool  ShouldShowMnemonicCues (bool openedByKeyboard) const;
 
     //  The em size of the system menu font at a DPI, cached because the
     //  strip asks for it on every layout and every paint. The titles wear
@@ -221,6 +223,8 @@ private:
     bool                          m_isOpen           = false;
     bool                          m_openedByKeyboard = false;
     bool                          m_hasFocus         = false;
+    bool                          m_altTapArmed      = false;
+    bool                          m_cuesToggled      = false;
     UINT                          m_dpi              = 96;
 
     bool                          m_stripColorsSet      = false;
