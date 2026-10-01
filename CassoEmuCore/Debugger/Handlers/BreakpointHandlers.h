@@ -51,6 +51,9 @@ public:
 
     static bool            TrySave        (DebugSession & session, int id, SavedEntry & saved);
     static int             Add            (DebugSession & session, const SavedEntry & saved);
+    static void            Replace        (DebugSession & session, int id, const SavedEntry & saved);
+    static void            SetState       (DebugSession & session, int id, const BreakpointInfo & info);
+    static void            Remove         (DebugSession & session, int id);
 
 private:
     static constexpr int   kOpcodeCount  = 256;

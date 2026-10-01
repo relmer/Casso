@@ -16,10 +16,10 @@ struct DebuggerAction;
 //
 //  Undo and redo for the breakpoints pane (FR-120). Each pane action is one
 //  step: what every breakpoint was before it and after it, found by listing
-//  the table on either side of the action. Undoing a step runs the commands
-//  that take each breakpoint back to its before state -- a deleted one is
-//  added again straight from the table entry saved with the step, with no
-//  definition built or parsed -- and redoing takes it forward again.
+//  the table on either side of the action. Undoing a step takes each
+//  breakpoint back to its before state straight from the table entry saved
+//  with the step, with no command built, parsed or echoed, and redoing takes
+//  it forward again. Either prints one line saying what it did.
 //
 //  A breakpoint added again gets a new id, so a step refers to each
 //  breakpoint by a handle of its own and the history keeps the id each handle
@@ -41,11 +41,11 @@ public:
     //  clears what could be redone. A change that alters nothing is no step.
     void  Record  (DebugSession & session, const Change & change);
 
-    //  Takes the newest step back or forward through `run`, with each action
-    //  echoed in the session's mode. False when there is nothing to undo or
-    //  redo.
-    bool  TryUndo (DebugSession & session, const ActionRunner & run);
-    bool  TryRedo (DebugSession & session, const ActionRunner & run);
+    //  Takes the newest step back or forward straight from the table entries
+    //  saved with it, and gives the one console line that says what it
+    //  restored or removed. False when there is nothing to undo or redo.
+    bool  TryUndo (DebugSession & session, std::string & line);
+    bool  TryRedo (DebugSession & session, std::string & line);
 
     bool  CanUndo () const { return !m_undo.empty(); }
     bool  CanRedo () const { return !m_redo.empty(); }
@@ -71,7 +71,17 @@ private:
 
     using Step = std::vector<Entry>;
 
-    void                 Apply        (DebugSession & session, const ActionRunner & run, const Entry & entry,
+    //  What applying one entry did, for the console line.
+    struct Outcome
+    {
+        enum class Kind { None, Restored, Removed };
+
+        Kind            kind = Kind::None;
+        int             id   = 0;
+        BreakpointInfo  info;
+    };
+
+    Outcome              Apply        (DebugSession & session, const Entry & entry,
                                        const std::optional<BreakpointInfo> & from, const std::optional<BreakpointInfo> & to,
                                        const std::optional<Saved> & saved);
     void                 Add          (DebugSession & session, int handle, const Saved & saved);
@@ -80,6 +90,7 @@ private:
 
     static std::map<int, BreakpointInfo>  ListById    (DebugSession & session);
     static std::map<int, Saved>           SaveAll     (DebugSession & session);
+    static std::string                    Describe    (const std::vector<Outcome> & outcomes);
     static bool                           IsSame      (const BreakpointInfo & left, const BreakpointInfo & right);
     static bool                           HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right);
 

@@ -237,6 +237,7 @@
     <ClCompile Include="DebuggerTests\BreakpointColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointUndoAddTests.cpp" />
+    <ClCompile Include="DebuggerTests\BreakpointUndoLineTests.cpp" />
     <ClCompile Include="DebuggerTests\DirectPaneActionTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowMenuBarTests.cpp" />

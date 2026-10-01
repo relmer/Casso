@@ -73,11 +73,14 @@ void BreakpointHistory::Record (DebugSession & session, const Change & change)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointHistory::TryUndo (DebugSession & session, const ActionRunner & run)
+bool BreakpointHistory::TryUndo (DebugSession & session, std::string & line)
 {
-    Step  step;
+    Step                  step;
+    std::vector<Outcome>  outcomes;
 
 
+
+    line.clear();
 
     if (m_undo.empty())
     {
@@ -89,9 +92,10 @@ bool BreakpointHistory::TryUndo (DebugSession & session, const ActionRunner & ru
 
     for (auto entry = step.rbegin(); entry != step.rend(); ++entry)
     {
-        Apply (session, run, *entry, entry->after, entry->before, entry->savedBefore);
+        outcomes.push_back (Apply (session, *entry, entry->after, entry->before, entry->savedBefore));
     }
 
+    line = Describe (outcomes);
     m_redo.push_back (std::move (step));
     return true;
 }
@@ -106,11 +110,14 @@ bool BreakpointHistory::TryUndo (DebugSession & session, const ActionRunner & ru
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointHistory::TryRedo (DebugSession & session, const ActionRunner & run)
+bool BreakpointHistory::TryRedo (DebugSession & session, std::string & line)
 {
-    Step  step;
+    Step                  step;
+    std::vector<Outcome>  outcomes;
 
 
+
+    line.clear();
 
     if (m_redo.empty())
     {
@@ -122,9 +129,10 @@ bool BreakpointHistory::TryRedo (DebugSession & session, const ActionRunner & ru
 
     for (const Entry & entry : step)
     {
-        Apply (session, run, entry, entry.before, entry.after, entry.savedAfter);
+        outcomes.push_back (Apply (session, entry, entry.before, entry.after, entry.savedAfter));
     }
 
+    line = Describe (outcomes);
     m_undo.push_back (std::move (step));
     return true;
 }
@@ -150,16 +158,77 @@ DebuggerAction BreakpointHistory::GetFlagsAction (int id, const BreakpointInfo &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointHistory::Apply
+//  BreakpointHistory::Describe
 //
-//  Takes one breakpoint from `from` to `to`. A breakpoint that should exist
-//  and no longer does, or is no longer the one recorded, is left alone.
+//  One console line for a whole undo or redo: the breakpoint and what it is
+//  when the step touched one, or counts when it touched several.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointHistory::Apply (
+std::string BreakpointHistory::Describe (const std::vector<Outcome> & outcomes)
+{
+    const Outcome  * only     = nullptr;
+    int              restored = 0;
+    int              removed  = 0;
+    std::string      text;
+
+
+
+    for (const Outcome & outcome : outcomes)
+    {
+        if (outcome.kind == Outcome::Kind::None)
+        {
+            continue;
+        }
+
+        only = &outcome;
+        (outcome.kind == Outcome::Kind::Removed ? removed : restored)++;
+    }
+
+    if (restored + removed == 0)
+    {
+        return "No breakpoint changed";
+    }
+
+    if (restored + removed == 1)
+    {
+        return std::format ("{} breakpoint {} ({})",
+                            only->kind == Outcome::Kind::Removed ? "Removed" : "Restored",
+                            only->id,
+                            BreakpointHandlers::Describe (only->info));
+    }
+
+    if (restored > 0)
+    {
+        text = std::format ("Restored {} breakpoint{}", restored, restored == 1 ? "" : "s");
+    }
+
+    if (removed > 0)
+    {
+        text += text.empty() ? std::format ("Removed {} breakpoint{}", removed, removed == 1 ? "" : "s")
+                             : std::format (", removed {}", removed);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::Apply
+//
+//  Takes one breakpoint from `from` to `to` straight from the table entry
+//  saved with the step, with no command built or run. A breakpoint that
+//  should exist and no longer does, or is no longer the one recorded, is
+//  left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointHistory::Outcome BreakpointHistory::Apply (
     DebugSession                         & session,
-    const ActionRunner                   & run,
     const Entry                          & entry,
     const std::optional<BreakpointInfo>  & from,
     const std::optional<BreakpointInfo>  & to,
@@ -171,36 +240,38 @@ void BreakpointHistory::Apply (
 
     if (!from.has_value())
     {
-        if (saved.has_value())
+        if (!saved.has_value() || !to.has_value())
         {
-            Add (session, entry.handle, *saved);
+            return {};
         }
 
-        return;
+        Add (session, entry.handle, *saved);
+        return { Outcome::Kind::Restored, m_ids[entry.handle], *to };
     }
 
     id = GetLiveId (session, entry.handle, *from);
 
     if (!id.has_value())
     {
-        return;
+        return {};
     }
 
     if (!to.has_value())
     {
-        run (DebuggerActions::GetClearBreakpoint (*id, session.GetMode()));
-        return;
+        BreakpointHandlers::Remove (session, *id);
+        return { Outcome::Kind::Removed, *id, *from };
     }
 
-    if (BreakpointHandlers::MakeDefinition (*from) != BreakpointHandlers::MakeDefinition (*to))
+    if (BreakpointHandlers::MakeDefinition (*from) != BreakpointHandlers::MakeDefinition (*to) && saved.has_value())
     {
-        run (DebuggerActions::GetEditBreakpoint (*id, BreakpointHandlers::MakeDefinition (*to), session.GetMode()));
+        BreakpointHandlers::Replace (session, *id, *saved);
+    }
+    else
+    {
+        BreakpointHandlers::SetState (session, *id, *to);
     }
 
-    if (!HasSameFlags (*from, *to))
-    {
-        run (GetFlagsAction (*id, *to, session.GetMode()));
-    }
+    return { Outcome::Kind::Restored, *id, *to };
 }
 
 

@@ -1452,6 +1452,90 @@ int BreakpointHandlers::Add (DebugSession & session, const SavedEntry & saved)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHandlers::Replace
+//
+//  Puts a saved entry in place of breakpoint `id`, under that same id, with
+//  its hit count at zero, as an edit does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::Replace (DebugSession & session, int id, const SavedEntry & saved)
+{
+    Breakpoint  breakpoint = saved.breakpoint;
+    Watchpoint  watchpoint = saved.watchpoint;
+
+
+
+    breakpoint.id   = id;
+    breakpoint.hits = 0;
+    watchpoint.id   = id;
+    watchpoint.hits = 0;
+
+    session.GetBreakpoints().TryClear (id);
+    session.GetWatchpoints().TryClear (id);
+
+    if (saved.isWatchpoint)
+    {
+        session.GetWatchpoints().TryAdopt (watchpoint);
+    }
+    else
+    {
+        session.GetBreakpoints().TryAdopt (breakpoint);
+    }
+
+    session.OnStopConditionsChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetState
+//
+//  Gives breakpoint `id` the enabled state and When hit setting of `info`,
+//  keeping its definition and hit count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetState (DebugSession & session, int id, const BreakpointInfo & info)
+{
+    if (session.GetBreakpoints().TrySetEnabled (id, info.enabled))
+    {
+        session.GetBreakpoints().TrySetFlags (id, info.temporary, info.stops);
+    }
+    else if (session.GetWatchpoints().TrySetEnabled (id, info.enabled))
+    {
+        session.GetWatchpoints().TrySetFlags (id, info.temporary, info.stops);
+    }
+
+    session.OnStopConditionsChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::Remove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::Remove (DebugSession & session, int id)
+{
+    session.GetBreakpoints().TryClear (id);
+    session.GetWatchpoints().TryClear (id);
+    session.OnStopConditionsChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHandlers::TryFindInfo
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -1039,7 +1039,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T310 Owner review 2026-10-01: Dialect moves from the command bar into a small toolbar in the console pane, since it governs the console (and the memory Address box, which follows it)
 - [ ] T311 Owner review 2026-10-01: a fixed pane the user closed stays closed across sessions (saved with the layout), and View brings it back
 - [X] T312 Owner review 2026-10-01: a floating pane's toolbar shows its tooltips, from a tooltip owned by the floating window
-- [ ] T313 Owner review 2026-10-01: undoing an edit of a breakpoint restores it directly from its saved entry, as T305 does for a delete, with no BPEDIT text; and an undo or redo prints one console line saying what it restored or removed, e.g. "Restored breakpoint 3 (exec C000)"
+- [X] T313 Owner review 2026-10-01: undoing an edit of a breakpoint restores it directly from its saved entry, as T305 does for a delete, with no BPEDIT text; and an undo or redo prints one console line saying what it restored or removed, e.g. "Restored breakpoint 3 (exec C000)"
 - [ ] T314 Owner review 2026-10-01: detect a source file's assembler from its contents alone (directives, label forms, comment forms), not its extension; use the extension only when the content gives no sign at all
 - [ ] T315 Owner review 2026-10-01: color an assembler listing (a Merlin or ca65 listing shown as source) by recognizing its address and byte columns from the content and coloring them as address and bytes, without stripping them
 - [ ] T316 Owner review 2026-10-01: in the source pane, show the disassembly of the code each source line produced on the rows below that line, in a darkened version of the syntax colors

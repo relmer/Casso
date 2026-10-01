@@ -193,7 +193,7 @@ public:
 
     //  An undo's commands are echoed in the session's mode, as a typed line
     //  would be, not in the AppleWin words the pane once sent.
-    TEST_METHOD (ABreakpointUndoEchoesInTheSessionsMode)
+    TEST_METHOD (ABreakpointUndoInAnotherModePrintsWhatItRemoved)
     {
         ControllerRig             rig;
         BreakpointStep            step;
@@ -212,7 +212,7 @@ public:
         lines     = rig.view.ExecuteBreakpointStep (rig.controller.GetSession(), undo);
 
         Assert::AreEqual ((size_t) 0, rig.view.Build (rig.controller.GetSession()).breakpoints.size());
-        Assert::IsFalse  (lines.empty());
-        Assert::IsTrue   (lines[0].starts_with (std::string (DebugSession::GetPrompt (CommandMode::GSSquared)) + "nobp"));
+        Assert::AreEqual ((size_t) 1, lines.size(), L"no command is echoed");
+        Assert::IsTrue   (lines[0].starts_with ("Removed breakpoint "));
     }
 };

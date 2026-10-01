@@ -1810,8 +1810,9 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 //
 //  DebuggerViewState::ExecuteBreakpointStep
 //
-//  Each action runs directly and is echoed in its mode. An import's lines
-//  are the file's text, so they alone are parsed, in AppleWin's words.
+//  Each action runs directly and is echoed in its mode. An undo or redo runs
+//  no command and gives one line. An import's lines are the file's text, so
+//  they alone are parsed, in AppleWin's words.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1820,6 +1821,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
     std::vector<std::string>         lines;
     BreakpointHistory::ActionRunner  act;
     BreakpointHistory::LineRunner    run;
+    std::string                      summary;
 
 
 
@@ -1848,11 +1850,19 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
     switch (step.kind)
     {
     case BreakpointStep::Kind::Undo:
-        m_breakpointHistory.TryUndo (session, act);
+        if (m_breakpointHistory.TryUndo (session, summary))
+        {
+            lines.push_back (summary);
+        }
+
         break;
 
     case BreakpointStep::Kind::Redo:
-        m_breakpointHistory.TryRedo (session, act);
+        if (m_breakpointHistory.TryRedo (session, summary))
+        {
+            lines.push_back (summary);
+        }
+
         break;
 
     case BreakpointStep::Kind::Import:
