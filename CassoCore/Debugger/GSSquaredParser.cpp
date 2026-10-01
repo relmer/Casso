@@ -36,7 +36,6 @@ static constexpr GSSquaredCommand  s_kCommands[] =
     { "nobp",    nullptr },
     { "list",    nullptr },
     { "l",       nullptr },
-    { "map",     "map needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU." },
     { "debug",   nullptr },
     { "nodebug", nullptr },
     { "sload",   nullptr },

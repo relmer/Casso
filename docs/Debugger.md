@@ -68,8 +68,9 @@ reaches everything the Monitor has no command for:
   `bpd` and `bpi` take a trailing `IF expression`, as in AppleWin mode.
 - An address may carry a bank, as on a IIgs: `00/300` is $0300. Any other bank
   is refused, since only bank 00 exists on these machines.
-- `m`, `x`, `map`, `video` and `novideo` are IIgs commands; these reply that
-  they are not available. In the debugger window, `debug` lists the device
+- `map` shows the current machine's memory map, as `MAP` does. `m`, `x`,
+  `video` and `novideo` are IIgs commands; these reply that they are not
+  available. In the debugger window, `debug` lists the device
   panels, `debug "name"` opens one and `nodebug "name"` closes it, as `PANEL`
   does.
 - GSSquared itself steps by key rather than by command. In the debugger
@@ -177,6 +178,7 @@ These are Casso's own additions to AppleWin's set:
 | `PAUSE` | stops a running machine |
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
 | `SWITCHES` | lists the soft switches and whether each is on |
+| `MAP` | shows, for each address range, where reads and writes go now -- main or auxiliary RAM, ROM, language card bank 1 or 2, slot or internal ROM -- as the language card, auxiliary memory and ROM switches set them |
 | `STACK` | shows the stack pointer and the stack page above it |
 | `PATCH addr value...` | writes bytes the way a memory window edit does: into RAM, or into ROM so the machine runs the patched code; it will not write an I/O address, which is what `OUT` is for |
 

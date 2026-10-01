@@ -26,5 +26,5 @@ BPR A=0
 MODE GSSQUARED
 00/300
 e1/300
-map
+m 8
 switches

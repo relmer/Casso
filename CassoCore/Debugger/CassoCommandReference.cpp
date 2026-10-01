@@ -92,6 +92,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "F",           H::Memory,             "F addr[,len|:last] byte ...",                    "Fill memory with bytes; F first last byte ... also works"                                },
     { "IN",          H::Memory,             "IN addr",                                        "Read an I/O address"                                                                     },
     { "M",           H::Memory,             "M dest src[,len|:last]",                         "Copy memory"                                                                             },
+    { "MAP",         H::Memory,             "MAP",                                            "Show where each address range reads and writes now"                                      },
     { "MC",          H::Memory,             "MC dest src[,len|:last]",                        "Compare memory"                                                                          },
     { "ME",          H::Memory,             "ME addr value ...",                              "Store values at addr, a value over $FF as a word"                                        },
     { "MEB",         H::Memory,             "MEB addr value ...",                             "Store values at addr, a value over $FF as a word"                                        },

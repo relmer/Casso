@@ -78,9 +78,9 @@ Mode: GSSQUARED
 >e1/300
 Error: command not available
        E1/0300 is in bank E1. Only bank 00 exists on this machine.
->map
+>m 8
 Error: command not available
-       map needs a IIgs: it shows the IIgs memory map, and this machine has no IIgs MMU.
+       M sets a 65816 register width (the accumulator's) on a IIgs; it does not apply to this machine's CPU.
 >switches
 TEXT       on
 MIXED      off

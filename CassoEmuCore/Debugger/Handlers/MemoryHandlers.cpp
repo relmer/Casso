@@ -7,6 +7,7 @@
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/BinaryImageReader.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/MemoryMap.h"
 
 
 
@@ -38,6 +39,7 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::ReadIo:            ReadIo       (session, command, reply); return true;
     case DebugVerb::WriteIo:           WriteIo      (session, command, reply); return true;
     case DebugVerb::ShowSwitches:      ShowSwitches (session, reply);          return true;
+    case DebugVerb::ShowMemoryMap:     ShowMap      (session, reply);          return true;
     default:                                                                   return false;
     }
 }
@@ -822,6 +824,26 @@ void MemoryHandlers::ShowSwitches (DebugSession & session, Reply & reply)
 
     session.GetTarget().GetSoftSwitches (data.switches);
     reply.data = data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::ShowMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryHandlers::ShowMap (DebugSession & session, Reply & reply)
+{
+    std::vector<SoftSwitch>  switches;
+
+
+
+    session.GetTarget().GetSoftSwitches (switches);
+    reply.data = MessageData { MemoryMap::Format (MemoryMap::Build (switches)) };
 }
 
 

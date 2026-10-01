@@ -15,7 +15,7 @@ class IFileSystem;
 //
 //  View and enter: D, MDB, ME, MEB, MEW, ME8, ME16 and the addr:bytes form.
 //  Move, compare, fill: M, MM, MC, F. Search: S, MS, SH, @. Files: BLOAD,
-//  BSAVE, TSAVE. I/O: IN, INPUT, OUT. And SWITCHES.
+//  BSAVE, TSAVE. I/O: IN, INPUT, OUT. And SWITCHES and MAP.
 //
 //  D with no range continues from where the last dump ended.
 //
@@ -54,6 +54,7 @@ private:
     static void  ReadIo       (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  WriteIo      (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ShowSwitches (DebugSession & session, Reply & reply);
+    static void  ShowMap      (DebugSession & session, Reply & reply);
     static void  Patch        (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);

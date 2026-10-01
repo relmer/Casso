@@ -196,6 +196,7 @@ Casso commands:
     CALLS [MODE [RECORDED|WALK|HYBRID]]                  Show the call stack, or choose how it is found
     STACK                                                Show the stack
   Memory
+    MAP                                                  Show where each address range reads and writes now
     PATCH addr value ...                                 Store values at addr, ROM included
     SWITCHES                                             Show the soft switches
   Symbols and source
@@ -307,6 +308,7 @@ Casso commands:
     /@                                                     Show the last search's results
     /F addr[,len|:last] byte ...                           Fill memory with bytes; F first last byte ... also works
     /IN, /INPUT addr                                       Read an I/O address
+    /MAP                                                   Show where each address range reads and writes now
     /MEW, /ME16 addr word ...                              Store words at addr, low byte first
     /NOP, /ZAP                                             Replace the instruction at PC with NOPs
     /OUT addr byte [byte ...]                              Write to an I/O address
@@ -510,6 +512,7 @@ Casso commands:
   Memory
     @                                               Show the last search's results
     IN, INPUT addr                                  Read an I/O address
+    MAP                                             Show where each address range reads and writes now
     MC dest src[,len|:last]                         Compare memory
     MEW, ME16 addr word ...                         Store words at addr, low byte first
     MS addr[,len|:last] item ...                    Search memory for bytes, "text", 'text' or wildcards
@@ -682,6 +685,7 @@ Casso commands:
     !BLOAD file [addr[,len|:last]]                   Load a file into memory
     !BSAVE file addr[,len|:last]                     Save memory to a file
     !IN, !INPUT addr                                 Read an I/O address
+    !MAP                                             Show where each address range reads and writes now
     !MC dest src[,len|:last]                         Compare memory
     !NOP, !ZAP                                       Replace the instruction at PC with NOPs
     !OUT addr byte [byte ...]                        Write to an I/O address
@@ -840,6 +844,7 @@ Casso commands:
     F addr[,len|:last] byte ...                          Fill memory with bytes; F first last byte ... also works
     IN, INPUT addr                                       Read an I/O address
     M, MM dest src[,len|:last]                           Copy memory
+    MAP                                                  Show where each address range reads and writes now
     MC dest src[,len|:last]                              Compare memory
     ME addr value ...                                    Store values at addr, a value over $FF as a word
     MEB, ME8 addr value ...                              Store values at addr, a value over $FF as a word

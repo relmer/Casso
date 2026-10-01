@@ -245,6 +245,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "PAUSE",       V::Pause,                    F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BUDGET",      V::SetBudget,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SWITCHES",    V::ShowSwitches,             F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "MAP",         V::ShowMemoryMap,            F::Engine,      A::Headless,     nullptr,     nullptr },
     { "STACK",       V::ShowStack,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "PATCH",       V::PatchBytes,               F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SRC",         V::ShowSource,               F::Engine,      A::Headless,     nullptr,     nullptr },

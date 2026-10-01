@@ -147,6 +147,7 @@
     <ClCompile Include="Debugger\StepFilter.cpp" />
     <ClCompile Include="Debugger\CallStack.cpp" />
     <ClCompile Include="Debugger\MachineDebugTarget.cpp" />
+    <ClCompile Include="Debugger\MemoryMap.cpp" />
     <ClCompile Include="Debugger\IDiagnosticsProvider.cpp" />
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
     <ClCompile Include="Debugger\DebuggerController.cpp" />
@@ -533,6 +534,7 @@
     <ClInclude Include="Debugger\StepFilter.h" />
     <ClInclude Include="Debugger\CallStack.h" />
     <ClInclude Include="Debugger\MachineDebugTarget.h" />
+    <ClInclude Include="Debugger\MemoryMap.h" />
     <ClInclude Include="Debugger\IDiagnosticsProvider.h" />
     <ClInclude Include="Debugger\DiagnosticsSnapshot.h" />
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />

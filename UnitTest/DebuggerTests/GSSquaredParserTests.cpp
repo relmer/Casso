@@ -395,7 +395,7 @@ namespace DebuggerTests
 
         TEST_METHOD (TheIIgsCommands_AreNotAvailable_WithTheirReason)
         {
-            for (const char * line : { "m 8", "x 16", "map", "video hgr1", "novideo 1", "verify" })
+            for (const char * line : { "m 8", "x 16", "video hgr1", "novideo 1", "verify" })
             {
                 GSSquaredParseResult  result = Refused (line, ParseStatus::NotAvailable);
 
@@ -404,7 +404,6 @@ namespace DebuggerTests
                 Assert::IsTrue (result.error.find ("not a command") == std::string::npos, Widen (line).c_str());
             }
 
-            Assert::IsTrue (Parse ("map").error.find ("IIgs")  != std::string::npos);
             Assert::IsTrue (Parse ("m").error.find   ("IIgs")  != std::string::npos);
             Assert::IsTrue (Parse ("video").error.find ("screen") != std::string::npos);
         }
@@ -437,7 +436,6 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("sload takes a file name."),                 Refused ("sload",     ParseStatus::Invalid).error);
             Assert::AreEqual (std::string ("slookup takes an address."),                Refused ("slookup",   ParseStatus::Invalid).error);
             Assert::AreEqual (std::string ("bpi takes an address in the I/O page, $C000-$C0FF."), Refused ("bpi 300 r", ParseStatus::Invalid).error);
-            Assert::IsTrue   (Refused ("map", ParseStatus::NotAvailable).error.starts_with ("map "), L"map");
             Assert::AreEqual (std::string ("debug"), One ("debug \"list\"").sourceName);
             AssertVerb (DebugVerb::ListPanels, One ("debug \"list\""), "debug \"list\"");
         }
@@ -498,13 +496,13 @@ namespace DebuggerTests
             }
 
             for (const char * name : { "set", "load", "save", "move", "verify", "watch", "nowatch", "help", "bp", "bpd", "bpi",
-                                       "nobp", "list", "l", "map", "debug", "nodebug", "sload", "sclear", "slookup", "m", "x",
+                                       "nobp", "list", "l", "debug", "nodebug", "sload", "sclear", "slookup", "m", "x",
                                        "video", "novideo", "s", "o", "r", "g" })
             {
                 Assert::IsTrue (names.contains (name), Widen (name).c_str());
             }
 
-            Assert::AreEqual (size_t (28), names.size());
+            Assert::AreEqual (size_t (27), names.size());
         }
     };
 }

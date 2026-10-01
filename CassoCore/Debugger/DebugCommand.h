@@ -131,6 +131,7 @@ enum class DebugVerb
     ReadIo,
     WriteIo,
     ShowSwitches,
+    ShowMemoryMap,
 
     // Disassembly and data directives
     Disassemble,
