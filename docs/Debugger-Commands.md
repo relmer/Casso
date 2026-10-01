@@ -201,7 +201,7 @@ Casso commands:
   Symbols and source
     SRC [ON|OFF]                                         Show the source line at PC, or step by source lines
   Display and panels
-    PANEL [LIST|name|CLOSE name|name CLOSE]              List the device panels, or open or close one
+    PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]          List the device panels, or open or close one
   Session and settings
     MODE [mode]                                          Show or set the command mode, which sets the output too
     OUTPUT [format]                                      Show or set the format replies are written in
@@ -396,7 +396,7 @@ Casso commands:
     /PAGEUP                                                Move the code pane up a page
     /PAGEUP256                                             Move the code pane back $100 bytes
     /PAGEUP4K                                              Move the code pane back $1000 bytes
-    /PANEL [LIST|name|CLOSE name|name CLOSE]               List the device panels, or open or close one
+    /PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]           List the device panels, or open or close one
     /RET                                                   Move the code pane to the return address
     /V                                                     Move the code pane down one instruction
     /VIDEOINFO                                             Show the video scanner's position
@@ -567,7 +567,7 @@ Casso commands:
   Disks
     DISK [INFO|SLOT]                                Show the drives and their disks, or the disk slot
   Display and panels
-    PANEL [LIST|name|CLOSE name|name CLOSE]         List the device panels, or open or close one
+    PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     VIDEOINFO                                       Show the video scanner's position
   Session and settings
     CALC expr                                       Evaluate an expression
@@ -746,7 +746,7 @@ Casso commands:
   Disks
     !DISK [INFO|SLOT]                                Show the drives and their disks, or the disk slot
   Display and panels
-    !PANEL [LIST|name|CLOSE name|name CLOSE]         List the device panels, or open or close one
+    !PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     !VIDEOINFO                                       Show the video scanner's position
   Session and settings
     !CD dir                                          Change the current directory
@@ -936,7 +936,7 @@ Casso commands:
     PAGEUP                                               Move the code pane up a page
     PAGEUP256                                            Move the code pane back $100 bytes
     PAGEUP4K                                             Move the code pane back $1000 bytes
-    PANEL [LIST|name|CLOSE name|name CLOSE]              List the device panels, or open or close one
+    PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]          List the device panels, or open or close one
     RET                                                  Move the code pane to the return address
     V                                                    Move the code pane down one instruction
     VIDEOINFO                                            Show the video scanner's position
