@@ -186,6 +186,8 @@
     <ClCompile Include="DebuggerTests\AppleWinParserTests.cpp" />
     <ClCompile Include="DebuggerTests\CassoCommandReferenceTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandModeHelpTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerCommandsDocTests.cpp" />
+    <ClCompile Include="DebuggerTests\HelpSectionsTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinFormatterTests.cpp" />
     <ClCompile Include="DebuggerTests\ReplyJsonTests.cpp" />
     <ClCompile Include="DebuggerTests\EffectiveAddressTests.cpp" />

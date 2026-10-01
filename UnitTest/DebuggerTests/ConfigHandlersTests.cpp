@@ -340,8 +340,8 @@ namespace DebuggerTests
 
             rig.session.FormatReply (reply, CommandMode::WinDbg);
             Assert::AreEqual ((int) CommandMode::AppleWin, (int) rig.session.GetMode());
-            Assert::AreEqual (std::string ("WinDbg commands:"),   reply.text.at (0));
-            Assert::AreEqual (std::string ("AppleWin commands:"), rig.RunOk ("HELP").text.at (0), L"the session's own mode after");
+            Assert::AreEqual (std::string ("WinDbg help sections:"),   reply.text.at (0));
+            Assert::AreEqual (std::string ("AppleWin help sections:"), rig.RunOk ("HELP").text.at (0), L"the session's own mode after");
         }
 
 
@@ -417,7 +417,7 @@ namespace DebuggerTests
         TEST_METHOD (HELP_VERSION_MOTD)
         {
             Rig                       rig;
-            std::vector<std::string>  lines = rig.RunOk ("HELP").text;
+            std::vector<std::string>  lines = rig.RunOk ("HELP all").text;
             bool                      hasGo = false;
 
 
@@ -433,7 +433,7 @@ namespace DebuggerTests
             Assert::IsTrue   (rig.RunOk ("HELP bpm").text.at (0).starts_with ("BPM, BPIO "), L"a command's line carries its aliases");
             Assert::IsTrue   (rig.RunOk ("? BPIO").text.at (0).starts_with ("BPM, BPIO "), L"an alias answers with its command's line");
             Assert::AreEqual (std::string ("HGR: not available in Casso"), rig.RunOk ("HELP HGR").text.at (0));
-            Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("HELP FROB").status);
+            Assert::AreEqual (std::string ("No command matches FROB."), rig.RunOk ("HELP FROB").text.at (0));
 
             for (const char * name : { "WIN", "WINDOW", "\\" })
             {
@@ -458,12 +458,12 @@ namespace DebuggerTests
 
             reply = rig.session.ExecuteLine (".help", CommandMode::WinDbg);
             rig.session.FormatReply (reply, CommandMode::WinDbg);
-            Assert::AreEqual (std::string ("WinDbg commands:"), reply.text.at (0));
+            Assert::AreEqual (std::string ("WinDbg help sections:"), reply.text.at (0));
 
             reply = rig.session.ExecuteLine (".help ba", CommandMode::WinDbg);
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
 
-            Assert::AreEqual (std::string ("frob is not a command."), rig.Run ("HELP frob").error.detail);
+            Assert::AreEqual (std::string ("No command matches frob."), rig.RunOk ("HELP frob").text.at (0));
         }
 
 
@@ -472,9 +472,9 @@ namespace DebuggerTests
             //  The Casso section's commands are written as each mode types them.
             const std::tuple<const char *, const char *, const char *, const char *>  modes[] =
             {
-                { "WINDBG",    ".help", "WinDbg commands:",    "    !DISK" },
-                { "MONITOR",   "/HELP", "Monitor commands:",   "    /DISK" },
-                { "GSSQUARED", "help",  "GSSquared commands:", "    DISK"  },
+                { "WINDBG",    ".help all", "WinDbg commands:",    "    !DISK" },
+                { "MONITOR",   "/HELP all", "Monitor commands:",   "    /DISK" },
+                { "GSSQUARED", "help all",  "GSSquared commands:", "    DISK"  },
             };
 
 
@@ -522,7 +522,7 @@ namespace DebuggerTests
             (void) rig.session.ExecuteLine ("MODE WINDBG", CommandMode::AppleWin);
             Assert::IsTrue (rig.RunOk (".help dd").text.at (0).starts_with ("dd "));
             Assert::IsTrue (rig.RunOk (".help l-s").text.at (0).starts_with ("l-s"));
-            Assert::IsTrue (ListsLine (rig.RunOk (".help").text, "    dd "), L"dd runs, so the list has it");
+            Assert::IsTrue (ListsLine (rig.RunOk (".help all").text, "    dd "), L"dd runs, so the list has it");
         }
 
 
@@ -629,7 +629,7 @@ namespace DebuggerTests
 
 
             (void) rig.session.ExecuteLine ("MODE MONITOR", CommandMode::AppleWin);
-            lines = rig.RunOk ("/HELP").text;
+            lines = rig.RunOk ("/HELP all").text;
 
             for (const std::string & line : lines)
             {
@@ -667,7 +667,7 @@ namespace DebuggerTests
 
 
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
-            Assert::AreEqual (std::string ("GSSquared commands:"), std::get<MessageData> (reply.data).lines.at (0));
+            Assert::AreEqual (std::string ("GSSquared help sections:"), std::get<MessageData> (reply.data).lines.at (0));
             Assert::AreEqual ((int) CommandMode::AppleWin, (int) rig.session.GetMode());
         }
 
@@ -684,7 +684,7 @@ namespace DebuggerTests
 
             Assert::IsTrue   (rig.session.GetMode() == CommandMode::AppleWin);
             Assert::IsTrue   (list.status == CommandStatus::Ok);
-            Assert::AreEqual (std::string ("WinDbg commands:"), std::get<MessageData> (list.data).lines.at (0));
+            Assert::AreEqual (std::string ("WinDbg help sections:"), std::get<MessageData> (list.data).lines.at (0));
             Assert::AreEqual (std::string ("ba r1|w1|e1 addr: Break on a read, write or execution of addr"), std::get<MessageData> (entry.data).lines.at (0));
         }
 

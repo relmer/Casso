@@ -329,14 +329,334 @@ bool CommandModeHelp::IsCassoCommandReachable (CommandMode mode, const std::stri
 //
 //  CommandModeHelp::BuildHelp
 //
-//  The mode's own commands, then the Casso commands it reaches and has no
-//  form of its own for, one syntax column for both so the two lists read as
-//  one. Casso mode's commands are all Casso's, and AppleWin mode's are
-//  Casso's less the engine commands.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> CommandModeHelp::BuildHelp (CommandMode mode)
+{
+    return BuildListing (mode, [] (const Row &) { return true; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::BuildSectionIndex
+//
+//  One line per section that holds any of the mode's commands, then how to
+//  list every command and how to search.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandModeHelp::BuildSectionIndex (CommandMode mode)
+{
+    std::string               help  = GetTypedName (mode, "HELP");
+    std::vector<std::string>  all   = BuildHelp (mode);
+    std::vector<std::string>  lines;
+    std::vector<std::string>  forms;
+    std::vector<std::string>  texts;
+    size_t                    width = 0;
+
+
+
+    for (int i = (int) HelpCategory::RunningAndStepping; i <= (int) HelpCategory::SessionAndSettings; i++)
+    {
+        HelpCategory  category = (HelpCategory) i;
+        std::string   heading  = std::string ("  ") + CassoCommandReference::GetCategoryTitle (category);
+
+        if (std::find (all.begin(), all.end(), heading) == all.end())
+        {
+            continue;
+        }
+
+        forms.push_back (std::format ("{} {}", help, GetSectionWord (category)));
+        texts.push_back (CassoCommandReference::GetCategoryTitle (category));
+    }
+
+    forms.push_back (help + " all");
+    texts.push_back ("Every command");
+    forms.push_back (help + " text");
+    texts.push_back ("Commands whose syntax or description contains text; * and ? are wildcards, /text/ a regular expression");
+
+    for (const std::string & form : forms)
+    {
+        width = (std::max) (width, form.size());
+    }
+
+    lines.push_back (std::format ("{} help sections:", GetTitle (mode)));
+
+    for (size_t i = 0; i < forms.size(); i++)
+    {
+        lines.push_back (std::format ("  {:<{}}  {}", forms[i], width, texts[i]));
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::GetSectionWord
+//
+//  The word HELP takes for a section: its heading's first word, lowercase.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * CommandModeHelp::GetSectionWord (HelpCategory category)
+{
+    switch (category)
+    {
+    case HelpCategory::RunningAndStepping: return "running";
+    case HelpCategory::Breakpoints:        return "breakpoints";
+    case HelpCategory::RegistersAndFlags:  return "registers";
+    case HelpCategory::Memory:             return "memory";
+    case HelpCategory::DisassemblyAndData: return "disassembly";
+    case HelpCategory::SymbolsAndSource:   return "symbols";
+    case HelpCategory::Disks:              return "disks";
+    case HelpCategory::DisplayAndPanels:   return "display";
+    case HelpCategory::SessionAndSettings: return "session";
+    }
+
+    return "";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::TryFindSection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandModeHelp::TryFindSection (const std::string & word, HelpCategory & category)
+{
+    for (int i = (int) HelpCategory::RunningAndStepping; i <= (int) HelpCategory::SessionAndSettings; i++)
+    {
+        if (_stricmp (word.c_str(), GetSectionWord ((HelpCategory) i)) == 0)
+        {
+            category = (HelpCategory) i;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::BuildSection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandModeHelp::BuildSection (CommandMode mode, HelpCategory category)
+{
+    return BuildListing (mode, [category] (const Row & row) { return row.category == category; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::TrySearch
+//
+//  Text between slashes is a regular expression as typed; any other text is
+//  matched anywhere in a line, * standing for any run of characters and ?
+//  for any one. Case never matters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandModeHelp::TrySearch (CommandMode mode, const std::string & text, std::vector<std::string> & lines, std::string & error)
+{
+    bool         isRegex = text.size() >= 2 && text.front() == '/' && text.back() == '/';
+    std::string  pattern;
+    std::regex   expression;
+
+
+
+    if (isRegex)
+    {
+        pattern = text.substr (1, text.size() - 2);
+    }
+    else
+    {
+        for (char ch : text)
+        {
+            if (ch == '*')
+            {
+                pattern += ".*";
+            }
+            else if (ch == '?')
+            {
+                pattern += '.';
+            }
+            else
+            {
+                if (std::strchr ("\\^$.|+()[]{}", ch) != nullptr)
+                {
+                    pattern += '\\';
+                }
+
+                pattern += ch;
+            }
+        }
+    }
+
+    try
+    {
+        expression = std::regex (pattern, std::regex::ECMAScript | std::regex::icase);
+    }
+    catch (const std::regex_error &)
+    {
+        error = std::format ("{} is not a valid regular expression.", text);
+        return false;
+    }
+
+    lines = BuildListing (mode, [&expression] (const Row & row)
+    {
+        return std::regex_search (row.syntax, expression) || std::regex_search (row.description, expression);
+    });
+
+    if (lines.empty())
+    {
+        lines.push_back (std::format ("No command matches {}.", text));
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::TryBuildWordHelp
+//
+//  ALL lists every command; a section word lists the section; a command is
+//  described, and when its word is also a section's, a line on how to ask
+//  for the section follows; anything else is searched for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandModeHelp::TryBuildWordHelp (CommandMode mode, const std::string & text, std::vector<std::string> & lines, std::string & error)
+{
+    HelpCategory              category  = HelpCategory::RunningAndStepping;
+    bool                      isSection = TryFindSection (text, category);
+    std::string               described;
+    std::vector<std::string>  matches;
+
+
+
+    lines.clear();
+
+    if (_stricmp (text.c_str(), "all") == 0)
+    {
+        lines = BuildHelp (mode);
+        return true;
+    }
+
+    if (TryDescribe (mode, text, described))
+    {
+        lines.push_back (described);
+
+        //  Another mode's word is also searched for here, since the mode
+        //  may have the same thing under a word of its own.
+        if (Find (mode, text) == nullptr && AppleWinCommandTable::Find (text) == nullptr &&
+            TrySearch (mode, text, matches, error) && !matches.empty() && matches[0].find ("No command matches") != 0)
+        {
+            lines.push_back ("");
+            lines.insert (lines.end(), matches.begin(), matches.end());
+        }
+
+        if (isSection)
+        {
+            lines.push_back (std::format ("The {} section: {} {}",
+                                          CassoCommandReference::GetCategoryTitle (category),
+                                          GetTypedName (mode, "HELP"),
+                                          GetSectionWord (category)));
+        }
+
+        return true;
+    }
+
+    if (isSection)
+    {
+        lines = BuildSection (mode, category);
+        return true;
+    }
+
+    return TrySearch (mode, text, lines, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::BuildReference
+//
+//  Every mode's HELP ALL, each under its own heading, in a fenced block so
+//  the columns survive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandModeHelp::BuildReference()
+{
+    std::string  text;
+
+
+
+    text += "# Debugger command reference\n";
+    text += "\n";
+    text += "Generated from the debugger's help table; do not edit by hand. A unit test\n";
+    text += "fails when this file and `help all` differ. Regenerate it with\n";
+    text += "`pwsh scripts/UpdateDebuggerCommands.ps1`.\n";
+
+    for (CommandMode mode : s_kModes)
+    {
+        text += std::format ("\n## {} mode\n\n```text\n", GetTitle (mode));
+
+        for (const std::string & line : BuildHelp (mode))
+        {
+            text += line;
+            text += '\n';
+        }
+
+        text += "```\n";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::BuildListing
+//
+//  The mode's own commands, then the Casso commands it reaches and has no
+//  form of its own for, one syntax column for both so the two lists read as
+//  one. Casso mode's commands are all Casso's, and AppleWin mode's are
+//  Casso's less the engine commands. Only the rows keep accepts are listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandModeHelp::BuildListing (CommandMode mode, const std::function<bool (const Row &)> & keep)
 {
     std::vector<Row>          own;
     std::vector<Row>          casso;
@@ -369,6 +689,11 @@ std::vector<std::string> CommandModeHelp::BuildHelp (CommandMode mode)
         {
             casso.push_back ({ entry.category, syntax, entry.description });
         }
+    }
+
+    for (std::vector<Row> * rows : { &own, &casso })
+    {
+        std::erase_if (*rows, [&keep] (const Row & row) { return !keep (row); });
     }
 
     for (const std::vector<Row> * rows : { &own, &casso })

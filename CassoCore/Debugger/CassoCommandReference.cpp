@@ -197,7 +197,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "CALC",        H::SessionAndSettings, "CALC expr",                                      "Evaluate an expression"                                                                  },
     { "CD",          H::SessionAndSettings, "CD dir",                                         "Change the current directory"                                                            },
     { "ECHO",        H::SessionAndSettings, "ECHO text",                                      "Print text"                                                                              },
-    { "HELP",        H::SessionAndSettings, "HELP [command]",                                 "List the commands, or describe one"                                                      },
+    { "HELP",        H::SessionAndSettings, "HELP [all|section|command|text]",                 "List the help sections, one section, every command, one command or the matches for text"},
     { "LOAD",        H::SessionAndSettings, "LOAD file",                                      "Run a script of commands, such as one SAVE wrote"                                        },
     { "LOG",         H::SessionAndSettings, "LOG [level]",                                    "Show or set which notifications print"                                                   },
     { "MODE",        H::SessionAndSettings, "MODE [mode]",                                    "Show or set the command mode, which sets the output too"                                 },

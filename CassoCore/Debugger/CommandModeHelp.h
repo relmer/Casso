@@ -60,8 +60,32 @@ public:
     //  or its marker and the name.
     static std::string             GetTypedName   (CommandMode mode, const std::string & cassoName);
 
-    //  HELP with no word: the lines it prints.
+    //  HELP ALL: every command the mode can type, the lines it prints.
     static std::vector<std::string>  BuildHelp    (CommandMode mode);
+
+    //  HELP with no word: the sections and how to ask for each.
+    static std::vector<std::string>  BuildSectionIndex (CommandMode mode);
+
+    //  The section a word asks for -- the first word of its heading, such as
+    //  "breakpoints" or "memory" -- matched without regard to case.
+    static bool                    TryFindSection (const std::string & word, HelpCategory & category);
+
+    //  HELP section: that section's commands alone, in the HELP ALL layout.
+    static std::vector<std::string>  BuildSection (CommandMode mode, HelpCategory category);
+
+    //  HELP text: every command whose syntax or description contains the
+    //  text, ignoring case, with * and ? as wildcards, or matches /regex/.
+    //  A search with no match says so. False, with the reason, for a regular
+    //  expression that does not compile.
+    static bool                    TrySearch      (CommandMode mode, const std::string & text, std::vector<std::string> & lines, std::string & error);
+
+    //  HELP with a word or text after it: the section, the command, or the
+    //  search, tried in that order. False, with the reason, for a
+    //  regular expression that does not compile.
+    static bool                    TryBuildWordHelp (CommandMode mode, const std::string & text, std::vector<std::string> & lines, std::string & error);
+
+    //  docs/Debugger-Commands.md: every mode's HELP ALL, as Markdown.
+    static std::string             BuildReference ();
 
     //  HELP word: the line describing it, or, for a Casso command the mode
     //  cannot run, which modes run it. False for a word that is no command.
@@ -82,6 +106,8 @@ private:
     static bool         IsHexWord         (const std::string & name);
     static std::string  GetShownSyntax    (CommandMode mode, const CassoCommandReference::Entry & entry);
     static std::string  GetModesThatRun   (const std::string & name);
+    static std::vector<std::string>  BuildListing (CommandMode mode, const std::function<bool (const Row &)> & keep);
+    static const char * GetSectionWord    (HelpCategory category);
     static void         AppendSection     (const std::string & heading, std::vector<Row> rows, size_t width, std::vector<std::string> & lines);
     static std::string  ToUpper           (const std::string & text);
 };

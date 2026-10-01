@@ -654,19 +654,22 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 //
 //  ConfigHandlers::Help
 //
-//  HELP alone lists what can be typed in the mode the line was run in; HELP
-//  name describes one command, or says which modes run a Casso command this
-//  one cannot.
+//  HELP alone lists the help sections of the mode the line was run in; HELP
+//  ALL lists every command; HELP section lists one section; HELP name
+//  describes one command, or says which modes run a Casso command this one
+//  cannot; any other text is searched for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    CommandMode         mode = session.GetLineMode();
-    std::istringstream  stream (command.text);
-    std::string         word;
-    std::string         text;
-    WinDbgParseResult   parsed;
+    CommandMode               mode = session.GetLineMode();
+    std::istringstream        stream (command.text);
+    std::string               word;
+    std::string               text;
+    std::string               error;
+    std::vector<std::string>  lines;
+    WinDbgParseResult         parsed;
 
 
 
@@ -674,29 +677,30 @@ void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command,
 
     if (word.empty())
     {
-        reply.data = MessageData { CommandModeHelp::BuildHelp (mode) };
+        reply.data = MessageData { CommandModeHelp::BuildSectionIndex (mode) };
         return;
     }
 
     //  A WinDbg word the parser knows but does not run is described by the
     //  reason typing it gives.
-    if (!CommandModeHelp::TryDescribe (mode, word, text) && mode == CommandMode::WinDbg)
+    if (mode == CommandMode::WinDbg && !CommandModeHelp::TryDescribe (mode, word, text))
     {
         parsed = WinDbgParser::Parse (word, session);
 
         if (parsed.status == ParseStatus::NotAvailable)
         {
-            text = parsed.error;
+            reply.data = MessageData { { parsed.error } };
+            return;
         }
     }
 
-    if (text.empty())
+    if (!CommandModeHelp::TryBuildWordHelp (mode, word, lines, error))
     {
-        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", word));
+        reply.SetError (CommandStatus::Error, "invalid expression", error);
         return;
     }
 
-    reply.data = MessageData { { text } };
+    reply.data = MessageData { lines };
 }
 
 

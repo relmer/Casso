@@ -117,13 +117,21 @@ AppleWin's.
 ## Getting help
 
 Each mode's help command (`HELP` or `?`, `/HELP` in Monitor, `help` in
-GSSquared, `.help` in WinDbg) lists what can be typed in that mode, grouped by
+GSSquared, `.help` in WinDbg) alone lists the help sections and how to ask for
+each: `help breakpoints`, `help memory` and so on list one section, and `help
+all` lists everything that can be typed in that mode, grouped by
 category and alphabetical within each, syntax on the left and what it does on
 the right: the mode's own commands first, then the Casso commands it reaches,
 written as they are typed there. A Casso command the mode has its own form of
 is not repeated, and one whose name the mode already uses -- GSSquared's `r`,
 or any hex word, which GSSquared reads as an address -- is not listed. Asking
-help for one command describes it, or says which modes run it.
+help for one command describes it, or says which modes run it; a word that is
+both a command and a section is described as the command, with a line on how
+to ask for the section. Any other text is a search: every command whose syntax
+or description contains it, ignoring case, with `*` and `?` as wildcards
+(`help bp*`) or a regular expression between slashes (`help /^bp[de]/`).
+[Debugger-Commands.md](Debugger-Commands.md) holds every mode's `help all`,
+generated from the same table.
 
 ## Casso commands
 
