@@ -163,7 +163,8 @@ bool DxuiToolbar::IsInSeeMore (int commandId) const
 //
 //  Everything the menu always holds goes there first. Then, while the strip
 //  is too wide with every label down to its icon, the rightmost leading
-//  entry still on the strip joins them, and the button appears.
+//  entry still on the strip joins them, and the button appears. A custom
+//  entry goes the same way; only one marked never-overflow stays.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,7 +202,7 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
 
         for (Slot & slot : m_slots)
         {
-            if (!slot.hidden && !slot.entry.trailing && &slot != moreSlot && slot.entry.custom == nullptr)
+            if (!slot.hidden && !slot.entry.trailing && &slot != moreSlot && !slot.entry.neverOverflow)
             {
                 victim = &slot;
             }

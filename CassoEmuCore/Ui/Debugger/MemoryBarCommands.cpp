@@ -1,13 +1,14 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/MemoryBarCommands.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
 
 
-static constexpr const wchar_t *  s_kGlyphRefresh   = L"";   // circular arrow
-static constexpr const wchar_t *  s_kGlyphNewWindow = L"";   // plus
+static constexpr const wchar_t *  s_kGlyphRefresh   = s_kpszMdl2Refresh;   // circular arrow
+static constexpr const wchar_t *  s_kGlyphNewWindow = s_kpszMdl2Add;   // plus
 
 
 

@@ -462,7 +462,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_tooltip.SetTheme            (*m_theme);
     m_tooltip.SetMonospace        (true);
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_commandBar->EnableSeeMore   (L"\uE712", L"See more");
+    m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_commandBar->SetEntries      (m_commands->BuildEntries());
 
     SetWindowMenus();
@@ -532,7 +532,7 @@ void DebuggerWindow::ConfigureMemoryBar()
     m_memoryBar->SetTextRenderer (GetTextRenderer());
     m_memoryBar->SetPopupHost    (GetPopupHost());
     m_memoryBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_memoryBar->EnableSeeMore   (L"", L"See more");
+    m_memoryBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_memoryBar->SetEntries      (m_memoryCommands->BuildEntries (m_addressEntry.get()));
     m_memoryBar->SetVisible      (false);
 

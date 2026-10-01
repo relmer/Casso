@@ -158,6 +158,10 @@ public:
         //  Lives in the See more menu whatever the room, never on the strip,
         //  as Explorer keeps its rarer commands there.
         bool  seeMoreOnly = false;
+
+        //  Stays on the strip however little room is left, where every other
+        //  entry, custom ones included, moves into the See more menu.
+        bool  neverOverflow = false;
     };
 
     DxuiToolbar  ();

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -35,7 +36,7 @@ void DebuggerWindow::ConfigureBreakpointBar()
     m_breakpointBar->SetTextRenderer (GetTextRenderer());
     m_breakpointBar->SetPopupHost    (GetPopupHost());
     m_breakpointBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_breakpointBar->EnableSeeMore   (L"", L"See more");
+    m_breakpointBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_breakpointBar->SetEntries      (m_breakpointCommands->BuildEntries());
     m_breakpointBar->SetVisible      (false);
 

@@ -81,6 +81,16 @@ static constexpr LPCWSTR s_kpszMdl2BumperRight   = L"\xF10D";   // U+F10D Segoe 
 static constexpr LPCWSTR s_kpszMdl2Dpad          = L"\xF10E";   // U+F10E Segoe MDL2 Dpad (plus shape)
 static constexpr LPCWSTR s_kpszMdl2ButtonMenu    = L"\xEDE3";   // U+EDE3 Segoe MDL2 ButtonMenu (lines in a circle)
 static constexpr LPCWSTR s_kpszMdl2ButtonView    = L"\xEECA";   // U+EECA Segoe MDL2 ButtonView (squares in a circle)
+static constexpr LPCWSTR s_kpszMdl2Clear       = L"\xE894";   // U+E894 Segoe MDL2 Clear (a cross)
+static constexpr LPCWSTR s_kpszMdl2Broom       = L"\xEA99";   // U+EA99 Segoe MDL2 Broom
+static constexpr LPCWSTR s_kpszMdl2CheckboxComposite = L"\xE73A";  // U+E73A Segoe MDL2 CheckboxComposite (a checked box)
+static constexpr LPCWSTR s_kpszMdl2Checkbox    = L"\xE739";   // U+E739 Segoe MDL2 Checkbox (an empty box)
+static constexpr LPCWSTR s_kpszMdl2Undo        = L"\xE7A7";   // U+E7A7 Segoe MDL2 Undo
+static constexpr LPCWSTR s_kpszMdl2Redo        = L"\xE7A6";   // U+E7A6 Segoe MDL2 Redo
+static constexpr LPCWSTR s_kpszMdl2Page        = L"\xE8A5";   // U+E8A5 Segoe MDL2 Document (a page)
+static constexpr LPCWSTR s_kpszMdl2ViewAll     = L"\xE80A";   // U+E80A Segoe MDL2 ViewAll (a grid)
+static constexpr LPCWSTR s_kpszMdl2Export      = L"\xEDE1";   // U+EDE1 Segoe MDL2 Export (arrow out of a bar)
+static constexpr LPCWSTR s_kpszMdl2Import      = L"\xE8B5";   // U+E8B5 Segoe MDL2 Import (arrow into a bar)
 
 // Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and
 // registered by AssetBootstrap::RegisterSymbolFont). These need no family at

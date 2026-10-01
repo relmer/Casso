@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Core/UnicodeSymbols.h"
 
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
@@ -10,7 +11,7 @@
 
 
 
-static constexpr const wchar_t *  s_kGlyphChevronDown = L"";
+static constexpr const wchar_t *  s_kGlyphChevronDown = s_kpszMdl2ChevronDown;
 
 
 

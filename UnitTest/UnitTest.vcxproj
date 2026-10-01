@@ -256,6 +256,7 @@
     <ClCompile Include="DebuggerTests\ViaTimerMeterTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryPaneColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryBarTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerToolbarGlyphTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsVisualsTests.cpp" />
     <ClCompile Include="DebuggerTests\BranchArrowTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyArrowTests.cpp" />
@@ -635,6 +636,7 @@
     <ClCompile Include="Dxui\DxuiPopupMenuScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuIconRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarOverflowTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarCustomOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />

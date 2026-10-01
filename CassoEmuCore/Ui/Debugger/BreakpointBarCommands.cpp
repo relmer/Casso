@@ -1,24 +1,25 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/BreakpointBarCommands.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
 
 
 //  Chosen from a rendered sheet of Segoe MDL2 Assets.
-static constexpr const wchar_t *  s_kGlyphNew        = L"";   // plus
-static constexpr const wchar_t *  s_kGlyphDelete     = L"";   // a cross
-static constexpr const wchar_t *  s_kGlyphDeleteAll  = L"";   // broom
-static constexpr const wchar_t *  s_kGlyphEnableAll  = L"";   // a checked box
-static constexpr const wchar_t *  s_kGlyphDisableAll = L"";   // an empty box
-static constexpr const wchar_t *  s_kGlyphUndo       = L"";   // arrow curling back to the left
-static constexpr const wchar_t *  s_kGlyphRedo       = L"";   // arrow curling over to the right
-static constexpr const wchar_t *  s_kGlyphSource     = L"";   // a page
-static constexpr const wchar_t *  s_kGlyphCode       = L"";   // a list of lines
-static constexpr const wchar_t *  s_kGlyphColumns    = L"";   // a grid
-static constexpr const wchar_t *  s_kGlyphExport     = L"";   // arrow out of a bar
-static constexpr const wchar_t *  s_kGlyphImport     = L"";   // arrow into a bar
+static constexpr const wchar_t *  s_kGlyphNew        = s_kpszMdl2Add;   // plus
+static constexpr const wchar_t *  s_kGlyphDelete     = s_kpszMdl2Clear;   // a cross
+static constexpr const wchar_t *  s_kGlyphDeleteAll  = s_kpszMdl2Broom;   // broom
+static constexpr const wchar_t *  s_kGlyphEnableAll  = s_kpszMdl2CheckboxComposite;   // a checked box
+static constexpr const wchar_t *  s_kGlyphDisableAll = s_kpszMdl2Checkbox;   // an empty box
+static constexpr const wchar_t *  s_kGlyphUndo       = s_kpszMdl2Undo;   // arrow curling back to the left
+static constexpr const wchar_t *  s_kGlyphRedo       = s_kpszMdl2Redo;   // arrow curling over to the right
+static constexpr const wchar_t *  s_kGlyphSource     = s_kpszMdl2Page;   // a page
+static constexpr const wchar_t *  s_kGlyphCode       = s_kpszMdl2List;   // a list of lines
+static constexpr const wchar_t *  s_kGlyphColumns    = s_kpszMdl2ViewAll;   // a grid
+static constexpr const wchar_t *  s_kGlyphExport     = s_kpszMdl2Export;   // arrow out of a bar
+static constexpr const wchar_t *  s_kGlyphImport     = s_kpszMdl2Import;   // arrow into a bar
 
 
 
