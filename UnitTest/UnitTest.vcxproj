@@ -241,6 +241,7 @@
     <ClCompile Include="DebuggerTests\WinDbgCommandSweepTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgFormatterTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandTextAsTypedTests.cpp" />
+    <ClCompile Include="DebuggerTests\PanelOpenWordTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgParserTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />

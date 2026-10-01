@@ -1588,16 +1588,20 @@ bool AppleWinParser::IsNumberOrRange (const std::string & text, NumberSyntax syn
 //
 //  AppleWinParser::TryParsePanelArguments
 //
-//  PANEL and PANEL LIST list the device panels; PANEL name opens one and PANEL
-//  CLOSE name or PANEL name CLOSE closes it. The name is the rest of the line, so a title that
-//  holds a space works; which panels exist is the window's to know.
+//  PANEL and PANEL LIST list the device panels; PANEL name, PANEL OPEN name
+//  or PANEL name OPEN opens one, and PANEL CLOSE name or PANEL name CLOSE
+//  closes it. The name is the rest of the line, so a title that holds a
+//  space works; which panels exist is the window's to know.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
     std::string  first = args.tokens.empty() ? std::string() : ToUpper (args.tokens[0]);
+    std::string  last  = args.tokens.empty() ? std::string() : ToUpper (args.tokens.back());
     bool         close = first == "CLOSE";
+    bool         open  = first == "OPEN";
+    Tokens       name  = args.tokens;
 
 
 
@@ -1607,26 +1611,27 @@ bool AppleWinParser::TryParsePanelArguments (const Arguments & args, DebugComman
         return true;
     }
 
-    if (close && args.tokens.size() < 2)
+    if ((close || open) && args.tokens.size() < 2)
     {
-        error = "Use PANEL LIST to list the device panels, PANEL name to open one, or PANEL CLOSE name to close one.";
+        error = "Use PANEL LIST to list the device panels, PANEL name or PANEL OPEN name to open one, or PANEL CLOSE name to close one.";
         return false;
     }
 
-    //  The name-first form, PANEL name CLOSE, closes too.
-    if (!close && args.tokens.size() >= 2 && ToUpper (args.tokens.back()) == "CLOSE")
+    //  The verb may come first or, as in PANEL name CLOSE, last.
+    if (close || open)
     {
-        Tokens  name (args.tokens.begin(), args.tokens.end() - 1);
-
-        command.verb = DebugVerb::ClosePanel;
-        command.text = Join (name, 0);
-        return true;
+        name.erase (name.begin());
+    }
+    else if (args.tokens.size() >= 2 && (last == "CLOSE" || last == "OPEN"))
+    {
+        close = last == "CLOSE";
+        name.pop_back();
     }
 
-    //  A panel's title can hold a space ("Disk II"), so every word after the
-    //  verb is the name.
+    //  A panel's title can hold a space ("Disk II"), so every word left is
+    //  the name.
     command.verb = close ? DebugVerb::ClosePanel : DebugVerb::OpenPanel;
-    command.text = Join (args.tokens, close ? 1 : 0);
+    command.text = Join (name, 0);
     return true;
 }
 
