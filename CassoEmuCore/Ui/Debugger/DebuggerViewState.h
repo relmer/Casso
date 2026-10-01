@@ -102,6 +102,9 @@ struct DebuggerViewSnapshot
         std::string     text;
         bool            enabled = true;
         BreakpointInfo  info;
+
+        //  The symbol at the breakpoint's address, or empty.
+        std::string     label;
     };
 
     struct WatchLine

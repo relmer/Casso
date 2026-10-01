@@ -16,6 +16,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/CommandCompletion.h"
+#include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
@@ -240,6 +241,16 @@ protected:
     const DxuiPaneLayout &  GetPaneLayout     () const;
     DxuiPaneLayout &        EditPaneLayout    ();
 
+    //  Protected so a test can read the breakpoints pane's columns (FR-117)
+    //  and the breakpoint each row shows once sorted.
+    void                                          ApplyBreakpoints       ();
+    const DebuggerViewSnapshot::BreakpointLine *  GetBreakpointOfRow     (int row) const;
+    void                                          ToggleBreakpointColumn (BreakpointColumns::Column column);
+    void                                          SortBreakpoints        (BreakpointColumns::Column column);
+    void                                          KeepOpenViews          ();
+    DxuiListView *                                GetBreakpointList      () const { return m_breakpointList; }
+    void                                          SetSnapshotForTest     (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); }
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -301,7 +312,6 @@ private:
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
     void     RemoveSelectedWatch ();
     void     UndoWatchEdit    ();
-    void     KeepOpenViews    ();
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     RunCommand       (const std::string & line);
@@ -365,6 +375,7 @@ private:
     bool                         RouteFloatKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
     void                         DockFloatingPane  (const std::wstring & pane);
+    void                         SetBreakpointColumns ();
 
     static std::wstring                          GetMonitorKey (const RECT & rectPx);
     static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();
@@ -505,6 +516,10 @@ private:
     std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
+    std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = { true, true, true };
+    std::vector<size_t>                                                              m_breakpointOrder;
+    int                                                                              m_breakpointSort     = -1;
+    bool                                                                             m_breakpointReverse  = false;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
     DxuiListView                                                                   * m_codeList           = nullptr;

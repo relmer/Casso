@@ -100,9 +100,15 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     {
         for (const BreakpointInfo & info : data->breakpoints)
         {
+            SymbolTableId  table = SymbolTableId::Main;
+
+
+
             snapshot.breakpoints.push_back ({ info.id, info.address,
                                               std::format ("#{} ${:04X}{}", info.id, info.address, info.enabled ? "" : " (off)"),
                                               info.enabled, info });
+
+            session.GetSymbols().TryFindName (info.address, snapshot.breakpoints.back().label, table);
         }
     }
 

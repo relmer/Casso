@@ -364,7 +364,7 @@ void DebuggerWindow::ConfigureWidgets()
     m_registerList->SetColumns   ({ { L"Reg",         0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left },
                                     { L"",            0, false, DxuiTextHAlign::Left } });
-    m_breakpointList->SetColumns ({ { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
+    SetBreakpointColumns();
     //  The value runs to the pane's edge, as Visual Studio's does, so the
     //  Automatic and Watches headings span the pane rather than the columns.
     m_watchList->SetColumns      ({ { L"Watch",       0, false, DxuiTextHAlign::Left },
@@ -381,19 +381,27 @@ void DebuggerWindow::ConfigureWidgets()
     //  and off, as Visual Studio's Breakpoints window does.
     m_breakpointList->SetOnActivateRow ([this] (int row)
     {
-        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->breakpoints.size())
+        const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
+
+        if (bp != nullptr)
         {
-            ShowCode (m_snapshot->breakpoints[(size_t) row].address);
+            ShowCode (bp->address);
         }
     });
 
     m_breakpointList->SetOnCheckToggled ([this] (int row, size_t, bool checked)
     {
-        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->breakpoints.size())
+        const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
+
+        if (bp != nullptr)
         {
-            RunAction (DebuggerActions::GetEnableBreakpoint (m_snapshot->breakpoints[(size_t) row].id, checked, GetMode()));
+            RunAction (DebuggerActions::GetEnableBreakpoint (bp->id, checked, GetMode()));
         }
     });
+
+    //  A click on a heading sorts by that column, and a second click on the
+    //  same one turns the order around.
+    m_breakpointList->SetOnSortColumn ([this] (int column) { SortBreakpoints ((BreakpointColumns::Column) column); });
 
     for (DxuiListView * list : GetLists())
     {
@@ -3725,6 +3733,20 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         }
     }
 
+    //  The breakpoints pane's columns, each checked while it shows (FR-118);
+    //  Name always shows, so it is not offered.
+    if (pane == DebuggerLayout::kBreakpoints)
+    {
+        for (size_t i = 1; i < BreakpointColumns::kCount; i++)
+        {
+            m_menuCommands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
+                                                       [this, i] { ToggleBreakpointColumn ((BreakpointColumns::Column) i); }));
+            menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+        }
+
+        menu.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
     for (const DxuiDockSite::MenuItem & item : items)
     {
         m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { (void) action(); }));
@@ -3995,9 +4017,9 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ std::format (L"Close Disassembly {}", view + 1), [this, view] { if (m_host != nullptr) { m_host->CloseDebuggerCodeView (view); } } });
         }
     }
-    else if (list == m_breakpointList && row >= 0 && row < (int) s.breakpoints.size())
+    else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
-        const DebuggerViewSnapshot::BreakpointLine  bp = s.breakpoints[(size_t) row];
+        const DebuggerViewSnapshot::BreakpointLine  bp = *GetBreakpointOfRow (row);
 
         items.push_back ({ L"Show code",                        [this, bp] { ShowCode (bp.address); } });
         items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunAction (DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode())); } });
@@ -4439,22 +4461,7 @@ void DebuggerWindow::ApplySnapshot()
 
     m_tracePane->Apply      (m_snapshot->trace);
 
-    rows.clear();
-
-    //  A checkbox, the mark the code views' gutter shows, then the breakpoint.
-    for (const DebuggerViewSnapshot::BreakpointLine & bp : m_snapshot->breakpoints)
-    {
-        DxuiListView::Cell  cell;
-
-        cell.check = bp.enabled;
-        cell.icon  = GetBreakpointIcon (bp.enabled);
-        cell.text  = Widen (bp.text);
-        cell.dim   = !bp.enabled;
-
-        rows.push_back ({ cell });
-    }
-
-    m_breakpointList->SetRows (std::move (rows));
+    ApplyBreakpoints();
 
     rows.clear();
 
@@ -4836,6 +4843,7 @@ void DebuggerWindow::KeepOpenViews()
     text  = DebuggerViewState::FormatOpenViews (*m_snapshot);
     text += m_documents.Format (nameOf);
     text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
+    text += BreakpointColumns::FormatShown (m_breakpointShown);
 
     if (!text.empty() && text.front() == ' ')
     {
@@ -4849,6 +4857,9 @@ void DebuggerWindow::KeepOpenViews()
         m_openViewsSettling = m_openViewsSaved.empty() ? 0 : kSettlingSnapshots;
         views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
         m_pendingSourceDocs = SourceDocuments::Parse (m_openViewsSaved);
+        m_breakpointShown   = BreakpointColumns::ParseShown (m_openViewsSaved);
+
+        SetBreakpointColumns();
 
         for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
         {
@@ -6959,6 +6970,172 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     }
 
     m_floats[pane] = std::move (window);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetBreakpointColumns
+//
+//  Every column of FR-117, each shown or not as chosen; Name always shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetBreakpointColumns()
+{
+    std::vector<DxuiListView::Column>  columns;
+
+
+
+    for (size_t i = 0; i < BreakpointColumns::kCount; i++)
+    {
+        DxuiListView::Column  column;
+
+        column.title   = BreakpointColumns::GetHeading ((BreakpointColumns::Column) i);
+        column.visible = i == (size_t) BreakpointColumns::Column::Name || m_breakpointShown[i];
+        columns.push_back (column);
+    }
+
+    m_breakpointList->SetColumns (columns);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyBreakpoints
+//
+//  A checkbox and the mark the code views' gutter shows ahead of the name,
+//  then a cell for each column, in the order the chosen heading sorts them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyBreakpoints()
+{
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+    if (m_snapshot == nullptr)
+    {
+        return;
+    }
+
+    if (m_breakpointSort >= 0 && m_breakpointSort < (int) BreakpointColumns::kCount)
+    {
+        m_breakpointOrder = BreakpointColumns::GetOrder (*m_snapshot, (BreakpointColumns::Column) m_breakpointSort, m_breakpointReverse);
+        m_breakpointList->SetSortIndicator (m_breakpointSort, m_breakpointReverse);
+    }
+    else
+    {
+        m_breakpointOrder.resize (m_snapshot->breakpoints.size());
+
+        for (size_t i = 0; i < m_breakpointOrder.size(); i++)
+        {
+            m_breakpointOrder[i] = i;
+        }
+    }
+
+    for (size_t index : m_breakpointOrder)
+    {
+        const DebuggerViewSnapshot::BreakpointLine  & bp    = m_snapshot->breakpoints[index];
+        BreakpointColumns::Cells                      cells = BreakpointColumns::GetCells (*m_snapshot, bp);
+        std::vector<DxuiListView::Cell>               row;
+
+        for (const std::string & text : cells)
+        {
+            DxuiListView::Cell  cell;
+
+            cell.text = Widen (text);
+            cell.dim  = !bp.enabled;
+            row.push_back (cell);
+        }
+
+        row[(size_t) BreakpointColumns::Column::Name].check = bp.enabled;
+        row[(size_t) BreakpointColumns::Column::Name].icon  = GetBreakpointIcon (bp.enabled);
+        rows.push_back (std::move (row));
+    }
+
+    m_breakpointList->SetRows (std::move (rows));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBreakpointOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DebuggerViewSnapshot::BreakpointLine * DebuggerWindow::GetBreakpointOfRow (int row) const
+{
+    if (m_snapshot == nullptr || row < 0 || row >= (int) m_breakpointOrder.size())
+    {
+        return nullptr;
+    }
+
+    if (m_breakpointOrder[(size_t) row] >= m_snapshot->breakpoints.size())
+    {
+        return nullptr;
+    }
+
+    return &m_snapshot->breakpoints[m_breakpointOrder[(size_t) row]];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ToggleBreakpointColumn
+//
+//  Shows or hides a column, and keeps the choice with the open views.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ToggleBreakpointColumn (BreakpointColumns::Column column)
+{
+    if (column == BreakpointColumns::Column::Name || column >= BreakpointColumns::Column::Count)
+    {
+        return;
+    }
+
+    m_breakpointShown[(size_t) column] = !m_breakpointShown[(size_t) column];
+    SetBreakpointColumns();
+    ApplyBreakpoints();
+
+    if (m_snapshot != nullptr)
+    {
+        KeepOpenViews();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SortBreakpoints
+//
+//  A click on a heading sorts by that column, and a second click on the
+//  same one turns the order around.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SortBreakpoints (BreakpointColumns::Column column)
+{
+    m_breakpointReverse = ((int) column == m_breakpointSort) && !m_breakpointReverse;
+    m_breakpointSort    = (int) column;
+    ApplyBreakpoints();
 }
 
 
