@@ -409,6 +409,9 @@ private:
     void     ApplyMemoryWindows ();
     void     AddMemoryWindow    ();
     void     PlaceMemoryBar     ();
+    void     MoveMemoryBar      (DxuiWindow * to);
+    DxuiWindow * GetPaneHost    (const std::wstring & pane);
+    std::wstring GetBarRoutingPane (const std::wstring & pane) const;
     void     ClipPaneControls   ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
@@ -574,6 +577,8 @@ private:
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;
     DxuiToolbar                                                                    * m_memoryBar          = nullptr;
+    DxuiWindow                                                                     * m_memoryBarHost      = nullptr;
+    std::wstring                                                                     m_memoryBarPane;
     std::unique_ptr<MemoryBarCommands>                                               m_memoryCommands;
     std::unique_ptr<MemoryAddressEntry>                                              m_addressEntry;
     std::unique_ptr<DebuggerPaneFrame>                                               m_breakpointFrame;

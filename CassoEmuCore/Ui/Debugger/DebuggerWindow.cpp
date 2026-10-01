@@ -2886,26 +2886,38 @@ void DebuggerWindow::PlaceMemoryBar()
 {
     DebuggerPaneFrame  * bar    = nullptr;
     MemoryPane         * owner  = GetActiveMemoryPane();
+    DxuiWindow         * host   = nullptr;
     RECT                 slot   = {};
     auto                 isHere = [this] (size_t i)
     {
-        return m_memoryBars[i] != nullptr && m_memoryBars[i]->IsVisible() &&
-               !m_floats.contains (DebuggerLayout::GetMemoryPaneId ((int) i + 1));
+        return m_memoryBars[i] != nullptr && m_memoryBars[i]->IsVisible();
     };
 
 
 
     if (owner != nullptr && isHere ((size_t) (owner->GetId() - 1)))
     {
-        bar = m_memoryBars[(size_t) (owner->GetId() - 1)].get();
+        bar             = m_memoryBars[(size_t) (owner->GetId() - 1)].get();
+        m_memoryBarPane = DebuggerLayout::GetMemoryPaneId (owner->GetId());
     }
 
     for (size_t i = 0; bar == nullptr && i < m_memoryBars.size(); i++)
     {
         if (isHere (i))
         {
-            bar = m_memoryBars[i].get();
+            bar             = m_memoryBars[i].get();
+            m_memoryBarPane = DebuggerLayout::GetMemoryPaneId ((int) i + 1);
         }
+    }
+
+    //  The bar is the pane's, so it goes with the pane into a floating
+    //  window; with no pane to sit in, it waits in this one.
+    host = (bar != nullptr) ? GetPaneHost (m_memoryBarPane) : this;
+    MoveMemoryBar (host);
+
+    if (bar == nullptr)
+    {
+        m_memoryBarPane.clear();
     }
 
     m_memoryBar->SetVisible (bar != nullptr);
@@ -2928,12 +2940,118 @@ void DebuggerWindow::PlaceMemoryBar()
     //  moves what does not fit into its "..." menu.
     slot = bar->GetBounds();
 
-    m_memoryBar->SetTextRenderer   (GetTextRenderer());
-    m_memoryBar->SetHostClientRect (GetBounds());
+    m_memoryBar->SetTextRenderer   (host->GetTextRenderer());
+    m_memoryBar->SetPopupHost      (host->GetPopupHost());
+    m_memoryBar->SetHostClientRect (host->GetBounds());
     m_memoryBar->Layout            (slot, m_scaler);
 
-    SetChildClip (m_memoryBar, slot);
-    SetChildClip (m_memoryBox, slot);
+    host->SetChildClip (m_memoryBar, slot);
+    host->SetChildClip (m_memoryBox, slot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneHost
+//
+//  The window a pane's controls are in: its floating window, or this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiWindow * DebuggerWindow::GetPaneHost (const std::wstring & pane)
+{
+    auto  found = m_floats.find (pane);
+
+
+
+    return (found != m_floats.end()) ? (DxuiWindow *) found->second.get() : (DxuiWindow *) this;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBarRoutingPane
+//
+//  The routing pane under which a pane's bar takes the mouse: the pane's own
+//  while it floats, and none while it is in this window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetBarRoutingPane (const std::wstring & pane) const
+{
+    return (!pane.empty() && m_floats.contains (pane)) ? pane : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MoveMemoryBar
+//
+//  Moves the memory bar and its Address box into another window. Focus on
+//  the box stays behind in the window it leaves, so it goes to the command
+//  line there, as it does when the box hides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::MoveMemoryBar (DxuiWindow * to)
+{
+    DxuiWindow  * from = m_memoryBarHost != nullptr ? m_memoryBarHost : this;
+
+
+
+    if (to == from)
+    {
+        return;
+    }
+
+    if (m_focusMgr.GetFocusedControl() == m_memoryBox)
+    {
+        m_focusMgr.SetFocused (m_commandBox);
+    }
+
+    for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
+    {
+        if (it->second == m_memoryBox)
+        {
+            m_memoryBox->OnFocusChanged (false);
+            it = m_floatFocus.erase (it);
+            continue;
+        }
+
+        ++it;
+    }
+
+    for (IDxuiControl * control : { (IDxuiControl *) m_memoryBar, (IDxuiControl *) m_memoryBox })
+    {
+        std::unique_ptr<IDxuiControl>  owned = from->DetachChild (control);
+
+        if (owned != nullptr)
+        {
+            (void) to->AttachChild (std::move (owned));
+        }
+    }
+
+    m_memoryBarHost = to;
+
+    //  The site's strips and drop zones paint over the panes, so it stays
+    //  this window's last child.
+    if (to == this)
+    {
+        std::unique_ptr<IDxuiControl>  site = DetachChild (m_dockSite);
+
+        (void) AttachChild (std::move (site));
+    }
+
+    m_focusMgr.Rebuild();
 }
 
 
@@ -6346,7 +6464,11 @@ bool DebuggerWindow::RouteMemoryBarMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        UpdateTooltip (ev.positionDip);
+        if (m_routingPane.empty())
+        {
+            UpdateTooltip (ev.positionDip);
+        }
+
         return m_memoryBar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:
@@ -6428,13 +6550,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  Then the memory bar, which owns its strip less the Address box, and
     //  whatever menu it has open.
-    if (m_routingPane.empty() && RouteMemoryBarMouse (ev))
+    if (m_routingPane == GetBarRoutingPane (m_memoryBarPane) && RouteMemoryBarMouse (ev))
     {
         return true;
     }
 
     //  Then the breakpoints pane's toolbar.
-    if (m_routingPane.empty() && RouteBreakpointBarMouse (ev))
+    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) && RouteBreakpointBarMouse (ev))
     {
         return true;
     }
@@ -6654,7 +6776,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (GetSourceSlotOf (pane) >= 0)          { return { m_sourceDocs[(size_t) GetSourceSlotOf (pane)].banner, m_sourceDocs[(size_t) GetSourceSlotOf (pane)].view }; }
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
-    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList }; }
+    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
     if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
@@ -6783,13 +6905,19 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
 //
 //  DebuggerWindow::GetPaneOfControl
 //
-//  Empty for a control that belongs to no pane: the toolbar and the memory
-//  bar, which never leave this window.
+//  Empty for a control that belongs to no pane: the toolbar, which never
+//  leaves this window. The memory bar and its box belong to the memory pane
+//  they sit in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DebuggerWindow::GetPaneOfControl (const IDxuiControl * control) const
 {
+    if (control != nullptr && (control == m_memoryBar || control == m_memoryBox))
+    {
+        return m_memoryBarPane;
+    }
+
     for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
     {
         for (const IDxuiControl * part : GetPaneControls (pane))
@@ -7516,6 +7644,13 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
         {
             (void) AttachChild (std::move (owned));
         }
+    }
+
+    //  The memory bar may be sitting in this pane, and would go with the
+    //  window.
+    if (m_memoryBarHost == window.get())
+    {
+        MoveMemoryBar (this);
     }
 
     window.reset();

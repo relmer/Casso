@@ -106,16 +106,17 @@ void DebuggerWindow::SetBreakpointBarMenus()
 //
 //  DebuggerWindow::PlaceBreakpointBar
 //
-//  The bar sits in the place held at the top of the breakpoints pane, while
-//  the pane is shown in this window. A floating pane has a window of its
-//  own, which this window's controls cannot draw into, so there it hides.
+//  The bar sits in the place held at the top of the breakpoints pane and is
+//  one of the pane's controls, so it goes with the pane into a floating
+//  window and draws, measures and opens its menus there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PlaceBreakpointBar()
 {
-    bool  shown = m_breakpointSlot != nullptr && m_breakpointSlot->IsVisible() && !m_floats.contains (DebuggerLayout::kBreakpoints);
-    RECT  slot  = {};
+    bool          shown = m_breakpointSlot != nullptr && m_breakpointSlot->IsVisible();
+    DxuiWindow  * host  = GetPaneHost (DebuggerLayout::kBreakpoints);
+    RECT          slot  = {};
 
 
 
@@ -128,11 +129,12 @@ void DebuggerWindow::PlaceBreakpointBar()
 
     slot = m_breakpointSlot->GetBounds();
 
-    m_breakpointBar->SetTextRenderer   (GetTextRenderer());
-    m_breakpointBar->SetHostClientRect (GetBounds());
+    m_breakpointBar->SetTextRenderer   (host->GetTextRenderer());
+    m_breakpointBar->SetPopupHost      (host->GetPopupHost());
+    m_breakpointBar->SetHostClientRect (host->GetBounds());
     m_breakpointBar->Layout            (slot, m_scaler);
 
-    SetChildClip (m_breakpointBar, slot);
+    host->SetChildClip (m_breakpointBar, slot);
 }
 
 
@@ -172,7 +174,11 @@ bool DebuggerWindow::RouteBreakpointBarMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        UpdateTooltip (ev.positionDip);
+        if (m_routingPane.empty())
+        {
+            UpdateTooltip (ev.positionDip);
+        }
+
         return m_breakpointBar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:
