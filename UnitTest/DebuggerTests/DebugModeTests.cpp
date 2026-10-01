@@ -75,16 +75,68 @@ namespace DebugModeTests
 
         //  The run's output against a golden file, reported by the first line
         //  that differs so the diff is readable in a test log.
+        //  With no CD, a relative host file is opened from the process's own
+        //  directory, which replies give in full.
+        static std::wstring Host (const wchar_t * name)
+        {
+            std::wstring  directory = std::filesystem::current_path().wstring();
+
+
+
+            return directory + (directory.ends_with (L'\\') ? L"" : L"\\") + name;
+        }
+
+        //  The output with the process's directory written <cwd>, as the
+        //  golden files hold it, in JSON's escaped form too.
+        std::string GetPortableOutput() const
+        {
+            std::string  output    = result.output;
+            std::string  directory = Narrow (std::filesystem::current_path().wstring());
+            std::string  escaped;
+
+
+
+            for (char ch : directory)
+            {
+                escaped += (ch == '\\') ? std::string ("\\\\") : std::string (1, ch);
+            }
+
+            for (const std::string & from : { escaped, directory })
+            {
+                for (size_t at = output.find (from); at != std::string::npos; at = output.find (from, at))
+                {
+                    output.replace (at, from.size(), "<cwd>");
+                }
+            }
+
+            return output;
+        }
+
+        static std::string Narrow (const std::wstring & text)
+        {
+            std::string  narrow;
+
+
+
+            for (wchar_t ch : text)
+            {
+                narrow += (char) ch;
+            }
+
+            return narrow;
+        }
+
         void AssertOutputIs (const char * expectedName)
         {
             std::string  expected = Expected (expectedName);
+            std::string  output   = GetPortableOutput();
 
 
 
-            if (expected != result.output)
+            if (expected != output)
             {
                 std::istringstream  wanted (expected);
-                std::istringstream  got    (result.output);
+                std::istringstream  got    (output);
                 std::string         wantedLine;
                 std::string         gotLine;
                 int                 line = 0;
@@ -325,7 +377,7 @@ namespace DebugModeTests
 
             //  The file the script wrote went through the injected file
             //  system and nowhere near a real disk.
-            Assert::IsTrue (rig.files.Exists (L"out.bin"), L"the script's host file");
+            Assert::IsTrue (rig.files.Exists (BatchRig::Host (L"out.bin")), L"the script's host file");
         }
 
 
@@ -481,7 +533,7 @@ namespace DebugModeTests
             Assert::IsTrue   (rig.result.diagnostics.empty(), rig.Widen (rig.result.diagnostics).c_str());
             rig.AssertOutputIs ("profile.txt");
 
-            Assert::AreEqual (S_OK, rig.files.ReadAllText (L"profile.txt", saved));
+            Assert::AreEqual (S_OK, rig.files.ReadAllText (BatchRig::Host (L"profile.txt"), saved));
             Assert::IsTrue   (rig.result.output.find (saved.substr (0, saved.find ('\n'))) != std::string::npos, L"the saved file starts with the listed summary");
             Assert::IsTrue   (saved.find ("$0302   LOOP") != std::string::npos, L"and holds the per-address rows");
         }
@@ -511,9 +563,9 @@ namespace DebugModeTests
             Assert::AreEqual (0, rig.Run (rig.Script ("files.txt")));
             rig.AssertOutputIs ("files.txt");
 
-            Assert::AreEqual (S_OK, rig.files.ReadAllText (L"out.bin", saved));
+            Assert::AreEqual (S_OK, rig.files.ReadAllText (BatchRig::Host (L"out.bin"), saved));
             Assert::IsTrue (saved == std::string ("\x01\x02\x03\x04", 4), L"the four bytes BSAVE wrote");
-            Assert::IsTrue (rig.files.Exists (L"trace.txt"), L"the trace file");
+            Assert::IsTrue (rig.files.Exists (BatchRig::Host (L"trace.txt")), L"the trace file");
         }
 
         //  Command lines run after the script's lines.

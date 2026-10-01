@@ -1,11 +1,11 @@
 >MEB 300 01 02 03 04
 0300: 01 02 03 04              ....
 >BSAVE out.bin 300:303
-Saved 4 bytes from $0300
+Saved 4 bytes from $0300 to <cwd>\out.bin
 >MEB 300 00 00 00 00
 0300: 00 00 00 00              ....
 >BLOAD out.bin 300
-Loaded 4 bytes at $0300
+Loaded 4 bytes at $0300 from <cwd>\out.bin
 >MDB 300
 0300: 01 02 03 04 4D 8E DC 86  ....M.\.
 0308: 6E 65 B3 92 01 C8 21 6C  ne3..H!l

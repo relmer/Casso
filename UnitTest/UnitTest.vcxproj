@@ -243,6 +243,7 @@
     <ClCompile Include="DebuggerTests\CommandTextAsTypedTests.cpp" />
     <ClCompile Include="DebuggerTests\PanelOpenWordTests.cpp" />
     <ClCompile Include="DebuggerTests\BloadCompanionWindowTests.cpp" />
+    <ClCompile Include="DebuggerTests\RelativePathNoDirectoryTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgParserTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />

@@ -832,15 +832,17 @@ void DebugSession::RenderReply (Reply & reply, OutputFormat format)
 //  DebugSession::ResolvePath
 //
 //  Quotes around the name are dropped. A rooted path is used as given; any
-//  other is taken from the current directory.
+//  other is taken from the directory CD set or, with none, the process's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DebugSession::ResolvePath (const std::string & path) const
 {
-    std::string   bare     = Trim (path);
-    std::wstring  wide;
-    bool          isRooted = false;
+    std::string      bare      = Trim (path);
+    std::wstring     wide;
+    std::wstring     directory = m_currentDirectory;
+    std::error_code  code;
+    bool             isRooted  = false;
 
 
 
@@ -852,12 +854,24 @@ std::wstring DebugSession::ResolvePath (const std::string & path) const
     wide     = TextEncoding::NarrowToWide (bare);
     isRooted = wide.starts_with (L'\\') || wide.starts_with (L'/') || (wide.size() > 1 && wide[1] == L':');
 
-    if (isRooted || m_currentDirectory.empty() || wide.empty())
+    if (isRooted || wide.empty())
     {
         return wide;
     }
 
-    return m_currentDirectory + (m_currentDirectory.ends_with (L'\\') ? L"" : L"\\") + wide;
+    //  With no directory set by CD, the process's own is the one a relative
+    //  path is opened from, so it is given in full.
+    if (directory.empty())
+    {
+        directory = std::filesystem::current_path (code).wstring();
+    }
+
+    if (directory.empty())
+    {
+        return wide;
+    }
+
+    return directory + (directory.ends_with (L'\\') ? L"" : L"\\") + wide;
 }
 
 
