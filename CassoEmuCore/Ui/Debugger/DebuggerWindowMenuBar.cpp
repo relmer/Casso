@@ -539,7 +539,8 @@ bool DebuggerWindow::RouteMenuBarKey (const DxuiKeyEvent & ev, bool & handled)
 //
 //  DebuggerWindow::ResetPaneLayout
 //
-//  Puts every pane back where the window first had it, and saves that.
+//  Puts every pane back where the window first had it, reopening the ones
+//  closed from their close buttons, and saves that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -550,6 +551,7 @@ void DebuggerWindow::ResetPaneLayout()
 
 
     layout.PlaceOnMonitors (GetMonitors());
+    m_closedPanes.clear();
     m_dockSite->SetPaneLayout (layout);
     m_syncFloats = true;
     m_dockSite->Relayout();
