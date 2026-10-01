@@ -25,7 +25,7 @@ namespace DebuggerTests
     {
     public:
 
-        TEST_METHOD (AWindowStartsAtSixteenValuesARow)
+        TEST_METHOD (AWindowStartsAtAutoColumns)
         {
             DxuiHexView  view;
             MemoryPane   pane (1, &view, [] (int, Word) {}, [] (const DebuggerActionBuilder &) {}, [] (const std::string &) {});
@@ -34,8 +34,8 @@ namespace DebuggerTests
 
             pane.Configure (nullptr);
 
-            Assert::AreEqual (16, pane.GetColumns());
-            Assert::AreEqual (16, view.GetBytesPerRow());
+            Assert::AreEqual (0, pane.GetColumns(), L"Auto");
+            Assert::AreEqual (0, view.GetColumns(), L"the view fits the pane's width");
         }
 
 
@@ -47,6 +47,7 @@ namespace DebuggerTests
 
 
             pane.Configure   (nullptr);
+            pane.SetColumns  (16);
             pane.SetGrouping (2);
 
             Assert::AreEqual (2,  pane.GetGrouping());

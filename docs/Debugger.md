@@ -511,7 +511,8 @@ windows, and one panel for each device the machine has.
 Each memory window has Visual Studio's bar. The **Address** box takes an
 address, a register, a symbol or an expression, and its drop-down lists the
 addresses entered before. **Refresh** reads the window's bytes again.
-**Columns** sets the values in a row: Auto, 1, 2, 4, 8 or 16. **Group by**
+**Columns** sets the values in a row: Auto, 1, 2, 4, 8 or 16. Auto, the
+default, fits as many as the window's width holds. **Group by**
 shows each value as a byte, a word or a long. **New memory window** opens
 another window, up to four; a window closes from its tab. What does not fit
 a narrow pane moves into the bar's **...** menu. Type over the hex or the

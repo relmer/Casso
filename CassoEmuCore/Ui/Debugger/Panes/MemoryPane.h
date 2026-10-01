@@ -80,8 +80,9 @@ public:
     //  the last read already holds them.
     static std::optional<Word>  GetReadStartFor (Word readFirst, uint64_t topOffset, int visibleRows, int bytesPerRow = kBytesPerRow);
 
-    //  The columns a window starts with: sixteen values a row.
-    static constexpr int  kDefaultColumns = DebuggerViewState::kMemoryRowBytes;
+    //  The columns a window starts with: Auto, as many values as the pane's
+    //  width holds, refitted as it resizes.
+    static constexpr int  kDefaultColumns = 0;
 
 private:
     static constexpr int  kBytesPerRow = DebuggerViewState::kMemoryRowBytes;
