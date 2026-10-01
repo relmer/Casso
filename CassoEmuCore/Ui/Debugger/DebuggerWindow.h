@@ -24,7 +24,9 @@
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/RegisterHistory.h"
+#include "Ui/Debugger/StackHistory.h"
 #include "Ui/Debugger/StopChanges.h"
+#include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -427,8 +429,10 @@ private:
     void     UpdateChanges    ();
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
     void     RemoveSelectedWatch ();
-    void     UndoWatchEdit    ();
+    void     UndoWatchEdit    (bool redo);
     void     UndoRegisterEdit (bool redo);
+    void     UndoStackEdit    (bool redo);
+    void     UndoMemoryEdit   (MemoryPane * pane, bool redo);
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     RunToCursor      (Word address);
@@ -568,6 +572,7 @@ private:
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;
     void     ApplyCodeView    (int view);
     void     EditRegister     (const std::string & name);
+    void     EditStackByte    (int row);
     void     UpdateTooltip    (POINT clientPx);
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     std::optional<Byte>  GetRegisterByte (const std::string & name) const;
@@ -646,13 +651,16 @@ private:
     POINT                                   m_arrowPressPx       = {};
     DWORD                                   m_arrowPressTick     = 0;
 
-    //  The watch pane's own undo history (FR-097), apart from every memory
+    //  The watch pane's own undo and redo (FR-097), apart from every memory
     //  window's: Ctrl+Z in the watch pane puts back its last edit only.
-    std::vector<DebuggerViewState::WatchUndo>  m_watchUndo;
+    WatchHistory                               m_watchHistory;
 
     //  The registers pane's own undo and redo, cleared when the machine
     //  moves on from the stop its edits were made at.
     RegisterHistory                            m_registerHistory;
+
+    //  The stack pane's, cleared the same way.
+    StackHistory                               m_stackHistory;
 
     //  The optional views open at the last save, and whether the ones saved
     //  before have been reopened yet. Reopening is asynchronous, so saving

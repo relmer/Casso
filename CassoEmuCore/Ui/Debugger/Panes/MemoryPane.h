@@ -74,6 +74,9 @@ public:
     void  Refresh ();
 
     bool  Undo    () { return m_view->IsEditable() && m_model.Undo(); }
+    bool  Redo    () { return m_view->IsEditable() && m_model.Redo(); }
+    bool  CanUndo () const { return m_view->IsEditable() && m_model.CanUndo(); }
+    bool  CanRedo () const { return m_view->IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
     //  Where a read should start to hold the rows on screen, or nothing when

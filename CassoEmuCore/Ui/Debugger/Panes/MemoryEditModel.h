@@ -26,7 +26,8 @@
 //
 //  UNDO IS THIS WINDOW'S. Each edit records the bytes it replaced, and undo
 //  sends them back, most recent first, whatever the machine has done to those
-//  bytes since.
+//  bytes since. Redo writes an undone edit's bytes again; a new edit clears
+//  what could be redone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,8 +65,10 @@ public:
     std::optional<MemoryRegion>  TryGetRegion (Word address) const;
 
     bool  Undo         ();
+    bool  Redo         ();
     bool  CanUndo      () const { return !m_history.empty(); }
-    void  ClearHistory ()       { m_history.clear(); }
+    bool  CanRedo      () const { return !m_redo.empty(); }
+    void  ClearHistory ()       { m_history.clear(); m_redo.clear(); }
 
 private:
     static constexpr uint64_t  kAddressSpace = 0x10000;
@@ -74,6 +77,7 @@ private:
     {
         Word               address = 0;
         std::vector<Byte>  replaced;
+        std::vector<Byte>  written;
     };
 
     bool  TryGetShown   (uint64_t address, size_t & outIndex) const;
@@ -85,5 +89,6 @@ private:
     mutable std::vector<std::optional<Byte>>    m_bytes;
     std::vector<MemoryRegion>                   m_regions;
     mutable std::vector<Edit>                   m_history;
+    mutable std::vector<Edit>                   m_redo;
     PatchFn                                     m_onPatch;
 };

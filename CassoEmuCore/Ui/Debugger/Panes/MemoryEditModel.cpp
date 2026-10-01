@@ -181,8 +181,10 @@ bool MemoryEditModel::WriteBytes (uint64_t offset, std::span<const uint8_t> byte
         m_bytes[index] = bytes[i];
     }
 
-    m_history.push_back (std::move (edit));
+    edit.written.assign (bytes.begin(), bytes.end());
     SendPatch (edit.address, bytes);
+    m_history.push_back (std::move (edit));
+    m_redo.clear();
 
     return true;
 }
@@ -221,6 +223,46 @@ bool MemoryEditModel::Undo()
     }
 
     SendPatch (edit.address, edit.replaced);
+    m_redo.push_back (std::move (edit));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::Redo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryEditModel::Redo()
+{
+    Edit    edit;
+    size_t  index = 0;
+
+
+
+    if (m_redo.empty())
+    {
+        return false;
+    }
+
+    edit = std::move (m_redo.back());
+    m_redo.pop_back();
+
+    for (size_t i = 0; i < edit.written.size(); i++)
+    {
+        if (TryGetShown ((uint64_t) edit.address + i, index))
+        {
+            m_bytes[index] = edit.written[i];
+        }
+    }
+
+    SendPatch (edit.address, edit.written);
+    m_history.push_back (std::move (edit));
 
     return true;
 }

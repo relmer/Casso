@@ -1169,6 +1169,7 @@ void DebuggerWindow::ApplyMemoryWindows()
     }
 
     m_registerHistory.OnSnapshot (m_snapshot->isPaused, m_snapshot->pc);
+    m_stackHistory.OnSnapshot    (m_snapshot->isPaused, m_snapshot->pc);
 
     if (m_snapshot->machine != m_machine)
     {
@@ -1181,7 +1182,7 @@ void DebuggerWindow::ApplyMemoryWindows()
             pane->ClearHistory();
         }
 
-        m_watchUndo.clear();
+        m_watchHistory.Clear();
     }
 
     for (const DebuggerViewSnapshot::MemoryWindow & window : m_snapshot->memoryWindows)
@@ -4948,6 +4949,16 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         items.push_back ({ L"Copy",         [memory] { memory->GetView()->CopySelection(); } });
         items.push_back ({ L"Go to...",     [this]   { SetFocusedControl (m_memoryBox); } });
         items.push_back ({ L"Change bytes per value", [memory] { (void) memory->CycleGrouping(); } });
+
+        if (memory->CanUndo())
+        {
+            items.push_back ({ L"Undo", [this, memory] { UndoMemoryEdit (memory, false); } });
+        }
+
+        if (memory->CanRedo())
+        {
+            items.push_back ({ L"Redo", [this, memory] { UndoMemoryEdit (memory, true); } });
+        }
     }
 
     if (items.empty())
@@ -5200,6 +5211,16 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         {
             items.push_back ({ L"Copy", copy });
         }
+
+        if (m_watchHistory.CanUndo())
+        {
+            items.push_back ({ L"Undo", [this] { UndoWatchEdit (false); } });
+        }
+
+        if (m_watchHistory.CanRedo())
+        {
+            items.push_back ({ L"Redo", [this] { UndoWatchEdit (true); } });
+        }
     }
     else if (list == m_stackList && row >= 0 && row < (int) s.stack.size())
     {
@@ -5207,6 +5228,21 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
         items.push_back ({ L"Copy", copy });
+
+        if (s.isPaused)
+        {
+            items.push_back ({ L"Edit value...", [this, row] { EditStackByte (row); } });
+        }
+
+        if (m_stackHistory.CanUndo())
+        {
+            items.push_back ({ L"Undo", [this] { UndoStackEdit (false); } });
+        }
+
+        if (m_stackHistory.CanRedo())
+        {
+            items.push_back ({ L"Redo", [this] { UndoStackEdit (true); } });
+        }
     }
     else if (list == m_callStackList && row >= 0 && row < (int) CallStackPane::GetRows (s.callStack).size())
     {
@@ -5503,10 +5539,7 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     m_snapshot = std::move (snapshot);
     ApplySnapshot();
 
-    for (DebuggerViewState::WatchUndo & undo : m_watchUndo)
-    {
-        DebuggerViewState::NoteMovedWatch (*m_snapshot, undo);
-    }
+    m_watchHistory.OnSnapshot (*m_snapshot);
 
     //  The drop-downs carry the mode and the panels they were built with, so
     //  they are rebuilt when either changes.
@@ -5872,7 +5905,7 @@ void DebuggerWindow::EndWatchEdit (bool commit)
 
         if (undo.has_value())
         {
-            m_watchUndo.push_back (std::move (*undo));
+            m_watchHistory.Record (std::move (*undo), actions);
         }
     }
 
@@ -5945,37 +5978,83 @@ void DebuggerWindow::UndoRegisterEdit (bool redo)
 //
 //  DebuggerWindow::UndoWatchEdit
 //
-//  The last watch edit, put back. A moved watch is found by being the one
-//  whose id did not exist before the move, since the engine numbered it only
-//  once the move ran.
+//  The last watch edit, put back, or with `redo` made again. A moved watch
+//  is found by being the one whose id did not exist before the move, since
+//  the engine numbered it only once the move ran.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::UndoWatchEdit()
+void DebuggerWindow::UndoWatchEdit (bool redo)
 {
     std::optional<std::vector<DebuggerAction>>  actions;
 
 
 
-    if (m_watchUndo.empty() || m_snapshot == nullptr)
+    if (m_snapshot == nullptr)
     {
         return;
     }
 
-    //  A move no snapshot has shown yet stays on the stack for the next try.
-    actions = DebuggerViewState::GetWatchUndoActions (*m_snapshot, m_watchUndo.back(), GetMode());
+    actions = redo ? m_watchHistory.TryRedo() : m_watchHistory.TryUndo (*m_snapshot, GetMode());
 
     if (!actions.has_value())
     {
         return;
     }
 
-    m_watchUndo.pop_back();
-
     for (const DebuggerAction & action : *actions)
     {
         RunAction (action);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UndoStackEdit
+//
+//  The stack pane's last edit taken back, or with `redo` made again, while
+//  the machine is still at the stop it was made at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UndoStackEdit (bool redo)
+{
+    std::optional<DebuggerAction>  action = redo ? m_stackHistory.TryRedo (GetMode()) : m_stackHistory.TryUndo (GetMode());
+
+
+
+    if (action.has_value())
+    {
+        RunAction (*action);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UndoMemoryEdit
+//
+//  A memory window's last edit taken back, or with `redo` made again, while
+//  the machine is stopped and the window takes edits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UndoMemoryEdit (MemoryPane * pane, bool redo)
+{
+    if (pane == nullptr)
+    {
+        return;
+    }
+
+    (void) (redo ? pane->Redo() : pane->Undo());
+    Invalidate();
 }
 
 
@@ -6459,6 +6538,51 @@ void DebuggerWindow::EditRegister (const std::string & name)
     {
         m_registerHistory.Record ("S", *value, (Byte) typed, m_snapshot->pc);
         RunAction (DebuggerActions::GetSetRegister ("S", (Byte) typed, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EditStackByte
+//
+//  Asks for a new value for a stack byte, written by the byte-entry command a
+//  person would type. The pane lists the stack newest first, so its rows run
+//  backwards through STACK's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EditStackByte (int row)
+{
+    std::wstring  text;
+    Word          typed = 0;
+    Word          at    = 0;
+    Byte          value = 0;
+
+
+
+    if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->stack.size())
+    {
+        return;
+    }
+
+    if (!m_snapshot->isPaused)
+    {
+        AppendConsole ({ "Pause the machine to edit the stack." });
+        return;
+    }
+
+    at    = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address;
+    value = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].value;
+
+    if (CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Stack byte", std::format (L"${:04X}, in hex ($00-$FF):", at), std::format (L"{:02X}", value), 4, text) &&
+        TryParseHexWord (text, typed) && typed <= 0xFF)
+    {
+        m_stackHistory.Record (at, value, (Byte) typed, m_snapshot->pc);
+        RunAction (DebuggerActions::GetEnterByte (at, (Byte) typed, GetMode()));
     }
 }
 
@@ -9441,9 +9565,22 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z in the watch pane undoes its own last edit, and nothing of any
     //  memory window's (FR-097).
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && ev.ctrl && !ev.alt && ev.vk == 'Z')
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y'))
     {
-        UndoWatchEdit();
+        UndoWatchEdit (ev.vk == 'Y');
+        return true;
+    }
+
+    //  The stack pane's the same way; F2 edits the selected byte.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_stackList && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y'))
+    {
+        UndoStackEdit (ev.vk == 'Y');
+        return true;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_stackList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
+    {
+        EditStackByte (m_stackList->GetSelectedRow());
         return true;
     }
 
@@ -9541,10 +9678,10 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
-    //  Ctrl+Z in a memory window undoes that window's last edit.
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'Z' && GetFocusedMemoryPane() != nullptr)
+    //  Ctrl+Z and Ctrl+Y in a memory window undo and redo that window's edits.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y') && GetFocusedMemoryPane() != nullptr)
     {
-        (void) GetFocusedMemoryPane()->Undo();
+        UndoMemoryEdit (GetFocusedMemoryPane(), ev.vk == 'Y');
         return true;
     }
 
