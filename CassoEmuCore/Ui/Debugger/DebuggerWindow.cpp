@@ -1196,7 +1196,8 @@ void DebuggerWindow::ApplySource()
         std::wstring                 title;
         DxuiTabGroup::LeadingMark    mark;
 
-        document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false) });
+        document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
+                                       (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u });
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
         document.pane->Apply       (*m_snapshot);
@@ -4142,6 +4143,7 @@ void DebuggerWindow::ApplyCodeView (int view)
     int                                             current  = -1;
     int                                             selected = -1;
     std::optional<Word>                             target;
+    SourceSyntax::Colors                            syntax   = GetSyntaxColors();
 
 
 
@@ -4193,6 +4195,12 @@ void DebuggerWindow::ApplyCodeView (int view)
                   GetOperandAndResultCell (line.annotation, line.effect) };
 
         cells[6].argb = GetAnnotationArgb();
+        cells[4].argb = syntax.symbol;
+
+        for (const SourceSyntax::Run & run : SourceSyntax::GetInstructionRuns (cells[5].text))
+        {
+            cells[5].colorRanges.push_back ({ run.start, run.start + run.length, syntax.Get (run.token) });
+        }
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -5829,6 +5837,37 @@ uint32_t DebuggerWindow::GetTargetRowArgb() const
 
 
     return (accent & 0x00FFFFFFu) | 0x38000000u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSyntaxColors
+//
+//  Visual Studio's code colors for the theme's darkness, as the comment color
+//  already is: the keyword blue for a mnemonic, the control purple for a
+//  directive, the type teal for a symbol, and its number and string colors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SourceSyntax::Colors DebuggerWindow::GetSyntaxColors() const
+{
+    SourceSyntax::Colors  colors;
+    bool                  dark   = IsDarkTheme();
+
+
+
+    colors.mnemonic  = dark ? 0xFF569CD6 : 0xFF0000FF;
+    colors.directive = dark ? 0xFFC586C0 : 0xFFAF00DB;
+    colors.symbol    = dark ? 0xFF4EC9B0 : 0xFF2B91AF;
+    colors.number    = dark ? 0xFFB5CEA8 : 0xFF098658;
+    colors.string    = dark ? 0xFFD69D85 : 0xFFA31515;
+    colors.comment   = GetAnnotationArgb();
+
+    return colors;
 }
 
 

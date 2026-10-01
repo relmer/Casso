@@ -614,6 +614,54 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     state.stepBySource  = session.IsStepBySource();
     state.lineAddresses = m_lineAddresses;
 
+    //  Each line's bytes, from the first range it produced: up to eight, and
+    //  none read from a soft switch, which a read would operate.
+    if (snapshot.isPaused)
+    {
+        auto  bytes = std::make_shared<std::map<std::pair<int, int>, std::string>>();
+
+        for (const auto & [place, first] : *m_lineAddresses)
+        {
+            std::string  text;
+            Word         last  = first;
+
+            for (const std::pair<Word, Word> & range : table.GetRanges (place.first, place.second))
+            {
+                last = (range.first == first) ? range.second : last;
+            }
+
+            for (int i = 0; i <= (int) (last - first) && i < kMaxLineBytes; i++)
+            {
+                Byte  value   = 0;
+                Word  address = (Word) (first + i);
+
+                if (session.GetTarget().GetRegion (address) == MemoryRegion::Io || !session.TryPeek (address, value))
+                {
+                    break;
+                }
+
+                text += std::format ("{}{:02X}", text.empty() ? "" : " ", value);
+            }
+
+            if (!text.empty() && (int) (last - first) >= kMaxLineBytes)
+            {
+                text += " ...";
+            }
+
+            if (!text.empty())
+            {
+                (*bytes)[place] = std::move (text);
+            }
+        }
+
+        if (m_lineBytes == nullptr || *m_lineBytes != *bytes)
+        {
+            m_lineBytes = bytes;
+        }
+    }
+
+    state.lineBytes = m_lineBytes;
+
     if (!atPc.empty())
     {
         state.fileId     = atPc.front().file;

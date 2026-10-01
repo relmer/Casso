@@ -392,7 +392,7 @@ private:
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the
     //  PC's arrow and row, the row another pane brought into view, a branch's
-    //  destination, and the annotations' comment color.
+    //  destination, the annotations' comment color, and the syntax colors.
     bool      IsDarkTheme          () const;
     uint32_t  GetBreakpointArgb    () const;
     std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled);
@@ -402,6 +402,7 @@ private:
     uint32_t  GetTargetRowArgb     () const;
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
+    SourceSyntax::Colors  GetSyntaxColors () const;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;

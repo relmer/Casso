@@ -2,6 +2,7 @@
 
 #include "Debugger/Source/SourceService.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/SourceSyntax.h"
 #include "Widgets/DxuiActionBanner.h"
 #include "Widgets/DxuiTextView.h"
 
@@ -44,13 +45,16 @@ public:
 
     //  How the PC's line and breakpoints are drawn: the disassembly pane's
     //  own marker color, row fill and breakpoint icons, so the two panes
-    //  mark a line alike. No icons draws a bullet in the marker column.
+    //  mark a line alike. No icons draws a bullet in the marker column; no
+    //  syntax colors leaves the text in the view's own color.
     struct Style
     {
         uint32_t                               pcMarkerArgb = 0;
         uint32_t                               pcRowArgb    = 0;
         std::shared_ptr<const DxuiIconImage>   enabledIcon;
         std::shared_ptr<const DxuiIconImage>   disabledIcon;
+        SourceSyntax::Colors                   syntax;
+        uint32_t                               bytesArgb    = 0;
 
         bool operator== (const Style & other) const = default;
     };
@@ -120,7 +124,8 @@ public:
     static std::vector<DxuiTextView::Row>  BuildRows  (const std::vector<std::wstring> & lines, int markedLine,
                                                        const std::set<int> & breakpointLines,
                                                        const std::set<int> & disabledLines = {},
-                                                       const Style         & style         = {});
+                                                       const Style         & style         = {},
+                                                       const std::map<int, std::wstring> & lineBytes = {});
 
     //  The command a double click on a line sends: clearing the breakpoint
     //  already on it, or setting one.
@@ -166,23 +171,24 @@ private:
 
     std::function<void ()>                            m_onToggleBody;
 
-    std::optional<DebuggerViewSnapshot::SourceState>  m_state;
-    std::wstring                                      m_loadedFor;
-    int                                               m_docFileId       = -1;
-    int                                               m_pendingTopLine  = 0;
-    int                                               m_fileId          = -1;
-    SourceMatch                                       m_match           = SourceMatch::NotFound;
-    bool                                              m_isDropped       = false;
-    int                                               m_droppedAt       = -1;
-    std::wstring                                      m_foundPath;
-    std::vector<std::wstring>                         m_lines;
-    int                                               m_macroLevel      = 0;
-    int                                               m_rowsLine        = -1;
-    bool                                              m_followPending   = false;
-    std::set<int>                                     m_rowsBreakpoints;
-    std::set<int>                                     m_rowsDisabled;
-    std::set<int>                                     m_disabledIds;
-    Style                                             m_style;
-    bool                                              m_isStyleStale    = false;
-    int                                               m_rowsFileId      = -2;
+    std::optional<DebuggerViewSnapshot::SourceState>                   m_state;
+    std::wstring                                                       m_loadedFor;
+    int                                                                m_docFileId       = -1;
+    int                                                                m_pendingTopLine  = 0;
+    int                                                                m_fileId          = -1;
+    SourceMatch                                                        m_match           = SourceMatch::NotFound;
+    bool                                                               m_isDropped       = false;
+    int                                                                m_droppedAt       = -1;
+    std::wstring                                                       m_foundPath;
+    std::vector<std::wstring>                                          m_lines;
+    int                                                                m_macroLevel      = 0;
+    int                                                                m_rowsLine        = -1;
+    bool                                                               m_followPending   = false;
+    std::set<int>                                                      m_rowsBreakpoints;
+    std::set<int>                                                      m_rowsDisabled;
+    std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  m_rowsLineBytes;
+    std::set<int>                                                      m_disabledIds;
+    Style                                                              m_style;
+    bool                                                               m_isStyleStale    = false;
+    int                                                                m_rowsFileId      = -2;
 };

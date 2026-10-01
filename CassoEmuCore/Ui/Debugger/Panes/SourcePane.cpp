@@ -310,14 +310,28 @@ void SourcePane::Rebuild()
     }
 
     isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
-                  m_rowsDisabled != disabled || m_isStyleStale;
+                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineBytes != m_state->lineBytes;
 
     if (isRowsStale)
     {
         bool  isNewLine = m_rowsLine != marked || m_rowsFileId != m_fileId;
 
-        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style));
-        m_rowsDisabled = disabled;
+        std::map<int, std::wstring>  lineBytes;
+
+        if (m_state->lineBytes != nullptr)
+        {
+            for (const auto & [place, text] : *m_state->lineBytes)
+            {
+                if (place.first == m_fileId)
+                {
+                    lineBytes[place.second] = SourcePathList::Utf8ToWide (text);
+                }
+            }
+        }
+
+        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineBytes));
+        m_rowsDisabled  = disabled;
+        m_rowsLineBytes = m_state->lineBytes;
         m_isStyleStale = false;
         m_view->SetTopLine (top);
 
@@ -742,7 +756,8 @@ std::vector<std::wstring> SourcePane::SplitLines (const std::string & text)
 std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wstring> & lines, int markedLine,
                                                       const std::set<int> & breakpointLines,
                                                       const std::set<int> & disabledLines,
-                                                      const Style         & style)
+                                                      const Style         & style,
+                                                      const std::map<int, std::wstring> & lineBytes)
 {
     std::vector<DxuiTextView::Row>  rows;
     int                             width  = (int) std::to_wstring (lines.size()).size();
@@ -777,6 +792,28 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
             if (style.pcMarkerArgb != 0)
             {
                 row.spans.push_back ({ 0, (int) marker.size() - 1, 1, style.pcMarkerArgb });
+            }
+        }
+
+        //  The line's bytes after it, dimmer than the text, in a column of
+        //  their own once any line of the file has them.
+        if (!lineBytes.empty())
+        {
+            auto  found = lineBytes.find (number);
+
+            row.cells.push_back (found != lineBytes.end() ? found->second : std::wstring());
+
+            if (style.bytesArgb != 0)
+            {
+                row.spans.push_back ({ 3, 0, (int) row.cells[3].size(), style.bytesArgb });
+            }
+        }
+
+        if (style.syntax.mnemonic != 0)
+        {
+            for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (lines[i]))
+            {
+                row.spans.push_back ({ 2, run.start, run.length, style.syntax.Get (run.token) });
             }
         }
 

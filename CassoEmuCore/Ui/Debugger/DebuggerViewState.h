@@ -153,6 +153,11 @@ struct DebuggerViewSnapshot
         //  Every line that produced code, to the first address it produced.
         //  The same map is shared until another debug file is loaded.
         std::shared_ptr<const std::map<std::pair<int, int>, Word>>  lineAddresses;
+
+        //  The bytes in memory at each line that produced code, as hex, read
+        //  while the machine is stopped. The same map is shared while they
+        //  do not change.
+        std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  lineBytes;
     };
 
     //  A window of the instruction trace: the entries from first, of the
@@ -277,6 +282,9 @@ public:
     //  Up to four disassembly views; the first is always open. Each call
     //  names a view, the first when it does not.
     static constexpr int  kMaxCodeViews = 4;
+
+    //  The most bytes the source pane shows after a line.
+    static constexpr int  kMaxLineBytes = 8;
 
     //  Where a code view starts. The one following the PC follows it unless
     //  the user moved it; the memory pane starts at the zero page.
@@ -610,6 +618,7 @@ private:
     mutable std::set<std::string>  m_openPanels;
 
     //  The line-to-address map for the loaded debug file, built once per load.
-    mutable std::string                                                  m_lineAddressesKey;
-    mutable std::shared_ptr<const std::map<std::pair<int, int>, Word>>   m_lineAddresses;
+    mutable std::string                                                        m_lineAddressesKey;
+    mutable std::shared_ptr<const std::map<std::pair<int, int>, Word>>         m_lineAddresses;
+    mutable std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  m_lineBytes;
 };

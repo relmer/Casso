@@ -54,6 +54,11 @@ public:
         //  columns only, as matches are.
         std::vector<std::pair<int, int>>  dimRanges;
 
+        //  Half-open character ranges drawn in a color of their own: first,
+        //  end and color. Sorted, non-overlapping, left-aligned columns only;
+        //  a muted range over one wins.
+        std::vector<std::tuple<int, int, uint32_t>>  colorRanges;
+
         //  A checkbox at the start of the cell, ahead of the icon, checked or
         //  not; none draws none. Pressing it, or Space on its row, reports the
         //  toggle to the host, which sets the new state with the next rows.

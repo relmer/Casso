@@ -3275,24 +3275,41 @@ void DxuiListView::PaintDataRows (
 
             // Muted ranges: the text is drawn a run at a time, each run placed
             // by measuring the text before it, the way a match band is placed.
-            if (!cells[c].dimRanges.empty() && m_columns[c].align == DxuiTextHAlign::Left)
+            if ((!cells[c].dimRanges.empty() || !cells[c].colorRanges.empty()) && m_columns[c].align == DxuiTextHAlign::Left)
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
                 float                 cellMaxW = (float) colWPx[c] - cellPadL - cellPadR - iconShift;
                 int                   pos      = 0;
-                size_t                next     = 0;
+                std::vector<uint32_t> colors   (cellText.size(), argb);
+
+                for (const std::tuple<int, int, uint32_t> & range : cells[c].colorRanges)
+                {
+                    for (int k = (std::max) (0, std::get<0> (range)); k < std::get<1> (range) && k < (int) colors.size(); k++)
+                    {
+                        colors[(size_t) k] = std::get<2> (range);
+                    }
+                }
+
+                for (const std::pair<int, int> & range : cells[c].dimRanges)
+                {
+                    for (int k = (std::max) (0, range.first); k < range.second && k < (int) colors.size(); k++)
+                    {
+                        colors[(size_t) k] = pal.fgDim;
+                    }
+                }
 
                 while (pos < (int) cellText.size())
                 {
-                    bool      inRange = next < cells[c].dimRanges.size() && pos >= cells[c].dimRanges[next].first;
-                    int       end     = inRange ? cells[c].dimRanges[next].second
-                                                : (next < cells[c].dimRanges.size() ? cells[c].dimRanges[next].first : (int) cellText.size());
+                    int       end     = pos + 1;
                     float     offset  = 0.0f;
                     float     hIgnore = 0.0f;
                     HRESULT   hrM     = S_OK;
 
-                    end = std::clamp (end, pos + 1, (int) cellText.size());
+                    while (end < (int) cellText.size() && colors[(size_t) end] == colors[(size_t) pos])
+                    {
+                        end++;
+                    }
 
                     if (pos > 0)
                     {
@@ -3310,7 +3327,7 @@ void DxuiListView::PaintDataRows (
                                           ry,
                                           cellMaxW - offset,
                                           rowH,
-                                          inRange ? pal.fgDim : argb,
+                                          colors[(size_t) pos],
                                           fontPx,
                                           GetBodyFace(),
                                           DxuiTextHAlign::Left,
@@ -3319,8 +3336,7 @@ void DxuiListView::PaintDataRows (
                                           false);
                     IGNORE_RETURN_VALUE (hr, S_OK);
 
-                    next += inRange ? 1 : 0;
-                    pos   = end;
+                    pos = end;
                 }
 
                 continue;
