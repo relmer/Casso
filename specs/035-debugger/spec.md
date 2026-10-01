@@ -922,9 +922,7 @@ trace, with the next instructions shown below it.
 4. **Given** a trace, **When** the user saves it, from the pane or the
    console, **Then** the chosen file holds the rows as text, as the pane
    shows them.
-5. **Given** the machine is running, **When** the user chooses step over or
-   step out, **Then** the machine stops after the current routine returns, as
-   it would had it been stopped first.
+5. Removed 2026-09-30 (FR-139).
 6. **Given** sound is playing, **When** the user single-steps, **Then** no
    sound is produced until the machine runs again.
 
@@ -1233,8 +1231,7 @@ trace, with the next instructions shown below it.
   not.
 - **FR-138**: The trace MUST be savable as a text file of its rows as the
   pane shows them, from the pane and from the console.
-- **FR-139**: Step over and step out MUST be available while the machine is
-  running, stopping where they would had the machine been stopped first.
+- **FR-139**: Removed 2026-09-30. Step over and step out stay unavailable while the machine runs: pause first, then step.
 - **FR-140**: Sound MUST be silent while the machine is single-stepped and
   MUST resume when it runs.
 - **FR-141**: A document for AI agents MUST describe driving a running
