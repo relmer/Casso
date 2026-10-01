@@ -325,7 +325,6 @@ private:
     void     UndoWatchEdit    ();
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
-    void     RunCommand       (const std::string & line);
     void     RunToCursor      (Word address);
     void     RunAction        (const DebuggerAction & action);
     CommandMode  GetMode      () const;

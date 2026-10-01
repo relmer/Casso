@@ -579,12 +579,12 @@ namespace DebuggerViewStateTests
             DebuggerViewSnapshot  snapshot;
             auto                  lines = [&snapshot] (std::optional<int> id, std::optional<int> index, int column, const char * typed)
             {
-                std::vector<std::string>  got = DebuggerViewState::GetWatchEditLines (snapshot, id, index, column, typed);
-                std::string               all;
+                std::vector<DebuggerAction>  got = DebuggerViewState::GetWatchEditActions (snapshot, id, index, column, typed, CommandMode::AppleWin);
+                std::string                  all;
 
-                for (const std::string & line : got)
+                for (const DebuggerAction & action : got)
                 {
-                    all += (all.empty() ? "" : " | ") + line;
+                    all += (all.empty() ? "" : " | ") + action.echo;
                 }
 
                 return all;
@@ -625,30 +625,30 @@ namespace DebuggerViewStateTests
             before.watches     = { { 3, 0x0400, "1234" }, { 5, 0x0500, "--" } };
             before.autoWatches = { { "R:A", "A", "10" }, { "F:C", "C", "0" }, { "M:0402", "$0402", "7F" }, { "M:C030", "SPKR", "--" } };
 
-            undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 1);
+            undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 1, CommandMode::AppleWin);
             Assert::IsTrue   (undo.has_value());
-            Assert::AreEqual (std::string ("MEW 0400 1234"), undo->lines.at (0), L"a manual value: the word it held");
+            Assert::AreEqual (std::string ("MEW 0400 1234"), undo->actions.at (0).echo, L"a manual value: the word it held");
 
-            undo = DebuggerViewState::GetWatchUndo (before, std::nullopt, 0, 1);
-            Assert::AreEqual (std::string ("R A 10"),       undo->lines.at (0), L"a register: its old value");
+            undo = DebuggerViewState::GetWatchUndo (before, std::nullopt, 0, 1, CommandMode::AppleWin);
+            Assert::AreEqual (std::string ("R A 10"),       undo->actions.at (0).echo, L"a register: its old value");
 
-            undo = DebuggerViewState::GetWatchUndo (before, std::nullopt, 1, 1);
-            Assert::AreEqual (std::string ("R P 24"),       undo->lines.at (0), L"a flag: the whole status register as it was");
+            undo = DebuggerViewState::GetWatchUndo (before, std::nullopt, 1, 1, CommandMode::AppleWin);
+            Assert::AreEqual (std::string ("R P 24"),       undo->actions.at (0).echo, L"a flag: the whole status register as it was");
 
-            undo = DebuggerViewState::GetWatchUndo (before, std::nullopt, 2, 1);
-            Assert::AreEqual (std::string ("MEB 0402 7F"),  undo->lines.at (0), L"an address: the byte it held");
+            undo = DebuggerViewState::GetWatchUndo (before, std::nullopt, 2, 1, CommandMode::AppleWin);
+            Assert::AreEqual (std::string ("MEB 0402 7F"),  undo->actions.at (0).echo, L"an address: the byte it held");
 
             //  A moved watch: no line yet, since the watch the move makes is
             //  numbered only once it runs -- but what to put back, and which
             //  ids existed, so the new one can be found then.
-            undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 0);
-            Assert::IsTrue   (undo->lines.empty());
+            undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 0, CommandMode::AppleWin);
+            Assert::IsTrue   (undo->actions.empty());
             Assert::IsTrue   (undo->restoreAddress == std::optional<Word> (0x0400));
             Assert::AreEqual ((size_t) 2, undo->movedFromIds.size());
 
             //  A value that could not be read has nothing to put back.
-            Assert::IsFalse (DebuggerViewState::GetWatchUndo (before, 5, std::nullopt, 1).has_value(), L"an unread manual value");
-            Assert::IsFalse (DebuggerViewState::GetWatchUndo (before, std::nullopt, 3, 1).has_value(), L"a soft switch");
+            Assert::IsFalse (DebuggerViewState::GetWatchUndo (before, 5, std::nullopt, 1, CommandMode::AppleWin).has_value(), L"an unread manual value");
+            Assert::IsFalse (DebuggerViewState::GetWatchUndo (before, std::nullopt, 3, 1, CommandMode::AppleWin).has_value(), L"a soft switch");
         }
 
 
@@ -658,7 +658,7 @@ namespace DebuggerViewStateTests
             DebuggerViewSnapshot                          moved;
             DebuggerViewSnapshot                          later;
             std::optional<DebuggerViewState::WatchUndo>   undo;
-            std::optional<std::vector<std::string>>       lines;
+            std::optional<std::vector<DebuggerAction>>    lines;
 
 
 
@@ -666,26 +666,26 @@ namespace DebuggerViewStateTests
             moved.watches  = { { 5, 0x0500, "5678" }, { 6, 0x0600, "0000" } };
             later.watches  = { { 5, 0x0500, "5678" }, { 7, 0x0700, "0000" } };
 
-            undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 0);
+            undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 0, CommandMode::AppleWin);
             Assert::IsTrue (undo.has_value());
 
             //  Undone before any snapshot shows the move: nothing yet, and
             //  the undo is still there to try again.
-            lines = DebuggerViewState::GetWatchUndoLines (before, *undo);
+            lines = DebuggerViewState::GetWatchUndoActions (before, *undo, CommandMode::AppleWin);
             Assert::IsFalse (lines.has_value(), L"no snapshot shows the moved watch yet");
 
             //  The snapshot after the move shows watch 6; that one was moved.
             DebuggerViewState::NoteMovedWatch (moved, *undo);
 
-            lines = DebuggerViewState::GetWatchUndoLines (moved, *undo);
+            lines = DebuggerViewState::GetWatchUndoActions (moved, *undo, CommandMode::AppleWin);
             Assert::IsTrue   (lines.has_value());
             Assert::AreEqual ((size_t) 2, lines->size());
-            Assert::AreEqual (std::string ("WC 6"),   lines->at (0));
-            Assert::AreEqual (std::string ("W 0400"), lines->at (1));
+            Assert::AreEqual (std::string ("WC 6"),   lines->at (0).echo);
+            Assert::AreEqual (std::string ("W 0400"), lines->at (1).echo);
 
             //  Watch 6 removed and watch 7 added since: 7 is not the moved
             //  watch, and nothing is removed.
-            lines = DebuggerViewState::GetWatchUndoLines (later, *undo);
+            lines = DebuggerViewState::GetWatchUndoActions (later, *undo, CommandMode::AppleWin);
             Assert::IsTrue (lines.has_value());
             Assert::IsTrue (lines->empty(), L"an unrelated watch is left alone");
         }

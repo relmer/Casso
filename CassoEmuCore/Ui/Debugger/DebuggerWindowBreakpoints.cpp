@@ -242,7 +242,7 @@ bool DebuggerWindow::IsBreakpointBarEnabled (int id) const
 //  DebuggerWindow::RunBreakpointBarEntry
 //
 //  Each change is one step on the pane's undo list; Delete all and Disable
-//  all are one line each, and Delete one line for each selected row.
+//  all are one action each, and Delete one for each selected row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,19 +265,19 @@ void DebuggerWindow::RunBreakpointBarEntry (int id)
     case BreakpointBarCommands::kDelete:
         for (const DebuggerViewSnapshot::BreakpointLine & bp : selected)
         {
-            step.lines.push_back (std::format ("BPC {}", bp.id));
+            step.actions.push_back (DebuggerActions::GetClearBreakpoint (bp.id, GetMode()));
         }
 
         RunBreakpointStep (std::move (step));
         break;
 
-    case BreakpointBarCommands::kDeleteAll:  RunBreakpointStep ({ BreakpointStep::Kind::Lines, { "BPC *" }, {} }); break;
-    case BreakpointBarCommands::kEnableAll:  RunBreakpointStep ({ BreakpointStep::Kind::Lines, { "BPE *" }, {} }); break;
-    case BreakpointBarCommands::kDisableAll: RunBreakpointStep ({ BreakpointStep::Kind::Lines, { "BPD *" }, {} }); break;
-    case BreakpointBarCommands::kUndo:       RunBreakpointStep ({ BreakpointStep::Kind::Undo,  {}, {} });          break;
-    case BreakpointBarCommands::kRedo:       RunBreakpointStep ({ BreakpointStep::Kind::Redo,  {}, {} });          break;
-    case BreakpointBarCommands::kExport:     ExportBreakpoints();                                                   break;
-    case BreakpointBarCommands::kImport:     ImportBreakpoints();                                                   break;
+    case BreakpointBarCommands::kDeleteAll:  RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints  (GetMode()) },        {} }); break;
+    case BreakpointBarCommands::kEnableAll:  RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (true,  GetMode()) }, {} }); break;
+    case BreakpointBarCommands::kDisableAll: RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (false, GetMode()) }, {} }); break;
+    case BreakpointBarCommands::kUndo:       RunBreakpointStep ({ BreakpointStep::Kind::Undo,    {}, {} });                                                     break;
+    case BreakpointBarCommands::kRedo:       RunBreakpointStep ({ BreakpointStep::Kind::Redo,    {}, {} });                                                     break;
+    case BreakpointBarCommands::kExport:     ExportBreakpoints();                                                                                                break;
+    case BreakpointBarCommands::kImport:     ImportBreakpoints();                                                                                                break;
 
     case BreakpointBarCommands::kGoToSource:
         if (BreakpointColumns::TryGetSourcePlace (*m_snapshot, selected[0], fileId, line))
@@ -326,7 +326,7 @@ void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access)
 
     if (definition.has_value())
     {
-        RunBreakpointStep ({ BreakpointStep::Kind::Lines, { *definition }, {} });
+        RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, GetMode()) }, {} });
     }
 }
 

@@ -340,7 +340,7 @@ DebuggerAction DebuggerActions::GetSetMode (CommandMode target, CommandMode mode
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerAction DebuggerActions::GetSetRegister (const std::string & name, Byte value, CommandMode mode)
+DebuggerAction DebuggerActions::GetSetRegister (const std::string & name, Word value, CommandMode mode)
 {
     DebuggerAction  action = Make (DebugVerb::SetRegister, std::format ("R {} {:02X}", name, value), mode);
 
@@ -349,6 +349,28 @@ DebuggerAction DebuggerActions::GetSetRegister (const std::string & name, Byte v
     action.command.text  = name;
     action.command.a1    = value;
     action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSetRegister
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSetRegister (const std::string & name, const std::string & value, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SetRegister, std::format ("R {} {}", name, value), mode);
+
+
+
+    action.command.text  = name;
+    action.command.hasA1 = true;
+    action.operand       = value;
     return action;
 }
 
@@ -464,6 +486,234 @@ DebuggerAction DebuggerActions::GetAddWatch (Word address, CommandMode mode)
 
     action.command.a1    = address;
     action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetAddWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetAddWatch (const std::string & expression, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddWatch, "W " + expression, mode);
+
+
+
+    action.command.hasA1 = true;
+    action.operand       = expression;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEnterWord / GetEnterByte
+//
+//  A value given as a number is written whole, as a typed deposit's values
+//  are; one given as text is evaluated when the action runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnterWord (Word address, const std::string & value, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::EnterWords, std::format ("MEW {:04X} {}", address, value), mode);
+
+
+
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    action.operand       = value;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEnterWord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnterWord (Word address, Word value, CommandMode mode)
+{
+    static constexpr Byte  kFullMask = 0xFF;
+    DebuggerAction         action    = Make (DebugVerb::EnterWords, std::format ("MEW {:04X} {:04X}", address, value), mode);
+
+
+
+    action.command.a1     = address;
+    action.command.hasA1  = true;
+    action.command.values = { (Byte) value, (Byte) (value >> 8) };
+    action.command.mask   = { kFullMask, kFullMask };
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEnterByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnterByte (Word address, const std::string & value, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::EnterBytes, std::format ("MEB {:04X} {}", address, value), mode);
+
+
+
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    action.operand       = value;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEnterByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnterByte (Word address, Byte value, CommandMode mode)
+{
+    static constexpr Byte  kFullMask = 0xFF;
+    DebuggerAction         action    = Make (DebugVerb::EnterBytes, std::format ("MEB {:04X} {:02X}", address, value), mode);
+
+
+
+    action.command.a1     = address;
+    action.command.hasA1  = true;
+    action.command.values = { value };
+    action.command.mask   = { kFullMask };
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEnableAllBreakpoints / GetClearAllBreakpoints
+//
+//  The command carries `*` as its text, as the parser leaves it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnableAllBreakpoints (bool enable, CommandMode mode)
+{
+    DebuggerAction  action = Make (enable ? DebugVerb::EnableBreakpoint : DebugVerb::DisableBreakpoint, enable ? "BPE *" : "BPD *", mode);
+
+
+
+    action.command.text = "*";
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetClearAllBreakpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetClearAllBreakpoints (CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::ClearBreakpoint, "BPC *", mode);
+
+
+
+    action.command.text = "*";
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEditBreakpoint
+//
+//  The handler reads the new definition as its own line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEditBreakpoint (int id, const std::string & definition, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::EditBreakpoint, std::format ("BPEDIT {} {}", id, definition), mode);
+
+
+
+    action.command.count = (uint32_t) id;
+    action.command.text  = definition;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetChangeBreakpoint
+//
+//  E or e for enabled, T or t for temporary, S or s for whether a hit stops
+//  the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetChangeBreakpoint (int id, bool enabled, bool temporary, bool stops, CommandMode mode)
+{
+    std::string     flags  = std::format ("{}{}{}", enabled ? 'E' : 'e', temporary ? 'T' : 't', stops ? 'S' : 's');
+    DebuggerAction  action = Make (DebugVerb::ChangeBreakpoint, std::format ("BPCHANGE {} {}", id, flags), mode);
+
+
+
+    action.command.count = (uint32_t) id;
+    action.command.text  = flags;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetDefineBreakpoint
+//
+//  The verb is the definition's own, which only parsing it can tell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetDefineBreakpoint (const std::string & definition, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SetBreakpoint, definition, mode);
+
+
+
+    action.definition = definition;
     return action;
 }
 

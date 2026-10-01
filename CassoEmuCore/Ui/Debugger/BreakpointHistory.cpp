@@ -3,6 +3,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/BreakpointHistory.h"
+#include "Ui/Debugger/DebuggerActions.h"
 
 
 
@@ -69,7 +70,7 @@ void BreakpointHistory::Record (DebugSession & session, const Change & change)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointHistory::TryUndo (DebugSession & session, const LineRunner & run)
+bool BreakpointHistory::TryUndo (DebugSession & session, const ActionRunner & run)
 {
     Step  step;
 
@@ -102,7 +103,7 @@ bool BreakpointHistory::TryUndo (DebugSession & session, const LineRunner & run)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointHistory::TryRedo (DebugSession & session, const LineRunner & run)
+bool BreakpointHistory::TryRedo (DebugSession & session, const ActionRunner & run)
 {
     Step  step;
 
@@ -131,13 +132,13 @@ bool BreakpointHistory::TryRedo (DebugSession & session, const LineRunner & run)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointHistory::GetFlagsLine
+//  BreakpointHistory::GetFlagsAction
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BreakpointHistory::GetFlagsLine (int id, const BreakpointInfo & info)
+DebuggerAction BreakpointHistory::GetFlagsAction (int id, const BreakpointInfo & info, CommandMode mode)
 {
-    return std::format ("BPCHANGE {} {}{}{}", id, info.enabled ? 'E' : 'e', info.temporary ? 'T' : 't', info.stops ? 'S' : 's');
+    return DebuggerActions::GetChangeBreakpoint (id, info.enabled, info.temporary, info.stops, mode);
 }
 
 
@@ -155,7 +156,7 @@ std::string BreakpointHistory::GetFlagsLine (int id, const BreakpointInfo & info
 
 void BreakpointHistory::Apply (
     DebugSession                         & session,
-    const LineRunner                     & run,
+    const ActionRunner                   & run,
     const Entry                          & entry,
     const std::optional<BreakpointInfo>  & from,
     const std::optional<BreakpointInfo>  & to)
@@ -179,18 +180,18 @@ void BreakpointHistory::Apply (
 
     if (!to.has_value())
     {
-        run (std::format ("BPC {}", *id));
+        run (DebuggerActions::GetClearBreakpoint (*id, session.GetMode()));
         return;
     }
 
     if (BreakpointHandlers::MakeDefinition (*from) != BreakpointHandlers::MakeDefinition (*to))
     {
-        run (std::format ("BPEDIT {} {}", *id, BreakpointHandlers::MakeDefinition (*to)));
+        run (DebuggerActions::GetEditBreakpoint (*id, BreakpointHandlers::MakeDefinition (*to), session.GetMode()));
     }
 
     if (!HasSameFlags (*from, *to))
     {
-        run (GetFlagsLine (*id, *to));
+        run (GetFlagsAction (*id, *to, session.GetMode()));
     }
 }
 
@@ -207,7 +208,7 @@ void BreakpointHistory::Apply (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointHistory::Add (DebugSession & session, const LineRunner & run, int handle, const BreakpointInfo & to)
+void BreakpointHistory::Add (DebugSession & session, const ActionRunner & run, int handle, const BreakpointInfo & to)
 {
     std::map<int, BreakpointInfo>  before = ListById (session);
     std::map<int, BreakpointInfo>  after;
@@ -215,7 +216,7 @@ void BreakpointHistory::Add (DebugSession & session, const LineRunner & run, int
 
 
 
-    run (BreakpointHandlers::MakeDefinition (to));
+    run (DebuggerActions::GetDefineBreakpoint (BreakpointHandlers::MakeDefinition (to), session.GetMode()));
     after = ListById (session);
 
     for (const auto & [id, info] : after)
@@ -229,7 +230,7 @@ void BreakpointHistory::Add (DebugSession & session, const LineRunner & run, int
 
         if (!HasSameFlags (info, to))
         {
-            run (GetFlagsLine (id, to));
+            run (GetFlagsAction (id, to, session.GetMode()));
         }
 
         return;

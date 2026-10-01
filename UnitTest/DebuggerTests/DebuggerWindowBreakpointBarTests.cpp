@@ -231,7 +231,10 @@ namespace DebuggerBreakpointBarTests
 
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::IsTrue   (host.actions[0].breakpointStep.has_value());
-            Assert::IsTrue   (host.actions[0].breakpointStep->lines == std::vector<std::string> { "BPC 1", "BPC 3" });
+            Assert::AreEqual ((size_t) 2, host.actions[0].breakpointStep->actions.size());
+            Assert::AreEqual (std::string ("BPC 1"), host.actions[0].breakpointStep->actions[0].echo);
+            Assert::AreEqual (std::string ("BPC 3"), host.actions[0].breakpointStep->actions[1].echo);
+            Assert::AreEqual (3u, host.actions[0].breakpointStep->actions[1].command.count, L"by id, with no line to parse");
         }
 
 
@@ -249,9 +252,12 @@ namespace DebuggerBreakpointBarTests
             window.RunBreakpointBarEntry (BreakpointBarCommands::kDeleteAll);
 
             Assert::AreEqual ((size_t) 3, host.actions.size());
-            Assert::IsTrue   (host.actions[0].breakpointStep->lines == std::vector<std::string> { "BPD *" });
-            Assert::IsTrue   (host.actions[1].breakpointStep->lines == std::vector<std::string> { "BPE *" });
-            Assert::IsTrue   (host.actions[2].breakpointStep->lines == std::vector<std::string> { "BPC *" });
+            Assert::AreEqual (std::string ("BPD *"), host.actions[0].breakpointStep->actions.at (0).echo);
+            Assert::AreEqual (std::string ("*"),     host.actions[0].breakpointStep->actions.at (0).command.text);
+            Assert::AreEqual (std::string ("BPE *"), host.actions[1].breakpointStep->actions.at (0).echo);
+            Assert::AreEqual (std::string ("*"),     host.actions[1].breakpointStep->actions.at (0).command.text);
+            Assert::AreEqual (std::string ("BPC *"), host.actions[2].breakpointStep->actions.at (0).echo);
+            Assert::AreEqual (std::string ("*"),     host.actions[2].breakpointStep->actions.at (0).command.text);
         }
 
 

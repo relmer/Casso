@@ -290,10 +290,6 @@ void DebuggerWindow::OnCreate()
 
 void DebuggerWindow::ConfigureWidgets()
 {
-    auto  run = [this] (const std::string & line) { RunCommand (line); };
-
-
-
     ConfigureCommandBar();
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
@@ -397,7 +393,7 @@ void DebuggerWindow::ConfigureWidgets()
 
         if (bp != nullptr)
         {
-            RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("{} {}", checked ? "BPE" : "BPD", bp->id) }, {} });
+            RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp->id, checked, GetMode()) }, {} });
         }
     });
 
@@ -2086,30 +2082,6 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
     }
 
     return nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RunCommand
-//
-//  A line a control or a key sends, in the words of the session's mode.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RunCommand (const std::string & line)
-{
-    CommandMode  mode = (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
-
-
-
-    if (m_host != nullptr)
-    {
-        m_host->RunDebuggerCommand (DebuggerViewState::GetModeLine (line, mode));
-    }
 }
 
 
@@ -4057,18 +4029,19 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ L"Go to disassembly", [this, bp] { ShowCode (bp.address); } });
         }
 
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("{} {}", bp.enabled ? "BPD" : "BPE", bp.id) }, {} }); } });
-        items.push_back ({ L"Remove",                           [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("BPC {}", bp.id) }, {} }); } });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode()) }, {} }); } });
+        items.push_back ({ L"Remove",                           [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearBreakpoint (bp.id, GetMode()) }, {} }); } });
 
         //  Its type and the fields that type needs, in a dialog; the result is
-        //  the BPEDIT line a person could have typed (FR-094).
+        //  the definition BPEDIT takes, as a person could have typed it
+        //  (FR-094).
         items.push_back ({ L"Edit...", [this, bp]
         {
             std::optional<std::string>  definition = BreakpointDialog::Ask (GetHwnd(), m_theme, bp.info);
 
             if (definition.has_value())
             {
-                RunBreakpointStep ({ BreakpointStep::Kind::Lines, { std::format ("BPEDIT {} {}", bp.id, *definition) }, {} });
+                RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEditBreakpoint (bp.id, *definition, GetMode()) }, {} });
             }
         } });
     }
@@ -4706,8 +4679,8 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
 
 void DebuggerWindow::EndWatchEdit (bool commit)
 {
-    std::wstring              typed = m_watchEditor->GetText();
-    std::vector<std::string>  lines;
+    std::wstring                 typed = m_watchEditor->GetText();
+    std::vector<DebuggerAction>  actions;
 
 
 
@@ -4735,11 +4708,11 @@ void DebuggerWindow::EndWatchEdit (bool commit)
             }
         }
 
-        lines = DebuggerViewState::GetWatchEditLines (*m_snapshot, watchId, autoAt, m_watchEdit.column,
-                                                      TextEncoding::WideToNarrow (typed));
+        actions = DebuggerViewState::GetWatchEditActions (*m_snapshot, watchId, autoAt, m_watchEdit.column,
+                                                          TextEncoding::WideToNarrow (typed), GetMode());
 
         //  Recorded from the snapshot as it stands, BEFORE the edit runs.
-        undo = lines.empty() ? std::nullopt : DebuggerViewState::GetWatchUndo (*m_snapshot, watchId, autoAt, m_watchEdit.column);
+        undo = actions.empty() ? std::nullopt : DebuggerViewState::GetWatchUndo (*m_snapshot, watchId, autoAt, m_watchEdit.column, GetMode());
 
         if (undo.has_value())
         {
@@ -4752,9 +4725,9 @@ void DebuggerWindow::EndWatchEdit (bool commit)
     SetFocusedControl         (m_watchList);
     Invalidate();
 
-    for (const std::string & line : lines)
+    for (const DebuggerAction & action : actions)
     {
-        RunCommand (line);
+        RunAction (action);
     }
 }
 
@@ -4799,7 +4772,7 @@ void DebuggerWindow::RemoveSelectedWatch()
 
 void DebuggerWindow::UndoWatchEdit()
 {
-    std::optional<std::vector<std::string>>  lines;
+    std::optional<std::vector<DebuggerAction>>  actions;
 
 
 
@@ -4809,18 +4782,18 @@ void DebuggerWindow::UndoWatchEdit()
     }
 
     //  A move no snapshot has shown yet stays on the stack for the next try.
-    lines = DebuggerViewState::GetWatchUndoLines (*m_snapshot, m_watchUndo.back());
+    actions = DebuggerViewState::GetWatchUndoActions (*m_snapshot, m_watchUndo.back(), GetMode());
 
-    if (!lines.has_value())
+    if (!actions.has_value())
     {
         return;
     }
 
     m_watchUndo.pop_back();
 
-    for (const std::string & line : *lines)
+    for (const DebuggerAction & action : *actions)
     {
-        RunCommand (line);
+        RunAction (action);
     }
 }
 

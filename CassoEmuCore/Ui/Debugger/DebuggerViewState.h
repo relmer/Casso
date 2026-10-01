@@ -393,42 +393,45 @@ public:
     static std::string  GetPokeLine             (Word address, Byte value);
     static bool         IsCodeBreakpointAt      (const DebuggerViewSnapshot::BreakpointLine & bp, Word address);
 
-    //  The commands a finished watch edit sends (FR-096). `watchId` picks a
-    //  manual watch and `autoIndex` an automatic one; exactly one is set.
-    //  Column 0 is the expression, 1 the value. Empty for text that says
-    //  nothing writable, or an edit that is not allowed -- an automatic
-    //  watch's expression is what the instruction touches, not the user's.
-    static std::vector<std::string>  GetWatchEditLines (const DebuggerViewSnapshot & snapshot,
-                                                        std::optional<int> watchId, std::optional<int> autoIndex,
-                                                        int column, const std::string & typed);
+    //  The actions a finished watch edit takes (FR-096), echoed in `mode`.
+    //  `watchId` picks a manual watch and `autoIndex` an automatic one;
+    //  exactly one is set. Column 0 is the expression, 1 the value. Empty for
+    //  text that says nothing writable, or an edit that is not allowed -- an
+    //  automatic watch's expression is what the instruction touches, not the
+    //  user's. What was typed is evaluated in the session's mode when the
+    //  action runs.
+    static std::vector<DebuggerAction>  GetWatchEditActions (const DebuggerViewSnapshot & snapshot,
+                                                             std::optional<int> watchId, std::optional<int> autoIndex,
+                                                             int column, const std::string & typed, CommandMode mode);
 
     //  What puts a watch edit back (FR-097), from the snapshot as it stood
-    //  BEFORE the edit. Moving a manual watch cannot be undone by a line
+    //  BEFORE the edit. Moving a manual watch cannot be undone by an action
     //  alone: the watch the edit made gets its id from the engine only once
-    //  the edit runs, so the undo names the watch it replaced and the caller
+    //  the edit runs, so the undo holds the watch it replaced and the caller
     //  finds the new one when the time comes.
     struct WatchUndo
     {
-        std::vector<std::string>  lines;
+        std::vector<DebuggerAction>  actions;
 
         //  For a moved watch: the id before the edit, and the address to put
         //  back. `movedFromIds` is every watch id there was, so the one the
         //  edit made is the one not among them.
-        std::optional<Word>       restoreAddress;
-        std::vector<int>          movedFromIds;
+        std::optional<Word>          restoreAddress;
+        std::vector<int>             movedFromIds;
 
         //  The watch the move made, once a snapshot shows it.
-        std::optional<int>        movedToId;
+        std::optional<int>           movedToId;
     };
 
     static std::optional<WatchUndo>  GetWatchUndo (const DebuggerViewSnapshot & before,
-                                                   std::optional<int> watchId, std::optional<int> autoIndex, int column);
+                                                   std::optional<int> watchId, std::optional<int> autoIndex, int column,
+                                                   CommandMode mode);
 
     //  Notes the watch a move made from a snapshot taken after it ran, and
-    //  gives the lines that put the edit back: none yet while no snapshot
+    //  gives the actions that put the edit back: none yet while no snapshot
     //  shows the moved watch, and empty once it has been removed.
-    static void                                     NoteMovedWatch    (const DebuggerViewSnapshot & now, WatchUndo & undo);
-    static std::optional<std::vector<std::string>>  GetWatchUndoLines (const DebuggerViewSnapshot & now, WatchUndo & undo);
+    static void                                        NoteMovedWatch      (const DebuggerViewSnapshot & now, WatchUndo & undo);
+    static std::optional<std::vector<DebuggerAction>>  GetWatchUndoActions (const DebuggerViewSnapshot & now, WatchUndo & undo, CommandMode mode);
 
     //  Which optional views are open, as the text the preferences keep, so a
     //  restart brings them back: `code2=E000 follow=2 memory3=0300 panel=mmu`.
@@ -455,8 +458,8 @@ public:
     //  takes no address, so the window sends Casso's own G in every dialect.
     static constexpr CommandMode  kRunToCursorMode = CommandMode::Casso;
 
-    //  PANEL to open or close a device panel, as an AppleWin line; RunCommand
-    //  marks it for the current mode.
+    //  PANEL to open or close a device panel, as an AppleWin line, which
+    //  GetModeLine gives in the words of the current mode.
     static std::string  GetPanelLine            (const std::string & id, bool open);
 
     //  The command line a keyboard-scheme action sends, which is the line its
@@ -517,7 +520,7 @@ public:
     std::vector<std::string>  ExecuteAction (DebugSession & session, const DebuggerAction & action);
 
     //  A breakpoints pane action as one undo step, or its undo or redo:
-    //  each line it runs behind AppleWin's prompt, then that line's reply.
+    //  each action's echo behind the prompt, then that action's reply.
     //  An import ends with how many of the file's lines were skipped.
     //  CPU thread only.
     std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step);
@@ -558,6 +561,12 @@ private:
     Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
     Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
     void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
+    Reply  ExecuteActionCommand (DebugSession & session, const DebuggerAction & action);
+
+    //  The action's command with its definition parsed and what the user
+    //  typed evaluated, or false with why not.
+    static bool  TryResolveCommand (DebugSession & session, const DebuggerAction & action, DebugCommand & command, std::string & error);
+    static bool  TryParseHexWord   (const std::string & text, Word & value);
 
     static const IDiagnosticsProvider *  FindProvider (const std::vector<const IDiagnosticsProvider *> & providers, const std::string & name);
 

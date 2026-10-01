@@ -28,11 +28,11 @@ namespace BreakpointHistoryTests
     class HistoryRig : public ControllerRig
     {
     public:
-        std::vector<std::string>  Step (std::vector<std::string> lines)
+        std::vector<std::string>  Step (std::vector<DebuggerAction> actions)
         {
             BreakpointStep  step;
 
-            step.lines = std::move (lines);
+            step.actions = std::move (actions);
             return view.ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
@@ -84,7 +84,7 @@ namespace BreakpointHistoryTests
             rig.Run (std::format ("BPCHANGE {} eTs", before.id));
             before = rig.List().at (0);
 
-            rig.Step ({ std::format ("BPC {}", before.id) });
+            rig.Step ({ DebuggerActions::GetClearBreakpoint (before.id, CommandMode::AppleWin) });
             Assert::AreEqual ((size_t) 0, rig.List().size());
 
             rig.Do (BreakpointStep::Kind::Undo);
@@ -111,7 +111,7 @@ namespace BreakpointHistoryTests
             rig.Run ("BP 0302");
             rig.Run ("BPMR 0400");
 
-            rig.Step ({ "BPD *" });
+            rig.Step ({ DebuggerActions::GetEnableAllBreakpoints (false, CommandMode::AppleWin) });
             Assert::IsFalse (rig.List().at (2).enabled);
 
             rig.Do (BreakpointStep::Kind::Undo);
@@ -134,7 +134,7 @@ namespace BreakpointHistoryTests
 
             rig.Run ("BP 0300");
             rig.Run ("BPMW 0400:0410");
-            rig.Step ({ "BPC *" });
+            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
             Assert::AreEqual ((size_t) 0, rig.List().size());
 
             rig.Do (BreakpointStep::Kind::Undo);
@@ -148,11 +148,11 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ "BP 0300" });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
             Assert::IsTrue (rig.CanRedo());
 
-            rig.Step ({ "BP 0302" });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0302", CommandMode::AppleWin) });
             Assert::IsFalse (rig.CanRedo());
         }
 
@@ -166,7 +166,7 @@ namespace BreakpointHistoryTests
 
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
-            rig.Step ({ std::format ("BPEDIT {} BP 0302", id) });
+            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, "BP 0302", CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((Word) 0x0300, rig.List().at (0).address);
@@ -183,11 +183,11 @@ namespace BreakpointHistoryTests
 
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
-            rig.Step ({ std::format ("BPC {}", id) });
+            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
             id = rig.List().at (0).id;
 
-            rig.Step ({ std::format ("BPD {}", id) });
+            rig.Step ({ DebuggerActions::GetEnableBreakpoint (id, false, CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
             Assert::IsTrue (rig.List().at (0).enabled);
 
@@ -205,7 +205,7 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ "BP 0300" });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
             id = rig.List().at (0).id;
             rig.Run (std::format ("BPC {}", id));
             rig.Run ("BP 0302");
@@ -224,7 +224,7 @@ namespace BreakpointHistoryTests
 
 
 
-            lines = rig.Step ({ "BP 0300" });
+            lines = rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
             Assert::IsTrue (std::ranges::find (lines, DebugSession::GetPrompt (CommandMode::AppleWin) + std::string ("BP 0300")) != lines.end());
         }
     };
