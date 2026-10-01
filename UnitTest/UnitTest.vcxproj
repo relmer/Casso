@@ -258,6 +258,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowClosedPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerClosedPanesSettingTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowDetachTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowValueEditTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxDefaultAssemblerTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxBlendTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowFileDropTests.cpp" />

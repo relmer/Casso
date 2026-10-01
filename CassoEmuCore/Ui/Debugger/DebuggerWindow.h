@@ -8,6 +8,7 @@
 #include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiToolbar.h"
+#include "Ui/Debugger/ConsoleModeEntry.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
@@ -286,6 +287,15 @@ protected:
     IDxuiControl  * GetFocused     () const;
     DxuiListView  * GetWatchList   () const { return m_watchList; }
 
+    //  Protected so a test can edit a stack byte or a register in place as a
+    //  click, F2 and Enter do.
+    void            BeginValueEdit    (DxuiListView * list, int row);
+    void            EndValueEdit      (bool commit);
+    DxuiTextInput * GetStackEditor    () const { return m_stackEditor; }
+    DxuiTextInput * GetRegisterEditor () const { return m_registerEditor; }
+    DxuiListView  * GetStackList      () const { return m_stackList; }
+    DxuiListView  * GetRegisterList   () const { return m_registerList; }
+
     //  Protected so a test can see which pane has the focus border.
     std::wstring    GetPaneOfFocus () const;
 
@@ -349,6 +359,7 @@ protected:
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
     DxuiToolbar *                         GetConsoleBar      () const { return m_consoleBar; }
+    const ConsoleModeEntry *              GetModeEntry       () const { return m_modeEntry.get(); }
     DxuiToolbar *                         GetSourceBar       (int slot) const { return m_sourceDocs[(size_t) slot].bar; }
     DxuiMenuBar *                         GetMenuBar         () const { return m_menuBar; }
 
@@ -607,8 +618,10 @@ private:
     int      GetOpenCodeViewCount () const;
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;
     void     ApplyCodeView    (int view);
-    void     EditRegister     (const std::string & name);
-    void     EditStackByte    (int row);
+    void     EditRegister     (int row, bool onFlags);
+    void     ClickRegister    (POINT clientPx);
+    void     CommitStackByte  (int row, Byte typed);
+    void     CommitRegister   (const std::string & name, Byte typed);
     void     UpdateTooltip    (POINT clientPx);
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     std::optional<Byte>  GetRegisterByte (const std::string & name) const;
@@ -684,6 +697,20 @@ private:
 
     DxuiTextInput                         * m_watchEditor        = nullptr;
     WatchEdit                               m_watchEdit;
+
+    //  Editing a stack byte or a register's value in place: a box laid over
+    //  the value cell. Each pane has its own box, so the box goes with the
+    //  pane into a floating window.
+    struct ValueEdit
+    {
+        DxuiListView  * list = nullptr;
+        int             row  = -1;
+    };
+
+    static constexpr int                    kValueEditMaxChars   = 4;
+    DxuiTextInput                         * m_stackEditor        = nullptr;
+    DxuiTextInput                         * m_registerEditor     = nullptr;
+    ValueEdit                               m_valueEdit;
     POINT                                   m_lastPressPx        = {};
     POINT                                   m_arrowPressPx       = {};
     DWORD                                   m_arrowPressTick     = 0;
@@ -724,6 +751,7 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleBarSlot;
     DxuiToolbar                                                                    * m_consoleBar         = nullptr;
     std::shared_ptr<DxuiCommand>                                                     m_dialectCommand;
+    std::unique_ptr<ConsoleModeEntry>                                                m_modeEntry;
     std::unique_ptr<DebuggerCommands>                                                m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_menuCommands;
     DxuiDockSite                                                                   * m_dockSite           = nullptr;

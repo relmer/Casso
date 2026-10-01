@@ -157,6 +157,7 @@
     <ClCompile Include="Ui\Debugger\BreakpointBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointHistory.cpp" />
     <ClCompile Include="Ui\Debugger\RegisterHistory.cpp" />
+    <ClCompile Include="Ui\Debugger\ConsoleModeEntry.cpp" />
     <ClCompile Include="Ui\Debugger\StackHistory.cpp" />
     <ClCompile Include="Ui\Debugger\WatchHistory.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
@@ -562,6 +563,7 @@
     <ClInclude Include="Ui\Debugger\BreakpointBarCommands.h" />
     <ClInclude Include="Ui\Debugger\BreakpointHistory.h" />
     <ClInclude Include="Ui\Debugger\RegisterHistory.h" />
+    <ClInclude Include="Ui\Debugger\ConsoleModeEntry.h" />
     <ClInclude Include="Ui\Debugger\StackHistory.h" />
     <ClInclude Include="Ui\Debugger\WatchHistory.h" />
     <ClInclude Include="Ui\Debugger\BreakpointImport.h" />

@@ -278,6 +278,19 @@ void DebuggerWindow::OnCreate()
     m_watchEditor->SetHwnd         (GetHwnd());
     m_watchEditor->SetMaxLength    (64);
 
+    //  The stack's and the registers' value boxes, drawn over their rows the
+    //  same way.
+    m_stackEditor    = CreateChild<DxuiTextInput>();
+    m_registerEditor = CreateChild<DxuiTextInput>();
+
+    for (DxuiTextInput * editor : { m_stackEditor, m_registerEditor })
+    {
+        editor->SetVisible   (false);
+        editor->SetOverText  (true);
+        editor->SetHwnd      (GetHwnd());
+        editor->SetMaxLength (kValueEditMaxChars);
+    }
+
     ConfigureWidgets();
     ConfigureDockSite();
 }
@@ -346,24 +359,38 @@ void DebuggerWindow::ConfigureWidgets()
         BeginWatchEdit (row, column);
     });
 
-    //  Double-clicking a stack byte shows it in memory. The pane lists the
-    //  stack newest first, so its rows run backwards through STACK's.
+    //  Double-clicking a stack byte's value edits it in place; double-clicking
+    //  its address shows it in memory. The pane lists the stack newest first,
+    //  so its rows run backwards through STACK's.
     m_stackList->SetOnActivateRow ([this] (int row)
     {
-        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->stack.size())
+        RECT  value = {};
+        RECT  list  = m_stackList->GetBounds();
+
+        if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->stack.size())
         {
-            GetActiveMemoryPane()->GoTo (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address);
+            return;
         }
+
+        if (m_stackList->GetCellTextRectPx (row, 1, value) && m_lastPressPx.x - list.left >= value.left)
+        {
+            BeginValueEdit (m_stackList, row);
+            return;
+        }
+
+        GetActiveMemoryPane()->GoTo (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address);
     });
 
-    //  Double-clicking PC shows the PC, as Show Next Statement does; P and S
-    //  open an editor for the flags or the stack pointer.
+    //  Double-clicking PC shows the PC, as Show Next Statement does; on P's
+    //  flags it opens their editor, and on any other value it edits the
+    //  value in place, as a single click on it does.
     m_registerList->SetOnActivateRow ([this] (int row)
     {
-        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->registers.size())
-        {
-            EditRegister (m_snapshot->registers[(size_t) row].name);
-        }
+        RECT  flags = {};
+        RECT  list  = m_registerList->GetBounds();
+        bool  over  = m_registerList->GetCellTextRectPx (row, 2, flags) && m_lastPressPx.x - list.left >= flags.left;
+
+        EditRegister (row, over);
     });
 
     m_registerList->SetColumns   ({ { L"Reg",         0, false, DxuiTextHAlign::Left },
@@ -2727,7 +2754,7 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
 
     //  The site's strips and drop zones paint over the panes, and a watch
     //  being edited over the site, so both stay last.
-    for (IDxuiControl * last : { (IDxuiControl *) m_dockSite, (IDxuiControl *) m_watchEditor })
+    for (IDxuiControl * last : { (IDxuiControl *) m_dockSite, (IDxuiControl *) m_watchEditor, (IDxuiControl *) m_stackEditor, (IDxuiControl *) m_registerEditor })
     {
         std::unique_ptr<IDxuiControl>  owned = (last != nullptr) ? DetachChild (last) : nullptr;
 
@@ -5531,7 +5558,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         if (s.isPaused)
         {
-            items.push_back ({ L"Edit value...", [this, row] { EditStackByte (row); } });
+            items.push_back ({ L"Edit value", [this, row] { BeginValueEdit (m_stackList, row); } });
         }
 
         if (m_stackHistory.CanUndo())
@@ -6801,19 +6828,27 @@ std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) c
 //
 //  DebuggerWindow::EditRegister
 //
-//  P opens the flags a checkbox each; S asks for a new pointer. Either one
-//  is written by R, the command a person would type.
+//  PC shows the code at the PC. P's flags open the flags a checkbox each;
+//  every other byte register's value edits in place. Each is written by R,
+//  the command a person would type.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::EditRegister (const std::string & name)
+void DebuggerWindow::EditRegister (int row, bool onFlags)
 {
-    std::optional<Byte>  value = GetRegisterByte (name);
+    std::string          name;
+    std::optional<Byte>  value;
     Byte                 p     = 0;
-    std::wstring         text;
-    Word                 typed = 0;
 
 
+
+    if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->registers.size())
+    {
+        return;
+    }
+
+    name  = m_snapshot->registers[(size_t) row].name;
+    value = GetRegisterByte (name);
 
     if (name == "PC")
     {
@@ -6821,23 +6856,21 @@ void DebuggerWindow::EditRegister (const std::string & name)
         return;
     }
 
-    if ((name == "P" || name == "S") && !m_snapshot->isPaused)
+    if (name != "P" || !onFlags)
+    {
+        BeginValueEdit (m_registerList, row);
+        return;
+    }
+
+    if (!m_snapshot->isPaused)
     {
         AppendConsole ({ "Pause the machine to edit its registers." });
         return;
     }
 
-    if (name == "P" && value.has_value() && FlagsDialog::Ask (GetHwnd(), m_theme, *value, p))
+    if (value.has_value() && FlagsDialog::Ask (GetHwnd(), m_theme, *value, p))
     {
-        m_registerHistory.Record ("P", *value, p, m_snapshot->pc);
-        RunAction (DebuggerActions::GetSetRegister ("P", p, GetMode()));
-    }
-    else if (name == "S" && value.has_value() &&
-             CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Stack pointer", L"S, in hex ($00-$FF):", std::format (L"{:02X}", *value), 4, text) &&
-             TryParseHexWord (text, typed) && typed <= 0xFF)
-    {
-        m_registerHistory.Record ("S", *value, (Byte) typed, m_snapshot->pc);
-        RunAction (DebuggerActions::GetSetRegister ("S", (Byte) typed, GetMode()));
+        CommitRegister ("P", p);
     }
 }
 
@@ -6847,43 +6880,225 @@ void DebuggerWindow::EditRegister (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::EditStackByte
+//  DebuggerWindow::ClickRegister
 //
-//  Asks for a new value for a stack byte, written by the byte-entry command a
-//  person would type. The pane lists the stack newest first, so its rows run
-//  backwards through STACK's.
+//  A click on a register's value edits it in place, as a click on a value
+//  does in Visual Studio's registers window. The click has already selected
+//  the row it landed on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::EditStackByte (int row)
+void DebuggerWindow::ClickRegister (POINT clientPx)
 {
-    std::wstring  text;
-    Word          typed = 0;
-    Word          at    = 0;
-    Byte          value = 0;
+    RECT  list  = m_registerList->GetBounds();
+    RECT  value = {};
+    RECT  flags = {};
+    int   row   = m_registerList->GetSelectedRow();
 
 
 
-    if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->stack.size())
+    if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->registers.size() || !m_snapshot->isPaused)
+    {
+        return;
+    }
+
+    if (!m_registerList->GetCellTextRectPx (row, 1, value) || !m_registerList->GetCellTextRectPx (row, 2, flags))
+    {
+        return;
+    }
+
+    OffsetRect (&value, list.left, list.top);
+    value.right = list.left + flags.left;
+
+    if (DxuiDockSite::Contains (value, clientPx) && GetRegisterByte (m_snapshot->registers[(size_t) row].name).has_value())
+    {
+        BeginValueEdit (m_registerList, row);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::BeginValueEdit
+//
+//  A box over a stack byte's or a register's value, holding the value, all
+//  of it selected so typing replaces it -- as the watch pane's opens. Only a
+//  paused machine takes an edit, and only a byte: PC is moved by command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BeginValueEdit (DxuiListView * list, int row)
+{
+    DxuiTextInput        * editor = (list == m_stackList) ? m_stackEditor : m_registerEditor;
+    RECT                   cell   = {};
+    RECT                   bounds = {};
+    std::optional<Byte>    value;
+
+
+
+    if (m_snapshot == nullptr || (list != m_stackList && list != m_registerList) || row < 0)
+    {
+        return;
+    }
+
+    if (list == m_stackList && row < (int) m_snapshot->stack.size())
+    {
+        value = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].value;
+    }
+    else if (list == m_registerList && row < (int) m_snapshot->registers.size())
+    {
+        value = GetRegisterByte (m_snapshot->registers[(size_t) row].name);
+    }
+
+    if (!value.has_value())
     {
         return;
     }
 
     if (!m_snapshot->isPaused)
     {
-        AppendConsole ({ "Pause the machine to edit the stack." });
+        AppendConsole ({ (list == m_stackList) ? "Pause the machine to edit the stack." : "Pause the machine to edit its registers." });
+        return;
+    }
+
+    if (m_valueEdit.row >= 0)
+    {
+        EndValueEdit (false);
+    }
+
+    if (!list->GetCellTextRectPx (row, 1, cell))
+    {
+        return;
+    }
+
+    bounds = list->GetBounds();
+    OffsetRect (&cell, bounds.left, bounds.top);
+
+    m_valueEdit = ValueEdit { list, row };
+
+    //  In the list's own face and size, so the text does not jump when the
+    //  box opens over it.
+    editor->SetTextRenderer (GetTextRenderer());
+    editor->SetFont         (DxuiTheme::kMonoFace, list->GetFontSizeDip());
+    editor->SetText         (std::format (L"{:02X}", *value));
+    editor->Layout          (cell, m_scaler);
+    editor->SetVisible      (true);
+    SetFocusedControl       (editor);
+    editor->SelectAll();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EndValueEdit
+//
+//  Enter keeps what was typed, Escape leaves the value as it was, and a
+//  click anywhere else keeps it, as with a watch. What is not a byte in hex
+//  is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EndValueEdit (bool commit)
+{
+    ValueEdit        edit   = m_valueEdit;
+    DxuiTextInput  * editor = (edit.list == m_stackList) ? m_stackEditor : m_registerEditor;
+    Word             typed  = 0;
+    bool             isByte = false;
+
+
+
+    if (edit.row < 0)
+    {
+        return;
+    }
+
+    isByte = TryParseHexWord (editor->GetText(), typed) && typed <= 0xFF;
+
+    m_valueEdit = ValueEdit {};
+    editor->SetVisible (false);
+    SetFocusedControl  (edit.list);
+    Invalidate();
+
+    if (!commit || !isByte || m_snapshot == nullptr)
+    {
+        return;
+    }
+
+    if (edit.list == m_stackList)
+    {
+        CommitStackByte (edit.row, (Byte) typed);
+    }
+    else if (edit.row < (int) m_snapshot->registers.size())
+    {
+        CommitRegister (m_snapshot->registers[(size_t) edit.row].name, (Byte) typed);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CommitStackByte
+//
+//  Writes a stack byte by the byte-entry command a person would type. The
+//  pane lists the stack newest first, so its rows run backwards through
+//  STACK's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CommitStackByte (int row, Byte typed)
+{
+    Word  at    = 0;
+    Byte  value = 0;
+
+
+
+    if (row < 0 || row >= (int) m_snapshot->stack.size())
+    {
         return;
     }
 
     at    = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address;
     value = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].value;
 
-    if (CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Stack byte", std::format (L"${:04X}, in hex ($00-$FF):", at), std::format (L"{:02X}", value), 4, text) &&
-        TryParseHexWord (text, typed) && typed <= 0xFF)
+    m_stackHistory.Record (at, value, typed, m_snapshot->pc);
+    RunAction (DebuggerActions::GetEnterByte (at, typed, GetMode()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CommitRegister
+//
+//  Writes a byte register by R, recording the edit for the pane's undo.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CommitRegister (const std::string & name, Byte typed)
+{
+    std::optional<Byte>  value = GetRegisterByte (name);
+
+
+
+    if (!value.has_value())
     {
-        m_stackHistory.Record (at, value, (Byte) typed, m_snapshot->pc);
-        RunAction (DebuggerActions::GetEnterByte (at, (Byte) typed, GetMode()));
+        return;
     }
+
+    m_registerHistory.Record (name, *value, typed, m_snapshot->pc);
+    RunAction (DebuggerActions::GetSetRegister (name, typed, GetMode()));
 }
 
 
@@ -7957,6 +8172,24 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
+    if (m_valueEdit.row >= 0)
+    {
+        DxuiTextInput  * editor = (m_valueEdit.list == m_stackList) ? m_stackEditor : m_registerEditor;
+        RECT             box    = editor->GetBounds();
+
+        if (DxuiDockSite::Contains (box, POINT { x, y }))
+        {
+            editor->OnMouse (ev);
+            Invalidate();
+            return true;
+        }
+
+        if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
+        {
+            EndValueEdit (true);
+        }
+    }
+
     //  Ctrl+wheel sizes the panes' text as Ctrl+Plus and Ctrl+Minus do, over
     //  any pane, before a view that would take the wheel for itself.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
@@ -8060,6 +8293,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         if (IsRoutable (list) && list->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
         {
             ForwardToList (list, ev);
+
+            //  A click on a register's value edits it once the click is
+            //  over, so the list is not left mid-press under the box.
+            if (list == m_registerList && ev.kind == DxuiMouseEventKind::Up)
+            {
+                ClickRegister (ev.positionDip);
+            }
+
             return true;
         }
     }
@@ -8163,6 +8404,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
                 x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
             {
                 ForwardToList (list, ev);
+
+                if (list == m_registerList)
+                {
+                    ClickRegister (ev.positionDip);
+                }
             }
         }
 
@@ -8230,10 +8476,10 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     }
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
-    if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
+    if (pane == DebuggerLayout::kRegisters)   { return { m_registerList, m_registerEditor }; }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
-    if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
+    if (pane == DebuggerLayout::kStack)       { return { m_stackList, m_stackEditor };   }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
 
@@ -9909,6 +10155,22 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  So does a stack byte or a register being edited.
+    if (m_valueEdit.row >= 0)
+    {
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
+        {
+            EndValueEdit (ev.vk == VK_RETURN);
+        }
+        else
+        {
+            ((m_valueEdit.list == m_stackList) ? m_stackEditor : m_registerEditor)->OnKey (ev);
+        }
+
+        Invalidate();
+        return true;
+    }
+
     //  Shift+Esc closes the pane that has the focus, as in Visual Studio.
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && ev.shift && !ev.ctrl && !ev.alt && ClosePaneOfFocus())
     {
@@ -9949,7 +10211,15 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_stackList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
     {
-        EditStackByte (m_stackList->GetSelectedRow());
+        BeginValueEdit (m_stackList, m_stackList->GetSelectedRow());
+        return true;
+    }
+
+    //  F2 in the registers pane edits the selected value in place, or on P's
+    //  row opens the flags, which share the row.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_registerList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
+    {
+        EditRegister (m_registerList->GetSelectedRow(), true);
         return true;
     }
 

@@ -687,31 +687,35 @@ Error:
 //
 //  DebuggerWindow::ConfigureConsoleBar
 //
-//  The console pane's toolbar: the dialect the console reads, which the
-//  memory Address box follows too.
+//  The console pane's toolbar, in the breakpoints pane's style: the mode the
+//  console reads, which the memory Address box follows too, as a "Mode:"
+//  label and a drop-down showing the mode in force.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ConfigureConsoleBar()
 {
-    constexpr const wchar_t *  kGlyphDialect = s_kpszMdl2Code;   // braces
-    DxuiToolbar::Entry         dialect;
+    DxuiToolbar::Entry  dialect;
 
 
 
     m_dialectCommand        = std::make_shared<DxuiCommand>();
     m_dialectCommand->id    = kDialectEntry;
-    m_dialectCommand->label = L"Dialect";
-    m_dialectCommand->glyph = kGlyphDialect;
-    m_dialectCommand->tip   = L"Dialect\nChoose the command dialect for the console and the memory Address box";
+    m_dialectCommand->label = L"Mode";
 
-    dialect.command = m_dialectCommand;
-    dialect.kind    = DxuiToolbar::Kind::DropDown;
+    m_modeEntry = std::make_unique<ConsoleModeEntry>();
+    m_modeEntry->SetTooltip (L"Mode\nChoose the command mode for the console and the memory Address box");
+
+    dialect.command       = m_dialectCommand;
+    dialect.kind          = DxuiToolbar::Kind::DropDown;
+    dialect.custom        = m_modeEntry.get();
+    dialect.neverOverflow = true;
 
     m_consoleBar->SetTextRenderer (GetTextRenderer());
     m_consoleBar->SetPopupHost    (GetPopupHost());
     m_consoleBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_consoleBar->SetCompact      (true);
+    m_consoleBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_consoleBar->SetEntries      ({ dialect, MakeFindEntry (DebuggerLayout::kConsole) });
     m_consoleBar->SetVisible      (false);
 
@@ -746,6 +750,11 @@ void DebuggerWindow::SetConsoleBarMenus()
     {
         CommandMode  target  = mode;
         bool         current = (m_snapshot != nullptr) && m_snapshot->mode == mode;
+
+        if (current || (m_snapshot == nullptr && mode == CommandMode::AppleWin))
+        {
+            m_modeEntry->SetModeText (label);
+        }
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (label, current, [this, target]
         {
