@@ -31,6 +31,10 @@ void TracePane::Configure()
     m_list->SetRowProvider   (0, [this] (int row, std::vector<DxuiListView::Cell> & out) { ProvideRow (row, out); });
     m_list->EnableStickyTail (true);
     m_list->SetPreciseAutoFit (false);
+
+    //  Home, End, the arrows and the page keys move through the entries; Home
+    //  goes to entry 0.
+    m_list->SetKeyboardColumnNav (true);
 }
 
 
