@@ -99,6 +99,7 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder       = 0xFF4A5F80;
         theme.tooltipText         = 0xFFE8EEF4;
         theme.errorText           = 0xFFFF6B6B;
+        theme.resultText          = 0xFF4EC9E0;
         return theme;
     }
 
@@ -146,6 +147,7 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = 0xFF55595F;
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                 = 0xFFFF6B6B;
+        theme.resultText                = 0xFF4EC9E0;
         return theme;
     }
 
@@ -193,6 +195,7 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = 0xFF3A7548;
         theme.tooltipText               = 0xFFB7FCB9;
         theme.errorText                 = 0xFFFF6B6B;
+        theme.resultText                = 0xFFFFC857;
         return theme;
     }
 

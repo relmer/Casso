@@ -81,6 +81,10 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  tooltipText              = 0;
     uint32_t  errorText                = 0;
 
+    //  What an operand leaves, shown after it in a code listing. A zero value
+    //  falls back to a cyan for the surface's darkness.
+    uint32_t  resultText               = 0;
+
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
     uint32_t  Background          () const override { return panelBg;            }
@@ -199,6 +203,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipBorder             = 0xFF55595F;
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                     = 0xFFFF6666;
+        theme.resultText                = 0xFF4EC9E0;
         return theme;
     }
 
@@ -238,6 +243,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipBorder             = 0xFFB0B0B0;
         theme.tooltipText               = 0xFF1A1A1A;
         theme.errorText                     = 0xFFC02020;
+        theme.resultText                = 0xFF00727D;
         return theme;
     }
 };

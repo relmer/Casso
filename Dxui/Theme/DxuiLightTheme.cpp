@@ -58,6 +58,7 @@ DxuiLightTheme::DxuiLightTheme()
     tooltipBorder            = 0xFFD1D1D1;
     tooltipText              = 0xFF1A1A1A;
     errorText                = 0xFFC42B1C;
+    resultText               = 0xFF00727D;
 }
 
 
