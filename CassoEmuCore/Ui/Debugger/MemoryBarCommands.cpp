@@ -113,7 +113,8 @@ std::vector<DxuiToolbar::Entry> MemoryBarCommands::BuildEntries (IDxuiToolbarCus
 
         if (row.id == kAddress)
         {
-            entry.custom = address;
+            entry.custom        = address;
+            entry.neverOverflow = true;
         }
 
         entries.push_back (std::move (entry));

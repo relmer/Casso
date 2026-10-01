@@ -77,6 +77,11 @@ public:
     virtual bool             OnClick       (int x, int y)                                                               = 0;
 
     virtual bool             OnMouseMove   (int x, int y)                                                               { (void) x; (void) y; return false; }
+
+    //  The narrowest the entry can be drawn. An entry that can shrink, as a
+    //  text box can, gives up width down to this once nothing else on the
+    //  strip can move; -1, the default, keeps it at its full width.
+    virtual int              GetMinWidthPx (const DxuiDpiScaler & scaler) const                                           { (void) scaler; return -1; }
     virtual void             OnMouseLeave  ()                                                                           {}
     virtual bool             OnLButtonDown (int x, int y)                                                               { (void) x; (void) y; return false; }
 };
@@ -323,11 +328,12 @@ private:
     struct Slot
     {
         Entry  entry;
-        RECT   rc      = {};
-        bool   hovered = false;
-        bool   pressed = false;
-        bool   labeled = true;
-        bool   hidden  = false;   // in the See more menu rather than on the strip
+        RECT   rc       = {};
+        bool   hovered  = false;
+        bool   pressed  = false;
+        bool   labeled  = true;
+        bool   hidden   = false;   // in the See more menu rather than on the strip
+        int    shrunkPx = 0;   // width a shrinkable custom entry gives up to fit
     };
 
     struct Picker
@@ -367,6 +373,7 @@ private:
     void          OpenDropDown         (int commandId);
     void          OpenSeeMore          ();
     void          PlanSeeMore          (int clientWidthPx);
+    void          ShrinkToFit          (int clientWidthPx);
 
     std::function<void (POINT)>  m_onDropDownClickOutside;
     void          WireDropDown         ();

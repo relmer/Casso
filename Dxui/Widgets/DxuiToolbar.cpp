@@ -780,7 +780,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
     if (slot.entry.custom != nullptr)
     {
-        return slot.entry.custom->GetWidthPx (labeled, m_scaler, m_textRenderer);
+        return slot.entry.custom->GetWidthPx (labeled, m_scaler, m_textRenderer) - slot.shrunkPx;
     }
 
     labeled = labeled || !HasGlyph (slot);
@@ -893,6 +893,12 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
     m_scaler.SetDpi (scaler.GetDpi());
     RefreshMetrics();
+
+    for (Slot & slot : m_slots)
+    {
+        slot.shrunkPx = 0;
+    }
+
     PlanSeeMore (clientWidthPx);
 
     while (labeled > 0 && GetTotalWidthPx (labeled) > clientWidthPx)
@@ -901,8 +907,57 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
     }
 
     m_labeledCount = labeled;
+    ShrinkToFit (clientWidthPx);
 
     return m_compact ? kCompactBandDp : kBandDp;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::ShrinkToFit
+//
+//  The last move, once every entry that can go into See more has gone and
+//  every label is down: a custom entry that can shrink gives up width, down
+//  to its minimum, so the strip still fits before anything is clipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::ShrinkToFit (int clientWidthPx)
+{
+    int  excess = GetTotalWidthPx (m_labeledCount) - clientWidthPx;
+
+
+
+    for (Slot & slot : m_slots)
+    {
+        int  full  = 0;
+        int  least = 0;
+
+        if (excess <= 0)
+        {
+            break;
+        }
+
+        if (slot.hidden || slot.entry.custom == nullptr)
+        {
+            continue;
+        }
+
+        least = slot.entry.custom->GetMinWidthPx (m_scaler);
+
+        if (least < 0)
+        {
+            continue;
+        }
+
+        full          = slot.entry.custom->GetWidthPx (true, m_scaler, m_textRenderer);
+        slot.shrunkPx = (std::max) (0, (std::min) (excess, full - least));
+        excess       -= slot.shrunkPx;
+    }
 }
 
 

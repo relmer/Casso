@@ -412,10 +412,17 @@ void DxuiPopupMenu::ShowCore (
         m_viewportPx = height;
     }
 
-    if (left + width  > hostClient.right)  { left = hostClient.right  - width;  }
-    if (top  + height > hostClient.bottom) { top  = hostClient.bottom - height; }
-    if (left < hostClient.left) { left = hostClient.left; }
-    if (top  < hostClient.top)  { top  = hostClient.top;  }
+    //  An empty client rect is no client rect: a host that has not been told
+    //  its size. Clamping into it would pin the menu's own record of where it
+    //  is to the host's top-left corner while its popup still hangs from the
+    //  anchor, and a submenu, placed beside that record, would open there.
+    if (hostClient.right > hostClient.left && hostClient.bottom > hostClient.top)
+    {
+        if (left + width  > hostClient.right)  { left = hostClient.right  - width;  }
+        if (top  + height > hostClient.bottom) { top  = hostClient.bottom - height; }
+        if (left < hostClient.left) { left = hostClient.left; }
+        if (top  < hostClient.top)  { top  = hostClient.top;  }
+    }
 
     m_boundsDip.left   = left;
     m_boundsDip.top    = top;

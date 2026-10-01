@@ -47,8 +47,10 @@ public:
     bool             OnMouseMove   (int x, int y) override;
     void             OnMouseLeave  () override;
     bool             OnLButtonDown (int x, int y) override;
+    int              GetMinWidthPx (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kMinWidthDip); }
 
-    static constexpr int  kWidthDip = 180;
+    static constexpr int  kWidthDip    = 180;
+    static constexpr int  kMinWidthDip = 80;
 
 private:
     static bool  IsInside (const RECT & rc, int x, int y);
