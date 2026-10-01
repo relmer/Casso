@@ -7,8 +7,7 @@
 
 
 
-static constexpr const wchar_t *  s_kGlyphRefresh   = s_kpszMdl2Refresh;   // circular arrow
-static constexpr const wchar_t *  s_kGlyphNewWindow = s_kpszMdl2Add;   // plus
+static constexpr const wchar_t *  s_kGlyphRefresh = s_kpszMdl2Refresh;   // circular arrow
 
 
 
@@ -18,7 +17,7 @@ static constexpr const wchar_t *  s_kGlyphNewWindow = s_kpszMdl2Add;   // plus
 //
 //  MemoryBarCommands::GetRows
 //
-//  Where to look, then how to lay the bytes out, then another window.
+//  Where to look, then how to lay the bytes out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +29,6 @@ const std::vector<MemoryBarCommands::Row> & MemoryBarCommands::GetRows()
         { kRefresh,   L"Refresh",           s_kGlyphRefresh,    L"Read this window's bytes again",                                               DxuiToolbar::Kind::Command,  0, true  },
         { kColumns,   L"Columns",           nullptr,            L"Values in each row, or as many as fit",                                        DxuiToolbar::Kind::DropDown, 1, false },
         { kGrouping,  L"Group by bytes",    nullptr,            L"Show each value as a byte, a word or a long",                                  DxuiToolbar::Kind::DropDown, 1, false },
-        { kNewWindow, L"New memory window", s_kGlyphNewWindow,  L"New memory window",                                                            DxuiToolbar::Kind::Command,  2, true  },
     };
 
 

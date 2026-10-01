@@ -518,10 +518,10 @@ std::shared_ptr<DxuiCommand> DebuggerWindow::MakeMenuCommand (const std::wstring
 //
 //  DebuggerWindow::ConfigureMemoryBar
 //
-//  Visual Studio's memory window bar: the Address box, Refresh, Columns, the
-//  grouping and New memory window. Typing into the bytes or POKE at the
-//  console writes memory, so the bar has no poke box; a window closes from
-//  its tab.
+//  Visual Studio's memory window bar: the Address box, Refresh, Columns and
+//  the grouping. View > Memory opens another window. Typing into the bytes or
+//  POKE at the console writes memory, so the bar has no poke box; a window
+//  closes from its tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -533,11 +533,6 @@ void DebuggerWindow::ConfigureMemoryBar()
 
     handlers.dispatch  = [this] (int id) { RunMemoryBarEntry (id); };
     handlers.getLabel  = [this] (int id) { return GetMemoryBarLabel (id); };
-    handlers.isEnabled = [this] (int id)
-    {
-        return id != MemoryBarCommands::kNewWindow ||
-               std::count (m_memoryOpen.begin(), m_memoryOpen.end(), true) < DebuggerViewState::kMaxMemoryWindows;
-    };
 
     m_memoryCommands = std::make_unique<MemoryBarCommands>  (std::move (handlers));
     m_addressEntry   = std::make_unique<MemoryAddressEntry> (m_memoryBox);
@@ -666,10 +661,6 @@ void DebuggerWindow::RunMemoryBarEntry (int id)
 
     case MemoryBarCommands::kRefresh:
         GetActiveMemoryPane()->Refresh();
-        break;
-
-    case MemoryBarCommands::kNewWindow:
-        AddMemoryWindow();
         break;
 
     default:
@@ -1227,34 +1218,6 @@ void DebuggerWindow::ApplyMemoryWindows()
     if (changed)
     {
         m_dockSite->Relayout();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::AddMemoryWindow
-//
-//  The lowest-numbered closed window opens where the active one is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddMemoryWindow()
-{
-    Word  at = GetActiveMemoryPane()->GetTopAddress();
-
-
-
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        if (!m_memoryOpen[(size_t) (pane->GetId() - 1)] && m_host != nullptr)
-        {
-            m_host->SetDebuggerMemoryWindow (pane->GetId(), at);
-            return;
-        }
     }
 }
 
@@ -4015,28 +3978,6 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
-
-    //  A + after the disassembly tabs opens another disassembly view at the
-    //  PC, as a browser opens a tab. Memory windows have none, as Visual
-    //  Studio's have none: they open from the View menu's Memory cascade.
-    m_dockSite->SetNewTab ([this] (const DxuiTabGroup & group)
-    {
-        return GroupHasCode (group) && GetOpenCodeViewCount() < DebuggerViewState::kMaxCodeViews;
-    },
-    [this] (const DxuiTabGroup & group)
-    {
-        (void) group;
-
-        for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
-        {
-            if (!m_codeOpen[(size_t) view] && m_host != nullptr)
-            {
-                m_activeCode = view;
-                m_host->SetDebuggerCodeAddress ((m_snapshot != nullptr) ? m_snapshot->pc : (Word) 0, view);
-                return;
-            }
-        }
-    });
 
     //  Source and Disassembly are documents, the rest tool windows, each with
     //  a title bar whose menu is the pane's Dock To menu (FR-084).
@@ -6976,32 +6917,6 @@ void DebuggerWindow::ConfigureCodeList (int view)
     list->SetTextSelection         (true);
     list->SetOwnerWindow           (GetHwnd());
 
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GroupHasCode
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::GroupHasCode (const DxuiTabGroup & group) const
-{
-    for (size_t i = 0; i < group.GetTabCount(); i++)
-    {
-        for (const std::unique_ptr<DebuggerPaneFrame> & frame : m_codeFrames)
-        {
-            if (group.GetContent ((int) i) == frame.get())
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
 }
 
 

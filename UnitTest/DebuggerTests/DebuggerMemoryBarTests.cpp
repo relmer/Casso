@@ -208,7 +208,7 @@ namespace DebuggerTests
             }
 
             for (int id : { MemoryBarCommands::kAddress, MemoryBarCommands::kRefresh, MemoryBarCommands::kColumns,
-                            MemoryBarCommands::kGrouping, MemoryBarCommands::kNewWindow })
+                            MemoryBarCommands::kGrouping })
             {
                 Assert::IsTrue (std::find (ids.begin(), ids.end(), id) != ids.end(), std::format (L"entry {} is on the bar", id).c_str());
             }
@@ -259,22 +259,6 @@ namespace DebuggerTests
 
             window.ChooseMemoryColumns (0);
             Assert::AreEqual (0, window.GetFirstHexView()->GetColumns(), L"Auto fits the width");
-        }
-
-
-        TEST_METHOD (NewMemoryWindowOpensTheNextWindow)
-        {
-            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
-            MemoryBarHost    host;
-            MemoryBarWindow  window (theme, host);
-
-
-
-            window.Build();
-            window.RunMemoryBarEntry (MemoryBarCommands::kNewWindow);
-
-            Assert::AreEqual ((size_t) 1, host.windows.size());
-            Assert::AreEqual (2,          host.windows[0], L"the first window is open, so the second opens");
         }
 
 

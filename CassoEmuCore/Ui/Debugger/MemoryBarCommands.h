@@ -13,9 +13,9 @@
 //  MemoryBarCommands
 //
 //  What a memory window's bar shows, after Visual Studio's memory window: the
-//  Address box with its history, Refresh, the Columns and grouping drop-downs,
-//  and New memory window. The bar is a DxuiToolbar, so what does not fit goes
-//  into its "..." menu as on every other strip.
+//  Address box with its history, Refresh, and the Columns and grouping
+//  drop-downs; View > Memory opens another window. The bar is a DxuiToolbar,
+//  so what does not fit goes into its "..." menu as on every other strip.
 //
 //  The window owns the behavior: it hands over one dispatch, one enabled test
 //  and one label, each taking an id.
@@ -29,7 +29,6 @@ public:
     static constexpr int  kRefresh   = 2;
     static constexpr int  kColumns   = 3;
     static constexpr int  kGrouping  = 4;
-    static constexpr int  kNewWindow = 5;
 
     struct Handlers
     {

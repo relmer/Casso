@@ -544,7 +544,6 @@ private:
     static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();
 
     void     ApplyMemoryWindows ();
-    void     AddMemoryWindow    ();
     void     PlaceMemoryBar     ();
     void     MoveMemoryBar      (DxuiWindow * to);
     DxuiWindow * GetPaneHost    (const std::wstring & pane);
@@ -575,7 +574,6 @@ private:
     void     ShowCode         (std::optional<Word> address);
     void     ConfigureCodeList (int view);
     int      GetCodeViewOf    (const IDxuiControl * control) const;
-    bool     GroupHasCode     (const DxuiTabGroup & group) const;
     int      GetOpenCodeViewCount () const;
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;
     void     ApplyCodeView    (int view);
