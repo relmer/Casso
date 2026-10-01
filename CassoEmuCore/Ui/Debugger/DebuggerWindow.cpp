@@ -1168,6 +1168,8 @@ void DebuggerWindow::ApplyMemoryWindows()
         }
     }
 
+    m_registerHistory.OnSnapshot (m_snapshot->isPaused, m_snapshot->pc);
+
     if (m_snapshot->machine != m_machine)
     {
         m_machine = m_snapshot->machine;
@@ -5224,6 +5226,16 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         AddShowInMemory (Widen (name), name, items);
         items.push_back ({ L"Copy",           copy });
+
+        if (m_registerHistory.CanUndo())
+        {
+            items.push_back ({ L"Undo", [this] { UndoRegisterEdit (false); } });
+        }
+
+        if (m_registerHistory.CanRedo())
+        {
+            items.push_back ({ L"Redo", [this] { UndoRegisterEdit (true); } });
+        }
     }
     else if (list == m_traceList)
     {
@@ -5906,6 +5918,31 @@ void DebuggerWindow::RemoveSelectedWatch()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::UndoRegisterEdit
+//
+//  The registers pane's last edit taken back, or with `redo` made again,
+//  while the machine is still at the stop it was made at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UndoRegisterEdit (bool redo)
+{
+    std::optional<DebuggerAction>  action = redo ? m_registerHistory.TryRedo (GetMode()) : m_registerHistory.TryUndo (GetMode());
+
+
+
+    if (action.has_value())
+    {
+        RunAction (*action);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::UndoWatchEdit
 //
 //  The last watch edit, put back. A moved watch is found by being the one
@@ -6413,12 +6450,14 @@ void DebuggerWindow::EditRegister (const std::string & name)
 
     if (name == "P" && value.has_value() && FlagsDialog::Ask (GetHwnd(), m_theme, *value, p))
     {
+        m_registerHistory.Record ("P", *value, p, m_snapshot->pc);
         RunAction (DebuggerActions::GetSetRegister ("P", p, GetMode()));
     }
     else if (name == "S" && value.has_value() &&
              CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Stack pointer", L"S, in hex ($00-$FF):", std::format (L"{:02X}", *value), 4, text) &&
              TryParseHexWord (text, typed) && typed <= 0xFF)
     {
+        m_registerHistory.Record ("S", *value, (Byte) typed, m_snapshot->pc);
         RunAction (DebuggerActions::GetSetRegister ("S", (Byte) typed, GetMode()));
     }
 }
@@ -9405,6 +9444,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && ev.ctrl && !ev.alt && ev.vk == 'Z')
     {
         UndoWatchEdit();
+        return true;
+    }
+
+    //  Ctrl+Z and Ctrl+Y in the registers pane undo and redo its own edits.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_registerList && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y'))
+    {
+        UndoRegisterEdit (ev.vk == 'Y');
         return true;
     }
 

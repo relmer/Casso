@@ -23,6 +23,7 @@
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/RegisterHistory.h"
 #include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -427,6 +428,7 @@ private:
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
     void     RemoveSelectedWatch ();
     void     UndoWatchEdit    ();
+    void     UndoRegisterEdit (bool redo);
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     RunToCursor      (Word address);
@@ -647,6 +649,10 @@ private:
     //  The watch pane's own undo history (FR-097), apart from every memory
     //  window's: Ctrl+Z in the watch pane puts back its last edit only.
     std::vector<DebuggerViewState::WatchUndo>  m_watchUndo;
+
+    //  The registers pane's own undo and redo, cleared when the machine
+    //  moves on from the stop its edits were made at.
+    RegisterHistory                            m_registerHistory;
 
     //  The optional views open at the last save, and whether the ones saved
     //  before have been reopened yet. Reopening is asynchronous, so saving
