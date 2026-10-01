@@ -276,10 +276,11 @@ void MonitorHandlers::SetTextMode (DebugSession & session, bool isInverse, Reply
 
 void MonitorHandlers::SetHook (DebugSession & session, const DebugCommand & command, bool isInput, Reply & reply)
 {
-    Word  hook    = isInput ? kInputHook : kOutputHook;
-    Word  restore = isInput ? kKeyIn : kCharacterOut;
-    int   slot    = (int) (command.count & kSlotMask);
-    Word  target  = 0;
+    Word                      hook    = isInput ? kInputHook : kOutputHook;
+    Word                      restore = isInput ? kKeyIn : kCharacterOut;
+    int                       slot    = (int) (command.count & kSlotMask);
+    Word                      target  = 0;
+    std::vector<std::string>  lines;
 
 
 
@@ -287,7 +288,14 @@ void MonitorHandlers::SetHook (DebugSession & session, const DebugCommand & comm
 
     PokeWord (session.GetTarget(), hook, target);
 
-    reply.data = MessageData { { std::format ("{} hook: ${:04X}", isInput ? "Input" : "Output", target) } };
+    if (command.count > kHighestSlot)
+    {
+        lines.push_back (std::format ("Slot {:X} is out of range; the ROM uses slot {:X}", command.count, slot));
+    }
+
+    lines.push_back (std::format ("{} hook: ${:04X}", isInput ? "Input" : "Output", target));
+
+    reply.data = MessageData { lines };
 }
 
 

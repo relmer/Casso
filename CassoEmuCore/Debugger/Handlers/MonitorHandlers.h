@@ -65,6 +65,7 @@ private:
     static constexpr Word  kSlotBase      = 0xC000;
     static constexpr Word  kSlotStride    = 0x0100;
     static constexpr int   kSlotMask      = 0x0F;
+    static constexpr int   kHighestSlot   = 7;
     static constexpr int   kListLines     = 20;
     static constexpr int   kBytesPerRow   = 8;
     static constexpr Byte  kLowByte       = 0xFF;
