@@ -2,6 +2,7 @@
 
 #include "Core/DxuiStandardCommand.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "resource.h"
@@ -128,6 +129,7 @@ void DebuggerWindow::SetWindowMenus()
     std::vector<DxuiPopupMenuItem>  tools;
     std::vector<DxuiPopupMenuItem>  panels;
     std::vector<DxuiPopupMenuItem>  schemes;
+    std::vector<DxuiPopupMenuItem>  themes;
     std::shared_ptr<DxuiCommand>    row;
     auto  add = [this] (std::vector<DxuiPopupMenuItem> & menu, std::shared_ptr<DxuiCommand> command)
     {
@@ -253,6 +255,29 @@ void DebuggerWindow::SetWindowMenus()
     row = MakeMenuCommand (L"Keyboard scheme", false, [] {});
     m_menuCommands.push_back (row);
     tools.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (schemes)));
+
+    //  Tools: the window's own colors, or Casso's.
+    for (const DebuggerThemes::Choice & choice : DebuggerThemes::GetChoices())
+    {
+        std::string  name    = choice.name;
+        bool         current = DebuggerThemes::IsKnown (m_themeName) ? name == m_themeName : name.empty();
+
+        //  Applying the theme rebuilds these rows, so it is the last thing
+        //  the row does.
+        add (themes, MakeMenuCommand (choice.label, current, [this, name]
+        {
+            if (m_host != nullptr)
+            {
+                m_host->SetDebuggerTheme (name);
+            }
+
+            ApplyTheme (name);
+        }));
+    }
+
+    row = MakeMenuCommand (L"Theme", false, [] {});
+    m_menuCommands.push_back (row);
+    tools.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (themes)));
 
     m_menuBarItems =
     {

@@ -21,6 +21,7 @@
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
+#include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -97,6 +98,11 @@ public:
     //  the choice survives the window.
     virtual std::string  GetDebuggerKeyScheme ()                           = 0;
     virtual void         SetDebuggerKeyScheme (const std::string & name)   = 0;
+
+    //  The window's own theme, by DebuggerThemes name, kept the same way. A
+    //  host that keeps no preferences, as a test's is, follows the emulator.
+    virtual std::string  GetDebuggerTheme     ()                           { return {}; }
+    virtual void         SetDebuggerTheme     (const std::string &)        {}
 
     //  The pane arrangement as DxuiPaneLayout text, kept the same way.
     virtual std::string  GetDebuggerLayout    ()                           = 0;
@@ -211,6 +217,10 @@ protected:
     void             ApplyKeyScheme  (DebuggerKeyScheme scheme);
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () const { return m_menuCommands; }
 
+    //  Protected so a test can choose a theme as the Theme menu does.
+    void             ApplyTheme      (const std::string & name);
+    const std::string &  GetThemeName () const { return m_themeName; }
+
     //  Protected so a test can hand the window a snapshot as a frame does.
     void             TakeSnapshot    (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
 
@@ -291,8 +301,11 @@ protected:
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
-    const CassoTheme     * m_theme = nullptr;
-    IDebuggerWindowHost  * m_host  = nullptr;
+    //  m_theme is the one in force, m_emulatorTheme the emulator's, which a
+    //  window on its own theme still returns to.
+    const DxuiTheme      * m_theme         = nullptr;
+    const CassoTheme     * m_emulatorTheme = nullptr;
+    IDebuggerWindowHost  * m_host          = nullptr;
 
 private:
     //  A source document (FR-054): its text and banner, the pane over them,
@@ -512,6 +525,10 @@ private:
     int                                     m_heightDip          = 0;
     DxuiFocusManager                        m_focusMgr;
     DebuggerKeyScheme                       m_keyScheme          = DebuggerKeySchemes::kDefault;
+    std::string                             m_themeName;
+    CassoTheme                              m_ownTheme;
+    DxuiLightTheme                          m_lightTheme;
+    DxuiDarkTheme                           m_darkTheme;
     bool                                    m_swallowSpace       = false;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;

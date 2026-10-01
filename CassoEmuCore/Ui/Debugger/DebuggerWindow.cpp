@@ -18,6 +18,7 @@
 #include "Cassque/CassquePromptDialog.h"
 #include "Core/DxuiClipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Theme/DxuiWindowsThemeColors.h"
 
 
 
@@ -125,8 +126,9 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
 
     BAIL_OUT_IF (IsCreated(), S_OK);
 
-    m_theme     = theme;
-    m_host      = host;
+    m_theme         = theme;
+    m_emulatorTheme = theme;
+    m_host          = host;
     m_hInstance = hInstance;
 
     params.title                    = s_kpszWindowTitle;
@@ -150,7 +152,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     ApplyKeyScheme        (GetSavedKeyScheme());
     ApplySavedPlacement();
 
-    SetTheme (m_theme);
+    ApplyTheme (m_host != nullptr ? m_host->GetDebuggerTheme() : std::string());
     Show();
 
     //  Where it opened is the baseline a close compares against, so a window
@@ -2146,6 +2148,57 @@ DebuggerKeyScheme DebuggerWindow::GetSavedKeyScheme() const
     }
 
     return scheme;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyTheme
+//
+//  The window's own theme, or the emulator's for the empty name. The system
+//  themes take the accent from Windows each time one is chosen, as Casso
+//  Explorer's do. The Theme drop-down is rebuilt for the check it carries.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyTheme (const std::string & name)
+{
+    const DxuiWindowsThemeColors::SystemColors &  system = DxuiWindowsThemeColors::Instance().GetSystemColors();
+
+
+
+    m_themeName = name;
+
+    m_lightTheme.ApplySystemColors (system);
+    m_darkTheme.ApplySystemColors  (system);
+
+    if (m_emulatorTheme != nullptr)
+    {
+        m_theme = &DebuggerThemes::Choose (name, *m_emulatorTheme, m_lightTheme, m_darkTheme, m_ownTheme);
+    }
+
+    SetTheme            (m_theme);
+    m_focusMgr.SetTheme (m_theme);
+
+    if (m_theme != nullptr)
+    {
+        m_tooltip.SetTheme (*m_theme);
+    }
+
+    for (const auto & entry : m_floats)
+    {
+        entry.second->SetTheme (m_theme);
+    }
+
+    if (m_commandBar != nullptr)
+    {
+        SetCommandBarMenus();
+    }
+
+    Invalidate();
 }
 
 

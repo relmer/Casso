@@ -235,6 +235,10 @@ struct GlobalUserPrefs
     // screenshotMode; the window reads an unknown name as the default.
     std::string  debuggerKeyScheme        = "VisualStudio";
 
+    // The debugger window's own theme, by name, from DebuggerThemes. Empty
+    // follows the emulator's theme; the window reads an unknown name the same.
+    std::string  debuggerTheme;
+
     // The debugger window's pane arrangement, in DxuiPaneLayout's text form,
     // which carries its own version. Empty until the user moves a pane; text
     // the window cannot read gives the default arrangement.
