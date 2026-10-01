@@ -682,6 +682,61 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
         }
     }
 
+    //  Each line's operand in the files the PC is in, read as the disassembly
+    //  pane reads its rows' operands, and what the line at PC leaves. Only
+    //  those files, since each line runs its instruction through the core.
+    if (snapshot.isPaused)
+    {
+        auto                            operands = std::make_shared<DebuggerViewSnapshot::LineOperands>();
+        const Cpu6502Registers        & now      = session.GetTarget().GetRegisters();
+        std::optional<DisassemblyLine>  atPcLine = GetInstructionAt (session, snapshot.pc);
+        InstructionTouches::Result      touches;
+
+        for (const auto & [place, first] : *m_lineAddresses)
+        {
+            std::optional<DisassemblyLine>  line;
+            std::string                     effect;
+
+            if (place.first != state.fileId && place.first != state.bodyFileId)
+            {
+                continue;
+            }
+
+            line = GetInstructionAt (session, first);
+
+            if (!line.has_value())
+            {
+                continue;
+            }
+
+            touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now,
+                                                first, (Word) line->instruction.bytes.size());
+
+            if (first == snapshot.pc)
+            {
+                effect = GetEffect (session, now, touches, (Word) (first + line->instruction.bytes.size()));
+            }
+
+            (*operands)[place] = { GetAnnotation (session, *line, now, touches), effect };
+        }
+
+        if (m_lineOperands == nullptr || *m_lineOperands != *operands)
+        {
+            m_lineOperands = operands;
+        }
+
+        if (atPcLine.has_value() && atPcLine->instruction.hasTarget)
+        {
+            touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now,
+                                                snapshot.pc, (Word) atPcLine->instruction.bytes.size());
+
+            state.pcTarget        = atPcLine->instruction.target;
+            state.isPcTargetTaken = !touches.isKnown || touches.after.pc == atPcLine->instruction.target;
+        }
+    }
+
+    state.lineOperands = snapshot.isPaused ? m_lineOperands : nullptr;
+
     //  Every view's rows, as the window paints them, and the copy in `code`.
     for (int view = -1; view < kMaxCodeViews; view++)
     {
@@ -2595,6 +2650,42 @@ void DebuggerViewState::GoToMemory (int window, Word address)
     goTo.serial  = m_goTo.has_value() ? m_goTo->serial + 1 : 1;
 
     m_goTo = goTo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetInstructionAt
+//
+//  The instruction that starts at an address, as the disassembly lists it,
+//  or none for an I/O address, which a read would operate.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DisassemblyLine> DebuggerViewState::GetInstructionAt (DebugSession & session, Word address)
+{
+    Reply                   code;
+    const DisassemblyData * data = nullptr;
+
+
+
+    if (session.GetTarget().GetRegion (address) == MemoryRegion::Io)
+    {
+        return std::nullopt;
+    }
+
+    code = session.ExecuteViewLine (std::format ("U {0:04X}:{0:04X}", address), CommandMode::AppleWin);
+    data = std::get_if<DisassemblyData> (&code.data);
+
+    if (data == nullptr || data->lines.empty() || data->lines.front().instruction.address != address)
+    {
+        return std::nullopt;
+    }
+
+    return data->lines.front();
 }
 
 

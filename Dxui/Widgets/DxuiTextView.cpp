@@ -97,6 +97,53 @@ int DxuiTextView::GetFirstLineOfRow (int row) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::GetCellAnchorPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::GetCellAnchorPx (int row, int cell, float & outX, float & outY) const
+{
+    int  line = GetFirstLineOfRow (row);
+
+
+
+    if (line < m_topLine || line >= m_topLine + GetLineCap() || m_cellHeightPx <= 0)
+    {
+        return false;
+    }
+
+    outX = (float) GetTextLeft() + (float) GetCellStart (m_rows[(size_t) row], cell) * m_cellAdvance;
+    outY = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + ((float) (line - m_topLine) + 0.5f) * (float) m_cellHeightPx;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLinesSpanPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::GetLinesSpanPx (float & outTop, float & outBottom) const
+{
+    int  shown = (std::max) (0, (std::min) (GetLineCap(), (int) m_lines.size() - m_topLine));
+
+
+
+    outTop    = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip);
+    outBottom = outTop + (float) (shown * m_cellHeightPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::SetTopLine
 //
 ////////////////////////////////////////////////////////////////////////////////

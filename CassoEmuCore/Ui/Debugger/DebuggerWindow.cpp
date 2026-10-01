@@ -3216,8 +3216,8 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 
 void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    //  Under a slid-out pane, which lies over the disassembly.
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    //  Under a slid-out pane, which lies over the disassembly and the source.
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + (int) m_sourceDocs.size(); view++)
     {
         PaintBranchArrow (painter, view);
     }
@@ -3258,6 +3258,15 @@ bool DebuggerWindow::HasTopLayer() const
         }
     }
 
+    for (const SourceDocument & document : m_sourceDocs)
+    {
+        if (document.shown && document.pane->IsActive() && m_snapshot != nullptr &&
+            m_snapshot->source.has_value() && m_snapshot->source->pcTarget.has_value())
+        {
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -3272,13 +3281,14 @@ bool DebuggerWindow::HasTopLayer() const
 //  Where the PC's branch, jump or call arrow lies in a view, in pixels, and
 //  where it goes. Either end scrolled out of view runs the line to that edge
 //  of the rows, so the arrow stays drawn while any part of it crosses them.
+//  A view past the code views is a source document's, whose pane places it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
 {
     static constexpr size_t                              s_kInstructionColumn = 5;
-    DxuiListView                                       * list                 = m_codeLists[(size_t) view];
+    DxuiListView                                       * list                 = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines                = GetCodeLines (view);
     int                                                  current              = -1;
     int                                                  target               = -1;
@@ -3293,6 +3303,13 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
     int                                                  rowPx                = 0;
 
 
+
+    if (view >= DebuggerViewState::kMaxCodeViews)
+    {
+        const SourceDocument & document = m_sourceDocs[(size_t) (view - DebuggerViewState::kMaxCodeViews)];
+
+        return document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
+    }
 
     if (list == nullptr || !m_codeOpen[(size_t) view] || !list->IsVisible() || !IsRoutable (list))
     {
@@ -3431,7 +3448,7 @@ bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
 
 
 
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + (int) m_sourceDocs.size(); view++)
     {
         input = BranchArrow::Input();
 
@@ -3450,7 +3467,7 @@ bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
 
         if (isPair)
         {
-            m_activeCode = view;
+            m_activeCode = (view < DebuggerViewState::kMaxCodeViews) ? view : m_activeCode;
             ShowCode (goesTo);
         }
 

@@ -130,6 +130,9 @@ struct DebuggerViewSnapshot
         bool         isPrevious = false;
     };
 
+    //  Each source line's operand, then its result: file and line to both.
+    using LineOperands = std::map<std::pair<int, int>, std::pair<std::string, std::string>>;
+
     //  The loaded debug file, as the source pane needs it.
     struct SourceState
     {
@@ -161,6 +164,17 @@ struct DebuggerViewSnapshot
         //  while the machine is stopped. The same map is shared while they
         //  do not change.
         std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  lineBytes;
+
+        //  What each line in the PC's files reads, as the disassembly pane's
+        //  operand column has it, and for the line at PC what it leaves too:
+        //  the operand first, the result second. Built while the machine is
+        //  stopped; the same map is shared while they do not change.
+        std::shared_ptr<const LineOperands>                                lineOperands;
+
+        //  Where the instruction at PC branches, jumps or calls to, and
+        //  whether the flags as they stand take it.
+        std::optional<Word>           pcTarget;
+        bool                          isPcTargetTaken = true;
     };
 
     //  A window of the instruction trace: the entries from first, of the
@@ -534,6 +548,10 @@ private:
     void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static const IDiagnosticsProvider *  FindProvider (const std::vector<const IDiagnosticsProvider *> & providers, const std::string & name);
+
+    //  The instruction that starts at an address, or none at an I/O address.
+    static std::optional<DisassemblyLine>  GetInstructionAt (DebugSession & session, Word address);
+
     static Word                 GetInstructionLength   (DebugSession & session, Word address);
     static Word                 GetPreviousInstruction (DebugSession & session, Word address);
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
@@ -624,4 +642,5 @@ private:
     mutable std::string                                                        m_lineAddressesKey;
     mutable std::shared_ptr<const std::map<std::pair<int, int>, Word>>         m_lineAddresses;
     mutable std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  m_lineBytes;
+    mutable std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_lineOperands;
 };

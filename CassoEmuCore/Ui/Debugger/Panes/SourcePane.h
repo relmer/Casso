@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/Source/SourceService.h"
+#include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "Widgets/DxuiActionBanner.h"
@@ -119,13 +120,27 @@ public:
     int   GetShownFileId () const;
     int   GetShownLine   () const;
 
+    //  The PC's branch, jump or call arrow, as the disassembly pane draws it,
+    //  from the marked line to the line its target starts, in pixels; false
+    //  when the PC is not on a marked line here or holds no branch.
+    bool  GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
+
+    //  The line the PC's branch goes to in a file, if a line there starts at
+    //  it, and whether it lies below the marked line; false for no branch.
+    static bool  GetArrowTarget (const DebuggerViewSnapshot::SourceState & state, int fileId, int markedLine,
+                                 std::optional<int> & outTargetLine, bool & outIsBelow);
+
     //  The pieces, apart from any view.
     static std::vector<std::wstring>       SplitLines (const std::string & text);
     static std::vector<DxuiTextView::Row>  BuildRows  (const std::vector<std::wstring> & lines, int markedLine,
                                                        const std::set<int> & breakpointLines,
                                                        const std::set<int> & disabledLines = {},
                                                        const Style         & style         = {},
-                                                       const std::map<int, std::wstring> & lineBytes = {});
+                                                       const std::map<int, std::wstring> & lineBytes = {},
+                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands = {});
+
+    //  Whether a line's opcode is a 65C02 mnemonic, so that it is one instruction.
+    static bool  IsInstructionLine (const std::wstring & line);
 
     //  The command a double click on a line sends: clearing the breakpoint
     //  already on it, or setting one.
@@ -188,6 +203,7 @@ private:
     std::set<int>                                                      m_rowsBreakpoints;
     std::set<int>                                                      m_rowsDisabled;
     std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  m_rowsLineBytes;
+    std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_rowsLineOperands;
     std::set<int>                                                      m_disabledIds;
     Style                                                              m_style;
     bool                                                               m_isStyleStale    = false;

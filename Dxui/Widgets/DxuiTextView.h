@@ -112,6 +112,14 @@ public:
     //  above it has wrapped. -1 for a row not laid out.
     int   GetFirstLineOfRow (int row) const;
 
+    //  The left of a cell and the middle of its row's first line, in the
+    //  coordinates the view paints in; false when that line is not drawn.
+    bool  GetCellAnchorPx (int row, int cell, float & outX, float & outY) const;
+
+    //  The top and bottom of the drawn lines, and pixels to a DIP.
+    void   GetLinesSpanPx (float & outTop, float & outBottom) const;
+    float  GetPxPerDip    () const { return m_scaler.ToPxf (1.0f); }
+
     Position  HitTest (POINT point) const;
 
     void          Select           (Position anchor, Position caret);

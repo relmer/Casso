@@ -310,13 +310,15 @@ void SourcePane::Rebuild()
     }
 
     isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
-                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineBytes != m_state->lineBytes;
+                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineBytes != m_state->lineBytes ||
+                  m_rowsLineOperands != m_state->lineOperands;
 
     if (isRowsStale)
     {
         bool  isNewLine = m_rowsLine != marked || m_rowsFileId != m_fileId;
 
-        std::map<int, std::wstring>  lineBytes;
+        std::map<int, std::wstring>                           lineBytes;
+        std::map<int, std::pair<std::wstring, std::wstring>>  lineOperands;
 
         if (m_state->lineBytes != nullptr)
         {
@@ -329,9 +331,21 @@ void SourcePane::Rebuild()
             }
         }
 
-        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineBytes));
-        m_rowsDisabled  = disabled;
-        m_rowsLineBytes = m_state->lineBytes;
+        if (m_state->lineOperands != nullptr)
+        {
+            for (const auto & [place, operand] : *m_state->lineOperands)
+            {
+                if (place.first == m_fileId)
+                {
+                    lineOperands[place.second] = { SourcePathList::Utf8ToWide (operand.first), SourcePathList::Utf8ToWide (operand.second) };
+                }
+            }
+        }
+
+        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineBytes, lineOperands));
+        m_rowsDisabled     = disabled;
+        m_rowsLineBytes    = m_state->lineBytes;
+        m_rowsLineOperands = m_state->lineOperands;
         m_isStyleStale = false;
         m_view->SetTopLine (top);
 
@@ -740,6 +754,148 @@ std::vector<std::wstring> SourcePane::SplitLines (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::GetArrowTarget
+//
+//  The first line in the file that starts at the branch's target. With none,
+//  the target lies below when its address is past the marked line's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::GetArrowTarget (const DebuggerViewSnapshot::SourceState & state, int fileId, int markedLine,
+                                 std::optional<int> & outTargetLine, bool & outIsBelow)
+{
+    std::optional<Word>  markedAt;
+
+
+
+    outTargetLine.reset();
+
+    if (!state.pcTarget.has_value() || markedLine <= 0 || state.lineAddresses == nullptr)
+    {
+        return false;
+    }
+
+    for (const auto & [place, address] : *state.lineAddresses)
+    {
+        if (place.first != fileId)
+        {
+            continue;
+        }
+
+        if (address == *state.pcTarget && !outTargetLine.has_value())
+        {
+            outTargetLine = place.second;
+        }
+
+        if (place.second == markedLine)
+        {
+            markedAt = address;
+        }
+    }
+
+    if (outTargetLine.has_value())
+    {
+        outIsBelow = *outTargetLine > markedLine;
+    }
+    else
+    {
+        outIsBelow = !markedAt.has_value() || *state.pcTarget > *markedAt;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetBranchArrow
+//
+//  The arrow runs along the left of the source text, from the marked line to
+//  the target's. A target out of view, or in no line of this file, runs the
+//  line to that edge of the lines. The marked line out of view draws none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
+{
+    static constexpr int  s_kTextCell   = 2;
+    std::optional<int>    targetLine;
+    bool                  isBelow       = true;
+    float                 x             = 0.0f;
+    float                 y             = 0.0f;
+    float                 top           = 0.0f;
+    float                 bottom        = 0.0f;
+    float                 scale         = 1.0f;
+    RECT                  bounds        = {};
+
+
+
+    if (!IsActive() || !m_view->IsVisible() ||
+        !GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) ||
+        !m_view->GetCellAnchorPx (m_rowsLine - 1, s_kTextCell, x, y))
+    {
+        return false;
+    }
+
+    goesTo  = *m_state->pcTarget;
+    isTaken = m_state->isPcTargetTaken;
+    bounds  = m_view->GetBounds();
+    scale   = m_view->GetPxPerDip();
+
+    m_view->GetLinesSpanPx (top, bottom);
+
+    input.mnemonicX     = x;
+    input.sourceY       = y;
+    input.isTargetBelow = isBelow;
+    input.edgeY         = isBelow ? bottom : top;
+    input.sourceEdgeY   = isBelow ? top : bottom;
+    input.marginPx     *= scale;
+    input.stubPx       *= scale;
+    input.radiusPx     *= scale;
+    input.headPx       *= scale;
+
+    if (targetLine.has_value() && m_view->GetCellAnchorPx (*targetLine - 1, s_kTextCell, x, y))
+    {
+        input.targetY = y;
+    }
+
+    return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::IsInstructionLine
+//
+//  Whether a line's opcode is a 65C02 mnemonic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::IsInstructionLine (const std::wstring & line)
+{
+    for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (line))
+    {
+        if (run.token == SourceSyntax::Token::Mnemonic)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::BuildRows
 //
 //  A marker, the line number and the text. The marker is the triangle on the
@@ -753,7 +909,8 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
                                                       const std::set<int> & breakpointLines,
                                                       const std::set<int> & disabledLines,
                                                       const Style         & style,
-                                                      const std::map<int, std::wstring> & lineBytes)
+                                                      const std::map<int, std::wstring> & lineBytes,
+                                                      const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands)
 {
     std::vector<DxuiTextView::Row>  rows;
     int                             width  = (int) std::to_wstring (lines.size()).size();
@@ -802,6 +959,35 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
             if (style.bytesArgb != 0)
             {
                 row.spans.push_back ({ 3, 0, (int) row.cells[3].size(), style.bytesArgb });
+            }
+        }
+
+        //  What the line's instruction reads, then in the bytes' dimmer color
+        //  what it leaves, as the disassembly pane's operand column has them.
+        //  Only on a line whose opcode is a mnemonic: a directive or a macro
+        //  produced its bytes some other way than one instruction.
+        if (!lineOperands.empty())
+        {
+            auto  found  = lineOperands.find (number);
+            int   column = (int) row.cells.size();
+
+            row.cells.emplace_back();
+
+            if (found != lineOperands.end() && IsInstructionLine (lines[i]))
+            {
+                row.cells.back() = found->second.first;
+
+                if (!found->second.second.empty())
+                {
+                    row.cells.back() += row.cells.back().empty() ? L"" : L"  ";
+
+                    if (style.bytesArgb != 0)
+                    {
+                        row.spans.push_back ({ column, (int) row.cells.back().size(), (int) found->second.second.size(), style.bytesArgb });
+                    }
+
+                    row.cells.back() += found->second.second;
+                }
             }
         }
 
