@@ -2,6 +2,7 @@
 
 #include "Window/DxuiWindow.h"
 #include "Window/DxuiDockedWindow.h"
+#include "Window/DxuiToolbarWindow.h"
 #include "Core/DxuiFocusManager.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -534,6 +535,14 @@ private:
     bool     IsCommandBarEntryEnabled (int id) const;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
     bool     RouteCommandBarDrag  (const DxuiMouseEvent & ev);
+    void     TearOffCommandBar    (POINT clientPx);
+    void     SyncCommandBarFloat  ();
+    void     FloatCommandBar      ();
+    void     DockCommandBarBack   ();
+    void     OnCommandBarDragEnd  (POINT screenPx);
+    bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);
+    RECT     GetFloatingBarRect   (POINT topLeftPx);
+    void     SaveCommandBarDock   ();
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -932,4 +941,14 @@ private:
     RECT                                                                             m_barArea     = {};
     bool                                                                             m_barDragging = false;
     POINT                                                                            m_barGrab     = {};
+
+    //  The window the command bar floats in while it is torn off, and its
+    //  tooltip, which shows only over that window. Events from it route
+    //  under kBarFloatKey, which no pane has.
+    static constexpr wchar_t                                                         kBarFloatKey[] = L"~commandBar";
+    std::unique_ptr<DxuiToolbarWindow>                                               m_barFloat;
+
+    //  How near an edge, past the bar's own thickness, a drag of the bar has
+    //  to stay to dock there rather than float.
+    static constexpr int                                                             kBarDockReachDp = 24;
 };

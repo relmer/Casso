@@ -203,6 +203,11 @@ public:
     void  SetVertical      (bool vertical)               { m_vertical = vertical; }
     bool  IsVertical       () const                      { return m_vertical; }
 
+    //  Off, a horizontal strip shows its entries as icons alone whatever the
+    //  room, as a floating toolbar does; an entry with no icon keeps its label.
+    void  SetLabels        (bool labels)                 { m_labels = labels; }
+    bool  HasLabels        () const                      { return m_labels; }
+
     //  A strip the user can move: a grab handle at its leading end, which
     //  the host hit-tests to start a drag. The handle takes kGripDp off the
     //  strip's length.
@@ -436,6 +441,7 @@ private:
 
     bool                     m_compact        = false;
     bool                     m_vertical       = false;
+    bool                     m_labels         = true;
     bool                     m_grip           = false;
     RECT                     m_gripRect       = {};
     bool                     m_stripColorsSet = false;

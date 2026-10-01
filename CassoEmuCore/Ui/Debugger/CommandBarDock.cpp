@@ -30,6 +30,11 @@ std::wstring CommandBarDock::ToText() const
 
 
 
+    if (floating)
+    {
+        return std::format (L"float {} {}", floatPx.x, floatPx.y);
+    }
+
     for (const auto & [e, w] : s_kEdgeWords)
     {
         if (e == edge)
@@ -62,6 +67,11 @@ CommandBarDock CommandBarDock::FromText (const std::wstring & text)
 
 
 
+    if (word == L"float" && space != std::wstring::npos)
+    {
+        return ReadFloating (text.substr (space + 1));
+    }
+
     for (const auto & [e, w] : s_kEdgeWords)
     {
         if (word == w)
@@ -84,6 +94,49 @@ CommandBarDock CommandBarDock::FromText (const std::wstring & text)
     }
 
     dock.offsetDip = (int) offset;
+    return dock;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandBarDock::ReadFloating
+//
+//  "300 -40" after the "float": two numbers and nothing else, or the
+//  default place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CommandBarDock CommandBarDock::ReadFloating (const std::wstring & text)
+{
+    CommandBarDock    dock;
+    const wchar_t   * start = text.c_str();
+    wchar_t         * end   = nullptr;
+    long              x     = 0;
+    long              y     = 0;
+
+
+
+    x = wcstol (start, &end, 10);
+
+    if (end == start || *end != L' ')
+    {
+        return CommandBarDock {};
+    }
+
+    start = end + 1;
+    y     = wcstol (start, &end, 10);
+
+    if (end == start || *end != L'\0')
+    {
+        return CommandBarDock {};
+    }
+
+    dock.floating = true;
+    dock.floatPx  = POINT { x, y };
     return dock;
 }
 
@@ -145,4 +198,27 @@ CommandBarDock CommandBarDock::PickForDrop (POINT pointer, POINT grab, const REC
 int CommandBarDock::ClampOffset (int offsetPx, int edgeLength, int barLength)
 {
     return std::clamp (offsetPx, 0, (std::max) (0, edgeLength - barLength));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandBarDock::IsInDockBand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandBarDock::IsInDockBand (POINT pointer, const RECT & area, int bandPx)
+{
+    int  toTop    = pointer.y - area.top;
+    int  toBottom = area.bottom - pointer.y;
+    int  toLeft   = pointer.x - area.left;
+    int  toRight  = area.right - pointer.x;
+    int  nearest  = (std::min) ((std::min) (toTop, toBottom), (std::min) (toLeft, toRight));
+
+
+
+    return nearest >= 0 && nearest <= bandPx;
 }

@@ -191,7 +191,15 @@ public:
     void                        SlideIn        ();
     RECT                        GetEdgeTabRect (const std::wstring & pane) const;
 
-    bool                        IsDragging     () const { return !m_dragPane.empty(); }
+    //  An edge band the site shares with something the window lays over it,
+    //  as Visual Studio's toolbars share a band with its auto-hide tabs: the
+    //  edge keeps a strip at least `thickness` deep, and its tabs run around
+    //  the stretch from `start` to `end` along it, in site pixels (x across
+    //  the top or bottom, y down a side). ClearEdgeShare gives the edge back.
+    void                        SetEdgeShare   (DxuiDockSide edge, long thickness, long start, long end);
+    void                        ClearEdgeShare ();
+
+    bool                        IsDragging    () const { return !m_dragPane.empty(); }
     const std::wstring &        GetDraggedPane () const { return m_dragPane; }
     const DxuiDockDropZone *    GetHoveredZone () const;
 
@@ -325,6 +333,11 @@ private:
     bool                           m_marksElsewhere = false;
     int                            m_sashDrag       = -1;
     std::vector<EdgeTab>           m_edgeTabs;
+    bool                           m_shareOn        = false;
+    DxuiDockSide                   m_shareEdge      = DxuiDockSide::Top;
+    long                           m_shareDepth     = 0;
+    long                           m_shareStart     = 0;
+    long                           m_shareEnd       = 0;
     std::wstring                   m_slidPane;
     RECT                           m_slidRect       = {};
     DxuiDockSide                   m_slidEdge       = DxuiDockSide::Left;

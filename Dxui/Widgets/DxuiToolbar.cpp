@@ -887,7 +887,7 @@ void DxuiToolbar::RefreshMetrics()
 
 int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 {
-    int  labeled = (int) m_slots.size();
+    int  labeled = m_labels ? (int) m_slots.size() : 0;
 
 
 
@@ -1181,7 +1181,7 @@ int DxuiToolbar::GetNaturalLengthPx (const DxuiDpiScaler & scaler)
 
     PlanForWidth (INT_MAX / 4, scaler);
 
-    return grip + GetTotalWidthPx (m_vertical ? 0 : (int) m_slots.size());
+    return grip + GetTotalWidthPx ((m_vertical || !m_labels) ? 0 : (int) m_slots.size());
 }
 
 

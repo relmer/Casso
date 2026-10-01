@@ -537,6 +537,40 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::SetEdgeShare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetEdgeShare (DxuiDockSide edge, long thickness, long start, long end)
+{
+    m_shareOn    = true;
+    m_shareEdge  = edge;
+    m_shareDepth = thickness;
+    m_shareStart = start;
+    m_shareEnd   = end;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::ClearEdgeShare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::ClearEdgeShare()
+{
+    m_shareOn = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::GetDockedArea
 //
 //  The site less a strip along each edge that holds an auto-hidden pane.
@@ -545,8 +579,9 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
 
 RECT DxuiDockSite::GetDockedArea() const
 {
-    RECT  area    = m_boundsDip;
-    bool  used[4] = {};
+    RECT  area     = m_boundsDip;
+    bool  used[4]  = {};
+    long  depth[4] = {};
 
 
 
@@ -560,10 +595,21 @@ RECT DxuiDockSite::GetDockedArea() const
 
     //  Every edge's strip is one tab high: along a side the tabs run down it,
     //  their titles turned to read top to bottom.
-    area.left   += used[(size_t) DxuiDockSide::Left]   ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
-    area.top    += used[(size_t) DxuiDockSide::Top]    ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
-    area.right  -= used[(size_t) DxuiDockSide::Right]  ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
-    area.bottom -= used[(size_t) DxuiDockSide::Bottom] ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
+    //  A shared edge is as deep as the deeper of its tabs and what shares it.
+    for (size_t edge = 0; edge < 4; edge++)
+    {
+        depth[edge] = used[edge] ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
+
+        if (m_shareOn && (size_t) m_shareEdge == edge)
+        {
+            depth[edge] = std::max (depth[edge], m_shareDepth);
+        }
+    }
+
+    area.left   += depth[(size_t) DxuiDockSide::Left];
+    area.top    += depth[(size_t) DxuiDockSide::Top];
+    area.right  -= depth[(size_t) DxuiDockSide::Right];
+    area.bottom -= depth[(size_t) DxuiDockSide::Bottom];
 
     area.right  = std::max (area.right,  area.left);
     area.bottom = std::max (area.bottom, area.top);
@@ -611,6 +657,12 @@ void DxuiDockSite::ArrangeEdges (const RECT & area)
 
         tab.pane = hidden.pane;
         tab.edge = hidden.edge;
+
+        //  A tab that would run into the shared stretch goes on past it.
+        if (m_shareOn && hidden.edge == m_shareEdge && at < m_shareEnd && at + length > m_shareStart)
+        {
+            at = m_shareEnd;
+        }
 
         switch (hidden.edge)
         {
