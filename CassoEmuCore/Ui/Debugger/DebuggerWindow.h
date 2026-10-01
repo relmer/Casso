@@ -196,7 +196,9 @@ protected:
     void             AppendConsole   (const std::vector<std::string> & lines);
     void             OpenFind        ();
     void             CloseFind       ();
-    void             FindInConsole   (bool forward);
+    void             FindInPane      (bool forward);
+    std::wstring     GetFindPane     () const { return m_findPane; }
+    DxuiTextView   * GetSourceView   (int slot) const { return m_sourceDocs[(size_t) slot].view; }
     bool             IsFindOpen      () const { return m_findOpen; }
     DxuiTextView   * GetConsoleView  () const { return m_consoleView; }
     DxuiTextInput  * GetFindBox      () const { return m_findBox; }
@@ -298,6 +300,7 @@ private:
         DxuiActionBanner                    * banner      = nullptr;
         std::unique_ptr<SourcePane>           pane;
         std::unique_ptr<DebuggerPaneFrame>    frame;
+        std::unique_ptr<DebuggerPaneFrame>    findSlot;
         bool                                  shown       = false;
         bool                                  bannerShown = false;
         std::wstring                          bannerKey;
@@ -359,6 +362,11 @@ private:
     void     ConfigureFindBar ();
     void     PlaceFindBar     ();
     void     SetFindBarVisible (bool shown);
+    void     MoveFindBar      (DxuiWindow * to);
+    std::wstring        GetFindTarget () const;
+    DxuiTextView      * GetFindView   () const;
+    DebuggerPaneFrame * GetFindSlot   () const;
+    DebuggerPaneFrame * GetFindFrame  () const;
     static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
@@ -626,6 +634,8 @@ private:
     DxuiTextInput                                                                  * m_commandBox         = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_findBar;
     bool                                                                             m_findOpen           = false;
+    std::wstring                                                                     m_findPane;
+    DxuiWindow                                                                     * m_findBarHost        = nullptr;
     std::wstring                                                                     m_findStatusText;
     DxuiTextInput                                                                  * m_findBox            = nullptr;
     DxuiButton                                                                     * m_findCaseButton     = nullptr;

@@ -2155,7 +2155,7 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 
     if (action == DebuggerKeySchemes::Action::FindNext || action == DebuggerKeySchemes::Action::FindPrevious)
     {
-        FindInConsole (action == DebuggerKeySchemes::Action::FindNext);
+        FindInPane (action == DebuggerKeySchemes::Action::FindNext);
         return true;
     }
 
@@ -2314,7 +2314,7 @@ bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
 
     if (isDown && ev.vk == VK_RETURN)
     {
-        FindInConsole (!ev.shift);
+        FindInPane (!ev.shift);
         handled = true;
         return true;
     }
@@ -2353,6 +2353,8 @@ bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
 
 void DebuggerWindow::ConfigureFindBar()
 {
+    m_findPane = DebuggerLayout::kConsole;
+
     m_findBox->SetHwnd        (GetHwnd());
     m_findBox->SetMaxLength   (256);
     m_findBox->SetPlaceholder (L"Find in the console");
@@ -2365,8 +2367,8 @@ void DebuggerWindow::ConfigureFindBar()
 
     //  A button press takes the keys, so each gives them back to the box
     //  and the next Enter searches again.
-    m_findPrevButton->SetOnClick  ([this] { FindInConsole (false); SetFocusedControl (m_findBox); });
-    m_findNextButton->SetOnClick  ([this] { FindInConsole (true);  SetFocusedControl (m_findBox); });
+    m_findPrevButton->SetOnClick  ([this] { FindInPane (false); SetFocusedControl (m_findBox); });
+    m_findNextButton->SetOnClick  ([this] { FindInPane (true);  SetFocusedControl (m_findBox); });
     m_findCloseButton->SetOnClick ([this] { CloseFind(); });
 
     SetFindBarVisible (false);
@@ -2420,22 +2422,181 @@ void DebuggerWindow::SetFindBarVisible (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetFindTarget
+//
+//  The pane find opens in: the one with the keys when it is text to search
+//  (the console or a source document), the one the bar is in while the keys
+//  are in the bar, and the console otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetFindTarget() const
+{
+    std::wstring  pane = GetPaneOfFocus();
+
+
+
+    if (pane == DebuggerLayout::kConsole || GetSourceSlotOf (pane) >= 0)
+    {
+        return pane;
+    }
+
+    return DebuggerLayout::kConsole;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindView
+//
+//  The text the find bar searches: its pane's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView * DebuggerWindow::GetFindView() const
+{
+    int  slot = GetSourceSlotOf (m_findPane);
+
+
+
+    return (slot >= 0) ? m_sourceDocs[(size_t) slot].view : m_consoleView;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindSlot
+//
+//  The slot in the find bar's pane that its controls fill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerPaneFrame * DebuggerWindow::GetFindSlot() const
+{
+    int  slot = GetSourceSlotOf (m_findPane);
+
+
+
+    return (slot >= 0) ? m_sourceDocs[(size_t) slot].findSlot.get() : m_findBar.get();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindFrame
+//
+//  The frame of the find bar's pane, which lays out its slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerPaneFrame * DebuggerWindow::GetFindFrame() const
+{
+    int  slot = GetSourceSlotOf (m_findPane);
+
+
+
+    return (slot >= 0) ? m_sourceDocs[(size_t) slot].frame.get() : m_consoleFrame.get();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MoveFindBar
+//
+//  Moves the find bar's controls into another window, as the memory bar
+//  moves. Focus on one of them stays behind in the window it leaves, so it
+//  goes to the command line there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::MoveFindBar (DxuiWindow * to)
+{
+    DxuiWindow                   * from     = m_findBarHost != nullptr ? m_findBarHost : this;
+    std::vector<IDxuiControl *>    controls = GetFindControls();
+
+
+
+    if (to == from)
+    {
+        return;
+    }
+
+    controls.push_back (m_findStatus);
+
+    for (IDxuiControl * control : controls)
+    {
+        if (m_focusMgr.GetFocusedControl() == control)
+        {
+            m_focusMgr.SetFocused (m_commandBox);
+        }
+
+        for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
+        {
+            if (it->second == control)
+            {
+                control->OnFocusChanged (false);
+                it = m_floatFocus.erase (it);
+                continue;
+            }
+
+            ++it;
+        }
+
+        std::unique_ptr<IDxuiControl>  owned = from->DetachChild (control);
+
+        if (owned != nullptr)
+        {
+            (void) to->AttachChild (std::move (owned));
+        }
+    }
+
+    m_findBarHost = to;
+
+    //  The site's strips and drop zones paint over the panes, so it stays
+    //  this window's last child.
+    if (to == this)
+    {
+        std::unique_ptr<IDxuiControl>  site = DetachChild (m_dockSite);
+
+        (void) AttachChild (std::move (site));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::PlaceFindBar
 //
-//  The find controls sit in the console's find slot, left to right, with the
+//  The find controls sit in their pane's find slot, left to right, with the
 //  status line taking what is left before Close at the far end. With the
-//  slot hidden -- find closed, or the console out of sight -- they hide too.
+//  slot hidden -- find closed, or the pane out of sight -- they hide too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PlaceFindBar()
 {
-    auto   px    = [this] (int dip) { return m_scaler.ToPx (dip); };
-    int    pad   = px (6);
-    bool   shown = m_findBar != nullptr && m_findBar->IsVisible();
-    RECT   slot  = {};
-    int    x     = 0;
-    int    right = 0;
+    auto                 px    = [this] (int dip) { return m_scaler.ToPx (dip); };
+    int                  pad   = px (6);
+    DebuggerPaneFrame  * bar   = GetFindSlot();
+    bool                 shown = bar != nullptr && bar->IsVisible();
+    RECT                 slot  = {};
+    int                  x     = 0;
+    int                  right = 0;
 
 
 
@@ -2451,7 +2612,11 @@ void DebuggerWindow::PlaceFindBar()
         return;
     }
 
-    slot  = m_findBar->GetBounds();
+    //  The bar is the pane's, so it goes with the pane into a floating
+    //  window.
+    MoveFindBar (GetPaneHost (m_findPane));
+
+    slot  = bar->GetBounds();
     x     = slot.left;
     right = slot.right - px (64);
 
@@ -2473,18 +2638,38 @@ void DebuggerWindow::PlaceFindBar()
 //
 //  DebuggerWindow::OpenFind
 //
-//  Brings the console forward with its find bar open and the keys in the
-//  box, its text selected so typing replaces it. A selection in the output
-//  on one line becomes the text to find, as it does in Visual Studio.
+//  Opens the find bar of the pane with the keys -- the console or a source
+//  document -- and brings that pane forward with the keys in the box, its
+//  text selected so typing replaces it. A selection in the pane's text on
+//  one line becomes the text to find, as it does in Visual Studio. The bar
+//  is one at a time: opening it in another pane takes it from the last.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::OpenFind()
 {
-    std::wstring  selected = m_consoleView->GetSelectionText();
+    std::wstring  target   = GetFindTarget();
     std::wstring  saved    = m_routingPane;
+    std::wstring  selected;
 
 
+
+    if (target != m_findPane && m_findOpen && GetFindFrame() != nullptr)
+    {
+        m_findOpen = false;
+        GetFindFrame()->Relayout();
+    }
+
+    if (target != m_findPane)
+    {
+        m_findStatusText.clear();
+        m_findStatus->SetText (m_findStatusText);
+    }
+
+    m_findPane = target;
+    selected   = GetFindView()->GetSelectionText();
+
+    m_findBox->SetPlaceholder ((m_findPane == DebuggerLayout::kConsole) ? L"Find in the console" : L"Find in the source");
 
     if (!selected.empty() && selected.find (L'\n') == std::wstring::npos)
     {
@@ -2495,19 +2680,19 @@ void DebuggerWindow::OpenFind()
 
     if (m_dockSite != nullptr)
     {
-        m_dockSite->ActivatePane (DebuggerLayout::kConsole);
+        m_dockSite->ActivatePane (m_findPane);
     }
 
-    if (m_consoleFrame != nullptr)
+    if (GetFindFrame() != nullptr)
     {
-        m_consoleFrame->Relayout();
+        GetFindFrame()->Relayout();
     }
 
     PlaceFindBar();
     m_findBox->SelectAll();
 
-    //  A floating console keeps its own focus.
-    m_routingPane = m_floats.contains (DebuggerLayout::kConsole) ? std::wstring (DebuggerLayout::kConsole) : std::wstring();
+    //  A floating pane keeps its own focus.
+    m_routingPane = m_floats.contains (m_findPane) ? m_findPane : std::wstring();
     SetFocusedControl (m_findBox);
     m_routingPane = saved;
 
@@ -2522,8 +2707,9 @@ void DebuggerWindow::OpenFind()
 //
 //  DebuggerWindow::CloseFind
 //
-//  The match stays selected in the output; the keys go back to the command
-//  line.
+//  The match stays selected in the pane's text; the keys go back to the
+//  command line from the console's bar, and to the text from a source
+//  document's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2537,15 +2723,15 @@ void DebuggerWindow::CloseFind()
     m_findStatusText.clear();
     m_findStatus->SetText (m_findStatusText);
 
-    if (m_consoleFrame != nullptr)
+    if (GetFindFrame() != nullptr)
     {
-        m_consoleFrame->Relayout();
+        GetFindFrame()->Relayout();
     }
 
     PlaceFindBar();
 
-    m_routingPane = m_floats.contains (DebuggerLayout::kConsole) ? std::wstring (DebuggerLayout::kConsole) : std::wstring();
-    SetFocusedControl (m_commandBox);
+    m_routingPane = m_floats.contains (m_findPane) ? m_findPane : std::wstring();
+    SetFocusedControl ((m_findPane == DebuggerLayout::kConsole) ? (IDxuiControl *) m_commandBox : (IDxuiControl *) GetFindView());
     m_routingPane = saved;
 
     Invalidate();
@@ -2587,15 +2773,16 @@ void DebuggerWindow::SetFindOptions (bool matchCase, bool wholeWord, bool isRege
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::FindInConsole
+//  DebuggerWindow::FindInPane
 //
 //  With nothing to find yet, this opens the bar to ask for it. Otherwise the
-//  next or previous match is selected in the output, whether or not the bar
-//  is open, as F3 finds again in Visual Studio after its find is closed.
+//  next or previous match is selected in the find bar's pane, whether or not
+//  the bar is open, as F3 finds again in Visual Studio after its find is
+//  closed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::FindInConsole (bool forward)
+void DebuggerWindow::FindInPane (bool forward)
 {
     const std::wstring &      needle = m_findBox->GetText();
     DxuiTextView::FindResult  result = DxuiTextView::FindResult::NotFound;
@@ -2604,13 +2791,19 @@ void DebuggerWindow::FindInConsole (bool forward)
 
 
 
+    //  With the bar closed, F3 searches the text with the keys, if it can.
+    if (!m_findOpen)
+    {
+        m_findPane = GetFindTarget();
+    }
+
     if (needle.empty())
     {
         OpenFind();
         return;
     }
 
-    result           = m_consoleView->SelectMatch (needle, m_findMatchCase, m_findWholeWord, m_findRegex, forward, index, count);
+    result           = GetFindView()->SelectMatch (needle, m_findMatchCase, m_findWholeWord, m_findRegex, forward, index, count);
     m_findStatusText = GetFindStatusText (result, index, count);
     m_findStatus->SetText (m_findStatusText);
 
@@ -3130,12 +3323,17 @@ void DebuggerWindow::ConfigureDockSite()
 
 
 
-    //  A source document is its banner over its text.
-    for (SourceDocument & document : m_sourceDocs)
+    //  A source document is its find slot, shown while find searches it,
+    //  and its banner over its text.
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
     {
-        SourceDocument  * each = &document;
+        SourceDocument  & document = m_sourceDocs[(size_t) slot];
+        SourceDocument  * each     = &document;
+        std::wstring      id       = DebuggerLayout::GetSourcePaneId (slot);
 
-        document.frame = std::make_unique<DebuggerPaneFrame> (L"Source");
+        document.frame    = std::make_unique<DebuggerPaneFrame> (L"Source");
+        document.findSlot = std::make_unique<DebuggerPaneFrame> (L"Find");
+        document.frame->AddPart (document.findSlot.get(), boxHeight, [this, id] { return m_findOpen && m_findPane == id; });
         document.frame->AddPart (document.banner,
                                  [each] (int width, const DxuiDpiScaler & scaler) { return (int) each->banner->GetPreferredHeightPx ((float) width, scaler); },
                                  [each] { return each->bannerShown; });
@@ -3150,7 +3348,7 @@ void DebuggerWindow::ConfigureDockSite()
     //  The find bar is a slot over the output that PlaceFindBar fills, shown
     //  only while find is open.
     m_findBar = std::make_unique<DebuggerPaneFrame> (L"Find");
-    m_consoleFrame->AddPart (m_findBar.get(), boxHeight, [this] { return m_findOpen; });
+    m_consoleFrame->AddPart (m_findBar.get(), boxHeight, [this] { return m_findOpen && m_findPane == DebuggerLayout::kConsole; });
     m_consoleFrame->AddPart (m_consoleView);
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
     m_consoleFrame->SetBottomMarginDip (kPanePadDip + 2);
@@ -5750,7 +5948,7 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
 {
     const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
     {
-        { m_findBox,         L"Text to find in the console's output" },
+        { m_findBox,         L"Text to find in this pane"             },
         { m_findCaseButton,  L"Find only text in the same case"      },
         { m_findWordButton,  L"Find only whole words"                },
         { m_findRegexButton, L"Find by regular expression"           },
@@ -6833,7 +7031,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     }
 
     if (GetSourceSlotOf (pane) >= 0)          { return { m_sourceDocs[(size_t) GetSourceSlotOf (pane)].banner, m_sourceDocs[(size_t) GetSourceSlotOf (pane)].view }; }
-    if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox, m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
+    if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
@@ -6975,6 +7173,15 @@ std::wstring DebuggerWindow::GetPaneOfControl (const IDxuiControl * control) con
     if (control != nullptr && (control == m_memoryBar || control == m_memoryBox))
     {
         return m_memoryBarPane;
+    }
+
+    //  The find bar is the pane's it searches, and goes with it.
+    for (const IDxuiControl * part : GetFindControls())
+    {
+        if (control != nullptr && (control == part || control == m_findStatus))
+        {
+            return m_findPane;
+        }
     }
 
     for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
@@ -7727,6 +7934,12 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
     if (m_memoryBarHost == window.get())
     {
         MoveMemoryBar (this);
+    }
+
+    //  And the find bar, in the pane it searches.
+    if (m_findBarHost == window.get())
+    {
+        MoveFindBar (this);
     }
 
     window.reset();
