@@ -90,6 +90,13 @@ public:
     void  SetOnPaneMenu   (PanePointFn fn) { m_onPaneMenu = std::move (fn); }
     void  SetOnClosePane  (PaneFn fn, PaneTestFn canClose);
 
+    //  The site of a floating window, as Visual Studio draws one: each group
+    //  is a tool window, so its title bar is the window's only one and a
+    //  single pane has no tab; the title bar off its buttons moves the
+    //  window; and its pin docks the pane back, through `dock`.
+    void  SetFloating     (PaneFn dock);
+    bool  IsFloatingSite  () const { return m_onDock != nullptr; }
+
     //  Lays the panes out again in the current bounds.
     void  Relayout     ();
 
@@ -139,9 +146,11 @@ public:
     DxuiTabGroup *              GetGroup       (size_t index) const { return m_groups[index].get(); }
 
     //  A drag of a pane that started somewhere else, a floating window's
-    //  title bar for one: the zones show until EndDrag.
-    void  BeginDrag (const std::wstring & pane);
-    bool  EndDrag   (POINT pointDip);
+    //  title bar for one: the zones show until EndDrag, or CancelDrag, which
+    //  takes them down and changes nothing.
+    void  BeginDrag  (const std::wstring & pane);
+    bool  EndDrag    (POINT pointDip);
+    void  CancelDrag ();
 
     //  A drag of a whole group, from its title bar: the panes move together,
     //  in order, with `active` still the one shown.
@@ -161,6 +170,7 @@ public:
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
+    DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Dock site"; }
 
@@ -169,7 +179,7 @@ public:
     static constexpr int  kSashDip      = 6;
     static constexpr int  kSlideMinDip  = 240;
 
-    //  An edge tab's bar, above its title as the title reads, and how far it
+    //  An edge tab's bar, against the window's outer edge, and how far it
     //  stops short of each end so the bars of neighboring tabs stay apart.
     static constexpr int  kEdgeBarDip      = 3;
     static constexpr int  kEdgeBarInsetDip = 2;
@@ -225,6 +235,7 @@ private:
     PanePointFn                                   m_onPaneMenu;
     PaneFn                                        m_onClosePane;
     PaneTestFn                                    m_canClosePane;
+    PaneFn                                        m_onDock;
     std::wstring                                  m_focusedPane;
     DxuiTabGroup                                  m_slidGroup;
     PaneFn                                        m_onSlid;

@@ -217,6 +217,10 @@ void DxuiDockSite::Arrange()
             placed.insert (found->second.content);
         }
 
+        //  A floating window's title bar is its pane's, so every group there
+        //  is a tool window.
+        document = document && m_onDock == nullptr;
+
         group->SetKind        (document ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow);
         group->SetFocusedLook (focused);
         group->SetActive      (active);
@@ -352,6 +356,14 @@ void DxuiDockSite::OnTitleButton (DxuiTabGroup::TitleButton button, const std::w
         break;
 
     case DxuiTabGroup::TitleButton::Pin:
+        //  In a floating window the pin docks the pane back into the window
+        //  it came from.
+        if (m_onDock)
+        {
+            m_onDock (pane);
+            break;
+        }
+
         //  On a slid-out pane the pin docks it back where it came from.
         if (m_layout.IsAutoHidden (pane))
         {
@@ -407,6 +419,68 @@ void DxuiDockSite::SetOnClosePane (PaneFn fn, PaneTestFn canClose)
 
     WireGroup (&m_slidGroup);
     Arrange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetFloating
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetFloating (PaneFn dock)
+{
+    m_onDock = std::move (dock);
+    Arrange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::ClassifyHit
+//
+//  In a floating window, a group's title bar off its buttons is the
+//  window's caption, so the system moves the window by it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHitTestKind DxuiDockSite::ClassifyHit (POINT clientDip) const
+{
+    static constexpr DxuiTabGroup::TitleButton  kButtons[] = { DxuiTabGroup::TitleButton::Menu, DxuiTabGroup::TitleButton::Pin,
+                                                               DxuiTabGroup::TitleButton::Close };
+
+
+
+    if (m_onDock == nullptr)
+    {
+        return DxuiHitTestKind::Client;
+    }
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        if (!group->IsVisible() || !Contains (group->GetTitleRect(), clientDip))
+        {
+            continue;
+        }
+
+        for (DxuiTabGroup::TitleButton button : kButtons)
+        {
+            if (Contains (group->GetTitleButtonRect (button), clientDip))
+            {
+                return DxuiHitTestKind::Client;
+            }
+        }
+
+        return DxuiHitTestKind::Caption;
+    }
+
+    return DxuiHitTestKind::Client;
 }
 
 
@@ -693,15 +767,25 @@ void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top), theme.Background());
 
-        //  Above the title, as the title reads: a side tab's title is turned a
-        //  quarter clockwise, so above it is the tab's right side.
-        if (sideways)
+        //  Against the window's outer edge, as Visual Studio draws it: left
+        //  of a tab on the left edge, below one on the bottom edge.
+        switch (tab.edge)
         {
+        case DxuiDockSide::Left:
+            painter.FillRect ((float) r.left, (float) r.top + inset, bar, along - 2 * inset, barArgb);
+            break;
+
+        case DxuiDockSide::Right:
             painter.FillRect ((float) r.right - bar, (float) r.top + inset, bar, along - 2 * inset, barArgb);
-        }
-        else
-        {
+            break;
+
+        case DxuiDockSide::Top:
             painter.FillRect ((float) r.left + inset, (float) r.top, along - 2 * inset, bar, barArgb);
+            break;
+
+        case DxuiDockSide::Bottom:
+            painter.FillRect ((float) r.left + inset, (float) r.bottom - bar, along - 2 * inset, bar, barArgb);
+            break;
         }
 
         //  A side tab is laid out level about its center and turned a
@@ -1372,6 +1456,23 @@ bool DxuiDockSite::DropOnZone (const DxuiDockDropZone & zone)
 
     (void) m_layout.Activate (m_dragPane);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::CancelDrag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::CancelDrag()
+{
+    m_dragPane.clear();
+    m_zones.clear();
+    m_hoverZone = -1;
 }
 
 

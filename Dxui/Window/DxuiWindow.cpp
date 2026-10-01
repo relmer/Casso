@@ -56,6 +56,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.appIconSmall          = params.appIconSmall;
     hostParams.presentSyncInterval   = params.presentSyncInterval;
     hostParams.createNoActivate      = params.createNoActivate;
+    hostParams.toolWindow            = params.toolWindow;
     hostParams.placement             = params.placement;
     hostParams.placementAnchorHwnd   = params.placementAnchorHwnd;
     hostParams.placementAnchorRectPx = params.placementAnchorRectPx;

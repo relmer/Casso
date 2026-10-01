@@ -78,6 +78,10 @@ public:
         // still focuses them on demand.
         bool                createNoActivate  = false;
 
+        // A tool window: no taskbar button and left out of Alt+Tab, for a
+        // window that belongs to its owner, such as a floating pane.
+        bool                toolWindow        = false;
+
         // Where the window opens: beside the owner, centered on it, or
         // centered on the screen -- instead of the OS cascade position,
         // which ignores the owner entirely and which a composited

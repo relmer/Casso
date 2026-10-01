@@ -382,6 +382,41 @@ HICON DxuiHwndSource::GetDefaultAppIcon (bool big)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetExtendedStyle
+//
+//  An app window unless it is a tool window, which has no taskbar button
+//  and is left out of Alt+Tab. A composited-transparent window blends
+//  per-pixel over whatever is behind it via the desktop compositor, so it
+//  opts out of the redirection bitmap (there is no opaque surface to
+//  redirect) and drives its swap chain through DirectComposition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD DxuiHwndSource::GetExtendedStyle (const CreateParams & params)
+{
+    DWORD  exStyle = params.toolWindow ? WS_EX_TOOLWINDOW : WS_EX_APPWINDOW;
+
+
+
+    if (params.createNoActivate)
+    {
+        exStyle |= WS_EX_NOACTIVATE;   // stripped right after creation (see CreateParams)
+    }
+
+    if (params.composited)
+    {
+        exStyle |= WS_EX_NOREDIRECTIONBITMAP;
+    }
+
+    return exStyle;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Create
 //
 //  Registers a per-instance window class, calls CreateWindowEx with
@@ -474,20 +509,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         style = WS_POPUP | WS_CLIPCHILDREN;
     }
 
-    exStyle = WS_EX_APPWINDOW;
-    if (params.createNoActivate)
-    {
-        exStyle |= WS_EX_NOACTIVATE;   // stripped right after creation (see CreateParams)
-    }
-
-    // Composited-transparent mode: the window blends per-pixel over
-    // whatever is behind it via the desktop compositor, so it must opt
-    // out of the redirection bitmap (there is no opaque surface to
-    // redirect) and drive its swap chain through DirectComposition.
-    if (params.composited)
-    {
-        exStyle |= WS_EX_NOREDIRECTIONBITMAP;
-    }
+    exStyle = GetExtendedStyle (params);
 
     // Initial DPI seed. WM_DPICHANGED will rescale later if the
     // window straddles or moves between monitors.

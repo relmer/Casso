@@ -234,6 +234,12 @@ protected:
     //  Protected so a test can see that every find bar control has a tip.
     const wchar_t *  GetFindBarTip (POINT clientPx, RECT & anchor) const;
 
+    //  Protected so a test can close a floating pane as its close button
+    //  does, and see the layout it leaves.
+    void                    CloseFloatingPane (const std::wstring & pane);
+    const DxuiPaneLayout &  GetPaneLayout     () const;
+    DxuiPaneLayout &        EditPaneLayout    ();
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -358,6 +364,7 @@ private:
     bool                         RouteFloatMouse   (const std::wstring & pane, const DxuiMouseEvent & ev);
     bool                         RouteFloatKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
+    void                         DockFloatingPane  (const std::wstring & pane);
 
     static std::wstring                          GetMonitorKey (const RECT & rectPx);
     static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();

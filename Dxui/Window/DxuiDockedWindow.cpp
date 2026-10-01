@@ -167,41 +167,32 @@ bool DxuiDockedWindow::OnMappedCommand (int commandId)
 //
 //  DxuiDockedWindow::OnMoveLoopTick
 //
-//  The move loop also runs for a resize, which keeps no size; a tick whose
-//  window has the size it had when the loop began is a move.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockedWindow::OnMoveLoopTick()
 {
-    RECT   rect   = GetScreenRect();
-    SIZE   size   = { rect.right - rect.left, rect.bottom - rect.top };
-    POINT  cursor = {};
+    bool  buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
 
 
-    if ((GetKeyState (VK_LBUTTON) & 0x8000) == 0)
-    {
-        return;
-    }
+    Report (m_drag.OnTick (buttonDown, GetScreenSize()));
+}
 
-    if (!m_dragging)
-    {
-        m_dragging = true;
-        m_dragSize = size;
-    }
 
-    if (size.cx != m_dragSize.cx || size.cy != m_dragSize.cy)
-    {
-        return;
-    }
 
-    GetCursorPos (&cursor);
 
-    if (m_onDrag)
-    {
-        m_onDrag (cursor);
-    }
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::OnWindowPlaced
+//
+//  The move loop ended, which is where a caption drag ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::OnWindowPlaced()
+{
+    Report (m_drag.OnLoopEnd (GetScreenSize()));
 }
 
 
@@ -216,30 +207,79 @@ void DxuiDockedWindow::OnMoveLoopTick()
 
 void DxuiDockedWindow::PollCaptionDrag()
 {
-    RECT   rect   = {};
+    bool  buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+
+
+    Report (m_drag.OnPoll (buttonDown, GetScreenSize()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::Report
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::Report (DxuiCaptionDragTracker::Event ev)
+{
     POINT  cursor = {};
 
 
 
-    if (!m_dragging || (GetKeyState (VK_LBUTTON) & 0x8000) != 0)
-    {
-        return;
-    }
-
-    m_dragging = false;
-    rect       = GetScreenRect();
-
-    if (rect.right - rect.left != m_dragSize.cx || rect.bottom - rect.top != m_dragSize.cy)
-    {
-        return;
-    }
-
     GetCursorPos (&cursor);
 
-    if (m_onDragEnd)
+    switch (ev)
     {
-        m_onDragEnd (cursor);
+    case DxuiCaptionDragTracker::Event::Moved:
+        if (m_onDrag)
+        {
+            m_onDrag (cursor);
+        }
+
+        break;
+
+    case DxuiCaptionDragTracker::Event::Ended:
+        if (m_onDragEnd)
+        {
+            m_onDragEnd (cursor);
+        }
+
+        break;
+
+    case DxuiCaptionDragTracker::Event::Canceled:
+        if (m_onDragCancel)
+        {
+            m_onDragCancel();
+        }
+
+        break;
+
+    case DxuiCaptionDragTracker::Event::None:
+        break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::GetScreenSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiDockedWindow::GetScreenSize() const
+{
+    RECT  rect = GetScreenRect();
+
+
+
+    return SIZE { rect.right - rect.left, rect.bottom - rect.top };
 }
 
 

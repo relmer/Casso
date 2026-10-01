@@ -222,6 +222,11 @@ public:
         // that wants it focused shows it with an activating Show().
         bool                     createNoActivate         = false;
 
+        // When true, the window is a tool window (WS_EX_TOOLWINDOW): it has
+        // no taskbar button and is left out of Alt+Tab, as a floating pane
+        // owned by its main window is. Default false = an app window.
+        bool                     toolWindow               = false;
+
         // Where the window opens. The owner-relative modes need a window
         // to measure against and degrade to CenteredOnScreen without one.
         // Ignored when useInitialWindowRectPx supplies a placement
@@ -645,6 +650,11 @@ public:
     //  the full WndProc dispatch.
     //
     static LRESULT  KindToHt  (DxuiHitTestKind kind);
+
+    //
+    //  The extended window style Create gives a window of these params.
+    //
+    static DWORD  GetExtendedStyle (const CreateParams & params);
 
     //
     //  Whether an NC mouse message may be claimed by a caption system

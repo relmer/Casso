@@ -6903,8 +6903,9 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     params.initialSizeDip   = { std::max (160L, rect.right - rect.left), std::max (120L, rect.bottom - rect.top) };
     params.minSizeDip       = { 160, 120 };
     params.resizable        = true;
-    params.captionStyle     = DxuiCaptionStyle::CloseOnly;
+    params.captionStyle     = DxuiCaptionStyle::None;
     params.createNoActivate = true;
+    params.toolWindow       = true;
 
     hr = window->Create (params);
 
@@ -6931,22 +6932,26 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     window->GetSite().AddPane       (pane, GetPaneTitle (pane), GetPaneContent (pane));
     window->GetSite().SetPaneLayout (DxuiPaneLayout::MakeSingle (pane));
 
-    window->SetOnContentMouse   ([this, pane] (const DxuiMouseEvent & ev) { return RouteFloatMouse (pane, ev); });
-    window->SetOnContentKey     ([this, pane] (const DxuiKeyEvent & ev)   { return RouteFloatKey   (pane, ev); });
-    window->SetOnMappedCommand  ([this]       (int commandId)             { return OnMappedCommand (commandId); });
-    window->SetOnCaptionDrag    ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, false); });
-    window->SetOnCaptionDragEnd ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, true);  });
-
-    //  Closing a floating pane docks it where it came from; the debugger has
-    //  no way yet to reopen a pane that was closed.
-    window->SetOnClosed ([this, pane]
+    //  The pane's title bar is the window's only one: its menu is the pane's
+    //  Dock To menu, opened in this window; its pin docks the pane back; and
+    //  its close button closes the pane.
+    window->GetSite().SetFloating    ([this] (const std::wstring & p) { DockFloatingPane (p); });
+    window->GetSite().SetOnPaneMenu  ([this, pane] (const std::wstring & p, POINT clientPx)
     {
-        if (m_dockSite->EditPaneLayout().DockBack (pane))
-        {
-            m_syncFloats = true;
-            SaveLayout();
-        }
+        m_routingPane = pane;
+        ShowDockToMenu (p, clientPx);
+        m_routingPane.clear();
     });
+    window->GetSite().SetOnClosePane ([this] (const std::wstring & p) { CloseFloatingPane (p); },
+                                      [this] (const std::wstring & p) { return CanClosePane (p); });
+
+    window->SetOnContentMouse      ([this, pane] (const DxuiMouseEvent & ev) { return RouteFloatMouse (pane, ev); });
+    window->SetOnContentKey        ([this, pane] (const DxuiKeyEvent & ev)   { return RouteFloatKey   (pane, ev); });
+    window->SetOnMappedCommand     ([this]       (int commandId)             { return OnMappedCommand (commandId); });
+    window->SetOnCaptionDrag       ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, false); });
+    window->SetOnCaptionDragEnd    ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, true);  });
+    window->SetOnCaptionDragCancel ([this]                                   { m_dockSite->CancelDrag(); Invalidate(); });
+    window->SetOnClosed            ([this, pane]                             { CloseFloatingPane (pane); });
 
     if (rect.right > rect.left && rect.bottom > rect.top)
     {
@@ -6954,6 +6959,80 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     }
 
     m_floats[pane] = std::move (window);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CloseFloatingPane
+//
+//  A pane that can be opened again closes, keeping its floating place, so
+//  it opens there again. A pane with nothing to reopen it docks back where
+//  it came from instead of going for good.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CloseFloatingPane (const std::wstring & pane)
+{
+    if (CanClosePane (pane))
+    {
+        ClosePane (pane);
+        return;
+    }
+
+    DockFloatingPane (pane);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DockFloatingPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::DockFloatingPane (const std::wstring & pane)
+{
+    if (m_dockSite->EditPaneLayout().DockBack (pane))
+    {
+        m_syncFloats = true;
+        SaveLayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneLayout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiPaneLayout & DebuggerWindow::GetPaneLayout() const
+{
+    return m_dockSite->GetPaneLayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EditPaneLayout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneLayout & DebuggerWindow::EditPaneLayout()
+{
+    return m_dockSite->EditPaneLayout();
 }
 
 
@@ -7129,6 +7208,7 @@ void DebuggerWindow::OnFloatDrag (const std::wstring & pane, POINT screenPx, boo
     //  Released outside the site, the pane stays floating where it was put;
     //  released over a zone it docks there, which the site reports.
     (void) m_dockSite->EndDrag (inside ? client : POINT { area.right + 1, area.bottom + 1 });
+    Invalidate();
 
     if (!inside)
     {

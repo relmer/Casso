@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Window/DxuiCaptionDragTracker.h"
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiDockSite.h"
 
@@ -24,8 +25,9 @@
 //  A CAPTION DRAG IS REPORTED. While the user moves the window by its title
 //  bar the OS runs its move loop; each tick reports the cursor, in screen
 //  pixels, so the owner can show its drop zones under it, and the first
-//  PollCaptionDrag after the button is released reports where it ended, so
-//  the owner can dock the pane there. A resize is not reported.
+//  end of the move loop reports where it ended, so the owner can dock the
+//  pane there. A resize is not reported, and a drag that turns out to be one
+//  is reported canceled, so the owner can take its drop zones down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,13 +51,15 @@ public:
     void  SetOnContentKey      (KeyFn fn)    { m_onKey       = std::move (fn); }
     void  SetOnCaptionDrag     (PointFn fn)  { m_onDrag      = std::move (fn); }
     void  SetOnCaptionDragEnd  (PointFn fn)  { m_onDragEnd   = std::move (fn); }
-    void  SetOnClosed          (ClosedFn fn) { m_onClosed    = std::move (fn); }
+    void  SetOnCaptionDragCancel (ClosedFn fn) { m_onDragCancel = std::move (fn); }
+    void  SetOnClosed            (ClosedFn fn) { m_onClosed     = std::move (fn); }
 
     //  A key the window's key map translates, for an owner that keeps one
     //  set of commands across its windows.
     void  SetOnMappedCommand   (CommandFn fn) { m_onCommand  = std::move (fn); }
 
-    //  Once a frame: reports the end of a caption drag.
+    //  Once a frame: reports the end of a caption drag the end of the move
+    //  loop did not.
     void  PollCaptionDrag ();
 
     //  Moves and sizes the window, in screen pixels.
@@ -70,17 +74,20 @@ protected:
     bool  OnKey         (const DxuiKeyEvent   & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     bool  OnMappedCommand (int commandId) override;
+    void  OnWindowPlaced () override;
 
 private:
     void  OnMoveLoopTick ();
+    void  Report         (DxuiCaptionDragTracker::Event ev);
+    SIZE  GetScreenSize  () const;
 
-    DxuiDockSite  * m_site          = nullptr;
-    MouseFn         m_onMouse;
-    KeyFn           m_onKey;
-    PointFn         m_onDrag;
-    PointFn         m_onDragEnd;
-    ClosedFn        m_onClosed;
-    CommandFn       m_onCommand;
-    bool            m_dragging      = false;
-    SIZE            m_dragSize      = {};
+    DxuiDockSite            * m_site = nullptr;
+    MouseFn                   m_onMouse;
+    KeyFn                     m_onKey;
+    PointFn                   m_onDrag;
+    PointFn                   m_onDragEnd;
+    ClosedFn                  m_onDragCancel;
+    ClosedFn                  m_onClosed;
+    CommandFn                 m_onCommand;
+    DxuiCaptionDragTracker    m_drag;
 };
