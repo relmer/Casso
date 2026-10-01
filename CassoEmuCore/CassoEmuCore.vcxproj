@@ -153,6 +153,7 @@
     <ClCompile Include="Debugger\DebuggerController.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
     <ClCompile Include="Ui\Debugger\StopChanges.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionEffect.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionTouches.cpp" />
     <ClCompile Include="Ui\Debugger\BranchArrow.cpp" />
@@ -542,6 +543,7 @@
     <ClInclude Include="Debugger\DebuggerController.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
     <ClInclude Include="Ui\Debugger\StopChanges.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerActions.h" />
     <ClInclude Include="Ui\Debugger\InstructionEffect.h" />
     <ClInclude Include="Ui\Debugger\InstructionTouches.h" />
     <ClInclude Include="Ui\Debugger\BranchArrow.h" />

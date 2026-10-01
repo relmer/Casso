@@ -48,6 +48,7 @@ namespace DebuggerTests
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
+        void  RunDebuggerAction       (const DebuggerAction & action)   override { commands.push_back (action.echo); }
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }

@@ -139,6 +139,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.PauseDebugRun();
             break;
 
+        case IDM_DEBUG_ACTION:
+            target.RunDebugActions();
+            break;
+
         case IDM_DEBUG_VIEW:
             DispatchDebugView (cmd.payload, target);
             break;

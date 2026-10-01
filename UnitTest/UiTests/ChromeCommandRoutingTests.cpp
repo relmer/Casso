@@ -130,6 +130,7 @@ public:
         { L"IDM_DEBUG_CLOSE",               IDM_DEBUG_CLOSE               },
         { L"IDM_DEBUG_PAUSE",               IDM_DEBUG_PAUSE               },
         { L"IDM_DEBUG_VIEW",                IDM_DEBUG_VIEW                },
+        { L"IDM_DEBUG_ACTION",              IDM_DEBUG_ACTION              },
         { L"IDM_VIEW_SETTINGS",             IDM_VIEW_SETTINGS             },
         { L"IDM_AUDIO_DRIVE_ENABLE",        IDM_AUDIO_DRIVE_ENABLE        },
         { L"IDM_AUDIO_DRIVE_DISABLE",       IDM_AUDIO_DRIVE_DISABLE       },

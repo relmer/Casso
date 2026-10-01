@@ -425,6 +425,30 @@ void EmulatorShell::RunDebuggerCommandInMode (const std::string & line, CommandM
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RunDebuggerAction
+//
+//  The action waits on the shell's queue, since a command crosses to the CPU
+//  thread as text and an action must not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunDebuggerAction (const DebuggerAction & action)
+{
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        m_debugActionsPending.push_back (action);
+    }
+
+    m_cpuManager.PostCommand (IDM_DEBUG_ACTION);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PauseDebugger
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -708,6 +732,54 @@ void EmulatorShell::PauseDebugRun()
         m_debugger->RequestPause();
         m_isDebugViewDirty = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunDebugActions
+//
+//  Every queued action, run directly against the session, with the console
+//  lines each gives. With no debugger open there is no one to show them to,
+//  so the actions are dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunDebugActions()
+{
+    std::vector<DebuggerAction>  actions;
+    std::vector<std::string>     lines;
+
+
+
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        actions.swap (m_debugActionsPending);
+    }
+
+    if (m_debugger == nullptr)
+    {
+        return;
+    }
+
+    for (const DebuggerAction & action : actions)
+    {
+        std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugger->GetSession(), action);
+
+        lines.insert (lines.end(), shown.begin(), shown.end());
+    }
+
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        m_debugConsolePending.insert (m_debugConsolePending.end(), lines.begin(), lines.end());
+    }
+
+    m_isDebugViewDirty = true;
 }
 
 

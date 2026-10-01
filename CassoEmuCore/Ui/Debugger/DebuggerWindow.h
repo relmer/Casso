@@ -50,6 +50,9 @@ public:
     virtual void  PauseDebugger           ()                               = 0;
     //  A line read in `mode` rather than in the session's own mode.
     virtual void  RunDebuggerCommandInMode (const std::string & line, CommandMode mode) = 0;
+    //  A control's action, run directly with its echo shown (FR-135). A host
+    //  with no session to run it on, as a test's is, has nothing to do.
+    virtual void  RunDebuggerAction       (const DebuggerAction &)          {}
     //  How many lines the code pane has room for, measured by the window.
     virtual void  SetDebuggerCodeLines    (int lines, int view)             = 0;
     //  A code view: 0 is the first, 1 to 3 the others. An address given for
@@ -289,6 +292,8 @@ private:
     void     SubmitPokeBox    ();
     void     RunCommand       (const std::string & line);
     void     RunToCursor      (Word address);
+    void     RunAction        (const DebuggerAction & action);
+    CommandMode  GetMode      () const;
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
     bool     RouteFindKey     (const DxuiKeyEvent & ev, bool & handled);

@@ -466,6 +466,7 @@ private:
         void     OpenDebugChannel()  override { calls.push_back ("OpenDebugChannel"); }
         void     CloseDebugChannel() override { calls.push_back ("CloseDebugChannel"); }
         void     PauseDebugRun()     override { calls.push_back ("PauseDebugRun"); }
+        void     RunDebugActions()   override { calls.push_back ("RunDebugActions"); }
 
         void     SetDebugView (const std::string & view, std::optional<Word> address) override
         {

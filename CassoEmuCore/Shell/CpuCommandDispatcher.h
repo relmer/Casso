@@ -61,6 +61,9 @@ public:
     virtual void     OpenDebugChannel         ()                                                = 0;
     virtual void     CloseDebugChannel        ()                                                = 0;
     virtual void     PauseDebugRun            ()                                                = 0;
+
+    //  Runs the debugger window's queued actions, each directly.
+    virtual void     RunDebugActions          ()                                                = 0;
     virtual void     SetDebugView             (const std::string & view, std::optional<Word> address) = 0;
 
     //  Where the trace pane reads from: an entry, or the newest when empty.

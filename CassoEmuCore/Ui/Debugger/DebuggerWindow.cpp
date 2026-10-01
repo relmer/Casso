@@ -410,7 +410,7 @@ void DebuggerWindow::ConfigureWidgets()
     {
         if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->breakpoints.size())
         {
-            RunCommand (std::format ("{} {}", checked ? "BPE" : "BPD", m_snapshot->breakpoints[(size_t) row].id));
+            RunAction (DebuggerActions::GetEnableBreakpoint (m_snapshot->breakpoints[(size_t) row].id, checked, GetMode()));
         }
     });
 
@@ -538,7 +538,7 @@ void DebuggerWindow::SetCommandBarMenus()
 
             m_menuCommands.push_back (MakeMenuCommand (Widen (panel.title), open, [this, id, open]
             {
-                RunCommand (DebuggerViewState::GetPanelLine (id, !open));
+                RunAction (DebuggerActions::GetPanel (id, !open, GetMode()));
             }));
 
             panels.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -555,7 +555,7 @@ void DebuggerWindow::SetCommandBarMenus()
 
         m_menuCommands.push_back (MakeMenuCommand (label, current, [this, mode]
         {
-            RunCommand ("MODE " + CommandModeNames::GetUpperName (mode));
+            RunAction (DebuggerActions::GetSetMode (mode, GetMode()));
         }));
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -641,7 +641,7 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 
     if (id == DebuggerCommands::kTrace)
     {
-        RunCommand (DebuggerViewState::GetTraceToggleLine (m_snapshot != nullptr && m_snapshot->trace.isOn));
+        RunAction (DebuggerActions::GetTraceToggle (m_snapshot != nullptr && m_snapshot->trace.isOn, GetMode()));
         return;
     }
 
@@ -1940,10 +1940,45 @@ void DebuggerWindow::RunCommand (const std::string & line)
 
 void DebuggerWindow::RunToCursor (Word address)
 {
+    RunAction (DebuggerActions::GetRunToCursor (address));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunAction
+//
+//  A control's action, which the session runs directly (FR-135).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunAction (const DebuggerAction & action)
+{
     if (m_host != nullptr)
     {
-        m_host->RunDebuggerCommandInMode (DebuggerViewState::GetRunToCursorLine (address), DebuggerViewState::kRunToCursorMode);
+        m_host->RunDebuggerAction (action);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMode
+//
+//  The session's mode as the last snapshot gave it, which an action's echo
+//  is written in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CommandMode DebuggerWindow::GetMode() const
+{
+    return (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
 }
 
 
@@ -2026,10 +2061,10 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
 
 bool DebuggerWindow::OnMappedCommand (int commandId)
 {
-    DebuggerKeySchemes::Action  action = (DebuggerKeySchemes::Action) commandId;
-    std::optional<std::string>  line;
-    int                         row    = m_codeLists[(size_t) m_activeCode]->GetSelectedRow();
-    DebuggerViewSnapshot        active;
+    DebuggerKeySchemes::Action     action = (DebuggerKeySchemes::Action) commandId;
+    std::optional<DebuggerAction>  taken;
+    int                            row    = m_codeLists[(size_t) m_activeCode]->GetSelectedRow();
+    DebuggerViewSnapshot           active;
 
 
 
@@ -2063,15 +2098,11 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         active.code = GetCodeLines (m_activeCode);
     }
 
-    line = DebuggerViewState::GetActionLine (action, (m_snapshot != nullptr) ? &active : nullptr, row);
+    taken = DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
 
-    if (line.has_value() && action == DebuggerKeySchemes::Action::RunToCursor)
+    if (taken.has_value())
     {
-        RunToCursor (active.code[(size_t) row].address);
-    }
-    else if (line.has_value())
-    {
-        RunCommand (*line);
+        RunAction (*taken);
     }
 
     return true;
@@ -3447,7 +3478,7 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
 
     if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
     {
-        RunCommand (DebuggerViewState::GetPanelLine (diagnosticsId, false));
+        RunAction (DebuggerActions::GetPanel (diagnosticsId, false, GetMode()));
         return;
     }
 
@@ -3891,7 +3922,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         }
 
         items.push_back ({ s.code[(size_t) row].hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
-                           [this, at] { RunCommand (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, at)); } });
+                           [this, at] { RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, at, GetMode())); } });
         items.push_back ({ L"Run to cursor",       [this, at] { RunToCursor (at); } });
         items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
         items.push_back ({ L"Copy",                copy });
@@ -3906,8 +3937,8 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         const DebuggerViewSnapshot::BreakpointLine  bp = s.breakpoints[(size_t) row];
 
         items.push_back ({ L"Show code",                        [this, bp] { ShowCode (bp.address); } });
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunCommand (std::format ("{} {}", bp.enabled ? "BPD" : "BPE", bp.id)); } });
-        items.push_back ({ L"Remove",                           [this, bp] { RunCommand (std::format ("BPC {}", bp.id)); } });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunAction (DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode())); } });
+        items.push_back ({ L"Remove",                           [this, bp] { RunAction (DebuggerActions::GetClearBreakpoint (bp.id, GetMode())); } });
 
         //  Its type and the fields that type needs, in a dialog; the result is
         //  the BPEDIT line a person could have typed (FR-094).
@@ -3938,7 +3969,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
                 const DebuggerViewSnapshot::WatchLine  watch = *found;
 
                 AddShowInMemory (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
-                items.push_back ({ L"Remove", [this, watch] { RunCommand (std::format ("WC {}", watch.id)); } });
+                items.push_back ({ L"Remove", [this, watch] { RunAction (DebuggerActions::GetClearWatch (watch.id, GetMode())); } });
             }
         }
         else if (what.kind == WatchRowKind::Automatic && what.index < (int) s.autoWatches.size() &&
@@ -4631,7 +4662,7 @@ void DebuggerWindow::RemoveSelectedWatch()
 
     if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
     {
-        RunCommand (std::format ("WC {}", m_watchRows[(size_t) row].index));
+        RunAction (DebuggerActions::GetClearWatch (m_watchRows[(size_t) row].index, GetMode()));
     }
 }
 
@@ -4769,7 +4800,7 @@ void DebuggerWindow::KeepOpenViews()
 
         for (const std::string & panel : views.panels)
         {
-            RunCommand (DebuggerViewState::GetPanelLine (panel, true));
+            RunAction (DebuggerActions::GetPanel (panel, true, GetMode()));
         }
 
         return;
@@ -5113,7 +5144,7 @@ void DebuggerWindow::SubmitPokeBox()
 
     if (m_host != nullptr)
     {
-        RunCommand (DebuggerViewState::GetPokeLine (address, (Byte) value));
+        RunAction (DebuggerActions::GetPoke (address, (Byte) value, GetMode()));
     }
 
     m_pokeBox->SetText (L"");
@@ -5182,13 +5213,13 @@ void DebuggerWindow::EditRegister (const std::string & name)
 
     if (name == "P" && value.has_value() && FlagsDialog::Ask (GetHwnd(), m_theme, *value, p))
     {
-        RunCommand (std::format ("R P {:02X}", p));
+        RunAction (DebuggerActions::GetSetRegister ("P", p, GetMode()));
     }
     else if (name == "S" && value.has_value() &&
              CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Stack pointer", L"S, in hex ($00-$FF):", std::format (L"{:02X}", *value), 4, text) &&
              TryParseHexWord (text, typed) && typed <= 0xFF)
     {
-        RunCommand (std::format ("R S {:02X}", typed));
+        RunAction (DebuggerActions::GetSetRegister ("S", (Byte) typed, GetMode()));
     }
 }
 
@@ -5623,7 +5654,7 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
 
         if (GetCodeViewOf (list) >= 0 && row >= 0 && row < (int) GetCodeLines (GetCodeViewOf (list)).size())
         {
-            RunCommand (DebuggerViewState::GetToggleBreakpointLine (*m_snapshot, GetCodeLines (GetCodeViewOf (list))[(size_t) row].address));
+            RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, GetCodeLines (GetCodeViewOf (list))[(size_t) row].address, GetMode()));
             return true;
         }
 

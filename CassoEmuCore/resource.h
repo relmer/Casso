@@ -74,6 +74,10 @@
 #define IDM_DEBUG_PAUSE             40153
 #define IDM_DEBUG_VIEW              40154
 
+//  A control's action in the debugger window, run directly on the CPU thread.
+//  The actions wait in a queue on the shell, so the command carries no payload.
+#define IDM_DEBUG_ACTION            40158
+
 //  Power-cycles the machine with the debugger window open, so the call stack
 //  is recorded from the first instruction the machine runs.
 #define IDM_DEBUG_RESTART           40157

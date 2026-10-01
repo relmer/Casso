@@ -504,6 +504,7 @@ private:
     void    SetDebugTraceView  (std::optional<uint64_t> first);
     void    GoToDebugMemory    (int window, const std::string & text);
     void    ScrollDebugCode    (int lines, int view);
+    void    RunDebugActions    ();
 
     // Rebuilds the window's snapshot when it is showing and due. CPU thread.
     void    PublishDebuggerView ();
@@ -511,6 +512,7 @@ private:
     // IDebuggerWindowHost, called by the window on the UI thread.
     void    RunDebuggerCommand       (const std::string & line) override;
     void    RunDebuggerCommandInMode (const std::string & line, CommandMode mode) override;
+    void    RunDebuggerAction        (const DebuggerAction & action) override;
     void    PauseDebugger            () override;
     void    SetDebuggerCodeLines     (int lines, int view) override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address, int view) override;
@@ -2175,6 +2177,7 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot>    m_debugViewSnapshot;
     bool                                           m_isDebugViewFresh   = false;
     std::vector<std::string>                       m_debugConsolePending;
+    std::vector<DebuggerAction>                    m_debugActionsPending;
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};

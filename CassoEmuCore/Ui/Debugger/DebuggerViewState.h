@@ -3,6 +3,7 @@
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/Reply.h"
+#include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/InstructionTouches.h"
 
@@ -475,6 +476,11 @@ public:
     //  prompt of the mode it runs in, then the reply. It runs in `lineMode`
     //  when given, otherwise in the session's mode. CPU thread only.
     std::vector<std::string>  ExecuteConsoleLine (DebugSession & session, const std::string & line, std::optional<CommandMode> lineMode = std::nullopt);
+
+    //  The lines the console shows for a control's action: its echo behind
+    //  the prompt, then the reply. The command runs directly, never through a
+    //  parser (FR-135). CPU thread only.
+    std::vector<std::string>  ExecuteAction (DebugSession & session, const DebuggerAction & action);
 
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.

@@ -1491,6 +1491,55 @@ std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::ExecuteAction
+//
+//  PANEL is the window's own, so it runs on the panes; anything else goes to
+//  the session. A script the command starts runs its lines back through this
+//  window, as one a typed line starts does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & session, const DebuggerAction & action)
+{
+    CommandMode                     mode     = action.echoMode.value_or (session.GetMode());
+    DebugVerb                       verb     = action.command.verb;
+    DebugSession::ScriptLineRunner  previous = session.GetScriptLineRunner();
+    std::vector<std::string>        lines;
+    Reply                           reply;
+
+
+
+    if (verb == DebugVerb::ListPanels || verb == DebugVerb::OpenPanel || verb == DebugVerb::ClosePanel)
+    {
+        reply.command = action.command.sourceName;
+        RunPanelCommand (session, action.command, reply);
+    }
+    else
+    {
+        session.SetScriptLineRunner ([this, &session] (const std::string & scriptLine, CommandMode scriptMode)
+        {
+            return ExecuteWindowLine (session, scriptLine, scriptMode);
+        });
+
+        reply = session.Execute (action.command);
+        session.SetScriptLineRunner (std::move (previous));
+    }
+
+    reply.mode = mode;
+    session.FormatReply (reply, mode);
+
+    lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
+    lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::ExecuteWindowLine
 //
 //  THIS WINDOW SHOWS EVERY PANE AT ONCE, so AppleWin's commands that pick a
