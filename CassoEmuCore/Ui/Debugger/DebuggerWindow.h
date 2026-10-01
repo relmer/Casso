@@ -536,7 +536,6 @@ private:
     void     ShowCode         (std::optional<Word> address);
     void     ConfigureCodeList (int view);
     int      GetCodeViewOf    (const IDxuiControl * control) const;
-    bool     GroupHasMemory   (const DxuiTabGroup & group) const;
     bool     GroupHasCode     (const DxuiTabGroup & group) const;
     int      GetOpenCodeViewCount () const;
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;

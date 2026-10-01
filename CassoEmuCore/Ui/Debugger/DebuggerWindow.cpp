@@ -3773,22 +3773,16 @@ void DebuggerWindow::ConfigureDockSite()
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
 
-    //  A + after the memory tabs opens the next memory window, as a browser
-    //  opens a tab, until all four are open.
-    //  The same after the disassembly tabs opens another disassembly view at
-    //  the PC.
+    //  A + after the disassembly tabs opens another disassembly view at the
+    //  PC, as a browser opens a tab. Memory windows have none, as Visual
+    //  Studio's have none: they open from the View menu's Memory cascade.
     m_dockSite->SetNewTab ([this] (const DxuiTabGroup & group)
     {
-        return (GroupHasMemory (group) && std::count (m_memoryOpen.begin(), m_memoryOpen.end(), true) < DebuggerViewState::kMaxMemoryWindows) ||
-               (GroupHasCode   (group) && GetOpenCodeViewCount() < DebuggerViewState::kMaxCodeViews);
+        return GroupHasCode (group) && GetOpenCodeViewCount() < DebuggerViewState::kMaxCodeViews;
     },
     [this] (const DxuiTabGroup & group)
     {
-        if (GroupHasMemory (group))
-        {
-            AddMemoryWindow();
-            return;
-        }
+        (void) group;
 
         for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
         {
@@ -6548,34 +6542,6 @@ void DebuggerWindow::ConfigureCodeList (int view)
     list->SetTextSelection         (true);
     list->SetOwnerWindow           (GetHwnd());
 
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GroupHasMemory
-//
-//  Whether a tab group holds a memory pane.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::GroupHasMemory (const DxuiTabGroup & group) const
-{
-    for (size_t i = 0; i < group.GetTabCount(); i++)
-    {
-        for (const std::unique_ptr<DebuggerPaneFrame> & frame : m_memoryFrames)
-        {
-            if (group.GetContent ((int) i) == frame.get())
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
 }
 
 
