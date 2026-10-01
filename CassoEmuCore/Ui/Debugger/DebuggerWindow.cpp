@@ -2195,7 +2195,7 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
 
     if (m_commandBar != nullptr)
     {
-        SetCommandBarMenus();
+        SetWindowMenus();
     }
 
     Invalidate();
