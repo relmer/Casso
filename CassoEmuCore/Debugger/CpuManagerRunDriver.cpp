@@ -51,7 +51,7 @@ HRESULT CpuManagerRunDriver::Start (const RunRequest & request)
     CBRAEx (hasCpu, E_UNEXPECTED);
 
     m_pauseRequested = false;
-    m_isStep         = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
+    m_isStep         = request.kind == RunKind::StepInto || request.kind == RunKind::Trace;
     m_spent          = 0;
     m_budget         = request.budget;
     m_previousHook   = m_host.GetDebugHook();

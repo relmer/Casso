@@ -24,8 +24,9 @@ namespace DebuggerTests
     //
     //  StepSoundTests
     //
-    //  FR-140: sound is silent while the machine is single-stepped and resumes
-    //  when it runs. The frame loop drops the speaker's output whenever the
+    //  Sound is silent while the machine executes one instruction at a time
+    //  (step into, trace) and plays whenever it runs code, step over and step
+    //  out included. The frame loop drops the speaker's output whenever the
     //  run driver reports a silent run, so the driver's answer is the rule.
     //
     ////////////////////////////////////////////////////////////////////////////////
@@ -76,22 +77,22 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (EveryStepIsSilent)
+        TEST_METHOD (SingleInstructionStepIsSilent)
         {
-            for (RunKind kind : { RunKind::StepInto, RunKind::StepOver, RunKind::StepOut, RunKind::Trace })
+            for (RunKind kind : { RunKind::StepInto, RunKind::Trace })
             {
                 Rig  rig;
 
 
 
                 rig.Start (kind);
-                Assert::IsTrue (rig.driver.IsSilent(), L"a step plays no sound");
+                Assert::IsTrue (rig.driver.IsSilent(), L"a single-instruction step plays no sound");
             }
         }
 
         TEST_METHOD (ARunIsHeard)
         {
-            for (RunKind kind : { RunKind::Go, RunKind::RunTo })
+            for (RunKind kind : { RunKind::Go, RunKind::RunTo, RunKind::StepOver, RunKind::StepOut })
             {
                 Rig  rig;
 

@@ -61,8 +61,9 @@ public:
 
     bool     IsRunning       () const { return m_isRunning; }
 
-    //  True while a step is executing. The frame loop drops the speaker's
-    //  output then, so stepping is silent and sound resumes with a run.
+    //  True while a single-instruction step (step into, trace) is executing.
+    //  The frame loop drops the speaker's output then. Step over and step out
+    //  run code, so they are heard like any other run.
     bool     IsSilent        () const { return m_isRunning && m_isStep; }
 
 private:

@@ -1232,8 +1232,9 @@ trace, with the next instructions shown below it.
 - **FR-138**: The trace MUST be savable as a text file of its rows as the
   pane shows them, from the pane and from the console.
 - **FR-139**: Removed 2026-09-30. Step over and step out stay unavailable while the machine runs: pause first, then step.
-- **FR-140**: Sound MUST be silent while the machine is single-stepped and
-  MUST resume when it runs.
+- **FR-140**: Sound MUST be silent during a single-instruction step (step into,
+  trace) and MUST play whenever the machine runs code, step over and step out
+  included.
 - **FR-141**: A document for AI agents MUST describe driving a running
   Casso's debugger through `CassoCli --attach`: starting, sending commands in
   a chosen mode, and reading replies.
