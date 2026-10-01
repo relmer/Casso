@@ -357,10 +357,6 @@ private:
     bool                                  m_isStartingRun = false;
     bool                                  m_isStepPending = false;
 
-    //  A step over or step out asked for while a run is in progress: the run
-    //  is paused, and the step starts from where the pause leaves the machine.
-    std::optional<DebugCommand>           m_stepAfterPause;
-
     // A step out that ends on the call record keeps the record until it
     // stops, even when recording is turned off while it runs.
     bool                                  m_isStepOutOnRecord      = false;

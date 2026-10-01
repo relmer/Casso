@@ -980,7 +980,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T251 Add the trace pane's key-hint line and its focus keys Space, O, R, Return, T and B, per FR-136, US19/AC1-2, SC-035 (missing)
 - [X] T252 Show the next several instructions from PC below the trace while stopped, following branches the flags decide, per FR-137, US19/AC3 (missing)
 - [X] T253 Save the trace as text of its rows as shown, from the pane and the console, per FR-138, US19/AC4 (missing)
-- [X] T254 Make step over and step out available while the machine runs, first sizing the work, per FR-139, US19/AC5 (missing)
+- [ ] T254 Make step over and step out available while the machine runs, first sizing the work, per FR-139, US19/AC5 (missing)
 - [X] T255 Write the document for AI agents on driving a running Casso's debugger through CassoCli --attach, per FR-141 (missing)
 - [X] T256 Make console Find work like Visual Studio Code's find bar: an inline bar with the search box, toggle buttons for match case (Aa), match whole word (ab) and regular expression (.*), plain substring matching when none is on, an "N of M" match count, previous and next arrows, and a close button, per the owner's 2026-09-30 review (partial)
 - [X] T257 Make the debugger window's toolbar, F9, gutter clicks, run to cursor and other window actions call the debugger functions directly instead of building command text for the parser, keeping a console echo of the equivalent command only as display, per FR-135 and the owner's 2026-09-30 decision (contradicts)

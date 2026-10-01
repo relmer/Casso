@@ -877,7 +877,7 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 //  DebuggerWindow::IsCommandBarEntryEnabled
 //
 //  A running machine has no state to step through, so everything that acts
-//  on a stopped one is off while it runs, save step over and step out, and Pause is off while it is
+//  on a stopped one is off while it runs, and Pause is off while it is
 //  already stopped. Run to Cursor needs a line to run to as well. The
 //  choices that only change what the window shows stay live throughout.
 //
@@ -899,13 +899,8 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
         return !paused;
     }
 
-    //  Step over and step out pause a run and step from there (FR-139).
-    if (id == DebuggerCommands::kStepOver || id == DebuggerCommands::kStepOut)
-    {
-        return true;
-    }
-
-    if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kShowNext)
+    if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
+        id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext)
     {
         return paused;
     }
