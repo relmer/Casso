@@ -164,9 +164,8 @@ namespace DebuggerTests
 
 
 
-            style.bytesArgb  = 0xFF808080;
             style.resultArgb = 0xFF00FFFF;
-            rows = SourcePane::BuildRows ({ L"x", L"  lda $10", L"  .byte 1" }, 2, {}, {}, style, {},
+            rows = SourcePane::BuildRows ({ L"x", L"  lda $10", L"  .byte 1" }, 2, {}, {}, style,
                                           { { 2, { L"$10: 07", L"A=07" } }, { 3, { L"$01: 00", L"" } } });
 
             Assert::AreEqual ((size_t) 4,                       rows[1].cells.size());

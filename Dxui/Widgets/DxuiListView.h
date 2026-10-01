@@ -72,6 +72,12 @@ public:
         //  every cell of a row marks the row.
         uint32_t  argb       = 0;
         uint32_t  background = 0;
+
+        //  The text runs on across the columns after this one to the row's
+        //  end, whose cells are not drawn, and counts toward no column's
+        //  fitted width: a line between the rows rather than a value in a
+        //  column.
+        bool      spansRow   = false;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -186,6 +192,9 @@ public:
     // Row count honoring virtual (provider) mode. All scroll math, hit-test,
     // and paint bounds go through this so the two modes share one code path.
     int   GetRowCount              () const { return m_virtual ? m_virtualCount : (int) m_rows.size(); }
+
+    //  A row's cells as the list draws them.
+    const std::vector<Cell> &  GetCellsOfRow (int row) const { return GetRowCells (row); }
 
     int   GetHoveredRow            () const                 { return m_hovered; }
     bool  IsHeaderShown            () const                 { return m_showHeader; }

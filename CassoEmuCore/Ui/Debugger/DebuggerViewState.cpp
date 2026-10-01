@@ -623,54 +623,6 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     state.stepBySource  = session.IsStepBySource();
     state.lineAddresses = m_lineAddresses;
 
-    //  Each line's bytes, from the first range it produced: up to eight, and
-    //  none read from a soft switch, which a read would operate.
-    if (snapshot.isPaused)
-    {
-        auto  bytes = std::make_shared<std::map<std::pair<int, int>, std::string>>();
-
-        for (const auto & [place, first] : *m_lineAddresses)
-        {
-            std::string  text;
-            Word         last  = first;
-
-            for (const std::pair<Word, Word> & range : table.GetRanges (place.first, place.second))
-            {
-                last = (range.first == first) ? range.second : last;
-            }
-
-            for (int i = 0; i <= (int) (last - first) && i < kMaxLineBytes; i++)
-            {
-                Byte  value   = 0;
-                Word  address = (Word) (first + i);
-
-                if (session.GetTarget().GetRegion (address) == MemoryRegion::Io || !session.TryPeek (address, value))
-                {
-                    break;
-                }
-
-                text += std::format ("{}{:02X}", text.empty() ? "" : " ", value);
-            }
-
-            if (!text.empty() && (int) (last - first) >= kMaxLineBytes)
-            {
-                text += " ...";
-            }
-
-            if (!text.empty())
-            {
-                (*bytes)[place] = std::move (text);
-            }
-        }
-
-        if (m_lineBytes == nullptr || *m_lineBytes != *bytes)
-        {
-            m_lineBytes = bytes;
-        }
-    }
-
-    state.lineBytes = m_lineBytes;
-
     if (!atPc.empty())
     {
         state.fileId     = atPc.front().file;
@@ -691,7 +643,6 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     if (snapshot.isPaused)
     {
         auto                            operands = std::make_shared<DebuggerViewSnapshot::LineOperands>();
-        auto                            code     = std::make_shared<DebuggerViewSnapshot::LineCode>();
         const Cpu6502Registers        & now      = session.GetTarget().GetRegisters();
         std::optional<DisassemblyLine>  atPcLine = GetInstructionAt (session, snapshot.pc);
         InstructionTouches::Result      touches;
@@ -730,26 +681,6 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
         }
 
         //  The instructions in every range each of those lines produced.
-        for (const auto & [place, first] : *m_lineAddresses)
-        {
-            if (place.first != state.fileId && place.first != state.bodyFileId)
-            {
-                continue;
-            }
-
-            for (const std::pair<Word, Word> & range : table.GetRanges (place.first, place.second))
-            {
-                std::vector<std::string>  each = GetLineCode (session, range.first, range.second);
-
-                (*code)[place].insert ((*code)[place].end(), each.begin(), each.end());
-            }
-        }
-
-        if (m_lineCode == nullptr || *m_lineCode != *code)
-        {
-            m_lineCode = code;
-        }
-
         if (atPcLine.has_value() && atPcLine->instruction.hasTarget)
         {
             touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now,
@@ -761,7 +692,6 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     }
 
     state.lineOperands = snapshot.isPaused ? m_lineOperands : nullptr;
-    state.lineCode     = snapshot.isPaused ? m_lineCode     : nullptr;
 
     //  Every view's rows, as the window paints them, and the copy in `code`.
     for (int view = -1; view < kMaxCodeViews; view++)
@@ -2980,44 +2910,6 @@ std::optional<DisassemblyLine> DebuggerViewState::GetInstructionAt (DebugSession
     }
 
     return data->lines.front();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerViewState::GetLineCode
-//
-//  The instructions from `first` to `last`, as the disassembly lists them,
-//  up to kMaxLineCode; an I/O address ends them, since a read would operate
-//  it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::string> DebuggerViewState::GetLineCode (DebugSession & session, Word first, Word last)
-{
-    std::vector<std::string>  code;
-    int                       address = first;
-
-
-
-    while (address <= last && (int) code.size() < kMaxLineCode)
-    {
-        std::optional<DisassemblyLine>  line = GetInstructionAt (session, (Word) address);
-
-        if (!line.has_value() || line->instruction.bytes.empty())
-        {
-            break;
-        }
-
-        code.push_back (std::format ("{:04X}  {}", address, line->instruction.operand.empty() ? line->instruction.mnemonic
-                                                                                               : line->instruction.mnemonic + " " + line->GetShownOperand()));
-        address += (int) line->instruction.bytes.size();
-    }
-
-    return code;
 }
 
 

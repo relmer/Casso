@@ -3208,7 +3208,7 @@ namespace DebuggerViewStateTests
             pane.SetFile     (snapshot.source->bodyFileId);
             pane.SetShowBody (true);
             pane.Apply       (snapshot);
-            Assert::AreEqual ((size_t) 6, view.GetRows().size(),         L"the body's file, its STA's instruction below its last line");
+            Assert::AreEqual ((size_t) 5, view.GetRows().size(),         L"the body's file, with no instruction rows under its lines");
             Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[4].cells[0]);
         }
 

@@ -55,9 +55,7 @@ public:
         std::shared_ptr<const DxuiIconImage>   enabledIcon;
         std::shared_ptr<const DxuiIconImage>   disabledIcon;
         SourceSyntax::Colors                   syntax;
-        uint32_t                               bytesArgb    = 0;
         uint32_t                               resultArgb   = 0;
-        SourceSyntax::Colors                   codeSyntax;
 
         bool operator== (const Style & other) const = default;
     };
@@ -85,10 +83,6 @@ public:
 
     //  Whose grammar colors the text: Any goes by what the file shows. Rows
     //  are rebuilt with the next Apply when it changes.
-    //  Whether each line's instructions are listed under it. Rows are rebuilt
-    //  with the next Apply when it changes.
-    void  SetShowCode   (bool show);
-    bool  IsShowingCode () const { return m_showCode; }
 
     void                     SetAssembler       (SourceSyntax::Assembler assembler);
     SourceSyntax::Assembler  GetAssemblerChoice () const { return m_assemblerChoice; }
@@ -163,13 +157,11 @@ public:
                                                        const std::set<int> & breakpointLines,
                                                        const std::set<int> & disabledLines = {},
                                                        const Style         & style         = {},
-                                                       const std::map<int, std::wstring> & lineBytes = {},
                                                        const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands = {},
                                                        SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any,
-                                                       SourceSyntax::Listing   listing   = SourceSyntax::Listing::None,
-                                                       const std::map<int, std::vector<std::wstring>> & lineCode = {});
+                                                       SourceSyntax::Listing   listing   = SourceSyntax::Listing::None);
 
-    //  The source line each row shows, 0 for a row of a line's instructions.
+    //  The source line each row shows.
     static std::vector<int>  GetRowLines (const std::vector<DxuiTextView::Row> & rows);
 
     //  Whether a line's opcode is a 65C02 mnemonic, so that it is one instruction.
@@ -212,9 +204,6 @@ private:
     void  ScrollTo   (int line);
     std::optional<int>  GetLineAt (POINT atDip) const;
     int   GetRowOfLine (int line) const;
-    static void  AddCodeRows (const std::map<int, std::vector<std::wstring>> & lineCode, int number, const std::wstring & line,
-                              size_t markerWidth, int numberWidth, const Style & style, SourceSyntax::Assembler assembler,
-                              SourceSyntax::Listing listing, std::vector<DxuiTextView::Row> & rows);
     std::string  GetFileName (int fileId) const;
 
     DxuiTextView                                     * m_view    = nullptr;
@@ -241,14 +230,11 @@ private:
     bool                                                               m_followPending   = false;
     std::set<int>                                                      m_rowsBreakpoints;
     std::set<int>                                                      m_rowsDisabled;
-    std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  m_rowsLineBytes;
     std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_rowsLineOperands;
-    std::shared_ptr<const DebuggerViewSnapshot::LineCode>              m_rowsLineCode;
     std::vector<int>                                                   m_rowLines;
     std::set<int>                                                      m_disabledIds;
     Style                                                              m_style;
     bool                                                               m_isStyleStale    = false;
-    bool                                                               m_showCode        = true;
     bool                                                               m_isLoose         = false;
     bool                                                               m_isLooseSource   = false;
     SourceSyntax::Assembler                                            m_assemblerChoice = SourceSyntax::Assembler::Any;

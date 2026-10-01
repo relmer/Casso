@@ -116,7 +116,7 @@ namespace DebuggerTests
 
 
             style.syntax = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004, 0xFF000005, 0xFF000006 };
-            rows = SourcePane::BuildRows ({ L"        LDA   0       clear it" }, 0, {}, {}, style, {}, {}, Assembler::Merlin);
+            rows = SourcePane::BuildRows ({ L"        LDA   0       clear it" }, 0, {}, {}, style, {}, Assembler::Merlin);
 
             Assert::AreEqual ((size_t) 3,  rows[0].spans.size());
             Assert::AreEqual (0xFF000006u, rows[0].spans[2].argb, L"the comment field");

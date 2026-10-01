@@ -304,7 +304,7 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
             continue;
         }
 
-        chars = (int) cells[c].text.size();
+        chars = cells[c].spansRow ? 0 : (int) cells[c].text.size();
 
         if (m_showHeader)
         {
@@ -581,7 +581,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 
         for (const auto & row : m_rows)
         {
-            if (c < row.size() && !row[c].text.empty())
+            if (c < row.size() && !row[c].text.empty() && !row[c].spansRow)
             {
                 hr = text.MeasureString (row[c].text.c_str(), fontDip, GetBodyFace(), w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -649,7 +649,7 @@ void DxuiListView::UpdateAutoFitFromRows()
 
         for (const auto & row : m_rows)
         {
-            if (c < row.size())
+            if (c < row.size() && !row[c].spansRow)
             {
                 maxChars = std::max (maxChars, (int) row[c].text.size());
             }
@@ -3138,6 +3138,7 @@ void DxuiListView::PaintDataRows (
         //  began on is not marked as well.
         bool                       isSel = ((m_listFocused || m_alwaysShowSelection) && !m_hasTextSel &&
                                             (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
+        bool                       spans = false;
 
         if (isSel)
         {
@@ -3157,19 +3158,27 @@ void DxuiListView::PaintDataRows (
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }
 
-        for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
+        for (size_t c = 0; c < m_columns.size() && c < cells.size() && !spans; ++c)
         {
             uint32_t  argb      = (cells[c].argb != 0) ? cells[c].argb : (cells[c].dim ? pal.fgDim : pal.fg);
             float     iconShift = 0.0f;
+            float     cellW     = (float) colWPx[c];
 
             if (!m_columns[c].visible || colWPx[c] <= 0)
             {
                 continue;
             }
 
+            //  A spanning cell runs to the row's end and ends the row.
+            if (cells[c].spansRow)
+            {
+                spans = true;
+                cellW = (std::max) (cellW, layoutW - colOff - (float) colXPx[c]);
+            }
+
             if (cells[c].background != 0)
             {
-                painter.FillRect (x + colOff + (float) colXPx[c], ry, (float) colWPx[c], rowH, cells[c].background);
+                painter.FillRect (x + colOff + (float) colXPx[c], ry, cellW, rowH, cells[c].background);
             }
 
             if (cells[c].check.has_value())
@@ -3202,7 +3211,7 @@ void DxuiListView::PaintDataRows (
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
-                float                 cellMaxW = (float) colWPx[c] - cellPadL - cellPadR - iconShift;
+                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
                 float                 wS       = 0.0f;
                 float                 wE       = 0.0f;
                 float                 hIgnore  = 0.0f;
@@ -3235,7 +3244,7 @@ void DxuiListView::PaintDataRows (
             {
                 const std::wstring &  cellText  = cells[c].text;
                 float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
-                float                 cellMaxW  = (float) colWPx[c] - cellPadL - cellPadR - iconShift;
+                float                 cellMaxW  = cellW - cellPadL - cellPadR - iconShift;
                 float                 bandInset = rowH * 0.14f;
 
                 for (const std::pair<int, int> & mr : cells[c].matches)
@@ -3279,7 +3288,7 @@ void DxuiListView::PaintDataRows (
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
-                float                 cellMaxW = (float) colWPx[c] - cellPadL - cellPadR - iconShift;
+                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
                 int                   pos      = 0;
                 std::vector<uint32_t> colors   (cellText.size(), argb);
 
@@ -3345,7 +3354,7 @@ void DxuiListView::PaintDataRows (
             hr = text.DrawString (cells[c].text.c_str(),
                                   x + colOff + (float) colXPx[c] + cellPadL + iconShift,
                                   ry,
-                                  (float) colWPx[c] - cellPadL - cellPadR - iconShift,
+                                  cellW - cellPadL - cellPadR - iconShift,
                                   rowH,
                                   argb,
                                   fontPx,

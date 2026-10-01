@@ -251,6 +251,9 @@ struct GlobalUserPrefs
     // Where the debugger's command bar is docked: its edge and its place
     // along it, as "left 120".
     std::string  debuggerCommandBarDock;
+    // The debugger's disassembly viewing options turned on, as keys separated
+    // by spaces; empty gives the defaults.
+    std::string  debuggerDisassemblyOptions;
 
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one

@@ -186,7 +186,10 @@ void DebuggerWindow::OnCreate()
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         m_codeLists[(size_t) view] = (view == 0) ? m_codeList : CreateChild<DxuiListView>();
+        m_codeBars[(size_t) view]  = CreateChild<DxuiToolbar>();
     }
+
+    m_codeOptions = DisassemblyOptions::FromText ((m_host != nullptr) ? m_host->GetDebuggerDisassemblyOptions() : std::string());
 
     m_registerList      = CreateChild<DxuiListView>  ();
     m_breakpointList    = CreateChild<DxuiListView>  ();
@@ -311,6 +314,7 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureCommandBar();
     ConfigureConsoleBar();
     ConfigureSourceBars();
+    ConfigureCodeBars();
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
@@ -1369,9 +1373,7 @@ void DebuggerWindow::ApplySource()
         DxuiTabGroup::LeadingMark    mark;
 
         document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
-                                       GetTextColors().muted, GetResultArgb(),
-                                       GetSyntaxColors().GetBlended ((m_theme != nullptr) ? m_theme->ContentBackground() : 0u) });
-        document.pane->SetShowCode (m_showSourceCode);
+                                       GetResultArgb() });
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
         document.pane->Apply       (*m_snapshot);
@@ -2192,22 +2194,150 @@ void DebuggerWindow::LoadSymbolsFor (int slot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ToggleSourceCode
+//  DebuggerWindow::ToggleCodeOption
 //
-//  The rows of instructions each source line assembled to, listed under it.
+//  A disassembly viewing option switched from its check box: every view is
+//  redrawn with it, and the choice is saved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::ToggleSourceCode()
+void DebuggerWindow::ToggleCodeOption (DisassemblyOptions::Option option)
 {
-    m_showSourceCode = !m_showSourceCode;
-
-    if (m_snapshot != nullptr)
+    if (!IsCodeOptionEnabled (option))
     {
-        ApplySource();
+        return;
+    }
+
+    m_codeOptions.Toggle (option);
+
+    if (m_host != nullptr)
+    {
+        m_host->SetDebuggerDisassemblyOptions (m_codeOptions.ToText());
+    }
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
+    {
+        ApplyCodeView (view);
     }
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsCodeOptionEnabled
+//
+//  Source and line numbers only once a debug file maps the code; the line
+//  numbers only with the source they number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsCodeOptionEnabled (DisassemblyOptions::Option option) const
+{
+    bool  hasDebugFile = m_snapshot != nullptr && m_snapshot->source.has_value();
+
+
+
+    if (!DisassemblyOptions::NeedsDebugFile (option))
+    {
+        return true;
+    }
+
+    if (option == DisassemblyOptions::Option::LineNumbers)
+    {
+        return hasDebugFile && m_codeOptions.IsOn (DisassemblyOptions::Option::Source);
+    }
+
+    return hasDebugFile;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCodeLineOfRow
+//
+//  The instruction a view's row shows, as an index into its lines, or -1 for
+//  a source row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::GetCodeLineOfRow (int view, int row) const
+{
+    int  line = -1;
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
+    {
+        return -1;
+    }
+
+    line = DisassemblyOptions::GetLineOfRow (m_codeRows[(size_t) view], row);
+
+    return (line < (int) GetCodeLines (view).size()) ? line : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetSourceText
+//
+//  A source line's text for the disassembly, read through the host as a
+//  source document reads its file, once per file while the same debug file
+//  is loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetSourceText (int fileId, int line, std::wstring & text)
+{
+    const DebuggerViewSnapshot::SourceState  * source = nullptr;
+    SourceLookup                               lookup;
+
+
+
+    if (m_snapshot == nullptr || !m_snapshot->source.has_value() || m_host == nullptr || line <= 0)
+    {
+        return false;
+    }
+
+    source = &*m_snapshot->source;
+
+    if (m_codeSourceKey != source->debugFilePath)
+    {
+        m_codeSourceKey = source->debugFilePath;
+        m_codeSourceText.clear();
+    }
+
+    if (!m_codeSourceText.contains (fileId))
+    {
+        for (const DebugSourceFile & record : source->files)
+        {
+            if (record.id == fileId)
+            {
+                lookup = m_host->FindDebuggerSource (record, source->debugFilePath, source->programKey);
+            }
+        }
+
+        m_codeSourceText[fileId] = SourcePane::SplitLines (lookup.text);
+    }
+
+    if (line > (int) m_codeSourceText[fileId].size())
+    {
+        return false;
+    }
+
+    text = m_codeSourceText[fileId][(size_t) (line - 1)];
+    return true;
 }
 
 
@@ -2519,7 +2649,7 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 {
     DebuggerKeySchemes::Action     action = (DebuggerKeySchemes::Action) commandId;
     std::optional<DebuggerAction>  taken;
-    int                            row    = m_codeLists[(size_t) m_activeCode]->GetSelectedRow();
+    int                            row    = GetCodeLineOfRow (m_activeCode, m_codeLists[(size_t) m_activeCode]->GetSelectedRow());
     DebuggerViewSnapshot           active;
 
 
@@ -3882,6 +4012,7 @@ void DebuggerWindow::LayoutWidgets()
     PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
+    PlaceCodeBars();
     PlaceFindBar();
     ClipPaneControls();
 }
@@ -4358,10 +4489,12 @@ void DebuggerWindow::ConfigureDockSite()
         each.frame->AddPart (each.list);
     }
 
-    //  A disassembly view is a frame over its lines.
+    //  A disassembly view is its toolbar over its lines.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
-        m_codeFrames[(size_t) view] = std::make_unique<DebuggerPaneFrame> (std::format (L"Disassembly {}", view + 1));
+        m_codeFrames[(size_t) view]   = std::make_unique<DebuggerPaneFrame> (std::format (L"Disassembly {}", view + 1));
+        m_codeBarSlots[(size_t) view] = std::make_unique<DebuggerPaneFrame> (L"Disassembly options");
+        m_codeFrames[(size_t) view]->AddPart (m_codeBarSlots[(size_t) view].get(), barHeight);
         m_codeFrames[(size_t) view]->AddPart (m_codeLists[(size_t) view]);
 
         m_dockSite->AddPane (DebuggerLayout::GetCodePaneId (view), std::format (L"Disassembly {}", view + 1),
@@ -4624,8 +4757,11 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
 
     for (size_t i = 0; i < lines.size(); i++)
     {
-        target = (lines[i].address == goesTo) ? (int) i : target;
+        target = (lines[i].address == goesTo) ? DisassemblyOptions::GetRowOfLine (m_codeRows[(size_t) view], (int) i) : target;
     }
+
+    //  From here on, rows: a source row shown above an instruction moves it.
+    current = DisassemblyOptions::GetRowOfLine (m_codeRows[(size_t) view], current);
 
     bounds = list->GetBounds();
     rowPx  = column.bottom - column.top;
@@ -4635,7 +4771,7 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
     bottom = top + (float) ((endRow - firstRow) * rowPx);
 
     input.mnemonicX     = (float) (bounds.left + column.left);
-    input.isTargetBelow = (target >= 0) ? target > current : goesTo > lines[(size_t) current].address;
+    input.isTargetBelow = (target >= 0) ? target > current : goesTo > lines[(size_t) GetCodeLineOfRow (view, current)].address;
     input.edgeY         = input.isTargetBelow ? bottom : top;
     input.sourceEdgeY   = input.isTargetBelow ? top : bottom;
     input.marginPx     *= scale;
@@ -5501,10 +5637,10 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
 
 
-    if (GetCodeViewOf (list) >= 0 && row >= 0 && row < (int) GetCodeLines (GetCodeViewOf (list)).size())
+    if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0)
     {
         int                                    view = GetCodeViewOf (list);
-        const DebuggerViewSnapshot::CodeLine & line = GetCodeLines (view)[(size_t) row];
+        const DebuggerViewSnapshot::CodeLine & line = GetCodeLines (view)[(size_t) GetCodeLineOfRow (view, row)];
         Word                                   at   = line.address;
 
         //  What was right-clicked leads (FR-084): the instruction's operand,
@@ -5775,6 +5911,7 @@ void DebuggerWindow::RenderFrame()
     PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
+    PlaceCodeBars();
     PlaceFindBar();
     ClipPaneControls();
 
@@ -5803,22 +5940,36 @@ void DebuggerWindow::RenderFrame()
 //
 //  One disassembly view's rows: the gutter's breakpoints, the PC's arrow and
 //  row wherever the PC is on its lines, the row another pane brought into
-//  view, and a branch's destination.
+//  view, and a branch's destination. With source shown, each source line
+//  sits on a row of its own above the code it produced, its text running
+//  across the columns. The viewing options hide the address, bytes and
+//  label columns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyCodeView (int view)
 {
-    DxuiListView                                  * list     = m_codeLists[(size_t) view];
-    std::vector<std::vector<DxuiListView::Cell>>    rows;
-    int                                             current  = -1;
-    int                                             selected = -1;
-    std::optional<Word>                             target;
-    SourceSyntax::Colors                            syntax   = GetSyntaxColors();
+    DxuiListView                                       * list     = m_codeLists[(size_t) view];
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = GetCodeLines (view);
+    std::vector<std::vector<DxuiListView::Cell>>         rows;
+    int                                                  current  = -1;
+    int                                                  selected = -1;
+    std::optional<Word>                                  target;
+    SourceSyntax::Colors                                 syntax   = GetSyntaxColors();
+    bool                                                 symbols  = m_codeOptions.IsOn (DisassemblyOptions::Option::Symbols);
+    bool                                                 source   = m_codeOptions.IsOn (DisassemblyOptions::Option::Source) &&
+                                                                    IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
+    bool                                                 numbers  = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
+                                                                    IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
+    std::wstring                                         text;
 
 
 
-    for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
+    list->SetColumnVisible (2, m_codeOptions.IsOn (DisassemblyOptions::Option::Addresses));
+    list->SetColumnVisible (3, m_codeOptions.IsOn (DisassemblyOptions::Option::CodeBytes));
+    list->SetColumnVisible (4, symbols);
+
+    for (const DebuggerViewSnapshot::CodeLine & line : lines)
     {
         if (line.isCurrent && line.target.has_value())
         {
@@ -5826,51 +5977,90 @@ void DebuggerWindow::ApplyCodeView (int view)
         }
     }
 
-    for (size_t i = 0; i < GetCodeLines (view).size(); i++)
+    m_codeRows[(size_t) view] = DisassemblyOptions::BuildRows (lines, source,
+                                                              [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
+
+    for (const DisassemblyOptions::Row & each : m_codeRows[(size_t) view])
     {
-        const DebuggerViewSnapshot::CodeLine & line   = GetCodeLines (view)[i];
-        std::vector<DxuiListView::Cell>        cells;
-        DxuiListView::Cell                     gutter;
-        DxuiListView::Cell                     marker;
-        uint32_t                               fill   = 0;
+        std::vector<DxuiListView::Cell>          cells (kCodeColumnCount);
+        uint32_t                                 fill    = 0;
+        const DebuggerViewSnapshot::CodeLine   * line    = nullptr;
+        bool                                     hasText = false;
+
+        //  A source line: its number when shown, then its text in the syntax
+        //  colors, from the first column shown after the marker.
+        if (each.codeLine < 0)
+        {
+            std::wstring  prefix = numbers ? std::format (L"{:>5}  ", each.sourceLine) : std::wstring();
+            size_t        column = kCodeFirstTextColumn;
+
+            hasText = TryGetSourceText (each.fileId, each.sourceLine, text);
+            text    = hasText ? text : std::wstring();
+
+            while (column < kCodeColumnCount - 1 && !list->IsColumnVisible (column))
+            {
+                column++;
+            }
+
+            cells[column].text     = prefix + text;
+            cells[column].spansRow = true;
+
+            if (numbers)
+            {
+                cells[column].colorRanges.push_back ({ 0, (int) prefix.size(), (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u });
+            }
+
+            for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (text))
+            {
+                cells[column].colorRanges.push_back ({ (int) prefix.size() + run.start, (int) prefix.size() + run.start + run.length, syntax.Get (run.token) });
+            }
+
+            rows.push_back (std::move (cells));
+            continue;
+        }
+
+        line = &lines[(size_t) each.codeLine];
 
         //  The gutter holds a breakpoint's dot and the next column the PC's
-        //  arrow, so a breakpoint on the PC's line shows both.
-        if (line.hasBreakpoint)
+        //  arrow, so a breakpoint on the PC's line shows both. A line that
+        //  can take a breakpoint shows a gray one under the pointer.
+        if (line->hasBreakpoint)
         {
-            gutter.icon = GetBreakpointIcon (line.isEnabled);
+            cells[0].icon = GetBreakpointIcon (line->isEnabled);
+        }
+        else if (view == m_gutterHoverView && (int) rows.size() == m_gutterHoverRow && DisassemblyOptions::CanTakeBreakpoint (*line))
+        {
+            cells[0].icon = GetHoverBreakpointIcon();
         }
 
-        if (line.isCurrent)
+        if (line->isCurrent)
         {
-            marker.text = s_kpszTriangleRight;
-            marker.argb = GetPcMarkerArgb();
-            fill        = GetPcRowArgb();
-            current     = (int) i;
+            cells[1].text = s_kpszTriangleRight;
+            cells[1].argb = GetPcMarkerArgb();
+            fill          = GetPcRowArgb();
+            current       = (int) rows.size();
         }
-        else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line.address)
+        else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line->address)
         {
             fill = GetNavigatedRowArgb();
         }
-        else if (target.has_value() && *target == line.address)
+        else if (target.has_value() && *target == line->address)
         {
             fill = GetTargetRowArgb();
         }
 
-        cells = { gutter,
-                  marker,
-                  { std::format (L"{:04X}", line.address) },
-                  { Widen (line.bytes) },
-                  { Widen (line.label) },
-                  { Widen (line.instruction) },
-                  GetOperandAndResultCell (line.annotation, line.effect, GetResultArgb()) };
+        cells[2].text = std::format (L"{:04X}", line->address);
+        cells[3].text = Widen (line->bytes);
+        cells[4].text = Widen (line->label);
+        cells[5].text = Widen (DisassemblyOptions::GetInstructionText (*line, symbols));
+        cells[6]      = GetOperandAndResultCell (line->annotation, line->effect, GetResultArgb());
 
         cells[6].argb = GetAnnotationArgb();
         cells[4].argb = syntax.symbol;
 
         //  A byte that changed shows in the changed color, whether code or an
         //  edit changed it.
-        for (const auto & [first, last] : m_codeChanges.GetChangedRanges (line.address, line.bytes))
+        for (const auto & [first, last] : m_codeChanges.GetChangedRanges (line->address, line->bytes))
         {
             cells[3].colorRanges.push_back ({ first, last, GetChangedArgb() });
         }
@@ -5897,11 +6087,11 @@ void DebuggerWindow::ApplyCodeView (int view)
     {
         selected = -1;
 
-        for (size_t i = 0; i < GetCodeLines (view).size(); i++)
+        for (size_t i = 0; i < lines.size(); i++)
         {
-            if (m_codeSelected[(size_t) view] == GetCodeLines (view)[i].address)
+            if (m_codeSelected[(size_t) view] == lines[i].address)
             {
-                selected = (int) i;
+                selected = DisassemblyOptions::GetRowOfLine (m_codeRows[(size_t) view], (int) i);
                 break;
             }
         }
@@ -7344,6 +7534,17 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         barTip = m_consoleBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
+    //  And each disassembly view's.
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && (barTip == nullptr || *barTip == L'\0'); view++)
+    {
+        DxuiToolbar  * bar = m_codeBars[(size_t) view];
+
+        if (m_routingPane == GetBarRoutingPane (DebuggerLayout::GetCodePaneId (view)) && bar != nullptr && bar->IsVisible())
+        {
+            barTip = bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+        }
+    }
+
     //  And each source document's.
     for (int slot = 0; slot < (int) m_sourceDocs.size() && (barTip == nullptr || *barTip == L'\0'); slot++)
     {
@@ -7491,12 +7692,12 @@ bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstrin
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
     column = GetColumnAt (list, clientPx.x - bounds.left);
 
-    if (row < 0 || row >= (int) GetCodeLines (GetCodeViewOf (list)).size())
+    if (GetCodeLineOfRow (GetCodeViewOf (list), row) < 0)
     {
         return false;
     }
 
-    const DebuggerViewSnapshot::CodeLine & line = GetCodeLines (GetCodeViewOf (list))[(size_t) row];
+    const DebuggerViewSnapshot::CodeLine & line = GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)];
 
     if (column == kCodeInstructionColumn - 1 && !line.label.empty())
     {
@@ -7573,10 +7774,10 @@ void DebuggerWindow::ConfigureCodeList (int view)
         m_activeCode                  = view;
         m_codeSelected[(size_t) view] = std::nullopt;
 
-        if (row >= 0 && row < (int) lines.size())
+        if (GetCodeLineOfRow (view, row) >= 0)
         {
-            m_codeSelected[(size_t) view] = lines[(size_t) row].address;
-            ShowSourceLine (lines[(size_t) row].sourceFileId, lines[(size_t) row].sourceLine);
+            m_codeSelected[(size_t) view] = lines[(size_t) GetCodeLineOfRow (view, row)].address;
+            ShowSourceLine (lines[(size_t) GetCodeLineOfRow (view, row)].sourceFileId, lines[(size_t) GetCodeLineOfRow (view, row)].sourceLine);
         }
     });
 
@@ -7748,9 +7949,9 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
 
         row = list->HitTestRow (lx, ly);
 
-        if (GetCodeViewOf (list) >= 0 && row >= 0 && row < (int) GetCodeLines (GetCodeViewOf (list)).size())
+        if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0)
         {
-            RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, GetCodeLines (GetCodeViewOf (list))[(size_t) row].address, GetMode()));
+            RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)].address, GetMode()));
             return true;
         }
 
@@ -7758,6 +7959,68 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HoverGutter
+//
+//  The pointer over a disassembly view's breakpoint column: the row under it
+//  shows a gray breakpoint where a click would set one. Rows are rebuilt only
+//  when the row under the pointer changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::HoverGutter (POINT atDip)
+{
+    int   view   = -1;
+    int   row    = -1;
+    int   was    = m_gutterHoverView;
+    RECT  bounds = {};
+    int   lx     = 0;
+    int   ly     = 0;
+
+
+
+    for (int each = 0; each < DebuggerViewState::kMaxCodeViews && view < 0; each++)
+    {
+        DxuiListView  * list = m_codeLists[(size_t) each];
+
+        bounds = list->GetBounds();
+        lx     = atDip.x - bounds.left;
+        ly     = atDip.y - bounds.top;
+
+        if (!IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || atDip.x >= bounds.right || atDip.y >= bounds.bottom ||
+            lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (0))
+        {
+            continue;
+        }
+
+        view = each;
+        row  = (GetCodeLineOfRow (each, list->HitTestRow (lx, ly)) >= 0) ? list->HitTestRow (lx, ly) : -1;
+    }
+
+    if (view == m_gutterHoverView && row == m_gutterHoverRow)
+    {
+        return;
+    }
+
+    m_gutterHoverView = view;
+    m_gutterHoverRow  = row;
+
+    for (int each : { was, view })
+    {
+        if (each >= 0 && m_snapshot != nullptr)
+        {
+            ApplyCodeView (each);
+        }
+    }
+
+    Invalidate();
 }
 
 
@@ -7803,55 +8066,99 @@ uint32_t DebuggerWindow::GetBreakpointArgb() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::MakeDotIcon
+//
+//  A breakpoint's dot in a color, filled or a ring, drawn as an image so it
+//  can be larger than the text beside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<DxuiIconImage> DebuggerWindow::MakeDotIcon (uint32_t argb, bool filled)
+{
+    static constexpr int    kSize   = 48;
+    static constexpr float  kRadius = 21.0f;
+    static constexpr float  kRing   = 5.0f;
+    auto                    image   = std::make_shared<DxuiIconImage>();
+
+
+
+    image->width  = kSize;
+    image->height = kSize;
+    image->bgraPremul.assign ((size_t) (kSize * kSize), 0u);
+
+    for (int y = 0; y < kSize; y++)
+    {
+        for (int x = 0; x < kSize; x++)
+        {
+            float  d     = std::hypot (x + 0.5f - kSize * 0.5f, y + 0.5f - kSize * 0.5f);
+            float  outer = std::clamp (kRadius - d + 0.5f, 0.0f, 1.0f);
+            float  inner = filled ? 0.0f : std::clamp (kRadius - kRing - d + 0.5f, 0.0f, 1.0f);
+            float  a     = outer - inner;
+            auto   ch    = [a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
+
+            image->bgraPremul[(size_t) (y * kSize + x)] = ((uint32_t) std::lround (a * 255.0f) << 24) |
+                                                          (ch (argb >> 16) << 16) | (ch (argb >> 8) << 8) | ch (argb);
+        }
+    }
+
+    return image;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetBreakpointIcon
 //
-//  The breakpoint's dot, filled when enabled and a ring when not, drawn as an
-//  image so it can be larger than the text beside it. Rebuilt when the theme
-//  changes the color.
+//  The breakpoint's dot, filled when enabled and a ring when not. Rebuilt
+//  when the theme changes the color.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetBreakpointIcon (bool enabled)
 {
-    static constexpr int    kSize   = 48;
-    static constexpr float  kRadius = 21.0f;
-    static constexpr float  kRing   = 5.0f;
-    uint32_t                argb    = GetBreakpointArgb();
+    uint32_t  argb = GetBreakpointArgb();
 
 
 
     if (argb != m_breakpointIconArgb || m_breakpointIcons[0] == nullptr)
     {
         m_breakpointIconArgb = argb;
-
-        for (int filled = 0; filled < 2; filled++)
-        {
-            auto  image = std::make_shared<DxuiIconImage>();
-
-            image->width  = kSize;
-            image->height = kSize;
-            image->bgraPremul.assign ((size_t) (kSize * kSize), 0u);
-
-            for (int y = 0; y < kSize; y++)
-            {
-                for (int x = 0; x < kSize; x++)
-                {
-                    float  d     = std::hypot (x + 0.5f - kSize * 0.5f, y + 0.5f - kSize * 0.5f);
-                    float  outer = std::clamp (kRadius - d + 0.5f, 0.0f, 1.0f);
-                    float  inner = filled ? 0.0f : std::clamp (kRadius - kRing - d + 0.5f, 0.0f, 1.0f);
-                    float  a     = outer - inner;
-                    auto   ch    = [a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
-
-                    image->bgraPremul[(size_t) (y * kSize + x)] = ((uint32_t) std::lround (a * 255.0f) << 24) |
-                                                                  (ch (argb >> 16) << 16) | (ch (argb >> 8) << 8) | ch (argb);
-                }
-            }
-
-            m_breakpointIcons[filled] = image;
-        }
+        m_breakpointIcons[0] = MakeDotIcon (argb, false);
+        m_breakpointIcons[1] = MakeDotIcon (argb, true);
     }
 
     return m_breakpointIcons[enabled ? 1 : 0];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHoverBreakpointIcon
+//
+//  The gray dot under the pointer in the breakpoint column, in the theme's
+//  muted text color, where a click would set a breakpoint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetHoverBreakpointIcon()
+{
+    uint32_t  argb = (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0xFF808080;
+
+
+
+    if (argb != m_hoverBreakpointArgb || m_hoverBreakpointIcon == nullptr)
+    {
+        m_hoverBreakpointArgb = argb;
+        m_hoverBreakpointIcon = MakeDotIcon (argb, true);
+    }
+
+    return m_hoverBreakpointIcon;
 }
 
 
@@ -8385,6 +8692,15 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  And each disassembly view's.
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (m_routingPane == GetBarRoutingPane (DebuggerLayout::GetCodePaneId (view)) && RouteSourceBarMouse (m_codeBars[(size_t) view], ev))
+        {
+            return true;
+        }
+    }
+
     //  And each source document's.
     for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
     {
@@ -8466,6 +8782,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Move:
         //  A floating window's tips show from its own tooltip.
         UpdateTooltip (ev.positionDip);
+        HoverGutter   (ev.positionDip);
 
         for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
         {
@@ -8620,7 +8937,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
         {
-            return { m_codeLists[(size_t) view] };
+            return { m_codeBarSlots[(size_t) view].get(), m_codeBars[(size_t) view], m_codeLists[(size_t) view] };
         }
     }
 

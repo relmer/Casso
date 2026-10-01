@@ -27,10 +27,12 @@
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DisassemblyOptions.h"
 #include "Ui/Debugger/RegisterHistory.h"
 #include "Ui/Debugger/StackHistory.h"
 #include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/UndoBarCommands.h"
+#include "Ui/Debugger/ToolbarCheckEntry.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -127,6 +129,10 @@ public:
     //  same way. A host with no preferences keeps it across the top.
     virtual std::string  GetDebuggerCommandBarDock ()                      { return {}; }
     virtual void         SetDebuggerCommandBarDock (const std::string &)   {}
+    //  The disassembly views' viewing options, in DisassemblyOptions' text for
+    //  them, kept the same way; none kept gives the defaults.
+    virtual std::string  GetDebuggerDisassemblyOptions ()                  { return {}; }
+    virtual void         SetDebuggerDisassemblyOptions (const std::string &) {}
 
     //  Which optional views were open, in DebuggerViewState's text for them,
     //  kept the same way.
@@ -269,12 +275,9 @@ protected:
     static bool      IsSymbolFile      (const std::wstring & path);
 
     //  Protected so a test can open a source file as File > Open source file
-    //  does, press a document's Load symbols button, and switch the rows of
-    //  instructions under source lines as the Debug menu does.
+    //  does and press a document's Load symbols button.
     void                OpenSourcePath      (const std::wstring & path);
     void                LoadSymbolsFor      (int slot);
-    void                ToggleSourceCode    ();
-    bool                IsShowingSourceCode () const { return m_showSourceCode; }
     bool                IsLooseSource       (int slot) const;
     const SourcePane &  GetSourcePane       (int slot) const { return *m_sourceDocs[(size_t) slot].pane; }
 
@@ -285,6 +288,15 @@ protected:
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
+
+    //  Protected so a test can switch a disassembly viewing option as its
+    //  check box does, read the rows a view shows, and hover its gutter.
+    void                         ToggleCodeOption    (DisassemblyOptions::Option option);
+    bool                         IsCodeOptionEnabled (DisassemblyOptions::Option option) const;
+    const DisassemblyOptions  &  GetCodeOptions      () const { return m_codeOptions; }
+    DxuiToolbar               *  GetCodeBar          (int view) const { return m_codeBars[(size_t) view]; }
+    int                          GetCodeLineOfRow    (int view, int row) const;
+    void                         HoverGutter         (POINT atDip);
 
     //  Protected so a test can edit a watch as F2 and Enter do, and see where
     //  the keys go.
@@ -359,9 +371,9 @@ protected:
 
     //  Protected so a test can read the menu bar's menus as a click opens
     //  them, and the command bar's and the console bar's entries.
-    static constexpr int  kDialectEntry = 1;
-    static constexpr int  kFindEntry    = 2;
-    static constexpr int  kCodeEntry    = 3;
+    static constexpr int  kDialectEntry    = 1;
+    static constexpr int  kFindEntry       = 2;
+    static constexpr int  kCodeOptionEntry = 100;
 
     void                                  SetWindowMenus     ();
     void                                  Detach             ();
@@ -464,6 +476,8 @@ private:
     static constexpr int    kBreakpointIconDip     = 16;
     static constexpr int    kGutterColumnDip       = 24;
     static constexpr int    kCodeInstructionColumn = 5;
+    static constexpr size_t kCodeFirstTextColumn   = 2;
+    static constexpr size_t kCodeColumnCount       = 7;
 
     //  The panes' text size runs from half to three times the usual, in
     //  steps of ten percentage points.
@@ -529,7 +543,8 @@ private:
     void     OpenSourceFile       ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
-    DxuiToolbar::Entry  MakeCodeEntry ();
+    void     ConfigureCodeBars    ();
+    void     PlaceCodeBars        ();
     void     ConfigureConsoleBar  ();
     void     PlaceConsoleBar      ();
     bool     RouteConsoleBarMouse (const DxuiMouseEvent & ev);
@@ -645,6 +660,9 @@ private:
     bool      IsDarkTheme          () const;
     uint32_t  GetBreakpointArgb    () const;
     std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled);
+    std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon ();
+    static std::shared_ptr<DxuiIconImage>  MakeDotIcon (uint32_t argb, bool filled);
+    bool      TryGetSourceText     (int fileId, int line, std::wstring & text);
     uint32_t  GetPcMarkerArgb      () const;
     uint32_t  GetPcRowArgb         () const;
     uint32_t  GetNavigatedRowArgb  () const;
@@ -748,14 +766,16 @@ private:
     //  before have been reopened yet. Reopening is asynchronous, so saving
     //  waits until a snapshot shows them -- or a few pass without -- rather
     //  than write back the empty set the window started with.
-    static constexpr int                  kSettlingSnapshots   = 10;
+    static constexpr int                  kSettlingSnapshots    = 10;
     std::string                           m_openViewsSaved;
-    bool                                  m_openViewsRestored  = false;
-    int                                   m_openViewsSettling  = 0;
-    float                                 m_textZoom           = 1.0f;
+    bool                                  m_openViewsRestored   = false;
+    int                                   m_openViewsSettling   = 0;
+    float                                 m_textZoom            = 1.0f;
     DxuiTooltip                           m_tooltip;
     std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
-    uint32_t                              m_breakpointIconArgb = 0;
+    uint32_t                              m_breakpointIconArgb  = 0;
+    std::shared_ptr<const DxuiIconImage>  m_hoverBreakpointIcon;
+    uint32_t                              m_hoverBreakpointArgb = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
@@ -790,6 +810,15 @@ private:
     DxuiListView                                                                   * m_codeList           = nullptr;
     std::array<DxuiListView *, DebuggerViewState::kMaxCodeViews>                     m_codeLists          = {};
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxCodeViews> m_codeFrames;
+    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxCodeViews> m_codeBarSlots;
+    std::array<DxuiToolbar *, DebuggerViewState::kMaxCodeViews>                      m_codeBars           = {};
+    std::vector<std::unique_ptr<ToolbarCheckEntry>>                                  m_codeOptionEntries;
+    DisassemblyOptions                                                               m_codeOptions;
+    std::array<std::vector<DisassemblyOptions::Row>, DebuggerViewState::kMaxCodeViews> m_codeRows;
+    std::wstring                                                                     m_codeSourceKey;
+    std::map<int, std::vector<std::wstring>>                                         m_codeSourceText;
+    int                                                                              m_gutterHoverView    = -1;
+    int                                                                              m_gutterHoverRow     = -1;
     std::array<bool, DebuggerViewState::kMaxCodeViews>                               m_codeOpen           = { true };
     uint32_t                                                                         m_shownPaneSerial    = 0;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};

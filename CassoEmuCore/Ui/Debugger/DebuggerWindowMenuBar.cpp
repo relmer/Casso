@@ -324,10 +324,6 @@ void DebuggerWindow::SetWindowMenus()
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->stepBySource; };
     add (debug, row);
 
-    row            = MakeMenuCommand (L"Show instructions under source lines", false, [this] { ToggleSourceCode(); });
-    row->isChecked = [this] { return m_showSourceCode; };
-    add (debug, row);
-
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
@@ -903,31 +899,102 @@ DxuiToolbar::Entry DebuggerWindow::MakeFindEntry (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::MakeCodeEntry
+//  DebuggerWindow::ConfigureCodeBars
 //
-//  The switch on a source document's toolbar for the instructions listed
-//  under each line, as the Debug menu's row is; it holds for every document.
+//  Each disassembly view's toolbar: its viewing options as check boxes, as
+//  Visual Studio's are. The options hold for every view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiToolbar::Entry DebuggerWindow::MakeCodeEntry()
+void DebuggerWindow::ConfigureCodeBars()
 {
-    auto                command = std::make_shared<DxuiCommand>();
-    DxuiToolbar::Entry  entry;
+    constexpr DisassemblyOptions::Option  kOrder[] = { DisassemblyOptions::Option::Addresses,
+                                                       DisassemblyOptions::Option::CodeBytes,
+                                                       DisassemblyOptions::Option::Source,
+                                                       DisassemblyOptions::Option::Symbols,
+                                                       DisassemblyOptions::Option::LineNumbers };
 
 
 
-    command->id        = kCodeEntry;
-    command->label     = L"Show instructions";
-    command->glyph     = s_kpszMdl2Code;
-    command->tip       = L"Show instructions under source lines";
-    command->dispatch  = [this] { ToggleSourceCode(); };
-    command->isChecked = [this] { return m_showSourceCode; };
+    m_codeOptionEntries.clear();
 
-    entry.command = command;
-    entry.kind    = DxuiToolbar::Kind::Toggle;
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiToolbar                      * bar = m_codeBars[(size_t) view];
+        std::vector<DxuiToolbar::Entry>    entries;
 
-    return entry;
+        for (DisassemblyOptions::Option option : kOrder)
+        {
+            auto                command = std::make_shared<DxuiCommand>();
+            DxuiToolbar::Entry  entry;
+
+            command->id        = kCodeOptionEntry + (int) option;
+            command->label     = DisassemblyOptions::GetLabel (option);
+            command->dispatch  = [this, option] { ToggleCodeOption (option); };
+            command->isChecked = [this, option] { return m_codeOptions.IsOn (option); };
+            command->isEnabled = [this, option] { return IsCodeOptionEnabled (option); };
+
+            m_codeOptionEntries.push_back (std::make_unique<ToolbarCheckEntry> (command));
+
+            entry.command = command;
+            entry.kind    = DxuiToolbar::Kind::Toggle;
+            entry.custom  = m_codeOptionEntries.back().get();
+            entries.push_back (std::move (entry));
+        }
+
+        bar->SetTextRenderer (GetTextRenderer());
+        bar->SetPopupHost    (GetPopupHost());
+        bar->SetCompact      (true);
+        bar->SetEntries      (std::move (entries));
+        bar->SetVisible      (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceCodeBars
+//
+//  As the source documents' bars: each sits in the place held at the top of
+//  its view and goes with the view into a floating window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceCodeBars()
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiToolbar        * bar   = m_codeBars[(size_t) view];
+        DebuggerPaneFrame  * slot  = m_codeBarSlots[(size_t) view].get();
+        bool                 shown = bar != nullptr && slot != nullptr && slot->IsVisible();
+        DxuiWindow         * host  = nullptr;
+        RECT                 place = {};
+
+        if (bar == nullptr)
+        {
+            continue;
+        }
+
+        bar->SetVisible (shown);
+
+        if (!shown)
+        {
+            continue;
+        }
+
+        host  = GetPaneHost (DebuggerLayout::GetCodePaneId (view));
+        place = slot->GetBounds();
+
+        bar->SetTextRenderer   (host->GetTextRenderer());
+        bar->SetPopupHost      (host->GetPopupHost());
+        bar->SetHostClientRect (host->GetBounds());
+        bar->Layout            (place, m_scaler);
+
+        host->SetChildClip (bar, place);
+    }
 }
 
 
@@ -938,8 +1005,7 @@ DxuiToolbar::Entry DebuggerWindow::MakeCodeEntry()
 //
 //  DebuggerWindow::ConfigureSourceBars
 //
-//  Each source document's toolbar: its search button, and the switch for the
-//  instructions under its lines.
+//  Each source document's toolbar: its search button.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -953,7 +1019,7 @@ void DebuggerWindow::ConfigureSourceBars()
         bar->SetPopupHost    (GetPopupHost());
         bar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
         bar->SetCompact      (true);
-        bar->SetEntries      ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)), MakeCodeEntry() });
+        bar->SetEntries      ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
         bar->SetVisible      (false);
     }
 }
