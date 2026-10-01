@@ -144,7 +144,8 @@ public:
     Byte     GetDdrb       () const { return m_ddrb; }
 
     // A debugger panel's rows for this chip, as one group, and each timer's
-    // remaining count from 0 to 1 for the panel's meters.
+    // remaining count from 0 to 1 for the panel's meters, or "running" for a
+    // timer a once-a-frame sample cannot follow.
     void     AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const;
     void     AppendTimerLevels (const std::string & title, DiagnosticsMeters & meters) const;
 
@@ -183,6 +184,7 @@ private:
     bool     m_t1Armed   = false;
 
     Byte     m_t2LatchLo = 0;
+    int32_t  m_t2Start   = 0;     // the count T2 was last started from
     int32_t  m_t2Counter = 0;
     bool     m_t2Armed   = false;
 

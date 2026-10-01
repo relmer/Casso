@@ -170,6 +170,7 @@ void Via6522::WriteRegister (Byte reg, Byte value)
 
     case kRegT2CH:
         m_t2Counter = (static_cast<int32_t> (value) << 8) | m_t2LatchLo;
+        m_t2Start   = m_t2Counter;
         m_t2Armed   = true;
         ClearFlag (kIrqTimer2);
         break;
@@ -298,6 +299,7 @@ void Via6522::Reset()
     m_t1Armed   = false;
 
     m_t2LatchLo = 0;
+    m_t2Start   = 0;
     m_t2Counter = 0;
     m_t2Armed   = false;
 
@@ -636,20 +638,39 @@ void Via6522::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot 
 //
 //  Via6522::AppendTimerLevels
 //
-//  Timer 1 against its latch, the count it reloads from; timer 2 against the
-//  full sixteen bits, since it has no high latch to reload.
+//  A timer is a bar only while it is armed, as the fraction left of the count
+//  it started from: timer 1's latch, or what timer 2 was last started with.
+//  The panel samples once a frame, so a timer whose count runs out faster
+//  than that, or one counting with nothing armed (a fired one-shot wraps
+//  through $FFFF about 15.6 times a second), would show a bar at a random
+//  place each frame; it shows a steady "running" instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::AppendTimerLevels (const std::string & title, DiagnosticsMeters & meters) const
 {
-    constexpr int    kByteBits = 8;
-    constexpr float  kFullT2   = 65535.0f;
-    int              t1Latch   = (m_t1LatchHi << kByteBits) | m_t1LatchLo;
-    float            t1Level   = (t1Latch > 0) ? (float) GetTimer1() / (float) t1Latch : 0.0f;
+    //  The cycles in one 60 Hz frame of the 1.023 MHz Apple II clock.
+    constexpr int    kFrameCycles = 17030;
+    constexpr int    kByteBits    = 8;
+    int              t1Latch      = (m_t1LatchHi << kByteBits) | m_t1LatchLo;
+    auto             makeLevel    = [] (const std::string & name, bool armed, int count, int start)
+    {
+        DiagnosticsMeters::Level  level { name, 0.0f, {} };
+
+        if (armed && start >= kFrameCycles)
+        {
+            level.level = std::clamp ((float) count / (float) start, 0.0f, 1.0f);
+        }
+        else
+        {
+            level.status = "running";
+        }
+
+        return level;
+    };
 
 
 
-    meters.levels.push_back ({ title + " T1", std::clamp (t1Level, 0.0f, 1.0f) });
-    meters.levels.push_back ({ title + " T2", std::clamp ((float) GetTimer2() / kFullT2, 0.0f, 1.0f) });
+    meters.levels.push_back (makeLevel (title + " T1", m_t1Armed, GetTimer1(), t1Latch));
+    meters.levels.push_back (makeLevel (title + " T2", m_t2Armed, GetTimer2(), m_t2Start));
 }

@@ -13,7 +13,8 @@
 //  MeterBar
 //
 //  Named levels from 0 to 1, one row each: the name, then a bar filled in
-//  proportion to the level. A level outside the range is drawn at its end.
+//  proportion to the level. A level outside the range is drawn at its end;
+//  a level with a status shows that text in place of the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

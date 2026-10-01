@@ -306,19 +306,19 @@ namespace DebuggerTests
 
 
             via.WriteRegister (Via6522::kRegT1LL, 0x00);
-            via.WriteRegister (Via6522::kRegT1CH, 0x10);     // T1 = $1000, and started
+            via.WriteRegister (Via6522::kRegT1CH, 0x80);     // T1 = $8000, and started
             via.WriteRegister (Via6522::kRegIer,  0xC0);     // enable T1
             via.AppendDiagnostics ("6522", snapshot);
             via.AppendTimerLevels ("6522", meters);
 
-            Assert::AreEqual (std::string ("$1000"), FindRow (snapshot, "T1 count").value);
-            Assert::AreEqual (std::string ("$1000"), FindRow (snapshot, "T1 latch").value);
+            Assert::AreEqual (std::string ("$8000"), FindRow (snapshot, "T1 count").value);
+            Assert::AreEqual (std::string ("$8000"), FindRow (snapshot, "T1 latch").value);
             Assert::IsTrue   (IsBitSet (FindRow (snapshot, "IER"), "T1"));
             Assert::IsFalse  (IsBitSet (FindRow (snapshot, "IER"), "T2"));
             Assert::AreEqual ((size_t) 2, meters.levels.size());
             Assert::AreEqual (1.0f, meters.levels[0].level, 0.001f, L"a full count against its latch");
 
-            via.Tick (0x0800);
+            via.Tick (0x4000);
             meters.levels.clear();
             via.AppendTimerLevels ("6522", meters);
             Assert::IsTrue (meters.levels[0].level > 0.4f && meters.levels[0].level < 0.6f, L"half counted down");

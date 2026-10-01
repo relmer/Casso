@@ -78,7 +78,9 @@ void MeterBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const ID
     float           left  = (float) m_boundsDip.left;
     float           y     = (float) m_boundsDip.top;
     float           bar   = std::max (0.0f, (float) (m_boundsDip.right - m_boundsDip.left) - label);
+    float           pad   = m_scaler.ToPxf ((float) kGapDip);
     std::wstring    name;
+    std::wstring    status;
     HRESULT         hr    = S_OK;
 
 
@@ -95,8 +97,21 @@ void MeterBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const ID
             break;
         }
 
-        painter.FillRect (left + label, y, bar,                         row, theme.ControlBackground());
-        painter.FillRect (left + label, y, GetFillWidth (level.level),  row, theme.Accent());
+        painter.FillRect (left + label, y, bar, row, theme.ControlBackground());
+
+        //  A steady state in place of the bar, for a level a once-a-frame
+        //  sample cannot follow.
+        if (!level.status.empty())
+        {
+            status = TextEncoding::NarrowToWide (level.status);
+            hr     = text.DrawString (status.c_str(), left + label + pad, y, bar - pad, row, theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face,
+                                      DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else
+        {
+            painter.FillRect (left + label, y, GetFillWidth (level.level), row, theme.Accent());
+        }
 
         name = TextEncoding::NarrowToWide (level.name);
         hr   = text.DrawString (name.c_str(), left, y, label, row, theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,

@@ -88,6 +88,10 @@ struct DiagnosticsMeters
     {
         std::string  name;
         float        level = 0.0f;  // 0 to 1
+
+        //  When set, a steady state shown in place of the bar, for a value
+        //  that moves too fast or has nothing to measure against.
+        std::string  status;
     };
 
     std::vector<Level>  levels;
