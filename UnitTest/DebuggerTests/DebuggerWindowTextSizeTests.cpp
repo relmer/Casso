@@ -1100,7 +1100,7 @@ namespace DebuggerTests
 
         TEST_METHOD (MemoryBarEntriesWithNoRoomMoveToTheOverflowMenu)
         {
-            static constexpr LONG  kWidths[] = { 760, 900, 1100, 1400, 1800 };
+            static constexpr LONG  kWidths[] = { 560, 660, 760, 900, 1100, 1400, 1800 };
 
             CassoTheme          theme       = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost   host;

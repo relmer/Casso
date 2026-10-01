@@ -202,14 +202,6 @@ void DebuggerWindow::OnCreate()
     m_memoryBar         = CreateChild<DxuiToolbar>   ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_breakpointBar     = CreateChild<DxuiToolbar>   ();
-    m_findBox           = CreateChild<DxuiTextInput> ();
-    m_findCaseButton    = CreateChild<DxuiButton>    (L"Aa");
-    m_findWordButton    = CreateChild<DxuiButton>    (L"ab");
-    m_findRegexButton   = CreateChild<DxuiButton>    (L".*");
-    m_findPrevButton    = CreateChild<DxuiButton>    (s_kpszUpArrow);
-    m_findNextButton    = CreateChild<DxuiButton>    (s_kpszDownArrow);
-    m_findCloseButton   = CreateChild<DxuiButton>    (s_kpszMultiplyX);
-    m_findStatus        = CreateChild<DxuiLabel>     ();
 
     //  All four windows exist from the start; the ones not open are hidden.
     for (int id = 1; id <= DebuggerViewState::kMaxMemoryWindows; id++)
@@ -268,6 +260,20 @@ void DebuggerWindow::OnCreate()
         m_diagPanes.push_back (std::make_unique<DiagnosticsPane> (panel.id, panel.title, list, map, head, meters));
         list->SetVisible (false);
     }
+
+    //  The find widget floats over its pane's text, so it comes after every
+    //  pane's controls: its plate, then what sits on the plate.
+    m_findPlate           = CreateChild<FindWidgetPlate> ();
+    m_findChevronButton   = CreateChild<DxuiButton>      (s_kpszChevronRight);
+    m_findBox             = CreateChild<DxuiTextInput>   ();
+    m_findCaseButton      = CreateChild<DxuiButton>      (L"Aa");
+    m_findWordButton      = CreateChild<DxuiButton>      (L"ab");
+    m_findRegexButton     = CreateChild<DxuiButton>      (L".*");
+    m_findStatus          = CreateChild<DxuiLabel>       ();
+    m_findPrevButton      = CreateChild<DxuiButton>      (s_kpszUpArrow);
+    m_findNextButton      = CreateChild<DxuiButton>      (s_kpszDownArrow);
+    m_findSelectionButton = CreateChild<DxuiButton>      (s_kpszIdenticalTo);
+    m_findCloseButton     = CreateChild<DxuiButton>      (s_kpszMultiplyX);
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -536,6 +542,7 @@ void DebuggerWindow::ConfigureMemoryBar()
     m_memoryBar->SetTextRenderer (GetTextRenderer());
     m_memoryBar->SetPopupHost    (GetPopupHost());
     m_memoryBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+    m_memoryBar->SetCompact      (true);
     m_memoryBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_memoryBar->SetEntries      (m_memoryCommands->BuildEntries (m_addressEntry.get()));
     m_memoryBar->SetVisible      (false);
@@ -2445,6 +2452,14 @@ bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
         return true;
     }
 
+    //  Up and Down step through the pane's find history.
+    if (isDown && (ev.vk == VK_UP || ev.vk == VK_DOWN) && !ev.ctrl && !ev.alt)
+    {
+        (void) StepFindHistory ((ev.vk == VK_UP) ? -1 : 1);
+        handled = true;
+        return true;
+    }
+
     if (isDown && ev.vk != VK_TAB && DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, false, false))
     {
         (void) m_findBox->OnKey (ev);
@@ -2489,6 +2504,12 @@ void DebuggerWindow::ConfigureFindBar()
     m_findNextButton->SetOnClick  ([this] { FindInPane (true);  SetFocusedControl (m_findBox); });
     m_findCloseButton->SetOnClick ([this] { CloseFind(); });
 
+    m_findSelectionButton->SetOnClick ([this] { SetFindInSelection (!m_findInSelection); SetFocusedControl (m_findBox); });
+
+    //  The chevron opens replace in Visual Studio Code. The console and the
+    //  source are read-only, so it is shown, as the widget shows it, but off.
+    m_findChevronButton->SetEnabled (false);
+
     SetFindBarVisible (false);
 }
 
@@ -2507,7 +2528,7 @@ void DebuggerWindow::ConfigureFindBar()
 
 std::vector<IDxuiControl *> DebuggerWindow::GetFindControls() const
 {
-    return { m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton };
+    return { m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findSelectionButton, m_findCloseButton };
 }
 
 
@@ -2525,10 +2546,11 @@ std::vector<IDxuiControl *> DebuggerWindow::GetFindControls() const
 
 void DebuggerWindow::SetFindBarVisible (bool shown)
 {
+    m_findPlate->SetVisible   (shown);
     m_findBox->SetVisible     (shown);
     m_findStatus->SetVisible  (shown);
 
-    for (DxuiButton * button : { m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton })
+    for (DxuiButton * button : { m_findChevronButton, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findSelectionButton, m_findCloseButton })
     {
         button->SetVisible (shown);
     }
@@ -2589,19 +2611,191 @@ DxuiTextView * DebuggerWindow::GetFindView() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetFindSlot
+//  DebuggerWindow::SaveFindState
 //
-//  The slot in the find bar's pane that its controls fill.
+//  Keeps what the widget holds as its pane's, for when find opens there
+//  again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerPaneFrame * DebuggerWindow::GetFindSlot() const
+void DebuggerWindow::SaveFindState()
 {
-    int  slot = GetSourceSlotOf (m_findPane);
+    FindState  & state = m_findStates[m_findPane];
 
 
 
-    return (slot >= 0) ? m_sourceDocs[(size_t) slot].findSlot.get() : m_findBar.get();
+    state.text        = m_findBox->GetText();
+    state.matchCase   = m_findMatchCase;
+    state.wholeWord   = m_findWholeWord;
+    state.isRegex     = m_findRegex;
+    state.inSelection = m_findInSelection;
+    state.status      = m_findStatusText;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::LoadFindState
+//
+//  Puts the find bar's pane's own text, options and count back in the
+//  widget: empty, with every option off, in a pane never searched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::LoadFindState()
+{
+    FindState  state = m_findStates[m_findPane];
+
+
+
+    m_findBox->SetText (state.text);
+    SetFindOptions     (state.matchCase, state.wholeWord, state.isRegex);
+
+    //  The pane's text kept its own scope, so it is not taken again from
+    //  what is selected now.
+    m_findInSelection = state.inSelection;
+    m_findSelectionButton->SetEmphasis (state.inSelection);
+
+    m_findStatusText  = state.status;
+    m_findHistoryAt   = -1;
+    m_findStatus->SetText (m_findStatusText);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RecordFindHistory
+//
+//  The text just searched for goes to the end of its pane's history, moved
+//  there if it was already in it, and the oldest goes once there are more
+//  than kFindHistoryMax.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RecordFindHistory()
+{
+    std::vector<std::wstring>  & history = m_findStates[m_findPane].history;
+    const std::wstring         & text    = m_findBox->GetText();
+
+
+
+    if (text.empty())
+    {
+        return;
+    }
+
+    std::erase (history, text);
+    history.push_back (text);
+
+    if (history.size() > kFindHistoryMax)
+    {
+        history.erase (history.begin());
+    }
+
+    m_findHistoryAt = -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindHistory
+//
+//  Oldest first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerWindow::GetFindHistory (const std::wstring & pane) const
+{
+    auto  it = m_findStates.find (pane);
+
+
+
+    return (it != m_findStates.end()) ? it->second.history : std::vector<std::wstring>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::StepFindHistory
+//
+//  Up and Down in the find box, as in Visual Studio Code's: a step back
+//  (-1) shows the text searched for before, a step forward (+1) the one
+//  after, and stepping forward past the newest empties the box. Returns
+//  false with no history to step through.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::StepFindHistory (int step)
+{
+    const std::vector<std::wstring>  & history = m_findStates[m_findPane].history;
+    int                                count   = (int) history.size();
+    int                                at      = (m_findHistoryAt < 0) ? count : m_findHistoryAt;
+
+
+
+    if (count == 0)
+    {
+        return false;
+    }
+
+    at = std::clamp (at + step, 0, count);
+
+    m_findHistoryAt = (at == count) ? -1 : at;
+    m_findBox->SetText ((at == count) ? std::wstring() : history[(size_t) at]);
+    m_findBox->SelectAll();
+
+    Invalidate();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetFindInSelection
+//
+//  On, the search keeps to what is selected in the pane's text when it is
+//  turned on, as Visual Studio Code's does; with nothing selected it stays
+//  the whole text. Shown emphasized while on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetFindInSelection (bool on)
+{
+    DxuiTextView  * view = GetFindView();
+
+
+
+    m_findInSelection = on;
+    m_findSelectionButton->SetEmphasis (on);
+
+    if (view != nullptr && on)
+    {
+        view->SetFindScopeToSelection();
+    }
+    else if (view != nullptr)
+    {
+        view->ClearFindScope();
+    }
+
+    m_findStatusText.clear();
+    m_findStatus->SetText (m_findStatusText);
+
+    Invalidate();
 }
 
 
@@ -2651,6 +2845,8 @@ void DebuggerWindow::MoveFindBar (DxuiWindow * to)
         return;
     }
 
+    //  The plate goes first, so what sits on it paints over it.
+    controls.insert    (controls.begin(), { m_findPlate, m_findChevronButton });
     controls.push_back (m_findStatus);
 
     for (IDxuiControl * control : controls)
@@ -2700,21 +2896,28 @@ void DebuggerWindow::MoveFindBar (DxuiWindow * to)
 //
 //  DebuggerWindow::PlaceFindBar
 //
-//  The find controls sit in their pane's find slot, left to right, with the
-//  status line taking what is left before Close at the far end. With the
-//  slot hidden -- find closed, or the pane out of sight -- they hide too.
+//  The widget floats at the top right of its pane's text, clear of the
+//  scrollbar, as Visual Studio Code's does: the chevron, the box with the
+//  three option toggles inside its right end, the count, the arrows, find
+//  in selection and Close. It narrows with a narrow pane, the box giving up
+//  the room first. With find closed, or the pane out of sight, it hides.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PlaceFindBar()
 {
-    auto                 px    = [this] (int dip) { return m_scaler.ToPx (dip); };
-    int                  pad   = px (6);
-    DebuggerPaneFrame  * bar   = GetFindSlot();
-    bool                 shown = bar != nullptr && bar->IsVisible();
-    RECT                 slot  = {};
-    int                  x     = 0;
-    int                  right = 0;
+    constexpr int    kButtonDip = 22;
+    auto             px         = [this] (int dip) { return m_scaler.ToPx (dip); };
+    DxuiTextView   * view       = GetFindView();
+    bool             shown      = m_findOpen && view != nullptr && view->IsVisible();
+    int              button     = px (kButtonDip);
+    RECT             area       = {};
+    RECT             plate      = {};
+    int              top        = 0;
+    int              bottom     = 0;
+    int              x          = 0;
+    int              right      = 0;
+    int              boxRight   = 0;
 
 
 
@@ -2730,22 +2933,40 @@ void DebuggerWindow::PlaceFindBar()
         return;
     }
 
-    //  The bar is the pane's, so it goes with the pane into a floating
+    //  The widget is the pane's, so it goes with the pane into a floating
     //  window.
     MoveFindBar (GetPaneHost (m_findPane));
 
-    slot  = bar->GetBounds();
-    x     = slot.left;
-    right = slot.right - px (64);
+    area         = view->GetBounds();
+    plate.right  = area.right - px (kFindWidgetScrollDip);
+    plate.left   = (std::max) (area.left + px (4), plate.right - px (kFindWidgetWidthDip));
+    plate.top    = area.top;
+    plate.bottom = area.top + px (kFindWidgetHeightDip);
 
-    m_findBox->Layout         (RECT { x, slot.top, x + px (200), slot.bottom }, m_scaler);  x += px (200) + pad;
-    m_findCaseButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32);
-    m_findWordButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32);
-    m_findRegexButton->Layout (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32)  + pad;
-    m_findStatus->Layout      (RECT { x, slot.top, x + px (90),  slot.bottom }, m_scaler);  x += px (90)  + pad;
-    m_findPrevButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32);
-    m_findNextButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32)  + pad;
-    m_findCloseButton->Layout (RECT { (std::min) (x, right), slot.top, (std::min) (x, right) + px (32), slot.bottom }, m_scaler);
+    m_findPlate->Layout (plate, m_scaler);
+
+    top    = plate.top    + px (4);
+    bottom = plate.bottom - px (4);
+    x      = plate.left   + px (2);
+    right  = plate.right  - px (4);
+
+    //  From the right: Close, find in selection, the arrows and the count.
+    m_findCloseButton->Layout     (RECT { right - button, top, right, bottom }, m_scaler);  right -= button + px (2);
+    m_findSelectionButton->Layout (RECT { right - button, top, right, bottom }, m_scaler);  right -= button;
+    m_findNextButton->Layout      (RECT { right - button, top, right, bottom }, m_scaler);  right -= button;
+    m_findPrevButton->Layout      (RECT { right - button, top, right, bottom }, m_scaler);  right -= button + px (4);
+    m_findStatus->Layout          (RECT { right - px (kFindCountDip), top, right, bottom }, m_scaler);
+    right -= px (kFindCountDip) + px (4);
+
+    //  From the left: the chevron, then the box, with the toggles inside it.
+    m_findChevronButton->Layout (RECT { x, top, x + px (16), bottom }, m_scaler);  x += px (16) + px (2);
+
+    boxRight = (std::max) (x + button * 3, right);
+
+    m_findBox->Layout         (RECT { x, top, boxRight, bottom }, m_scaler);
+    m_findRegexButton->Layout (RECT { boxRight - px (2) - button,     top + px (2), boxRight - px (2),              bottom - px (2) }, m_scaler);
+    m_findWordButton->Layout  (RECT { boxRight - px (2) - button * 2, top + px (2), boxRight - px (2) - button,     bottom - px (2) }, m_scaler);
+    m_findCaseButton->Layout  (RECT { boxRight - px (2) - button * 3, top + px (2), boxRight - px (2) - button * 2, bottom - px (2) }, m_scaler);
 }
 
 
@@ -2795,14 +3016,15 @@ void DebuggerWindow::OpenFindIn (const std::wstring & target)
         GetFindFrame()->Relayout();
     }
 
+    //  Each pane keeps its own text, options and history.
     if (target != m_findPane)
     {
-        m_findStatusText.clear();
-        m_findStatus->SetText (m_findStatusText);
+        SaveFindState();
+        m_findPane = target;
+        LoadFindState();
     }
 
-    m_findPane = target;
-    selected   = GetFindView()->GetSelectionText();
+    selected = GetFindView()->GetSelectionText();
 
     m_findBox->SetPlaceholder ((m_findPane == DebuggerLayout::kConsole) ? L"Find in the console" : L"Find in the source");
 
@@ -2937,6 +3159,8 @@ void DebuggerWindow::FindInPane (bool forward)
         OpenFind();
         return;
     }
+
+    RecordFindHistory();
 
     result           = GetFindView()->SelectMatch (needle, m_findMatchCase, m_findWholeWord, m_findRegex, forward, index, count);
     m_findStatusText = GetFindStatusText (result, index, count);
@@ -3449,9 +3673,8 @@ void DebuggerWindow::ClipPaneControls()
 
 void DebuggerWindow::ConfigureDockSite()
 {
-    //  The memory bar is a toolbar: a little taller than a box, for the
-    //  margin the strip keeps above and below its entries.
-    constexpr int   kMemoryBarDip = 36;
+    //  A pane's toolbar is a tool window's compact strip, as Visual Studio's.
+    constexpr int   kMemoryBarDip = DxuiToolbar::kCompactBandDp;
     auto            boxHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
     auto            barHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kMemoryBarDip); };
     std::wstring    savedText;
@@ -3459,8 +3682,8 @@ void DebuggerWindow::ConfigureDockSite()
 
 
 
-    //  A source document is its toolbar, its find slot, shown while find
-    //  searches it, and its banner over its text.
+    //  A source document is its toolbar and its banner over its text. Its
+    //  find widget floats over the text (PlaceFindBar).
     for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
     {
         SourceDocument  & document = m_sourceDocs[(size_t) slot];
@@ -3469,9 +3692,7 @@ void DebuggerWindow::ConfigureDockSite()
 
         document.frame    = std::make_unique<DebuggerPaneFrame> (L"Source");
         document.barSlot  = std::make_unique<DebuggerPaneFrame> (L"Source commands");
-        document.findSlot = std::make_unique<DebuggerPaneFrame> (L"Find");
         document.frame->AddPart (document.barSlot.get(), barHeight);
-        document.frame->AddPart (document.findSlot.get(), boxHeight, [this, id] { return m_findOpen && m_findPane == id; });
         document.frame->AddPart (document.banner,
                                  [each] (int width, const DxuiDpiScaler & scaler) { return (int) each->banner->GetPreferredHeightPx ((float) width, scaler); },
                                  [each] { return each->bannerShown; });
@@ -3483,10 +3704,7 @@ void DebuggerWindow::ConfigureDockSite()
     //  pane's top, which PlaceConsoleBar fills.
     m_consoleBarSlot = std::make_unique<DebuggerPaneFrame> (L"Console commands");
     m_consoleFrame->AddPart (m_consoleBarSlot.get(), barHeight);
-    //  The find bar is a slot over the output that PlaceFindBar fills, shown
-    //  only while find is open.
-    m_findBar = std::make_unique<DebuggerPaneFrame> (L"Find");
-    m_consoleFrame->AddPart (m_findBar.get(), boxHeight, [this] { return m_findOpen && m_findPane == DebuggerLayout::kConsole; });
+
     m_consoleFrame->AddPart (m_consoleView);
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
     m_consoleFrame->SetBottomMarginDip (kPanePadDip + 2);
@@ -6161,6 +6379,8 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
         { m_findRegexButton, L"Find by regular expression"           },
         { m_findPrevButton,  L"Find the previous match"              },
         { m_findNextButton,  L"Find the next match"                  },
+        { m_findSelectionButton, L"Find in selection"                },
+        { m_findChevronButton, L"Replace is not available: this text is read-only" },
         { m_findCloseButton, L"Close the find bar"                   },
     };
 
@@ -7112,7 +7332,10 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (RouteMemoryMouse (ev) || RouteSourceMouse (ev) || RouteConsoleMouse (ev))
+    //  The find widget floats over its pane's text, so a press on it is the
+    //  widget's, not the text's.
+    if (!(IsRoutable (m_findPlate) && m_findPlate->IsVisible() && DxuiDockSite::Contains (m_findPlate->GetBounds(), ev.positionDip)) &&
+        (RouteMemoryMouse (ev) || RouteSourceMouse (ev) || RouteConsoleMouse (ev)))
     {
         return true;
     }
@@ -7145,7 +7368,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         {
             m_findBox->SetMouseHover     (x, y);
 
-            for (DxuiButton * button : { m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton })
+            for (DxuiButton * button : { m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findSelectionButton, m_findCloseButton })
             {
                 button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
             }
@@ -7433,7 +7656,7 @@ std::wstring DebuggerWindow::GetPaneOfControl (const IDxuiControl * control) con
     //  The find bar is the pane's it searches, and goes with it.
     for (const IDxuiControl * part : GetFindControls())
     {
-        if (control != nullptr && (control == part || control == m_findStatus))
+        if (control != nullptr && (control == part || control == m_findStatus || control == m_findPlate || control == m_findChevronButton))
         {
             return m_findPane;
         }

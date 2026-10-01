@@ -183,6 +183,26 @@ public:
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
     void  SetIconDip       (float dip)                   { m_iconDip = dip; }
 
+    //  A tool window's strip, as Visual Studio draws one inside a pane: small
+    //  icons in tight buttons with little air around them, for a band of
+    //  kCompactBandDp instead of the command bar's kBandDp.
+    void  SetCompact       (bool compact)                { m_compact = compact; m_iconDip = compact ? kCompactIconDip : kIconDip; }
+    bool  IsCompact        () const                      { return m_compact; }
+
+    static constexpr int    kCompactBandDp  = 26;
+    static constexpr float  kCompactIconDip = 12.0f;
+
+    enum class Spacing
+    {
+        BtnMarginY,
+        BtnPadX,
+        BarPadX,
+        BtnGap,
+        GroupGap,
+    };
+
+    int   GetSpacingDp     (Spacing which) const;
+
     //  The thickness the strip is drawn for: a button plus the margin above
     //  and below it. A host that lays the strip out shorter than this does
     //  not get smaller margins, it gets shorter buttons -- the margin is
@@ -385,6 +405,7 @@ private:
     int                             m_labeledCount = 0;
     std::shared_ptr<DxuiCommand>    m_seeMore;
 
+    bool                     m_compact        = false;
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;

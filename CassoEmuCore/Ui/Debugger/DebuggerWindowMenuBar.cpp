@@ -662,6 +662,7 @@ void DebuggerWindow::ConfigureConsoleBar()
     m_consoleBar->SetTextRenderer (GetTextRenderer());
     m_consoleBar->SetPopupHost    (GetPopupHost());
     m_consoleBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+    m_consoleBar->SetCompact      (true);
     m_consoleBar->SetEntries      ({ dialect, MakeFindEntry (DebuggerLayout::kConsole) });
     m_consoleBar->SetVisible      (false);
 
@@ -859,6 +860,7 @@ void DebuggerWindow::ConfigureSourceBars()
         bar->SetTextRenderer (GetTextRenderer());
         bar->SetPopupHost    (GetPopupHost());
         bar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+        bar->SetCompact      (true);
         bar->SetEntries      ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
         bar->SetVisible      (false);
     }

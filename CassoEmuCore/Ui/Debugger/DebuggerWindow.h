@@ -27,6 +27,7 @@
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
+#include "Ui/Debugger/Panes/FindWidgetPlate.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
@@ -212,6 +213,11 @@ protected:
     DxuiButton     * GetFindWordButton () const { return m_findWordButton; }
     void             SetFindOptions  (bool matchCase, bool wholeWord, bool isRegex);
     std::wstring     GetFindStatus   () const { return m_findStatusText; }
+    void             SetFindInSelection (bool on);
+    bool             IsFindInSelection  () const { return m_findInSelection; }
+    std::vector<std::wstring>  GetFindHistory (const std::wstring & pane) const;
+    bool             StepFindHistory (int step);
+    RECT             GetFindWidgetBounds () const { return m_findPlate->GetBounds(); }
 
     //  Protected so a test can choose a scheme as the Keys menu does, and
     //  read the drop-down rows it leaves.
@@ -325,6 +331,25 @@ protected:
 private:
     //  A source document (FR-054): its text and banner, the pane over them,
     //  the frame the dock shows, and whether each is shown now.
+    //  What a pane's find widget held when it last searched there: each
+    //  searchable pane keeps its own text, options and history.
+    struct FindState
+    {
+        std::wstring               text;
+        bool                       matchCase   = false;
+        bool                       wholeWord   = false;
+        bool                       isRegex     = false;
+        bool                       inSelection = false;
+        std::wstring               status;
+        std::vector<std::wstring>  history;
+    };
+
+    static constexpr size_t  kFindHistoryMax      = 20;
+    static constexpr int     kFindWidgetWidthDip  = 440;
+    static constexpr int     kFindWidgetHeightDip = 34;
+    static constexpr int     kFindWidgetScrollDip = 18;
+    static constexpr int     kFindCountDip        = 74;
+
     struct SourceDocument
     {
         DxuiTextView                        * view        = nullptr;
@@ -333,7 +358,6 @@ private:
         std::unique_ptr<SourcePane>           pane;
         std::unique_ptr<DebuggerPaneFrame>    frame;
         std::unique_ptr<DebuggerPaneFrame>    barSlot;
-        std::unique_ptr<DebuggerPaneFrame>    findSlot;
         bool                                  shown       = false;
         bool                                  bannerShown = false;
         std::wstring                          bannerKey;
@@ -398,7 +422,9 @@ private:
     void     MoveFindBar      (DxuiWindow * to);
     std::wstring        GetFindTarget () const;
     DxuiTextView      * GetFindView   () const;
-    DebuggerPaneFrame * GetFindSlot   () const;
+    void     SaveFindState    ();
+    void     LoadFindState    ();
+    void     RecordFindHistory ();
     DebuggerPaneFrame * GetFindFrame  () const;
     static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();
@@ -677,7 +703,6 @@ private:
     std::string                                                                      m_machine;
     DxuiTextView                                                                   * m_consoleView        = nullptr;
     DxuiTextInput                                                                  * m_commandBox         = nullptr;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_findBar;
     bool                                                                             m_findOpen           = false;
     std::wstring                                                                     m_findPane;
     DxuiWindow                                                                     * m_findBarHost        = nullptr;
@@ -693,6 +718,12 @@ private:
     DxuiButton                                                                     * m_findNextButton     = nullptr;
     DxuiButton                                                                     * m_findCloseButton    = nullptr;
     DxuiLabel                                                                      * m_findStatus         = nullptr;
+    FindWidgetPlate                                                                * m_findPlate          = nullptr;
+    DxuiButton                                                                     * m_findChevronButton  = nullptr;
+    DxuiButton                                                                     * m_findSelectionButton = nullptr;
+    bool                                                                             m_findInSelection    = false;
+    int                                                                              m_findHistoryAt      = -1;
+    std::map<std::wstring, FindState>                                                m_findStates;
     DxuiTextInput                                                                  * m_memoryBox          = nullptr;
     std::array<SourceDocument, SourceDocuments::kMaxDocuments>                       m_sourceDocs;
     SourceDocuments                                                                  m_documents;

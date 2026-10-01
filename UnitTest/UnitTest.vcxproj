@@ -247,6 +247,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowFloatCloseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowPaneFindTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerFindWidgetTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowClosedPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowFileDropTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowViewMenuTests.cpp" />
@@ -651,6 +652,7 @@
     <ClCompile Include="Dxui\DxuiToolbarOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarCustomOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarCompactTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />

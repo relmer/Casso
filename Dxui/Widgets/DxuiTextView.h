@@ -151,6 +151,13 @@ public:
     //  matches nothing.
     FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount);
 
+    //  Find in selection: while set, SelectMatch takes only a match that lies
+    //  wholly inside the selection this was set from. Setting it with nothing
+    //  selected leaves the search the whole text.
+    void  SetFindScopeToSelection ();
+    void  ClearFindScope          ()       { m_scoped = false; }
+    bool  IsFindScoped            () const { return m_scoped; }
+
     //  Every match in the rows, in order. False when the needle is not a valid
     //  regular expression.
     static bool  FindAllInRows (const std::vector<std::wstring> & rows,
@@ -252,26 +259,29 @@ private:
     //  The face's advance, which is rarely a whole number of pixels. Columns
     //  are placed by it rather than by the rounded cell width, so a line split
     //  into selected and unselected runs lands where the whole line would.
-    float              m_cellAdvance   = 0.0f;
-    int                m_cellHeightPx  = 0;
-    bool               m_cellPinned    = false;
-    float              m_zoom          = 1.0f;
-    float              m_textStrength  = 1.0f;
-    int                m_gutterDip     = 0;
-    int                m_gutterIconDip = 0;
-    UINT               m_measuredDpi   = 0;
-    int                m_topLine       = 0;
-    bool               m_followEnd     = false;
-    bool               m_atEnd         = true;
-    Position           m_anchor;
-    Position           m_caret;
-    Position           m_lastClick;
-    int64_t            m_lastClickMs   = 0;
-    bool               m_dragging      = false;
-    bool               m_wordDrag      = false;
-    Position           m_wordFirst;
-    Position           m_wordLast;
-    HWND               m_hwnd          = nullptr;
+    float     m_cellAdvance   = 0.0f;
+    int       m_cellHeightPx  = 0;
+    bool      m_cellPinned    = false;
+    float     m_zoom          = 1.0f;
+    float     m_textStrength  = 1.0f;
+    int       m_gutterDip     = 0;
+    int       m_gutterIconDip = 0;
+    UINT      m_measuredDpi   = 0;
+    int       m_topLine       = 0;
+    bool      m_followEnd     = false;
+    bool      m_atEnd         = true;
+    Position  m_anchor;
+    Position  m_caret;
+    bool      m_scoped        = false;
+    Position  m_scopeStart;
+    Position  m_scopeEnd;
+    Position  m_lastClick;
+    int64_t   m_lastClickMs   = 0;
+    bool      m_dragging      = false;
+    bool      m_wordDrag      = false;
+    Position  m_wordFirst;
+    Position  m_wordLast;
+    HWND      m_hwnd          = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;

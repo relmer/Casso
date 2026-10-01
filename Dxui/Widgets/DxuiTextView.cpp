@@ -702,7 +702,17 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
         texts.push_back (GetRowText (row));
     }
 
-    if (!FindAllInRows (texts, needle, matchCase, wholeWord, isRegex, matches) || matches.empty())
+    if (FindAllInRows (texts, needle, matchCase, wholeWord, isRegex, matches) && m_scoped)
+    {
+        std::erase_if (matches, [this] (const FindMatch & match)
+        {
+            Position  end { match.start.row, match.start.offset + match.length };
+
+            return match.start < m_scopeStart || m_scopeEnd < end;
+        });
+    }
+
+    if (matches.empty())
     {
         return FindResult::NotFound;
     }
@@ -736,6 +746,23 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
     outIndex = (int) pick + 1;
     outCount = (int) matches.size();
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetFindScopeToSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetFindScopeToSelection()
+{
+    m_scoped     = HasSelection();
+    m_scopeStart = (std::min) (m_anchor, m_caret);
+    m_scopeEnd   = (std::max) (m_anchor, m_caret);
 }
 
 

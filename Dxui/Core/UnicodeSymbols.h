@@ -31,6 +31,7 @@ static constexpr LPCWSTR s_kpszTriangleDown  = L"\x25BC";       // U+25BC BLACK 
 static constexpr LPCWSTR s_kpszTriangleRight = L"\x25B6";       // U+25B6 BLACK RIGHT-POINTING TRIANGLE (▶)
 static constexpr LPCWSTR s_kpszTriangleLeft  = L"\x25C0";       // U+25C0 BLACK LEFT-POINTING TRIANGLE
 static constexpr LPCWSTR s_kpszChevronRight  = L"\x203A";       // U+203A SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
+static constexpr LPCWSTR s_kpszIdenticalTo   = L"\x2261";       // U+2261 IDENTICAL TO (three bars), find in selection
 static constexpr LPCWSTR s_kpszRightArrow    = L"\x2192";       // U+2192 RIGHTWARDS ARROW
 static constexpr LPCWSTR s_kpszUpArrow       = L"\x2191";       // U+2191 UPWARDS ARROW
 static constexpr LPCWSTR s_kpszDownArrow     = L"\x2193";       // U+2193 DOWNWARDS ARROW

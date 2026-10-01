@@ -621,13 +621,40 @@ bool DxuiToolbar::HitTest (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::GetSpacingDp
+//
+//  The strip's spacing: the command bar's, or a tool window's much tighter
+//  one while compact.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbar::GetSpacingDp (Spacing which) const
+{
+    switch (which)
+    {
+        case Spacing::BtnMarginY: return m_compact ? 2 : kBtnMarginYDp;
+        case Spacing::BtnPadX:    return m_compact ? 4 : kBtnPadXDp;
+        case Spacing::BarPadX:    return m_compact ? 2 : kBarPadXDp;
+        case Spacing::BtnGap:     return m_compact ? 1 : kBtnGapDp;
+        case Spacing::GroupGap:   return m_compact ? 8 : kGroupGapDp;
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::GetBandDp
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiToolbar::GetBandDp() const
 {
-    return kBandDp;
+    return m_compact ? kCompactBandDp : kBandDp;
 }
 
 
@@ -742,7 +769,7 @@ int DxuiToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
 
 int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 {
-    int           padX    = m_scaler.ToPx (kBtnPadXDp);
+    int           padX    = m_scaler.ToPx (GetSpacingDp (Spacing::BtnPadX));
     int           iconGap = m_scaler.ToPx (kIconGapDp);
     float         fontPx  = GetChromeFontPx();
     int           iconW   = (int) (m_scaler.ToPxf (m_iconDip) + 0.5f);
@@ -788,9 +815,9 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
 int DxuiToolbar::GetTotalWidthPx (int labeledCount) const
 {
-    int  barPad   = m_scaler.ToPx (kBarPadXDp);
-    int  btnGap   = m_scaler.ToPx (kBtnGapDp);
-    int  groupGap = m_scaler.ToPx (kGroupGapDp);
+    int  barPad   = m_scaler.ToPx (GetSpacingDp (Spacing::BarPadX));
+    int  btnGap   = m_scaler.ToPx (GetSpacingDp (Spacing::BtnGap));
+    int  groupGap = m_scaler.ToPx (GetSpacingDp (Spacing::GroupGap));
     int  width    = barPad * 2;
     int  index    = 0;
 
@@ -875,7 +902,7 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
     m_labeledCount = labeled;
 
-    return kBandDp;
+    return m_compact ? kCompactBandDp : kBandDp;
 }
 
 
@@ -911,10 +938,10 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
     PlanForWidth (boundsDip.right - boundsDip.left, scaler);
 
-    marginY  = m_scaler.ToPx (kBtnMarginYDp);
-    btnGap   = m_scaler.ToPx (kBtnGapDp);
-    groupGap = m_scaler.ToPx (kGroupGapDp);
-    barPad   = m_scaler.ToPx (kBarPadXDp);
+    marginY  = m_scaler.ToPx (GetSpacingDp (Spacing::BtnMarginY));
+    btnGap   = m_scaler.ToPx (GetSpacingDp (Spacing::BtnGap));
+    groupGap = m_scaler.ToPx (GetSpacingDp (Spacing::GroupGap));
+    barPad   = m_scaler.ToPx (GetSpacingDp (Spacing::BarPadX));
     x        = boundsDip.left + barPad;
     top      = boundsDip.top + marginY;
     bottom   = boundsDip.bottom - marginY;
@@ -1694,7 +1721,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     float                bh      = (float) (slot.rc.bottom - slot.rc.top);
     float                fontDip = GetChromeFontPx();
     float                iconDip = m_scaler.ToPxf (m_iconDip);
-    int                  padX    = m_scaler.ToPx (kBtnPadXDp);
+    int                  padX    = m_scaler.ToPx (GetSpacingDp (Spacing::BtnPadX));
     int                  iconGap = m_scaler.ToPx (kIconGapDp);
     uint32_t             ink     = m_stripColorsSet ? m_textOverride : theme.ButtonText();
     float                textX   = 0.0f;
