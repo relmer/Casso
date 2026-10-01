@@ -32,6 +32,7 @@ namespace DebuggerTests
     {
     public:
         void  RunDebuggerCommand      (const std::string & line)                 override { lines.push_back (line); }
+        void  RunDebuggerAction       (const DebuggerAction & action)            override { lines.push_back (action.echo); }
         void  PauseDebugger           ()                                         override {}
         void  SetDebuggerCodeLines    (int, int)                                 override {}
         void  SetDebuggerCodeAddress  (std::optional<Word>, int)                 override {}

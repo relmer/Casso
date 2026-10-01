@@ -99,8 +99,7 @@ namespace DebuggerTests
         using DebuggerWindow::ChooseMemoryGrouping;
         using DebuggerWindow::GetFindBarTip;
         using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindCaseBox;
-        using DebuggerWindow::GetFindWordBox;
+        using DebuggerWindow::GetFindControls;
         using DebuggerWindow::IsFindOpen;
 
         void  Build()
@@ -329,9 +328,7 @@ namespace DebuggerTests
 
             Assert::IsTrue (window.IsFindOpen(), L"Ctrl+F opens the find bar");
 
-            for (IDxuiControl * control : { (IDxuiControl *) window.GetFindBox(), (IDxuiControl *) window.GetFindCaseBox(), (IDxuiControl *) window.GetFindWordBox(),
-                                            (IDxuiControl *) window.FindButton (L"Previous"), (IDxuiControl *) window.FindButton (L"Next"),
-                                            (IDxuiControl *) window.FindButton (L"Close") })
+            for (IDxuiControl * control : window.GetFindControls())
             {
                 RECT             anchor = {};
                 const wchar_t  * tip    = nullptr;

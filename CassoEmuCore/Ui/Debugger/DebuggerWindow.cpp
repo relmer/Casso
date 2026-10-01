@@ -5390,8 +5390,9 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
     const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
     {
         { m_findBox,         L"Text to find in the console's output" },
-        { m_findCaseBox,     L"Find only text in the same case"      },
-        { m_findWordBox,     L"Find only whole words"                },
+        { m_findCaseButton,  L"Find only text in the same case"      },
+        { m_findWordButton,  L"Find only whole words"                },
+        { m_findRegexButton, L"Find by regular expression"           },
         { m_findPrevButton,  L"Find the previous match"              },
         { m_findNextButton,  L"Find the next match"                  },
         { m_findCloseButton, L"Close the find bar"                   },

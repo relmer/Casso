@@ -233,7 +233,8 @@ protected:
     void                               ChooseMemoryGrouping (int grouping);
 
     //  Protected so a test can see that every find bar control has a tip.
-    const wchar_t *  GetFindBarTip (POINT clientPx, RECT & anchor) const;
+    const wchar_t *              GetFindBarTip   (POINT clientPx, RECT & anchor) const;
+    std::vector<IDxuiControl *>  GetFindControls () const;
 
     //  Protected so a test can close a floating pane as its close button
     //  does, and see the layout it leaves.
@@ -327,7 +328,6 @@ private:
     void     ConfigureFindBar ();
     void     PlaceFindBar     ();
     void     SetFindBarVisible (bool shown);
-    std::vector<IDxuiControl *>  GetFindControls () const;
     static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
