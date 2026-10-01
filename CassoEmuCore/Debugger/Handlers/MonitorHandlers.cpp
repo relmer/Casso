@@ -403,6 +403,9 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
     }
 
     data.path        = command.text;
+    data.echo        = session.GetPathEcho (command.text, "from");
+    data.address     = (Word) command.a1;
+    data.isLoad      = true;
     data.requested   = wanted;
     data.transferred = (uint32_t) bytes.size();
     data.mismatch    = content.size() != wanted;
@@ -460,6 +463,8 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
     }
 
     data.path        = command.text;
+    data.echo        = session.GetPathEcho (command.text, "to");
+    data.address     = (Word) command.a1;
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
     reply.data       = data;

@@ -205,6 +205,11 @@ public:
     void                  SetCurrentDirectory  (const std::wstring & directory)   { m_currentDirectory = directory; }
     std::wstring          ResolvePath          (const std::string & path) const;
 
+    // For a reply: empty when the path was given rooted, since the command
+    // already shows it; otherwise " to C:\Work\out.bin", with the preposition
+    // given and the absolute path the relative one resolved to.
+    std::string           GetPathEcho          (const std::string & path, const char * preposition) const;
+
     // The last S or SH results, reachable as @1, @2 and so on.
     const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
     void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); }

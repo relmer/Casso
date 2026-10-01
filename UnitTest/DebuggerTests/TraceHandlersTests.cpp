@@ -85,7 +85,7 @@ namespace DebuggerTests
 
             rig.RunOk ("HISTORY ON");
             Fill (rig, 1);
-            Assert::AreEqual (std::string ("Saved 1 trace entry to trace.txt."), rig.RunOk ("HISTORY SAVE trace.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved 1 trace entry to C:\\Work\\trace.txt."), rig.RunOk ("HISTORY SAVE trace.txt").text.at (0));
             Assert::AreEqual (std::string ("Trace off, 1 entry retained."),      rig.RunOk ("HISTORY OFF").text.at (0));
         }
 
@@ -126,7 +126,7 @@ namespace DebuggerTests
 
             Fill (rig, 25);
 
-            Assert::AreEqual (std::string ("Saved 25 trace entries to trace.txt."), rig.RunOk ("HISTORY SAVE trace.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved 25 trace entries to C:\\Work\\trace.txt."), rig.RunOk ("HISTORY SAVE trace.txt").text.at (0));
 
             saved = rig.files.PeekContent (L"C:\\Work\\trace.txt");
             lines = (size_t) std::count (saved.begin(), saved.end(), '\n');

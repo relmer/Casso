@@ -334,7 +334,7 @@ void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & comma
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the breakpoints, watches, zero-page pointers and bookmarks to {}.", command.text) } };
+    reply.data = MessageData { { std::format ("Saved the breakpoints, watches, zero-page pointers and bookmarks{}.", session.GetPathEcho (command.text, "to")) } };
 }
 
 

@@ -407,7 +407,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("01FF: 34"),                   Render (stack)[2]);
             Assert::AreEqual (std::string ("RAMRD      on"),              Render (switches)[0]);
             Assert::AreEqual (std::string ("$FC58 HOME (main)"),          Render (symbols)[0]);
-            Assert::AreEqual (std::string ("out.bin: 12 of 16 bytes; the file and the range differ in size"), Render (file)[0]);
+            Assert::AreEqual (std::string ("Saved 12 bytes from $0000; the file and the range differ in size"), Render (file)[0]);
             Assert::AreEqual (std::string ("Cycles: 1234"),               Render (CyclesData { 1234 })[0]);
             Assert::AreEqual (std::string ("Mode: MONITOR"),              Render (ModeData { CommandMode::Monitor })[0]);
         }

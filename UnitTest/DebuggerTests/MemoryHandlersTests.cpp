@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/MemoryHandlers.h"
+#include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -250,23 +251,98 @@ namespace DebuggerTests
             reply = rig.RunOk ("BLOAD prog.bin 300");
             Assert::AreEqual ((Byte) 0xA9, rig.target.memory[0x0300]);
             Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0302]);
-            Assert::AreEqual (std::string ("prog.bin (raw): 3 of 3 bytes"), reply.text.at (0));
+            Assert::AreEqual (std::string ("Loaded 3 bytes at $0300 from C:\\Work\\prog.bin"), reply.text.at (0));
 
             reply = rig.RunOk ("BLOAD prog.bin 400,2");
             Assert::AreEqual ((Byte) 0x41, rig.target.memory[0x0401]);
             Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0402], L"the length caps the load");
-            Assert::AreEqual (std::string ("prog.bin (raw): 2 of 3 bytes; the file and the range differ in size"), reply.text.at (0));
+            Assert::AreEqual (std::string ("Loaded 2 bytes at $0400 from C:\\Work\\prog.bin"), reply.text.at (0));
 
             rig.RunFails ("BLOAD missing.bin 300", "file not found");
             rig.RunFails ("BLOAD prog.bin",        "file not loadable");
             rig.RunFails ("BLOAD prog.bin D000",   "memory not writable");
 
-            Assert::AreEqual (std::string ("out.bin: 3 of 3 bytes"), rig.RunOk ("BSAVE out.bin 300:302").text.at (0));
+            Assert::AreEqual (std::string ("Saved 3 bytes from $0300 to C:\\Work\\out.bin"), rig.RunOk ("BSAVE out.bin 300:302").text.at (0));
             Assert::AreEqual (std::string ("\xA9\x41\x60", 3), rig.files.PeekContent (L"C:\\Work\\out.bin"));
             rig.RunFails ("BSAVE out.bin", "invalid arguments");
 
             rig.session.SetFileSystem (nullptr);
             rig.RunFails ("BLOAD prog.bin 300", "no file access");
+        }
+
+
+
+        //  The reply gives the address loaded at, and the path only when it
+        //  was typed relative -- as the absolute path it resolved to.
+        TEST_METHOD (BLOAD_RootedPath_IsNotEchoed)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"D:\\Bin\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            Assert::AreEqual (std::string ("Loaded 3 bytes at $0300"),           rig.RunOk ("BLOAD D:\\Bin\\prog.bin 300").text.at (0));
+            Assert::AreEqual (std::string ("Saved 3 bytes from $0300"),          rig.RunOk ("BSAVE D:\\Bin\\out.bin 300:302").text.at (0));
+            Assert::AreEqual (std::string ("Saved the text screen."),            rig.RunOk ("TSAVE D:\\Bin\\screen.txt").text.at (0));
+        }
+
+
+
+        //  A load that would stop short writes nothing: a file smaller than
+        //  the length asked for, or one that runs past $FFFF.
+        TEST_METHOD (BLOAD_ShortLoad_IsAnError)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.RunFails ("BLOAD prog.bin 300,8", "file too short");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0300], L"nothing is written");
+
+            rig.RunFails ("BLOAD prog.bin FFFE", "file too long");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0xFFFE], L"nothing is written");
+        }
+
+
+
+        //  A debug file, or failing that a symbol file, beside the binary
+        //  under the same base name loads with it, in one more line.
+        TEST_METHOD (BLOAD_LoadsTheDebugOrSymbolFileBeside)
+        {
+            Rig             rig;
+            SymbolHandlers  symbols;
+            Reply           reply;
+
+
+
+            rig.session.AddHandler (&symbols);
+            rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0300 START\n");
+
+            reply = rig.RunOk ("BLOAD prog.bin 300");
+            Assert::AreEqual ((size_t) 2, reply.text.size());
+            Assert::AreEqual (std::string ("Loaded 1 symbols into user from C:\\Work\\prog.sym."), reply.text.at (1));
+            Assert::AreEqual (std::string ("$0300 START (user)"), rig.RunOk ("SYM START").text.at (0));
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg",
+                "version\tmajor=2,minor=0\n"
+                "file\tid=0,name=\"prog.a65\",size=10,mtime=0,mod=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
+                "span\tid=0,seg=0,start=0,size=3\n"
+                "line\tid=0,file=0,line=4,span=0\n"
+                "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "scope\tid=0,name=\"\",mod=0\n");
+
+            reply = rig.RunOk ("BLOAD prog.bin 300");
+            Assert::AreEqual ((size_t) 2, reply.text.size(), L"the debug file, not both");
+            Assert::AreEqual (std::string ("Loaded 1 symbols into user and 1 source lines from C:\\Work\\prog.dbg."), reply.text.at (1));
+            Assert::IsTrue   (rig.session.HasDebugFile());
+
+            rig.files.WriteAllText (L"C:\\Work\\lone.bin", std::string ("\x60", 1));
+            Assert::AreEqual ((size_t) 1, rig.RunOk ("BLOAD lone.bin 300").text.size(), L"nothing beside it, nothing more");
         }
 
 
@@ -282,9 +358,9 @@ namespace DebuggerTests
 
             rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
 
-            Assert::AreEqual (std::string ("prog.bin (raw): 3 of 3 bytes"), rig.RunOk ("BLOAD \"prog.bin\" 300").text.at (0));
-            Assert::AreEqual (std::string ("prog.bin (raw): 3 of 3 bytes"), rig.RunOk ("BLOAD \"prog.bin\",RAW 300").text.at (0));
-            Assert::AreEqual (std::string ("out.bin: 3 of 3 bytes"),         rig.RunOk ("BSAVE \"out.bin\" 300:302").text.at (0));
+            Assert::AreEqual (std::string ("Loaded 3 bytes at $0300 from C:\\Work\\prog.bin"), rig.RunOk ("BLOAD \"prog.bin\" 300").text.at (0));
+            Assert::AreEqual (std::string ("Loaded 3 bytes at $0300 from C:\\Work\\prog.bin"), rig.RunOk ("BLOAD \"prog.bin\",RAW 300").text.at (0));
+            Assert::AreEqual (std::string ("Saved 3 bytes from $0300 to C:\\Work\\out.bin"),         rig.RunOk ("BSAVE \"out.bin\" 300:302").text.at (0));
 
             reply = rig.session.ExecuteLine ("save \"out.bin\" 300.302", CommandMode::GSSquared);
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
@@ -311,12 +387,12 @@ namespace DebuggerTests
             reply = rig.RunOk ("BLOAD prog.hex");
             Assert::AreEqual ((Byte) 0xA9, rig.target.memory[0x0300]);
             Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0303]);
-            Assert::AreEqual (std::string ("prog.hex (Intel HEX): 4 of 4 bytes"), reply.text.at (0));
+            Assert::AreEqual (std::string ("Loaded 4 bytes at $0300 from C:\\Work\\prog.hex"), reply.text.at (0));
 
-            Assert::AreEqual (std::string ("prog.s19 (S-record): 3 of 3 bytes"), rig.RunOk ("BLOAD prog.s19").text.at (0));
+            Assert::AreEqual (std::string ("Loaded 3 bytes at $0500 from C:\\Work\\prog.s19"), rig.RunOk ("BLOAD prog.s19").text.at (0));
             Assert::AreEqual ((Byte) 0x41, rig.target.memory[0x0501]);
 
-            Assert::AreEqual (std::string ("prog.dos (DOS 3.3 binary): 2 of 2 bytes"), rig.RunOk ("BLOAD prog.dos,DOS").text.at (0));
+            Assert::AreEqual (std::string ("Loaded 2 bytes at $0700 from C:\\Work\\prog.dos"), rig.RunOk ("BLOAD prog.dos,DOS").text.at (0));
             Assert::AreEqual ((Byte) 0xEA, rig.target.memory[0x0700], L"the header's address");
             Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0701]);
 
@@ -343,7 +419,7 @@ namespace DebuggerTests
             Store (rig, 0x0428, { 0xC5, 0xC9, 0xC7, 0xC8, 0xD4 });
             rig.target.memory[0x0405] = 0x8D;
 
-            Assert::AreEqual (std::string ("Saved the text screen to screen.txt."), rig.RunOk ("TSAVE screen.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved the text screen to C:\\Work\\screen.txt."), rig.RunOk ("TSAVE screen.txt").text.at (0));
 
             content = rig.files.PeekContent (L"C:\\Work\\screen.txt");
 

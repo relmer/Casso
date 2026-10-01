@@ -611,7 +611,7 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the profile to {}.", name) } };
+    reply.data = MessageData { { std::format ("Saved the profile{}.", session.GetPathEcho (name, "to")) } };
 }
 
 

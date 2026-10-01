@@ -48,6 +48,7 @@ private:
     static void  Search       (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ShowResults  (DebugSession & session, Reply & reply);
     static void  LoadBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static std::string  LoadCompanion (DebugSession & session, IFileSystem & files, const std::string & name);
     static void  SaveBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SaveText     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ReadIo       (DebugSession & session, const DebugCommand & command, Reply & reply);

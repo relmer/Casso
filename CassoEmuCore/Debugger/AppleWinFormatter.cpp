@@ -550,7 +550,9 @@ void AppleWinFormatter::FormatSymbols (const SymbolData & data, Lines & lines)
 
 void AppleWinFormatter::FormatFileIo (const FileIoData & data, Lines & lines)
 {
-    std::string  text = std::format ("{}: {} of {} bytes", data.path, data.transferred, data.requested);
+    std::string  text = data.isLoad
+                            ? std::format ("Loaded {} bytes at ${:04X}{}", data.transferred, data.address, data.echo)
+                            : std::format ("Saved {} bytes from ${:04X}{}", data.transferred, data.address, data.echo);
 
 
 
@@ -560,6 +562,11 @@ void AppleWinFormatter::FormatFileIo (const FileIoData & data, Lines & lines)
     }
 
     lines.push_back (text);
+
+    if (!data.companion.empty())
+    {
+        lines.push_back (data.companion);
+    }
 }
 
 

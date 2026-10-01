@@ -226,11 +226,18 @@ struct ModeData
     CommandMode  mode = CommandMode::AppleWin;
 };
 
+// BLOAD, BSAVE, R and W. `echo` is DebugSession::GetPathEcho's text: the
+// absolute path a relative one resolved to, or empty. `companion` is the
+// line from the debug or symbol file BLOAD found beside the binary.
 struct FileIoData
 {
     std::string  path;
+    std::string  echo;
+    std::string  companion;
     uint32_t     requested   = 0;
     uint32_t     transferred = 0;
+    Word         address     = 0;
+    bool         isLoad      = false;
     bool         mismatch    = false;
 };
 

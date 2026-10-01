@@ -332,7 +332,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    reply.data = MessageData { { std::format ("Loaded {} symbols into {} from {}.", loaded, ReplyJson::GetSymbolTableName (table), name) } };
+    reply.data = MessageData { { std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")) } };
 }
 
 
@@ -401,8 +401,8 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
         loaded = 0;
     }
 
-    reply.data = MessageData { { std::format ("Loaded {} symbols into {} and {} source lines from {}.",
-                                              loaded, ReplyJson::GetSymbolTableName (table), lines, name) } };
+    reply.data = MessageData { { std::format ("Loaded {} symbols into {} and {} source lines{}.",
+                                              loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")) } };
 }
 
 
@@ -475,7 +475,7 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved {} symbols from {} to {}.", session.GetSymbols().GetCount (table), ReplyJson::GetSymbolTableName (table), name) } };
+    reply.data = MessageData { { std::format ("Saved {} symbols from {}{}.", session.GetSymbols().GetCount (table), ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "to")) } };
 }
 
 

@@ -866,6 +866,39 @@ std::wstring DebugSession::ResolvePath (const std::string & path) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::GetPathEcho
+//
+//  A path that resolved to something other than what was typed is the
+//  relative one; a rooted path resolves to itself, less any quotes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebugSession::GetPathEcho (const std::string & path, const char * preposition) const
+{
+    std::string   bare     = Trim (path);
+    std::wstring  resolved = ResolvePath (path);
+
+
+
+    if (bare.size() >= 2 && (bare.front() == '"' || bare.front() == '\'') && bare.back() == bare.front())
+    {
+        bare = bare.substr (1, bare.size() - 2);
+    }
+
+    if (resolved.empty() || resolved == TextEncoding::NarrowToWide (bare))
+    {
+        return std::string();
+    }
+
+    return std::format (" {} {}", preposition, TextEncoding::WideToNarrow (resolved));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::BeginAssembly
 //
 ////////////////////////////////////////////////////////////////////////////////

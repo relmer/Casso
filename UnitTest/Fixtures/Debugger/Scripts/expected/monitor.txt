@@ -14,11 +14,11 @@ A=41 X=00 Y=00 P=24 S=FD
 *: 01 02 03
 A=01 X=02 Y=03 P=24 S=FD
 *300.302W out.bin
-out.bin: 3 of 3 bytes
+Saved 3 bytes from $0300
 *400: 00 00 00
 0400- 00 00 00
 *400.402R out.bin
-out.bin: 3 of 3 bytes
+Loaded 3 bytes at $0400
 *400.402
 0400- A9 41 60
 */bp 300

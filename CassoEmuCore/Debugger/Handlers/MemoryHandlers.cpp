@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 
 #include "Config/IFileSystem.h"
+#include "Debugger/AppleWinFormatter.h"
 #include "Debugger/BinaryImageReader.h"
 #include "Debugger/DebugSession.h"
 
@@ -475,6 +476,29 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
         return;
     }
 
+    //  A load that would stop short is refused before anything is written:
+    //  a file smaller than the length given, or one that runs past $FFFF.
+    for (const BinarySegment & segment : image.segments)
+    {
+        size_t  room = (size_t) (kAddressSpace - segment.address) + 1;
+
+
+
+        if (command.hasA2 && image.segments.size() == 1 && segment.bytes.size() < (size_t) (command.a2 - command.a1) + 1)
+        {
+            reply.SetError (CommandStatus::Error, "file too short",
+                            std::format ("{} holds {} bytes, fewer than the {} asked for.", name, segment.bytes.size(), (command.a2 - command.a1) + 1));
+            return;
+        }
+
+        if (segment.bytes.size() > room)
+        {
+            reply.SetError (CommandStatus::Error, "file too long",
+                            std::format ("{} holds {} bytes, which run past $FFFF from ${:04X}.", name, segment.bytes.size(), segment.address));
+            return;
+        }
+    }
+
     for (const BinarySegment & segment : image.segments)
     {
         size_t  count = segment.bytes.size();
@@ -486,8 +510,7 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
             count = std::min<size_t> (count, (size_t) (command.a2 - command.a1) + 1);
         }
 
-        count      = std::min<size_t> (count, (size_t) (kAddressSpace - segment.address) + 1);
-        requested += segment.bytes.size();
+        requested += count;
 
         if (!TryPokeRange (session.GetTarget(), segment.address, std::span<const Byte> (segment.bytes.data(), count), reply))
         {
@@ -498,10 +521,68 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
     }
 
     data.path        = std::format ("{} ({})", name, BinaryImageReader::GetFormatName (image.format));
+    data.echo        = session.GetPathEcho (name, "from");
+    data.address     = image.segments.empty() ? (Word) 0 : image.segments.front().address;
+    data.isLoad      = true;
     data.requested   = (uint32_t) requested;
     data.transferred = (uint32_t) loaded;
-    data.mismatch    = loaded != requested;
+    data.companion   = LoadCompanion (session, *files, name);
     reply.data       = data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::LoadCompanion
+//
+//  A debug file (.dbg) or, failing that, a symbol file (.sym) beside the
+//  binary under the same base name is loaded with it, as SYM LOAD would.
+//  Returns that load's one line of reply, or empty when there is no such
+//  file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryHandlers::LoadCompanion (DebugSession & session, IFileSystem & files, const std::string & name)
+{
+    static constexpr const char * kExtensions[] = { ".dbg", ".sym" };
+    size_t                        slash         = name.find_last_of ("/\\:");
+    size_t                        dot           = name.rfind ('.');
+    std::string                   base          = name;
+    Reply                         loaded;
+
+
+
+    if (dot != std::string::npos && (slash == std::string::npos || dot > slash))
+    {
+        base = name.substr (0, dot);
+    }
+
+    for (const char * extension : kExtensions)
+    {
+        std::string  sibling = base + extension;
+
+
+
+        if (sibling == name || !files.Exists (session.ResolvePath (sibling)))
+        {
+            continue;
+        }
+
+        loaded = session.ExecuteLine (std::format ("SYM LOAD \"{}\"", sibling), CommandMode::AppleWin);
+        AppleWinFormatter::Format (loaded);
+
+        if (loaded.status == CommandStatus::Ok && !loaded.text.empty())
+        {
+            return loaded.text.front();
+        }
+
+        return loaded.error.detail.empty() ? std::string() : std::format ("{} was not loaded: {}", sibling, loaded.error.detail);
+    }
+
+    return std::string();
 }
 
 
@@ -560,6 +641,8 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
     }
 
     data.path        = Unquote (command.text);
+    data.echo        = session.GetPathEcho (command.text, "to");
+    data.address     = (Word) command.a1;
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
     reply.data       = data;
@@ -627,7 +710,7 @@ void MemoryHandlers::SaveText (DebugSession & session, const DebugCommand & comm
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the text screen to {}.", command.text) } };
+    reply.data = MessageData { { std::format ("Saved the text screen{}.", session.GetPathEcho (command.text, "to")) } };
 }
 
 

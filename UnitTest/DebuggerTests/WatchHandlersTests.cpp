@@ -177,7 +177,7 @@ namespace DebuggerTests
 
 
             rig.RunOk ("WA 36");
-            Assert::AreEqual (std::string ("Saved 1 watch to w.txt."), rig.RunOk ("WSAVE w.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved 1 watch to C:\\Work\\w.txt."), rig.RunOk ("WSAVE w.txt").text.at (0));
             rig.RunOk ("WA 3C");
             rig.RunOk ("WD 1");
             rig.RunOk ("ZP 36");
@@ -186,7 +186,7 @@ namespace DebuggerTests
             watches  = rig.RunOk ("WL").text;
             pointers = rig.RunOk ("ZPL").text;
 
-            Assert::AreEqual (std::string ("Saved 2 watches to w.txt."), rig.RunOk ("WSAVE w.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved 2 watches to C:\\Work\\w.txt."), rig.RunOk ("WSAVE w.txt").text.at (0));
             Assert::AreEqual (std::string ("WC *\nWA 0036\nWA 003C\nWD 1\n"), rig.files.PeekContent (L"C:\\Work\\w.txt"));
             rig.RunOk ("ZPSAVE z.txt");
             Assert::AreEqual (std::string ("ZPC *\nZP0 0036\nZP5 003C\n"),    rig.files.PeekContent (L"C:\\Work\\z.txt"));

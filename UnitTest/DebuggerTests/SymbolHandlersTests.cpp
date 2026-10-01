@@ -109,7 +109,7 @@ namespace DebuggerTests
                 "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
                 "scope\tid=0,name=\"\",mod=0\n");
 
-            Assert::AreEqual (std::string ("Loaded 1 symbols into user and 1 source lines from prog.dbg."),
+            Assert::AreEqual (std::string ("Loaded 1 symbols into user and 1 source lines from C:\\Work\\prog.dbg."),
                               rig.RunOk ("SYMUSER LOAD \"prog.dbg\"").text.at (0));
             Assert::IsTrue   (rig.session.HasDebugFile());
             Assert::AreEqual (4, rig.session.GetLineTable().GetPositionsAt (0x0302).at (0).line);
@@ -171,17 +171,17 @@ namespace DebuggerTests
             rig.files.WriteAllText (L"C:\\Work\\labels.sym", "0300 START\n0310 LOOP\n");
             rig.files.WriteAllText (L"C:\\Work\\bad.txt",    "nothing here\n");
 
-            Assert::AreEqual (std::string ("Loaded 2 symbols into user from prog.dbg."), rig.RunOk ("SYMUSER LOAD \"prog.dbg\"").text.at (0));
+            Assert::AreEqual (std::string ("Loaded 2 symbols into user from C:\\Work\\prog.dbg."), rig.RunOk ("SYMUSER LOAD \"prog.dbg\"").text.at (0));
             Assert::AreEqual (std::string ("$0310 loop (user)"), rig.RunOk ("SYM loop").text.at (0));
 
-            Assert::AreEqual (std::string ("Loaded 2 symbols into src from labels.sym."), rig.RunOk ("SYMSRC LOAD labels.sym,1000").text.at (0));
+            Assert::AreEqual (std::string ("Loaded 2 symbols into src from C:\\Work\\labels.sym."), rig.RunOk ("SYMSRC LOAD labels.sym,1000").text.at (0));
             Assert::AreEqual (std::string ("$1300 START (src)"), rig.RunOk ("SYMSRC START").text.at (0), L"the offset moved every address");
 
             lines = rig.RunOk ("SYMLIST src").text;
             Assert::AreEqual ((size_t) 2, lines.size());
             Assert::AreEqual (std::string ("$1300 START (src)"), lines[0]);
 
-            Assert::AreEqual (std::string ("Saved 2 symbols from src to out.dbg."), rig.RunOk ("SYMSRC SAVE out.dbg").text.at (0));
+            Assert::AreEqual (std::string ("Saved 2 symbols from src to C:\\Work\\out.dbg."), rig.RunOk ("SYMSRC SAVE out.dbg").text.at (0));
             Assert::AreEqual (std::string ("; by address\nSTART=$1300\nLOOP=$1310\n"), rig.files.PeekContent (L"C:\\Work\\out.dbg"));
 
             rig.RunFails ("SYMUSER LOAD bad.txt",     "not a symbol file");

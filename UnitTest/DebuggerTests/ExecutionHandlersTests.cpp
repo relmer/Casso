@@ -650,11 +650,11 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("INX    [No Operand]                  3          6   75.0%"), lines.at (2));
             Assert::AreEqual (std::string ("LDA    #Immediate                    1          2   25.0%"), lines.at (3));
 
-            Assert::AreEqual (std::string ("Saved the profile to Profile.txt."), rig.RunOk ("PROFILE SAVE").text.at (0));
+            Assert::AreEqual (std::string ("Saved the profile to C:\\Work\\Profile.txt."), rig.RunOk ("PROFILE SAVE").text.at (0));
             saved = rig.files.PeekContent (L"C:\\Work\\Profile.txt");
             Assert::IsTrue   (saved.find (lines.at (2) + "\n") != std::string::npos, L"the saved file holds the listed rows");
             Assert::IsTrue   (saved.find ("Address Symbol") != std::string::npos,   L"and the per-address rows");
-            Assert::AreEqual (std::string ("Saved the profile to hot.txt."), rig.RunOk ("PROFILE SAVE hot.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved the profile to C:\\Work\\hot.txt."), rig.RunOk ("PROFILE SAVE hot.txt").text.at (0));
             Assert::AreEqual (saved, rig.files.PeekContent (L"C:\\Work\\hot.txt"));
 
             Assert::AreEqual (std::string ("Profile reset."), rig.RunOk ("PROFILE RESET").text.at (0));
@@ -674,7 +674,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("Saved the profile to \"my profile.txt\"."), rig.RunOk ("PROFILE SAVE \"my profile.txt\"").text.at (0));
+            Assert::AreEqual (std::string ("Saved the profile to C:\\Work\\my profile.txt."), rig.RunOk ("PROFILE SAVE \"my profile.txt\"").text.at (0));
             Assert::IsFalse  (rig.files.PeekContent (L"C:\\Work\\my profile.txt").empty());
         }
 

@@ -32,6 +32,6 @@ $0305                                 8   16.7%
 $0306                                 8   16.7%
 $0300                                 2    4.2%
 >PROFILE SAVE profile.txt
-Saved the profile to profile.txt.
+Saved the profile.
 >PROFILE OFF
 Profiling off.

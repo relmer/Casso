@@ -225,6 +225,16 @@ BSAVE file addr.last
 contents; anything else loads as raw bytes. A DOS 3.3 binary cannot be told
 from raw data, so it needs `,DOS`. The file extension is never used.
 
+The reply gives the byte count and the address, such as `Loaded 17 bytes at
+$0300`. A load that would stop short loads nothing and is an error: a file
+smaller than the length you give, or one that would run past `$FFFF`. When a
+debug file (`.dbg`) or, failing that, a symbol file (`.sym`) sits beside the
+binary under the same base name, `BLOAD` loads it too, as `SYM LOAD` would,
+and says so in one more line.
+
+Every file command's reply gives the file's path only when you typed it
+relative, and then as the absolute path it resolved to.
+
 | Format word | Format | Address |
 |---|---|---|
 | `RAW` | raw bytes | required |

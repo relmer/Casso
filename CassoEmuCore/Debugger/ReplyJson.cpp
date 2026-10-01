@@ -559,11 +559,20 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
 
     if (auto * v = std::get_if<FileIoData> (&data))
     {
-        return JsonValue (Members { { "kind",        MakeString ("fileIo") },
-                                    { "path",        MakeString (v->path) },
-                                    { "requested",   MakeNumber (v->requested) },
-                                    { "transferred", MakeNumber (v->transferred) },
-                                    { "mismatch",    JsonValue (v->mismatch) } });
+        Members  members = { { "kind",        MakeString ("fileIo") },
+                             { "path",        MakeString (v->path) },
+                             { "requested",   MakeNumber (v->requested) },
+                             { "transferred", MakeNumber (v->transferred) },
+                             { "mismatch",    JsonValue (v->mismatch) } };
+
+
+
+        if (!v->companion.empty())
+        {
+            members.emplace_back ("companion", MakeString (v->companion));
+        }
+
+        return JsonValue (std::move (members));
     }
 
     if (auto * v = std::get_if<CompareData>       (&data)) { return MakeCompare    (*v); }

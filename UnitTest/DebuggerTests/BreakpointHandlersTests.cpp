@@ -249,7 +249,7 @@ namespace DebuggerTests
 
 
             rig.RunOk ("BP 300");
-            Assert::AreEqual (std::string ("Saved 1 breakpoint to bp.txt."), rig.RunOk ("BPSAVE bp.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved 1 breakpoint to C:\\Work\\bp.txt."), rig.RunOk ("BPSAVE bp.txt").text.at (0));
         }
 
 
@@ -392,7 +392,7 @@ namespace DebuggerTests
             rig.RunOk ("BPCHANGE 2 Ts");
             before = List (rig);
 
-            Assert::AreEqual (std::string ("Saved 4 breakpoints to bp.txt."), rig.RunOk ("BPSAVE bp.txt").text.at (0));
+            Assert::AreEqual (std::string ("Saved 4 breakpoints to C:\\Work\\bp.txt."), rig.RunOk ("BPSAVE bp.txt").text.at (0));
             Assert::AreEqual (std::string (kExpected), rig.files.PeekContent (L"C:\\Work\\bp.txt"));
 
             rig.RunOk ("BPC *");

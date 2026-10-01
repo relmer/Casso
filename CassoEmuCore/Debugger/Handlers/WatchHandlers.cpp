@@ -347,7 +347,7 @@ void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, 
     }
 
     count      = GetTable (session, kind).GetAll().size();
-    reply.data = MessageData { { std::format ("Saved {} {} to {}.", count, count == 1 ? GetNoun (kind) : GetPlural (kind), command.text) } };
+    reply.data = MessageData { { std::format ("Saved {} {}{}.", count, count == 1 ? GetNoun (kind) : GetPlural (kind), session.GetPathEcho (command.text, "to")) } };
 }
 
 
