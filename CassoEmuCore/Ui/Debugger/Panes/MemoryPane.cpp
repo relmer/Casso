@@ -43,15 +43,15 @@ MemoryPane::MemoryPane (int id, DxuiHexView * view, MoveFn move, RunFn run, RunF
 //
 //  MemoryPane::Configure
 //
-//  Sixteen bytes a row, Apple text in the text column, and editing on.
+//  Sixteen values a row, Apple text in the text column, and editing on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryPane::Configure (HWND hwnd)
 {
     m_view->SetOwnerWindow  (hwnd);
-    m_view->SetBytesPerRow  (kBytesPerRow);
     (void) m_view->SetGrouping (m_grouping);
+    m_view->SetColumns      (m_columns);
     m_view->SetShowValues   (true);
     m_view->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
     m_view->SetEditable     (true);
@@ -99,7 +99,7 @@ void MemoryPane::Apply (const DebuggerViewSnapshot::MemoryWindow & window)
 
     if (!m_placed)
     {
-        m_view->SetTopRow  ((uint64_t) window.first / kBytesPerRow);
+        m_view->SetTopRow  ((uint64_t) window.first / (uint64_t) m_view->GetBytesPerRow());
         m_view->GoToOffset (window.first);
         m_placed = true;
     }
@@ -119,7 +119,7 @@ void MemoryPane::Apply (const DebuggerViewSnapshot::MemoryWindow & window)
 
 void MemoryPane::FollowScroll()
 {
-    std::optional<Word>  start = GetReadStartFor (m_readFirst, GetTopAddress(), m_view->GetRowCap());
+    std::optional<Word>  start = GetReadStartFor (m_readFirst, GetTopAddress(), m_view->GetRowCap(), m_view->GetBytesPerRow());
 
 
 
@@ -142,8 +142,9 @@ void MemoryPane::FollowScroll()
 
 void MemoryPane::GoTo (Word address)
 {
-    Word  first = (Word) (address & ~(kBytesPerRow - 1));
-    Word  phase = (Word) (address - first);
+    Word  row   = (Word) m_view->GetBytesPerRow();
+    Word  phase = (Word) (address % row);
+    Word  first = (Word) (address - phase);
 
 
 
@@ -153,11 +154,12 @@ void MemoryPane::GoTo (Word address)
     m_model.SetPhase        (phase);
     m_view->SetOriginAddress (phase);
     m_view->SetTopRow        (0);
-    m_view->SetTopRow        ((uint64_t) first / kBytesPerRow);
+    m_view->SetTopRow        ((uint64_t) first / row);
     m_view->GoToOffset       ((uint64_t) first);
 
-    m_requested = first;
-    m_move (m_id, first);
+    //  Reads start on a sixteen-byte boundary, which a narrow row need not.
+    m_requested = (Word) (first & ~(kBytesPerRow - 1));
+    m_move (m_id, *m_requested);
 }
 
 
@@ -184,19 +186,72 @@ int MemoryPane::CycleGrouping()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryPane::SetGrouping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetGrouping (int bytesPerValue)
+{
+    if (m_view->SetGrouping (bytesPerValue))
+    {
+        m_grouping = bytesPerValue;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SetColumns
+//
+//  A new row width moves the rows on screen, so the read may have to follow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetColumns (int valuesPerRow)
+{
+    m_columns = valuesPerRow;
+    m_view->SetColumns (valuesPerRow);
+    FollowScroll();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::Refresh
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::Refresh()
+{
+    m_requested = m_readFirst;
+    m_move (m_id, m_readFirst);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryPane::GetReadStartFor
 //
-//  The new read starts a few rows above the ones on screen, on a row
+//  The new read starts a few rows above the ones on screen, on a sixteen-byte
 //  boundary, and is kept inside the 64K so the last one ends at $FFFF.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<Word> MemoryPane::GetReadStartFor (Word readFirst, uint64_t topOffset, int visibleRows)
+std::optional<Word> MemoryPane::GetReadStartFor (Word readFirst, uint64_t topOffset, int visibleRows, int bytesPerRow)
 {
     static constexpr uint64_t  kAddressSpace = 0x10000;
     static constexpr uint64_t  kReadBytes    = DebuggerViewState::kMemoryWindowBytes;
-    uint64_t                   visibleEnd    = topOffset + (uint64_t) (std::max) (visibleRows, 1) * kBytesPerRow;
-    uint64_t                   lead          = (uint64_t) s_kLeadRows * kBytesPerRow;
+    uint64_t                   visibleEnd    = topOffset + (uint64_t) (std::max) (visibleRows, 1) * (uint64_t) bytesPerRow;
+    uint64_t                   lead          = (uint64_t) s_kLeadRows * (uint64_t) bytesPerRow;
     uint64_t                   start         = 0;
 
 

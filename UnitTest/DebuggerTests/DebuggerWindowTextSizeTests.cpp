@@ -117,14 +117,16 @@ namespace DebuggerTests
         using DebuggerWindow::EndWatchEdit;
         using DebuggerWindow::GetFocused;
         using DebuggerWindow::GetWatchList;
-        using DebuggerWindow::GetPokeBox;
         using DebuggerWindow::GetMenuCommands;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetPaneOfFocus;
-        using DebuggerWindow::GetMemoryButtons;
-        using DebuggerWindow::GetMemoryMoreButton;
-        using DebuggerWindow::GetMemoryOverflow;
+        using DebuggerWindow::GetMemoryBar;
+        using DebuggerWindow::GetMemoryHistory;
+        using DebuggerWindow::RunMemoryBarEntry;
+        using DebuggerWindow::ChooseMemoryColumns;
+        using DebuggerWindow::ChooseMemoryGrouping;
+        using DebuggerWindow::GetFindBarTip;
         using DebuggerWindow::GetWatchEditor;
 
         //  A key as the window's message handling delivers it: to the window
@@ -197,7 +199,7 @@ namespace DebuggerTests
                 {
                     before.push_back (list->GetFontSizeDip());
                 }
-                else if (auto * toolbar = dynamic_cast<DxuiToolbar *> (child))
+                else if (auto * toolbar = dynamic_cast<DxuiToolbar *> (child); toolbar != nullptr && bar == nullptr)
                 {
                     bar     = toolbar;
                     barRect = toolbar->GetBounds();
@@ -930,17 +932,17 @@ namespace DebuggerTests
             scaler.SetDpi (96);
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
 
-            window.FocusControl (window.GetPokeBox());
-            Assert::IsTrue   (window.GetPokeBox()->IsVisible(), L"the poke box shows in the memory window's bar");
+            window.FocusControl (window.GetMemoryBox());
+            Assert::IsTrue   (window.GetMemoryBox()->IsVisible(), L"the Address box shows in the memory window's bar");
 
             window.TakeSnapshot (MakeSnapshot ("Apple2e", false));
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
 
-            Assert::IsFalse  (window.GetPokeBox()->IsVisible(), L"no memory window, no bar");
+            Assert::IsFalse  (window.GetMemoryBox()->IsVisible(), L"no memory window, no bar");
             Assert::IsTrue   (window.GetFocused() == window.GetCommandBox(), L"the keys go back to the command line");
 
             window.Type (L"12");
-            Assert::AreEqual (std::wstring(), window.GetPokeBox()->GetText(), L"and nothing is typed into the hidden box");
+            Assert::AreEqual (std::wstring(), window.GetMemoryBox()->GetText(), L"and nothing is typed into the hidden box");
         }
 
 
@@ -1096,7 +1098,7 @@ namespace DebuggerTests
     {
     public:
 
-        TEST_METHOD (MemoryButtonsWithNoRoomMoveToTheOverflowMenu)
+        TEST_METHOD (MemoryBarEntriesWithNoRoomMoveToTheOverflowMenu)
         {
             static constexpr LONG  kWidths[] = { 760, 900, 1100, 1400, 1800 };
 
@@ -1114,35 +1116,40 @@ namespace DebuggerTests
 
             for (LONG width : kWidths)
             {
-                RECT    bar    = {};
-                size_t  shown  = 0;
+                DxuiToolbar  * strip  = window.GetMemoryBar();
+                RECT           bar    = {};
+                RECT           entry  = {};
+                bool           hidden = false;
+                bool           more   = false;
 
                 window.Layout (RECT { 0, 0, width, 840 }, scaler);
 
                 Assert::IsTrue (window.TryGetChildClip (window.GetMemoryBox(), bar), L"the memory bar's controls are clipped to the bar");
 
-                for (DxuiButton * button : window.GetMemoryButtons())
+                for (int i = 0; i < strip->GetEntryCount(); i++)
                 {
-                    if (button->IsVisible())
+                    int  id = strip->GetEntryCommandId (i);
+
+                    if (id == DxuiToolbar::kSeeMoreId)
                     {
-                        shown++;
-                        Assert::IsTrue (button->GetBounds().right <= bar.right, std::format (L"a shown button stays inside the pane at width {}", width).c_str());
+                        more = strip->IsEntryShown (i);
+                    }
+                    else if (!strip->IsEntryShown (i))
+                    {
+                        hidden = true;
+                    }
+                    else if (strip->TryGetEntryRect (id, entry))
+                    {
+                        Assert::IsTrue (entry.right <= bar.right, std::format (L"a shown entry stays inside the pane at width {}", width).c_str());
                     }
                 }
 
-                Assert::AreEqual (window.GetMemoryButtons().size(), shown + window.GetMemoryOverflow().size(), L"every button is shown or in the overflow menu");
-                Assert::AreEqual (!window.GetMemoryOverflow().empty(), window.GetMemoryMoreButton()->IsVisible(), L"the overflow button shows only with something in it");
-
-                if (window.GetMemoryMoreButton()->IsVisible())
-                {
-                    overflowed = true;
-                    Assert::IsTrue (window.GetMemoryMoreButton()->GetBounds().right <= bar.right, L"the overflow button stays inside the pane");
-                }
+                Assert::AreEqual (hidden, more, L"the overflow button shows only with something in it");
+                overflowed = overflowed || hidden;
             }
 
-            Assert::IsTrue (overflowed, L"some width leaves too little room for every button");
+            Assert::IsTrue (overflowed, L"some width leaves too little room for every entry");
         }
-
 
         TEST_METHOD (APaneControlPaintsInsideItsPane)
         {

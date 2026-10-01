@@ -194,13 +194,9 @@ void DebuggerWindow::OnCreate()
     m_traceList         = CreateChild<DxuiListView>  ();
     m_traceHint         = CreateChild<DxuiLabel>     ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
+    //  The memory bar before its Address box, so the box paints over the strip.
+    m_memoryBar         = CreateChild<DxuiToolbar>   ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
-    m_pokeBox           = CreateChild<DxuiTextInput> ();
-    m_pokeButton        = CreateChild<DxuiButton>    (L"Poke");
-    m_groupButton       = CreateChild<DxuiButton>    (L"Bytes");
-    m_addMemoryButton   = CreateChild<DxuiButton>    (L"+ Memory");
-    m_removeMemoryButton = CreateChild<DxuiButton>   (L"- Memory");
-    m_memoryMoreButton  = CreateChild<DxuiButton>    (std::wstring (1, s_kchEllipsis));
     m_findBox           = CreateChild<DxuiTextInput> ();
     m_findCaseButton    = CreateChild<DxuiButton>    (L"Aa");
     m_findWordButton    = CreateChild<DxuiButton>    (L"ab");
@@ -304,23 +300,7 @@ void DebuggerWindow::ConfigureWidgets()
         pane->Configure();
     }
 
-    m_pokeButton->SetOnClick ([this] { SubmitPokeBox(); });
-
-    m_groupButton->SetOnClick ([this]
-    {
-        static const wchar_t * const  kNames[] = { L"", L"Bytes", L"Words", L"", L"Longs" };
-
-        m_groupButton->SetLabel (kNames[GetActiveMemoryPane()->CycleGrouping()]);
-    });
-
-    m_addMemoryButton->SetOnClick    ([this] { AddMemoryWindow();    });
-
-    //  The + after the memory tabs adds a window now; the button is kept for
-    //  the keyboard's sake but not shown.
-    m_addMemoryButton->SetVisible (false);
-    m_removeMemoryButton->SetOnClick ([this] { RemoveMemoryWindow(); });
-    m_memoryMoreButton->SetOnClick   ([this] { ShowMemoryOverflow(); });
-    m_memoryMoreButton->SetVisible   (false);
+    ConfigureMemoryBar();
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -423,7 +403,7 @@ void DebuggerWindow::ConfigureWidgets()
     m_tracePane->Configure();
     m_traceHint->SetText (TracePane::GetKeyHint());
 
-    for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
+    for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
     {
         box->SetHwnd      (GetHwnd());
         box->SetMaxLength (256);
@@ -433,8 +413,7 @@ void DebuggerWindow::ConfigureWidgets()
 
     m_commandBox->SetPrompt      (GetPromptText (CommandMode::AppleWin));
     m_commandBox->SetPlaceholder (L"Command (Enter to run, HELP for help)");
-    m_memoryBox->SetPlaceholder  (L"Go to: 0300, PC, (3E),Y");
-    m_pokeBox->SetPlaceholder    (L"Poke: 0300 A9");
+    m_memoryBox->SetPlaceholder  (L"Address: 0300, PC, (3E),Y");
 
     m_focusMgr.Attach   (this);
     m_focusMgr.SetTheme (m_theme);
@@ -582,6 +561,240 @@ void DebuggerWindow::SetCommandBarMenus()
     m_commandBar->SetDropDownItems (DebuggerCommands::kPanels,    std::move (panels));
     m_commandBar->SetDropDownItems (DebuggerCommands::kMode,      std::move (modes));
     m_commandBar->SetDropDownItems (DebuggerCommands::kKeyScheme, std::move (schemes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ConfigureMemoryBar
+//
+//  Visual Studio's memory window bar: the Address box, Refresh, Columns, the
+//  grouping and New memory window. Typing into the bytes or POKE at the
+//  console writes memory, so the bar has no poke box; a window closes from
+//  its tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ConfigureMemoryBar()
+{
+    MemoryBarCommands::Handlers  handlers;
+
+
+
+    handlers.dispatch  = [this] (int id) { RunMemoryBarEntry (id); };
+    handlers.getLabel  = [this] (int id) { return GetMemoryBarLabel (id); };
+    handlers.isEnabled = [this] (int id)
+    {
+        return id != MemoryBarCommands::kNewWindow ||
+               std::count (m_memoryOpen.begin(), m_memoryOpen.end(), true) < DebuggerViewState::kMaxMemoryWindows;
+    };
+
+    m_memoryCommands = std::make_unique<MemoryBarCommands>  (std::move (handlers));
+    m_addressEntry   = std::make_unique<MemoryAddressEntry> (m_memoryBox);
+
+    m_addressEntry->SetTooltips (L"Address: a hex address, a register, a symbol or an expression such as (3E),Y; Enter goes there",
+                                 L"Addresses entered before");
+
+    m_memoryBar->SetTextRenderer (GetTextRenderer());
+    m_memoryBar->SetPopupHost    (GetPopupHost());
+    m_memoryBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+    m_memoryBar->EnableSeeMore   (L"", L"See more");
+    m_memoryBar->SetEntries      (m_memoryCommands->BuildEntries (m_addressEntry.get()));
+    m_memoryBar->SetVisible      (false);
+
+    SetMemoryBarMenus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetMemoryBarMenus
+//
+//  The Address box's history, newest first, and the Columns and grouping
+//  choices with the active window's checked. Rebuilt whenever what they list
+//  changes, since the rows carry the state they were built with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetMemoryBarMenus()
+{
+    std::vector<DxuiPopupMenuItem>  history;
+    std::vector<DxuiPopupMenuItem>  columns;
+    std::vector<DxuiPopupMenuItem>  grouping;
+    MemoryPane                    * pane     = GetActiveMemoryPane();
+
+
+
+    for (const std::wstring & entered : m_memoryHistory)
+    {
+        history.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (entered, false, [this, entered]
+        {
+            m_memoryBox->SetText (entered);
+            SubmitMemoryBox();
+        })));
+    }
+
+    for (int choice : MemoryBarCommands::GetColumnChoices())
+    {
+        columns.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (MemoryBarCommands::GetColumnsLabel (choice),
+                                                                            pane != nullptr && pane->GetColumns() == choice,
+                                                                            [this, choice] { ChooseMemoryColumns (choice); })));
+    }
+
+    for (int choice : MemoryBarCommands::GetGroupingChoices())
+    {
+        grouping.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (MemoryBarCommands::GetGroupingName (choice),
+                                                                             pane != nullptr && pane->GetGrouping() == choice,
+                                                                             [this, choice] { ChooseMemoryGrouping (choice); })));
+    }
+
+    m_memoryBar->SetDropDownItems (MemoryBarCommands::kAddress,  std::move (history));
+    m_memoryBar->SetDropDownItems (MemoryBarCommands::kColumns,  std::move (columns));
+    m_memoryBar->SetDropDownItems (MemoryBarCommands::kGrouping, std::move (grouping));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMemoryBarLabel
+//
+//  What the drop-downs show: the choice in force in the active window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetMemoryBarLabel (int id) const
+{
+    MemoryPane  * pane = GetActiveMemoryPane();
+
+
+
+    if (pane == nullptr)
+    {
+        return std::wstring();
+    }
+
+    if (id == MemoryBarCommands::kColumns)
+    {
+        return L"Columns: " + MemoryBarCommands::GetColumnsLabel (pane->GetColumns());
+    }
+
+    if (id == MemoryBarCommands::kGrouping)
+    {
+        return MemoryBarCommands::GetGroupingLabel (pane->GetGrouping());
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunMemoryBarEntry
+//
+//  The drop-downs open from the strip; a choice from one comes back through
+//  ChooseMemoryColumns or ChooseMemoryGrouping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunMemoryBarEntry (int id)
+{
+    switch (id)
+    {
+    case MemoryBarCommands::kAddress:
+        SetFocusedControl (m_memoryBox);
+        break;
+
+    case MemoryBarCommands::kRefresh:
+        GetActiveMemoryPane()->Refresh();
+        break;
+
+    case MemoryBarCommands::kNewWindow:
+        AddMemoryWindow();
+        break;
+
+    default:
+        break;
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ChooseMemoryColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ChooseMemoryColumns (int columns)
+{
+    GetActiveMemoryPane()->SetColumns (columns);
+    SetMemoryBarMenus();
+    LayoutWidgets();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ChooseMemoryGrouping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ChooseMemoryGrouping (int grouping)
+{
+    GetActiveMemoryPane()->SetGrouping (grouping);
+    SetMemoryBarMenus();
+    LayoutWidgets();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddMemoryHistory
+//
+//  Newest first, each address once, as Visual Studio's Address box keeps it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddMemoryHistory (const std::wstring & text)
+{
+    constexpr size_t  kMaxHistory = 16;
+    std::wstring      entered     = text;
+
+
+
+    std::erase (m_memoryHistory, entered);
+    m_memoryHistory.insert (m_memoryHistory.begin(), entered);
+
+    if (m_memoryHistory.size() > kMaxHistory)
+    {
+        m_memoryHistory.resize (kMaxHistory);
+    }
+
+    SetMemoryBarMenus();
 }
 
 
@@ -884,14 +1097,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 
 
-    for (DxuiButton * button : GetMemoryButtons())
-    {
-        targets.push_back (button);
-    }
-
-    targets.push_back (m_memoryMoreButton);
-
-    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox, m_pokeBox });
+    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox });
 
     for (IDxuiControl * control : GetFindControls())
     {
@@ -899,21 +1105,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
     }
 
     return targets;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetMemoryButtons
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiButton *> DebuggerWindow::GetMemoryButtons() const
-{
-    return { m_pokeButton, m_groupButton, m_removeMemoryButton };
 }
 
 
@@ -1111,32 +1302,6 @@ void DebuggerWindow::AddMemoryWindow()
         if (!m_memoryOpen[(size_t) (pane->GetId() - 1)] && m_host != nullptr)
         {
             m_host->SetDebuggerMemoryWindow (pane->GetId(), at);
-            return;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RemoveMemoryWindow
-//
-//  The highest-numbered open window closes; the first never does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RemoveMemoryWindow()
-{
-    for (size_t i = m_memoryPanes.size(); i > 1; i--)
-    {
-        MemoryPane  * pane = m_memoryPanes[i - 1].get();
-
-        if (m_memoryOpen[(size_t) (pane->GetId() - 1)] && m_host != nullptr)
-        {
-            m_host->SetDebuggerMemoryWindow (pane->GetId(), std::nullopt);
             return;
         }
     }
@@ -1897,7 +2062,7 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 
 
 
-    for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
+    for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
     {
         if (focused != nullptr && focused == box)
         {
@@ -2715,25 +2880,18 @@ void DebuggerWindow::UpdateCodeLines()
 //
 //  DebuggerWindow::PlaceMemoryBar
 //
-//  The Go to box, the poke box and the memory buttons sit in the bar of the
-//  memory pane they act on: the active one when it is shown here, or else
-//  the first memory pane shown. With none shown in this window, they hide.
+//  The memory bar sits in the bar of the memory pane it acts on: the active
+//  one when it is shown here, or else the first memory pane shown. With none
+//  shown in this window, it hides.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PlaceMemoryBar()
 {
-    auto                         px      = [this] (int dip) { return m_scaler.ToPx (dip); };
-    int                          pad     = px (6);
-    DebuggerPaneFrame          * bar     = nullptr;
-    MemoryPane                 * owner   = GetActiveMemoryPane();
-    RECT                         slot    = {};
-    int                          x       = 0;
-    int                          buttonW = px (80);
-    int                          moreW   = px (30);
-    int                          fits    = 0;
-    std::vector<DxuiButton *>    buttons;
-    auto                         isHere  = [this] (size_t i)
+    DebuggerPaneFrame  * bar    = nullptr;
+    MemoryPane         * owner  = GetActiveMemoryPane();
+    RECT                 slot   = {};
+    auto                 isHere = [this] (size_t i)
     {
         return m_memoryBars[i] != nullptr && m_memoryBars[i]->IsVisible() &&
                !m_floats.contains (DebuggerLayout::GetMemoryPaneId ((int) i + 1));
@@ -2754,136 +2912,32 @@ void DebuggerWindow::PlaceMemoryBar()
         }
     }
 
+    m_memoryBar->SetVisible (bar != nullptr);
+
     //  A hidden box keeps no focus, or it would go on taking the keys; they
     //  go back to the command line, as they do when the find bar closes.
-    for (IDxuiControl * control : { (IDxuiControl *) m_memoryBox, (IDxuiControl *) m_pokeBox, (IDxuiControl *) m_memoryMoreButton })
-    {
-        control->SetVisible (bar != nullptr);
+    m_memoryBox->SetVisible (bar != nullptr);
 
-        if (bar == nullptr && m_focusMgr.GetFocusedControl() == control)
-        {
-            m_focusMgr.SetFocused (m_commandBox);
-        }
-    }
-
-    for (DxuiButton * button : GetMemoryButtons())
-    {
-        button->SetVisible (bar != nullptr);
-
-        if (bar == nullptr && m_focusMgr.GetFocusedControl() == button)
-        {
-            m_focusMgr.SetFocused (m_commandBox);
-        }
-    }
-
-    m_memoryOverflow.clear();
-
-    if (bar == nullptr)
-    {
-        m_memoryMoreButton->SetVisible (false);
-        return;
-    }
-
-    slot = bar->GetBounds();
-    x    = slot.left;
-
-    m_memoryBox->Layout (RECT { x, slot.top, x + px (150), slot.bottom }, m_scaler);  x += px (150) + pad;
-    m_pokeBox->Layout   (RECT { x, slot.top, x + px (190), slot.bottom }, m_scaler);  x += px (190) + pad;
-
-    //  A button that does not fit goes into the overflow menu, and the
-    //  overflow button takes the room at the end of what does.
-    buttons = GetMemoryButtons();
-    fits    = (int) buttons.size();
-
-    if (x + fits * (buttonW + pad) - pad > slot.right)
-    {
-        fits = 0;
-
-        while (fits + 1 < (int) buttons.size() && x + (fits + 1) * (buttonW + pad) + moreW <= slot.right)
-        {
-            fits++;
-        }
-    }
-
-    for (size_t i = 0; i < buttons.size(); i++)
-    {
-        bool  shown = (int) i < fits;
-
-        buttons[i]->SetVisible (shown);
-
-        if (!shown)
-        {
-            if (m_focusMgr.GetFocusedControl() == buttons[i])
-            {
-                m_focusMgr.SetFocused (m_commandBox);
-            }
-
-            m_memoryOverflow.push_back (buttons[i]);
-            continue;
-        }
-
-        buttons[i]->Layout (RECT { x, slot.top, x + buttonW, slot.bottom }, m_scaler);
-        x += buttonW + pad;
-    }
-
-    m_memoryMoreButton->SetVisible (!m_memoryOverflow.empty());
-
-    if (m_memoryOverflow.empty() && m_focusMgr.GetFocusedControl() == m_memoryMoreButton)
+    if (bar == nullptr && m_focusMgr.GetFocusedControl() == m_memoryBox)
     {
         m_focusMgr.SetFocused (m_commandBox);
     }
 
-    if (!m_memoryOverflow.empty())
-    {
-        m_memoryMoreButton->Layout (RECT { x, slot.top, x + moreW, slot.bottom }, m_scaler);
-    }
-
-    SetChildClip (m_memoryBox,        slot);
-    SetChildClip (m_pokeBox,          slot);
-    SetChildClip (m_memoryMoreButton, slot);
-
-    for (DxuiButton * button : buttons)
-    {
-        SetChildClip (button, slot);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ShowMemoryOverflow
-//
-//  The memory buttons a narrow pane had no room for, as a menu under the
-//  overflow button.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowMemoryOverflow()
-{
-    std::vector<DxuiPopupMenuItem>  menu;
-    DxuiHwndSource                * host   = GetPopupHost();
-    RECT                            anchor = m_memoryMoreButton->GetBounds();
-
-
-
-    if (host == nullptr || m_memoryOverflow.empty())
+    if (bar == nullptr)
     {
         return;
     }
 
-    m_menuCommands.clear();
-    SetCommandBarMenus();
+    //  The strip lays out its own entries, the Address box among them, and
+    //  moves what does not fit into its "..." menu.
+    slot = bar->GetBounds();
 
-    for (DxuiButton * button : m_memoryOverflow)
-    {
-        m_menuCommands.push_back (MakeMenuCommand (button->GetAccessibleName(), false, [button] { button->Click(); }));
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
+    m_memoryBar->SetTextRenderer   (GetTextRenderer());
+    m_memoryBar->SetHostClientRect (GetBounds());
+    m_memoryBar->Layout            (slot, m_scaler);
 
-    DxuiContextMenu::Show (*host, anchor.left, anchor.bottom, std::move (menu));
+    SetChildClip (m_memoryBar, slot);
+    SetChildClip (m_memoryBox, slot);
 }
 
 
@@ -2939,7 +2993,11 @@ void DebuggerWindow::ClipPaneControls()
 
 void DebuggerWindow::ConfigureDockSite()
 {
-    auto          boxHeight = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
+    //  The memory bar is a toolbar: a little taller than a box, for the
+    //  margin the strip keeps above and below its entries.
+    constexpr int   kMemoryBarDip = 36;
+    auto            boxHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
+    auto            barHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kMemoryBarDip); };
     std::wstring    savedText;
     DxuiPaneLayout  restored;
 
@@ -3009,7 +3067,7 @@ void DebuggerWindow::ConfigureDockSite()
 
         m_memoryBars[i]   = std::make_unique<DebuggerPaneFrame> (L"Memory commands");
         m_memoryFrames[i] = std::make_unique<DebuggerPaneFrame> (std::format (L"Memory {}", pane->GetId()));
-        m_memoryFrames[i]->AddPart (m_memoryBars[i].get(), boxHeight);
+        m_memoryFrames[i]->AddPart (m_memoryBars[i].get(), barHeight);
         m_memoryFrames[i]->AddPart (pane->GetView());
 
         m_dockSite->AddPane (DebuggerLayout::GetMemoryPaneId (pane->GetId()),
@@ -3649,8 +3707,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     }
 
     //  A memory window other than the first closes from its own tab, as a
-    //  disassembly view does; the "- Memory" button closes only the last one
-    //  opened.
+    //  disassembly view does.
     for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
     {
         if (pane == DebuggerLayout::GetMemoryPaneId (window))
@@ -4079,9 +4136,12 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    if (m_commandBar->WantsTick())
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar })
     {
-        m_commandBar->TickMenus (now);
+        if (strip->WantsTick())
+        {
+            strip->TickMenus (now);
+        }
     }
 
     if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
@@ -5113,6 +5173,8 @@ void DebuggerWindow::SubmitMemoryBox()
         return;
     }
 
+    AddMemoryHistory (text);
+
     if (upper != L"A" && TryParseHexWord (text, address))
     {
         GetActiveMemoryPane()->GoTo (address);
@@ -5121,46 +5183,6 @@ void DebuggerWindow::SubmitMemoryBox()
     {
         m_host->GoToDebuggerMemory (GetActiveMemoryPane()->GetId(), SourcePathList::WideToUtf8 (m_memoryBox->GetText()));
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SubmitPokeBox
-//
-//  "address byte". A box that does not hold both is left as typed so the
-//  mistake can be corrected rather than retyped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SubmitPokeBox()
-{
-    std::wstring  text  = m_pokeBox->GetText();
-    size_t        space = text.find_first_of (L" \t,=");
-    Word          address = 0;
-    Word          value   = 0;
-
-
-
-    if (space == std::wstring::npos)
-    {
-        return;
-    }
-
-    if (!TryParseHexWord (text.substr (0, space), address) || !TryParseHexWord (text.substr (space + 1), value) || value > 0xFF)
-    {
-        return;
-    }
-
-    if (m_host != nullptr)
-    {
-        RunAction (DebuggerActions::GetPoke (address, (Byte) value, GetMode()));
-    }
-
-    m_pokeBox->SetText (L"");
 }
 
 
@@ -5267,6 +5289,17 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         barTip = m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
+    //  The memory bar's the same, and its Address box's.
+    if ((barTip == nullptr || *barTip == L'\0') && m_memoryBar != nullptr && m_memoryBar->IsVisible())
+    {
+        barTip = m_memoryBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
+    if (barTip == nullptr || *barTip == L'\0')
+    {
+        barTip = GetFindBarTip (clientPx, cell);
+    }
+
     if (barTip != nullptr && *barTip != L'\0')
     {
         m_tooltip.SetMonospace (false);
@@ -5310,6 +5343,45 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     }
 
     m_tooltip.RequestHide (now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindBarTip
+//
+//  What each of the find bar's controls does, as every toolbar control's tip
+//  says.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) const
+{
+    const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
+    {
+        { m_findBox,         L"Text to find in the console's output" },
+        { m_findCaseBox,     L"Find only text in the same case"      },
+        { m_findWordBox,     L"Find only whole words"                },
+        { m_findPrevButton,  L"Find the previous match"              },
+        { m_findNextButton,  L"Find the next match"                  },
+        { m_findCloseButton, L"Close the find bar"                   },
+    };
+
+
+
+    for (const auto & [control, tip] : tips)
+    {
+        if (control != nullptr && control->IsVisible() && DxuiDockSite::Contains (control->GetBounds(), clientPx))
+        {
+            anchor = control->GetBounds();
+            return tip;
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -6023,6 +6095,67 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RouteMemoryBarMouse
+//
+//  As the command bar's, less the Address box: the box is the window's own
+//  control and takes its presses as every box does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteMemoryBarMouse (const DxuiMouseEvent & ev)
+{
+    int   x     = ev.positionDip.x;
+    int   y     = ev.positionDip.y;
+    RECT  strip = m_memoryBar->GetBounds();
+    RECT  box   = m_memoryBox->GetBounds();
+    bool  open  = m_memoryBar->IsMenuOpen();
+    bool  over  = m_memoryBar->IsVisible() && DxuiDockSite::Contains (strip, POINT { x, y }) &&
+                  !(m_memoryBox->IsVisible() && DxuiDockSite::Contains (box, POINT { x, y }));
+
+
+
+    if (!over && !open)
+    {
+        m_memoryBar->OnToolbarMouseLeave();
+        return false;
+    }
+
+    //  The right button over the strip opens the pane's own menu.
+    if ((ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Up) && ev.button != DxuiMouseButton::Left && !open)
+    {
+        return false;
+    }
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        UpdateTooltip (ev.positionDip);
+        return m_memoryBar->OnToolbarMouseMove (x, y);
+
+    case DxuiMouseEventKind::Down:
+        //  The rows carry the checks they were built with, and the active
+        //  window may have changed since, so they are built again here.
+        if (!open)
+        {
+            SetMemoryBarMenus();
+        }
+
+        return m_memoryBar->OnToolbarLButtonDown (x, y);
+
+    case DxuiMouseEventKind::Up:
+        return m_memoryBar->OnToolbarLButtonUp (x, y);
+
+    default:
+        return open;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -6072,6 +6205,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  The command bar first: it owns its strip and whatever menu it has
     //  open.
     if (m_routingPane.empty() && RouteCommandBarMouse (ev))
+    {
+        return true;
+    }
+
+    //  Then the memory bar, which owns its strip less the Address box, and
+    //  whatever menu it has open.
+    if (m_routingPane.empty() && RouteMemoryBarMouse (ev))
     {
         return true;
     }
@@ -6139,16 +6279,9 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         if (m_routingPane.empty())
         {
             UpdateTooltip (ev.positionDip);
-
-            for (DxuiButton * button : GetMemoryButtons())
-            {
-                button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
-            }
-
-            m_memoryMoreButton->SetMouse (x, y, m_memoryMoreButton->HitTest (x, y) && lbDown);
         }
 
-        for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
+        for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
         {
             if (IsRoutable (box))
             {
@@ -7518,7 +7651,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     {
         if      (focused == m_commandBox) { SubmitCommandBox(); return true; }
         else if (focused == m_memoryBox)  { SubmitMemoryBox();  return true; }
-        else if (focused == m_pokeBox)    { SubmitPokeBox();    return true; }
     }
 
     if (ev.kind == DxuiKeyEventKind::Char && GetFocusedMemoryPane() != nullptr)
@@ -7536,7 +7668,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  floating window keeps its own focused flag after a click back here.
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return (focused == m_commandBox || focused == m_memoryBox || focused == m_pokeBox) && focused->OnKey (ev);
+        return (focused == m_commandBox || focused == m_memoryBox) && focused->OnKey (ev);
     }
 
     //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text (FR-083).

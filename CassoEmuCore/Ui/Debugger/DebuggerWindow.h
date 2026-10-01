@@ -8,6 +8,8 @@
 #include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Ui/Debugger/MemoryBarCommands.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
@@ -174,7 +176,7 @@ protected:
     void     StepTextZoom    (int steps);
     float    GetTextZoom     () const { return m_textZoom; }
 
-    //  Protected so a test can submit the Go to box as Enter does.
+    //  Protected so a test can submit the Address box as Enter does.
     void             SubmitMemoryBox ();
     DxuiTextInput  * GetMemoryBox    () const { return m_memoryBox; }
 
@@ -217,16 +219,20 @@ protected:
     void            EndWatchEdit   (bool commit);
     IDxuiControl  * GetFocused     () const;
     DxuiListView  * GetWatchList   () const { return m_watchList; }
-    DxuiTextInput * GetPokeBox     () const { return m_pokeBox; }
 
     //  Protected so a test can see which pane has the focus border.
     std::wstring    GetPaneOfFocus () const;
 
-    //  Protected so a test can see the memory bar's buttons, and which of
-    //  them a narrow pane moves into its overflow menu.
-    std::vector<DxuiButton *>  GetMemoryButtons    () const;
-    DxuiButton *               GetMemoryMoreButton () const { return m_memoryMoreButton; }
-    std::vector<DxuiButton *>  GetMemoryOverflow   () const { return m_memoryOverflow; }
+    //  Protected so a test can work the memory bar as a click does, and see
+    //  which of its entries a narrow pane moves into its overflow menu.
+    DxuiToolbar *                      GetMemoryBar         () const { return m_memoryBar; }
+    const std::vector<std::wstring> &  GetMemoryHistory     () const { return m_memoryHistory; }
+    void                               RunMemoryBarEntry    (int id);
+    void                               ChooseMemoryColumns  (int columns);
+    void                               ChooseMemoryGrouping (int grouping);
+
+    //  Protected so a test can see that every find bar control has a tip.
+    const wchar_t *  GetFindBarTip (POINT clientPx, RECT & anchor) const;
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
@@ -292,7 +298,6 @@ private:
     void     KeepOpenViews    ();
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
-    void     SubmitPokeBox    ();
     void     RunCommand       (const std::string & line);
     void     RunToCursor      (Word address);
     void     RunAction        (const DebuggerAction & action);
@@ -315,6 +320,11 @@ private:
     void     RunCommandBarEntry  (int id);
     bool     IsCommandBarEntryEnabled (int id) const;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
+    void     ConfigureMemoryBar   ();
+    void     SetMemoryBarMenus    ();
+    void     AddMemoryHistory     (const std::wstring & text);
+    bool     RouteMemoryBarMouse  (const DxuiMouseEvent & ev);
+    std::wstring  GetMemoryBarLabel (int id) const;
     static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
     bool     IsPaneShown        (const std::wstring & pane) const;
     bool     IsDocumentPane     (const std::wstring & pane) const;
@@ -354,9 +364,7 @@ private:
 
     void     ApplyMemoryWindows ();
     void     AddMemoryWindow    ();
-    void     RemoveMemoryWindow ();
     void     PlaceMemoryBar     ();
-    void     ShowMemoryOverflow ();
     void     ClipPaneControls   ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
@@ -515,12 +523,11 @@ private:
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;
-    DxuiButton                                                                     * m_groupButton        = nullptr;
-    DxuiButton                                                                     * m_addMemoryButton    = nullptr;
-    DxuiButton                                                                     * m_removeMemoryButton = nullptr;
-    DxuiButton                                                                     * m_memoryMoreButton   = nullptr;
-    std::vector<DxuiButton *>                                                        m_memoryOverflow;
-    MemoryPane                                                                     * m_activePane         = nullptr;
+    DxuiToolbar                                                                    * m_memoryBar          = nullptr;
+    std::unique_ptr<MemoryBarCommands>                                               m_memoryCommands;
+    std::unique_ptr<MemoryAddressEntry>                                              m_addressEntry;
+    std::vector<std::wstring>                                                        m_memoryHistory;
+    MemoryPane                                                                    * m_activePane         = nullptr;
     std::string                                                                      m_machine;
     DxuiTextView                                                                   * m_consoleView        = nullptr;
     DxuiTextInput                                                                  * m_commandBox         = nullptr;
@@ -539,8 +546,6 @@ private:
     DxuiButton                                                                     * m_findCloseButton    = nullptr;
     DxuiLabel                                                                      * m_findStatus         = nullptr;
     DxuiTextInput                                                                  * m_memoryBox          = nullptr;
-    DxuiTextInput                                                                  * m_pokeBox            = nullptr;
-    DxuiButton                                                                     * m_pokeButton         = nullptr;
     std::array<SourceDocument, SourceDocuments::kMaxDocuments>                       m_sourceDocs;
     SourceDocuments                                                                  m_documents;
     int                                                                              m_macroLevel         = 0;

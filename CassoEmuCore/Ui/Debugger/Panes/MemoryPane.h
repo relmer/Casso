@@ -40,9 +40,10 @@ public:
     int            GetId    () const { return m_id; }
     DxuiHexView *  GetView  () const { return m_view; }
     int            GetGrouping () const { return m_grouping; }
+    int            GetColumns  () const { return m_columns; }
 
     //  The address of the first byte on screen.
-    Word           GetTopAddress () const { return m_model.GetAddressOf (m_view->GetTopRow() * kBytesPerRow); }
+    Word           GetTopAddress () const { return m_model.GetAddressOf (m_view->GetTopRow() * (uint64_t) m_view->GetBytesPerRow()); }
 
     void  Configure (HWND hwnd);
 
@@ -62,12 +63,24 @@ public:
     //  One, two, four bytes a value, and round again. Returns the new grouping.
     int   CycleGrouping ();
 
+    //  One, two or four bytes a value.
+    void  SetGrouping (int bytesPerValue);
+
+    //  Values across a row, or 0 for as many as the pane's width holds.
+    void  SetColumns (int valuesPerRow);
+
+    //  Asks again for the bytes the window last read.
+    void  Refresh ();
+
     bool  Undo    () { return m_view->IsEditable() && m_model.Undo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
     //  Where a read should start to hold the rows on screen, or nothing when
     //  the last read already holds them.
-    static std::optional<Word>  GetReadStartFor (Word readFirst, uint64_t topOffset, int visibleRows);
+    static std::optional<Word>  GetReadStartFor (Word readFirst, uint64_t topOffset, int visibleRows, int bytesPerRow = kBytesPerRow);
+
+    //  The columns a window starts with: sixteen values a row.
+    static constexpr int  kDefaultColumns = DebuggerViewState::kMemoryRowBytes;
 
 private:
     static constexpr int  kBytesPerRow = DebuggerViewState::kMemoryRowBytes;
@@ -82,6 +95,7 @@ private:
     Word                   m_readFirst   = 0;
     bool                   m_placed      = false;
     int                    m_grouping    = 1;
+    int                    m_columns     = kDefaultColumns;
     std::optional<Word>    m_requested;
     uint32_t               m_changedArgb = 0xFFFF6B68;
 };

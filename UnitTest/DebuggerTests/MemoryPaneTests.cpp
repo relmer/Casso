@@ -33,21 +33,22 @@ namespace DebuggerTests
         TEST_METHOD (RowsInsideTheReadAskForNothing)
         {
             Assert::IsFalse (MemoryPane::GetReadStartFor (0x0300, 0x0300, kRows).has_value());
-            Assert::IsFalse (MemoryPane::GetReadStartFor (0x0300, 0x0480, kRows).has_value(), L"the last eight rows of the read");
+            Assert::IsFalse (MemoryPane::GetReadStartFor (0x0300, (uint64_t) (0x0300 + DebuggerViewState::kMemoryWindowBytes - kRows * 16), kRows).has_value(), L"the last eight rows of the read");
         }
 
 
         TEST_METHOD (ScrollingPastTheEndAsksForAReadAroundTheRows)
         {
-            std::optional<Word>  start = MemoryPane::GetReadStartFor (0x0300, 0x0490, kRows);
+            uint64_t             top   = 0x0310 + DebuggerViewState::kMemoryWindowBytes - kRows * 16;
+            std::optional<Word>  start = MemoryPane::GetReadStartFor (0x0300, top, kRows);
 
 
 
             Assert::IsTrue   (start.has_value());
-            Assert::IsTrue   (*start <= 0x0490 && *start + DebuggerViewState::kMemoryWindowBytes >= 0x0490 + kRows * 16,
+            Assert::IsTrue   (*start <= top && *start + DebuggerViewState::kMemoryWindowBytes >= top + kRows * 16,
                               L"the new read holds every row on screen");
             Assert::AreEqual ((Word) 0, (Word) (*start % 16), L"on a row boundary");
-            Assert::IsTrue   (*start < 0x0490, L"with room to scroll back");
+            Assert::IsTrue   (*start < top, L"with room to scroll back");
         }
 
 

@@ -462,8 +462,8 @@ below the code.
   GSSquared's `g` takes no address.
 - Double-clicking a code line sets or clears its breakpoint. Double-clicking a
   breakpoint clears it.
-- The memory box moves the memory pane; the poke box takes an address and a
-  byte, such as `0300 A9`.
+- The Address box moves the memory pane. Type over the bytes, or use a write
+  command at the console such as AppleWin's `MEB 0300 A9`, to write memory.
 - The command box runs any command in the current mode, with the same reply
   batch mode gives.
 
@@ -508,10 +508,15 @@ windows, and one panel for each device the machine has.
 
 ### Memory windows
 
-**+ Memory** opens another memory window, up to four; **- Memory** closes the
-last. Type over the hex or the text to edit memory, in RAM or in ROM; Ctrl+Z
-undoes the last edit in that window. **Bytes** cycles the grouping through
-bytes, words and longs.
+Each memory window has Visual Studio's bar. The **Address** box takes an
+address, a register, a symbol or an expression, and its drop-down lists the
+addresses entered before. **Refresh** reads the window's bytes again.
+**Columns** sets the values in a row: Auto, 1, 2, 4, 8 or 16. **Group by**
+shows each value as a byte, a word or a long. **New memory window** opens
+another window, up to four; a window closes from its tab. What does not fit
+a narrow pane moves into the bar's **...** menu. Type over the hex or the
+text to edit memory, in RAM or in ROM; Ctrl+Z undoes the last edit in that
+window.
 
 ### Device panels
 

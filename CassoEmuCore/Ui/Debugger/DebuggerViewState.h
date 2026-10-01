@@ -269,10 +269,10 @@ public:
     static constexpr uint64_t  kBuildIntervalMs = 16;   // one frame at 60 Hz
 
     //  Memory windows: the first is always open, and up to three more. Each
-    //  reads this many bytes from a row boundary, enough for the rows a window
-    //  shows and some to scroll into.
+    //  reads this many bytes from a sixteen-byte boundary, enough for the rows a
+    //  window shows at its widest columns and some to scroll into.
     static constexpr int       kMaxMemoryWindows  = 4;
-    static constexpr int       kMemoryWindowBytes = 512;
+    static constexpr int       kMemoryWindowBytes = 4096;
     static constexpr int       kMemoryRowBytes    = 16;
 
     //  Whether the CPU thread should rebuild the snapshot now: every frame while
