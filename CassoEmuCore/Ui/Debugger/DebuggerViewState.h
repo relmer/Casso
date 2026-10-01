@@ -4,6 +4,7 @@
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/BreakpointHistory.h"
+#include "Ui/Debugger/BreakpointImport.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/InstructionTouches.h"
@@ -557,7 +558,7 @@ private:
     void  MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply);
     void  GoToMemory     (int window, Word address);
     void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
-    void  ImportBreakpoints (DebugSession & session, const std::string & path, const BreakpointHistory::LineRunner & run, std::vector<std::string> & lines);
+    void  ImportBreakpoints (DebugSession & session, const std::string & path, const BreakpointImport::LineRunner & run, std::vector<std::string> & lines);
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;

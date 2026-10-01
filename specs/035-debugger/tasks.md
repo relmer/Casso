@@ -1131,7 +1131,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T402 Owner review 2026-10-02: the "Show symbol names" tip lists the loaded symbol sources, one per line (the built-in tables and the user's files)
 - [X] T403 Owner review 2026-10-02: menu access-key underlines sit too far below their letter; pressing Alt shows the underlines in every submenu as well
 - [X] T404 Owner review 2026-10-02: the light theme's disassembly is still poor: black text too stark, instruction operands barely readable, the cyan result barely readable; give every color AA contrast against the light background
-- [ ] T405 Owner answer 2026-10-02: breakpoint export stays in AppleWin's format, and import reads it in any console dialect
+- [X] T405 Owner answer 2026-10-02: breakpoint export stays in AppleWin's format, and import reads it in any console dialect
 - [X] T406 Owner answer 2026-10-02: the Mockingboard pane's "running" timer text clips its descenders; fix it
 - [ ] T407 Owner answer 2026-10-02: the Watches pane is shown by default, not auto-hidden, and, as in Visual Studio, ends with an "add new watch" row edited in place; existing watches edit in place
 - [X] T408 Owner answer 2026-10-02 to T358: pane toolbar labels use the theme's body font, decided inside Dxui

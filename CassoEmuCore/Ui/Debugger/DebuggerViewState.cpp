@@ -1833,7 +1833,7 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 //
 //  Each action runs directly and is echoed in its mode. An undo or redo runs
 //  no command and gives one line. An import's lines are the file's text, so
-//  they alone are parsed, in AppleWin's words.
+//  they alone are parsed, each in the dialect it is written in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1841,7 +1841,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
 {
     std::vector<std::string>         lines;
     BreakpointHistory::ActionRunner  act;
-    BreakpointHistory::LineRunner    run;
+    BreakpointImport::LineRunner     run;
     std::vector<std::string>         summary;
 
 
@@ -1859,11 +1859,11 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
         return reply;
     };
 
-    run = [this, &session, &lines] (const std::string & line)
+    run = [this, &session, &lines] (const std::string & line, CommandMode mode)
     {
-        Reply  reply = ExecuteSessionLine (session, line, CommandMode::AppleWin);
+        Reply  reply = ExecuteSessionLine (session, line, mode);
 
-        lines.push_back (DebugSession::GetPrompt (CommandMode::AppleWin) + line);
+        lines.push_back (DebugSession::GetPrompt (mode) + line);
         lines.insert (lines.end(), reply.text.begin(), reply.text.end());
         return reply;
     };
@@ -1917,7 +1917,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
 void DebuggerViewState::ImportBreakpoints (
     DebugSession                         & session,
     const std::string                    & path,
-    const BreakpointHistory::LineRunner  & run,
+    const BreakpointImport::LineRunner   & run,
     std::vector<std::string>             & lines)
 {
     IFileSystem  * files   = session.GetFileSystem();
