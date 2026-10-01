@@ -61,6 +61,10 @@ public:
 
     bool     IsRunning       () const { return m_isRunning; }
 
+    //  True while a step is executing. The frame loop drops the speaker's
+    //  output then, so stepping is silent and sound resumes with a run.
+    bool     IsSilent        () const { return m_isRunning && m_isStep; }
+
 private:
     void     Finish          (StopReason reason, uint64_t cycles);
 
@@ -75,6 +79,7 @@ private:
     //  state rather than something atomic.
     bool                     m_isRunning      = false;
     bool                     m_pauseRequested = false;
+    bool                     m_isStep         = false;
     uint64_t                 m_spent          = 0;
     std::optional<uint64_t>  m_budget;
 

@@ -1057,6 +1057,7 @@ void EmulatorShell::ExecuteCpuSlices()
     uint32_t  targetCycles    = m_cyclesPerFrame;
     SpeedMode speed           = m_cpuManager.GetSpeedMode();
     bool      audioActive     = false;
+    bool      isSilent        = false;
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
     uint32_t  sliceActual     = 0;
@@ -1124,6 +1125,18 @@ void EmulatorShell::ExecuteCpuSlices()
         // instruction runs nothing, and a run told nothing of it never ends.
         // The machine then stays running at the breakpoint, and a pause,
         // which is also delivered here, never lands.
+        //
+        // A debugger step is silent: whether this slice belonged to one is
+        // read before the run can end, and its speaker toggles are dropped
+        // rather than played, here or with the next run's first slice.
+        isSilent = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
+
+        if (audioActive && isSilent)
+        {
+            m_machine.GetRefs().speaker->ClearTimestamps();
+            m_machine.GetRefs().speaker->BeginFrame();
+        }
+
         if (m_debugRunDriver != nullptr && m_debugRunDriver->OnSliceExecuted (sliceActual))
         {
             break;
@@ -1143,7 +1156,7 @@ void EmulatorShell::ExecuteCpuSlices()
             m_machine.GetRefs().iieKeyboard->TickResetHold (sliceActual);
         }
 
-        if (audioActive)
+        if (audioActive && !isSilent)
         {
             numSamples = m_sampleBudget.SamplesFor (sliceActual, cyclesPerSample);
 

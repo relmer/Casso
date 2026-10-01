@@ -51,6 +51,7 @@ HRESULT CpuManagerRunDriver::Start (const RunRequest & request)
     CBRAEx (hasCpu, E_UNEXPECTED);
 
     m_pauseRequested = false;
+    m_isStep         = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
     m_spent          = 0;
     m_budget         = request.budget;
     m_previousHook   = m_host.GetDebugHook();
@@ -232,6 +233,7 @@ void CpuManagerRunDriver::Finish (StopReason reason, uint64_t cycles)
 
     m_isRunning      = false;
     m_pauseRequested = false;
+    m_isStep         = false;
 
     stop.reason    = reason;
     stop.registers = m_host.GetCpu()->GetCpu6502()->GetRegisters();
