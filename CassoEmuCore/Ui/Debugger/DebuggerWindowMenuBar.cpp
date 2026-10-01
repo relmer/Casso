@@ -495,7 +495,7 @@ Error:
 
 void DebuggerWindow::ConfigureConsoleBar()
 {
-    constexpr const wchar_t *  kGlyphDialect = L"";   // braces
+    constexpr const wchar_t *  kGlyphDialect = s_kpszMdl2Code;   // braces
     DxuiToolbar::Entry         dialect;
 
 

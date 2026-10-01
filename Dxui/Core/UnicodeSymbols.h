@@ -65,6 +65,7 @@ static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";  // U+E76C Segoe MD
 static constexpr LPCWSTR s_kpszMdl2More   = L"\xE712";       // U+E712 Segoe MDL2 More (three dots)
 static constexpr LPCWSTR s_kpszMdl2Cancel = L"\xE711";       // U+E711 Segoe MDL2 Cancel (the clear button's X)
 static constexpr LPCWSTR s_kpszMdl2Search = L"\xE721";       // U+E721 Segoe MDL2 Search (magnifying glass)
+static constexpr LPCWSTR s_kpszMdl2Code   = L"\xE943";       // U+E943 Segoe MDL2 Code (braces)
 static constexpr LPCWSTR s_kpszMdl2WarningSolid = L"\xE814";  // U+E814 Segoe MDL2 warning triangle, filled
 
 // Xbox controller inputs, as Segoe MDL2 Assets draws them.
