@@ -9037,6 +9037,14 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return diagnostics->GetFrame();
     }
 
+    for (const PaneUndoBar & each : m_undoBars)
+    {
+        if (pane == each.pane)
+        {
+            return each.frame.get();
+        }
+    }
+
     controls = GetPaneControls (pane);
     return controls.empty() ? nullptr : controls.front();
 }
