@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace DebuggerPaneFindTests
+namespace DebuggerFindWidgetPerPaneTests
 {
     ////////////////////////////////////////////////////////////////////////////////
     //
@@ -92,6 +92,8 @@ namespace DebuggerPaneFindTests
         using DebuggerWindow::GetSourceView;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::IsFindOpen;
+        using DebuggerWindow::IsFindOpenIn;
+        using DebuggerWindow::GetFindBoxOf;
 
         void  Build()
         {
@@ -145,53 +147,53 @@ namespace DebuggerPaneFindTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  DebuggerWindowPaneFindTests
+    //  DebuggerFindWidgetPerPaneTests
     //
-    //  Find belongs to the pane with the keys: Ctrl+F in a source document
-    //  opens that document's find bar and searches its text, not the
-    //  console's, and Escape hides it again.
+    //  Each pane's find widget is its own: opening find in the console leaves
+    //  a source document's open, each with its own box and text.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    TEST_CLASS (DebuggerWindowPaneFindTests)
+    TEST_CLASS (DebuggerFindWidgetPerPaneTests)
     {
     public:
 
-        TEST_METHOD (CtrlFInASourceDocumentSearchesThatDocument)
+        TEST_METHOD (TwoPanesKeepTheirFindWidgetsOpenAtOnce)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
             PaneFindHost    host;
             PaneFindWindow  window (theme, host);
+            std::wstring    source = DebuggerLayout::GetSourcePaneId (0);
 
 
 
             window.Build();
             window.FocusControl (window.GetSourceView (0));
+            window.Press ('F', true);
+            window.Type  (L"rts");
 
-            Assert::IsTrue   (window.Press ('F', true), L"Ctrl+F");
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::AreEqual (DebuggerLayout::GetSourcePaneId (0), window.GetFindPane(), L"the bar opens in the source document");
-            Assert::IsTrue   (window.GetFindBox()->IsFocused(), L"the keys go to the find box");
+            window.FocusControl (window.GetCommandBox());
+            window.Press ('F', true);
+            window.Type  (L"sta");
 
-            window.Type (L"sta");
+            Assert::IsTrue   (window.IsFindOpenIn (DebuggerLayout::kConsole), L"the console's widget is open");
+            Assert::IsTrue   (window.IsFindOpenIn (source), L"and the source document's stays open");
+            Assert::IsTrue   (window.GetFindBoxOf (source) != window.GetFindBoxOf (DebuggerLayout::kConsole), L"each has its own box");
+            Assert::AreEqual (std::wstring (L"rts"), window.GetFindBoxOf (source)->GetText(), L"with its own text");
+            Assert::AreEqual (std::wstring (L"sta"), window.GetFindBoxOf (DebuggerLayout::kConsole)->GetText());
 
-            Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
-            Assert::AreEqual (std::wstring (L"STA"), window.GetSourceView (0)->GetSelectionText(), L"the first match in the document");
-            Assert::IsFalse  (window.GetConsoleView()->HasSelection(), L"the console is not searched");
-            Assert::AreEqual ((size_t) 0, host.commands.size(), L"and nothing runs");
-
-            Assert::IsTrue   (window.Press (VK_ESCAPE), L"Escape");
-            Assert::IsFalse  (window.IsFindOpen(), L"hides the bar");
-            Assert::IsFalse  (window.GetFindBox()->IsVisible());
-            Assert::IsTrue   (window.GetFocused() == window.GetSourceView (0), L"and the keys go back to the document");
+            Assert::IsTrue   (window.Press (VK_ESCAPE), L"Escape in the console's widget");
+            Assert::IsFalse  (window.IsFindOpenIn (DebuggerLayout::kConsole), L"closes the console's");
+            Assert::IsTrue   (window.IsFindOpenIn (source), L"and leaves the source document's open");
         }
 
 
-        TEST_METHOD (CtrlFInTheConsoleOpensTheConsolesOwnWidget)
+        TEST_METHOD (KeysInASourceWidgetSearchThatDocumentWhileTheConsolesIsOpen)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
             PaneFindHost    host;
             PaneFindWindow  window (theme, host);
+            std::wstring    source = DebuggerLayout::GetSourcePaneId (0);
 
 
 
@@ -200,16 +202,16 @@ namespace DebuggerPaneFindTests
             window.Press ('F', true);
 
             window.FocusControl (window.GetCommandBox());
+            window.Press ('F', true);
 
-            Assert::IsTrue   (window.Press ('F', true));
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetFindPane(), L"the console's own widget");
+            //  Back to the source document's box, as a click on it does.
+            window.FocusControl (window.GetFindBoxOf (source));
+            window.Type  (L"sta");
 
-            window.Type (L"sta");
-
-            Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText());
-            Assert::IsFalse  (window.GetSourceView (0)->HasSelection());
+            Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
+            Assert::AreEqual (std::wstring (L"sta"), window.GetFindBoxOf (source)->GetText(), L"the text went to the box with the keys");
+            Assert::AreEqual (std::wstring (L"STA"), window.GetSourceView (0)->GetSelectionText(), L"and the document is searched");
+            Assert::IsFalse  (window.GetConsoleView()->HasSelection(), L"not the console");
         }
     };
 }

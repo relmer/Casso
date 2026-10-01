@@ -267,19 +267,6 @@ void DebuggerWindow::OnCreate()
         list->SetVisible (false);
     }
 
-    //  The find widget floats over its pane's text, so it comes after every
-    //  pane's controls: its plate, then what sits on the plate.
-    m_findPlate           = CreateChild<FindWidgetPlate> ();
-    m_findChevronButton   = CreateChild<DxuiButton>      (s_kpszChevronRight);
-    m_findBox             = CreateChild<DxuiTextInput>   ();
-    m_findCaseButton      = CreateChild<DxuiButton>      (L"Aa");
-    m_findWordButton      = CreateChild<DxuiButton>      (L"ab");
-    m_findRegexButton     = CreateChild<DxuiButton>      (L".*");
-    m_findStatus          = CreateChild<DxuiLabel>       ();
-    m_findPrevButton      = CreateChild<DxuiButton>      (s_kpszUpArrow);
-    m_findNextButton      = CreateChild<DxuiButton>      (s_kpszDownArrow);
-    m_findSelectionButton = CreateChild<DxuiButton>      (s_kpszIdenticalTo);
-    m_findCloseButton     = CreateChild<DxuiButton>      (s_kpszMultiplyX);
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -2574,14 +2561,21 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 
 bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
 {
-    IDxuiControl                 * focused  = GetFocused();
-    std::vector<IDxuiControl *>    controls = GetFindControls();
-    bool                           inBar    = m_findOpen && focused != nullptr && std::ranges::find (controls, focused) != controls.end();
-    bool                           isDown   = ev.kind == DxuiKeyEventKind::Down;
+    IDxuiControl  * focused = GetFocused();
+    std::wstring    owner   = GetFindPaneOfControl (focused);
+    bool            isDown  = ev.kind == DxuiKeyEventKind::Down;
 
 
 
-    if (!inBar)
+    //  The keys act on the widget they are in, whichever pane's it is.
+    if (owner.empty())
+    {
+        return false;
+    }
+
+    ActivateFind (owner);
+
+    if (!m_findOpen)
     {
         return false;
     }
@@ -2639,39 +2633,209 @@ bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
 //
 //  DebuggerWindow::ConfigureFindBar
 //
-//  A box for the text, whether case matters, whether only whole words count,
-//  a button each way, and a line saying what the last search found. Hidden
-//  until find opens.
+//  The console's find widget is made now; a source document's is made the
+//  first time find opens there. Hidden until find opens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ConfigureFindBar()
 {
-    m_findPane = DebuggerLayout::kConsole;
+    ActivateFind (DebuggerLayout::kConsole);
+}
 
-    m_findBox->SetHwnd        (GetHwnd());
-    m_findBox->SetMaxLength   (256);
-    m_findBox->SetPlaceholder (L"Find in the console");
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CreateFindWidget
+//
+//  A pane's own find widget: a box for the text, whether case matters,
+//  whether only whole words count, a button each way, and a line saying
+//  what the last search found. Each control acts on its own pane's widget,
+//  so two panes can each have theirs open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
+{
+    FindState  & state = m_findStates[pane];
+
+
+
+    if (state.box != nullptr)
+    {
+        return;
+    }
+
+    //  The widget floats over its pane's text, so it comes after every
+    //  pane's controls: its plate, then what sits on the plate.
+    state.plate       = CreateChild<FindWidgetPlate> ();
+    state.chevron     = CreateChild<DxuiButton>      (s_kpszChevronRight);
+    state.box         = CreateChild<DxuiTextInput>   ();
+    state.caseButton  = CreateChild<DxuiButton>      (L"Aa");
+    state.wordButton  = CreateChild<DxuiButton>      (L"ab");
+    state.regexButton = CreateChild<DxuiButton>      (L".*");
+    state.status      = CreateChild<DxuiLabel>       ();
+    state.prevButton  = CreateChild<DxuiButton>      (s_kpszUpArrow);
+    state.nextButton  = CreateChild<DxuiButton>      (s_kpszDownArrow);
+    state.selButton   = CreateChild<DxuiButton>      (s_kpszIdenticalTo);
+    state.closeButton = CreateChild<DxuiButton>      (s_kpszMultiplyX);
+
+    state.box->SetHwnd        (GetHwnd());
+    state.box->SetMaxLength   (256);
+    state.box->SetPlaceholder ((pane == DebuggerLayout::kConsole) ? L"Find in the console" : L"Find in the source");
 
     //  Each option is a toggle, shown emphasized while on, as Visual Studio
     //  Code's find bar shows them.
-    m_findCaseButton->SetOnClick  ([this] { SetFindOptions (!m_findMatchCase, m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
-    m_findWordButton->SetOnClick  ([this] { SetFindOptions (m_findMatchCase, !m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
-    m_findRegexButton->SetOnClick ([this] { SetFindOptions (m_findMatchCase, m_findWholeWord, !m_findRegex); SetFocusedControl (m_findBox); });
+    state.caseButton->SetOnClick  ([this, pane] { ActivateFind (pane); SetFindOptions (!m_findMatchCase, m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
+    state.wordButton->SetOnClick  ([this, pane] { ActivateFind (pane); SetFindOptions (m_findMatchCase, !m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
+    state.regexButton->SetOnClick ([this, pane] { ActivateFind (pane); SetFindOptions (m_findMatchCase, m_findWholeWord, !m_findRegex); SetFocusedControl (m_findBox); });
 
     //  A button press takes the keys, so each gives them back to the box
     //  and the next Enter searches again.
-    m_findPrevButton->SetOnClick  ([this] { FindInPane (false); SetFocusedControl (m_findBox); });
-    m_findNextButton->SetOnClick  ([this] { FindInPane (true);  SetFocusedControl (m_findBox); });
-    m_findCloseButton->SetOnClick ([this] { CloseFind(); });
+    state.prevButton->SetOnClick  ([this, pane] { ActivateFind (pane); FindInPane (false); SetFocusedControl (m_findBox); });
+    state.nextButton->SetOnClick  ([this, pane] { ActivateFind (pane); FindInPane (true);  SetFocusedControl (m_findBox); });
+    state.closeButton->SetOnClick ([this, pane] { ActivateFind (pane); CloseFind(); });
 
-    m_findSelectionButton->SetOnClick ([this] { SetFindInSelection (!m_findInSelection); SetFocusedControl (m_findBox); });
+    state.selButton->SetOnClick ([this, pane] { ActivateFind (pane); SetFindInSelection (!m_findInSelection); SetFocusedControl (m_findBox); });
 
     //  The chevron opens replace in Visual Studio Code. The console and the
     //  source are read-only, so it is shown, as the widget shows it, but off.
-    m_findChevronButton->SetEnabled (false);
+    state.chevron->SetEnabled (false);
 
-    SetFindBarVisible (false);
+    state.plate->SetVisible  (false);
+    state.box->SetVisible    (false);
+    state.status->SetVisible (false);
+
+    for (DxuiButton * button : { state.chevron, state.caseButton, state.wordButton, state.regexButton, state.prevButton, state.nextButton, state.selButton, state.closeButton })
+    {
+        button->SetVisible (false);
+    }
+
+    //  The site's strips and drop zones paint over the panes, and a watch
+    //  being edited over the site, so both stay last.
+    for (IDxuiControl * last : { (IDxuiControl *) m_dockSite, (IDxuiControl *) m_watchEditor })
+    {
+        std::unique_ptr<IDxuiControl>  owned = (last != nullptr) ? DetachChild (last) : nullptr;
+
+        if (owned != nullptr)
+        {
+            (void) AttachChild (std::move (owned));
+        }
+    }
+
+    m_focusMgr.Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ActivateFind
+//
+//  Makes the pane's find widget the one the m_find members hold, making it
+//  first if the pane has none yet. The widget left keeps its own state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ActivateFind (const std::wstring & pane)
+{
+    if (pane == m_findPane && m_findBox != nullptr)
+    {
+        return;
+    }
+
+    if (m_findBox != nullptr)
+    {
+        SaveFindState();
+    }
+
+    CreateFindWidget (pane);
+
+    m_findPane = pane;
+    LoadFindState();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindPaneOfControl
+//
+//  The pane whose find widget holds the control; empty when none does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetFindPaneOfControl (const IDxuiControl * control) const
+{
+    if (control == nullptr)
+    {
+        return {};
+    }
+
+    for (const auto & [pane, state] : m_findStates)
+    {
+        const IDxuiControl * parts[] = { state.plate, state.chevron, state.box, state.caseButton, state.wordButton, state.regexButton,
+                                         state.status, state.prevButton, state.nextButton, state.selButton, state.closeButton };
+
+        if (std::ranges::find (parts, control) != std::end (parts))
+        {
+            return pane;
+        }
+    }
+
+    return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsFindOpenIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsFindOpenIn (const std::wstring & pane) const
+{
+    auto  it = m_findStates.find (pane);
+
+
+
+    if (pane == m_findPane)
+    {
+        return m_findOpen;
+    }
+
+    return it != m_findStates.end() && it->second.open;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindBoxOf
+//
+//  Null for a pane find has never opened in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetFindBoxOf (const std::wstring & pane) const
+{
+    auto  it = m_findStates.find (pane);
+
+
+
+    return (it != m_findStates.end()) ? it->second.box : nullptr;
 }
 
 
@@ -2774,8 +2938,7 @@ DxuiTextView * DebuggerWindow::GetFindView() const
 //
 //  DebuggerWindow::SaveFindState
 //
-//  Keeps what the widget holds as its pane's, for when find opens there
-//  again.
+//  Keeps what the m_find members hold as the active pane's widget's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2785,12 +2948,14 @@ void DebuggerWindow::SaveFindState()
 
 
 
-    state.text        = m_findBox->GetText();
+    state.host        = m_findBarHost;
+    state.open        = m_findOpen;
     state.matchCase   = m_findMatchCase;
     state.wholeWord   = m_findWholeWord;
     state.isRegex     = m_findRegex;
     state.inSelection = m_findInSelection;
-    state.status      = m_findStatusText;
+    state.historyAt   = m_findHistoryAt;
+    state.statusText  = m_findStatusText;
 }
 
 
@@ -2801,28 +2966,36 @@ void DebuggerWindow::SaveFindState()
 //
 //  DebuggerWindow::LoadFindState
 //
-//  Puts the find bar's pane's own text, options and count back in the
-//  widget: empty, with every option off, in a pane never searched.
+//  Points the m_find members at the active pane's own widget: its controls,
+//  whether it is open, its options and its count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::LoadFindState()
 {
-    FindState  state = m_findStates[m_findPane];
+    const FindState  & state = m_findStates[m_findPane];
 
 
 
-    m_findBox->SetText (state.text);
-    SetFindOptions     (state.matchCase, state.wholeWord, state.isRegex);
-
-    //  The pane's text kept its own scope, so it is not taken again from
-    //  what is selected now.
-    m_findInSelection = state.inSelection;
-    m_findSelectionButton->SetEmphasis (state.inSelection);
-
-    m_findStatusText  = state.status;
-    m_findHistoryAt   = -1;
-    m_findStatus->SetText (m_findStatusText);
+    m_findPlate           = state.plate;
+    m_findChevronButton   = state.chevron;
+    m_findBox             = state.box;
+    m_findCaseButton      = state.caseButton;
+    m_findWordButton      = state.wordButton;
+    m_findRegexButton     = state.regexButton;
+    m_findStatus          = state.status;
+    m_findPrevButton      = state.prevButton;
+    m_findNextButton      = state.nextButton;
+    m_findSelectionButton = state.selButton;
+    m_findCloseButton     = state.closeButton;
+    m_findBarHost         = state.host;
+    m_findOpen            = state.open;
+    m_findMatchCase       = state.matchCase;
+    m_findWholeWord       = state.wholeWord;
+    m_findRegex           = state.isRegex;
+    m_findInSelection     = state.inSelection;
+    m_findHistoryAt       = state.historyAt;
+    m_findStatusText      = state.statusText;
 }
 
 
@@ -3067,10 +3240,51 @@ void DebuggerWindow::MoveFindBar (DxuiWindow * to)
 
 void DebuggerWindow::PlaceFindBar()
 {
+    std::wstring               active = m_findPane;
+    std::vector<std::wstring>  panes;
+
+
+
+    if (m_findBox == nullptr)
+    {
+        return;
+    }
+
+    for (const auto & [pane, state] : m_findStates)
+    {
+        if (state.box != nullptr)
+        {
+            panes.push_back (pane);
+        }
+    }
+
+    //  Each pane's widget is placed over its own pane, open or not.
+    for (const std::wstring & pane : panes)
+    {
+        ActivateFind (pane);
+        PlaceActiveFindBar();
+    }
+
+    ActivateFind (active);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceActiveFindBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceActiveFindBar()
+{
     constexpr int    kButtonDip = 22;
     auto             px         = [this] (int dip) { return m_scaler.ToPx (dip); };
     DxuiTextView   * view       = GetFindView();
-    bool             shown      = m_findOpen && view != nullptr && view->IsVisible();
+    bool             paneThere  = m_findPane == DebuggerLayout::kConsole || GetSourceSlotOf (m_findPane) >= 0;
+    bool             shown      = m_findOpen && paneThere && view != nullptr && view->IsVisible();
     int              button     = px (kButtonDip);
     RECT             area       = {};
     RECT             plate      = {};
@@ -3141,8 +3355,8 @@ void DebuggerWindow::PlaceFindBar()
 //  Opens the find bar of the pane with the keys -- the console or a source
 //  document -- and brings that pane forward with the keys in the box, its
 //  text selected so typing replaces it. A selection in the pane's text on
-//  one line becomes the text to find, as it does in Visual Studio. The bar
-//  is one at a time: opening it in another pane takes it from the last.
+//  one line becomes the text to find, as it does in Visual Studio. Each pane
+//  has its own widget, so one open in another pane stays open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3171,19 +3385,8 @@ void DebuggerWindow::OpenFindIn (const std::wstring & target)
 
 
 
-    if (target != m_findPane && m_findOpen && GetFindFrame() != nullptr)
-    {
-        m_findOpen = false;
-        GetFindFrame()->Relayout();
-    }
-
-    //  Each pane keeps its own text, options and history.
-    if (target != m_findPane)
-    {
-        SaveFindState();
-        m_findPane = target;
-        LoadFindState();
-    }
+    //  Each pane keeps its own widget, text, options and history.
+    ActivateFind (target);
 
     selected = GetFindView()->GetSelectionText();
 
@@ -3302,18 +3505,22 @@ void DebuggerWindow::SetFindOptions (bool matchCase, bool wholeWord, bool isRege
 
 void DebuggerWindow::FindInPane (bool forward)
 {
-    const std::wstring &      needle = m_findBox->GetText();
+    std::wstring              target = GetFindTarget();
+    std::wstring              needle;
     DxuiTextView::FindResult  result = DxuiTextView::FindResult::NotFound;
     int                       index  = 0;
     int                       count  = 0;
 
 
 
-    //  With the bar closed, F3 searches the text with the keys, if it can.
-    if (!m_findOpen)
+    //  F3 searches the text with the keys, if it can; from elsewhere, the
+    //  pane whose widget is open.
+    if (target != m_findPane && (!m_findOpen || GetPaneOfFocus() == target))
     {
-        m_findPane = GetFindTarget();
+        ActivateFind (target);
     }
+
+    needle = m_findBox->GetText();
 
     if (needle.empty())
     {
@@ -6740,27 +6947,28 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
 const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) const
 {
-    const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
+    for (const auto & [pane, state] : m_findStates)
     {
-        { m_findBox,         L"Text to find in this pane"             },
-        { m_findCaseButton,  L"Find only text in the same case"      },
-        { m_findWordButton,  L"Find only whole words"                },
-        { m_findRegexButton, L"Find by regular expression"           },
-        { m_findPrevButton,  L"Find the previous match"              },
-        { m_findNextButton,  L"Find the next match"                  },
-        { m_findSelectionButton, L"Find in selection"                },
-        { m_findChevronButton, L"Replace is not available: this text is read-only" },
-        { m_findCloseButton, L"Close the find bar"                   },
-    };
-
-
-
-    for (const auto & [control, tip] : tips)
-    {
-        if (control != nullptr && IsRoutable (control) && control->IsVisible() && DxuiDockSite::Contains (control->GetBounds(), clientPx))
+        const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
         {
-            anchor = control->GetBounds();
-            return tip;
+            { state.box,         L"Text to find in this pane"             },
+            { state.caseButton,  L"Find only text in the same case"      },
+            { state.wordButton,  L"Find only whole words"                },
+            { state.regexButton, L"Find by regular expression"           },
+            { state.prevButton,  L"Find the previous match"              },
+            { state.nextButton,  L"Find the next match"                  },
+            { state.selButton,   L"Find in selection"                    },
+            { state.chevron,     L"Replace is not available: this text is read-only" },
+            { state.closeButton, L"Close the find bar"                   },
+        };
+
+        for (const auto & [control, tip] : tips)
+        {
+            if (control != nullptr && IsRoutable (control) && control->IsVisible() && DxuiDockSite::Contains (control->GetBounds(), clientPx))
+            {
+                anchor = control->GetBounds();
+                return tip;
+            }
         }
     }
 
@@ -7655,7 +7863,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  The find widget floats over its pane's text, so a press on it is the
     //  widget's, not the text's.
-    if (!(IsRoutable (m_findPlate) && m_findPlate->IsVisible() && DxuiDockSite::Contains (m_findPlate->GetBounds(), ev.positionDip)) &&
+    if (!std::ranges::any_of (m_findStates, [&] (const auto & entry) { const FindWidgetPlate * plate = entry.second.plate; return plate != nullptr && IsRoutable (plate) && plate->IsVisible() && DxuiDockSite::Contains (plate->GetBounds(), ev.positionDip); }) &&
         (RouteMemoryMouse (ev) || RouteSourceMouse (ev) || RouteConsoleMouse (ev)))
     {
         return true;
@@ -7684,12 +7892,17 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             }
         }
 
-        //  The find bar moves with the console.
-        if (IsRoutable (m_findBox))
+        //  Each find widget moves with its pane.
+        for (const auto & [findPane, state] : m_findStates)
         {
-            m_findBox->SetMouseHover     (x, y);
+            if (state.box == nullptr || !IsRoutable (state.box))
+            {
+                continue;
+            }
 
-            for (DxuiButton * button : { m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findSelectionButton, m_findCloseButton })
+            state.box->SetMouseHover (x, y);
+
+            for (DxuiButton * button : { state.caseButton, state.wordButton, state.regexButton, state.prevButton, state.nextButton, state.selButton, state.closeButton })
             {
                 button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
             }
@@ -7974,13 +8187,10 @@ std::wstring DebuggerWindow::GetPaneOfControl (const IDxuiControl * control) con
         return m_memoryBarPane;
     }
 
-    //  The find bar is the pane's it searches, and goes with it.
-    for (const IDxuiControl * part : GetFindControls())
+    //  A find widget is the pane's it searches, and goes with it.
+    if (!GetFindPaneOfControl (control).empty())
     {
-        if (control != nullptr && (control == part || control == m_findStatus || control == m_findPlate || control == m_findChevronButton))
-        {
-            return m_findPane;
-        }
+        return GetFindPaneOfControl (control);
     }
 
     for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
@@ -8789,10 +8999,23 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
         MoveMemoryBar (this);
     }
 
-    //  And the find bar, in the pane it searches.
-    if (m_findBarHost == window.get())
+    //  And each find widget, in the pane it searches.
     {
-        MoveFindBar (this);
+        std::wstring  active = m_findPane;
+
+        SaveFindState();
+
+        for (auto & [findPane, state] : m_findStates)
+        {
+            if (state.host == window.get())
+            {
+                ActivateFind (findPane);
+                MoveFindBar  (this);
+                SaveFindState();
+            }
+        }
+
+        ActivateFind (active);
     }
 
     window.reset();

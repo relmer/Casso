@@ -1081,4 +1081,4 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T352 Owner decision 2026-10-01: when the text gives no assembler clue, or equal clues, use as65 (Casso's own assembler) and drop the extension and Merlin/ca65 tie-breaks; a file with no clues colors the same under every assembler
 - [X] T353 Owner decision 2026-10-01: instruction rows under source lines blend 50% toward the background in every theme (lighter on light themes, darker on dark), replacing the 60% darkening
 - [X] T354 Found 2026-10-01 on screen: the memory pane's toolbar still has a "+" button for a new memory window; remove it (View > Memory opens memory windows). The Disassembly tab strip's "+" tab has the same problem when the group holds other panes; replace it with View > Disassembly
-- [ ] T355 Finish T329: each pane's find widget is its own; two panes can have their find widgets open at the same time
+- [X] T355 Finish T329: each pane's find widget is its own; two panes can have their find widgets open at the same time

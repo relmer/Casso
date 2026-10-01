@@ -221,6 +221,8 @@ protected:
     std::wstring     GetFindPane     () const { return m_findPane; }
     DxuiTextView   * GetSourceView   (int slot) const { return m_sourceDocs[(size_t) slot].view; }
     bool             IsFindOpen      () const { return m_findOpen; }
+    bool             IsFindOpenIn    (const std::wstring & pane) const;
+    DxuiTextInput  * GetFindBoxOf    (const std::wstring & pane) const;
     DxuiTextView   * GetConsoleView  () const { return m_consoleView; }
     DxuiTextInput  * GetFindBox      () const { return m_findBox; }
     DxuiButton     * GetFindWordButton () const { return m_findWordButton; }
@@ -363,16 +365,30 @@ private:
 
     //  A source document (FR-054): its text and banner, the pane over them,
     //  the frame the dock shows, and whether each is shown now.
-    //  What a pane's find widget held when it last searched there: each
-    //  searchable pane keeps its own text, options and history.
+    //  Each searchable pane's own find widget: its controls, whether it is
+    //  open, its options, its count and its history. The m_find members
+    //  hold a copy of the active one's.
     struct FindState
     {
-        std::wstring               text;
+        FindWidgetPlate          * plate       = nullptr;
+        DxuiButton               * chevron     = nullptr;
+        DxuiTextInput            * box         = nullptr;
+        DxuiButton               * caseButton  = nullptr;
+        DxuiButton               * wordButton  = nullptr;
+        DxuiButton               * regexButton = nullptr;
+        DxuiLabel                * status      = nullptr;
+        DxuiButton               * prevButton  = nullptr;
+        DxuiButton               * nextButton  = nullptr;
+        DxuiButton               * selButton   = nullptr;
+        DxuiButton               * closeButton = nullptr;
+        DxuiWindow               * host        = nullptr;
+        bool                       open        = false;
         bool                       matchCase   = false;
         bool                       wholeWord   = false;
         bool                       isRegex     = false;
         bool                       inSelection = false;
-        std::wstring               status;
+        int                        historyAt   = -1;
+        std::wstring               statusText;
         std::vector<std::wstring>  history;
     };
 
@@ -453,12 +469,16 @@ private:
     void     ShowHistoryList  ();
     void     ConfigureFindBar ();
     void     PlaceFindBar     ();
+    void     PlaceActiveFindBar ();
     void     SetFindBarVisible (bool shown);
     void     MoveFindBar      (DxuiWindow * to);
     std::wstring        GetFindTarget () const;
     DxuiTextView      * GetFindView   () const;
     void     SaveFindState    ();
     void     LoadFindState    ();
+    void     ActivateFind     (const std::wstring & pane);
+    void     CreateFindWidget (const std::wstring & pane);
+    std::wstring  GetFindPaneOfControl (const IDxuiControl * control) const;
     void     RecordFindHistory ();
     DebuggerPaneFrame * GetFindFrame  () const;
     static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
