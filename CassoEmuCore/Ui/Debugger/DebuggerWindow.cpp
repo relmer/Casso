@@ -1293,7 +1293,8 @@ void DebuggerWindow::ApplySource()
         DxuiTabGroup::LeadingMark    mark;
 
         document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
-                                       (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u });
+                                       (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u, GetResultArgb(),
+                                       GetSyntaxColors().GetDarkened() });
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
         document.pane->Apply       (*m_snapshot);
@@ -4898,7 +4899,7 @@ void DebuggerWindow::ApplyCodeView (int view)
                   { Widen (line.bytes) },
                   { Widen (line.label) },
                   { Widen (line.instruction) },
-                  GetOperandAndResultCell (line.annotation, line.effect) };
+                  GetOperandAndResultCell (line.annotation, line.effect, GetResultArgb()) };
 
         cells[6].argb = GetAnnotationArgb();
         cells[4].argb = syntax.symbol;
@@ -6575,6 +6576,8 @@ uint32_t DebuggerWindow::GetTargetRowArgb() const
 //  Visual Studio's code colors for the theme's darkness, as the comment color
 //  already is: the keyword blue for a mnemonic, the control purple for a
 //  directive, the type teal for a symbol, and its number and string colors.
+//  A listing's address takes the theme's text color and its bytes the muted
+//  one, as the source pane's bytes column has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6591,8 +6594,27 @@ SourceSyntax::Colors DebuggerWindow::GetSyntaxColors() const
     colors.number    = dark ? 0xFFB5CEA8 : 0xFF098658;
     colors.string    = dark ? 0xFFD69D85 : 0xFFA31515;
     colors.comment   = GetAnnotationArgb();
+    colors.address   = (m_theme != nullptr) ? m_theme->Foreground()      : 0u;
+    colors.bytes     = (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u;
 
     return colors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetResultArgb
+//
+//  The cyan an operand's result is drawn in, for the theme's darkness.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetResultArgb() const
+{
+    return IsDarkTheme() ? 0xFF4EC9E0 : 0xFF00838F;
 }
 
 
@@ -6621,12 +6643,12 @@ uint32_t DebuggerWindow::GetAnnotationArgb() const
 //  DebuggerWindow::GetOperandAndResultCell
 //
 //  What an instruction reads, then what it would leave behind, in one cell:
-//  the result follows the operand in the muted color, so it needs no column
-//  of its own to push the pane wide.
+//  the result follows the operand after "Result: ", both in the result
+//  color, so it needs no column of its own to push the pane wide.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiListView::Cell DebuggerWindow::GetOperandAndResultCell (const std::string & annotation, const std::string & effect)
+DxuiListView::Cell DebuggerWindow::GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb)
 {
     DxuiListView::Cell  cell;
     std::wstring        result = Widen (effect);
@@ -6637,8 +6659,9 @@ DxuiListView::Cell DebuggerWindow::GetOperandAndResultCell (const std::string & 
 
     if (!result.empty())
     {
+        result     = SourcePane::kpszResultPrefix + result;
         cell.text += cell.text.empty() ? L"" : L"  ";
-        cell.dimRanges.emplace_back ((int) cell.text.size(), (int) (cell.text.size() + result.size()));
+        cell.colorRanges.emplace_back ((int) cell.text.size(), (int) (cell.text.size() + result.size()), resultArgb);
         cell.text += result;
     }
 

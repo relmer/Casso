@@ -150,7 +150,7 @@ public:
     DebuggerWindow() = default;
     ~DebuggerWindow() override;
 
-    static DxuiListView::Cell  GetOperandAndResultCell (const std::string & annotation, const std::string & effect);
+    static DxuiListView::Cell  GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb);
 
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host);
     void     RenderFrame ();
@@ -496,6 +496,7 @@ private:
     uint32_t  GetTargetRowArgb     () const;
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
+    uint32_t  GetResultArgb        () const;
     SourceSyntax::Colors  GetSyntaxColors () const;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 

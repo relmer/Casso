@@ -379,9 +379,15 @@ source view.
 - `BP file:line` sets a breakpoint on the first instruction of a line, at
   each place a macro body line was expanded.
 - Source is colored with the grammar of the assembler that wrote it: as65,
-  Merlin or ca65, chosen from the file's directives and labels, then its
-  extension. The Syntax entry on a document's tab menu sets it for that
-  document.
+  Merlin or ca65, chosen from the file's directives, labels and origin; the
+  extension counts only when the text shows none of them. The Syntax entry on
+  a document's tab menu sets it for that document.
+- A Merlin or ca65 listing shown as source keeps its address and byte
+  columns, colored as an address and bytes, ahead of its colored source.
+- While the machine is stopped, the instructions each line in the PC's files
+  produced are listed on rows below it, in darker syntax colors. A line of
+  data, such as `.byte` or `HEX`, has none.
+- The operand and result column shows a result after `Result: `, in cyan.
 
 ## The call stack
 

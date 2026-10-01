@@ -134,6 +134,9 @@ struct DebuggerViewSnapshot
     //  Each source line's operand, then its result: file and line to both.
     using LineOperands = std::map<std::pair<int, int>, std::pair<std::string, std::string>>;
 
+    //  Each source line's instructions: file and line to their text.
+    using LineCode = std::map<std::pair<int, int>, std::vector<std::string>>;
+
     //  The loaded debug file, as the source pane needs it.
     struct SourceState
     {
@@ -171,6 +174,12 @@ struct DebuggerViewSnapshot
         //  the operand first, the result second. Built while the machine is
         //  stopped; the same map is shared while they do not change.
         std::shared_ptr<const LineOperands>                                lineOperands;
+
+        //  The instructions each line in the PC's files produced, as the
+        //  disassembly lists them: address, mnemonic and operand. Built while
+        //  the machine is stopped; the same map is shared while they do not
+        //  change.
+        std::shared_ptr<const LineCode>                                    lineCode;
 
         //  Where the instruction at PC branches, jumps or calls to, and
         //  whether the flags as they stand take it.
@@ -307,6 +316,9 @@ public:
 
     //  The most bytes the source pane shows after a line.
     static constexpr int  kMaxLineBytes = 8;
+
+    //  The most instructions the source pane shows below a line.
+    static constexpr int  kMaxLineCode = 16;
 
     //  Where a code view starts. The one following the PC follows it unless
     //  the user moved it; the memory pane starts at the zero page.
@@ -572,6 +584,7 @@ private:
 
     //  The instruction that starts at an address, or none at an I/O address.
     static std::optional<DisassemblyLine>  GetInstructionAt (DebugSession & session, Word address);
+    static std::vector<std::string>        GetLineCode      (DebugSession & session, Word first, Word last);
 
     static Word                 GetInstructionLength   (DebugSession & session, Word address);
     static Word                 GetPreviousInstruction (DebugSession & session, Word address);
@@ -666,4 +679,5 @@ private:
     mutable std::shared_ptr<const std::map<std::pair<int, int>, Word>>         m_lineAddresses;
     mutable std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  m_lineBytes;
     mutable std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_lineOperands;
+    mutable std::shared_ptr<const DebuggerViewSnapshot::LineCode>              m_lineCode;
 };

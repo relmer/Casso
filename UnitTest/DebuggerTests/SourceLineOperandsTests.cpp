@@ -157,25 +157,26 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (TheOperandFollowsWithItsResultDimmer)
+        TEST_METHOD (TheOperandFollowsWithItsResultLabeled)
         {
             SourcePane::Style               style;
             std::vector<DxuiTextView::Row>  rows;
 
 
 
-            style.bytesArgb = 0xFF808080;
+            style.bytesArgb  = 0xFF808080;
+            style.resultArgb = 0xFF00FFFF;
             rows = SourcePane::BuildRows ({ L"x", L"  lda $10", L"  .byte 1" }, 2, {}, {}, style, {},
                                           { { 2, { L"$10: 07", L"A=07" } }, { 3, { L"$01: 00", L"" } } });
 
             Assert::AreEqual ((size_t) 4,                       rows[1].cells.size());
-            Assert::AreEqual (std::wstring (L"$10: 07  A=07"),  rows[1].cells[3]);
+            Assert::AreEqual (std::wstring (L"$10: 07  Result: A=07"), rows[1].cells[3]);
             Assert::AreEqual (std::wstring(),                   rows[2].cells[3], L"a directive is not one instruction");
             Assert::AreEqual (std::wstring(),                   rows[0].cells[3]);
             Assert::IsTrue   (std::any_of (rows[1].spans.begin(), rows[1].spans.end(), [] (const DxuiTextView::Span & span)
                               {
-                                  return span.cell == 3 && span.start == 9 && span.length == 4 && span.argb == 0xFF808080u;
-                              }), L"the result is dimmer");
+                                  return span.cell == 3 && span.start == 9 && span.length == 12 && span.argb == 0xFF00FFFFu;
+                              }), L"the result is in the result color");
         }
 
 

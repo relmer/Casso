@@ -56,9 +56,14 @@ public:
         std::shared_ptr<const DxuiIconImage>   disabledIcon;
         SourceSyntax::Colors                   syntax;
         uint32_t                               bytesArgb    = 0;
+        uint32_t                               resultArgb   = 0;
+        SourceSyntax::Colors                   codeSyntax;
 
         bool operator== (const Style & other) const = default;
     };
+
+    //  What an operand's result is shown after, here and in the disassembly.
+    static constexpr const wchar_t * kpszResultPrefix = L"Result: ";
 
     SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run, GoToFn goTo);
 
@@ -144,7 +149,12 @@ public:
                                                        const Style         & style         = {},
                                                        const std::map<int, std::wstring> & lineBytes = {},
                                                        const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands = {},
-                                                       SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
+                                                       SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any,
+                                                       SourceSyntax::Listing   listing   = SourceSyntax::Listing::None,
+                                                       const std::map<int, std::vector<std::wstring>> & lineCode = {});
+
+    //  The source line each row shows, 0 for a row of a line's instructions.
+    static std::vector<int>  GetRowLines (const std::vector<DxuiTextView::Row> & rows);
 
     //  Whether a line's opcode is a 65C02 mnemonic, so that it is one instruction.
     static bool  IsInstructionLine (const std::wstring & line, SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
@@ -184,6 +194,10 @@ private:
     void  Rebuild    ();
     void  ScrollTo   (int line);
     std::optional<int>  GetLineAt (POINT atDip) const;
+    int   GetRowOfLine (int line) const;
+    static void  AddCodeRows (const std::map<int, std::vector<std::wstring>> & lineCode, int number, const std::wstring & line,
+                              size_t markerWidth, int numberWidth, const Style & style, SourceSyntax::Assembler assembler,
+                              SourceSyntax::Listing listing, std::vector<DxuiTextView::Row> & rows);
     std::string  GetFileName (int fileId) const;
 
     DxuiTextView                                     * m_view    = nullptr;
@@ -211,10 +225,13 @@ private:
     std::set<int>                                                      m_rowsDisabled;
     std::shared_ptr<const std::map<std::pair<int, int>, std::string>>  m_rowsLineBytes;
     std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_rowsLineOperands;
+    std::shared_ptr<const DebuggerViewSnapshot::LineCode>              m_rowsLineCode;
+    std::vector<int>                                                   m_rowLines;
     std::set<int>                                                      m_disabledIds;
     Style                                                              m_style;
     bool                                                               m_isStyleStale    = false;
     SourceSyntax::Assembler                                            m_assemblerChoice = SourceSyntax::Assembler::Any;
     SourceSyntax::Assembler                                            m_detected        = SourceSyntax::Assembler::As65;
+    SourceSyntax::Listing                                              m_listing         = SourceSyntax::Listing::None;
     int                                                                m_rowsFileId      = -2;
 };

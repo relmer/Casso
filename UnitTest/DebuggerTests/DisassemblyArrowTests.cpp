@@ -132,29 +132,29 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (TheResultFollowsTheOperandInTheMutedColor)
+        TEST_METHOD (TheResultFollowsTheOperandInTheResultColor)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("A=00", "A=41");
+            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);
 
 
 
-            Assert::AreEqual (std::wstring (L"A=00  A=41"), cell.text);
-            Assert::AreEqual ((size_t) 1, cell.dimRanges.size());
-            Assert::AreEqual (6,  cell.dimRanges[0].first);
-            Assert::AreEqual (10, cell.dimRanges[0].second);
+            Assert::AreEqual (std::wstring (L"A=00  Result: A=41"), cell.text);
+            Assert::AreEqual ((size_t) 1, cell.colorRanges.size());
+            Assert::AreEqual (6,  std::get<0> (cell.colorRanges[0]));
+            Assert::AreEqual (18, std::get<1> (cell.colorRanges[0]));
         }
 
 
 
         TEST_METHOD (AResultAloneTakesTheWholeCell)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("", "A=41");
+            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("", "A=41", 0xFF00FFFF);
 
 
 
-            Assert::AreEqual (std::wstring (L"A=41"), cell.text);
-            Assert::AreEqual ((size_t) 1, cell.dimRanges.size());
-            Assert::AreEqual (0, cell.dimRanges[0].first);
+            Assert::AreEqual (std::wstring (L"Result: A=41"), cell.text);
+            Assert::AreEqual ((size_t) 1, cell.colorRanges.size());
+            Assert::AreEqual (0, std::get<0> (cell.colorRanges[0]));
         }
     };
 }

@@ -26,15 +26,22 @@
 //
 //  Registers after a comma are left uncolored, as are operators.
 //
+//  A LISTING is source with the address and bytes it assembled to in columns
+//  ahead of it, Merlin's or ca65's. Its rows are recognized by their content,
+//  and their address and bytes are colored ahead of the source's own runs.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class SourceSyntax
 {
 public:
-    enum class Token { Mnemonic, Directive, Symbol, Number, String, Comment };
+    enum class Token { Mnemonic, Directive, Symbol, Number, String, Comment, Address, Bytes };
 
     //  Whose grammar a file is read with.
     enum class Assembler { Any, As65, Merlin, Ca65 };
+
+    //  Whose listing a file is, or None for plain source.
+    enum class Listing { None, Merlin, Ca65 };
 
     struct Run
     {
@@ -52,8 +59,13 @@ public:
         uint32_t  number    = 0;
         uint32_t  string    = 0;
         uint32_t  comment   = 0;
+        uint32_t  address   = 0;
+        uint32_t  bytes     = 0;
 
         uint32_t  Get (Token token) const;
+
+        //  Each color darkened, for text shown under the source it explains.
+        Colors    GetDarkened() const;
         bool operator== (const Colors & other) const = default;
     };
 
@@ -65,8 +77,23 @@ public:
 
     static bool  IsMnemonic (const std::wstring & word);
 
-    //  The assembler a file was written for, from its directives and labels,
-    //  then its extension; as65 when nothing tells.
+    //  A line of a file, a listing or not: a listing row's address and bytes,
+    //  then its source's runs where the source starts.
+    static std::vector<Run>  GetLineRuns (const std::wstring & line, Assembler assembler, Listing listing);
+
+    //  Whether a line's opcode is one of the assembler's directives, which
+    //  lays down data rather than code; a macro's invocation is not.
+    static bool  IsDirectiveLine (const std::wstring & line, Assembler assembler);
+
+    //  Whether most of a file's lines are a listing's rows, and whose.
+    static Listing       DetectListing    (const std::vector<std::wstring> & lines);
+
+    //  A listing row's source, past its address, bytes and line number.
+    static std::wstring  GetListingSource (const std::wstring & line, Listing listing);
+
+    //  The assembler a file was written for, from its directives, labels and
+    //  origin; its extension only when the text shows none of them, and as65
+    //  when neither does.
     static Assembler  DetectAssembler (const std::vector<std::wstring> & lines, const std::wstring & fileName);
 
     //  What the user picks an assembler by.
@@ -80,5 +107,9 @@ private:
     static bool  IsSymbolChar   (wchar_t ch);
     static bool  IsMerlinOnlyOpcode (const std::wstring & word);
     static bool  IsCa65OnlyOpcode   (const std::wstring & word);
+    static bool  IsAs65OnlyOpcode   (const std::wstring & word);
+    static bool  IsMerlinListingRow (const std::wstring & line, bool & hasAddress);
+    static bool  IsCa65ListingRow   (const std::wstring & line);
+    static size_t  GetListingSourceColumn (Listing listing);
     static std::string  ToNarrow (const std::wstring & text);
 };

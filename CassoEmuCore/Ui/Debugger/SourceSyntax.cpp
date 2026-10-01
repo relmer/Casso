@@ -26,9 +26,94 @@ uint32_t SourceSyntax::Colors::Get (Token token) const
     case Token::Number:     return number;
     case Token::String:     return string;
     case Token::Comment:    return comment;
+    case Token::Address:    return address;
+    case Token::Bytes:      return bytes;
     }
 
     return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::Colors::GetDarkened
+//
+//  Each channel at three fifths, alpha kept; a color of 0, none, stays none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SourceSyntax::Colors SourceSyntax::Colors::GetDarkened() const
+{
+    constexpr uint32_t  kKeep    = 3;
+    constexpr uint32_t  kOutOf   = 5;
+    Colors              darkened = *this;
+
+
+
+    for (uint32_t * color : { &darkened.mnemonic, &darkened.directive, &darkened.symbol, &darkened.number,
+                              &darkened.string, &darkened.comment, &darkened.address, &darkened.bytes })
+    {
+        uint32_t  argb = *color;
+
+        if (argb == 0)
+        {
+            continue;
+        }
+
+        *color = (argb & 0xFF000000u) |
+                 ((((argb >> 16) & 0xFFu) * kKeep / kOutOf) << 16) |
+                 ((((argb >> 8)  & 0xFFu) * kKeep / kOutOf) << 8) |
+                 (((argb         & 0xFFu) * kKeep / kOutOf));
+    }
+
+    return darkened;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::IsDirectiveLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceSyntax::IsDirectiveLine (const std::wstring & line, Assembler assembler)
+{
+    std::string  upper;
+
+
+
+    for (const Run & run : GetSourceRuns (line, assembler))
+    {
+        if (run.token == Token::Mnemonic)
+        {
+            return false;
+        }
+
+        if (run.token != Token::Directive)
+        {
+            continue;
+        }
+
+        upper = Parser::ToUpper (ToNarrow (line.substr ((size_t) run.start, (size_t) run.length)));
+
+        if (upper[0] == '.')
+        {
+            return true;
+        }
+
+        return (assembler != Assembler::As65 && assembler != Assembler::Ca65 &&
+                DialectRegistry::Get (DialectId::Merlin).GetDirectiveForSpelling (upper) != Directive::None) ||
+               (assembler != Assembler::Merlin &&
+                DialectRegistry::Get (DialectId::As65).GetDirectiveForSpelling (upper) != Directive::None);
+    }
+
+    return false;
 }
 
 
@@ -422,28 +507,48 @@ std::vector<SourceSyntax::Run> SourceSyntax::GetMerlinRuns (const std::wstring &
 //
 //  SourceSyntax::DetectAssembler
 //
-//  Merlin's and ca65's own directives and label forms count for each; the one
-//  with more decides. A tie goes by the extension: ca65's .s, .inc and .mac,
-//  and as65 for everything else. Neither cc65's debug file nor a Merlin listing
-//  records the assembler, so the file's text is all there is to go on.
+//  Each assembler's own directives, label forms and origin count for it, and
+//  the one with the most decides. The extension decides only between the
+//  assemblers tied for the most, or when the text shows none of them: ca65's
+//  .s, .inc and .mac, and as65 for everything else. A tie the extension does
+//  not settle goes to Merlin, then ca65. Neither cc65's debug file nor a
+//  Merlin listing records the assembler, so the file's text is all there is
+//  to go on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::wstring> & lines, const std::wstring & fileName)
 {
-    int           merlin    = 0;
-    int           ca65      = 0;
-    size_t        dot       = fileName.find_last_of (L'.');
-    std::wstring  extension = (dot == std::wstring::npos) ? std::wstring() : fileName.substr (dot);
+    int                        merlin    = 0;
+    int                        ca65      = 0;
+    int                        as65      = 0;
+    int                        most      = 0;
+    size_t                     dot       = fileName.find_last_of (L'.');
+    std::wstring               extension = (dot == std::wstring::npos) ? std::wstring() : fileName.substr (dot);
+    Assembler                  byName    = Assembler::As65;
+    Listing                    listing   = DetectListing (lines);
+    std::vector<std::wstring>  sources;
 
 
+
+    //  A listing's assembler is its source's, past the address and bytes.
+    if (listing != Listing::None)
+    {
+        for (const std::wstring & line : lines)
+        {
+            sources.push_back (GetListingSource (line, listing));
+        }
+
+        return DetectAssembler (sources, fileName);
+    }
 
     for (const std::wstring & line : lines)
     {
         std::wistringstream  words (line);
         std::wstring         word;
+        size_t               first = line.find_first_not_of (L" \t");
 
-        if (line.empty())
+        if (first == std::wstring::npos)
         {
             continue;
         }
@@ -459,6 +564,14 @@ SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::ws
             ca65++;
         }
 
+        //  as65's origin, *= or * =, which neither of the others has.
+        if (line[first] == L'*' && line.find_first_not_of (L" \t", first + 1) != std::wstring::npos &&
+            line[line.find_first_not_of (L" \t", first + 1)] == L'=')
+        {
+            as65++;
+            continue;
+        }
+
         words >> word;
 
         //  The opcode follows a label in the first column.
@@ -469,11 +582,7 @@ SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::ws
 
         merlin += IsMerlinOnlyOpcode (word) ? 1 : 0;
         ca65   += IsCa65OnlyOpcode (word) ? 1 : 0;
-    }
-
-    if (merlin != ca65)
-    {
-        return (merlin > ca65) ? Assembler::Merlin : Assembler::Ca65;
+        as65   += IsAs65OnlyOpcode (word) ? 1 : 0;
     }
 
     for (wchar_t & ch : extension)
@@ -481,7 +590,304 @@ SourceSyntax::Assembler SourceSyntax::DetectAssembler (const std::vector<std::ws
         ch = (wchar_t) towlower (ch);
     }
 
-    return (extension == L".s" || extension == L".inc" || extension == L".mac") ? Assembler::Ca65 : Assembler::As65;
+    byName = (extension == L".s" || extension == L".inc" || extension == L".mac") ? Assembler::Ca65 : Assembler::As65;
+    most   = (std::max) ({ merlin, ca65, as65 });
+
+    if (most == 0 || (byName == Assembler::Ca65 && ca65 == most) || (byName == Assembler::As65 && as65 == most))
+    {
+        return byName;
+    }
+
+    if (merlin == most)
+    {
+        return Assembler::Merlin;
+    }
+
+    return (ca65 == most) ? Assembler::Ca65 : Assembler::As65;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::GetLineRuns
+//
+//  A listing row's address and bytes, then the runs of the source past them,
+//  moved to where that source starts. A line of a listing that is not one of
+//  its rows, such as ca65's heading, is left uncolored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SourceSyntax::Run> SourceSyntax::GetLineRuns (const std::wstring & line, Assembler assembler, Listing listing)
+{
+    std::vector<Run>  runs;
+    bool              hasAddress = false;
+    size_t            column     = GetListingSourceColumn (listing);
+    size_t            bytesFrom  = 0;
+    size_t            bytesTo    = 0;
+    size_t            first      = 0;
+    size_t            last       = 0;
+
+
+
+    if (listing == Listing::None)
+    {
+        return GetSourceRuns (line, assembler);
+    }
+
+    if (listing == Listing::Merlin && IsMerlinListingRow (line, hasAddress))
+    {
+        constexpr size_t  kAddressLength = 4;
+        constexpr size_t  kBytesFrom     = 5;
+        constexpr size_t  kBytesTo       = 15;
+
+        if (hasAddress)
+        {
+            runs.push_back ({ 0, (int) kAddressLength, Token::Address });
+        }
+
+        bytesFrom = kBytesFrom;
+        bytesTo   = kBytesTo;
+    }
+    else if (listing == Listing::Ca65 && IsCa65ListingRow (line))
+    {
+        constexpr size_t  kAddressLength = 6;
+        constexpr size_t  kBytesFrom     = 10;
+        constexpr size_t  kBytesTo       = 23;
+
+        runs.push_back ({ 0, (int) kAddressLength, Token::Address });
+        bytesFrom = kBytesFrom;
+        bytesTo   = kBytesTo;
+    }
+    else
+    {
+        return runs;
+    }
+
+    bytesTo = (std::min) (bytesTo, line.size());
+    first   = line.find_first_not_of (L' ', bytesFrom);
+
+    if (first != std::wstring::npos && first < bytesTo)
+    {
+        last = line.find_last_not_of (L' ', bytesTo - 1);
+        runs.push_back ({ (int) first, (int) (last + 1 - first), Token::Bytes });
+    }
+
+    if (line.size() > column)
+    {
+        for (Run run : GetSourceRuns (line.substr (column), assembler))
+        {
+            run.start += (int) column;
+            runs.push_back (run);
+        }
+    }
+
+    return runs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::DetectListing
+//
+//  A listing when at least half of the lines that are not blank are one
+//  listing's rows and at least one of them carries an address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SourceSyntax::Listing SourceSyntax::DetectListing (const std::vector<std::wstring> & lines)
+{
+    int   text            = 0;
+    int   merlinRows      = 0;
+    int   merlinAddresses = 0;
+    int   ca65Rows        = 0;
+    bool  hasAddress      = false;
+
+
+
+    for (const std::wstring & line : lines)
+    {
+        if (line.find_first_not_of (L" \t") == std::wstring::npos)
+        {
+            continue;
+        }
+
+        text++;
+
+        if (IsMerlinListingRow (line, hasAddress))
+        {
+            merlinRows++;
+            merlinAddresses += hasAddress ? 1 : 0;
+        }
+
+        ca65Rows += IsCa65ListingRow (line) ? 1 : 0;
+    }
+
+    if (ca65Rows > 0 && ca65Rows * 2 >= text)
+    {
+        return Listing::Ca65;
+    }
+
+    return (merlinAddresses > 0 && merlinRows * 2 >= text) ? Listing::Merlin : Listing::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::GetListingSource
+//
+//  Empty for a line that is not one of the listing's rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SourceSyntax::GetListingSource (const std::wstring & line, Listing listing)
+{
+    bool    hasAddress = false;
+    size_t  column     = GetListingSourceColumn (listing);
+    bool    isRow      = (listing == Listing::Merlin) ? IsMerlinListingRow (line, hasAddress) :
+                         (listing == Listing::Ca65)   ? IsCa65ListingRow (line) : false;
+
+
+
+    if (listing == Listing::None)
+    {
+        return line;
+    }
+
+    return (isRow && line.size() > column) ? line.substr (column) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::GetListingSourceColumn
+//
+//  Merlin's source starts in column 22, past the address, its colon, up to
+//  three bytes and the line number; ca65's in column 25, past the address,
+//  the include depth and up to four bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t SourceSyntax::GetListingSourceColumn (Listing listing)
+{
+    constexpr size_t  kMerlinColumn = 21;
+    constexpr size_t  kCa65Column   = 24;
+
+
+
+    switch (listing)
+    {
+    case Listing::Merlin:  return kMerlinColumn;
+    case Listing::Ca65:    return kCa65Column;
+    case Listing::None:    break;
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::IsMerlinListingRow
+//
+//  An address, a colon and its bytes, or blanks where they would be, then
+//  the line number ending before the source's column; a line from a PUT or
+//  USE file has a > ahead of its number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceSyntax::IsMerlinListingRow (const std::wstring & line, bool & hasAddress)
+{
+    constexpr size_t  kAddressLength = 4;
+    constexpr size_t  kNumberFrom    = 15;
+    constexpr size_t  kSourceColumn  = 21;
+    size_t            i              = 0;
+    size_t            digits         = 0;
+
+
+
+    hasAddress = line.size() > kAddressLength && line[kAddressLength] == L':' &&
+                 std::all_of (line.begin(), line.begin() + kAddressLength, [] (wchar_t ch) { return iswxdigit (ch) && !iswlower (ch); });
+
+    if (line.size() <= kNumberFrom)
+    {
+        return false;
+    }
+
+    for (i = hasAddress ? kAddressLength + 1 : 0; i < kNumberFrom; i++)
+    {
+        if (line[i] != L' ' && !(hasAddress && iswxdigit (line[i])))
+        {
+            return false;
+        }
+    }
+
+    while (i < kSourceColumn && i < line.size() && (line[i] == L' ' || line[i] == L'>'))
+    {
+        i++;
+    }
+
+    while (i < kSourceColumn && i < line.size() && iswdigit (line[i]))
+    {
+        i++;
+        digits++;
+    }
+
+    return digits > 0 && (i == line.size() || line[i] == L' ');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::IsCa65ListingRow
+//
+//  Six hex digits of address, an r when it is relocatable, then the include
+//  depth.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceSyntax::IsCa65ListingRow (const std::wstring & line)
+{
+    constexpr size_t  kAddressLength = 6;
+    size_t            i              = kAddressLength + 2;
+    size_t            digits         = 0;
+
+
+
+    if (line.size() <= i || (line[kAddressLength] != L'r' && line[kAddressLength] != L' ') || line[kAddressLength + 1] != L' ')
+    {
+        return false;
+    }
+
+    if (!std::all_of (line.begin(), line.begin() + kAddressLength, [] (wchar_t ch) { return iswxdigit (ch) && !iswlower (ch); }))
+    {
+        return false;
+    }
+
+    while (i < line.size() && iswdigit (line[i]))
+    {
+        i++;
+        digits++;
+    }
+
+    return digits > 0 && (i == line.size() || line[i] == L' ');
 }
 
 
@@ -558,6 +964,34 @@ bool SourceSyntax::IsCa65OnlyOpcode (const std::wstring & word)
     }
 
     return DialectRegistry::Get (DialectId::As65).GetDirectiveForSpelling (upper) == Directive::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::IsAs65OnlyOpcode
+//
+//  A directive without a dot that as65 has and Merlin does not, such as
+//  MACRO or ENDM. ca65 has no directive without a dot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceSyntax::IsAs65OnlyOpcode (const std::wstring & word)
+{
+    std::string  upper = Parser::ToUpper (ToNarrow (word));
+
+
+
+    if (upper.empty() || upper[0] == '.')
+    {
+        return false;
+    }
+
+    return DialectRegistry::Get (DialectId::As65).GetDirectiveForSpelling (upper)   != Directive::None &&
+           DialectRegistry::Get (DialectId::Merlin).GetDirectiveForSpelling (upper) == Directive::None;
 }
 
 

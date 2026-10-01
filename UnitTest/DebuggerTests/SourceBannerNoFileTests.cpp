@@ -140,6 +140,7 @@ namespace DebuggerTests
                                         [] (const DebuggerActionBuilder &) {},
                                         [] (Word) {});
             DebuggerViewSnapshot  snapshot;
+            std::vector<int>      lines;
 
 
 
@@ -148,7 +149,8 @@ namespace DebuggerTests
 
             pane.SetFile (0);
             pane.Apply   (snapshot);
-            Assert::AreEqual ((size_t) 2, view.GetRows().size(), L"the file was found");
+            lines = SourcePane::GetRowLines (view.GetRows());
+            Assert::AreEqual ((ptrdiff_t) 2, std::count_if (lines.begin(), lines.end(), [] (int line) { return line > 0; }), L"the file was found");
 
             pane.SetFile (-1);
             pane.Apply   (snapshot);

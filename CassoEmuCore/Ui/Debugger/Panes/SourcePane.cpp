@@ -131,6 +131,7 @@ void SourcePane::Apply (const DebuggerViewSnapshot & snapshot)
             m_fileId   = -1;
             m_rowsLine = -1;
             m_view->SetRows ({});
+            m_rowLines.clear();
             m_banner->SetText (L"");
         }
 
@@ -197,6 +198,7 @@ void SourcePane::SetFile (int fileId)
         m_fileId     = -1;
         m_rowsFileId = -2;
         m_view->SetRows ({});
+        m_rowLines.clear();
         m_banner->SetText (L"");
     }
 }
@@ -228,7 +230,7 @@ int SourcePane::GetTopSourceLine() const
         return m_pendingTopLine;
     }
 
-    for (int row = 0; row < (int) m_lines.size(); row++)
+    for (int row = 0; row < (int) m_rowLines.size(); row++)
     {
         int  first = m_view->GetFirstLineOfRow (row);
 
@@ -237,7 +239,7 @@ int SourcePane::GetTopSourceLine() const
             break;
         }
 
-        line = row + 1;
+        line = (m_rowLines[(size_t) row] > 0) ? m_rowLines[(size_t) row] : line;
     }
 
     return line;
@@ -257,7 +259,7 @@ int SourcePane::GetTopSourceLine() const
 
 void SourcePane::SetTopSourceLine (int line)
 {
-    int  first = (line > 0) ? m_view->GetFirstLineOfRow (line - 1) : -1;
+    int  first = (line > 0) ? m_view->GetFirstLineOfRow (GetRowOfLine (line)) : -1;
 
 
 
@@ -299,6 +301,7 @@ void SourcePane::LoadFile (int fileId)
     m_foundPath = lookup.path;
     m_lines     = SplitLines (lookup.text);
     m_detected  = SourceSyntax::DetectAssembler (m_lines, SourcePathList::Utf8ToWide (GetFileName (fileId)));
+    m_listing   = SourceSyntax::DetectListing (m_lines);
 }
 
 
@@ -355,7 +358,7 @@ void SourcePane::Rebuild()
 
     isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
                   m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineBytes != m_state->lineBytes ||
-                  m_rowsLineOperands != m_state->lineOperands;
+                  m_rowsLineOperands != m_state->lineOperands || m_rowsLineCode != m_state->lineCode;
 
     if (isRowsStale)
     {
@@ -363,6 +366,7 @@ void SourcePane::Rebuild()
 
         std::map<int, std::wstring>                           lineBytes;
         std::map<int, std::pair<std::wstring, std::wstring>>  lineOperands;
+        std::map<int, std::vector<std::wstring>>              lineCode;
 
         if (m_state->lineBytes != nullptr)
         {
@@ -386,7 +390,23 @@ void SourcePane::Rebuild()
             }
         }
 
-        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineBytes, lineOperands, GetAssembler()));
+        if (m_state->lineCode != nullptr)
+        {
+            for (const auto & [place, code] : *m_state->lineCode)
+            {
+                for (const std::string & each : code)
+                {
+                    if (place.first == m_fileId)
+                    {
+                        lineCode[place.second].push_back (SourcePathList::Utf8ToWide (each));
+                    }
+                }
+            }
+        }
+
+        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineBytes, lineOperands, GetAssembler(), m_listing, lineCode));
+        m_rowLines         = GetRowLines (m_view->GetRows());
+        m_rowsLineCode     = m_state->lineCode;
         m_rowsDisabled     = disabled;
         m_rowsLineBytes    = m_state->lineBytes;
         m_rowsLineOperands = m_state->lineOperands;
@@ -459,7 +479,7 @@ void SourcePane::Rebuild()
 
 void SourcePane::ScrollTo (int line)
 {
-    int  first = m_view->GetFirstLineOfRow (line - 1);
+    int  first = m_view->GetFirstLineOfRow (GetRowOfLine (line));
     int  top   = m_view->GetTopLine();
     int  cap   = std::max (1, m_view->GetLineCap());
 
@@ -535,12 +555,12 @@ std::optional<int> SourcePane::GetLineAt (POINT atDip) const
 
 
 
-    if (!m_state.has_value() || m_fileId < 0 || at.row < 0 || at.row >= (int) m_lines.size())
+    if (!m_state.has_value() || m_fileId < 0 || at.row < 0 || at.row >= (int) m_rowLines.size() || m_rowLines[(size_t) at.row] <= 0)
     {
         return std::nullopt;
     }
 
-    return at.row + 1;
+    return m_rowLines[(size_t) at.row];
 }
 
 
@@ -618,6 +638,7 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
     m_droppedAt = m_docFileId;
     m_fileId    = (recordIndex >= 0 && recordIndex < (int) m_state->files.size()) ? m_state->files[(size_t) recordIndex].id : -1;
     m_detected  = SourceSyntax::DetectAssembler (m_lines, (m_fileId >= 0) ? SourcePathList::Utf8ToWide (GetFileName (m_fileId)) : lookup.path);
+    m_listing   = SourceSyntax::DetectListing (m_lines);
     m_rowsFileId = -2;
 
     Rebuild();
@@ -880,7 +901,7 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
 
     if (!IsActive() || !m_view->IsVisible() ||
         !GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) ||
-        !m_view->GetCellAnchorPx (m_rowsLine - 1, s_kTextCell, x, y))
+        !m_view->GetCellAnchorPx (GetRowOfLine (m_rowsLine), s_kTextCell, x, y))
     {
         return false;
     }
@@ -902,7 +923,7 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     input.radiusPx     *= scale;
     input.headPx       *= scale;
 
-    if (targetLine.has_value() && m_view->GetCellAnchorPx (*targetLine - 1, s_kTextCell, x, y))
+    if (targetLine.has_value() && m_view->GetCellAnchorPx (GetRowOfLine (*targetLine), s_kTextCell, x, y))
     {
         input.targetY = y;
     }
@@ -956,7 +977,9 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
                                                       const Style         & style,
                                                       const std::map<int, std::wstring> & lineBytes,
                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands,
-                                                      SourceSyntax::Assembler assembler)
+                                                      SourceSyntax::Assembler assembler,
+                                                      SourceSyntax::Listing   listing,
+                                                      const std::map<int, std::vector<std::wstring>> & lineCode)
 {
     std::vector<DxuiTextView::Row>  rows;
     int                             width  = (int) std::to_wstring (lines.size()).size();
@@ -1008,8 +1031,8 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
             }
         }
 
-        //  What the line's instruction reads, then in the bytes' dimmer color
-        //  what it leaves, as the disassembly pane's operand column has them.
+        //  What the line's instruction reads, then in the result color what
+        //  it leaves, as the disassembly pane's operand column has them.
         //  Only on a line whose opcode is a mnemonic: a directive or a macro
         //  produced its bytes some other way than one instruction.
         if (!lineOperands.empty())
@@ -1025,30 +1048,150 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
 
                 if (!found->second.second.empty())
                 {
+                    std::wstring  result = kpszResultPrefix + found->second.second;
+
                     row.cells.back() += row.cells.back().empty() ? L"" : L"  ";
 
-                    if (style.bytesArgb != 0)
+                    if (style.resultArgb != 0)
                     {
-                        row.spans.push_back ({ column, (int) row.cells.back().size(), (int) found->second.second.size(), style.bytesArgb });
+                        row.spans.push_back ({ column, (int) row.cells.back().size(), (int) result.size(), style.resultArgb });
                     }
 
-                    row.cells.back() += found->second.second;
+                    row.cells.back() += result;
                 }
             }
         }
 
         if (style.syntax.mnemonic != 0)
         {
-            for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (lines[i], assembler))
+            for (const SourceSyntax::Run & run : SourceSyntax::GetLineRuns (lines[i], assembler, listing))
             {
                 row.spans.push_back ({ 2, run.start, run.length, style.syntax.Get (run.token) });
             }
         }
 
         rows.push_back (std::move (row));
+        AddCodeRows (lineCode, number, lines[i], marker.size(), width, style, assembler, listing, rows);
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::AddCodeRows
+//
+//  Below a line, the instructions it produced, each a row of its own with no
+//  line number, in the darkened syntax colors: the address, then the
+//  instruction indented past it. None below a directive's data, whose bytes
+//  are not instructions, or in a listing, which shows its bytes already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::AddCodeRows (
+    const std::map<int, std::vector<std::wstring>>  & lineCode,
+    int                                               number,
+    const std::wstring                              & line,
+    size_t                                            markerWidth,
+    int                                               numberWidth,
+    const Style                                     & style,
+    SourceSyntax::Assembler                           assembler,
+    SourceSyntax::Listing                             listing,
+    std::vector<DxuiTextView::Row>                  & rows)
+{
+    constexpr int  kIndent       = 4;
+    constexpr int  kAddressWidth = 4;
+    auto           found         = lineCode.find (number);
+
+
+
+    if (found == lineCode.end() || listing != SourceSyntax::Listing::None || SourceSyntax::IsDirectiveLine (line, assembler))
+    {
+        return;
+    }
+
+    for (const std::wstring & code : found->second)
+    {
+        DxuiTextView::Row  row;
+
+        row.cells = { std::wstring (markerWidth, L' '), std::wstring ((size_t) numberWidth, L' '), std::wstring (kIndent, L' ') + code };
+
+        if (style.codeSyntax.address != 0)
+        {
+            row.spans.push_back ({ 2, kIndent, kAddressWidth, style.codeSyntax.address });
+        }
+
+        if (style.codeSyntax.mnemonic != 0)
+        {
+            for (const SourceSyntax::Run & run : SourceSyntax::GetInstructionRuns (code.substr ((std::min) (code.size(), (size_t) kAddressWidth))))
+            {
+                row.spans.push_back ({ 2, kIndent + kAddressWidth + run.start, run.length, style.codeSyntax.Get (run.token) });
+            }
+        }
+
+        rows.push_back (std::move (row));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetRowLines
+//
+//  A row with a line number is the next source line; one without is a row of
+//  the instructions under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> SourcePane::GetRowLines (const std::vector<DxuiTextView::Row> & rows)
+{
+    std::vector<int>  lines;
+    int               line  = 0;
+
+
+
+    for (const DxuiTextView::Row & row : rows)
+    {
+        bool  isLine = row.cells.size() > 1 && row.cells[1].find_first_not_of (L' ') != std::wstring::npos;
+
+        line += isLine ? 1 : 0;
+        lines.push_back (isLine ? line : 0);
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetRowOfLine
+//
+//  The row a 1-based source line is on, or -1 when no row shows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SourcePane::GetRowOfLine (int line) const
+{
+    auto  found = std::find (m_rowLines.begin(), m_rowLines.end(), line);
+
+
+
+    if (line <= 0 || found == m_rowLines.end())
+    {
+        return -1;
+    }
+
+    return (int) (found - m_rowLines.begin());
 }
 
 

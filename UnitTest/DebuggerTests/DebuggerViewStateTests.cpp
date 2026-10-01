@@ -3021,6 +3021,7 @@ namespace DebuggerViewStateTests
         {
             MachineRig            rig;
             DebuggerViewSnapshot  snapshot;
+            std::vector<int>      lines;
 
 
 
@@ -3181,6 +3182,7 @@ namespace DebuggerViewStateTests
                                         [&] (const DebuggerActionBuilder & build) { ran = build (CommandMode::AppleWin).echo; },
                                         [] (Word) {});
             DebuggerViewSnapshot  snapshot;
+            std::vector<int>      lines;
 
 
 
@@ -3194,8 +3196,9 @@ namespace DebuggerViewStateTests
 
             Assert::AreEqual (1,          finds,                      L"found once, not every snapshot");
             Assert::IsTrue   (pane.IsActive());
-            Assert::AreEqual ((size_t) 4, view.GetRows().size());
-            Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[2].cells[0], L"the invocation line");
+            lines = SourcePane::GetRowLines (view.GetRows());
+            Assert::AreEqual ((ptrdiff_t) 4, std::count_if (lines.begin(), lines.end(), [] (int line) { return line > 0; }), L"a row for each line, and the instructions below them");
+            Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[(size_t) (std::find (lines.begin(), lines.end(), 3) - lines.begin())].cells[0], L"the invocation line");
             Assert::IsTrue   (pane.HasBanner(),                           L"inside a macro");
 
             pane.ToggleBody();
@@ -3205,7 +3208,7 @@ namespace DebuggerViewStateTests
             pane.SetFile     (snapshot.source->bodyFileId);
             pane.SetShowBody (true);
             pane.Apply       (snapshot);
-            Assert::AreEqual ((size_t) 5, view.GetRows().size(),         L"the body's file");
+            Assert::AreEqual ((size_t) 6, view.GetRows().size(),         L"the body's file, its STA's instruction below its last line");
             Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[4].cells[0]);
         }
 

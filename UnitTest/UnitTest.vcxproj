@@ -282,6 +282,8 @@
     <ClCompile Include="DebuggerTests\SourceMacroLevelTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceLineMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxAssemblerTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceListingSyntaxTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceLineCodeTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceLineBytesTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceLineOperandsTests.cpp" />
