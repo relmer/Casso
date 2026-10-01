@@ -437,6 +437,9 @@ private:
     void     MoveMemoryBar      (DxuiWindow * to);
     DxuiWindow * GetPaneHost    (const std::wstring & pane);
     std::wstring GetBarRoutingPane (const std::wstring & pane) const;
+    DxuiHwndSource * GetMenuHost () const;
+    DxuiTooltip &    GetRoutedTooltip ();
+    void     TickFloats         (int64_t now);
     void     ClipPaneControls   ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
@@ -573,6 +576,7 @@ private:
     HINSTANCE                                                                        m_hInstance          = nullptr;
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>                        m_floats;
     std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
+    std::map<std::wstring, std::unique_ptr<DxuiTooltip>>                             m_floatTips;
     DxuiDragOverlay                                                                  m_dragOverlay;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;

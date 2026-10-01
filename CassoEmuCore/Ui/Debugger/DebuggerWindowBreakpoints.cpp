@@ -174,10 +174,7 @@ bool DebuggerWindow::RouteBreakpointBarMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        if (m_routingPane.empty())
-        {
-            UpdateTooltip (ev.positionDip);
-        }
+        UpdateTooltip (ev.positionDip);
 
         return m_breakpointBar->OnToolbarMouseMove (x, y);
 

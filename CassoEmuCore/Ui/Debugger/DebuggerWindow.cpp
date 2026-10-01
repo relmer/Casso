@@ -2897,6 +2897,98 @@ DxuiWindow * DebuggerWindow::GetPaneHost (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetMenuHost
+//
+//  Where a menu opened by the event being routed shows: the floating window
+//  the event came from, or this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHwndSource * DebuggerWindow::GetMenuHost() const
+{
+    auto  found = m_floats.find (m_routingPane);
+
+
+
+    return (!m_routingPane.empty() && found != m_floats.end()) ? found->second->GetPopupHost() : GetPopupHost();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetRoutedTooltip
+//
+//  The tooltip of the window the event being routed came from, since a
+//  tooltip shows only over the window that owns it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTooltip & DebuggerWindow::GetRoutedTooltip()
+{
+    auto  found = m_floatTips.find (m_routingPane);
+
+
+
+    return (!m_routingPane.empty() && found != m_floatTips.end()) ? *found->second : m_tooltip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TickFloats
+//
+//  Each floating window's context menu and tooltip run on the ticks this
+//  window supplies, as its own do; without them a menu stays at the first
+//  frame of its reveal, one line high.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::TickFloats (int64_t now)
+{
+    RECT  client = {};
+
+
+
+    for (const auto & [pane, window] : m_floats)
+    {
+        DxuiHwndSource  * host = window->GetPopupHost();
+        auto              tip  = m_floatTips.find (pane);
+
+        if (host != nullptr && host->GetContextMenu().WantsTick())
+        {
+            host->GetContextMenu().Tick (now);
+        }
+
+        if (tip == m_floatTips.end())
+        {
+            continue;
+        }
+
+        if (window->GetHwnd() != nullptr && GetClientRect (window->GetHwnd(), &client))
+        {
+            tip->second->SetDpi          (GetDpiForWindow (window->GetHwnd()));
+            tip->second->SetViewportSize (client.right - client.left, client.bottom - client.top);
+        }
+
+        if (tip->second->WantsTick())
+        {
+            tip->second->Tick (now);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetBarRoutingPane
 //
 //  The routing pane under which a pane's bar takes the mouse: the pane's own
@@ -3894,18 +3986,12 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 {
     std::vector<DxuiDockSite::MenuItem>  items = m_dockSite->GetDockToMenu (pane);
     std::vector<DxuiPopupMenuItem>       menu;
-    DxuiHwndSource                     * host  = GetPopupHost();
-    auto                                 found = m_floats.find (m_routingPane);
+    DxuiHwndSource                     * host  = GetMenuHost();
     int                                  slot  = GetSourceSlotOf (pane);
 
 
 
     //  A floating pane's menu opens in its own window, where the click was.
-    if (!m_routingPane.empty() && found != m_floats.end())
-    {
-        host = found->second->GetPopupHost();
-    }
-
     if (items.empty() || host == nullptr)
     {
         return;
@@ -4027,7 +4113,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
 
 
-    if (m_snapshot == nullptr || GetPopupHost() == nullptr || !m_routingPane.empty())
+    if (m_snapshot == nullptr || GetMenuHost() == nullptr)
     {
         return false;
     }
@@ -4068,7 +4154,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     for (MemoryPane * each : GetOpenMemoryPanes())
     {
-        if (DxuiDockSite::Contains (each->GetView()->GetBounds(), clientPx) && each->GetView()->IsVisible())
+        if (IsRoutable (each->GetView()) && DxuiDockSite::Contains (each->GetView()->GetBounds(), clientPx) && each->GetView()->IsVisible())
         {
             memory = each;
         }
@@ -4097,7 +4183,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
-    DxuiContextMenu::Show (*GetPopupHost(), clientPx.x, clientPx.y, std::move (menu));
+    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
     return true;
 }
 
@@ -4155,7 +4241,7 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
-    DxuiContextMenu::Show (*GetPopupHost(), clientPx.x, clientPx.y, std::move (menu));
+    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
 }
 
 
@@ -4444,6 +4530,8 @@ void DebuggerWindow::RenderFrame()
     {
         m_tooltip.Tick (now);
     }
+
+    TickFloats (now);
 
     for (MemoryPane * pane : GetOpenMemoryPanes())
     {
@@ -5564,24 +5652,27 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     std::optional<Byte>  p;
     std::wstring         text;
     const wchar_t      * barTip = nullptr;
+    DxuiTooltip        & tip    = GetRoutedTooltip();
 
 
 
     //  The command bar's entries: what each does and its key in the scheme
     //  in force.
-    if (m_commandBar != nullptr && m_commandBar->IsVisible())
+    if (m_routingPane.empty() && m_commandBar != nullptr && m_commandBar->IsVisible())
     {
         barTip = m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  The memory bar's the same, and its Address box's.
-    if ((barTip == nullptr || *barTip == L'\0') && m_memoryBar != nullptr && m_memoryBar->IsVisible())
+    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (m_memoryBarPane) &&
+        m_memoryBar != nullptr && m_memoryBar->IsVisible())
     {
         barTip = m_memoryBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  And the breakpoints pane's.
-    if ((barTip == nullptr || *barTip == L'\0') && m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
+    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) &&
+        m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
     {
         barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
@@ -5599,8 +5690,8 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
     if (barTip != nullptr && *barTip != L'\0')
     {
-        m_tooltip.SetMonospace (false);
-        m_tooltip.RequestShow  (cell, barTip, now);
+        tip.SetMonospace (false);
+        tip.RequestShow  (cell, barTip, now);
         return;
     }
 
@@ -5619,27 +5710,27 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (p.has_value())
     {
         OffsetRect (&cell, bounds.left, bounds.top);
-        m_tooltip.SetMonospace (true);
-        m_tooltip.RequestShow  (cell, FlagsDialog::Describe (*p), now);
+        tip.SetMonospace (true);
+        tip.RequestShow  (cell, FlagsDialog::Describe (*p), now);
         return;
     }
 
     if (TryGetSymbolTip (clientPx, cell, text))
     {
-        m_tooltip.SetMonospace (true);
-        m_tooltip.RequestShow  (cell, text, now);
+        tip.SetMonospace (true);
+        tip.RequestShow  (cell, text, now);
         return;
     }
 
     //  A tab's tip is a sentence, not a table, so it reads in the body face.
-    if (!m_dockSite->GetTabAt (clientPx, cell, text).empty() && !text.empty())
+    if (m_routingPane.empty() && !m_dockSite->GetTabAt (clientPx, cell, text).empty() && !text.empty())
     {
-        m_tooltip.SetMonospace (false);
-        m_tooltip.RequestShow  (cell, text, now);
+        tip.SetMonospace (false);
+        tip.RequestShow  (cell, text, now);
         return;
     }
 
-    m_tooltip.RequestHide (now);
+    tip.RequestHide (now);
 }
 
 
@@ -5672,7 +5763,7 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
 
     for (const auto & [control, tip] : tips)
     {
-        if (control != nullptr && control->IsVisible() && DxuiDockSite::Contains (control->GetBounds(), clientPx))
+        if (control != nullptr && IsRoutable (control) && control->IsVisible() && DxuiDockSite::Contains (control->GetBounds(), clientPx))
         {
             anchor = control->GetBounds();
             return tip;
@@ -6427,10 +6518,7 @@ bool DebuggerWindow::RouteMemoryBarMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        if (m_routingPane.empty())
-        {
-            UpdateTooltip (ev.positionDip);
-        }
+        UpdateTooltip (ev.positionDip);
 
         return m_memoryBar->OnToolbarMouseMove (x, y);
 
@@ -6594,11 +6682,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        //  The command bar and the memory bar never leave this window.
-        if (m_routingPane.empty())
-        {
-            UpdateTooltip (ev.positionDip);
-        }
+        //  A floating window's tips show from its own tooltip.
+        UpdateTooltip (ev.positionDip);
 
         for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
         {
@@ -7352,6 +7437,17 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
         window->SetScreenRect (rect);
     }
 
+    //  A tooltip shows only over the window that owns it, so the pane's
+    //  toolbar tips come from one of this window's own.
+    {
+        std::unique_ptr<DxuiTooltip>  tip = std::make_unique<DxuiTooltip>();
+
+        tip->SetPopupHost (window->GetPopupHost());
+        tip->SetTheme     (*m_theme);
+        tip->SetDpi       (GetDpiForWindow (window->GetHwnd()));
+        m_floatTips[pane] = std::move (tip);
+    }
+
     m_floats[pane] = std::move (window);
 }
 
@@ -7609,6 +7705,12 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
 
     m_floats.erase     (pane);
     m_floatFocus.erase (pane);
+
+    if (m_floatTips.contains (pane))
+    {
+        m_floatTips[pane]->HideImmediate();
+        m_floatTips.erase (pane);
+    }
 
     for (IDxuiControl * control : GetPaneControls (pane))
     {
@@ -8187,7 +8289,7 @@ void DebuggerWindow::ShowHistoryList()
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
-    DxuiContextMenu::Show (*GetPopupHost(), box.left, box.top, std::move (menu));
+    DxuiContextMenu::Show (*GetMenuHost(), box.left, box.top, std::move (menu));
 }
 
 
