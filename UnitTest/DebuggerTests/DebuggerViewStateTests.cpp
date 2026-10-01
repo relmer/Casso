@@ -961,11 +961,34 @@ namespace DebuggerViewStateTests
             if (after.y  != before.y)  { text += std::format (" Y={:02X}", after.y);  }
             if (after.sp != before.sp) { text += std::format (" S={:02X}", after.sp); }
 
-            //  The stack is written downwards, so a push shows at the higher
-            //  address first -- the order the CPU wrote them.
+            //  A push reads as what was pushed, the higher address first --
+            //  the order the CPU wrote them. JSR's two bytes are the return
+            //  address less one.
+            if (before.sp - after.sp == 1)
+            {
+                (void) target.TryPeek ((Word) (0x0100 + before.sp), value);
+                text += std::format (" pushed ${:02X}", value);
+            }
+            else if (before.sp - after.sp == 2)
+            {
+                Byte  high = 0;
+                Byte  low  = 0;
+
+
+
+                (void) target.TryPeek ((Word) (0x0100 + before.sp),     high);
+                (void) target.TryPeek ((Word) (0x0100 + before.sp - 1), low);
+                text += std::format (" pushed ${:02X}{:02X} (returns to ${:04X})", high, low, (Word) (((high << 8) | low) + 1));
+            }
+
             for (Word i = 16; i > 0; i--)
             {
                 Word  address = (Word) (0x01F0 + i - 1);
+
+                if (address > 0x0100 + after.sp && address <= 0x0100 + before.sp)
+                {
+                    continue;
+                }
 
                 if (target.TryPeek (address, value) && value != stackBefore[i - 1])
                 {
@@ -1016,6 +1039,36 @@ namespace DebuggerViewStateTests
             }
 
             return 1;
+        }
+
+
+        //  A push is the value pushed, not the stack bytes it took: JSR's
+        //  return address, and the byte from PHA, PHP, BRK or an interrupt.
+        TEST_METHOD (APushShowsAsTheValuePushed)
+        {
+            Cpu6502Registers  before = {};
+            Cpu6502Registers  after  = {};
+
+
+
+            before.pc = 0x0300;
+            before.sp = 0xCE;
+            after     = before;
+            after.sp  = 0xCC;
+            after.pc  = 0x0400;
+
+            Assert::AreEqual (std::string ("S=CC pushed $DD97 (returns to $DD98) PC=$0400"),
+                              InstructionEffect::Format (before, after, { { 0x01CE, 0xDD }, { 0x01CD, 0x97 } }, 0x0303));
+
+            after.sp = 0xCD;
+            after.pc = 0x0301;
+            Assert::AreEqual (std::string ("S=CD pushed $41"),
+                              InstructionEffect::Format (before, after, { { 0x01CE, 0x41 } }, 0x0301));
+
+            after.sp = 0xCB;
+            after.pc = 0xFA62;
+            Assert::AreEqual (std::string ("S=CB pushed $0302 and $30 PC=$FA62"),
+                              InstructionEffect::Format (before, after, { { 0x01CE, 0x03 }, { 0x01CD, 0x02 }, { 0x01CC, 0x30 } }, 0x0302));
         }
 
 

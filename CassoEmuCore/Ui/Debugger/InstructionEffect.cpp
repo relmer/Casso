@@ -184,6 +184,90 @@ std::string InstructionEffect::GetFlagChanges (Byte before, Byte after)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InstructionEffect::IsPushedByte
+//
+//  Whether a write landed in the stack bytes between the pointer before and
+//  after: the ones a push filled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InstructionEffect::IsPushedByte (Byte spBefore, Byte spAfter, Word address)
+{
+    Byte  count = (Byte) (spBefore - spAfter);
+    Byte  depth = (Byte) (spBefore - (Byte) address);
+
+
+
+    return (address >> 8) == kStackPage && depth < count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InstructionEffect::GetPush
+//
+//  A push of one to three bytes as the value pushed, read in the order the
+//  CPU wrote it: `pushed $41` for PHA or PHP, `pushed $DD97 (returns to
+//  $DD98)` for JSR, whose two bytes are the return address less one, and
+//  `pushed $0302 and $30` for BRK or an interrupt. Empty when the pointer
+//  did not drop or a byte it passed was not written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string InstructionEffect::GetPush (Byte spBefore, Byte spAfter, const std::vector<ShadowCpu::Write> & writes)
+{
+    static constexpr Byte  kMaxPush        = 3;
+    Byte                   count           = (Byte) (spBefore - spAfter);
+    Byte                   bytes[kMaxPush] = {};
+    Word                   word            = 0;
+
+
+
+    if (count == 0 || count > kMaxPush)
+    {
+        return std::string();
+    }
+
+    for (Byte i = 0; i < count; i++)
+    {
+        Word  address = (Word) ((kStackPage << 8) | (Byte) (spBefore - i));
+        auto  it      = std::find_if (writes.rbegin(), writes.rend(),
+                                      [address] (const ShadowCpu::Write & write) { return write.address == address; });
+
+
+
+        if (it == writes.rend())
+        {
+            return std::string();
+        }
+
+        bytes[i] = it->value;
+    }
+
+    if (count == 1)
+    {
+        return std::format (" pushed ${:02X}", bytes[0]);
+    }
+
+    word = (Word) ((bytes[0] << 8) | bytes[1]);
+
+    if (count == 2)
+    {
+        return std::format (" pushed ${:04X} (returns to ${:04X})", word, (Word) (word + 1));
+    }
+
+    return std::format (" pushed ${:04X} and ${:02X}", word, bytes[2]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InstructionEffect::Format
 //
 //  The registers, writes and flags that differ, from a run the caller
@@ -198,6 +282,7 @@ std::string InstructionEffect::Format (const Cpu6502Registers              & bef
                                        const WriteText                     & describeWrite)
 {
     std::string  text;
+    std::string  pushed = GetPush (before.sp, after.sp, writes);
 
 
 
@@ -206,9 +291,18 @@ std::string InstructionEffect::Format (const Cpu6502Registers              & bef
     if (after.y  != before.y)  { text += std::format (" Y={:02X}", after.y);  }
     if (after.sp != before.sp) { text += std::format (" S={:02X}", after.sp); }
 
+    text += pushed;
+
     for (const ShadowCpu::Write & write : writes)
     {
         std::string  what = describeWrite ? describeWrite (write.address) : std::string();
+
+
+
+        if (!pushed.empty() && IsPushedByte (before.sp, after.sp, write.address))
+        {
+            continue;
+        }
 
         text += what.empty() ? std::format (" ${:04X}={:02X}", write.address, write.value)
                              : " " + what;

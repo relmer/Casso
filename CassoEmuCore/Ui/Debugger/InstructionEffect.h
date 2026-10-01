@@ -71,7 +71,8 @@ private:
 //  InstructionEffect
 //
 //  What executing one instruction leaves behind, written for the code pane:
-//  `A=A0 N=1 Z=0`, `$067B=3B`, `PC=$DB02`.
+//  `A=A0 N=1 Z=0`, `$067B=3B`, `PC=$DB02`. A push shows as the value
+//  pushed rather than as stack writes: `S=CC pushed $DD97 (returns to $DD98)`.
 //
 //  THIS ONLY WRITES THE WORDS. The instruction was run by InstructionTouches,
 //  over a ShadowCpu, using the same core the machine runs -- so decimal mode,
@@ -104,5 +105,9 @@ public:
                                 const WriteText               & describeWrite = nullptr);
 
 private:
+    static constexpr Word  kStackPage = 0x01;
+
     static std::string  GetFlagChanges (Byte before, Byte after);
+    static std::string  GetPush        (Byte spBefore, Byte spAfter, const std::vector<ShadowCpu::Write> & writes);
+    static bool         IsPushedByte   (Byte spBefore, Byte spAfter, Word address);
 };
