@@ -4019,9 +4019,25 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
     }
     else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
-        const DebuggerViewSnapshot::BreakpointLine  bp = *GetBreakpointOfRow (row);
+        const DebuggerViewSnapshot::BreakpointLine  bp     = *GetBreakpointOfRow (row);
+        int                                         fileId = -1;
+        int                                         line   = 0;
 
-        items.push_back ({ L"Show code",                        [this, bp] { ShowCode (bp.address); } });
+
+
+        //  Go to source code for one set from source or at an address with a
+        //  source line, and Go to disassembly for one at an address, as a
+        //  double-click does (FR-119).
+        if (BreakpointColumns::TryGetSourcePlace (s, bp, fileId, line))
+        {
+            items.push_back ({ L"Go to source code", [this, fileId, line] { OpenSourceDocument (fileId, line, true); } });
+        }
+
+        if (BreakpointColumns::HasAddress (bp.info))
+        {
+            items.push_back ({ L"Go to disassembly", [this, bp] { ShowCode (bp.address); } });
+        }
+
         items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunAction (DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode())); } });
         items.push_back ({ L"Remove",                           [this, bp] { RunAction (DebuggerActions::GetClearBreakpoint (bp.id, GetMode())); } });
 

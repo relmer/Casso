@@ -218,6 +218,58 @@ BreakpointColumns::Shown BreakpointColumns::ParseShown (const std::string & text
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointColumns::TryGetSourcePlace
+//
+//  A breakpoint set from source knows its line. Any other at an address
+//  takes the first line that produced code there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointColumns::TryGetSourcePlace (
+    const DebuggerViewSnapshot                  & snapshot,
+    const DebuggerViewSnapshot::BreakpointLine  & bp,
+    int                                         & fileId,
+    int                                         & line)
+{
+    if (!snapshot.source.has_value())
+    {
+        return false;
+    }
+
+    for (const auto & [file, lineNumber, breakpointId] : snapshot.source->breakpointLines)
+    {
+        if (breakpointId == bp.id)
+        {
+            fileId = file;
+            line   = lineNumber;
+            return true;
+        }
+    }
+
+    if (bp.info.kind != BreakpointKind::Address || snapshot.source->lineAddresses == nullptr)
+    {
+        return false;
+    }
+
+    for (const auto & [place, address] : *snapshot.source->lineAddresses)
+    {
+        if (address == bp.info.address)
+        {
+            fileId = place.first;
+            line   = place.second;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointColumns::GetName
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -59,13 +59,21 @@ public:
     static std::string  FormatShown     (const Shown & shown);
     static Shown        ParseShown      (const std::string & text);
 
+    //  Where Go to source code goes (FR-119): the line a breakpoint was set
+    //  on, or the line that produced the code at its address.
+    static bool  TryGetSourcePlace (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp,
+                                    int & fileId, int & line);
+
+    //  Whether a breakpoint stops at an address: an opcode, a register
+    //  condition, BRK and an interrupt stop anywhere.
+    static bool  HasAddress        (const BreakpointInfo & info);
+
 private:
     static constexpr const char *  kpszToken = "bpcolumns";
 
-    static std::string  GetName    (const DebuggerViewSnapshot::BreakpointLine & bp, const std::string & sourceLine);
+    static std::string  GetName     (const DebuggerViewSnapshot::BreakpointLine & bp, const std::string & sourceLine);
     static std::string  GetKind     (const BreakpointInfo & info);
     static std::string  GetRange    (const BreakpointInfo & info);
     static std::string  GetWhenHit  (const BreakpointInfo & info);
-    static bool         HasAddress  (const BreakpointInfo & info);
     static bool         TryGetSourceLine (const DebuggerViewSnapshot & snapshot, int id, std::string & file, int & line);
 };

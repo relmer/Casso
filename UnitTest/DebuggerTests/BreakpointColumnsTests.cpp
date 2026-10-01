@@ -178,6 +178,38 @@ namespace BreakpointColumnsTests
         }
 
 
+        TEST_METHOD (GoToSourceCodeFindsTheLineSetOrTheLineAtTheAddress)
+        {
+            DebuggerViewSnapshot               snapshot;
+            DebuggerViewSnapshot::SourceState  source;
+            int                                fileId = -1;
+            int                                line   = 0;
+
+
+
+            source.breakpointLines.emplace_back (2, 30, 1);
+            source.lineAddresses = std::make_shared<const std::map<std::pair<int, int>, Word>> (
+                std::map<std::pair<int, int>, Word> { { { 3, 41 }, (Word) 0x0900 } });
+            snapshot.source = source;
+            snapshot.breakpoints.push_back (MakeLine (1, BreakpointKind::Address, 0x0800));
+            snapshot.breakpoints.push_back (MakeLine (2, BreakpointKind::Address, 0x0900));
+            snapshot.breakpoints.push_back (MakeLine (3, BreakpointKind::Address, 0x0A00));
+            snapshot.breakpoints.push_back (MakeLine (4, BreakpointKind::Brk, 0x0900));
+
+            Assert::IsTrue   (BreakpointColumns::TryGetSourcePlace (snapshot, snapshot.breakpoints[0], fileId, line), L"set from source");
+            Assert::AreEqual (2,  fileId);
+            Assert::AreEqual (30, line);
+
+            Assert::IsTrue   (BreakpointColumns::TryGetSourcePlace (snapshot, snapshot.breakpoints[1], fileId, line), L"at an address with a line");
+            Assert::AreEqual (3,  fileId);
+            Assert::AreEqual (41, line);
+
+            Assert::IsFalse  (BreakpointColumns::TryGetSourcePlace (snapshot, snapshot.breakpoints[2], fileId, line), L"no line produced that code");
+            Assert::IsFalse  (BreakpointColumns::TryGetSourcePlace (snapshot, snapshot.breakpoints[3], fileId, line), L"BRK stops anywhere");
+            Assert::IsFalse  (BreakpointColumns::HasAddress (snapshot.breakpoints[3].info), L"so it has no disassembly to go to");
+        }
+
+
         TEST_METHOD (TheDefaultColumnsAreNameConditionAndHitCount)
         {
             BreakpointColumns::Shown  shown = BreakpointColumns::GetDefaultShown();
