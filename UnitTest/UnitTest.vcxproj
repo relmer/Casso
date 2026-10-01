@@ -670,6 +670,7 @@
     <ClCompile Include="Dxui\DxuiPopupMenuIconRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarCustomOverflowTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarDisabledTipTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarShrinkTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />

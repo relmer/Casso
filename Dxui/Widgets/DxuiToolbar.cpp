@@ -1193,7 +1193,8 @@ RECT DxuiToolbar::GetFlyoutKeepAliveRc() const
 //  as a tooltip (the host owns the tooltip widget and its dwell timing). An
 //  entry whose command carries an explicit tip shows it in every form,
 //  since that tip says something the label cannot. A custom entry is asked
-//  first, so its own parts can carry tips of their own.
+//  first, so its own parts can carry tips of their own. A disabled entry
+//  shows its tip too, so a grayed button still says what it would do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1218,7 +1219,7 @@ const wchar_t * DxuiToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
             tip = slot.entry.custom->GetTooltipAt (x, y, anchor);
         }
 
-        over = tip == nullptr && cmd != nullptr && cmd->IsEnabled() && IsPointInRect (slot.rc, x, y);
+        over = tip == nullptr && cmd != nullptr && IsPointInRect (slot.rc, x, y);
 
         if (!over)
         {
