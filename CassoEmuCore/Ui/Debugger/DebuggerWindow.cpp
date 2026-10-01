@@ -1691,23 +1691,40 @@ void DebuggerWindow::NoteViewFocus (bool isSource)
 //
 //  DebuggerWindow::NoteTabFocus
 //
-//  A press on a pane's tab: a disassembly or source tab counts as a press
-//  inside that pane.
+//  A press on a pane's tab counts as a press inside that pane: the pane takes
+//  the focus, so its group draws the focus outline, and a disassembly or
+//  source tab sets the step mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::NoteTabFocus (POINT pointDip)
 {
-    RECT          tab  = {};
-    std::wstring  tip;
-    std::wstring  pane = m_dockSite->GetTabAt (pointDip, tab, tip);
-    int           slot = GetSourceSlotOf (pane);
+    RECT            tab    = {};
+    std::wstring    tip;
+    std::wstring    pane   = m_dockSite->GetTabAt (pointDip, tab, tip);
+    int             slot   = GetSourceSlotOf (pane);
+    IDxuiControl  * target = nullptr;
 
 
 
     if (pane.empty())
     {
         return;
+    }
+
+    if (GetPaneOfFocus() != pane)
+    {
+        target = (pane == DebuggerLayout::kConsole) ? m_commandBox : nullptr;
+
+        for (IDxuiControl * part : GetPaneControls (pane))
+        {
+            target = (target != nullptr) ? target : FindFirstFocusable (part);
+        }
+
+        if (target != nullptr)
+        {
+            SetFocusedControl (target);
+        }
     }
 
     if (slot >= 0)
@@ -1726,6 +1743,42 @@ void DebuggerWindow::NoteTabFocus (POINT pointDip)
             return;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FindFirstFocusable
+//
+//  The first focusable control in a pane's tree, the pane's content first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DebuggerWindow::FindFirstFocusable (IDxuiControl * node)
+{
+    IDxuiControl  * found = nullptr;
+
+
+
+    if (node == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (node->IsFocusable() && node->IsEnabled())
+    {
+        return node;
+    }
+
+    for (size_t i = 0; i < node->GetChildCount() && found == nullptr; i++)
+    {
+        found = FindFirstFocusable (node->GetChild (i));
+    }
+
+    return found;
 }
 
 

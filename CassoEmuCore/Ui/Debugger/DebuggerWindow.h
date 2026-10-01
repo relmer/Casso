@@ -343,6 +343,7 @@ private:
     bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource);
     void     NoteTabFocus       (POINT pointDip);
+    static IDxuiControl * FindFirstFocusable (IDxuiControl * node);
     void     ApplySource        ();
     void     FollowPcSource     ();
     void     OpenSourceDocument (int fileId, int line, bool activate);
