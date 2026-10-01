@@ -543,6 +543,7 @@ private:
                                        const std::string & programKey) override;
     SourceLookup MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
                                              const std::string & programKey, int & recordIndex) override;
+    bool         DoesDebuggerFileExist      (const std::wstring & path) override { return m_uiFs.Exists (path); }
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.

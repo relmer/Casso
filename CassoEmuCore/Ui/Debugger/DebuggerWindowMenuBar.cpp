@@ -200,9 +200,7 @@ void DebuggerWindow::SetWindowMenus()
     m_menuCommands.clear();
 
     //  File: what the window reads and writes.
-    row            = MakeMenuCommand (L"Open source file...", false, [this] { OpenSourceFile(); });
-    row->isEnabled = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value(); };
-    add (file, row);
+    add (file, MakeMenuCommand (L"Open source file...", false, [this] { OpenSourceFile(); }));
     add (file, MakeMenuCommand (L"Open symbol or debug file...", false, [this] { OpenSymbolFile(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, MakeMenuCommand (L"Load breakpoints...", false, [this] { ImportBreakpoints(); }));
@@ -291,6 +289,10 @@ void DebuggerWindow::SetWindowMenus()
     });
     row->isEnabled = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value(); };
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->stepBySource; };
+    add (debug, row);
+
+    row            = MakeMenuCommand (L"Show instructions under source lines", false, [this] { ToggleSourceCode(); });
+    row->isChecked = [this] { return m_showSourceCode; };
     add (debug, row);
 
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
@@ -564,8 +566,8 @@ void DebuggerWindow::ResetPaneLayout()
 //
 //  DebuggerWindow::OpenSourceFile
 //
-//  A source file the user picks, matched against the loaded debug file's
-//  records as a dropped file is.
+//  A source file the user picks, opened as a dropped source is: matched
+//  against the loaded debug file's records, or shown on its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -580,14 +582,14 @@ void DebuggerWindow::OpenSourceFile()
 
     BAIL_OUT_IF (m_host == nullptr, S_OK);
 
-    spec.filters = { { L"Source files", L"*.s;*.asm;*.a65;*.inc" }, { L"All files", L"*.*" } };
+    spec.filters = { { L"Source files", L"*.s;*.asm;*.a65;*.inc;*.a;*.src;*.mac;*.65s;*.s65" }, { L"All files", L"*.*" } };
 
     hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    (void) OnFilesDropped ({ chosen.wstring() });
+    OpenSourcePath (chosen.wstring());
 
 Error:
     return;
@@ -602,11 +604,12 @@ Error:
 //  DebuggerWindow::OpenSymbolFile
 //
 //  SYM LOAD of a debug or symbol file the user picks, in AppleWin's words
-//  whatever the console's dialect.
+//  whatever the console's dialect. A source given is matched against it once
+//  it loads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::OpenSymbolFile()
+void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 {
     HRESULT                hr     = S_OK;
     FileDialogSpec         spec;
@@ -625,6 +628,7 @@ void DebuggerWindow::OpenSymbolFile()
     BAIL_OUT_IF (!picked, S_OK);
 
     m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), CommandMode::AppleWin);
+    m_pendingLooseSource = thenShow;
 
 Error:
     return;
@@ -845,9 +849,43 @@ DxuiToolbar::Entry DebuggerWindow::MakeFindEntry (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::MakeCodeEntry
+//
+//  The switch on a source document's toolbar for the instructions listed
+//  under each line, as the Debug menu's row is; it holds for every document.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar::Entry DebuggerWindow::MakeCodeEntry()
+{
+    auto                command = std::make_shared<DxuiCommand>();
+    DxuiToolbar::Entry  entry;
+
+
+
+    command->id        = kCodeEntry;
+    command->label     = L"Show instructions";
+    command->glyph     = s_kpszMdl2Code;
+    command->tip       = L"Show instructions under source lines";
+    command->dispatch  = [this] { ToggleSourceCode(); };
+    command->isChecked = [this] { return m_showSourceCode; };
+
+    entry.command = command;
+    entry.kind    = DxuiToolbar::Kind::Toggle;
+
+    return entry;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ConfigureSourceBars
 //
-//  Each source document's toolbar, which holds its search button.
+//  Each source document's toolbar: its search button, and the switch for the
+//  instructions under its lines.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -861,7 +899,7 @@ void DebuggerWindow::ConfigureSourceBars()
         bar->SetPopupHost    (GetPopupHost());
         bar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
         bar->SetCompact      (true);
-        bar->SetEntries      ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
+        bar->SetEntries      ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)), MakeCodeEntry() });
         bar->SetVisible      (false);
     }
 }

@@ -366,7 +366,18 @@ source view.
   source pane beside the disassembly and follows the PC.
 - Dropping a debug or symbol file (`.dbg`, `.sym`, `.lbl`, `.vs`) on the
   debugger window, or on one of its floating panes, loads it as `SYM LOAD`
-  would. With no debug file loaded, any dropped file goes to `SYM LOAD`.
+  would. A dropped source (`.a65`, `.s`, `.asm`, `.inc` and the like, Merlin's
+  `.S` among them) opens in a document of its own, as File > Open source
+  file does, with or without a debug file loaded. Any other file loads as
+  symbols when it reads as a symbol file; otherwise it is shown as text, or
+  as a hex dump when it is binary.
+- Opening a source with no debug file loaded first loads a `.dbg` or `.sym`
+  of the same name beside it. A source with no symbols shows a banner with a
+  Load symbols button, which picks the debug or symbol file to load; the
+  source is matched against it once it loads.
+- Debug > Show instructions under source lines, or the switch on a source
+  document's toolbar, lists or hides the instructions each line assembled to
+  under it. They are listed only in the files the PC is in.
 - The source files are looked for beside the debug file, then in the folders
   where sources were found before. When one is not found, the pane says so;
   drag the file onto the debugger and it is matched by its hash, and its

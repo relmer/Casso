@@ -75,7 +75,7 @@ public:
 
     //  Whether a debug file is loaded and the document has a file, which is
     //  when it is shown.
-    bool  IsActive      () const { return m_state.has_value() && m_docFileId >= 0; }
+    bool  IsActive      () const { return (m_state.has_value() || m_isLoose) && m_docFileId >= 0; }
     bool  HasBanner     () const { return !m_banner->GetText().empty(); }
 
     void  Configure     (HWND hwnd);
@@ -85,6 +85,11 @@ public:
 
     //  Whose grammar colors the text: Any goes by what the file shows. Rows
     //  are rebuilt with the next Apply when it changes.
+    //  Whether each line's instructions are listed under it. Rows are rebuilt
+    //  with the next Apply when it changes.
+    void  SetShowCode   (bool show);
+    bool  IsShowingCode () const { return m_showCode; }
+
     void                     SetAssembler       (SourceSyntax::Assembler assembler);
     SourceSyntax::Assembler  GetAssemblerChoice () const { return m_assemblerChoice; }
     SourceSyntax::Assembler  GetAssembler       () const;
@@ -122,6 +127,17 @@ public:
 
     //  A file the user dropped, as the host matched it.
     void  ShowDropped   (const SourceLookup & lookup, int recordIndex);
+
+    //  A file with no debug file record, shown as text with no line mapping,
+    //  with or without a debug file loaded. A source says it has no symbols
+    //  and offers Load symbols, which goes to the window.
+    void  ShowLoose     (const std::wstring & path, const std::string & text, bool isSource);
+    bool  IsLoose       () const { return m_isLoose; }
+    void  SetOnLoadSymbols (std::function<void ()> fn) { m_onLoadSymbols = std::move (fn); }
+
+    //  What a source with no debug file record says, and its button.
+    static constexpr const wchar_t * kpszNoSymbolsText  = L"No symbols are loaded for this file.";
+    static constexpr const wchar_t * kpszLoadSymbols    = L"Load symbols";
 
     //  Between the invocation and the body line, inside a macro: the window's
     //  to switch, through SetOnToggleBody.
@@ -192,6 +208,7 @@ private:
 
     void  LoadFile   (int fileId);
     void  Rebuild    ();
+    void  ShowLooseBanner ();
     void  ScrollTo   (int line);
     std::optional<int>  GetLineAt (POINT atDip) const;
     int   GetRowOfLine (int line) const;
@@ -207,6 +224,7 @@ private:
     GoToFn                                             m_goTo;
 
     std::function<void ()>                            m_onToggleBody;
+    std::function<void ()>                            m_onLoadSymbols;
 
     std::optional<DebuggerViewSnapshot::SourceState>                   m_state;
     std::wstring                                                       m_loadedFor;
@@ -230,6 +248,9 @@ private:
     std::set<int>                                                      m_disabledIds;
     Style                                                              m_style;
     bool                                                               m_isStyleStale    = false;
+    bool                                                               m_showCode        = true;
+    bool                                                               m_isLoose         = false;
+    bool                                                               m_isLooseSource   = false;
     SourceSyntax::Assembler                                            m_assemblerChoice = SourceSyntax::Assembler::Any;
     SourceSyntax::Assembler                                            m_detected        = SourceSyntax::Assembler::As65;
     SourceSyntax::Listing                                              m_listing         = SourceSyntax::Listing::None;

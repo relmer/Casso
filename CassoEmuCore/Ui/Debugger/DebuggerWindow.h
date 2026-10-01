@@ -126,6 +126,10 @@ public:
                                                       const std::string & programKey) = 0;
     virtual SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
                                                       const std::string & programKey, int & recordIndex) = 0;
+
+    //  Whether a file is on disk, for the debug file beside a source. A host
+    //  with no file system, as a test's is, has none.
+    virtual bool  DoesDebuggerFileExist (const std::wstring & path)        { (void) path; return false; }
 };
 
 
@@ -239,6 +243,16 @@ protected:
     void             ShowDroppedSource (const std::wstring & path);
     static bool      IsSymbolFile      (const std::wstring & path);
 
+    //  Protected so a test can open a source file as File > Open source file
+    //  does, press a document's Load symbols button, and switch the rows of
+    //  instructions under source lines as the Debug menu does.
+    void                OpenSourcePath      (const std::wstring & path);
+    void                LoadSymbolsFor      (int slot);
+    void                ToggleSourceCode    ();
+    bool                IsShowingSourceCode () const { return m_showSourceCode; }
+    bool                IsLooseSource       (int slot) const;
+    const SourcePane &  GetSourcePane       (int slot) const { return *m_sourceDocs[(size_t) slot].pane; }
+
     //  Protected so a test can see which pane the watch editor goes with.
     std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
     DxuiTextInput  * GetWatchEditor   () const { return m_watchEditor; }
@@ -308,6 +322,7 @@ protected:
     //  them, and the command bar's and the console bar's entries.
     static constexpr int  kDialectEntry = 1;
     static constexpr int  kFindEntry    = 2;
+    static constexpr int  kCodeEntry    = 3;
 
     void                                  SetWindowMenus     ();
     static std::wstring                   GetViewMenuGroup   (const std::wstring & pane);
@@ -332,6 +347,10 @@ protected:
     IDebuggerWindowHost  * m_host          = nullptr;
 
 private:
+    //  The ids of files opened with no debug file record, above any a debug
+    //  file gives.
+    static constexpr int  kFirstLooseFileId = 1 << 20;
+
     //  A source document (FR-054): its text and banner, the pane over them,
     //  the frame the dock shows, and whether each is shown now.
     //  What a pane's find widget held when it last searched there: each
@@ -443,7 +462,9 @@ private:
     std::shared_ptr<DxuiCommand>  MakeEditMenuCommand  (DxuiStandardCommand command, const std::wstring & label, const std::wstring & accelerator);
     void     ResetPaneLayout      ();
     void     OpenSourceFile       ();
-    void     OpenSymbolFile       ();
+    void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
+    void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
+    DxuiToolbar::Entry  MakeCodeEntry ();
     void     ConfigureConsoleBar  ();
     void     PlaceConsoleBar      ();
     bool     RouteConsoleBarMouse (const DxuiMouseEvent & ev);
@@ -735,6 +756,10 @@ private:
     std::pair<int, int>                                                              m_pcPlace            = { -1, 0 };
     std::vector<SourceDocuments::Saved>                                              m_pendingSourceDocs;
     int                                                                              m_activeSource       = 0;
+    std::map<int, std::wstring>                                                      m_looseSources;
+    int                                                                              m_nextLooseId        = kFirstLooseFileId;
+    std::wstring                                                                     m_pendingLooseSource;
+    bool                                                                             m_showSourceCode     = true;
     uint64_t                                                                         m_sourceClickMs      = 0;
     POINT                                                                            m_sourceClickAt      = {};
     std::vector<std::unique_ptr<DiagnosticsPane>>                                    m_diagPanes;

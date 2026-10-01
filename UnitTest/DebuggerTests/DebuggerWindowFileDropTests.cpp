@@ -150,7 +150,7 @@ namespace DebuggerWindowFileDropTests
         }
 
 
-        TEST_METHOD (DroppingAnyFileWithNoDebugFileLoadedLoadsIt)
+        TEST_METHOD (DroppingAnUnknownFileThatIsNotASymbolFileDoesNotLoadIt)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
             FileDropHost    host;
@@ -160,8 +160,8 @@ namespace DebuggerWindowFileDropTests
 
             window.OnCreate();
 
-            Assert::IsTrue   (window.OnFilesDropped ({ L"C:\\Work\\game.lst" }), L"SYM LOAD reads a Merlin listing");
-            Assert::AreEqual ((size_t) 1, host.commands.size());
+            Assert::IsTrue (window.OnFilesDropped ({ L"C:\\Work\\game.lst" }));
+            Assert::IsTrue (host.commands.empty(), L"its text is shown instead");
         }
 
 

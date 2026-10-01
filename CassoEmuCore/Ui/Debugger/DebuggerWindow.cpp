@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Debugger/CommandModeNames.h"
@@ -241,6 +242,11 @@ void DebuggerWindow::OnCreate()
         document.view->SetGutter       (kGutterColumnDip, kBreakpointIconDip);
         document.view->SetVisible   (false);
         document.banner->SetVisible (false);
+    }
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        m_sourceDocs[(size_t) slot].pane->SetOnLoadSymbols ([this, slot] { LoadSymbolsFor (slot); });
     }
 
     m_callStackPane = std::make_unique<CallStackPane> (
@@ -1281,6 +1287,7 @@ void DebuggerWindow::ApplySource()
     {
         m_sourceLoadedFor = loadedFor;
         m_documents.Clear();
+        m_looseSources.clear();
         m_pcPlace         = { -1, 0 };
         m_macroLevel      = 0;
     }
@@ -1306,6 +1313,7 @@ void DebuggerWindow::ApplySource()
         document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
                                        (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u, GetResultArgb(),
                                        GetSyntaxColors().GetDarkened() });
+        document.pane->SetShowCode (m_showSourceCode);
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
         document.pane->Apply       (*m_snapshot);
@@ -1319,6 +1327,11 @@ void DebuggerWindow::ApplySource()
             {
                 title = (record.id == m_documents.GetFileId (slot)) ? SourcePathList::Utf8ToWide (record.name) : title;
             }
+        }
+
+        if (m_looseSources.contains (m_documents.GetFileId (slot)))
+        {
+            title = fs::path (m_looseSources.at (m_documents.GetFileId (slot))).filename().wstring();
         }
 
         if (title != document.title)
@@ -1361,6 +1374,15 @@ void DebuggerWindow::ApplySource()
     if (relayout)
     {
         m_dockSite->Relayout();
+    }
+
+    //  A source opened before its debug file loaded, shown again against it.
+    if (source.has_value() && !m_pendingLooseSource.empty())
+    {
+        std::wstring  pending = std::move (m_pendingLooseSource);
+
+        m_pendingLooseSource.clear();
+        ShowDroppedSource (pending);
     }
 }
 
@@ -1906,18 +1928,17 @@ IDxuiControl * DebuggerWindow::FindFirstFocusable (IDxuiControl * node)
 //
 //  DebuggerWindow::OnFilesDropped
 //
-//  A debug or symbol file loads as SYM LOAD would. A source file opens in the
-//  document for the loaded debug file's record it matches, or in the source
-//  document last used when it matches none. With no debug file loaded and
-//  none in the drop, every file goes to SYM LOAD, which tells a listing it
-//  can read from one it cannot.
+//  A debug or symbol file loads as SYM LOAD would, and a source opens as File
+//  > Open source file opens it. Any other file loads as symbols when it reads
+//  as a symbol file; otherwise it is shown as text, or as a hex dump when it
+//  is binary. One that cannot be read goes to SYM LOAD, which reports why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 {
-    bool  hasSource  = m_snapshot != nullptr && m_snapshot->source.has_value();
-    bool  hasSymbols = std::ranges::any_of (paths, [] (const std::wstring & path) { return IsSymbolFile (path); });
+    SourceLookup  lookup;
+    int           index  = -1;
 
 
 
@@ -1928,14 +1949,28 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
     for (const std::wstring & path : paths)
     {
-        if (IsSymbolFile (path) || (!hasSource && !hasSymbols))
+        DroppedFiles::Kind     kind    = DroppedFiles::GetKind (path);
+        DroppedFiles::Opening  opening = DroppedFiles::Opening::Symbols;
+
+        if (kind == DroppedFiles::Kind::Source)
+        {
+            OpenSourcePath (path);
+            continue;
+        }
+
+        if (kind == DroppedFiles::Kind::Other)
+        {
+            lookup  = m_host->MatchDroppedDebuggerSource ({}, path, std::string(), index);
+            opening = lookup.path.empty() ? DroppedFiles::Opening::Symbols : DroppedFiles::GetOpening (lookup.text);
+        }
+
+        if (opening == DroppedFiles::Opening::Symbols)
         {
             m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", SourcePathList::WideToUtf8 (path)), CommandMode::AppleWin);
+            continue;
         }
-        else if (hasSource)
-        {
-            ShowDroppedSource (path);
-        }
+
+        OpenLooseFile (path, opening == DroppedFiles::Opening::Hex ? DroppedFiles::FormatHexDump (lookup.text) : lookup.text, false);
     }
 
     return true;
@@ -1955,12 +1990,166 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
 bool DebuggerWindow::IsSymbolFile (const std::wstring & path)
 {
-    static constexpr const wchar_t * kExtensions[] = { L".dbg", L".sym", L".lbl", L".vs" };
-    std::wstring                     extension     = fs::path (path).extension().wstring();
+    return DroppedFiles::GetKind (path) == DroppedFiles::Kind::Symbols;
+}
 
 
 
-    return std::ranges::any_of (kExtensions, [&extension] (const wchar_t * known) { return _wcsicmp (known, extension.c_str()) == 0; });
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenSourcePath
+//
+//  With a debug file loaded, the source opens in the document for the record
+//  it matches. With none, a debug or symbol file beside it is loaded first,
+//  and the source shows meanwhile with no symbols; once that debug file is
+//  in, the source is matched against it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenSourcePath (const std::wstring & path)
+{
+    SourceLookup  lookup;
+    int           index  = -1;
+    bool          loaded = m_snapshot != nullptr && m_snapshot->source.has_value();
+
+
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    if (loaded)
+    {
+        ShowDroppedSource (path);
+        return;
+    }
+
+    for (const std::wstring & beside : DroppedFiles::GetSymbolFilesBeside (path))
+    {
+        if (m_host->DoesDebuggerFileExist (beside))
+        {
+            m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", SourcePathList::WideToUtf8 (beside)), CommandMode::AppleWin);
+            m_pendingLooseSource = path;
+            break;
+        }
+    }
+
+    lookup = m_host->MatchDroppedDebuggerSource ({}, path, std::string(), index);
+    OpenLooseFile (path, lookup.text, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenLooseFile
+//
+//  A file with no debug file record, in a document of its own titled with its
+//  name. The same file opened again goes to the document it is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenLooseFile (const std::wstring & path, const std::string & text, bool isSource)
+{
+    int  fileId = -1;
+    int  slot   = -1;
+
+
+
+    for (const auto & [id, open] : m_looseSources)
+    {
+        fileId = (_wcsicmp (open.c_str(), path.c_str()) == 0) ? id : fileId;
+    }
+
+    if (fileId < 0)
+    {
+        fileId = m_nextLooseId++;
+        m_looseSources[fileId] = path;
+    }
+
+    OpenSourceDocument (fileId, 0, true);
+    slot = m_documents.Find (fileId);
+
+    if (slot < 0)
+    {
+        return;
+    }
+
+    m_sourceDocs[(size_t) slot].pane->ShowLoose (path, text, isSource);
+
+    if (m_snapshot != nullptr)
+    {
+        ApplySource();
+    }
+
+    SetWindowMenus();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsLooseSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsLooseSource (int slot) const
+{
+    return m_looseSources.contains (m_documents.GetFileId (slot));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::LoadSymbolsFor
+//
+//  A source document's Load symbols button: the user picks the debug or
+//  symbol file, and the source is matched against it once it loads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::LoadSymbolsFor (int slot)
+{
+    auto  found = m_looseSources.find (m_documents.GetFileId (slot));
+
+
+
+    OpenSymbolFile (found != m_looseSources.end() ? found->second : std::wstring());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ToggleSourceCode
+//
+//  The rows of instructions each source line assembled to, listed under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ToggleSourceCode()
+{
+    m_showSourceCode = !m_showSourceCode;
+
+    if (m_snapshot != nullptr)
+    {
+        ApplySource();
+    }
+
+    Invalidate();
 }
 
 
@@ -1970,6 +2159,9 @@ bool DebuggerWindow::IsSymbolFile (const std::wstring & path)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebuggerWindow::ShowDroppedSource
+//
+//  The document for the record the file matches; a file that matches none
+//  opens on its own, saying it has no symbols.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1983,10 +2175,13 @@ void DebuggerWindow::ShowDroppedSource (const std::wstring & path)
 
     lookup = m_host->MatchDroppedDebuggerSource (source.files, path, source.programKey, index);
 
-    if (index >= 0 && index < (int) source.files.size())
+    if (index < 0 || index >= (int) source.files.size())
     {
-        OpenSourceDocument (source.files[(size_t) index].id, 0, true);
+        OpenLooseFile (path, lookup.text, true);
+        return;
     }
+
+    OpenSourceDocument (source.files[(size_t) index].id, 0, true);
 
     m_sourceDocs[(size_t) m_activeSource].pane->ShowDropped (lookup, index);
     ApplySource();
@@ -6966,13 +7161,19 @@ SourceSyntax::Colors DebuggerWindow::GetSyntaxColors() const
 //
 //  DebuggerWindow::GetResultArgb
 //
-//  The cyan an operand's result is drawn in, for the theme's darkness.
+//  The theme's color for an operand's result; a theme that gives none gets a
+//  cyan for its darkness.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint32_t DebuggerWindow::GetResultArgb() const
 {
-    return IsDarkTheme() ? 0xFF4EC9E0 : 0xFF00838F;
+    if (m_theme != nullptr && m_theme->resultText != 0)
+    {
+        return m_theme->resultText;
+    }
+
+    return IsDarkTheme() ? 0xFF4EC9E0 : 0xFF00727D;
 }
 
 

@@ -36,7 +36,17 @@ void SourcePane::Configure (HWND hwnd)
 {
     m_view->SetOwnerWindow (hwnd);
     m_banner->SetSeverity  (DxuiInfoBanner::Severity::Info);
-    m_banner->SetOnAction  ([this] (size_t) { ToggleBody(); });
+    m_banner->SetOnAction  ([this] (size_t)
+    {
+        if (!m_isLoose)
+        {
+            ToggleBody();
+        }
+        else if (m_onLoadSymbols)
+        {
+            m_onLoadSymbols();
+        }
+    });
 }
 
 
@@ -57,6 +67,27 @@ void SourcePane::SetStyle (const Style & style)
     }
 
     m_style        = style;
+    m_isStyleStale = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::SetShowCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::SetShowCode (bool show)
+{
+    if (show == m_showCode)
+    {
+        return;
+    }
+
+    m_showCode     = show;
     m_isStyleStale = true;
 }
 
@@ -121,6 +152,14 @@ void SourcePane::Apply (const DebuggerViewSnapshot & snapshot)
     bool          keepDrop  = false;
 
 
+
+    //  A loose file keeps its text whatever debug file comes and goes.
+    if (m_isLoose)
+    {
+        m_state = snapshot.source.has_value() ? *snapshot.source : DebuggerViewSnapshot::SourceState();
+        Rebuild();
+        return;
+    }
 
     if (!snapshot.source.has_value())
     {
@@ -189,6 +228,7 @@ void SourcePane::SetFile (int fileId)
 
     m_docFileId       = fileId;
     m_isDropped       = false;
+    m_isLoose         = false;
     m_pendingTopLine  = 0;
     m_assemblerChoice = SourceSyntax::Assembler::Any;
 
@@ -318,7 +358,7 @@ void SourcePane::LoadFile (int fileId)
 
 void SourcePane::Rebuild()
 {
-    int                                   marked       = (GetShownFileId() == m_fileId) ? GetShownLine() : -1;
+    int                                   marked       = (!m_isLoose && GetShownFileId() == m_fileId) ? GetShownLine() : -1;
     std::set<int>                         breakpoints;
     std::set<int>                         disabled;
     bool                                  isRowsStale  = false;
@@ -390,7 +430,7 @@ void SourcePane::Rebuild()
             }
         }
 
-        if (m_state->lineCode != nullptr)
+        if (m_showCode && m_state->lineCode != nullptr)
         {
             for (const auto & [place, code] : *m_state->lineCode)
             {
@@ -421,6 +461,12 @@ void SourcePane::Rebuild()
         m_rowsFileId      = m_fileId;
         m_rowsLine        = marked;
         m_rowsBreakpoints = std::move (breakpoints);
+    }
+
+    if (m_isLoose)
+    {
+        ShowLooseBanner();
+        return;
     }
 
     //  Only the document the PC is in speaks of the macro: the invocation's,
@@ -642,6 +688,68 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
     m_rowsFileId = -2;
 
     Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::ShowLoose
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::ShowLoose (const std::wstring & path, const std::string & text, bool isSource)
+{
+    if (!m_state.has_value())
+    {
+        m_state = DebuggerViewSnapshot::SourceState();
+    }
+
+    m_lines         = SplitLines (text);
+    m_match         = SourceMatch::NotFound;
+    m_isDropped     = false;
+    m_isLoose       = true;
+    m_isLooseSource = isSource;
+    m_fileId        = -1;
+    m_foundPath     = path;
+    m_detected      = SourceSyntax::DetectAssembler (m_lines, path);
+    m_listing       = SourceSyntax::DetectListing (m_lines);
+    m_rowsFileId    = -2;
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::ShowLooseBanner
+//
+//  Relabeled rather than replaced, as the body button is: this can run inside
+//  the button's own click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::ShowLooseBanner()
+{
+    m_banner->SetText (m_isLooseSource ? kpszNoSymbolsText : L"");
+
+    if (!m_isLooseSource)
+    {
+        m_banner->SetActions ({});
+    }
+    else if (m_banner->GetAction (0) == nullptr)
+    {
+        m_banner->SetActions ({ kpszLoadSymbols });
+    }
+    else
+    {
+        m_banner->GetAction (0)->SetLabel (kpszLoadSymbols);
+    }
 }
 
 
