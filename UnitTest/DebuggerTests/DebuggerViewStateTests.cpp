@@ -3224,8 +3224,9 @@ namespace DebuggerViewStateTests
 
 
             LoadDebugFile (rig);
+            pane.SetFile (0);
             pane.Apply (rig.view.Build (rig.controller.GetSession()));
-            Assert::IsTrue (banner.GetText().find (L"was not found") != std::wstring::npos);
+            Assert::IsTrue (banner.GetText().find (L"main.a65 was not found") != std::wstring::npos);
 
             dropped.text = "hello\nworld\n";
             pane.ShowDropped (dropped, -1);

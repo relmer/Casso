@@ -222,6 +222,7 @@ void SourcePane::LoadFile (int fileId)
     m_fileId    = fileId;
     m_match     = lookup.match;
     m_isDropped = false;
+    m_foundPath = lookup.path;
     m_lines     = SplitLines (lookup.text);
 }
 
@@ -246,6 +247,8 @@ void SourcePane::Rebuild()
     int                                   top          = m_view->GetTopLine();
     int                                   depth        = 0;
     bool                                  holdsPc      = false;
+    std::wstring                          bannerText;
+    std::wstring                          elsewhere;
 
 
 
@@ -286,8 +289,16 @@ void SourcePane::Rebuild()
     holdsPc = m_fileId >= 0 && (m_fileId == m_state->fileId || (m_showBody && m_fileId == m_state->bodyFileId));
     depth   = (holdsPc && CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId)) ? m_state->depth : 0;
 
-    m_banner->SetText (GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, m_showBody,
-                                      body != nullptr ? body->name : std::string(), m_state->bodyLine));
+    bannerText = GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, m_showBody,
+                                body != nullptr ? body->name : std::string(), m_state->bodyLine);
+    elsewhere  = m_isDropped ? std::wstring() : GetFoundElsewhereText (GetFileName (m_fileId), m_state->debugFilePath, m_foundPath);
+
+    if (!elsewhere.empty())
+    {
+        bannerText = bannerText.empty() ? elsewhere : elsewhere + L"\n" + bannerText;
+    }
+
+    m_banner->SetText (bannerText);
 
     if (depth > 0 && m_banner->GetAction (0) == nullptr)
     {
@@ -715,6 +726,13 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
 
 
 
+    //  No file is open -- the PC is outside every source line -- so there is
+    //  no file to say anything about.
+    if (fileName.empty())
+    {
+        match = SourceMatch::Exact;
+    }
+
     switch (match)
     {
     case SourceMatch::Mismatch:
@@ -742,6 +760,43 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
     }
 
     return SourcePathList::Utf8ToWide (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetFoundElsewhereText
+//
+//  A file gone from where the debug file records it can still be found by
+//  name in another search folder: a copy, from another checkout or an
+//  earlier session. Its text is shown, so the banner says whose it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SourcePane::GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
+                                                const std::wstring & foundPath)
+{
+    std::wstring  recorded;
+
+
+
+    if (fileName.empty() || foundPath.empty() || debugFilePath.empty())
+    {
+        return std::wstring();
+    }
+
+    recorded = SourceService::Combine (SourceService::GetFolder (debugFilePath), SourcePathList::Utf8ToWide (fileName));
+
+    if (SourcePathList::IsSameFolder (SourceService::GetFolder (recorded), SourceService::GetFolder (foundPath)))
+    {
+        return std::wstring();
+    }
+
+    return std::format (L"{} is not beside the debug file. Showing the copy in {}.",
+                        SourcePathList::Utf8ToWide (fileName), SourceService::GetFolder (foundPath));
 }
 
 

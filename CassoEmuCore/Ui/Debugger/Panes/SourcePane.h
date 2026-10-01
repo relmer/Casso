@@ -107,6 +107,11 @@ public:
     static std::wstring  GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
                                         int depth, bool showingBody, const std::string & bodyName, int bodyLine);
 
+    //  What to say when the file was found in a folder other than the one the
+    //  debug file records -- a copy in another search folder -- or empty.
+    static std::wstring  GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
+                                                const std::wstring & foundPath);
+
     //  Whether a macro's body can be offered: not when it is in the file that
     //  could not be found.
     static bool          CanShowBody   (bool hasText, int depth, int bodyFileId, int fileId);
@@ -136,6 +141,7 @@ private:
     SourceMatch                                       m_match           = SourceMatch::NotFound;
     bool                                              m_isDropped       = false;
     int                                               m_droppedAt       = -1;
+    std::wstring                                      m_foundPath;
     std::vector<std::wstring>                         m_lines;
     bool                                              m_showBody        = false;
     int                                               m_rowsLine        = -1;
