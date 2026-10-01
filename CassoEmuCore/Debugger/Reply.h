@@ -503,6 +503,7 @@ struct ReplyError
 {
     std::string  label;
     std::string  detail;
+    std::string  usage;     // the command's syntax line, for wrong arguments
 };
 
 //  verb is the operation the reply answers, for a format that writes two
@@ -517,6 +518,11 @@ struct Reply
     ReplyData                 data;
     std::vector<std::string>  text;
     ReplyError                error;
+
+    //  A line to offer in the command box for a word the mode does not have:
+    //  this mode's equivalent or the closest command, with the arguments
+    //  typed. Empty for none.
+    std::string               suggestion;
 
     //  The text is final, as a line of several commands has it: each was
     //  formatted as it ran, errors included, so none is formatted again.

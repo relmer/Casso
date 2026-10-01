@@ -17,6 +17,7 @@
 #include "Debugger/GSSquaredFormatter.h"
 #include "Debugger/GSSquaredParser.h"
 #include "Debugger/CommandModeNames.h"
+#include "Debugger/CommandSuggestion.h"
 #include "Debugger/WinDbgFormatter.h"
 #include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
@@ -464,6 +465,7 @@ Reply DebugSession::ExecuteAppleWinLine (const std::string & text)
 
     case ParseStatus::Unknown:
         SetError (reply, CommandStatus::Unknown, "unknown command", parsed.error);
+        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
         break;
 
     case ParseStatus::NotAvailable:
@@ -473,6 +475,7 @@ Reply DebugSession::ExecuteAppleWinLine (const std::string & text)
 
     case ParseStatus::Invalid:
         SetError (reply, CommandStatus::Error, "invalid arguments", parsed.error);
+        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
         break;
 
     default:
@@ -510,6 +513,7 @@ Reply DebugSession::ExecuteWinDbgLine (const std::string & text)
 
     case ParseStatus::Unknown:
         SetError (reply, CommandStatus::Unknown, "unknown command", parsed.error);
+        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
         break;
 
     case ParseStatus::NotAvailable:
@@ -519,6 +523,7 @@ Reply DebugSession::ExecuteWinDbgLine (const std::string & text)
 
     case ParseStatus::Invalid:
         SetError (reply, CommandStatus::Error, "invalid arguments", parsed.error);
+        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
         break;
 
     default:
@@ -674,6 +679,7 @@ Reply DebugSession::ExecuteGSSquaredLine (const std::string & text, CommandMode 
 
     case ParseStatus::Unknown:
         SetError (merged, CommandStatus::Unknown, "unknown command", parsed.error);
+        CommandSuggestion::Annotate (merged, text, mode, *this);
         return merged;
 
     case ParseStatus::NotAvailable:
@@ -683,6 +689,7 @@ Reply DebugSession::ExecuteGSSquaredLine (const std::string & text, CommandMode 
 
     case ParseStatus::Invalid:
         SetError (merged, CommandStatus::Error, "invalid arguments", parsed.error);
+        CommandSuggestion::Annotate (merged, text, mode, *this);
         return merged;
 
     default:

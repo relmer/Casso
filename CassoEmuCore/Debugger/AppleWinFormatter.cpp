@@ -197,6 +197,11 @@ void AppleWinFormatter::FormatError (Reply & reply)
     {
         reply.text.push_back (std::string (kDetailIndent, ' ') + reply.error.detail);
     }
+
+    if (!reply.error.usage.empty())
+    {
+        reply.text.push_back (std::string (kDetailIndent, ' ') + "Usage: " + reply.error.usage);
+    }
 }
 
 
