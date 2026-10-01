@@ -690,7 +690,7 @@ private:
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
     std::wstring                                                                     m_tornOffPane;
-    std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = { true, true, true };
+    std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = BreakpointColumns::GetDefaultShown();
     std::vector<size_t>                                                              m_breakpointOrder;
     int                                                                              m_breakpointSort     = -1;
     bool                                                                             m_breakpointReverse  = false;

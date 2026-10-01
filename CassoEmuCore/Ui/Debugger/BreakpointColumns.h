@@ -11,14 +11,17 @@
 //
 //  BreakpointColumns
 //
-//  The breakpoints pane's columns (FR-117): the text of each column for a
-//  breakpoint, built from the snapshot alone so it is testable without a
-//  window, and the order a click on a column's heading sorts the rows into.
+//  The breakpoints pane's columns (FR-117): those Visual Studio's Breakpoints
+//  window lists that apply to Casso, in its order. The text of each column
+//  for a breakpoint is built from the snapshot alone so it is testable
+//  without a window, as is the order a click on a heading sorts the rows into.
 //
 //  Name says what the breakpoint is: an address or range with the symbol
 //  there, the source file and line it was set from, an opcode, a register
 //  condition, an I/O range, BRK or an interrupt. The other columns give one
-//  fact each.
+//  fact each: Labels the symbol at the address, Function the symbol an
+//  execution breakpoint stops at, Data what a data breakpoint watches.
+//  Casso has no process or thread to filter on, so Filter is always empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,12 +32,14 @@ public:
     {
         Name,
         Condition,
+        Labels,
         HitCount,
-        Kind,
-        Address,
-        Label,
-        File,
+        Filter,
         WhenHit,
+        Function,
+        File,
+        Address,
+        Data,
         Count,
     };
 
@@ -69,10 +74,12 @@ public:
     static bool  HasAddress        (const BreakpointInfo & info);
 
 private:
-    static constexpr const char *  kpszToken = "bpcolumns";
+    //  Not "bpcolumns": that token's bits followed the columns' earlier
+    //  order, so a mask saved under it is left unread rather than misread.
+    static constexpr const char *  kpszToken = "bpcols";
 
     static std::string  GetName     (const DebuggerViewSnapshot::BreakpointLine & bp, const std::string & sourceLine);
-    static std::string  GetKind     (const BreakpointInfo & info);
+    static std::string  GetData     (const BreakpointInfo & info);
     static std::string  GetRange    (const BreakpointInfo & info);
     static std::string  GetWhenHit  (const BreakpointInfo & info);
     static bool         TryGetSourceLine (const DebuggerViewSnapshot & snapshot, int id, std::string & file, int & line);

@@ -28,6 +28,7 @@ void DebuggerWindow::ConfigureBreakpointBar()
 
     handlers.dispatch  = [this] (int id) { RunBreakpointBarEntry (id); };
     handlers.isEnabled = [this] (int id) { return IsBreakpointBarEnabled (id); };
+    handlers.crossArgb = [this]          { return GetBreakpointArgb(); };
 
     m_breakpointCommands = std::make_unique<BreakpointBarCommands> (std::move (handlers));
 
@@ -53,9 +54,10 @@ void DebuggerWindow::ConfigureBreakpointBar()
 //  DebuggerWindow::SetBreakpointBarMenus
 //
 //  New's kinds, each opening the breakpoint dialog set to that kind, and the
-//  optional columns, each checked while it shows (FR-118). Name always
-//  shows, so it is not offered. Rebuilt before each drop-down opens, since
-//  the rows carry the checks they were built with.
+//  columns, each checked while it shows (FR-118). Name always shows, so it
+//  is listed checked and disabled, as Visual Studio lists it. Rebuilt before
+//  each drop-down opens, since the rows carry the checks they were built
+//  with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +81,7 @@ void DebuggerWindow::SetBreakpointBarMenus()
     };
     std::vector<DxuiPopupMenuItem>  kinds;
     std::vector<DxuiPopupMenuItem>  columns;
+    std::shared_ptr<DxuiCommand>    name = MakeMenuCommand (BreakpointColumns::GetHeading (BreakpointColumns::Column::Name), true, [] {});
 
 
 
@@ -89,6 +92,9 @@ void DebuggerWindow::SetBreakpointBarMenus()
 
         kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access] { NewBreakpoint (kind, access); })));
     }
+
+    name->isEnabled = [] { return false; };
+    columns.push_back (DxuiPopupMenuItem::ForCommand (name));
 
     for (size_t i = 1; i < BreakpointColumns::kCount; i++)
     {
@@ -216,10 +222,6 @@ bool DebuggerWindow::IsBreakpointBarEnabled (int id) const
     bool                                               one      = selected.size() == 1;
     int                                                fileId   = -1;
     int                                                line     = 0;
-    auto                                               hasState = [this] (bool enabled)
-    {
-        return std::ranges::any_of (m_snapshot->breakpoints, [enabled] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.enabled == enabled; });
-    };
 
 
 
@@ -228,8 +230,7 @@ bool DebuggerWindow::IsBreakpointBarEnabled (int id) const
     case BreakpointBarCommands::kDelete:     return !selected.empty();
     case BreakpointBarCommands::kDeleteAll:  return any;
     case BreakpointBarCommands::kExport:     return any;
-    case BreakpointBarCommands::kEnableAll:  return any && hasState (false);
-    case BreakpointBarCommands::kDisableAll: return any && hasState (true);
+    case BreakpointBarCommands::kDisableAll: return any;
     case BreakpointBarCommands::kUndo:       return m_snapshot != nullptr && m_snapshot->canUndoBreakpoints;
     case BreakpointBarCommands::kRedo:       return m_snapshot != nullptr && m_snapshot->canRedoBreakpoints;
     case BreakpointBarCommands::kGoToSource: return one && BreakpointColumns::TryGetSourcePlace (*m_snapshot, selected[0], fileId, line);
@@ -247,16 +248,20 @@ bool DebuggerWindow::IsBreakpointBarEnabled (int id) const
 //  DebuggerWindow::RunBreakpointBarEntry
 //
 //  Each change is one step on the pane's undo list; Delete all and Disable
-//  all are one action each, and Delete one for each selected row.
+//  all are one action each, and Delete one for each selected row. Disable
+//  all enables them all instead when none is enabled, as Visual Studio's
+//  button does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::RunBreakpointBarEntry (int id)
 {
-    std::vector<DebuggerViewSnapshot::BreakpointLine>  selected = GetSelectedBreakpoints();
+    std::vector<DebuggerViewSnapshot::BreakpointLine>  selected   = GetSelectedBreakpoints();
     BreakpointStep                                     step;
-    int                                                fileId   = -1;
-    int                                                line     = 0;
+    int                                                fileId     = -1;
+    int                                                line       = 0;
+    bool                                               anyEnabled = m_snapshot != nullptr && std::ranges::any_of (m_snapshot->breakpoints,
+                                                                        [] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.enabled; });
 
 
 
@@ -277,8 +282,7 @@ void DebuggerWindow::RunBreakpointBarEntry (int id)
         break;
 
     case BreakpointBarCommands::kDeleteAll:  RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints  (GetMode()) },        {} }); break;
-    case BreakpointBarCommands::kEnableAll:  RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (true,  GetMode()) }, {} }); break;
-    case BreakpointBarCommands::kDisableAll: RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (false, GetMode()) }, {} }); break;
+    case BreakpointBarCommands::kDisableAll: RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (!anyEnabled, GetMode()) }, {} }); break;
     case BreakpointBarCommands::kUndo:       RunBreakpointStep ({ BreakpointStep::Kind::Undo,    {}, {} });                                                     break;
     case BreakpointBarCommands::kRedo:       RunBreakpointStep ({ BreakpointStep::Kind::Redo,    {}, {} });                                                     break;
     case BreakpointBarCommands::kExport:     ExportBreakpoints();                                                                                                break;

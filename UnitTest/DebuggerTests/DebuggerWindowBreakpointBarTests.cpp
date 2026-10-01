@@ -139,7 +139,7 @@ namespace DebuggerBreakpointBarTests
     {
     public:
 
-        TEST_METHOD (TheBarHoldsEveryButtonEachWithAnIconAndATip)
+        TEST_METHOD (TheBarHoldsEveryButtonEachWithATip)
         {
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
             BarHost           host;
@@ -159,13 +159,12 @@ namespace DebuggerBreakpointBarTests
                 }
             }
 
-            Assert::IsTrue (ids == BreakpointBarCommands::GetIds(), L"New, Delete, Delete all, Enable all, Disable all, Undo, Redo, the two Go to, Show columns, Export, Import");
+            Assert::IsTrue (ids == BreakpointBarCommands::GetIds(), L"New, Delete, Delete all, Disable all, Undo, Redo, the two Go to, Show columns, Export, Import");
 
             for (int id : ids)
             {
                 std::shared_ptr<DxuiCommand>  command = commands.Find (id);
 
-                Assert::IsTrue (command->glyph != nullptr && *command->glyph != L'\0', std::format (L"entry {} has an icon", id).c_str());
                 Assert::IsTrue (!command->tip.empty(), std::format (L"entry {} has a tip", id).c_str());
             }
         }
@@ -204,7 +203,6 @@ namespace DebuggerBreakpointBarTests
             Assert::IsFalse (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDelete),     L"nothing selected");
             Assert::IsFalse (window.IsBreakpointBarEnabled (BreakpointBarCommands::kGoToCode),   L"nothing selected");
             Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDeleteAll));
-            Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kEnableAll),  L"one is disabled");
             Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDisableAll), L"two are enabled");
             Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kUndo));
             Assert::IsFalse (window.IsBreakpointBarEnabled (BreakpointBarCommands::kRedo));
@@ -238,7 +236,7 @@ namespace DebuggerBreakpointBarTests
         }
 
 
-        TEST_METHOD (DeleteAllEnableAllAndDisableAllAreOneLineEach)
+        TEST_METHOD (DeleteAllAndDisableAllAreOneLineEach)
         {
             CassoTheme  theme  = CassoTheme::MakeSkeuomorphic();
             BarHost     host;
@@ -248,16 +246,13 @@ namespace DebuggerBreakpointBarTests
 
             window.Build();
             window.RunBreakpointBarEntry (BreakpointBarCommands::kDisableAll);
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kEnableAll);
             window.RunBreakpointBarEntry (BreakpointBarCommands::kDeleteAll);
 
-            Assert::AreEqual ((size_t) 3, host.actions.size());
+            Assert::AreEqual ((size_t) 2, host.actions.size());
             Assert::AreEqual (std::string ("BPD *"), host.actions[0].breakpointStep->actions.at (0).echo);
             Assert::AreEqual (std::string ("*"),     host.actions[0].breakpointStep->actions.at (0).command.text);
-            Assert::AreEqual (std::string ("BPE *"), host.actions[1].breakpointStep->actions.at (0).echo);
+            Assert::AreEqual (std::string ("BPC *"), host.actions[1].breakpointStep->actions.at (0).echo);
             Assert::AreEqual (std::string ("*"),     host.actions[1].breakpointStep->actions.at (0).command.text);
-            Assert::AreEqual (std::string ("BPC *"), host.actions[2].breakpointStep->actions.at (0).echo);
-            Assert::AreEqual (std::string ("*"),     host.actions[2].breakpointStep->actions.at (0).command.text);
         }
 
 

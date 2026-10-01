@@ -173,7 +173,7 @@ namespace DebuggerBreakpointColumnsTests
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Name));
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::HitCount));
-            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind));
+            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
         }
 
 
@@ -189,12 +189,12 @@ namespace DebuggerBreakpointColumnsTests
             window.SetSnapshotForTest (MakeSnapshot());
             window.KeepOpenViews();
 
-            window.ToggleBreakpointColumn (Column::Kind);
+            window.ToggleBreakpointColumn (Column::Data);
             window.ToggleBreakpointColumn (Column::Name);
 
-            Assert::IsTrue (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind));
+            Assert::IsTrue (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
             Assert::IsTrue (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Name), L"Name cannot be hidden");
-            Assert::IsTrue (BreakpointColumns::ParseShown (host.written)[(size_t) Column::Kind], L"the choice is saved");
+            Assert::IsTrue (BreakpointColumns::ParseShown (host.written)[(size_t) Column::Data], L"the choice is saved");
         }
 
 

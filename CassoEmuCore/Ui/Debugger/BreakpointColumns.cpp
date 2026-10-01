@@ -14,7 +14,7 @@
 
 std::wstring BreakpointColumns::GetHeading (Column column)
 {
-    static constexpr LPCWSTR  kHeadings[] = { L"Name", L"Condition", L"Hit count", L"Kind", L"Address", L"Label", L"File", L"When hit" };
+    static constexpr LPCWSTR  kHeadings[] = { L"Name", L"Condition", L"Labels", L"Hit count", L"Filter", L"When hit", L"Function", L"File", L"Address", L"Data" };
 
 
 
@@ -53,10 +53,11 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
     cells[(size_t) Column::Name]      = GetName (bp, sourceLine);
     cells[(size_t) Column::Condition] = (info.kind == BreakpointKind::Register) ? std::string() : info.condition;
     cells[(size_t) Column::HitCount]  = info.stops ? std::to_string (info.hits) : std::format ("{} (count only)", info.hits);
-    cells[(size_t) Column::Kind]      = GetKind (info);
-    cells[(size_t) Column::Address]   = HasAddress (info) ? GetRange (info) : std::string();
-    cells[(size_t) Column::Label]     = HasAddress (info) ? bp.label : std::string();
+    cells[(size_t) Column::Labels]    = HasAddress (info) ? bp.label : std::string();
     cells[(size_t) Column::WhenHit]   = GetWhenHit (info);
+    cells[(size_t) Column::Function]  = (info.kind == BreakpointKind::Address) ? bp.label : std::string();
+    cells[(size_t) Column::Address]   = HasAddress (info) ? GetRange (info) : std::string();
+    cells[(size_t) Column::Data]      = GetData (info);
 
     return cells;
 }
@@ -303,29 +304,25 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointColumns::GetKind
+//  BreakpointColumns::GetData
+//
+//  What a data breakpoint watches; any other kind has nothing here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BreakpointColumns::GetKind (const BreakpointInfo & info)
+std::string BreakpointColumns::GetData (const BreakpointInfo & info)
 {
-    static constexpr const char *  kAccess[] = { "Data read", "Data write", "Data read or write" };
+    static constexpr const char *  kAccess[] = { "Read", "Write", "Read or write" };
 
 
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:     return "Address";
-    case BreakpointKind::Opcode:      return "Opcode";
-    case BreakpointKind::Register:    return "Register";
-    case BreakpointKind::Io:          return "I/O";
-    case BreakpointKind::Brk:         return "BRK";
-    case BreakpointKind::Interrupt:   return "Interrupt";
-    case BreakpointKind::MemoryValue: return "Data value";
-    case BreakpointKind::Memory:      return kAccess[(size_t) info.access];
+    case BreakpointKind::Memory:      return std::format ("{} {}", kAccess[(size_t) info.access], GetRange (info));
+    case BreakpointKind::MemoryValue: return std::format ("{} = ${:02X}", GetRange (info), info.value.value_or (0));
+    case BreakpointKind::Io:          return "I/O " + GetRange (info);
+    default:                          return std::string();
     }
-
-    return std::string();
 }
 
 

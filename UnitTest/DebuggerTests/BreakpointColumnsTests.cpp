@@ -14,9 +14,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  BreakpointColumnsTests
 //
-//  The breakpoints pane's columns (FR-117): Name, Condition, Hit count,
-//  Kind, Address, Label, File and When hit, built from the snapshot, and the
-//  order a click on a heading sorts the rows into.
+//  The breakpoints pane's columns (FR-117): Name, Condition, Labels, Hit
+//  count, Filter, When hit, Function, File, Address and Data, built from the
+//  snapshot, and the order a click on a heading sorts the rows into.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,9 +75,9 @@ namespace BreakpointColumnsTests
             Assert::AreEqual (std::string ("RESET $FA62"), Cell (snapshot, 0, Column::Name));
             Assert::AreEqual (std::string ("A=41"),        Cell (snapshot, 0, Column::Condition));
             Assert::AreEqual (std::string ("3"),           Cell (snapshot, 0, Column::HitCount));
-            Assert::AreEqual (std::string ("Address"),     Cell (snapshot, 0, Column::Kind));
+            Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::Data));
             Assert::AreEqual (std::string ("$FA62"),       Cell (snapshot, 0, Column::Address));
-            Assert::AreEqual (std::string ("RESET"),       Cell (snapshot, 0, Column::Label));
+            Assert::AreEqual (std::string ("RESET"),       Cell (snapshot, 0, Column::Labels));
             Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::File));
             Assert::AreEqual (std::string ("Break"),       Cell (snapshot, 0, Column::WhenHit));
         }
@@ -121,7 +121,7 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints[2].info.condition = "X=00";
 
             Assert::AreEqual (std::string ("$0300-$03FF"), Cell (snapshot, 0, Column::Name));
-            Assert::AreEqual (std::string ("Data write"),  Cell (snapshot, 0, Column::Kind));
+            Assert::AreEqual (std::string ("Write $0300-$03FF"), Cell (snapshot, 0, Column::Data));
             Assert::AreEqual (std::string ("Opcode $EA"),  Cell (snapshot, 1, Column::Name));
             Assert::AreEqual (std::string (""),            Cell (snapshot, 1, Column::Address), L"an opcode stops anywhere");
             Assert::AreEqual (std::string ("X=00"),        Cell (snapshot, 2, Column::Name));
@@ -173,7 +173,7 @@ namespace BreakpointColumnsTests
             order = BreakpointColumns::GetOrder (snapshot, Column::HitCount, true);
             Assert::IsTrue (order == std::vector<size_t> { 0, 2, 1 }, L"by hits, most first, as numbers");
 
-            order = BreakpointColumns::GetOrder (snapshot, Column::Label, false);
+            order = BreakpointColumns::GetOrder (snapshot, Column::Labels, false);
             Assert::IsTrue (order == std::vector<size_t> { 2, 0, 1 }, L"by label, ignoring case");
         }
 
@@ -219,7 +219,7 @@ namespace BreakpointColumnsTests
             Assert::IsTrue  (shown[(size_t) Column::Name]);
             Assert::IsTrue  (shown[(size_t) Column::Condition]);
             Assert::IsTrue  (shown[(size_t) Column::HitCount]);
-            Assert::IsFalse (shown[(size_t) Column::Kind]);
+            Assert::IsFalse (shown[(size_t) Column::Data]);
             Assert::AreEqual (std::string (""), BreakpointColumns::FormatShown (shown), L"the default is not written");
             Assert::IsTrue  (BreakpointColumns::ParseShown ("panel=disk2 code2=0300") == shown, L"nothing saved is the default");
         }
