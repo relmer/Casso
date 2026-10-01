@@ -18,7 +18,7 @@
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/BranchArrow.h"
-<<<<<<< HEAD
+#include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ByteChanges.h"
 #include "Ui/Debugger/CommandBarDock.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"

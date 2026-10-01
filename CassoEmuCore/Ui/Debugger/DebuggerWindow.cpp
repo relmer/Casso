@@ -8632,11 +8632,11 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     }
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
-<<<<<<< HEAD
     if (pane == DebuggerLayout::kRegisters)   { return { m_undoBars[kRegisterUndoBar].slot.get(), m_registerList, m_registerEditor, m_undoBars[kRegisterUndoBar].bar }; }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_undoBars[kWatchUndoBar].slot.get(), m_watchList, m_watchEditor, m_undoBars[kWatchUndoBar].bar }; }
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
+    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
