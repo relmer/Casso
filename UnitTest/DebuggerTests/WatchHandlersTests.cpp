@@ -44,7 +44,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("#0 $0036 = $FDF0 (disabled)"), rig.RunOk ("WD 0").text.at (0));
             Assert::AreEqual (std::string ("#0 $0036 = $FDF0"),            rig.RunOk ("WE 0").text.at (0));
-            Assert::AreEqual (std::string ("Watch #0 cleared."),           rig.RunOk ("WC 0").text.at (0));
+            Assert::AreEqual (std::string ("Removed watch 0 (0036)"),           rig.RunOk ("WC 0").text.at (0));
             Assert::AreEqual (std::string ("#1 $003C = $0000"),            rig.RunOk ("WL").text.at (0));
             Assert::AreEqual (std::string ("No watches."),                 rig.RunOk ("WC *").text.at (0));
             rig.RunFails ("WC 5", "no such watch");
@@ -75,7 +75,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("#3 $0036 -> $FDF0 (disabled)"), rig.RunOk ("ZPD 3").text.at (0));
             rig.RunOk ("ZPE 3");
-            Assert::AreEqual (std::string ("Zero-page pointer #3 cleared."), rig.RunOk ("ZPC 3").text.at (0));
+            Assert::AreEqual (std::string ("Removed zero-page pointer 3 (0036)"), rig.RunOk ("ZPC 3").text.at (0));
             Assert::AreEqual (std::string ("No zero-page pointers."),        rig.RunOk ("ZPC *").text.at (0));
             rig.RunFails ("ZPC 9", "no such zero-page pointer");
         }
@@ -161,7 +161,7 @@ namespace DebuggerTests
 
             rig.RunFails ("BMG 7", "no such bookmark");
             Assert::AreEqual (std::string ("BMG takes one id, not *."), rig.RunFails ("BMG *", "invalid arguments").error.detail);
-            Assert::AreEqual (std::string ("Bookmark #1 cleared."), rig.RunOk ("BMC 1").text.at (0));
+            Assert::AreEqual (std::string ("Removed bookmark 1 (0500)"), rig.RunOk ("BMC 1").text.at (0));
             Assert::AreEqual (std::string ("No bookmarks."),        rig.RunOk ("BMC *").text.at (0));
         }
 

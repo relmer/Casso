@@ -200,6 +200,7 @@
     <ClCompile Include="DebuggerTests\ProfileTableTests.cpp" />
     <ClCompile Include="DebuggerTests\ChangeConfirmationTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandSuggestionTests.cpp" />
+    <ClCompile Include="DebuggerTests\SuggestionSweepTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchHandlersTests.cpp" />

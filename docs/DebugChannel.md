@@ -163,6 +163,8 @@ as a `stopped` notification.
 | `data` | the typed result; `kind` says which fields it has. Absent unless `status` is `ok` |
 | `text` | the lines the debugger window would print for this command |
 | `error` | when `status` is not `ok`: `{"label":"...","detail":"..."}` |
+| `usage` | when the arguments were wrong: the command's syntax line |
+| `suggestion` | when the word is not a command of the mode: the line to run instead, this mode's equivalent or the closest command, with the arguments typed |
 | `running` | `true` when the command left a run going. Absent otherwise |
 
 **All numbers are JSON integers.** Addresses and bytes are never hex strings,

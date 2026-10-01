@@ -71,6 +71,18 @@ std::string ReplyJson::WriteReply (const Reply & reply, std::optional<int64_t> i
                                                             { "detail", MakeString (reply.error.detail) } }));
     }
 
+    //  A wrong-arguments reply carries the command's syntax line, and an
+    //  unknown word the line to offer instead, so a client can show either.
+    if (!reply.error.usage.empty())
+    {
+        members.emplace_back ("usage", MakeString (reply.error.usage));
+    }
+
+    if (!reply.suggestion.empty())
+    {
+        members.emplace_back ("suggestion", MakeString (reply.suggestion));
+    }
+
     return WriteLine (std::move (members));
 }
 

@@ -270,7 +270,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Breakpoint #1 enabled."), rig.RunOk ("BPE 1").text.at (0));
             Assert::IsTrue   (rig.target.watchedPages[0x04]);
 
-            Assert::AreEqual (std::string ("Breakpoint #0 cleared."), rig.RunOk ("BPC 0").text.at (0));
+            Assert::AreEqual (std::string ("Removed breakpoint 0 (exec 0300)"), rig.RunOk ("BPC 0").text.at (0));
             rig.RunFails ("BPC 7", "no such breakpoint");
             rig.RunFails ("BPD 7", "no such breakpoint");
 

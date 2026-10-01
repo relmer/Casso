@@ -189,9 +189,43 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointHandlers::SetAddress
+//  BreakpointHandlers::Describe
+//
+//  A few words for a removal's confirmation: what the entry stopped on, such
+//  as "exec C000" or "write 0400:04FF".
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
+{
+    static constexpr const char * kAccessWords[] = { "read", "write", "read/write" };
+    std::string                   range          = (info.last > info.address)
+                                                 ? std::format ("{:04X}:{:04X}", info.address, info.last)
+                                                 : std::format ("{:04X}", info.address);
+
+
+
+    switch (info.kind)
+    {
+    case BreakpointKind::Address:     return "exec " + range;
+    case BreakpointKind::Register:    return "when " + info.condition;
+    case BreakpointKind::Opcode:      return std::format ("opcode {:02X}", info.opcode);
+    case BreakpointKind::Io:          return "I/O " + range;
+    case BreakpointKind::Brk:         return "BRK";
+    case BreakpointKind::Interrupt:   return "interrupt";
+    case BreakpointKind::MemoryValue: return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
+    default:                          return std::string (kAccessWords[(int) info.access]) + " " + range;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetAddress
+//////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
@@ -952,8 +986,9 @@ bool BreakpointHandlers::HasInterrupt (DebugSession & session)
 
 void BreakpointHandlers::Clear (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    int   id      = (int) command.count;
-    bool  isFound = false;
+    int             id      = (int) command.count;
+    bool            isFound = false;
+    BreakpointInfo  info;
 
 
 
@@ -964,7 +999,13 @@ void BreakpointHandlers::Clear (DebugSession & session, const DebugCommand & com
         return;
     }
 
-    isFound = session.GetBreakpoints().TryClear (id) || session.GetWatchpoints().TryClear (id);
+    isFound = TryFindInfo (session, id, info);
+
+    if (isFound)
+    {
+        isFound = session.GetBreakpoints().TryClear (id) || session.GetWatchpoints().TryClear (id);
+    }
+
     session.OnStopConditionsChanged();
 
     if (!isFound)
@@ -973,7 +1014,7 @@ void BreakpointHandlers::Clear (DebugSession & session, const DebugCommand & com
         return;
     }
 
-    reply.data = MessageData { { std::format ("Breakpoint #{} cleared.", id) } };
+    reply.data = MessageData { { std::format ("Removed breakpoint {} ({})", id, Describe (info)) } };
 }
 
 

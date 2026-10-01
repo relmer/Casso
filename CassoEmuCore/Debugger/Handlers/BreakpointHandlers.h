@@ -38,6 +38,7 @@ public:
     // recreates the whole table, as BPSAVE writes them.
     static std::string     MakeDefinition (const BreakpointInfo & info);
     static std::string     MakeScript     (DebugSession & session);
+    static std::string     Describe       (const BreakpointInfo & info);
 
 private:
     static constexpr int   kOpcodeCount  = 256;

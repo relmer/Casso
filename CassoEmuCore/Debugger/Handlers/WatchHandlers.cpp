@@ -210,6 +210,7 @@ void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command,
 {
     WatchTable  & table = GetTable (session, kind);
     int           id    = (int) command.count;
+    WatchItem     item;
 
 
 
@@ -220,13 +221,13 @@ void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    if (command.count > INT_MAX || !table.TryClear (id))
+    if (command.count > INT_MAX || !table.TryFind (id, item) || !table.TryClear (id))
     {
         SetNoSuch (reply, kind, command.count);
         return;
     }
 
-    reply.data = MessageData { { std::format ("{}{} #{} cleared.", (char) toupper ((unsigned char) GetNoun (kind)[0]), GetNoun (kind) + 1, id) } };
+    reply.data = MessageData { { std::format ("Removed {} {} ({:04X})", GetNoun (kind), id, item.address) } };
 }
 
 

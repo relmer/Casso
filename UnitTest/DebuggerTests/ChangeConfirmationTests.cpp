@@ -48,7 +48,7 @@ namespace DebuggerTests
             rig.Run ("bp 300", CommandMode::GSSquared);
             clear = rig.Run ("nobp 0", CommandMode::GSSquared);
 
-            Assert::AreEqual (std::string ("Breakpoint #0 cleared.\n"), Joined (clear));
+            Assert::AreEqual (std::string ("Removed breakpoint 0 (exec 0300)\n"), Joined (clear));
         }
 
 
@@ -63,7 +63,7 @@ namespace DebuggerTests
             rig.Run ("watch 400", CommandMode::GSSquared);
             clear = rig.Run ("nowatch 0", CommandMode::GSSquared);
 
-            Assert::AreEqual (std::string ("Watch #0 cleared.\n"), Joined (clear));
+            Assert::AreEqual (std::string ("Removed watch 0 (0400)\n"), Joined (clear));
         }
 
 

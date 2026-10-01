@@ -133,6 +133,22 @@ or description contains it, ignoring case, with `*` and `?` as wildcards
 [Debugger-Commands.md](Debugger-Commands.md) holds every mode's `help all`,
 generated from the same table.
 
+### Mistyped commands and confirmations
+
+A word that is another mode's command is answered with that mode's title and
+the current mode's equivalent, with the same arguments: in WinDbg mode, `nobp 0`
+says "nobp is a GSSquared command. WinDbg's is bc 0." A word several modes use
+belongs to the first of AppleWin, Casso, Monitor, GSSquared and WinDbg that has
+it. When the current mode has no equivalent the reply says so. A word no mode
+has is answered with the closest command by spelling. The suggested line shows
+in gray after the caret in the command box; Tab runs nothing but takes it into
+the box, and any other key drops it. A command given the wrong arguments is
+answered with its syntax line.
+
+Every command that changes breakpoints, watches, memory, registers, flags,
+symbols, disks or settings prints one line saying what changed, such as
+"Removed breakpoint 3 (exec C000)" or "Removed watch 0 (0400)".
+
 ## Casso commands
 
 Every mode reaches Casso's commands -- AppleWin's names and Casso's own --
