@@ -220,6 +220,74 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerLayout::AddClosedPanes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::AddClosedPanes (const std::wstring & text, const std::set<std::wstring> & closed)
+{
+    std::wstring  line = kClosedPrefix;
+
+
+
+    if (closed.empty())
+    {
+        return text;
+    }
+
+    for (const std::wstring & pane : closed)
+    {
+        line += L' ';
+        line += pane;
+    }
+
+    return line + L"\n" + text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::TakeClosedPanes
+//
+//  Text without the closed line, as every build before it saved, has no
+//  pane closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::TakeClosedPanes (const std::wstring & text, std::set<std::wstring> & closed)
+{
+    size_t               end   = text.find (L'\n');
+    std::wistringstream  panes;
+    std::wstring         pane;
+
+
+
+    closed.clear();
+
+    if (!text.starts_with (kClosedPrefix) || end == std::wstring::npos)
+    {
+        return text;
+    }
+
+    panes.str (text.substr (wcslen (kClosedPrefix), end - wcslen (kClosedPrefix)));
+
+    while (panes >> pane)
+    {
+        closed.insert (pane);
+    }
+
+    return text.substr (end + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerLayout::GetDefaultTabHost
 //
 ////////////////////////////////////////////////////////////////////////////////

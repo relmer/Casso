@@ -3459,6 +3459,9 @@ void DebuggerWindow::ConfigureDockSite()
         SetTopLayer (pane.empty() ? std::vector<IDxuiControl *>() : GetPaneControls (pane));
     });
     savedText = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerLayout()) : std::wstring();
+    savedText = DebuggerLayout::TakeClosedPanes (savedText, m_closedPanes);
+    std::erase_if (m_closedPanes, [this] (const std::wstring & pane) { return !IsFixedPane (pane); });
+
     restored = DebuggerLayout::Restore (savedText);
     restored.PlaceOnMonitors (GetMonitors());
     m_dockSite->SetPaneLayout (restored);
@@ -3999,6 +4002,7 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
     m_pendingShowPane = pane;
     ShowPendingPane();
     SetWindowMenus();
+    SaveLayout();
     Invalidate();
 }
 
@@ -7986,7 +7990,7 @@ void DebuggerWindow::SaveLayout()
 
     if (m_host != nullptr)
     {
-        m_host->SetDebuggerLayout (SourcePathList::WideToUtf8 (layout.ToText()));
+        m_host->SetDebuggerLayout (SourcePathList::WideToUtf8 (DebuggerLayout::AddClosedPanes (layout.ToText(), m_closedPanes)));
     }
 }
 

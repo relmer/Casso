@@ -1037,7 +1037,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T308 Owner review 2026-10-01: the command bar's run and step buttons (Run, Pause, Step into, Step over, Step out, Run to cursor, Show next) show icons only, no text labels; each tooltip gives the command's text and its accelerator in the current key scheme. Find leaves the command bar
 - [ ] T309 Owner review 2026-10-01: find belongs to each pane that supports it (console, source documents, and any other text pane): a search icon in the pane's own small toolbar and Ctrl+F open that pane's find bar; the find bar is not persistent, and Escape or its close button hides it
 - [X] T310 Owner review 2026-10-01: Dialect moves from the command bar into a small toolbar in the console pane, since it governs the console (and the memory Address box, which follows it)
-- [ ] T311 Owner review 2026-10-01: a fixed pane the user closed stays closed across sessions (saved with the layout), and View brings it back
+- [X] T311 Owner review 2026-10-01: a fixed pane the user closed stays closed across sessions (saved with the layout), and View brings it back
 - [X] T312 Owner review 2026-10-01: a floating pane's toolbar shows its tooltips, from a tooltip owned by the floating window
 - [X] T313 Owner review 2026-10-01: undoing an edit of a breakpoint restores it directly from its saved entry, as T305 does for a delete, with no BPEDIT text; and an undo or redo prints one console line saying what it restored or removed, e.g. "Restored breakpoint 3 (exec C000)"
 - [ ] T314 Owner review 2026-10-01: detect a source file's assembler from its contents alone (directives, label forms, comment forms), not its extension; use the extension only when the content gives no sign at all
