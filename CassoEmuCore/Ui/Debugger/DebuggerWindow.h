@@ -514,6 +514,7 @@ private:
     void     PlaceFindBar     ();
     void     PlaceActiveFindBar ();
     void     SetFindBarVisible (bool shown);
+    void     UpdateTopLayer   ();
     void     MoveFindBar      (DxuiWindow * to);
     std::wstring        GetFindTarget () const;
     DxuiTextView      * GetFindView   () const;
@@ -881,6 +882,7 @@ private:
     DxuiTextInput                                               * m_commandBox          = nullptr;
     bool                                                          m_findOpen            = false;
     std::wstring                                                  m_findPane;
+    std::wstring                                                  m_slidPane;
     DxuiWindow                                                  * m_findBarHost         = nullptr;
     std::wstring                                                  m_findStatusText;
     DxuiTextInput                                               * m_findBox             = nullptr;

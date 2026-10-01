@@ -3119,6 +3119,49 @@ void DebuggerWindow::SetFindBarVisible (bool shown)
     {
         button->SetVisible (shown);
     }
+
+    UpdateTopLayer();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UpdateTopLayer
+//
+//  Each open find widget floats over its pane's text. The page's text is
+//  drawn after all of the page's fills, so a widget painted with the page
+//  would have its pane's text showing through its plate; it goes in the top
+//  layer, whose fills cover the page's text. A slid-out pane lies over the
+//  others, so then only its own widget joins it, painted after its controls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateTopLayer()
+{
+    std::vector<IDxuiControl *>  layer;
+
+
+
+    if (!m_slidPane.empty())
+    {
+        layer = GetPaneControls (m_slidPane);
+    }
+
+    for (const auto & [pane, state] : m_findStates)
+    {
+        if (state.plate == nullptr || !state.plate->IsVisible() || (!m_slidPane.empty() && pane != m_slidPane))
+        {
+            continue;
+        }
+
+        layer.insert (layer.end(), { state.plate, state.chevron, state.box, state.caseButton, state.wordButton, state.regexButton,
+                                     state.status, state.prevButton, state.nextButton, state.selButton, state.closeButton });
+    }
+
+    SetTopLayer (std::move (layer));
 }
 
 
@@ -4548,7 +4591,8 @@ void DebuggerWindow::ConfigureDockSite()
     //  painted above the page.
     m_dockSite->SetOnSlid ([this] (const std::wstring & pane)
     {
-        SetTopLayer (pane.empty() ? std::vector<IDxuiControl *>() : GetPaneControls (pane));
+        m_slidPane = pane;
+        UpdateTopLayer();
     });
     savedText = ReadSavedLayout();
     std::erase_if (m_closedPanes, [this] (const std::wstring & pane) { return !IsFixedPane (pane); });
