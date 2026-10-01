@@ -449,8 +449,10 @@ ADDR` shows the twenty hottest addresses; `PROFILE SAVE file` writes both
 tables; `PROFILE RESET` clears them.
 ## The debugger window
 
-**Debug > Debugger...** opens the window beside the emulator; `--debugger` opens
-it at start. It shows the code around the PC, the registers and flags,
+**Debug > Debugger...** opens the window beside the emulator, as do F12, F7
+(AppleWin's key) and Ctrl+F12 in the emulator window; `--debugger` opens it at
+start. Ctrl+F12 is for running Casso under a debugger that takes F12 as its
+break key. It shows the code around the PC, the registers and flags,
 breakpoints, watches, the stack and memory, with a command box and console
 below the code.
 

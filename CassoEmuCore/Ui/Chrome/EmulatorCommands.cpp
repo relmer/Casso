@@ -57,7 +57,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
     { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ debug...",       L"Ctrl+Shift+D"  },
     { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input debug...",         L"Ctrl+Shift+I"  },
-    { IDM_VIEW_DEBUGGER,            MainMenuId::Debug,   L"Debugger...",            L""              },
+    { IDM_VIEW_DEBUGGER,            MainMenuId::Debug,   L"Debugger...",            L"F12"           },
     { IDM_DEBUG_RESTART,            MainMenuId::Debug,   L"&Restart under debugger", L""              },
 };
 
