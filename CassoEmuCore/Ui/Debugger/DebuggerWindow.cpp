@@ -1894,28 +1894,90 @@ IDxuiControl * DebuggerWindow::FindFirstFocusable (IDxuiControl * node)
 //
 //  DebuggerWindow::OnFilesDropped
 //
-//  The first file goes to the source document last used, matched against the
-//  loaded debug file's records by the host.
+//  A debug or symbol file loads as SYM LOAD would. A source file opens in the
+//  document for the loaded debug file's record it matches, or in the source
+//  document last used when it matches none. With no debug file loaded and
+//  none in the drop, every file goes to SYM LOAD, which tells a listing it
+//  can read from one it cannot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 {
-    SourceLookup  lookup;
-    int           index = -1;
+    bool  hasSource  = m_snapshot != nullptr && m_snapshot->source.has_value();
+    bool  hasSymbols = std::ranges::any_of (paths, [] (const std::wstring & path) { return IsSymbolFile (path); });
 
 
 
-    if (paths.empty() || m_host == nullptr || m_snapshot == nullptr || !m_snapshot->source.has_value())
+    if (paths.empty() || m_host == nullptr)
     {
         return false;
     }
 
-    lookup = m_host->MatchDroppedDebuggerSource (m_snapshot->source->files, paths.front(), m_snapshot->source->programKey, index);
-    m_sourceDocs[(size_t) m_activeSource].pane->ShowDropped (lookup, index);
-    ApplySource();
+    for (const std::wstring & path : paths)
+    {
+        if (IsSymbolFile (path) || (!hasSource && !hasSymbols))
+        {
+            m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", SourcePathList::WideToUtf8 (path)), CommandMode::AppleWin);
+        }
+        else if (hasSource)
+        {
+            ShowDroppedSource (path);
+        }
+    }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsSymbolFile
+//
+//  A debug file or one of the symbol tables SYM LOAD reads, by extension.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsSymbolFile (const std::wstring & path)
+{
+    static constexpr const wchar_t * kExtensions[] = { L".dbg", L".sym", L".lbl", L".vs" };
+    std::wstring                     extension     = fs::path (path).extension().wstring();
+
+
+
+    return std::ranges::any_of (kExtensions, [&extension] (const wchar_t * known) { return _wcsicmp (known, extension.c_str()) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowDroppedSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowDroppedSource (const std::wstring & path)
+{
+    const DebuggerViewSnapshot::SourceState & source = *m_snapshot->source;
+    SourceLookup                              lookup;
+    int                                       index  = -1;
+
+
+
+    lookup = m_host->MatchDroppedDebuggerSource (source.files, path, source.programKey, index);
+
+    if (index >= 0 && index < (int) source.files.size())
+    {
+        OpenSourceDocument (source.files[(size_t) index].id, 0, true);
+    }
+
+    m_sourceDocs[(size_t) m_activeSource].pane->ShowDropped (lookup, index);
+    ApplySource();
 }
 
 
@@ -7642,6 +7704,8 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     window->SetOnCaptionDragEnd    ([this, pane] (POINT screen)              { OnFloatDrag (pane, screen, true);  });
     window->SetOnCaptionDragCancel ([this]                                   { m_dockSite->CancelDrag(); HideDragMarks(); Invalidate(); });
     window->SetOnClosed            ([this, pane]                             { CloseFloatingPane (pane); });
+    window->SetOnFilesDropped      ([this] (const std::vector<std::wstring> & paths) { return OnFilesDropped (paths); });
+    window->SetAcceptsDroppedFiles (true);
 
     if (rect.right > rect.left && rect.bottom > rect.top)
     {

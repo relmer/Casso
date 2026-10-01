@@ -1070,13 +1070,25 @@ void DxuiWindow::OnModalLoopTick()
 
 void DxuiWindow::SetAcceptsDroppedFiles (bool accepts)
 {
-    HWND  hwnd = GetHwnd();
+    constexpr UINT  kWmCopyGlobalData = 0x0049;
+    HWND            hwnd              = GetHwnd();
 
 
 
-    if (hwnd != nullptr)
+    if (hwnd == nullptr)
     {
-        DragAcceptFiles (hwnd, accepts ? TRUE : FALSE);
+        return;
+    }
+
+    DragAcceptFiles (hwnd, accepts ? TRUE : FALSE);
+
+    //  An elevated window would otherwise never see a drop from an ordinary
+    //  Explorer: UIPI drops the messages that carry it, with no error.
+    if (accepts)
+    {
+        (void) ChangeWindowMessageFilterEx (hwnd, WM_DROPFILES,      MSGFLT_ALLOW, nullptr);
+        (void) ChangeWindowMessageFilterEx (hwnd, WM_COPYDATA,       MSGFLT_ALLOW, nullptr);
+        (void) ChangeWindowMessageFilterEx (hwnd, kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
     }
 }
 

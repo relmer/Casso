@@ -364,6 +364,9 @@ source view.
 
 - `SYM LOAD file.dbg` loads the symbols and the line table. The window opens a
   source pane beside the disassembly and follows the PC.
+- Dropping a debug or symbol file (`.dbg`, `.sym`, `.lbl`, `.vs`) on the
+  debugger window, or on one of its floating panes, loads it as `SYM LOAD`
+  would. With no debug file loaded, any dropped file goes to `SYM LOAD`.
 - The source files are looked for beside the debug file, then in the folders
   where sources were found before. When one is not found, the pane says so;
   drag the file onto the debugger and it is matched by its hash, and its

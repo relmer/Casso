@@ -245,6 +245,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowFloatCloseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowPaneFindTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowClosedPaneTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowFileDropTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowViewMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowPaneBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTabFocusTests.cpp" />

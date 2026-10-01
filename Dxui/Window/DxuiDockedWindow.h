@@ -39,6 +39,7 @@ public:
     using  PointFn   = std::function<void (POINT screenPx)>;
     using  ClosedFn  = std::function<void ()>;
     using  CommandFn = std::function<bool (int commandId)>;
+    using  FilesFn   = std::function<bool (const std::vector<std::wstring> & paths)>;
 
     DxuiDockedWindow  () = default;
     ~DxuiDockedWindow () override = default;
@@ -58,6 +59,10 @@ public:
     //  set of commands across its windows.
     void  SetOnMappedCommand   (CommandFn fn) { m_onCommand  = std::move (fn); }
 
+    //  Files dropped on the window, once SetAcceptsDroppedFiles has turned
+    //  that on, for an owner that takes them the same in all its windows.
+    void  SetOnFilesDropped    (FilesFn fn)   { m_onFiles    = std::move (fn); }
+
     //  Once a frame: reports the end of a caption drag the end of the move
     //  loop did not.
     void  PollCaptionDrag ();
@@ -74,6 +79,7 @@ protected:
     bool  OnKey         (const DxuiKeyEvent   & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     bool  OnMappedCommand (int commandId) override;
+    bool  OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     void  OnWindowPlaced () override;
 
 private:
@@ -89,5 +95,6 @@ private:
     ClosedFn                  m_onDragCancel;
     ClosedFn                  m_onClosed;
     CommandFn                 m_onCommand;
+    FilesFn                   m_onFiles;
     DxuiCaptionDragTracker    m_drag;
 };

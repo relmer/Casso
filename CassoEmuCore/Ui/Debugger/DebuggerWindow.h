@@ -214,6 +214,9 @@ protected:
     //  Protected so a test can hand the window a snapshot as a frame does.
     void             TakeSnapshot    (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
 
+    void             ShowDroppedSource (const std::wstring & path);
+    static bool      IsSymbolFile      (const std::wstring & path);
+
     //  Protected so a test can see which pane the watch editor goes with.
     std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
     DxuiTextInput  * GetWatchEditor   () const { return m_watchEditor; }
