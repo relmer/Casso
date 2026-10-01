@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Core/UnicodeSymbols.h"
 
 #include "DxuiToolbar.h"
 #include "Window/DxuiHwndSource.h"
@@ -32,6 +33,10 @@ DxuiToolbar::DxuiToolbar()
 
     RefreshMetrics();
     WireDropDown();
+
+    //  Every strip overflows: what does not fit even as icons goes into a
+    //  "..." menu. A host may still call EnableSeeMore for its own glyph.
+    EnableSeeMore (s_kpszMdl2More, L"See more");
 }
 
 

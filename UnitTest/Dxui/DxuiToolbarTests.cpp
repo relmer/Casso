@@ -656,7 +656,7 @@ public:
         f.LayoutAt (f.FullWidth());
 
         f.bar.SetFocusIndex (0);
-        Assert::AreEqual (5, f.bar.GetEntryCount());
+        Assert::AreEqual (6, f.bar.GetEntryCount(), L"five commands and the See more button every strip has");
         Assert::AreEqual (0, f.bar.GetFocusIndex());
         Assert::IsFalse  (f.bar.OwnsKeyboard());
 

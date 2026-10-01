@@ -169,7 +169,8 @@ public:
     //  bar ends: entries that no longer fit even as icons move into its menu
     //  from the right as the strip narrows and come back as it widens, and
     //  entries marked seeMoreOnly are always there. The button shows only
-    //  when its menu has something in it. Call before SetEntries.
+    //  when its menu has something in it. Every strip has one, with the "..."
+    //  glyph; call this before SetEntries for another glyph or tip.
     void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip);
     bool  IsInSeeMore      (int commandId) const;
 
