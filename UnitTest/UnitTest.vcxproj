@@ -251,6 +251,11 @@
     <ClCompile Include="DebuggerTests\RelativePathNoDirectoryTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgParserTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
+    <ClCompile Include="DebuggerTests\GSSquaredWidthNoteTests.cpp" />
+    <ClCompile Include="DebuggerTests\MonitorSlotNoteTests.cpp" />
+    <ClCompile Include="DebuggerTests\StepSoundTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceBannerNoFileTests.cpp" />
+    <ClCompile Include="DebuggerTests\TracePaneHomeKeyTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorRomFactsTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
