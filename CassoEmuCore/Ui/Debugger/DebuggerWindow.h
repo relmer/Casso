@@ -259,6 +259,7 @@ private:
     static constexpr int    kPaneHeaderDip         = 22;
     static constexpr int    kPaneEdgeDip           = 6;
     static constexpr int    kPanePadDip            = 4;
+    static constexpr int    kTraceHintDip          = 20;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
     static constexpr int    kMarkerColumnDip       = 20;
@@ -318,6 +319,8 @@ private:
     void     AddShowInMemory    (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     static int  GetColumnAt     (const DxuiListView * list, int xPx);
     bool     RouteDockKey       (const DxuiKeyEvent & ev);
+    bool     RouteTraceKey      (const DxuiKeyEvent & ev);
+    void     SaveTrace          ();
     void     ApplySavedPlacement ();
 
     //  Floating panes (FR-040): each floats in a DxuiDockedWindow of its own,
@@ -498,6 +501,8 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_callStackFrame;
     DxuiListView                                                                   * m_traceList          = nullptr;
     std::unique_ptr<TracePane>                                                       m_tracePane;
+    DxuiLabel                                                                      * m_traceHint          = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_traceFrame;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;

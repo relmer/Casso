@@ -49,18 +49,20 @@ void TracePane::Configure()
 
 void TracePane::Apply (const DebuggerViewSnapshot::TraceState & trace)
 {
-    static constexpr uint64_t  kMaxRows = INT_MAX;
-    bool                       resized  = trace.total != m_total;
+    static constexpr uint64_t  kMaxRows = INT_MAX - 64;
+    uint64_t                   total    = std::min (trace.total, kMaxRows);
+    bool                       resized  = total != m_total || trace.next.size() != m_next.size();
 
 
 
     m_first   = trace.first;
-    m_total   = std::min (trace.total, kMaxRows);
+    m_total   = total;
     m_entries = trace.entries;
+    m_next    = trace.next;
 
     if (resized)
     {
-        m_list->SetVirtualRowCount ((int) m_total);
+        m_list->SetVirtualRowCount ((int) (m_total + m_next.size()));
     }
 }
 
@@ -150,6 +152,21 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
     out.assign (kColumns, DxuiListView::Cell());
 
+    //  The instructions to run next have only their address, bytes, label and
+    //  instruction.
+    if (index >= m_total && index - m_total < m_next.size())
+    {
+        record = &m_next[(size_t) (index - m_total)];
+        bytes  = AppleWinFormatter::FormatTraceBytes (*record);
+
+        out[0].text = L"next";
+        out[2].text = std::format (L"{:04X}", record->pc);
+        out[3].text = std::wstring (bytes.begin(), bytes.end());
+        out[4].text = std::wstring (record->symbol.begin(), record->symbol.end());
+        out[5].text = std::wstring (record->instruction.begin(), record->instruction.end());
+        return;
+    }
+
     if (index < m_first || index - m_first >= m_entries.size())
     {
         return;
@@ -179,3 +196,79 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
         out[6].text += (wchar_t) ch;
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePane::GetKeyAction
+//
+//  Single keys, so the pane steps and runs with no chord: Space, O and R step
+//  into, over and out, Return runs, T turns tracing off and on, B shows and
+//  hides the bytes, and S saves the trace. A key with Ctrl or Alt is left to
+//  the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TracePane::KeyAction TracePane::GetKeyAction (WPARAM vk, bool ctrl, bool alt, bool shift)
+{
+    if (ctrl || alt || shift)
+    {
+        return KeyAction::None;
+    }
+
+    switch (vk)
+    {
+    case VK_SPACE:  return KeyAction::StepInto;
+    case 'O':       return KeyAction::StepOver;
+    case 'R':       return KeyAction::StepOut;
+    case VK_RETURN: return KeyAction::Run;
+    case 'T':       return KeyAction::ToggleTrace;
+    case 'B':       return KeyAction::ToggleBytes;
+    case 'S':       return KeyAction::Save;
+    default:        return KeyAction::None;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePane::GetKeyHint
+//
+//  The line above the rows listing the keys GetKeyAction takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TracePane::GetKeyHint()
+{
+    return L"Space step into   O step over   R step out   Return run   T trace on/off   B bytes   S save";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePane::ToggleBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TracePane::ToggleBytes()
+{
+    static constexpr size_t  kBytesColumn = 3;
+
+
+
+    m_showBytes = !m_showBytes;
+    m_list->SetColumnVisible (kBytesColumn, m_showBytes);
+}
+
+
+
+

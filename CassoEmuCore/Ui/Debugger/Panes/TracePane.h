@@ -21,6 +21,9 @@
 //  end of the list it asks to follow the newest instead. Until a read
 //  arrives, rows outside the window are blank.
 //
+//  While the machine is stopped, the instructions it runs next follow the
+//  last entry, with no entry number, cycles or registers.
+//
 //  The window owns the list as a child control; the pane holds a pointer to
 //  it.
 //
@@ -39,6 +42,26 @@ public:
 
     DxuiListView *  GetList () const { return m_list; }
 
+    //  What a key pressed in the pane does.
+    enum class KeyAction
+    {
+        None,
+        StepInto,
+        StepOver,
+        StepOut,
+        Run,
+        ToggleTrace,
+        ToggleBytes,
+        Save,
+    };
+
+    static KeyAction     GetKeyAction (WPARAM vk, bool ctrl, bool alt, bool shift);
+    static std::wstring  GetKeyHint   ();
+
+    void  ToggleBytes    ();
+    void  ProvideRow     (int row, std::vector<DxuiListView::Cell> & out) const;
+    bool  IsShowingBytes () const { return m_showBytes; }
+
     void  Configure    ();
     void  Apply        (const DebuggerViewSnapshot::TraceState & trace);
     void  FollowScroll ();
@@ -56,12 +79,12 @@ private:
     //  short scroll back does not ask again.
     static constexpr uint64_t  kLeadRows = 16;
 
-    void  ProvideRow (int row, std::vector<DxuiListView::Cell> & out) const;
-
     DxuiListView             * m_list      = nullptr;
     MoveFn                     m_move;
     uint64_t                   m_first     = 0;
     uint64_t                   m_total     = 0;
     std::vector<TraceRecord>   m_entries;
+    std::vector<TraceRecord>   m_next;
+    bool                       m_showBytes = true;
     std::optional<uint64_t>    m_requested = kFollowEnd;
 };

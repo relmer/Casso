@@ -260,6 +260,7 @@
     <ClCompile Include="DebuggerTests\StepSoundTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceBannerNoFileTests.cpp" />
     <ClCompile Include="DebuggerTests\TracePaneHomeKeyTests.cpp" />
+    <ClCompile Include="DebuggerTests\TracePaneKeysTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorRomFactsTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />

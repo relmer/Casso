@@ -15,6 +15,8 @@
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/SymbolDescriptions.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
+#include "Debugger/Handlers/TraceHandlers.h"
+#include "Debugger/TraceLookahead.h"
 
 
 
@@ -395,6 +397,52 @@ void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot
         snapshot.trace.first   = first;
         snapshot.trace.entries = std::move (data->entries);
     }
+
+    if (snapshot.isPaused)
+    {
+        BuildTraceNext (session, snapshot);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildTraceNext
+//
+//  The instructions the stopped machine runs next, described as trace entries
+//  are, so the pane shows them in the same columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildTraceNext (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    IDebugTarget                          & target    = session.GetTarget();
+    Cpu6502Registers                        registers = target.GetRegisters();
+    std::vector<DisassembledInstruction>    next;
+
+
+
+    next = TraceLookahead::FindNext (target.GetInstructionSet(), registers.pc, registers.p,
+                                     [&target] (Word address, Byte & value) { return target.TryPeek (address, value); },
+                                     kTraceNextRows);
+
+    for (const DisassembledInstruction & instruction : next)
+    {
+        TraceRecord  record;
+
+
+
+        record.pc     = instruction.address;
+        record.opcode = instruction.bytes.empty()    ? (Byte) 0 : instruction.bytes[0];
+        record.op1    = instruction.bytes.size() > 1 ? instruction.bytes[1] : (Byte) 0;
+        record.op2    = instruction.bytes.size() > 2 ? instruction.bytes[2] : (Byte) 0;
+        snapshot.trace.next.push_back (record);
+    }
+
+    TraceHandlers::Describe (session, snapshot.trace.next);
 }
 
 

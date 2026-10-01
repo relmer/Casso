@@ -192,6 +192,7 @@ void DebuggerWindow::OnCreate()
     m_callStackButton   = CreateChild<DxuiButton>    (L"Hybrid");
     m_consoleView       = CreateChild<DxuiTextView>  ();
     m_traceList         = CreateChild<DxuiListView>  ();
+    m_traceHint         = CreateChild<DxuiLabel>     ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_pokeBox           = CreateChild<DxuiTextInput> ();
@@ -419,6 +420,7 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     m_tracePane->Configure();
+    m_traceHint->SetText (TracePane::GetKeyHint());
 
     for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
     {
@@ -2933,6 +2935,11 @@ void DebuggerWindow::ConfigureDockSite()
     m_callStackButton->SetVisible (false);
     m_callStackFrame->AddPart (m_callStackList);
 
+    //  The trace pane lists its keys above its rows.
+    m_traceFrame = std::make_unique<DebuggerPaneFrame> (L"Trace");
+    m_traceFrame->AddPart (m_traceHint, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); });
+    m_traceFrame->AddPart (m_traceList);
+
     //  A disassembly view is a frame over its lines.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
@@ -2954,7 +2961,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_watchList);
     m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_stackList);
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceList);
+    m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
 
     //  A memory pane is its command bar over its bytes (FR-089). The bar is a
     //  place held at the pane's top; the controls, shared by every memory
@@ -6220,7 +6227,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }
     if (pane == DebuggerLayout::kStack)       { return { m_stackList };                  }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
-    if (pane == DebuggerLayout::kTrace)       { return { m_traceList };                  }
+    if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
@@ -6270,6 +6277,11 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     if (pane == DebuggerLayout::kCallStack)
     {
         return m_callStackFrame.get();
+    }
+
+    if (pane == DebuggerLayout::kTrace)
+    {
+        return m_traceFrame.get();
     }
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
@@ -7173,6 +7185,40 @@ bool DebuggerWindow::RouteCompletionKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RouteTraceKey
+//
+//  The trace pane's own keys, so stepping needs neither the code pane nor the
+//  toolbar. Each step and Run goes the way its key-scheme key does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteTraceKey (const DxuiKeyEvent & ev)
+{
+    using Action = DebuggerKeySchemes::Action;
+
+    TracePane::KeyAction  action = TracePane::GetKeyAction (ev.vk, ev.ctrl, ev.alt, ev.shift);
+
+
+
+    switch (action)
+    {
+    case TracePane::KeyAction::StepInto:    return OnMappedCommand ((int) Action::StepInto);
+    case TracePane::KeyAction::StepOver:    return OnMappedCommand ((int) Action::StepOver);
+    case TracePane::KeyAction::StepOut:     return OnMappedCommand ((int) Action::StepOut);
+    case TracePane::KeyAction::Run:         return OnMappedCommand ((int) Action::Run);
+    case TracePane::KeyAction::ToggleTrace: RunCommandBarEntry (DebuggerCommands::kTrace); return true;
+    case TracePane::KeyAction::ToggleBytes: m_tracePane->ToggleBytes(); Invalidate();      return true;
+    case TracePane::KeyAction::Save:        SaveTrace();                                   return true;
+    default:                                                                               return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RefreshCommandGhost
 //
 //  The gray text after the caret: the last reply's suggestion while the box
@@ -7239,6 +7285,45 @@ void DebuggerWindow::ShowHistoryList()
     }
 
     DxuiContextMenu::Show (*GetPopupHost(), box.left, box.top, std::move (menu));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveTrace
+//
+//  HISTORY SAVE to a file the user picks; backing out of the picker saves
+//  nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveTrace()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
+
+    spec.filters          = { { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
+    spec.defaultExtension = L"txt";
+    spec.defaultFileName  = L"trace.txt";
+
+    hr = m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    RunCommand (DebuggerViewState::GetLineWithFileName ("HISTORY SAVE ", TextEncoding::WideToNarrow (chosen.wstring())));
+
+Error:
+    return;
 }
 
 
@@ -7342,6 +7427,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (RouteBoxKey (ev, handled))
     {
         return handled;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_traceList && RouteTraceKey (ev))
+    {
+        return true;
     }
 
     if (ev.kind == DxuiKeyEventKind::Down && RouteDockKey (ev))

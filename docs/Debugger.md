@@ -431,6 +431,14 @@ HISTORY SAVE run.txt  every retained entry
 
 The trace costs nothing while it is off.
 
+The window's trace pane lists its keys above its rows. With the pane focused,
+`Space`, `O` and `R` step into, over and out, `Return` runs, `T` turns the
+trace off and on, `B` shows and hides the bytes column, and `S` saves the
+trace to a file you pick, as `HISTORY SAVE` does. While the machine is
+stopped, the next few instructions from the PC follow the last entry, taking
+each branch the way the current flags send it and ending at one an earlier
+instruction may have changed the flags for.
+
 ## Profiling
 
 `PROFILE ON` counts every instruction a debugger-driven run executes, and

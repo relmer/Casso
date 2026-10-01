@@ -151,13 +151,16 @@ struct DebuggerViewSnapshot
     };
 
     //  A window of the instruction trace: the entries from first, of the
-    //  total it retains.
+    //  total it retains. While the machine is stopped, `next` holds the
+    //  instructions it will run from the PC, with only their address, bytes,
+    //  symbol and instruction filled.
     struct TraceState
     {
         bool                      isOn  = false;
         uint64_t                  total = 0;
         uint64_t                  first = 0;
         std::vector<TraceRecord>  entries;
+        std::vector<TraceRecord>  next;
     };
 
     Word                         pc     = 0;
@@ -320,7 +323,9 @@ public:
 
     //  The trace pane reads kTraceRows entries from the entry the user
     //  scrolled to, or the newest when it follows the end (no entry).
-    static constexpr int     kTraceRows = 128;
+    static constexpr int     kTraceRows     = 128;
+    //  How many instructions from the PC the stopped trace shows below it.
+    static constexpr size_t  kTraceNextRows = 8;
 
     void                     SetTraceTop  (std::optional<uint64_t> first) { m_traceTop = first; }
     std::optional<uint64_t>  GetTraceTop  () const                        { return m_traceTop; }
@@ -500,6 +505,7 @@ private:
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildTraceNext (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
     Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
