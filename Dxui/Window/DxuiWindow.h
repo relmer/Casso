@@ -335,6 +335,8 @@ private:
     DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
+    DxuiMessageResult  OnSetFocus    () override;
+    DxuiMessageResult  OnKillFocus   () override;
     DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
     void               OnModalLoopTick () override;
@@ -368,6 +370,7 @@ private:
     bool          IsTriggerButtonById (int commandId);
     static DxuiButton *  FindButtonById   (IDxuiControl * node, int commandId);
     static void          ForEachButton    (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
+    static void          SetTextInputsWindowActive (IDxuiControl * node, bool active);
 
 
     std::unique_ptr<DxuiHwndSource>    m_source;

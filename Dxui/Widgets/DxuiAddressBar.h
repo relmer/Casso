@@ -108,6 +108,7 @@ public:
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     void                OnFocusChanged    (bool focused) override;
+    void                OnWindowActiveChanged (bool active) override { m_input.SetWindowActive (active); }
     void                Tick              (int64_t nowMs) override;
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override { return m_editing && m_input.QueryCommand (command, outEnabled); }
     bool                InvokeCommand     (DxuiStandardCommand command) override                      { return m_editing && m_input.InvokeCommand (command); }

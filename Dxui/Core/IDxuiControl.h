@@ -113,6 +113,10 @@ public:
     // internal stops ignore it; OnFocusChanged still fires either way.
     virtual void  OnFocusEntered  (bool forward)                                { (void) forward; }
 
+    // The window holding the control gained or lost the focus. A text field
+    // shows its caret only while its window has it.
+    virtual void  OnWindowActiveChanged (bool active)                           { (void) active; }
+
     // The standard commands (Copy, Select all and the rest), whose behavior
     // depends on the focused control. A control that handles one implements
     // both: QueryCommand returns whether the control handles the command and,

@@ -620,7 +620,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (m_focused)
+    if (m_focused && m_windowActive)
     {
         constexpr float    s_kEmptyCaretFactor = 1.3f;
         constexpr int64_t  s_kFallbackBlinkMs  = 530;   // only if the OS reports an invalid (zero) blink time

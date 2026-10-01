@@ -789,6 +789,69 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnSetFocus
+//
+//  A text field's caret shows only while its window holds the focus, so a
+//  window behind another app or another window has nothing blinking. Both
+//  return NotHandled so DefWindowProc still runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnSetFocus()
+{
+    SetTextInputsWindowActive (this, true);
+    Invalidate();
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKillFocus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnKillFocus()
+{
+    SetTextInputsWindowActive (this, false);
+    Invalidate();
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTextInputsWindowActive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetTextInputsWindowActive (IDxuiControl * node, bool active)
+{
+    if (node == nullptr)
+    {
+        return;
+    }
+
+    node->OnWindowActiveChanged (active);
+
+    for (size_t i = 0; i < node->GetChildCount(); ++i)
+    {
+        SetTextInputsWindowActive (node->GetChild (i), active);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnSetCursor
 //
 //  Delegates to the panel tree's CursorForPoint so a content control

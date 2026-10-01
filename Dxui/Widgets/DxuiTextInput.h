@@ -57,6 +57,11 @@ public:
     //  file's name without its extension.
     void  SetSelection  (size_t start, size_t end)    { m_anchor = (std::min) (start, m_text.size()); m_caret = (std::min) (end, m_text.size()); }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } ResetBlink(); }
+
+    //  Whether the window holding the field is the active one. The caret
+    //  shows only while it is, so nothing blinks behind another window.
+    void  SetWindowActive (bool active)               { m_windowActive = active; ResetBlink(); }
+    void  OnWindowActiveChanged (bool active) override { SetWindowActive (active); }
     void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; m_anchor = m_caret; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
     void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
@@ -218,4 +223,5 @@ private:
     // so the caret shows solid immediately after interaction. Mutable
     // because the seed-on-paint happens inside the const Paint().
     mutable int64_t       m_blinkAnchorMs = 0;
+    bool                  m_windowActive  = true;
 };

@@ -73,6 +73,7 @@ public:
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     void                Tick              (int64_t nowMs) override;
     void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    void                OnWindowActiveChanged (bool active) override { m_input.SetWindowActive (active); }
     std::wstring        GetAccessibleName () const override { return m_input.GetText(); }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
