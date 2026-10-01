@@ -466,6 +466,14 @@ views (`TEXT`, `HGR` and their forms) and the appearance commands (`BW`,
 
 Closing the window closes the debug channel. Reopening it keeps the breakpoints.
 
+Ctrl+F opens a find bar over the console, as Visual Studio Code's does: the
+text to find, then toggles for match case (Aa), match whole word (ab) and
+regular expression (.*), the match's place among all of them ("2 of 5"), up
+and down arrows for the previous and next match, and a close button. With no
+toggle on, the text is found as a plain substring, ignoring case. Enter and F3
+find the next match, Shift+Enter and Shift+F3 the one before, and Escape
+closes the bar.
+
 ### Panes and docking
 
 Every pane can be moved. Drag a tab onto the drop zones that appear to dock it

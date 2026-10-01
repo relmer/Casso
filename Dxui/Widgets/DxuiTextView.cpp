@@ -627,6 +627,156 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::SelectMatch  (with a regular expression option)
+//
+//  From the selection as the plain search starts: forward, the first match
+//  starting at or after its end; backward, the last starting before its
+//  start; each going round when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount)
+{
+    std::vector<std::wstring>  texts;
+    std::vector<FindMatch>     matches;
+    Position                   from   = forward ? (std::max) (m_anchor, m_caret) : (std::min) (m_anchor, m_caret);
+    FindResult                 result = FindResult::Wrapped;
+    size_t                     pick   = 0;
+
+
+
+    outIndex = 0;
+    outCount = 0;
+
+    texts.reserve (m_rows.size());
+
+    for (const Row & row : m_rows)
+    {
+        texts.push_back (GetRowText (row));
+    }
+
+    if (!FindAllInRows (texts, needle, matchCase, wholeWord, isRegex, matches) || matches.empty())
+    {
+        return FindResult::NotFound;
+    }
+
+    if (forward)
+    {
+        auto  it = std::ranges::find_if (matches, [from] (const FindMatch & match) { return !(match.start < from); });
+
+        pick   = (it == matches.end()) ? 0 : (size_t) (it - matches.begin());
+        result = (it == matches.end()) ? FindResult::Wrapped : FindResult::Found;
+    }
+    else
+    {
+        pick = matches.size() - 1;
+
+        for (size_t i = matches.size(); i > 0; i--)
+        {
+            if (matches[i - 1].start < from)
+            {
+                pick   = i - 1;
+                result = FindResult::Found;
+                break;
+            }
+        }
+    }
+
+    m_anchor = matches[pick].start;
+    m_caret  = Position { matches[pick].start.row, matches[pick].start.offset + matches[pick].length };
+    ScrollToPosition (m_anchor);
+
+    outIndex = (int) pick + 1;
+    outCount = (int) matches.size();
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::FindAllInRows
+//
+//  A plain needle is found as a substring, lowered on both sides without
+//  matching case. A regular expression uses ECMAScript syntax; a match of
+//  no characters is passed over, since it selects nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::FindAllInRows (
+    const std::vector<std::wstring> & rows,
+    const std::wstring              & needle,
+    bool                              matchCase,
+    bool                              wholeWord,
+    bool                              isRegex,
+    std::vector<FindMatch>          & outMatches)
+{
+    std::wregex  pattern;
+    std::wstring key = matchCase ? needle : GetLowered (needle);
+
+
+
+    outMatches.clear();
+
+    if (needle.empty())
+    {
+        return true;
+    }
+
+    if (isRegex)
+    {
+        try
+        {
+            pattern = std::wregex (needle, matchCase ? std::regex_constants::ECMAScript : (std::regex_constants::ECMAScript | std::regex_constants::icase));
+        }
+        catch (const std::regex_error &)
+        {
+            return false;
+        }
+    }
+
+    for (size_t r = 0; r < rows.size(); r++)
+    {
+        const std::wstring &  text = rows[r];
+
+        if (isRegex)
+        {
+            for (std::wsregex_iterator it (text.begin(), text.end(), pattern), end; it != end; ++it)
+            {
+                size_t  at     = (size_t) it->position (0);
+                size_t  length = (size_t) it->length (0);
+
+                if (length > 0 && (!wholeWord || IsWholeWordAt (text, at, length)))
+                {
+                    outMatches.push_back (FindMatch { Position { (int) r, (int) at }, (int) length });
+                }
+            }
+
+            continue;
+        }
+
+        std::wstring  hay = matchCase ? text : GetLowered (text);
+
+        for (size_t at = hay.find (key); at != std::wstring::npos; at = hay.find (key, at + 1))
+        {
+            if (!wholeWord || IsWholeWordAt (text, at, key.size()))
+            {
+                outMatches.push_back (FindMatch { Position { (int) r, (int) at }, (int) key.size() });
+            }
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::FindInRows
 //
 //  Without a match past the starting point the search goes round: forward

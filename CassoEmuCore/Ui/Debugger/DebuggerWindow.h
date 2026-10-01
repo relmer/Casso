@@ -188,8 +188,8 @@ protected:
     bool             IsFindOpen      () const { return m_findOpen; }
     DxuiTextView   * GetConsoleView  () const { return m_consoleView; }
     DxuiTextInput  * GetFindBox      () const { return m_findBox; }
-    DxuiCheckbox   * GetFindCaseBox  () const { return m_findCaseBox; }
-    DxuiCheckbox   * GetFindWordBox  () const { return m_findWordBox; }
+    DxuiButton     * GetFindWordButton () const { return m_findWordButton; }
+    void             SetFindOptions  (bool matchCase, bool wholeWord, bool isRegex);
     std::wstring     GetFindStatus   () const { return m_findStatusText; }
 
     //  Protected so a test can choose a scheme as the Keys menu does, and
@@ -298,7 +298,7 @@ private:
     void     PlaceFindBar     ();
     void     SetFindBarVisible (bool shown);
     std::vector<IDxuiControl *>  GetFindControls () const;
-    static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, bool forward);
+    static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
     void     SetCommandBarMenus  ();
@@ -514,8 +514,12 @@ private:
     bool                                                                             m_findOpen           = false;
     std::wstring                                                                     m_findStatusText;
     DxuiTextInput                                                                  * m_findBox            = nullptr;
-    DxuiCheckbox                                                                   * m_findCaseBox        = nullptr;
-    DxuiCheckbox                                                                   * m_findWordBox        = nullptr;
+    DxuiButton                                                                     * m_findCaseButton     = nullptr;
+    DxuiButton                                                                     * m_findWordButton     = nullptr;
+    DxuiButton                                                                     * m_findRegexButton    = nullptr;
+    bool                                                                             m_findMatchCase      = false;
+    bool                                                                             m_findWholeWord      = false;
+    bool                                                                             m_findRegex          = false;
     DxuiButton                                                                     * m_findPrevButton     = nullptr;
     DxuiButton                                                                     * m_findNextButton     = nullptr;
     DxuiButton                                                                     * m_findCloseButton    = nullptr;

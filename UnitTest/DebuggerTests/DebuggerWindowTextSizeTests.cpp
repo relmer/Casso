@@ -109,8 +109,8 @@ namespace DebuggerTests
         using DebuggerWindow::IsFindOpen;
         using DebuggerWindow::GetConsoleView;
         using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindCaseBox;
-        using DebuggerWindow::GetFindWordBox;
+        using DebuggerWindow::GetFindWordButton;
+        using DebuggerWindow::SetFindOptions;
         using DebuggerWindow::GetFindStatus;
         using DebuggerWindow::BeginWatchEdit;
         using DebuggerWindow::EndWatchEdit;
@@ -474,15 +474,15 @@ namespace DebuggerTests
 
             Assert::IsTrue   (window.Press (VK_F3));
             Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"the next one, on the last line");
-            Assert::AreEqual (std::wstring(),        window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindStatus());
 
             Assert::IsTrue   (window.Press (VK_F3));
             Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText(), L"round to the first again");
-            Assert::AreEqual (std::wstring (L"Continued from the top"), window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindStatus());
 
             Assert::IsTrue   (window.Press (VK_F3, false, true), L"Shift+F3");
             Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"back round to the last");
-            Assert::AreEqual (std::wstring (L"Continued from the bottom"), window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindStatus());
         }
 
 
@@ -498,20 +498,20 @@ namespace DebuggerTests
 
             window.Press ('F', true);
             window.Type  (L"sta");
-            window.GetFindCaseBox()->SetChecked (true);
+            window.SetFindOptions (true, false, false);
 
             Assert::IsTrue   (window.Press (VK_RETURN));
             Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"only the lowercase line");
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"Continued from the top"), window.GetFindStatus(), L"the only match, found again by going round");
+            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindStatus(), L"the only match, found again by going round");
 
             window.GetFindBox()->SetText (L"");
             window.Type  (L"ora");
 
             Assert::AreEqual (std::wstring (L"ora"), window.GetFindBox()->GetText());
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"No matches"), window.GetFindStatus(), L"only ORA, in capitals");
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus(), L"only ORA, in capitals");
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"GSSquared steps on O and R, but not from the find box");
         }
 
@@ -532,11 +532,11 @@ namespace DebuggerTests
             Assert::IsTrue   (window.Press (VK_RETURN));
             Assert::AreEqual (std::wstring (L"C03"), window.GetConsoleView()->GetSelectionText(), L"part of C030, while whole words are off");
 
-            Assert::IsTrue   (window.GetFindWordBox()->IsVisible(), L"the whole-word box shows with the bar");
-            window.GetFindWordBox()->SetChecked (true);
+            Assert::IsTrue   (window.GetFindWordButton()->IsVisible(), L"the whole-word toggle shows with the bar");
+            window.SetFindOptions (false, true, false);
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"No matches"), window.GetFindStatus(), L"C030 goes on past C03");
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus(), L"C030 goes on past C03");
 
             window.Type  (L"0");
 
@@ -561,7 +561,7 @@ namespace DebuggerTests
             window.Type  (L"jmp");
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"No matches"), window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus());
             Assert::IsFalse  (window.GetConsoleView()->HasSelection());
 
             Assert::IsTrue   (window.Press (VK_ESCAPE));

@@ -201,11 +201,12 @@ void DebuggerWindow::OnCreate()
     m_removeMemoryButton = CreateChild<DxuiButton>   (L"- Memory");
     m_memoryMoreButton  = CreateChild<DxuiButton>    (std::wstring (1, s_kchEllipsis));
     m_findBox           = CreateChild<DxuiTextInput> ();
-    m_findCaseBox       = CreateChild<DxuiCheckbox>  (L"Match case");
-    m_findWordBox       = CreateChild<DxuiCheckbox>  (L"Match whole word");
-    m_findPrevButton    = CreateChild<DxuiButton>    (L"Previous");
-    m_findNextButton    = CreateChild<DxuiButton>    (L"Next");
-    m_findCloseButton   = CreateChild<DxuiButton>    (L"Close");
+    m_findCaseButton    = CreateChild<DxuiButton>    (L"Aa");
+    m_findWordButton    = CreateChild<DxuiButton>    (L"ab");
+    m_findRegexButton   = CreateChild<DxuiButton>    (L".*");
+    m_findPrevButton    = CreateChild<DxuiButton>    (s_kpszUpArrow);
+    m_findNextButton    = CreateChild<DxuiButton>    (s_kpszDownArrow);
+    m_findCloseButton   = CreateChild<DxuiButton>    (s_kpszMultiplyX);
     m_findStatus        = CreateChild<DxuiLabel>     ();
 
     //  All four windows exist from the start; the ones not open are hidden.
@@ -2245,8 +2246,11 @@ void DebuggerWindow::ConfigureFindBar()
     m_findBox->SetMaxLength   (256);
     m_findBox->SetPlaceholder (L"Find in the console");
 
-    m_findCaseBox->SetSingleLineLabel (true);
-    m_findWordBox->SetSingleLineLabel (true);
+    //  Each option is a toggle, shown emphasized while on, as Visual Studio
+    //  Code's find bar shows them.
+    m_findCaseButton->SetOnClick  ([this] { SetFindOptions (!m_findMatchCase, m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
+    m_findWordButton->SetOnClick  ([this] { SetFindOptions (m_findMatchCase, !m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
+    m_findRegexButton->SetOnClick ([this] { SetFindOptions (m_findMatchCase, m_findWholeWord, !m_findRegex); SetFocusedControl (m_findBox); });
 
     //  A button press takes the keys, so each gives them back to the box
     //  and the next Enter searches again.
@@ -2272,7 +2276,7 @@ void DebuggerWindow::ConfigureFindBar()
 
 std::vector<IDxuiControl *> DebuggerWindow::GetFindControls() const
 {
-    return { m_findBox, m_findCaseBox, m_findWordBox, m_findPrevButton, m_findNextButton, m_findCloseButton };
+    return { m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton };
 }
 
 
@@ -2291,11 +2295,9 @@ std::vector<IDxuiControl *> DebuggerWindow::GetFindControls() const
 void DebuggerWindow::SetFindBarVisible (bool shown)
 {
     m_findBox->SetVisible     (shown);
-    m_findCaseBox->SetVisible (shown);
-    m_findWordBox->SetVisible (shown);
     m_findStatus->SetVisible  (shown);
 
-    for (DxuiButton * button : { m_findPrevButton, m_findNextButton, m_findCloseButton })
+    for (DxuiButton * button : { m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton })
     {
         button->SetVisible (shown);
     }
@@ -2343,12 +2345,13 @@ void DebuggerWindow::PlaceFindBar()
     right = slot.right - px (64);
 
     m_findBox->Layout         (RECT { x, slot.top, x + px (200), slot.bottom }, m_scaler);  x += px (200) + pad;
-    m_findCaseBox->Layout     (RECT { x, slot.top, x + px (110), slot.bottom }, m_scaler);  x += px (110) + pad;
-    m_findWordBox->Layout     (RECT { x, slot.top, x + px (150), slot.bottom }, m_scaler);  x += px (150) + pad;
-    m_findPrevButton->Layout  (RECT { x, slot.top, x + px (80),  slot.bottom }, m_scaler);  x += px (80)  + pad;
-    m_findNextButton->Layout  (RECT { x, slot.top, x + px (64),  slot.bottom }, m_scaler);  x += px (64)  + pad;
-    m_findStatus->Layout      (RECT { x, slot.top, (std::max) (x, right - pad), slot.bottom }, m_scaler);
-    m_findCloseButton->Layout (RECT { (std::max) (x, right), slot.top, (std::max) (x, right) + px (64), slot.bottom }, m_scaler);
+    m_findCaseButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32);
+    m_findWordButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32);
+    m_findRegexButton->Layout (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32)  + pad;
+    m_findStatus->Layout      (RECT { x, slot.top, x + px (90),  slot.bottom }, m_scaler);  x += px (90)  + pad;
+    m_findPrevButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32);
+    m_findNextButton->Layout  (RECT { x, slot.top, x + px (32),  slot.bottom }, m_scaler);  x += px (32)  + pad;
+    m_findCloseButton->Layout (RECT { (std::min) (x, right), slot.top, (std::min) (x, right) + px (32), slot.bottom }, m_scaler);
 }
 
 
@@ -2443,6 +2446,36 @@ void DebuggerWindow::CloseFind()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::SetFindOptions
+//
+//  Match case, match whole word and regular expression, each shown
+//  emphasized while on. With none on, the text is found as a plain
+//  substring. The last count no longer holds, so it is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetFindOptions (bool matchCase, bool wholeWord, bool isRegex)
+{
+    m_findMatchCase = matchCase;
+    m_findWholeWord = wholeWord;
+    m_findRegex     = isRegex;
+
+    m_findCaseButton->SetEmphasis  (matchCase);
+    m_findWordButton->SetEmphasis  (wholeWord);
+    m_findRegexButton->SetEmphasis (isRegex);
+
+    m_findStatusText.clear();
+    m_findStatus->SetText (m_findStatusText);
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::FindInConsole
 //
 //  With nothing to find yet, this opens the bar to ask for it. Otherwise the
@@ -2455,6 +2488,8 @@ void DebuggerWindow::FindInConsole (bool forward)
 {
     const std::wstring &      needle = m_findBox->GetText();
     DxuiTextView::FindResult  result = DxuiTextView::FindResult::NotFound;
+    int                       index  = 0;
+    int                       count  = 0;
 
 
 
@@ -2464,8 +2499,8 @@ void DebuggerWindow::FindInConsole (bool forward)
         return;
     }
 
-    result           = m_consoleView->SelectMatch (needle, m_findCaseBox->IsChecked(), m_findWordBox->IsChecked(), forward);
-    m_findStatusText = GetFindStatusText (result, forward);
+    result           = m_consoleView->SelectMatch (needle, m_findMatchCase, m_findWholeWord, m_findRegex, forward, index, count);
+    m_findStatusText = GetFindStatusText (result, index, count);
     m_findStatus->SetText (m_findStatusText);
 
     Invalidate();
@@ -2481,14 +2516,14 @@ void DebuggerWindow::FindInConsole (bool forward)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerWindow::GetFindStatusText (DxuiTextView::FindResult result, bool forward)
+std::wstring DebuggerWindow::GetFindStatusText (DxuiTextView::FindResult result, int index, int count)
 {
-    switch (result)
+    if (result == DxuiTextView::FindResult::NotFound || count == 0)
     {
-    case DxuiTextView::FindResult::NotFound: return L"No matches";
-    case DxuiTextView::FindResult::Wrapped:  return forward ? L"Continued from the top" : L"Continued from the bottom";
-    default:                                 return L"";
+        return L"No results";
     }
+
+    return std::format (L"{} of {}", index, count);
 }
 
 
@@ -6043,10 +6078,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         if (IsRoutable (m_findBox))
         {
             m_findBox->SetMouseHover     (x, y);
-            m_findCaseBox->SetMouseHover (x, y);
-            m_findWordBox->SetMouseHover (x, y);
 
-            for (DxuiButton * button : { m_findPrevButton, m_findNextButton, m_findCloseButton })
+            for (DxuiButton * button : { m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton })
             {
                 button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
             }
@@ -6181,7 +6214,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     }
 
     if (GetSourceSlotOf (pane) >= 0)          { return { m_sourceDocs[(size_t) GetSourceSlotOf (pane)].banner, m_sourceDocs[(size_t) GetSourceSlotOf (pane)].view }; }
-    if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseBox, m_findWordBox, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
+    if (pane == DebuggerLayout::kConsole)     { return { m_consoleView, m_commandBox, m_findBox, m_findCaseButton, m_findWordButton, m_findRegexButton, m_findPrevButton, m_findNextButton, m_findCloseButton, m_findStatus }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_registerList };               }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointList };             }
     if (pane == DebuggerLayout::kWatches)     { return { m_watchList, m_watchEditor };   }

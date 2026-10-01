@@ -47,6 +47,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <regex>
 #include <span>
 #include <sstream>
 #include <string>

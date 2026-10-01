@@ -109,6 +109,29 @@ public:
     //  scrolls it into view. A match is always searched for all the way round.
     FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool forward);
 
+    //  One match: where it starts and how many characters it takes, which a
+    //  regular expression can make differ from the text searched for.
+    struct FindMatch
+    {
+        Position  start;
+        int       length = 0;
+    };
+
+    //  The same with an option to read the needle as a regular expression,
+    //  and the match's place among all of them: outIndex counts from 1, and
+    //  both are 0 with no match. A needle that is not a valid expression
+    //  matches nothing.
+    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount);
+
+    //  Every match in the rows, in order. False when the needle is not a valid
+    //  regular expression.
+    static bool  FindAllInRows (const std::vector<std::wstring> & rows,
+                                const std::wstring              & needle,
+                                bool                              matchCase,
+                                bool                              wholeWord,
+                                bool                              isRegex,
+                                std::vector<FindMatch>          & outMatches);
+
     //  The search itself, over each row's text with its cells joined by tabs.
     //  A forward search takes the first match starting at or after `from`, a
     //  backward one the last match starting before it. A whole-word search

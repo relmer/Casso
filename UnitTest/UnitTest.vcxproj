@@ -533,6 +533,7 @@
     <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiAddressBarTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTextViewFindOptionsTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
