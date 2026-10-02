@@ -207,8 +207,7 @@ HRESULT DiskSettings::ReadSavedDiskPath (
 
     // The remaining lookups are for optional keys; absent = nothing saved.
     hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_OK);
-    _Analysis_assume_ (uiPrefs != nullptr);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     hr = uiPrefs->GetString (keyName, pathNarrow);
     BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_OK);
