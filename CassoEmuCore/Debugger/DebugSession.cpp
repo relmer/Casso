@@ -1367,6 +1367,22 @@ void DebugSession::OnUserResumed()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::SetAttached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetAttached (bool isAttached)
+{
+    m_isAttached = isAttached;
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ShouldStopBefore
 //
 //  Records the instruction address for watchpoint hits during the
@@ -2582,8 +2598,8 @@ Byte DebugSession::PeekByte (Word address) const
 //
 //  DebugSession::UpdateHookInstalled
 //
-//  The hook is installed while any enabled stop condition exists or a run is
-//  active, and removed otherwise, so a machine with no debugger interest pays
+//  The hook is installed while the debugger is attached and any enabled stop
+//  condition exists or a run is active, and removed otherwise, so a machine with no debugger interest pays
 //  only the null test. The call record does not need it: the CPU reports the
 //  instructions it needs (OnWatchedFetch).
 //
@@ -2591,7 +2607,7 @@ Byte DebugSession::PeekByte (Word address) const
 
 void DebugSession::UpdateHookInstalled()
 {
-    bool  shouldInstall = HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping;
+    bool  shouldInstall = m_isAttached && (HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping);
 
 
 

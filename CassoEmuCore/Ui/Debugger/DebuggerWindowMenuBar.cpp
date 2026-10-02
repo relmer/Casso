@@ -16,21 +16,21 @@
 //
 //  DebuggerWindow::Detach
 //
-//  Closes the debugger and leaves the machine running: a stopped machine is
-//  resumed first, as Run resumes it.
+//  Closes the debugger and leaves the machine running untouched: the host
+//  takes the debugger's CPU hook off and resumes a stopped machine, and
+//  keeps the breakpoints for when the debugger is opened again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::Detach()
 {
-    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
-    HWND  hwnd   = GetHwnd();
+    HWND  hwnd = GetHwnd();
 
 
 
-    if (paused)
+    if (m_host != nullptr)
     {
-        (void) OnMappedCommand (DebuggerCommands::kRun);
+        m_host->DetachDebugger();
     }
 
     if (hwnd != nullptr)

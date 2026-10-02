@@ -114,14 +114,33 @@ bool EmulatorShell::IsDebuggerMessage (const MSG & msg) const
 //
 //  Closing the window closes the debugger: the channel closes and every client
 //  is told so. The session survives, so reopening finds the breakpoints as
-//  they were left.
+//  they were left. A close that Detach asked for detaches as well.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnDebuggerWindowClosed()
 {
+    bool  isDetach = std::exchange (m_isDetachPending, false);
+
+
+
     m_isDebugWindowShown.store (false);
-    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE);
+    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DetachDebugger
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DetachDebugger()
+{
+    m_isDetachPending = true;
 }
 
 
@@ -826,6 +845,8 @@ void EmulatorShell::OpenDebugChannel()
         return;
     }
 
+    m_debugger->GetSession().SetAttached (true);
+
     SetDebugCommandHandler ([this] (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
     {
         std::vector<std::string>  lines;
@@ -863,14 +884,33 @@ void EmulatorShell::OpenDebugChannel()
 //  The channel only. The controller and its session stay, so breakpoints and
 //  the machine's pause state are left as they were.
 //
+//  A DETACH ALSO TAKES THE DEBUGGER OFF THE MACHINE: a debugger run in
+//  progress ends, the session's CPU hook comes off, and a stopped machine
+//  runs freely. The breakpoints stay in the session, and opening the window
+//  again attaches it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CloseDebugChannel()
+void EmulatorShell::CloseDebugChannel (bool isDetach)
 {
-    if (m_debugger != nullptr)
+    if (m_debugger == nullptr)
     {
-        m_debugger->Close();
+        return;
     }
+
+    if (isDetach)
+    {
+        if (m_debugRunDriver != nullptr)
+        {
+            m_debugRunDriver->EndForUserPause();
+        }
+
+        m_debugger->GetSession().SetAttached (false);
+        m_cpuManager.SetPaused (false);
+        m_debugger->GetSession().OnUserResumed();
+    }
+
+    m_debugger->Close();
 }
 
 

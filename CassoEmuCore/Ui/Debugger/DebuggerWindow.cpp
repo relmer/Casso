@@ -6412,6 +6412,16 @@ void DebuggerWindow::ApplySnapshot()
         m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
     }
 
+    //  As in Visual Studio, the last row adds a watch: an expression typed
+    //  into it in place becomes one.
+    {
+        DxuiListView::Cell  prompt = { L"Add item to watch" };
+
+        prompt.dim = true;
+        rows.push_back ({ prompt, { L"" } });
+        m_watchRows.push_back ({ WatchRowKind::Add, 0 });
+    }
+
     m_watchList->SetRows (std::move (rows));
 
     rows.clear();
@@ -6491,8 +6501,9 @@ std::vector<DxuiListView::Cell> DebuggerWindow::MakeWatchHeading (const std::wst
 //
 //  A box over the cell, holding what the cell shows, all of it selected so
 //  typing replaces it -- as Visual Studio's watch window opens one. A heading
-//  edits nothing, and an automatic watch's expression is what the
-//  instruction touches, so only its value edits.
+//  edits nothing, an automatic watch's expression is what the instruction
+//  touches, so only its value edits, and the add row opens empty for an
+//  expression.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6517,6 +6528,12 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
         return;
     }
 
+    //  The add row has only an expression to type, wherever it was opened.
+    if (what.kind == WatchRowKind::Add)
+    {
+        column = 0;
+    }
+
     if (!m_watchList->GetCellTextRectPx (row, (size_t) column, cell))
     {
         return;
@@ -6526,7 +6543,7 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
     {
         text = Widen (m_snapshot->autoWatches[(size_t) what.index].value);
     }
-    else
+    else if (what.kind == WatchRowKind::Manual)
     {
         for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
         {
@@ -6583,7 +6600,18 @@ void DebuggerWindow::EndWatchEdit (bool commit)
         return;
     }
 
-    if (commit && m_snapshot != nullptr)
+    if (commit && m_watchEdit.what.kind == WatchRowKind::Add)
+    {
+        std::string  expression = TextEncoding::WideToNarrow (typed);
+
+        expression.erase (0, std::min (expression.size(), expression.find_first_not_of (" \t")));
+
+        if (!expression.empty())
+        {
+            actions.push_back (DebuggerActions::GetAddWatch (expression, GetMode()));
+        }
+    }
+    else if (commit && m_snapshot != nullptr)
     {
         bool                                        isManual = m_watchEdit.what.kind == WatchRowKind::Manual;
         std::optional<int>                          watchId  = isManual ? std::optional<int> (m_watchEdit.what.index) : std::nullopt;

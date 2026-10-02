@@ -123,6 +123,11 @@ public:
     void   OnUserPaused          ();
     void   OnUserResumed         ();
 
+    // Detach takes the CPU hook off the machine, so it runs untouched, and
+    // keeps every table; attaching again puts the hook back for them.
+    void   SetAttached           (bool isAttached);
+    bool   IsAttached            () const { return m_isAttached; }
+
     // What each mode prints before a command line: `>`, the Monitor's `*`,
     // and WinDbg's `0:000>`.
     static const char *     GetPrompt      (CommandMode mode);
@@ -332,6 +337,7 @@ private:
     LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;
     bool                                  m_hookInstalled = false;
+    bool                                  m_isAttached    = true;
     DebugHookFilter                       m_hookFilter;
     std::optional<int>                    m_lastBreakpointId;
     std::optional<WatchHit>               m_beforeHit;

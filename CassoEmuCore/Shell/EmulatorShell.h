@@ -498,7 +498,7 @@ private:
 
     // The window's requests, carried out on the CPU thread (ICpuCommandTarget).
     void    OpenDebugChannel   ();
-    void    CloseDebugChannel  ();
+    void    CloseDebugChannel  (bool isDetach);
     void    PauseDebugRun      ();
     void    SetDebugView       (const std::string & view, std::optional<Word> address);
     void    SetDebugTraceView  (std::optional<uint64_t> first);
@@ -528,6 +528,7 @@ private:
     bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                       std::vector<std::string>                     & consoleLines) override;
     void    OnDebuggerWindowClosed   () override;
+    void    DetachDebugger           () override;
     std::string  GetDebuggerKeyScheme () override;
     void         SetDebuggerKeyScheme (const std::string & name) override;
     std::string  GetDebuggerTheme     () override;
@@ -2183,6 +2184,7 @@ private:
     bool                             m_isDebugViewDirty      = true;
     bool                             m_wasPausedAtDebugBuild = false;
     std::atomic<bool>                              m_isDebugWindowShown { false };
+    bool                                           m_isDetachPending    = false;
     std::mutex                                     m_debugViewMutex;
     std::shared_ptr<const DebuggerViewSnapshot>    m_debugViewSnapshot;
     bool                                           m_isDebugViewFresh   = false;

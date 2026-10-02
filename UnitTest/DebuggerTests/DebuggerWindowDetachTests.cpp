@@ -56,7 +56,10 @@ namespace DebuggerWindowDetachTests
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
-        int              runs = 0;
+        void  DetachDebugger           ()                                          override { detaches++; }
+
+        int              runs     = 0;
+        int              detaches = 0;
         FakeHostDialogs  dialogs;
     };
 
@@ -140,7 +143,7 @@ namespace DebuggerWindowDetachTests
         }
 
 
-        TEST_METHOD (DetachResumesAStoppedMachine)
+        TEST_METHOD (DetachAsksTheHostToDetachAndRunsNoCommand)
         {
             CassoTheme                 theme    = CassoTheme::MakeSkeuomorphic();
             DetachHost                 host;
@@ -159,7 +162,8 @@ namespace DebuggerWindowDetachTests
             Assert::IsNotNull (row);
 
             row->command->dispatch();
-            Assert::AreEqual (1, host.runs, L"the stopped machine is resumed");
+            Assert::AreEqual (1, host.detaches, L"the host takes the hook off and resumes the machine");
+            Assert::AreEqual (0, host.runs,     L"no debugger run is started");
         }
 
 

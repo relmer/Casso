@@ -102,6 +102,11 @@ public:
 
     virtual void  OnDebuggerWindowClosed  ()                               = 0;
 
+    //  Detach: the close that follows leaves the machine running with the
+    //  debugger's CPU hook removed. A host with no machine, as a test's is,
+    //  has nothing to do.
+    virtual void  DetachDebugger          ()                               {}
+
     //  The file pickers the R and W prompt opens.
     virtual IHostDialogs &  GetHostDialogs () noexcept                     = 0;
 
@@ -725,7 +730,7 @@ private:
     //  What each row of the watch pane is, since the list mixes headings,
     //  automatic watches and the user's own: an automatic row carries its
     //  index into the snapshot, a manual one its watch id.
-    enum class WatchRowKind { Heading, Automatic, Manual };
+    enum class WatchRowKind { Heading, Automatic, Manual, Add };
 
     struct WatchRow
     {

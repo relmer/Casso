@@ -132,7 +132,7 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             break;
 
         case IDM_DEBUG_CLOSE:
-            target.CloseDebugChannel();
+            target.CloseDebugChannel (cmd.payload == "detach");
             break;
 
         case IDM_DEBUG_PAUSE:

@@ -59,7 +59,7 @@ public:
     //  and move a pane. `view` is "code" or "memory"; an empty address means
     //  the code pane follows the PC again.
     virtual void     OpenDebugChannel         ()                                                = 0;
-    virtual void     CloseDebugChannel        ()                                                = 0;
+    virtual void     CloseDebugChannel        (bool isDetach)                                   = 0;
     virtual void     PauseDebugRun            ()                                                = 0;
 
     //  Runs the debugger window's queued actions, each directly.
