@@ -3,7 +3,28 @@
 #include "Pch.h"
 
 #include "IDiskImage.h"
+#include "FluxTrack.h"
 #include "Machines/Apple2/Common/WozMetadata.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackKind
+//
+//  How a storage slot holds its track. A bit track is a loop of equal-length
+//  cells; a flux track is a timeline of transitions that keeps how long each
+//  cell actually was. A WOZ 2.1 image can hold both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class TrackKind
+{
+    Bits,
+    Flux,
+};
 
 
 
@@ -108,6 +129,23 @@ public:
     // track (qt / 4); WOZ images install an explicit map from the TMAP so
     // half/quarter-track-formatted protections resolve to distinct streams.
     int              ResolveQuarterTrack (int quarterTrack) const;
+
+    // Flux slots. A slot is a flux track when the image's FLUX map refers to
+    // it; its bit buffer then stays empty and every bit-level accessor sees
+    // no data, so only code that asks for the flux reads it.
+    TrackKind           GetTrackKind         (int slot) const;
+    void                SetFluxTrack         (int slot, const vector<Byte> & fluxBytes);
+    const FluxTrack  &  GetFluxTrack         (int slot) const { return m_fluxTracks[slot]; }
+    bool                HasFluxTracks        () const;
+
+    // Puts a write into a flux track at the controller's cell timing and
+    // marks the track dirty. Does nothing on a write-protected image.
+    void                SpliceFluxWrite      (int slot, uint64_t startTick, const vector<uint8_t> & bits);
+
+    // Changes whenever what a quarter track resolves to, or a flux track's
+    // bytes, may have changed. A reader that caches a resolved slot or a
+    // flux cursor compares it to know when to look again.
+    uint64_t            GetLayoutGeneration  () const { return m_layoutGeneration; }
     void             ClearQuarterTrackMap ();
     void             SetQuarterTrackSlot (int quarterTrack, int slot);
     void             EnsureTrackSlots    (int slotCount);
@@ -143,6 +181,9 @@ private:
     vector<size_t>        m_trackBitCounts;
     vector<bool>          m_trackDirty;
     vector<int>           m_quarterTrackMap;
+    vector<TrackKind>     m_slotKind;
+    vector<FluxTrack>     m_fluxTracks;
+    uint64_t              m_layoutGeneration    = 0;
     DiskFormat            m_format              = DiskFormat::Dsk;
     bool                  m_loaded              = false;
     bool                  m_dirty               = false;

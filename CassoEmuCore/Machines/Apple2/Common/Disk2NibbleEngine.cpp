@@ -32,9 +32,14 @@ Disk2NibbleEngine::Disk2NibbleEngine()
 
 void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 {
+    CommitPendingWrite();
+
     m_disk        = disk;
     m_bitPos      = 0;
     m_headWindow  = 0;
+
+    ResolveSlot();
+    PlaceHead (0, false);
 }
 
 
@@ -53,6 +58,11 @@ void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 
 void Disk2NibbleEngine::SetMotorOn (bool on)
 {
+    if (!on)
+    {
+        CommitPendingWrite();
+    }
+
     m_motorOn = on;
 }
 
@@ -68,6 +78,11 @@ void Disk2NibbleEngine::SetMotorOn (bool on)
 
 void Disk2NibbleEngine::SetWriteMode (bool q7)
 {
+    if (!q7)
+    {
+        CommitPendingWrite();
+    }
+
     m_writeMode = q7;
 }
 
@@ -88,15 +103,17 @@ void Disk2NibbleEngine::SetShiftLoadMode (bool q6)
 //  Clamps to [kMinTrack, kMaxTrack]. Track is a quarter-track index
 //  (0..159); the controller passes the head's physical quarter-track
 //  position. ResolveQuarterTrack maps it to a backing storage slot (-1 ==
-//  unformatted). Switching tracks preserves rotational position by
-//  carrying the bit cursor modulo the new track's bit length.
+//  unformatted). Switching tracks preserves rotational position: between
+//  two bit tracks by carrying the bit cursor modulo the new track's bit
+//  length, and to or from a flux track by the fraction of a revolution.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2NibbleEngine::SetCurrentTrack (int track)
 {
-    int      clamped = track;
-    size_t   newBits = 0;
+    int      clamped  = track;
+    double   angle    = 0;
+    bool     wasFlux  = false;
 
 
 
@@ -123,18 +140,289 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
         // RWTS read loop frequently times out and reports a checksum
         // error. Cap to the new track's bit length so we don't end
         // up past the wrap.
-        m_currentTrack = clamped;
-        newBits        = GetCurrentTrackBits();
+        CommitPendingWrite();
 
-        if (newBits > 0)
+        angle          = GetAngle();
+        wasFlux        = m_isFluxSlot;
+        m_currentTrack = clamped;
+
+        ResolveSlot();
+        PlaceHead (angle, wasFlux);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveSlot
+//
+//  Looks up the slot under the head once, so the sequencer does not have to
+//  on each of the 410,000 clocks a revolution takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::ResolveSlot()
+{
+    m_slot             = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+    m_isFluxSlot       = (m_slot >= 0) && (m_disk->GetTrackKind (m_slot) == TrackKind::Flux);
+    m_layoutGeneration = (m_disk != nullptr) ? m_disk->GetLayoutGeneration() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshSlot
+//
+//  The disk's layout changed under the head -- a reload, a new map, a write
+//  spliced into a flux track. Look up the slot again and put the head back
+//  at the same point of the revolution.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::RefreshSlot()
+{
+    double  angle   = GetAngle();
+    bool    wasFlux = m_isFluxSlot;
+
+
+
+    ResolveSlot();
+    PlaceHead (angle, wasFlux);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetAngle
+//
+//  How far round the revolution the head is, from 0 up to 1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double Disk2NibbleEngine::GetAngle() const
+{
+    double  angle = 0;
+    size_t  bits  = 0;
+
+
+
+    if (m_isFluxSlot && m_fluxRevUnits > 0)
+    {
+        angle = static_cast<double> (m_fluxNow % m_fluxRevUnits) / static_cast<double> (m_fluxRevUnits);
+    }
+    else
+    {
+        bits  = GetCurrentTrackBits();
+        angle = (bits > 0) ? static_cast<double> (m_bitPos % bits) / static_cast<double> (bits) : 0;
+    }
+
+    return angle;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlaceHead
+//
+//  Puts the head on the newly resolved track at the given angle. Moving from
+//  one bit track to another keeps the bit cursor modulo the new length, as it
+//  always has; anything involving a flux track goes by the angle, since a bit
+//  count and a tick count only meet as fractions of a revolution.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::PlaceHead (double angle, bool cameFromFlux)
+{
+    size_t  newBits = 0;
+
+
+
+    if (m_isFluxSlot)
+    {
+        SeekFlux (angle);
+        return;
+    }
+
+    newBits = GetCurrentTrackBits();
+
+    if (newBits == 0)
+    {
+        m_bitPos = 0;
+    }
+    else if (cameFromFlux)
+    {
+        m_bitPos = static_cast<size_t> (angle * static_cast<double> (newBits)) % newBits;
+    }
+    else
+    {
+        m_bitPos = m_bitPos % newBits;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SeekFlux
+//
+//  Starts flux playback at the given angle. The clock restarts at that point
+//  of the first revolution, and the cursor at the first transition at or
+//  after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::SeekFlux (double angle)
+{
+    const FluxTrack  &  track     = m_disk->GetFluxTrack (m_slot);
+    uint64_t            revTicks  = track.GetRevolutionTicks();
+    uint64_t            tickInRev = static_cast<uint64_t> (angle * static_cast<double> (revTicks));
+
+
+
+    if (tickInRev >= revTicks)
+    {
+        tickInRev = 0;
+    }
+
+    m_fluxRevUnits  = revTicks * kFluxUnitsPerTick;
+    m_fluxNow       = tickInRev * kFluxUnitsPerTick;
+    m_fluxLastPulse = m_fluxNow;
+    m_fluxCursor    = track.FindTransitionAtOrAfter (tickInRev);
+    m_fluxDue       = track.HasTransitions() ? m_fluxCursor.tick * kFluxUnitsPerTick : UINT64_MAX;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFluxPulse
+//
+//  Advances flux time by one sequencer clock and reports whether a transition
+//  reached the head during it. With no real transition for longer than the
+//  read amplifier holds its gain -- four cells, the same window the bit-track
+//  model uses -- the amplifier turns noise into pulses, once per cell and
+//  with the same odds as on a bit track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::StepFluxPulse()
+{
+    constexpr uint64_t  kWeakWindowCells = 4;
+    constexpr uint64_t  kWeakWindowUnits = kWeakWindowCells * kFluxUnitsPerCell;
+
+
+
+    const FluxTrack  &  track = m_disk->GetFluxTrack (m_slot);
+    uint8_t             pulse = 0;
+
+
+
+    m_fluxNow += kFluxUnitsPerLssClock;
+
+    if (m_fluxNow >= m_fluxDue)
+    {
+        pulse           = 1;
+        m_fluxLastPulse = m_fluxDue;
+
+        // Two transitions inside one clock reach the sequencer as one pulse.
+        while (m_fluxDue <= m_fluxNow)
         {
-            m_bitPos = m_bitPos % newBits;
-        }
-        else
-        {
-            m_bitPos = 0;
+            track.AdvanceCursor (m_fluxCursor);
+            m_fluxDue = m_fluxCursor.tick * kFluxUnitsPerTick;
         }
     }
+    else if (m_lssClock == kLssReadClock && m_fluxNow - m_fluxLastPulse > kWeakWindowUnits)
+    {
+        pulse = NextWeakBit();
+    }
+
+    if (pulse != 0)
+    {
+        m_fluxPulseClock = m_fluxNow;
+        m_fluxPulseCount++;
+    }
+
+    return pulse;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordFluxWriteBit
+//
+//  One written cell on a flux track. The cells are held as bits and spliced
+//  into the flux in one pass when the write ends, rather than re-encoding the
+//  track a bit at a time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::RecordFluxWriteBit (uint8_t bit)
+{
+    bool  canWrite = m_writeMode && !m_disk->IsWriteProtected();
+
+
+
+    if (!canWrite)
+    {
+        CommitPendingWrite();
+        return;
+    }
+
+    if (!m_burstActive)
+    {
+        m_burstActive    = true;
+        m_burstSlot      = m_slot;
+        m_burstStartTick = (m_fluxNow % m_fluxRevUnits) / kFluxUnitsPerTick;
+        m_burstBits.clear();
+    }
+
+    m_burstBits.push_back (bit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitPendingWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::CommitPendingWrite()
+{
+    if (!m_burstActive)
+    {
+        return;
+    }
+
+    m_burstActive = false;
+
+    if (m_disk != nullptr)
+    {
+        m_disk->SpliceFluxWrite (m_burstSlot, m_burstStartTick, m_burstBits);
+    }
+
+    m_burstBits.clear();
 }
 
 
@@ -187,6 +475,8 @@ void Disk2NibbleEngine::Reset()
 
 
 
+    CommitPendingWrite();
+
     m_motorOn        = false;
     m_writeMode      = false;
     m_shiftLoadMode  = false;
@@ -200,6 +490,9 @@ void Disk2NibbleEngine::Reset()
     m_writeNibbles   = 0;
     m_headWindow     = 0;
     m_weakRngState   = 0xDEADBEEFu;
+
+    ResolveSlot();
+    PlaceHead (0, false);
 }
 
 
@@ -256,7 +549,6 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 
 void Disk2NibbleEngine::StepLss()
 {
-    constexpr int      kLssReadClock   = 4;
     constexpr int      kLssMaxClock    = 7;
     constexpr uint8_t  kIdxNoPulse     = 0x01;
     constexpr uint8_t  kIdxLatchMsb    = 0x02;
@@ -274,9 +566,20 @@ void Disk2NibbleEngine::StepLss()
     uint8_t   command    = 0;
     bool      prevMsbSet = false;
     size_t    trackBits  = 0;
-    int       slot       = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+    int       slot       = 0;
 
-    if (m_lssClock == kLssReadClock)
+    if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
+    {
+        RefreshSlot();
+    }
+
+    slot = m_slot;
+
+    if (m_isFluxSlot)
+    {
+        pulse = StepFluxPulse();
+    }
+    else if (m_lssClock == kLssReadClock)
     {
         uint8_t  rawBit = (slot >= 0)
                           ? m_disk->ReadBit (slot, m_bitPos)
@@ -336,7 +639,13 @@ void Disk2NibbleEngine::StepLss()
         m_readNibbles++;
     }
 
-    if (m_lssClock == kLssReadClock)
+    if (m_lssClock == kLssReadClock && m_isFluxSlot)
+    {
+        // A flux track keeps its own time, so there is no bit cursor to move;
+        // a write is collected and spliced in when it ends.
+        RecordFluxWriteBit (static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? 1 : 0));
+    }
+    else if (m_lssClock == kLssReadClock)
     {
         if (m_writeMode && slot >= 0 && !m_disk->IsWriteProtected())
         {
