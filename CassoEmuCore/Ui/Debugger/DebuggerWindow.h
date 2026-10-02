@@ -188,8 +188,8 @@ public:
 
     static DxuiListView::Cell  GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb);
 
-    //  An Undo or Redo item and tip: "Undo changed 2 bytes at $0300", or the
-    //  bare verb when there is nothing to say.
+    //  An Undo or Redo item and tip, quoting the edit: Undo "changed 2 bytes
+    //  at $0300", or the bare verb when there is nothing to say.
     static std::wstring        GetUndoLabel            (bool redo, const std::wstring & text);
 
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host);

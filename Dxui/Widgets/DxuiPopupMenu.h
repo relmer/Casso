@@ -159,8 +159,9 @@ public:
     void  ClearColors ()                        { m_colorsSet = false; }
 
     //  Underline each row's mnemonic letter, as a menu opened from the
-    //  keyboard does.
-    void  SetShowMnemonicCues (bool show)       { m_showCues = show; }
+    //  keyboard does. An open submenu follows, as pressing Alt reaches every
+    //  level of an open menu.
+    void  SetShowMnemonicCues (bool show);
 
     //  The dimensions the menu lays out with, read from the Windows menu
     //  settings and refreshed on every DPI change. A caller that sets them

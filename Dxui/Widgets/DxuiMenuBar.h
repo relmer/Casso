@@ -169,6 +169,11 @@ public:
                                  int                & outIndex,
                                  wchar_t            & outLower);
 
+    // Where an access-key underline's top edge goes for a line of body text
+    // that starts at `lineTop` and is `lineHeight` tall: just under the
+    // baseline, where Windows draws it, not at the bottom of the line.
+    static float  GetMnemonicUnderlineTop (float lineTop, float lineHeight);
+
 private:
     static bool  IsPointInRect (const RECT & rect, int x, int y);
     static int   ScaleDpi      (int dipValue, UINT dpi);

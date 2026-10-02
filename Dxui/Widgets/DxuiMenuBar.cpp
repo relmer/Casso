@@ -1121,7 +1121,7 @@ void DxuiMenuBar::PaintStrip (
             }
 
             baseX = (float) m_titleRects[i].left + (rectW - fullW) / 2.0f + prefixW;
-            baseY = (float) m_titleRects[i].top  + (rectH + fullH) / 2.0f;
+            baseY = GetMnemonicUnderlineTop ((float) m_titleRects[i].top + (rectH - fullH) / 2.0f, fullH);
 
             painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, stripFg);
         }
@@ -1556,6 +1556,30 @@ void DxuiMenuBar::ParseMnemonic (
 
         outStripped.push_back (ch);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::GetMnemonicUnderlineTop
+//
+//  The body face's underline position as a fraction of its line height:
+//  Segoe UI's ascent is 2210 units and its descent 514, so the baseline sits
+//  at 2210 / 2724 of the line, and its underline is centered 153 units
+//  below that. Snapped to a whole pixel so the one-pixel rule stays sharp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiMenuBar::GetMnemonicUnderlineTop (float lineTop, float lineHeight)
+{
+    static constexpr float  s_kUnderlineFraction = (2210.0f + 153.0f) / 2724.0f;
+
+
+
+    return std::floor (lineTop + lineHeight * s_kUnderlineFraction);
 }
 
 

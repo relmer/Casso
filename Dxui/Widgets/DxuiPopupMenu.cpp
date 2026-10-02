@@ -192,6 +192,26 @@ DxuiPopupMenu::~DxuiPopupMenu()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPopupMenu::SetShowMnemonicCues
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::SetShowMnemonicCues (bool show)
+{
+    m_showCues = show;
+
+    if (m_child != nullptr)
+    {
+        m_child->SetShowMnemonicCues (show);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPopupMenu::SetColors
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2452,10 +2472,11 @@ void DxuiPopupMenu::PaintIconRow (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 //  DxuiPopupMenu::PaintUnderline
 //
-//  The mnemonic cue: a one-pixel rule under the marked letter. Its left edge
-//  is the width of the text before the letter and its length is the width
-//  of the prefix-plus-letter less the prefix, both measured rather than
-//  estimated, so it sits under the glyph the parser marked.
+//  The mnemonic cue: a one-pixel rule just under the marked letter's
+//  baseline. Its left edge is the width of the text before the letter and
+//  its length is the width of the prefix-plus-letter less the prefix, both
+//  measured rather than estimated, so it sits under the glyph the parser
+//  marked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2496,7 +2517,11 @@ void DxuiPopupMenu::PaintUnderline (
     hr = text.MeasureString (prefixCh.c_str(), fontDip, DxuiTheme::kBodyFace, withChW, ignoredH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    painter.FillRect (labelX + prefixW, labelY + fullH, withChW - prefixW, kUnderlineThicknessDip, ink);
+    painter.FillRect (labelX + prefixW,
+                      DxuiMenuBar::GetMnemonicUnderlineTop (labelY, fullH),
+                      withChW - prefixW,
+                      kUnderlineThicknessDip,
+                      ink);
 }
 
 

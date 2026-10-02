@@ -18,8 +18,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  PaneUndoTextTests
 //
 //  The registers, stack, memory and watch panes' Undo and Redo say what they
-//  act on, in the context menu and in the toolbar's tips: "Undo changed 2
-//  bytes at $0300". A memory window's bar carries Undo and Redo buttons.
+//  act on, in the context menu and in the toolbar's tips, quoting it: Undo
+//  "changed 2 bytes at $0300". A memory window's bar carries Undo and Redo buttons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,10 +43,10 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring(), model.GetUndoText());
             Assert::IsTrue   (model.WriteBytes (0x0300, data));
-            Assert::AreEqual (std::wstring (L"Undo changed 2 bytes at $0300"), DebuggerWindow::GetUndoLabel (false, model.GetUndoText()));
+            Assert::AreEqual (std::wstring (L"Undo \"changed 2 bytes at $0300\""), DebuggerWindow::GetUndoLabel (false, model.GetUndoText()));
 
             Assert::IsTrue   (model.Undo());
-            Assert::AreEqual (std::wstring (L"Redo changed 2 bytes at $0300"), DebuggerWindow::GetUndoLabel (true, model.GetRedoText()));
+            Assert::AreEqual (std::wstring (L"Redo \"changed 2 bytes at $0300\""), DebuggerWindow::GetUndoLabel (true, model.GetRedoText()));
         }
 
 
@@ -72,7 +72,7 @@ namespace DebuggerTests
 
 
             history.Record ("S", 0xF0, 0x80, 0x0300);
-            Assert::AreEqual (std::wstring (L"Undo changed register S"), DebuggerWindow::GetUndoLabel (false, history.GetUndoText()));
+            Assert::AreEqual (std::wstring (L"Undo \"changed register S\""), DebuggerWindow::GetUndoLabel (false, history.GetUndoText()));
         }
 
 

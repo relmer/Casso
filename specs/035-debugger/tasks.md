@@ -1126,10 +1126,10 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T397 Owner review 2026-10-02: find in selection does not work; make it search only the selection taken when the option was turned on
 - [X] T398 Owner review 2026-10-02: the debug toolbar's default position is the top band, below the menu bar
 - [X] T399 Owner review 2026-10-02: the disassembly's viewing options default to all checked
-- [ ] T400 Owner review 2026-10-02: undo text quotes the operation: Undo "changed 3 bytes at $0300", in tips and menu items
+- [X] T400 Owner review 2026-10-02: undo text quotes the operation: Undo "changed 3 bytes at $0300", in tips and menu items
 - [X] T401 Owner review 2026-10-02: the disabled "Show source code" check box gets a tip saying how to get source: load a debug file, or open the source
 - [X] T402 Owner review 2026-10-02: the "Show symbol names" tip lists the loaded symbol sources, one per line (the built-in tables and the user's files)
-- [ ] T403 Owner review 2026-10-02: menu access-key underlines sit too far below their letter; pressing Alt shows the underlines in every submenu as well
+- [X] T403 Owner review 2026-10-02: menu access-key underlines sit too far below their letter; pressing Alt shows the underlines in every submenu as well
 - [X] T404 Owner review 2026-10-02: the light theme's disassembly is still poor: black text too stark, instruction operands barely readable, the cyan result barely readable; give every color AA contrast against the light background
 - [ ] T405 Owner answer 2026-10-02: breakpoint export stays in AppleWin's format, and import reads it in any console dialect
 - [X] T406 Owner answer 2026-10-02: the Mockingboard pane's "running" timer text clips its descenders; fix it
