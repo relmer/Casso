@@ -192,8 +192,13 @@ valuable thing in another project's file is often not its code but its
 
 | Emulator | Approach |
 |---|---|
-| **AppleWin** (GPL-2) | Sampled phoneme playback at a fixed rate. Its own documentation describes the SSI-263 emulation as basic, with **no inflection and no filter support**. It also reuses SSI-263 phonemes to approximate the SC-01, which its notes acknowledge is rough, the two chips having 64 phonemes in different orders that do not map 1:1 |
-| **MAME** (GPL-2) | Full synthesis for the SC-01, debuted in 0.181, built by reverse-engineering **die photographs plus the patent** — timing circuit, transition circuit, glottal generator, and noise source. Described as near-perfect digitally, with the analog section still imperfect (plosives) |
+| **AppleWin** (GPL-2) | Sampled phoneme playback at a fixed rate: 62 recorded SSI-263 phoneme samples (`SSI263Phonemes.h`). Its own documentation describes the SSI-263 emulation as basic, playing phonemes "at a fixed rate without any support for inflection or filters". It also reuses those SSI-263 samples to approximate the SC-01, which its notes acknowledge is rough, the two chips having 64 phonemes in different orders that do not map 1:1 |
+| **MAME** (BSD-3-Clause source files) | Full synthesis for the SC-01, built by reverse-engineering **die photographs plus the patent** — timing circuit, transition circuit, glottal generator, and noise source (`votrax.cpp`, O. Galibert, December 2016). Described as near-perfect digitally, with the analog section still imperfect (plosives). Its Apple II Mockingboard (`a2mockingboard.cpp`) is the Sound/Speech I with an SC-01A; it has **no SSI-263 on the Apple II**. Its only SSI-263 is `ssi263hle.cpp` (used by Thayer's Quest and a C64 cartridge), which maps SSI-263 phonemes onto the SC-01A and whose header calls itself "completely wrong" |
+
+*(Corrected 2026-09-25 against the AppleWin and MAME sources: earlier text here
+and in D10a said both emulators substitute SC-01A data for the SSI-263. Only
+MAME does, and only outside the Apple II; AppleWin plays recorded samples. The
+MAME files involved are BSD-3-Clause, not GPL-2.)*
 
 **What this tells us**:
 
@@ -206,8 +211,9 @@ valuable thing in another project's file is often not its code but its
 - **Die photographs of the SSI-263P are publicly published** by visual6502, an
   independent primary source available to us directly.
 
-**Licensing boundary**: both emulators are GPL-2, so their *code* stays out of
-ours. Their documentation, their approach, and — critically — the **provenance of
+**Licensing boundary**: AppleWin is GPL-2, and MAME as a whole is distributed
+under GPL-2 even though the files read here are BSD-3-Clause, so their *code*
+stays out of ours. Their documentation, their approach, and — critically — the **provenance of
 their data** are all fair game and worth mining.
 
 ### D10a — Provenance of the formant data, and why it does not help us
@@ -217,7 +223,12 @@ finding in this research, and it is a negative one.
 
 **MAME does not contain the SC-01's formant tables. It reads them from
 `sc01a.bin` — a dump of the chip's own internal parameter ROM** (CRC32
-`fc416227`), extracted by decapping the part in 2007. The patent describes the
+`fc416227`), read from a die photograph of the part. The die images are on
+Olivier Galibert's site, <https://og.kervella.org/sc01a/> (top-metal photograph
+dated July 2014), and the file entered MAME in December 2016, replacing an
+earlier `sc01.bin` (CRC `0353dd6c`) that MAME had carried since March 2012. No
+source found supports the "2007" date this section previously gave. The patent
+describes the
 structure this ROM holds: for each of the 64 phonemes, twelve control-signal
 parameters, including the formant frequencies and Q values.
 
@@ -230,17 +241,18 @@ treated as chip data rather than project code.
 
 **And then the finding that matters**: `sc01a.bin` is the **SC-01A's** ROM. The
 SSI-263A/SC-02 is a different part with **different phoneme data, and its
-parameter ROM has never been extracted.** MAME and AppleWin both approximate the
-SC-02 by mapping its phonemes onto SC-01 data — which their own communities
-describe as not producing accurate speech, the two chips having 64 phonemes in
-different orders that do not map 1:1.
+parameter ROM has never been extracted.** Neither emulator has real SSI-263
+data. AppleWin plays recorded samples with no inflection or filter response.
+MAME's only SSI-263 maps its phonemes onto SC-01 data, and its own source calls
+that "completely wrong" — the two chips having 64 phonemes in different orders
+that do not map 1:1.
 
 **There is therefore no upstream source to find, in any license, for the chip
 this feature emulates.** The data is still inside the part. What exists publicly:
 
 | Asset | Status |
 |---|---|
-| SC-01A parameter ROM (`sc01a.bin`) | Extracted 2007, freely circulating — **wrong chip** |
+| SC-01A parameter ROM (`sc01a.bin`) | Read from a die photograph, in MAME since 2016, freely circulating — **wrong chip** |
 | SSI-263A/SC-02 parameter ROM | **Never extracted** |
 | SSI-263P die photographs (visual6502) | Published, high resolution — the raw material, unextracted |
 | SSI-263A datasheet + programming guide | Available (PENDING-1) |
@@ -489,7 +501,7 @@ Three routes, and they differ by more than an order of magnitude in effort:
 
 | Route | What it means | Cost | Result |
 |---|---|---|---|
-| **A — Match the state of the art** | Do what MAME and AppleWin do: drive the synthesis from SC-01A data mapped onto the SSI-263's phoneme ordering | Low. `sc01a.bin` is available and the mapping problem is understood | Speech that works and is recognizable, with the same known inaccuracy every other emulator has |
+| **A — Match the state of the art** | Do what MAME's `ssi263hle` does: drive the synthesis from SC-01A data mapped onto the SSI-263's phoneme ordering | Low. `sc01a.bin` is available and the mapping problem is understood | Speech that works and is recognizable, with the same known inaccuracy every other emulator has |
 | **B — Measure real hardware** | Record all 64 phonemes from a real SSI-263 and extract formant targets by spectral analysis | Medium. Needs hardware access and signal-processing work, no decapping | Genuinely accurate for this part. Achievable without novel reverse engineering |
 | **C — Extract the ROM from the die** | Read the parameter ROM off the published visual6502 die photographs | High, and speculative | The definitive answer, and a first — nobody has published this |
 
