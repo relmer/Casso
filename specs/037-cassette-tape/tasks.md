@@ -27,8 +27,8 @@ notices (copilot-instructions, "Degraded Operation Must Be Observable").
 
 ## Phase 1: Setup
 
-- [ ] T001 Run `scripts/FetchRoms.ps1 -Fixtures` and confirm `UnitTest/Fixtures/Apple2.rom`, `Apple2Plus.rom` and `Apple2e.rom` exist; build x64 Debug through `scripts/Build.ps1` to get a known-green baseline
-- [ ] T002 Create the `CassoEmuCore/Devices/Tape/` folder and the empty test files listed in plan.md's structure, registering each in the two `.vcxproj` files
+- [X] T001 Run `scripts/FetchRoms.ps1 -Fixtures` and confirm `UnitTest/Fixtures/Apple2.rom`, `Apple2Plus.rom` and `Apple2e.rom` exist; build x64 Debug through `scripts/Build.ps1` to get a known-green baseline
+- [X] T002 Create the `CassoEmuCore/Devices/Tape/` folder and the empty test files listed in plan.md's structure, registering each in the two `.vcxproj` files
 
 ---
 
@@ -39,14 +39,14 @@ story's tests depend on.
 
 ### Tests
 
-- [ ] T003 [P] Write `UnitTest/EmuTests/WavCodecTests.cpp`:
+- [X] T003 [P] Write `UnitTest/EmuTests/WavCodecTests.cpp`:
   - parse PCM 8/16/24/32-bit, float 32/64, and `WAVE_FORMAT_EXTENSIBLE`, at 8 kHz and 96 kHz
   - mono, and stereo mixed to mono; stereo with an inverted channel falls back to the louder channel
   - zero-length data is valid
   - truncated or garbage headers fail with `ERROR_INVALID_DATA`
   - writing 16-bit mono and reading it back gives the same samples (contracts/tape-files.md)
-- [ ] T004 [P] Write `UnitTest/EmuTests/AiffCodecTests.cpp`: AIFF and AIFF-C `NONE`/`sowt`, 8-32-bit, the 80-bit extended sample rate, mono/stereo, malformed headers rejected
-- [ ] T005 [P] Write `UnitTest/EmuTests/TapeSignalDecoderTests.cpp`:
+- [X] T004 [P] Write `UnitTest/EmuTests/AiffCodecTests.cpp`: AIFF and AIFF-C `NONE`/`sowt`, 8-32-bit, the 80-bit extended sample rate, mono/stereo, malformed headers rejected
+- [X] T005 [P] Write `UnitTest/EmuTests/TapeSignalDecoderTests.cpp`:
   - a clean square wave gives exactly its edges, interpolated to under 0.1 sample
   - a 1 kHz sine with DC offset ±0.4 gives no missing or extra transitions
   - a gain ramp from 0.05 to 1.0 decodes
@@ -56,30 +56,30 @@ story's tests depend on.
 
 ### Implementation
 
-- [ ] T006 [P] Implement `TapeTestEncoder` in `UnitTest/EmuTests/TapeTestEncoder.{h,cpp}`. It generates the Apple II tape signal in memory from a byte array:
+- [X] T006 [P] Implement `TapeTestEncoder` in `UnitTest/EmuTests/TapeTestEncoder.{h,cpp}`. It generates the Apple II tape signal in memory from a byte array:
   - 770 Hz leader, then a sync half-cycle at 2500 Hz and one at 2000 Hz
   - 1-bit = 1000 Hz cycle, 0-bit = 2000 Hz cycle; trailing XOR checksum (seed $FF)
   - parameters: sample rate, bit depth, leader seconds, speed factor, DC offset, gain ramp, seeded noise SNR, polarity, channels
   - outputs a WAV byte buffer through `WavCodec`
   - Test code only; it is never linked into `CassoEmuCore`
   - This project's own implementation, written with c2t's source (Egan Ford, BSD-3-Clause, https://github.com/datajerk/c2t) as the reference for leader, sync and bit timing only. Copy no c2t code; write it fresh to the project's style and EHM rules. Credit c2t in the file banner. Never build or run c2t itself
-- [ ] T007 [P] Implement `WavCodec` (read and 16-bit mono write over `std::vector<Byte>`) in `CassoEmuCore/Devices/Tape/WavCodec.{h,cpp}`, until T003 passes
-- [ ] T008 [P] Implement `AiffCodec` (read) in `CassoEmuCore/Devices/Tape/AiffCodec.{h,cpp}`, until T004 passes
-- [ ] T009 [P] Implement `TapeSignalDecoder` in `CassoEmuCore/Devices/Tape/TapeSignalDecoder.{h,cpp}` until T005 passes:
+- [X] T007 [P] Implement `WavCodec` (read and 16-bit mono write over `std::vector<Byte>`) in `CassoEmuCore/Devices/Tape/WavCodec.{h,cpp}`, until T003 passes
+- [X] T008 [P] Implement `AiffCodec` (read) in `CassoEmuCore/Devices/Tape/AiffCodec.{h,cpp}`, until T004 passes
+- [X] T009 [P] Implement `TapeSignalDecoder` in `CassoEmuCore/Devices/Tape/TapeSignalDecoder.{h,cpp}` until T005 passes:
   - 20 Hz one-pole high-pass
   - 6 kHz low-pass only when the rate is at least 22 kHz
   - peak envelope with fast attack and about 50 ms release
   - hysteresis at about 15% of the envelope, with an absolute floor
   - linear-interpolated crossings
   - Holds no Apple byte-format knowledge (FR-004); thresholds are named constants
-- [ ] T010 Define `ITapeAudioDecoder` (decode bytes to mono PCM and sample rate) plus `NullTapeAudioDecoder` in `CassoEmuCore/Devices/Tape/ITapeAudioDecoder.h`, and `FakeTapeAudioDecoder` in `UnitTest/EmuTests/FakeTapeAudioDecoder.h`
-- [ ] T011 Implement `TapeImage::Load` in `CassoEmuCore/Devices/Tape/TapeImage.{h,cpp}`:
+- [X] T010 Define `ITapeAudioDecoder` (decode bytes to mono PCM and sample rate) plus `NullTapeAudioDecoder` in `CassoEmuCore/Devices/Tape/ITapeAudioDecoder.h`, and `FakeTapeAudioDecoder` in `UnitTest/EmuTests/FakeTapeAudioDecoder.h`
+- [X] T011 Implement `TapeImageLoader::Load` in `CassoEmuCore/Devices/Tape/TapeImageLoader.{h,cpp}` (the `TapeImage` struct is in `TapeImage.h`; the caller passes the bytes and whether the file is read-only):
   - read the bytes through `IDiskFileIo`
   - detect the format by content (`RIFF`, `FORM`, or MP3 sync/ID3), never by extension
   - decode, keep only the transitions and `lengthSamples`, and drop the PCM
   - set `isWritable` = "WAV and not read-only"
   - fail with `ERROR_INVALID_DATA` and the error text from contracts/tape-files.md
-  - tests go in `UnitTest/EmuTests/TapeImageTests.cpp` (format detection, writable flag, failure leaves no image)
+  - tests go in `UnitTest/EmuTests/TapeImageLoaderTests.cpp` (format detection, writable flag, failure leaves no image)
 
 **Checkpoint**: codecs, decoder and encoder are green. Encoder output decodes
 to the expected edge count.
