@@ -1115,8 +1115,8 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T386 Owner review 2026-10-02: a floating toolbar turns vertical as it nears a vertical band and stays vertical until it nears a horizontal one, so the user picks its orientation and can still leave it floating
 - [X] T387 Owner review 2026-10-02: the debug toolbar's buttons are drawn in color with Visual Studio's shapes as vector icons (vs-reference/vs-debug-toolbar-commands.png)
 - [ ] T388 Owner review 2026-10-02: the console's line spacing is a little tight; add extra space between one command's output and the next command
-- [ ] T389 Owner review 2026-10-02: the disassembly's "Show ..." check boxes draw no box around them and sit a little farther apart
-- [ ] T390 Owner review 2026-10-02: dragging the disassembly's yellow PC triangle to another statement sets PC there; the context menu gains "Set next statement"
+- [X] T389 Owner review 2026-10-02: the disassembly's "Show ..." check boxes draw no box around them and sit a little farther apart
+- [X] T390 Owner review 2026-10-02: dragging the disassembly's yellow PC triangle to another statement sets PC there; the context menu gains "Set next statement"
 - [ ] T391 Owner review 2026-10-02: the call stack's columns size to their contents whenever the data changes while paused or stepping
 - [ ] T392 Owner review 2026-10-02: the MMU pane's R/W labels touch the pane's edge; check every pane for content against its edges and inset it
 - [ ] T393 Owner review 2026-10-02: MMU switches that are on show "ON" uppercase in the theme's bright text; off shows "off" lowercase in the theme's gray
@@ -1125,12 +1125,12 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T396 Owner review 2026-10-02: changing a find option re-runs the search with the current text
 - [X] T397 Owner review 2026-10-02: find in selection does not work; make it search only the selection taken when the option was turned on
 - [X] T398 Owner review 2026-10-02: the debug toolbar's default position is the top band, below the menu bar
-- [ ] T399 Owner review 2026-10-02: the disassembly's viewing options default to all checked
+- [X] T399 Owner review 2026-10-02: the disassembly's viewing options default to all checked
 - [ ] T400 Owner review 2026-10-02: undo text quotes the operation: Undo "changed 3 bytes at $0300", in tips and menu items
-- [ ] T401 Owner review 2026-10-02: the disabled "Show source code" check box gets a tip saying how to get source: load a debug file, or open the source
-- [ ] T402 Owner review 2026-10-02: the "Show symbol names" tip lists the loaded symbol sources, one per line (the built-in tables and the user's files)
+- [X] T401 Owner review 2026-10-02: the disabled "Show source code" check box gets a tip saying how to get source: load a debug file, or open the source
+- [X] T402 Owner review 2026-10-02: the "Show symbol names" tip lists the loaded symbol sources, one per line (the built-in tables and the user's files)
 - [ ] T403 Owner review 2026-10-02: menu access-key underlines sit too far below their letter; pressing Alt shows the underlines in every submenu as well
-- [ ] T404 Owner review 2026-10-02: the light theme's disassembly is still poor: black text too stark, instruction operands barely readable, the cyan result barely readable; give every color AA contrast against the light background
+- [X] T404 Owner review 2026-10-02: the light theme's disassembly is still poor: black text too stark, instruction operands barely readable, the cyan result barely readable; give every color AA contrast against the light background
 - [ ] T405 Owner answer 2026-10-02: breakpoint export stays in AppleWin's format, and import reads it in any console dialect
 - [ ] T406 Owner answer 2026-10-02: the Mockingboard pane's "running" timer text clips its descenders; fix it
 - [ ] T407 Owner answer 2026-10-02: the Watches pane is shown by default, not auto-hidden, and, as in Visual Studio, ends with an "add new watch" row edited in place; existing watches edit in place

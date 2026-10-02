@@ -56,6 +56,11 @@ public:
     // A file in any format the reader knows, each address moved by offset.
     HRESULT  LoadFrom     (SymbolTableId table, const std::string & content, int offset, size_t & loaded, std::string & error);
 
+    // The files a table was loaded from, by file name, in load order; a
+    // table filled any other way, such as a built-in one, has none.
+    void     AddOrigin    (SymbolTableId table, const std::string & fileName);
+    const std::vector<std::string> &  GetOrigins (SymbolTableId table) const { return m_origins[(int) table]; }
+
     // The table in the Casso debug file format.
     std::string  Format   (SymbolTableId table) const;
 
@@ -71,6 +76,7 @@ private:
         bool         isConstant = false;
     };
 
-    std::vector<Entry>  m_tables[kTableCount];
-    bool                m_enabled[kTableCount] = {};
+    std::vector<Entry>        m_tables[kTableCount];
+    std::vector<std::string>  m_origins[kTableCount];
+    bool                      m_enabled[kTableCount] = {};
 };

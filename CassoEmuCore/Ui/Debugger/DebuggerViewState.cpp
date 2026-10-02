@@ -15,6 +15,7 @@
 #include "Debugger/MonitorParser.h"
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/SymbolDescriptions.h"
+#include "Debugger/ReplyJson.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/TraceLookahead.h"
@@ -79,6 +80,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     snapshot.canUndoBreakpoints = m_breakpointHistory.CanUndo();
     snapshot.canRedoBreakpoints = m_breakpointHistory.CanRedo();
     snapshot.machine        = session.GetTarget().GetMachineInfo().name;
+    snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
     {
@@ -1508,6 +1510,54 @@ DebuggerViewState::OpenViews DebuggerViewState::ParseOpenViews (const std::strin
     }
 
     return views;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::DescribeSymbolSources
+//
+//  Main, Basic, DOS 3.3 and ProDOS come filled with the ROM's and the
+//  systems' entry points; any other table is filled from a file or by hand.
+//  A table turned off says so.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebuggerViewState::DescribeSymbolSources (const SymbolTable & symbols)
+{
+    std::vector<std::string>  lines;
+
+
+
+    for (int i = 0; i < SymbolTable::kTableCount; i++)
+    {
+        SymbolTableId                     table   = (SymbolTableId) i;
+        size_t                            count   = symbols.GetCount (table);
+        const std::vector<std::string>  & origins = symbols.GetOrigins (table);
+        std::string                       name    = SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (table));
+        std::string                       off     = symbols.IsEnabled (table) ? "" : ", turned off";
+
+        if (count == 0)
+        {
+            continue;
+        }
+
+        if (origins.empty())
+        {
+            lines.push_back (std::format ("Built-in {} table, {} symbols{}", name, count, off));
+            continue;
+        }
+
+        for (const std::string & origin : origins)
+        {
+            lines.push_back (std::format ("{}, in the {} table{}", origin, name, off));
+        }
+    }
+
+    return lines;
 }
 
 

@@ -299,6 +299,12 @@ protected:
     int                          GetCodeLineOfRow    (int view, int row) const;
     void                         HoverGutter         (POINT atDip);
 
+    //  Protected so a test can press the gutter and drag the PC's arrow to
+    //  another line, which sets the next statement there.
+    bool                         ClickGutter         (const DxuiMouseEvent & ev);
+    bool                         DropPcMarker        (const DxuiMouseEvent & ev);
+    void                         SetNextStatement    (Word address);
+
     //  Protected so a test can edit a watch as F2 and Enter do, and see where
     //  the keys go.
     void            BeginWatchEdit (int row, int column);
@@ -650,7 +656,6 @@ private:
     void     ApplyDiagnostics   ();
     DiagnosticsPane *  GetDiagnosticsPane (const std::wstring & pane) const;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
-    bool     ClickGutter      (const DxuiMouseEvent & ev);
     void     ShowCode         (std::optional<Word> address);
     void     ConfigureCodeList (int view);
     int      GetCodeViewOf    (const IDxuiControl * control) const;
@@ -830,6 +835,8 @@ private:
     std::map<int, std::vector<std::wstring>>                                         m_codeSourceText;
     int                                                                              m_gutterHoverView    = -1;
     int                                                                              m_gutterHoverRow     = -1;
+    int                                                                              m_pcDragView         = -1;
+    int                                                                              m_pcDragRow          = -1;
     std::array<bool, DebuggerViewState::kMaxCodeViews>                               m_codeOpen           = { true };
     uint32_t                                                                         m_shownPaneSerial    = 0;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};

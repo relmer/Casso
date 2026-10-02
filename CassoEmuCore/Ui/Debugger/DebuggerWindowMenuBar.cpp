@@ -943,8 +943,19 @@ void DebuggerWindow::ConfigureCodeBars()
 
             m_codeOptionEntries.push_back (std::make_unique<ToolbarCheckEntry> (command));
 
+            if (option == DisassemblyOptions::Option::Source)
+            {
+                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSourceTip (IsCodeOptionEnabled (DisassemblyOptions::Option::Source)); });
+            }
+            else if (option == DisassemblyOptions::Option::Symbols)
+            {
+                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSymbolsTip ((m_snapshot != nullptr) ? m_snapshot->symbolSources : std::vector<std::string>()); });
+            }
+
+            //  A command, not a toggle: the check box shows the state, so the
+            //  entry draws no pressed box around a checked one.
             entry.command = command;
-            entry.kind    = DxuiToolbar::Kind::Toggle;
+            entry.kind    = DxuiToolbar::Kind::Command;
             entry.custom  = m_codeOptionEntries.back().get();
             entries.push_back (std::move (entry));
         }

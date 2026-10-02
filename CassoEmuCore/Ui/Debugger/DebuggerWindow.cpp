@@ -5765,6 +5765,12 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         items.push_back ({ s.code[(size_t) row].hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
                            [this, at] { RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, at, GetMode())); } });
         items.push_back ({ L"Run to cursor",       [this, at] { RunToCursor (at); } });
+
+        if (s.isPaused && DisassemblyOptions::CanTakeBreakpoint (line))
+        {
+            items.push_back ({ L"Set next statement", [this, at] { SetNextStatement (at); } });
+        }
+
         items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
         items.push_back ({ L"Copy",                copy });
 
@@ -6165,6 +6171,9 @@ void DebuggerWindow::ApplyCodeView (int view)
 
         cells[6].argb = GetAnnotationArgb();
         cells[4].argb = syntax.symbol;
+        cells[2].argb = syntax.address;
+        cells[3].argb = syntax.bytes;
+        cells[5].argb = syntax.address;
 
         //  A byte that changed shows in the changed color, whether code or an
         //  edit changed it.
@@ -8057,6 +8066,16 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
 
         row = list->HitTestRow (lx, ly);
 
+        //  A press on the PC's line may start a drag of its arrow, settled
+        //  when the button comes up (see DropPcMarker).
+        if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0 && m_snapshot->isPaused &&
+            GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)].isCurrent)
+        {
+            m_pcDragView = GetCodeViewOf (list);
+            m_pcDragRow  = row;
+            return true;
+        }
+
         if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0)
         {
             RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)].address, GetMode()));
@@ -8067,6 +8086,84 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DropPcMarker
+//
+//  The button up after a press on the PC's line in the gutter. Released on
+//  another instruction of the same view, the PC's arrow was dragged there,
+//  so that line becomes the next statement, as in Visual Studio. Released
+//  on the line it was pressed on, it was a click, which sets or clears the
+//  breakpoint there as on any other line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::DropPcMarker (const DxuiMouseEvent & ev)
+{
+    int             view = m_pcDragView;
+    int             from = m_pcDragRow;
+    DxuiListView  * list = nullptr;
+    RECT            box  = {};
+    int             row  = -1;
+    int             line = -1;
+
+
+
+    if (view < 0 || m_snapshot == nullptr)
+    {
+        return false;
+    }
+
+    m_pcDragView = -1;
+    m_pcDragRow  = -1;
+    list         = m_codeLists[(size_t) view];
+    box          = list->GetBounds();
+
+    if (DxuiDockSite::Contains (box, ev.positionDip))
+    {
+        row  = list->HitTestRow (ev.positionDip.x - box.left, ev.positionDip.y - box.top);
+        line = GetCodeLineOfRow (view, row);
+    }
+
+    if (line < 0)
+    {
+        return true;
+    }
+
+    if (row == from)
+    {
+        RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, GetCodeLines (view)[(size_t) line].address, GetMode()));
+    }
+    else if (DisassemblyOptions::CanTakeBreakpoint (GetCodeLines (view)[(size_t) line]))
+    {
+        SetNextStatement (GetCodeLines (view)[(size_t) line].address);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetNextStatement
+//
+//  The PC moved to a line without running anything, as Visual Studio's Set
+//  Next Statement does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetNextStatement (Word address)
+{
+    RunAction (DebuggerActions::GetSetRegister ("PC", std::format ("{:04X}", address), GetMode()));
 }
 
 
@@ -9325,6 +9422,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left && DropPcMarker (ev))
+        {
+            return true;
+        }
+
         //  Only to what is shown: the disassembly views' radios share a rect,
         //  and a press on the one in front must not reach those behind it.
         for (IDxuiControl * control : GetPressTargets())

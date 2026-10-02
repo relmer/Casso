@@ -332,6 +332,8 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
         return;
     }
 
+    session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
+
     reply.data = MessageData { { std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")) } };
 }
 
@@ -399,6 +401,10 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     {
         session.GetSymbols().Clear (table);
         loaded = 0;
+    }
+    else
+    {
+        session.GetSymbols().AddOrigin (table, base);
     }
 
     reply.data = MessageData { { std::format ("Loaded {} symbols into {} and {} source lines{}.",

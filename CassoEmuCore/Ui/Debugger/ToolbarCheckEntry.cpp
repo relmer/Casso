@@ -119,11 +119,15 @@ void ToolbarCheckEntry::Paint (
 
 const wchar_t * ToolbarCheckEntry::GetTooltipAt (int x, int y, RECT & anchor) const
 {
-    (void) x;
-    (void) y;
+    if (x < m_rc.left || x >= m_rc.right || y < m_rc.top || y >= m_rc.bottom)
+    {
+        return nullptr;
+    }
 
     anchor = m_rc;
-    return m_command->tip.empty() ? nullptr : m_command->tip.c_str();
+    m_tip  = m_getTip ? m_getTip() : m_command->tip;
+
+    return m_tip.empty() ? nullptr : m_tip.c_str();
 }
 
 

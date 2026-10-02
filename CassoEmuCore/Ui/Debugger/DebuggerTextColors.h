@@ -22,7 +22,12 @@
 class DebuggerTextColors
 {
 public:
-    static constexpr float  s_kMinTextContrast = 4.5f;
+    static constexpr float  s_kMinTextContrast     = 4.5f;
+
+    //  On a light page: how far the darkest row tint is toward black, and how
+    //  far plain text is moved toward the page so it is not stark black.
+    static constexpr float  s_kLightRowShade       = 0.15f;
+    static constexpr float  s_kLightTextSoftening  = 0.25f;
 
     struct Set
     {
@@ -40,6 +45,10 @@ public:
                                   uint32_t resultText);
 
     static bool      IsDark      (uint32_t background);
+
+    //  The darkest a row is tinted on a light page, which every
+    //  color must read against.
+    static uint32_t  GetRowShade (uint32_t background);
 
     //  `argb`, or the nearest color along the way to black or white that
     //  reaches s_kMinTextContrast against `background`.

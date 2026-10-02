@@ -128,6 +128,58 @@ const char * DisassemblyOptions::GetKey (Option option)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyOptions::GetSourceTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DisassemblyOptions::GetSourceTip (bool hasDebugFile)
+{
+    if (hasDebugFile)
+    {
+        return L"Show source code\nShow each source line above the code it built";
+    }
+
+    return L"Show source code\nNo debug file maps this code. To get source, load its debug file\n"
+           L"(File > Open symbol or debug file), or open its source file (File > Open source file)";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetSymbolsTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DisassemblyOptions::GetSymbolsTip (const std::vector<std::string> & sources)
+{
+    std::wstring  tip = L"Show symbol names\n";
+
+
+
+    if (sources.empty())
+    {
+        return tip + L"No symbols are loaded";
+    }
+
+    tip += L"Symbols loaded from:";
+
+    for (const std::string & source : sources)
+    {
+        tip += L"\n" + std::wstring (source.begin(), source.end());
+    }
+
+    return tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyOptions::BuildRows
 //
 ////////////////////////////////////////////////////////////////////////////////

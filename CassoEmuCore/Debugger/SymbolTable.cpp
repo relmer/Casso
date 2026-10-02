@@ -112,6 +112,31 @@ bool SymbolTable::TryRemove (SymbolTableId table, const std::string & name)
 void SymbolTable::Clear (SymbolTableId table)
 {
     m_tables[(int) table].clear();
+    m_origins[(int) table].clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolTable::AddOrigin
+//
+//  A file loaded again into the same table is listed once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolTable::AddOrigin (SymbolTableId table, const std::string & fileName)
+{
+    std::vector<std::string>  & origins = m_origins[(int) table];
+
+
+
+    if (std::ranges::find (origins, fileName) == origins.end())
+    {
+        origins.push_back (fileName);
+    }
 }
 
 

@@ -195,11 +195,11 @@ namespace DisassemblyOptionsTests
             Assert::IsTrue  (DisassemblyOptions::FromText ("") == DisassemblyOptions(), L"empty is the defaults");
             Assert::IsTrue  (options.IsOn (Option::Addresses));
             Assert::IsTrue  (options.IsOn (Option::Source));
-            Assert::IsFalse (options.IsOn (Option::LineNumbers));
+            Assert::IsTrue  (options.IsOn (Option::LineNumbers));
 
             options.Toggle (Option::CodeBytes);
             options.Toggle (Option::LineNumbers);
-            Assert::AreEqual (std::string ("address source symbols lines"), options.ToText());
+            Assert::AreEqual (std::string ("address source symbols"), options.ToText());
             Assert::IsTrue   (DisassemblyOptions::FromText (options.ToText()) == options);
 
             for (int i = 0; i < DisassemblyOptions::kOptionCount; i++)
@@ -318,6 +318,7 @@ namespace DisassemblyOptionsTests
 
 
             scaler.SetDpi (96);
+            host.options = "address bytes source symbols";
 
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);

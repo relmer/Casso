@@ -8,6 +8,8 @@
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/InstructionTouches.h"
 
+class SymbolTable;
+
 class DebugSession;
 class IDiagnosticsProvider;
 
@@ -195,6 +197,10 @@ struct DebuggerViewSnapshot
     bool                         isAssembling  = false;
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
+
+    //  Where the symbols came from, one line a source: each built-in table
+    //  and each file loaded; see DebuggerViewState::DescribeSymbolSources.
+    std::vector<std::string>     symbolSources;
     std::vector<CodeLine>        code;
 
     //  Every disassembly view's lines, the first repeated in `code`; which
@@ -445,6 +451,10 @@ public:
     static std::string  GetStepOutLine          ()             { return "RTS"; }
     static std::string  GetRunLine              ()             { return "G"; }
     static std::string  GetRunToCursorLine      (Word address);
+
+    //  One line for each table holding symbols: a file by its name and the
+    //  table it went into, a built-in table by its name and its count.
+    static std::vector<std::string>  DescribeSymbolSources (const SymbolTable & symbols);
 
     //  The mode run to cursor runs in, whatever the console's: GSSquared's g
     //  takes no address, so the window sends Casso's own G in every dialect.

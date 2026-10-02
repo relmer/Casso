@@ -62,6 +62,11 @@ public:
     static const wchar_t      * GetLabel (Option option);
     static const char         * GetKey   (Option option);
 
+    //  The tips of the source and symbol names check boxes: how to get source
+    //  while there is none, and each source of the symbols, one to a line.
+    static std::wstring  GetSourceTip  (bool hasDebugFile);
+    static std::wstring  GetSymbolsTip (const std::vector<std::string> & sources);
+
     //  Source and line numbers need a debug file that maps the code.
     static bool  NeedsDebugFile (Option option) { return option == Option::Source || option == Option::LineNumbers; }
 
@@ -81,5 +86,5 @@ public:
     static bool  CanTakeBreakpoint (const DebuggerViewSnapshot::CodeLine & line);
 
 private:
-    std::array<bool, kOptionCount>  m_on = { true, true, true, true, false };
+    std::array<bool, kOptionCount>  m_on = { true, true, true, true, true };
 };

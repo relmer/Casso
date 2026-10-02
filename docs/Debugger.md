@@ -379,9 +379,14 @@ source view.
   as Visual Studio's: Show address, Show code bytes, Show source code, Show
   symbol names and Show line numbers. With source shown, each source line sits
   on a row above the code it produced. Source and line numbers are offered once
-  a debug file maps the code. The choices hold for every view and are saved.
+  a debug file maps the code. All start checked; the choices hold for every
+  view and are saved. Show source code's tip says how to get source while
+  there is none, and Show symbol names' tip lists where the symbols came from.
 - Hovering a disassembly view's breakpoint column shows a gray breakpoint on
   an instruction's row, where a click sets one.
+- While paused, dragging the PC's yellow arrow to another instruction sets the
+  PC there without running anything, as Set next statement on a row's context
+  menu does.
 - The source files are looked for beside the debug file, then in the folders
   where sources were found before. When one is not found, the pane says so;
   drag the file onto the debugger and it is matched by its hash, and its

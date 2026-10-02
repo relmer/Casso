@@ -24,25 +24,46 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     uint32_t muted,
     uint32_t resultText)
 {
-    Set   set;
-    bool  dark = IsDark (background);
+    Set       set;
+    bool      dark    = IsDark (background);
+    uint32_t  against = dark ? background : GetRowShade (background);
+    uint32_t  text    = dark ? foreground : DxuiColor::Mix (foreground, background, s_kLightTextSoftening);
 
 
 
-    set.syntax.mnemonic  = GetReadable (dark ? 0xFF569CD6 : 0xFF0000FF, background);
-    set.syntax.directive = GetReadable (dark ? 0xFFC586C0 : 0xFFAF00DB, background);
-    set.syntax.symbol    = GetReadable (dark ? 0xFF4EC9B0 : 0xFF2B91AF, background);
-    set.syntax.number    = GetReadable (dark ? 0xFFB5CEA8 : 0xFF098658, background);
-    set.syntax.string    = GetReadable (dark ? 0xFFD69D85 : 0xFFA31515, background);
-    set.syntax.address   = GetReadable (foreground, background);
-    set.syntax.bytes     = GetReadable (muted,      background);
-    set.annotation       = GetReadable (dark ? 0xFF57A64A : 0xFF008000, background);
-    set.changed          = GetReadable (dark ? 0xFFFF6B68 : 0xFFD00000, background);
-    set.result           = GetReadable ((resultText != 0) ? resultText : (dark ? 0xFF4EC9E0 : 0xFF00727D), background);
+    set.syntax.mnemonic  = GetReadable (dark ? 0xFF569CD6 : 0xFF0000FF, against);
+    set.syntax.directive = GetReadable (dark ? 0xFFC586C0 : 0xFFAF00DB, against);
+    set.syntax.symbol    = GetReadable (dark ? 0xFF4EC9B0 : 0xFF2B91AF, against);
+    set.syntax.number    = GetReadable (dark ? 0xFFB5CEA8 : 0xFF098658, against);
+    set.syntax.string    = GetReadable (dark ? 0xFFD69D85 : 0xFFA31515, against);
+    set.syntax.address   = GetReadable (text,       against);
+    set.syntax.bytes     = GetReadable (muted,      against);
+    set.annotation       = GetReadable (dark ? 0xFF57A64A : 0xFF008000, against);
+    set.changed          = GetReadable (dark ? 0xFFFF6B68 : 0xFFD00000, against);
+    set.result           = GetReadable ((resultText != 0) ? resultText : (dark ? 0xFF4EC9E0 : 0xFF00727D), against);
     set.muted            = set.syntax.bytes;
     set.syntax.comment   = set.annotation;
 
     return set;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerTextColors::GetRowShade
+//
+//  On a light page the selected row and the PC's row are tinted darker than
+//  the page, so text must read on the tint as well. The shade stands in for
+//  the darkest of those tints.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerTextColors::GetRowShade (uint32_t background)
+{
+    return DxuiColor::Mix (background | 0xFF000000u, 0xFF000000u, s_kLightRowShade);
 }
 
 
