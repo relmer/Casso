@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -112,4 +114,54 @@ unique_ptr<MemoryDevice> AppleSpeaker::Create (const DeviceConfig & config, Memo
     UNREFERENCED_PARAMETER (bus);
 
     return make_unique<AppleSpeaker> ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleSpeaker::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+    writer.WriteBool    (m_speakerState > 0.0f);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleSpeaker::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+    bool      isHigh  = false;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (isHigh);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    m_speakerState = isHigh ? 0.25f : -0.25f;
+
+Error:
+    return hr;
 }

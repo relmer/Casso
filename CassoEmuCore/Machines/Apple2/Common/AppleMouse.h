@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 
 #include "Core/ICycleSink.h"
 #include "Core/IInterruptController.h"
@@ -54,7 +55,7 @@ class MemoryBus;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleMouse : public ICycleSink
+class AppleMouse : public ICycleSink, public IMachineState
 {
 public:
     AppleMouse() = default;
@@ -139,7 +140,16 @@ public:
     bool    AreXyInterruptsEnabled  () const { return m_xyEnabled; }
     bool    AreVblInterruptsEnabled() const { return m_vblEnabled; }
 
-private:
+    // IMachineState: host motion not yet drained, the host target, the
+    // movement queue, latches, direction lines, IOU programming and the
+    // sample cadence. A load drives the IRQ lines from the loaded latches.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'O', 'U', 'S');
+    static constexpr uint16_t  kStateVersion = 1;
+
+protected:
     void    UpdateIrqLines();
     void    RetargetFromHoles();
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
@@ -68,7 +69,7 @@ enum class AppleSpecialKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleKeyboard : public MemoryDevice, public IDiagnosticsProvider
+class AppleKeyboard : public MemoryDevice, public IDiagnosticsProvider, public IMachineState
 {
 public:
     AppleKeyboard ();
@@ -149,13 +150,22 @@ public:
     std::string  GetDiagnosticsTitle () const override { return "Keyboard"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
+    // IMachineState: the latch and strobe, the key held down, and the
+    // auto-repeat timer. The input panel's coalescing values are not saved;
+    // a load clears them so the panel hears the next read.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('K', 'B', 'D', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
+
 protected:
     // Fold one TYPED character to the case this keyboard can send. Never
     // drops: what a key sends is a separate question from which keys exist,
     // and only MapSpecialKey answers the latter.
     virtual Byte TranslateTypedChar (Byte ch) const;
 
-private:
+protected:
     // Producer-side coalesced emit helpers (CPU thread). Each fires the
     // matching sink callback only when the observed value changed, so a
     // tight poll loop produces one event per transition.
@@ -183,7 +193,7 @@ protected:
     // read on the CPU thread.
     IInputEventSink * GetInputSink () const noexcept { return m_inputSink; }
 
-private:
+protected:
     IInputEventSink * m_inputSink = nullptr;
 
     // Last-emitted values for guest-read coalescing (CPU thread only).

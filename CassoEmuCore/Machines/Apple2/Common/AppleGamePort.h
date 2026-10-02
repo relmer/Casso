@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
@@ -30,7 +31,7 @@ class SiriusJoyport;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleGamePort : public MemoryDevice
+class AppleGamePort : public MemoryDevice, public IMachineState
 {
 public:
     AppleGamePort () = default;
@@ -61,7 +62,15 @@ public:
 
     static constexpr Byte s_knPaddleCenter = 127;
 
-private:
+    // IMachineState: the paddle trigger cycle and the staged buttons and
+    // paddle positions.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('G', 'P', 'R', 'T');
+    static constexpr uint16_t  kStateVersion = 1;
+
+protected:
     static constexpr Word     s_kwFirstButtonAddress = 0xC061;
     static constexpr int      s_knButtonCount        = 3;
     static constexpr int      s_knHostButtonCount    = 2;

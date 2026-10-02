@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
@@ -18,7 +19,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleSpeaker : public MemoryDevice
+class AppleSpeaker : public MemoryDevice, public IMachineState
 {
 public:
     AppleSpeaker ();
@@ -53,6 +54,14 @@ public:
     float GetFrameInitialState () const { return m_frameInitialState; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+
+    // IMachineState: which way the cone is pushed. The toggle timestamps
+    // and the frame's starting level are audio output, not machine state.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'P', 'K', 'R');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     float               m_speakerState      = -0.25f;

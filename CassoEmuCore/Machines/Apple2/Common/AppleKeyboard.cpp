@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/IInputEventSink.h"
 
 
@@ -489,4 +491,72 @@ void AppleKeyboard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     group.rows.push_back (MakeFlagRow ("Repeating",     m_repeatStarted));
 
     snapshot.groups.push_back (std::move (group));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleKeyboard::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte   (m_latchedKey.load (memory_order_acquire));
+    writer.WriteBool   (m_anyKeyDown.load (memory_order_acquire));
+    writer.WriteByte   (m_repeatKey.load  (memory_order_acquire));
+    writer.WriteUInt32 (m_repeatAccumUs);
+    writer.WriteBool   (m_repeatStarted);
+    writer.WriteByte   (m_lastRepeatKey);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleKeyboard::LoadState (StateReader & reader)
+{
+    HRESULT   hr         = S_OK;
+    uint16_t  version    = 0;
+    Byte      latchedKey = 0;
+    bool      anyKeyDown = false;
+    Byte      repeatKey  = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte   (latchedKey);
+    reader.ReadBool   (anyKeyDown);
+    reader.ReadByte   (repeatKey);
+    reader.ReadUInt32 (m_repeatAccumUs);
+    reader.ReadBool   (m_repeatStarted);
+    reader.ReadByte   (m_lastRepeatKey);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    m_latchedKey.store (latchedKey, memory_order_release);
+    m_anyKeyDown.store (anyKeyDown, memory_order_release);
+    m_repeatKey.store  (repeatKey,  memory_order_release);
+
+    m_lastEmittedKbdData = -1;
+    m_lastEmittedStrobe  = -1;
+
+Error:
+    return hr;
 }

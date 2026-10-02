@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
@@ -625,4 +627,110 @@ unique_ptr<MemoryDevice> Apple2eKeyboard::Create (const DeviceConfig & config, M
     UNREFERENCED_PARAMETER (config);
 
     return make_unique<Apple2eKeyboard> (&bus);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2eKeyboard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    hr = AppleKeyboard::SaveState (writer);
+    CHR (hr);
+
+    writer.WriteBool   (m_openApple.load            (memory_order_acquire));
+    writer.WriteBool   (m_closedApple.load          (memory_order_acquire));
+    writer.WriteBool   (m_holdOpenApple.load        (memory_order_acquire));
+    writer.WriteBool   (m_holdClosedApple.load      (memory_order_acquire));
+    writer.WriteUInt32 (m_resetHoldCycles.load      (memory_order_acquire));
+    writer.WriteBool   (m_shift.load                (memory_order_acquire));
+    writer.WriteBool   (m_eightyColSwitchIn.load    (memory_order_acquire));
+    writer.WriteBool   (m_keyboardSwitchDvorak.load (memory_order_acquire));
+
+    hr = writer.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
+{
+    HRESULT   hr                   = S_OK;
+    uint16_t  version              = 0;
+    bool      openApple            = false;
+    bool      closedApple          = false;
+    bool      holdOpenApple        = false;
+    bool      holdClosedApple      = false;
+    uint32_t  resetHoldCycles      = 0;
+    bool      shift                = false;
+    bool      eightyColSwitchIn    = false;
+    bool      keyboardSwitchDvorak = false;
+    size_t    i                    = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    hr = AppleKeyboard::LoadState (reader);
+    CHR (hr);
+
+    reader.ReadBool   (openApple);
+    reader.ReadBool   (closedApple);
+    reader.ReadBool   (holdOpenApple);
+    reader.ReadBool   (holdClosedApple);
+    reader.ReadUInt32 (resetHoldCycles);
+    reader.ReadBool   (shift);
+    reader.ReadBool   (eightyColSwitchIn);
+    reader.ReadBool   (keyboardSwitchDvorak);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx (resetHoldCycles <= kResetHoldCycles, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_openApple.store            (openApple,            memory_order_release);
+    m_closedApple.store          (closedApple,          memory_order_release);
+    m_holdOpenApple.store        (holdOpenApple,        memory_order_release);
+    m_holdClosedApple.store      (holdClosedApple,      memory_order_release);
+    m_resetHoldCycles.store      (resetHoldCycles,      memory_order_release);
+    m_shift.store                (shift,                memory_order_release);
+    m_eightyColSwitchIn.store    (eightyColSwitchIn,    memory_order_release);
+    m_keyboardSwitchDvorak.store (keyboardSwitchDvorak, memory_order_release);
+
+    for (i = 0; i < kButtonCount; i++)
+    {
+        m_lastEmittedButton[i] = -1;
+    }
+
+    for (i = 0; i < kHostButtonCount; i++)
+    {
+        m_lastEmittedHostButton[i] = -1;
+    }
+
+Error:
+    return hr;
 }

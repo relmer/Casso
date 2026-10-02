@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Controllers/ControllerTypes.h"
 
 class AppleSoftSwitchBank;
@@ -31,7 +32,7 @@ class AppleSoftSwitchBank;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class SiriusJoyport
+class SiriusJoyport : public IMachineState
 {
 public:
     static constexpr uint64_t  kReleaseCycles = 500'000;
@@ -48,7 +49,15 @@ public:
     bool  TryReadButton    (int index, Byte & value) const;
     bool  IsDrivingPaddles () const;
 
-private:
+    // IMachineState: the jack switches and the reset window. Whether the
+    // Joyport is attached is a host setting, not saved.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('J', 'O', 'Y', 'P');
+    static constexpr uint16_t  kStateVersion = 1;
+
+protected:
     static constexpr int   kAnnunciatorJack      = 0;
     static constexpr int   kAnnunciatorDirection = 1;
     static constexpr int   kButtonFire           = 0;

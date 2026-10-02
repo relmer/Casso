@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 
 class AppleSpeaker;
@@ -153,10 +154,19 @@ public:
 
     Byte MapSpecialKey (AppleSpecialKey key) const override;
 
+    // IMachineState: the base keyboard's section, the modifier keys, the
+    // reset hold, and the //c case switches. Whether the machine is a //c and
+    // the host layout are wiring and host settings, not saved.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('K', 'B', 'D', 'E');
+    static constexpr uint16_t  kStateVersion = 1;
+
 protected:
     Byte TranslateTypedChar (Byte ch) const override;
 
-private:
+protected:
     static constexpr Word kFirstButtonAddress = 0xC061;
     static constexpr int  kButtonCount        = 3;     // $C061-$C063
     static constexpr int  kHostButtonCount    = 2;     // Open / Closed Apple

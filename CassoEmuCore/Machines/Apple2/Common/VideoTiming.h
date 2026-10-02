@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Machines/Apple2/Common/IVideoTiming.h"
 
 class Prng;
@@ -23,7 +24,7 @@ class Prng;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class VideoTiming final : public IVideoTiming
+class VideoTiming final : public IVideoTiming, public IMachineState
 {
 public:
     static constexpr uint32_t   kCyclesPerScanline   = 65;
@@ -48,6 +49,14 @@ public:
     // no DRAM-shaped state on the timing model.
     void          SoftReset       () { m_cycleCounter = 0; }
     void          PowerCycle      (Prng & prng);
+
+    // IMachineState: the cycle within the frame, from which the beam
+    // position and VBL derive.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('V', 'T', 'M', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     uint32_t      m_cycleCounter = 0;

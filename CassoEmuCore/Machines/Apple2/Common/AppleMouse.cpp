@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleMouse.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/IVideoTiming.h"
 
@@ -431,4 +433,116 @@ void AppleMouse::UpdateIrqLines()
     {
         m_ic->Clear (m_vblSource);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleMouse::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_hostDx.load (std::memory_order_acquire)));
+    writer.WriteUInt32 (static_cast<uint32_t> (m_hostDy.load (std::memory_order_acquire)));
+    writer.WriteBool   (m_hostButton.load (std::memory_order_acquire));
+    writer.WriteUInt32 (m_hostTarget.load (std::memory_order_acquire));
+    writer.WriteBool   (m_hasTarget.load  (std::memory_order_acquire));
+    writer.WriteUInt32 (m_retargetCountdown);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_pendingX));
+    writer.WriteUInt32 (static_cast<uint32_t> (m_pendingY));
+    writer.WriteBool   (m_xInt);
+    writer.WriteBool   (m_yInt);
+    writer.WriteBool   (m_vblInt);
+    writer.WriteByte   (m_mouX1);
+    writer.WriteByte   (m_mouY1);
+    writer.WriteBool   (m_xyEnabled);
+    writer.WriteBool   (m_vblEnabled);
+    writer.WriteBool   (m_x0EdgeFalling);
+    writer.WriteBool   (m_y0EdgeFalling);
+    writer.WriteBool   (m_iouAccessEnabled);
+    writer.WriteBool   (m_lastInVblank);
+    writer.WriteUInt32 (m_sampleAccum);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  The movement queue is range-checked against the clamp Tick applies, so a
+//  loaded queue can never hold more than live motion could have built up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleMouse::LoadState (StateReader & reader)
+{
+    constexpr int  kMaxPending = 1023;
+
+    HRESULT   hr         = S_OK;
+    uint16_t  version    = 0;
+    uint32_t  hostDx     = 0;
+    uint32_t  hostDy     = 0;
+    bool      hostButton = false;
+    uint32_t  hostTarget = 0;
+    bool      hasTarget  = false;
+    uint32_t  pendingX   = 0;
+    uint32_t  pendingY   = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadUInt32 (hostDx);
+    reader.ReadUInt32 (hostDy);
+    reader.ReadBool   (hostButton);
+    reader.ReadUInt32 (hostTarget);
+    reader.ReadBool   (hasTarget);
+    reader.ReadUInt32 (m_retargetCountdown);
+    reader.ReadUInt32 (pendingX);
+    reader.ReadUInt32 (pendingY);
+    reader.ReadBool   (m_xInt);
+    reader.ReadBool   (m_yInt);
+    reader.ReadBool   (m_vblInt);
+    reader.ReadByte   (m_mouX1);
+    reader.ReadByte   (m_mouY1);
+    reader.ReadBool   (m_xyEnabled);
+    reader.ReadBool   (m_vblEnabled);
+    reader.ReadBool   (m_x0EdgeFalling);
+    reader.ReadBool   (m_y0EdgeFalling);
+    reader.ReadBool   (m_iouAccessEnabled);
+    reader.ReadBool   (m_lastInVblank);
+    reader.ReadUInt32 (m_sampleAccum);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    m_pendingX = static_cast<int> (pendingX);
+    m_pendingY = static_cast<int> (pendingY);
+
+    CBREx (m_pendingX >= -kMaxPending && m_pendingX <= kMaxPending, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (m_pendingY >= -kMaxPending && m_pendingY <= kMaxPending, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_hostDx.store     (static_cast<int> (hostDx), std::memory_order_release);
+    m_hostDy.store     (static_cast<int> (hostDy), std::memory_order_release);
+    m_hostButton.store (hostButton,                std::memory_order_release);
+    m_hostTarget.store (hostTarget,                std::memory_order_release);
+    m_hasTarget.store  (hasTarget,                 std::memory_order_release);
+
+    UpdateIrqLines();
+
+Error:
+    return hr;
 }

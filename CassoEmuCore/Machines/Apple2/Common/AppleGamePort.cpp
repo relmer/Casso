@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
@@ -446,4 +448,90 @@ unique_ptr<MemoryDevice> AppleGamePort::Create (const DeviceConfig & config, Mem
     device->Reset();
 
     return device;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleGamePort::SaveState (StateWriter & writer) const
+{
+    int  i = 0;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+    writer.WriteUInt64  (m_paddleTriggerCycle);
+
+    for (i = 0; i < s_knButtonCount; i++)
+    {
+        writer.WriteBool (m_buttonState[i].load (memory_order_acquire));
+    }
+
+    for (i = 0; i < s_knPaddleAxisCount; i++)
+    {
+        writer.WriteByte (m_paddlePosition[i].load (memory_order_acquire));
+    }
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleGamePort::LoadState (StateReader & reader)
+{
+    HRESULT   hr                                = S_OK;
+    uint16_t  version                           = 0;
+    bool      buttons[s_knButtonCount]          = {};
+    Byte      paddles[s_knPaddleAxisCount]      = {};
+    int       i                                 = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadUInt64 (m_paddleTriggerCycle);
+
+    for (i = 0; i < s_knButtonCount; i++)
+    {
+        reader.ReadBool (buttons[i]);
+    }
+
+    for (i = 0; i < s_knPaddleAxisCount; i++)
+    {
+        reader.ReadByte (paddles[i]);
+    }
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    for (i = 0; i < s_knButtonCount; i++)
+    {
+        m_buttonState[i].store (buttons[i], memory_order_release);
+        m_lastEmittedButton[i] = -1;
+    }
+
+    for (i = 0; i < s_knPaddleAxisCount; i++)
+    {
+        m_paddlePosition[i].store (paddles[i], memory_order_release);
+        m_lastEmittedPaddle[i] = -1;
+    }
+
+Error:
+    return hr;
 }

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 
 
@@ -215,4 +217,86 @@ JoystickSwitch SiriusJoyport::GetSelectedSwitch (int index) const
     }
 
     return selected;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SiriusJoyport::SaveState (StateWriter & writer) const
+{
+    size_t  jack = 0;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+    writer.WriteUInt32  (static_cast<uint32_t> (JoyportJacks::kJackCount));
+
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
+    {
+        writer.WriteUInt32 (static_cast<uint32_t> (m_jacks[jack].load (memory_order_acquire)));
+    }
+
+    writer.WriteUInt64 (m_resetCycle);
+    writer.WriteBool   (m_hasResetStamp);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  A saved jack holding a switch bit this build does not define is rejected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SiriusJoyport::LoadState (StateReader & reader)
+{
+    constexpr uint32_t  kSwitchMask = (1u << static_cast<uint32_t> (JoystickSwitch::Count)) - 1;
+
+    HRESULT   hr                              = S_OK;
+    uint16_t  version                         = 0;
+    uint32_t  jackCount                       = 0;
+    uint32_t  jacks[JoyportJacks::kJackCount] = {};
+    size_t    jack                            = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadUInt32 (jackCount);
+    CBREx (jackCount == JoyportJacks::kJackCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
+    {
+        reader.ReadUInt32 (jacks[jack]);
+    }
+
+    reader.ReadUInt64 (m_resetCycle);
+    reader.ReadBool   (m_hasResetStamp);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
+    {
+        CBREx ((jacks[jack] & ~kSwitchMask) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        m_jacks[jack].store (jacks[jack], memory_order_release);
+    }
+
+Error:
+    return hr;
 }
