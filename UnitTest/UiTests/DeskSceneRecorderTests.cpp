@@ -387,6 +387,29 @@ public:
     }
 
     //
+    //  The camera centers on everything on the desk, not on the monitor: with
+    //  the recorder beside the stack, the group sits in the middle of the
+    //  frame rather than off to the left of it.
+    //
+    TEST_METHOD (Layout_Centers_The_Whole_Group_Recorder_Included)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics (true);
+        RECT                  vp      = { 0, 0, 1280, 800 };
+        DeskSceneComposition  comp;
+        float                 middle  = 0.0f;
+        float                 offset  = 0.0f;
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        middle = (comp.sceneRectPx.left + comp.sceneRectPx.right) * 0.5f;
+        offset = std::abs (middle - (vp.left + vp.right) * 0.5f);
+
+        Assert::IsTrue (offset < (vp.right - vp.left) * 0.05f, L"the framed group is off center");
+    }
+
+    //
     //  A click on the recorder resolves to the recorder; the same click with
     //  no recorder bounds passed in finds nothing there.
     //

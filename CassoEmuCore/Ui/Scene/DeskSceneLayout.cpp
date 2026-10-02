@@ -404,8 +404,16 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // the monitor's front plane, sitting kEyeAboveMonitorTopMm above the
     // monitor's top, looking at the middle of the screen. Every perspective
     // in the frame follows from that one position.
+    //
+    // ALL OF IT, NOT THE MONITOR. The eye, the gaze and the orbit pivot sit
+    // over the middle of everything on the desk, so a scene with the recorder
+    // beside the stack is framed and turned as one group rather than about the
+    // monitor with the recorder hanging off one side. Without the recorder the
+    // stack is symmetric and this is the monitor's center, as before.
     {
-        float   at[3]     = { 0.0f, glassCy, 0.0f };
+        float   midX      = (deviceMin[0] + deviceMax[0]) * 0.5f;
+        float   midZ      = (deviceMin[2] + deviceMax[2]) * 0.5f;
+        float   at[3]     = { midX, glassCy, 0.0f };
         float   eyeUp     = metrics.monitorMax[2] + monitorLiftMm + kEyeAboveMonitorTopMm;
         float   backOff   = 1.0f;
         float   fovY      = 0.0f;
@@ -427,7 +435,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         // pathological viewport from turning the frame into a fisheye.
         for (int pass = 0; pass < 4; pass++)
         {
-            float   eye[3]   = { 0.0f, glassCy + (eyeUp - glassCy) * backOff, kViewingDistanceMm * backOff };
+            float   eye[3]   = { midX, glassCy + (eyeUp - glassCy) * backOff, kViewingDistanceMm * backOff };
             float   needTanX = 0.0f;
             float   needTanY = 0.0f;
             float   tanLo    = FLT_MAX;
@@ -530,7 +538,11 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             float  sp = std::sin (view.orbitPitchRad);
 
             // RotY(-yaw) * RotX(+pitch), row-vector convention, then the
-            // pivot carried through and put back: p' = (p - at) * R + at.
+            // pivot carried through and put back: p' = (p - pivot) * R + pivot.
+            // The pivot is the gaze target pushed back to the middle of the
+            // devices' depth, so a turn spins the group about its own center.
+            float  pivot[3] = { at[0], at[1], midZ };
+
             float  rot[16] =
             {
                 cy,        sy * sp,        -sy * cp,       0.0f,
@@ -539,9 +551,9 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                 0.0f,      0.0f,            0.0f,          1.0f,
             };
 
-            rot[12] = at[0] - (at[0] * rot[0] + at[1] * rot[4] + at[2] * rot[8]);
-            rot[13] = at[1] - (at[0] * rot[1] + at[1] * rot[5] + at[2] * rot[9]);
-            rot[14] = at[2] - (at[0] * rot[2] + at[1] * rot[6] + at[2] * rot[10]);
+            rot[12] = pivot[0] - (pivot[0] * rot[0] + pivot[1] * rot[4] + pivot[2] * rot[8]);
+            rot[13] = pivot[1] - (pivot[0] * rot[1] + pivot[1] * rot[5] + pivot[2] * rot[9]);
+            rot[14] = pivot[2] - (pivot[0] * rot[2] + pivot[1] * rot[6] + pivot[2] * rot[10]);
 
             {
                 float  rotated[16] = {};
