@@ -1573,13 +1573,16 @@ frame). Printer output already sent is not retracted (open question).
 
 #### Prior art (2026-10-03)
 
-Sources are documentation, release notes, forum posts and papers only; no GPL
-source was read. Where a source does not say, this says "unclear".
+Sources are documentation, release notes, forum posts and papers, plus a
+reading (not copying) of the Mesen 2 source at commit `b9fa69dd` (2026-06-04,
+[SourMesen/Mesen2](https://github.com/SourMesen/Mesen2)); everything below
+about Mesen 2 is described in Casso's own words. MesenCE was not compared.
+Where a source does not say, this says "unclear".
 
 | Tool | Mechanism | Interval and budget | Restores devices? |
 |---|---|---|---|
-| Mesen (NES), Mesen 2 | Rewind keeps periodic save states in memory and re-emulates forward from the nearest one ([preferences](https://www.mesen.ca/docs/configuration/preferences.html), [forum, author](https://forums.nesdev.org/viewtopic.php?t=24391&start=75)) | Documented as roughly 1 MB per minute, window set in minutes; the author describes one state per second in Mesen 2, other secondary sources say every 30 frames ([libretro](https://docs.libretro.com/library/mesen/)), so the exact interval is unclear | Yes, whole-machine states |
-| Mesen 2 debugger | Step back, including by scanline and frame, and undo of ROM/RAM edits ([releases](https://github.com/SourMesen/Mesen2/releases)) | Whether instruction step back uses a per-instruction log or replay from a rewind state is not documented: unclear | Presumably, since it builds on states; unclear |
+| Mesen (NES), Mesen 2 | Rewind keeps a full save state every 30 emulated frames (half a second at 60 Hz) plus that block's per-frame input log, and re-emulates forward from the nearest one (`Core/Shared/RewindManager.h`, `BufferSize`; [preferences](https://www.mesen.ca/docs/configuration/preferences.html)) | One state per 30 frames. Compression (`Core/Shared/RewindData.cpp`, `Utilities/CompressionHelper.h`): every 30th state is a full keyframe; the 29 between are XORed byte-for-byte against that keyframe so unchanged bytes become zero, and every state is then deflated with miniz at level 1 (fastest). The latest keyframe is also held uncompressed to avoid re-inflating it 29 times. The budget is a memory cap in MB; when exceeded, the oldest states are dropped up to the next keyframe | Yes, whole-machine states |
+| Mesen 2 debugger | Step back by instruction, scanline or frame (`Core/Debugger/StepBackManager.cpp`). No per-instruction log: it loads the rewind state before the target and runs forward at full speed, replaying recorded input, until the master cycle counter reaches the target. In the last 600 cycles before the target it serializes a whole state after every instruction into a small cache, then loads the newest cached state, i.e. the instruction start just before the current one. Repeated instruction step backs pop that cache instead of replaying, as long as its tail matches the current cycle; otherwise the cache is cleared. If one instruction exceeds the window (DMA, block moves), it retries once with a window widened by that instruction's length | Target is a cycle count from the core's master clock (NES CPU cycles; SNES master clock): instruction = current cycle, scanline = current minus cycles per scanline, frame = current minus cycles per frame. When the target is in the first frame of a block, it starts one block earlier so the target is never skipped | Yes; and on arrival the recorded future past the target is discarded, so the timeline forks there |
 | ZEsarUX + DeZog | CPU history ring of registers and stack only ([DeZog usage](https://raw.githubusercontent.com/maziac/DeZog/main/documentation/Usage.md)) | About 40 bytes per instruction; default 10,000 instructions; 1 s at 4 MHz is about 40 MB | No: memory and hardware are not rewound; memory-based conditions, watchpoints and logpoints are not evaluated in reverse |
 | rr | Forward checkpoints plus deterministic replay; reverse execution is "go to an earlier checkpoint and run forward" ([rr](https://rr-project.org/), [paper](https://www.usenix.org/system/files/conference/atc17/atc17-o_callahan.pdf)) | Checkpoint interval not fixed in the user docs: unclear | Yes, whole process |
 | WinDbg TTD | Full instruction trace plus an index built after recording ([overview](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-overview), [file size](https://learn.microsoft.com/en-us/archive/blogs/windbg/time-travel-debugging-ttd-file-size)) | 1 bit to 1 byte per instruction, 5-50 MB/s, index about twice the trace; 5x-20x slowdown ([analysis](https://whiteknightlabs.com/2025/10/14/microsoft-windbg-ttd-versus-intel-pt/)) | Process memory, yes |
@@ -1588,14 +1591,39 @@ source was read. Where a source does not say, this says "unclear".
 each recorded event and declares divergence when replay reaches the event
 with different values; diagnosis then narrows by memory checksums and dumps
 ([O'Callahan](https://robert.ocallahan.org/2016/06/how-to-track-down-divergence-bugs-in-rr.html),
-[issue 3341](https://github.com/rr-debugger/rr/issues/3341)). No emulator
-source above documents a runtime divergence check: unclear.
+[issue 3341](https://github.com/rr-debugger/rr/issues/3341)). Mesen 2 has no
+runtime divergence check: replay is trusted, and determinism rests on whole
+state plus input replay alone.
 
-**Input recording, save RAM and disk.** Mesen's movies record input and are
-debuggable ([forum](https://forums.nesdev.org/viewtopic.php?t=23004)); how
-battery RAM is treated during rewind is not documented by any source found:
-unclear. No prior art found addresses media writes; Casso's disk rules are
-ahead of it.
+**Input recording and host time (Mesen 2).** The rewind manager records each
+controller's raw state into the current block's input log whenever input is
+polled while not rewinding, and while rewinding it feeds those logs back in
+order in place of live input (`RewindManager::RecordInput` / `SetInput`). The
+step-back path keeps running to the end of a partial frame rather than
+stopping early, because stopping at a block edge would desynchronize the
+input stream. Host time leaks in at least one place: the GBA cartridge clock
+reads the host wall clock and stores the last host reading in its state
+(`Core/GBA/Cart/GbaRtc.cpp`), so its value after a replay depends on when the
+replay ran. Run-ahead is turned off while rewinding (`Core/Shared/Emulator.cpp`).
+
+**Save RAM and disk (Mesen 2).** Battery RAM is part of each save state, so
+rewind restores it in memory; nothing is written to disk during rewind,
+because battery files are only written on power off or ROM change
+(`Core/Shared/Emulator.cpp`), and the history viewer disables battery saves
+outright (`Core/Shared/BatteryManager.cpp`). So the file always carries the
+last state of the session, the same "last flush wins" rule as Casso. No prior
+art found addresses removable media writes; Casso's disk rules are ahead of
+it.
+
+**Start-of-rewind lag (Mesen 2).** It is not avoided, only hidden. On start,
+the manager loads the previous state, mutes audio, and runs at maximum speed,
+buffering every frame and the audio of the block without showing them
+(`Starting` state); once a whole block of frames is buffered it plays them
+back in reverse. The user sees the frozen last frame for the time it takes to
+emulate up to 30 frames. Stopping does the reverse: it reloads the state
+holding the frame on screen and fast-forwards silently to it (`Stopping`).
+Debugger step back is the same work without display: audio muted, last
+produced frame shown on arrival.
 
 **Reported pitfalls.** Rewind start lag of up to one interval while the
 emulator re-runs from the state, and a request for a visible "rewinding"
@@ -1619,12 +1647,28 @@ documented failure. Its budget (about 50 MB for 60 s) is far above Mesen's
    keyframe compare them; a mismatch is a hard error in Debug and a logged
    fault plus "history unavailable" in Release. Make this the T452 test's
    oracle as well.
-2. Compress keyframes (delta against the previous keyframe, then a fast
-   compressor); most RAM pages do not change in 10 frames. This should let
-   the default window grow well past 60 s inside the same memory.
+2. Compress keyframes as Mesen 2 does: a full keyframe every N, XOR the ones
+   between against it, then a fastest-level deflate (or LZ4). XOR against a
+   fixed full keyframe, not a chain of deltas, keeps any restore to one
+   inflate plus one XOR. Keep the latest full keyframe uncompressed. This
+   should let the default window grow well past 60 s inside the same memory.
 3. Hide replay lag: keep the ring large enough to cover at least one keyframe
    interval, so a step back never waits on replay; Mesen's users noticed the
-   lag.
+   lag, which Mesen 2 only hides behind a frozen frame.
+3a. Measure step back targets in Casso's own cycle counter, not instruction
+   counts, as Mesen 2 does; then step back by scanline (65 cycles) and frame
+   (17,030 cycles) cost nothing extra. Mesen 2's 600-cycle fallback window and
+   its one retry for long instructions are not needed in Casso, since the
+   ring already holds every instruction start; but its rule of starting one
+   keyframe earlier when the target sits at the start of an interval is.
+3b. Truncate history at the target when a step back lands (Mesen 2 does this)
+   only once the user changes something; until then keep the recorded future
+   for replay, per owner question 7 above. This is where Casso deliberately
+   departs from Mesen 2.
+3c. Audit every host-time read, as the Mesen 2 GBA clock shows the hazard:
+   anything that reads the wall clock (a clock card, a "now" in a file
+   timestamp) must be recorded like input or frozen during replay. This
+   matches the host-time audit already recorded above.
 4. Evaluate memory-based conditions, watchpoints and logpoints in reverse
    continue against the restored state, and say so in the docs, since that is
    exactly where ZEsarUX/DeZog fall short.
