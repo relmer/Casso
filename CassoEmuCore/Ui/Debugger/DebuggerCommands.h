@@ -46,7 +46,19 @@ public:
         std::function<void (int id)>  dispatch;
         std::function<bool (int id)>  isEnabled;
         std::function<bool (int id)>  isChecked;
+
+        //  Whether the window draws on a dark ground, which picks the icons' colors.
+        std::function<bool ()>        isDark;
     };
+
+    //  The colors Visual Studio draws its run and step icons in.
+    struct IconColors
+    {
+        uint32_t  run  = 0;   // Run's triangle
+        uint32_t  step = 0;   // the step arrows and their dots
+    };
+
+    static IconColors  GetIconColors (bool isDark);
 
     explicit DebuggerCommands (Handlers handlers);
 
@@ -73,7 +85,16 @@ private:
 
     static const std::vector<Row> &  GetRows ();
     static std::wstring              GetTip  (const Row & row, const std::wstring & accelerator);
-    static void  PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ink);
+    static void  PaintIcon        (int id, IDxuiPainter & painter, const DxuiToolbarIconBox & icon, const IconColors & colors);
+    static void  PaintRun         (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintPause       (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepInto    (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepOver    (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepOut     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t arrow, uint32_t bar);
+    static void  PaintShowNext    (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintArrowHead   (IDxuiPainter & painter, float tipX, float tipY, float dirX, float dirY, float length, float stroke, uint32_t color);
+    static void  PaintStepDot     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
 
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;

@@ -127,14 +127,16 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
         entry.group    = row.group;
         entry.iconOnly = row.iconOnly;
 
-        if (row.id == kRunToCursor)
+        if (row.id != kTrace)
         {
             //  Drawn rather than a glyph, but through the strip's own icon
-            //  path: hover, disabling and theme are decided once, for every
-            //  entry, and handed here as the box's ink.
-            entry.icon = [] (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
+            //  path: hover and disabling are decided once, for every entry,
+            //  and handed here as the box's ink and enabled state.
+            int  id = row.id;
+
+            entry.icon = [this, id] (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
             {
-                PaintRunToCursor (painter, icon, icon.ink);
+                PaintIcon (id, painter, icon, GetIconColors (m_handlers.isDark ? m_handlers.isDark() : true));
             };
         }
 
@@ -150,27 +152,306 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerCommands::PaintRunToCursor
+//  DebuggerCommands::GetIconColors
 //
-//  Visual Studio's Run to Cursor: an arrow pointing right that ends at a
-//  vertical bar, in strokes as thin as the icon font's.
+//  Visual Studio's green play triangle and blue step arrows, each lighter on
+//  a dark ground and deeper on a light one so it keeps its contrast.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerCommands::PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ink)
+DebuggerCommands::IconColors DebuggerCommands::GetIconColors (bool isDark)
+{
+    IconColors  colors;
+
+
+
+    colors.run  = isDark ? 0xFF6CCB5Fu : 0xFF1F883Du;
+    colors.step = isDark ? 0xFF4FA8E8u : 0xFF1A6FC4u;
+
+    return colors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintIcon
+//
+//  One entry's vector icon, in Visual Studio's shapes. Colored parts take the
+//  entry's dimmed ink while it is disabled, as Visual Studio grays them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintIcon (int id, IDxuiPainter & painter, const DxuiToolbarIconBox & icon, const IconColors & colors)
+{
+    uint32_t  run  = icon.enabled ? colors.run  : icon.ink;
+    uint32_t  step = icon.enabled ? colors.step : icon.ink;
+
+
+
+    switch (id)
+    {
+    case kRun:         PaintRun         (painter, icon, run);             break;
+    case kPause:       PaintPause       (painter, icon, icon.ink);        break;
+    case kStepInto:    PaintStepInto    (painter, icon, step);            break;
+    case kStepOver:    PaintStepOver    (painter, icon, step);            break;
+    case kStepOut:     PaintStepOut     (painter, icon, step);            break;
+    case kRunToCursor: PaintRunToCursor (painter, icon, step, icon.ink);  break;
+    case kShowNext:    PaintShowNext    (painter, icon, icon.ink);        break;
+    default:                                                              break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintRun
+//
+//  A filled triangle pointing right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintRun (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s  = icon.size;
+    float  cy = icon.top + icon.rowH * 0.5f;
+    float  l  = icon.x + s * 0.18f;
+    float  r  = icon.x + s * 0.90f;
+
+
+
+    painter.FillConvexQuad (l, cy - s * 0.42f, r, cy, r, cy, l, cy + s * 0.42f, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintPause
+//
+//  Two upright rounded bars.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintPause (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s  = icon.size;
+    float  cy = icon.top + icon.rowH * 0.5f;
+    float  w  = s * 0.24f;
+    float  h  = s * 0.80f;
+
+
+
+    painter.FillRoundedRect (icon.x + s * 0.16f, cy - h * 0.5f, w, h, w * 0.5f, color);
+    painter.FillRoundedRect (icon.x + s * 0.60f, cy - h * 0.5f, w, h, w * 0.5f, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintStepDot
+//
+//  The statement the step lands beside: a dot under the icon's middle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintStepDot (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s  = icon.size;
+    float  cy = icon.top + icon.rowH * 0.5f;
+
+
+
+    painter.FillCircle (icon.x + s * 0.5f, cy + s * 0.36f, s * 0.11f, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintArrowHead
+//
+//  Two strokes back from a tip, along the unit direction (dirX, dirY) the
+//  arrow points.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintArrowHead (IDxuiPainter & painter, float tipX, float tipY, float dirX, float dirY, float length, float stroke, uint32_t color)
+{
+    float  backX = -dirX * length;
+    float  backY = -dirY * length;
+
+
+
+    painter.DrawLine (tipX, tipY, tipX + backX - backY, tipY + backY + backX, stroke, color);
+    painter.DrawLine (tipX, tipY, tipX + backX + backY, tipY + backY - backX, stroke, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintStepInto
+//
+//  An arrow pointing down at the dot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintStepInto (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s      = icon.size;
+    float  cx     = icon.x + s * 0.5f;
+    float  cy     = icon.top + icon.rowH * 0.5f;
+    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  tipY   = cy + s * 0.12f;
+
+
+
+    painter.DrawLine (cx, cy - s * 0.46f, cx, tipY, stroke, color);
+    PaintArrowHead   (painter, cx, tipY, 0.0f, 1.0f, s * 0.24f, stroke, color);
+    PaintStepDot     (painter, icon, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintStepOut
+//
+//  An arrow pointing up, away from the dot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintStepOut (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s      = icon.size;
+    float  cx     = icon.x + s * 0.5f;
+    float  cy     = icon.top + icon.rowH * 0.5f;
+    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  tipY   = cy - s * 0.46f;
+
+
+
+    painter.DrawLine (cx, cy + s * 0.12f, cx, tipY, stroke, color);
+    PaintArrowHead   (painter, cx, tipY, 0.0f, -1.0f, s * 0.24f, stroke, color);
+    PaintStepDot     (painter, icon, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintStepOver
+//
+//  An arc from the left up over the dot, ending in an arrow pointing down on
+//  the right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintStepOver (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    static constexpr int    kSegments = 10;
+    static constexpr float  kPi       = 3.14159265f;
+
+
+
+    float  s      = icon.size;
+    float  cx     = icon.x + s * 0.5f;
+    float  cy     = icon.top + icon.rowH * 0.5f;
+    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  rx     = s * 0.36f;
+    float  ry     = s * 0.42f;
+    float  baseY  = cy + s * 0.08f;
+    float  prevX  = cx - rx;
+    float  prevY  = baseY;
+
+
+
+    for (int i = 1; i <= kSegments; i++)
+    {
+        float  angle = kPi - kPi * (float) i / (float) kSegments;
+        float  x     = cx + rx * std::cos (angle);
+        float  y     = baseY - ry * std::sin (angle);
+
+        painter.DrawLine (prevX, prevY, x, y, stroke, color);
+
+        prevX = x;
+        prevY = y;
+    }
+
+    PaintArrowHead (painter, cx + rx, baseY, 0.0f, 1.0f, s * 0.24f, stroke, color);
+    PaintStepDot   (painter, icon, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintRunToCursor
+//
+//  Visual Studio's Run to Cursor: an arrow pointing right that ends at a
+//  vertical bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t arrow, uint32_t bar)
 {
     float  s      = icon.size;
     float  cy     = icon.top + icon.rowH * 0.5f;
-    float  stroke = (std::max) (1.0f, s / 14.0f);
-    float  tipX   = icon.x + s * 0.74f;
+    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  tipX   = icon.x + s * 0.72f;
     float  barX   = icon.x + s * 0.92f;
 
 
 
-    painter.DrawLine (icon.x + s * 0.02f, cy, tipX, cy, stroke, ink);
-    painter.DrawLine (tipX, cy, tipX - s * 0.30f, cy - s * 0.30f, stroke, ink);
-    painter.DrawLine (tipX, cy, tipX - s * 0.30f, cy + s * 0.30f, stroke, ink);
-    painter.DrawLine (barX, cy - s * 0.42f, barX, cy + s * 0.42f, stroke, ink);
+    painter.DrawLine (icon.x + s * 0.02f, cy, tipX, cy, stroke, arrow);
+    PaintArrowHead   (painter, tipX, cy, 1.0f, 0.0f, s * 0.30f, stroke, arrow);
+    painter.DrawLine (barX, cy - s * 0.42f, barX, cy + s * 0.42f, stroke, bar);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintShowNext
+//
+//  A plain arrow pointing right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintShowNext (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s      = icon.size;
+    float  cy     = icon.top + icon.rowH * 0.5f;
+    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  tipX   = icon.x + s * 0.92f;
+
+
+
+    painter.DrawLine (icon.x + s * 0.08f, cy, tipX, cy, stroke, color);
+    PaintArrowHead   (painter, tipX, cy, 1.0f, 0.0f, s * 0.34f, stroke, color);
 }
 
 

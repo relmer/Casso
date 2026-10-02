@@ -34,6 +34,10 @@ struct DxuiToolbarIconBox
     //  The ink the entry's own glyph is drawn in, disabled alpha included,
     //  so a decoration matches the icons beside it.
     uint32_t  ink = 0xFF000000u;
+
+    //  Whether the entry can be run, so an icon drawn in its own colors can
+    //  fall back to the dimmed ink when it cannot.
+    bool  enabled = true;
 };
 
 

@@ -488,6 +488,7 @@ void DebuggerWindow::ConfigureCommandBar()
     handlers.dispatch  = [this] (int id) { RunCommandBarEntry (id); };
     handlers.isEnabled = [this] (int id) { return IsCommandBarEntryEnabled (id); };
     handlers.isChecked = [this] (int id) { return id == DebuggerCommands::kTrace && m_snapshot != nullptr && m_snapshot->trace.isOn; };
+    handlers.isDark    = [this]          { return IsDarkTheme(); };
 
     m_commands = std::make_unique<DebuggerCommands> (std::move (handlers));
 

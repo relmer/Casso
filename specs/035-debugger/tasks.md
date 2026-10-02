@@ -1113,7 +1113,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T384 Owner review 2026-10-02: the disassembly shows a top tab instead of a title bar; tab strips follow Visual Studio: the tab band a slightly different color from the toolbar channel above it (vs-reference/vs-tool-window-bottom-tabs.png), and bottom tabs as in vs-reference/vs-memory-window-tabs.png
 - [X] T385 Owner review 2026-10-02: a docked toolbar draws no edge along its long sides (the panes beside it give those), only its short edges
 - [ ] T386 Owner review 2026-10-02: a floating toolbar turns vertical as it nears a vertical band and stays vertical until it nears a horizontal one, so the user picks its orientation and can still leave it floating
-- [ ] T387 Owner review 2026-10-02: the debug toolbar's buttons are drawn in color with Visual Studio's shapes as vector icons (vs-reference/vs-debug-toolbar-commands.png)
+- [X] T387 Owner review 2026-10-02: the debug toolbar's buttons are drawn in color with Visual Studio's shapes as vector icons (vs-reference/vs-debug-toolbar-commands.png)
 - [ ] T388 Owner review 2026-10-02: the console's line spacing is a little tight; add extra space between one command's output and the next command
 - [ ] T389 Owner review 2026-10-02: the disassembly's "Show ..." check boxes draw no box around them and sit a little farther apart
 - [ ] T390 Owner review 2026-10-02: dragging the disassembly's yellow PC triangle to another statement sets PC there; the context menu gains "Set next statement"

@@ -1942,6 +1942,8 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     icon.size = iconDip;
     icon.rowH = bh;
 
+    icon.enabled = enabled;
+
     //  A DECORATION IS GIVEN AN OPAQUE INK. Text draws a partly transparent
     //  color once, but strokes are laid down as overlapping rects, and each
     //  overlap blends again -- the same color would come out solid. So the
