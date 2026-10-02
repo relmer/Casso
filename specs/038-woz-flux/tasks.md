@@ -200,6 +200,28 @@ parallel (different files, no dependency on an unfinished task).
 
 ---
 
+## Phase 7: Follow-ups from review
+
+- [ ] T043 [US3] Restructure the damaged-disk report on insert (`CassoEmuCore/Devices/Disk/DamagedMountReport.cpp`, tests in `UnitTest/EmuTests/DamagedDiskMountTests.cpp`) as a problem list, once the owner approves this draft:
+
+  > Casso found these problems in this disk image:
+  >
+  > • The stored checksum does not match the contents.
+  > • Unable to read tracks 1-5, 8-9, 13: their data is missing from the file.
+  > • Unable to read track 20: its data is cut short.
+  >
+  > {path}
+  >
+  > Casso has loaded the disk so you can read it, and has write-protected it for this session, because rewriting the file would hide the damage. Unreadable tracks read as blank. A salvaged copy is a standard disk image of the readable sectors, without this disk's flux timing or its copy protection.
+
+  - One bullet per problem, using `s_kchBullet` from `Core/UnicodeSymbols.h`. Reasons group by `DamageReason`: `OutsideFile` and `V1RecordPastTrks` read "their data is missing from the file"; `CountExceedsBlocks` and `TruncatedRun` read "its data is cut short".
+  - Track lists become runs of tracks one whole track apart ("1-5, 8-9, 13"; Bandits' half tracks read "1.5-19.5"), with "track" or "tracks" by how many the list covers. This replaces the eight-then-"N more" cutoff in `FormatTrackList`.
+  - "Unreadable tracks read as blank." only with damaged tracks; the salvage sentence only on flux disks. A checksum-only disk has one bullet.
+  - The drive tooltip and the write-protect refusal keep their single-sentence wording.
+- [ ] T044 Owner checks still open: open a flux disk in Casso Explorer (T028) and run the pinned full-machine speed comparison (T037). The six real flux disks for this and any later check are in `%LOCALAPPDATA%\Casso\FluxTestDisks` (never committed; keep until 038 closes). Baseline 2026-10-02: Bandits, Minotaur, Fly Wars, Cyclod, Lemmings and Jellyfish all boot in Casso, save byte-identical, and match AppleEm's Disk Inspector cell count on every flux track (104 tracks).
+
+---
+
 ## Dependencies
 
 - Setup (T001-T002), then Foundational (T003-T007), then the stories.

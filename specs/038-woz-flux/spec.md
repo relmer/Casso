@@ -75,6 +75,15 @@ has to leave the flux timing available for it.
   write replaces only that sector's data field, spliced into the flux at the
   same 31.29-tick cell the drive writes; the rest of the track keeps its
   recorded timing.
+- Q: What does the write-protect refusal on a damaged disk say? -> A: One
+  sentence per cause, owner-approved: "Rewriting it would give the file a newly
+  computed checksum, hiding the damage." for a checksum mismatch, and "Rewriting
+  it would replace the tracks that could not be read with blank ones, hiding the
+  damage." for damaged tracks. User text never uses "carries".
+- Q: How should the damaged-disk report on insert be laid out? -> A: Pending
+  owner approval (T043). Direction given: a bulleted list of every problem found,
+  each with the tracks it affects written as runs ("Unable to read tracks 1-5,
+  8-9, 13: ..."), followed by what Casso did and what the user can do.
 
 ## User Scenarios & Testing *(mandatory)*
 
