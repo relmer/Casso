@@ -858,7 +858,9 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     if (HasStrip() && strip.bottom > strip.top)
     {
         m_strip.SetSelectedFill    (theme.ContentBackground());
-        m_strip.SetStripFill       (theme.Background());
+        //  A tool window's bottom band is a shade off the window's surface, as
+        //  Visual Studio draws it, so it reads apart from the pane above it.
+        m_strip.SetStripFill       ((m_kind == Kind::ToolWindow) ? DxuiColor::ComputeTintForContrast (theme.Background(), kBandContrast) : theme.Background());
         m_strip.SetSelectedOutline (frame);
         m_strip.Paint (painter, text, theme);
     }

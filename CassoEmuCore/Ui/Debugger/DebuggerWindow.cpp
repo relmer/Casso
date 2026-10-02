@@ -4644,7 +4644,7 @@ void DebuggerWindow::ConfigureDockSite()
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
 
-    //  Source and Disassembly are documents, the rest tool windows, each with
+    //  Source views are documents, the rest tool windows, each with
     //  a title bar whose menu is the pane's Dock To menu (FR-084).
     m_dockSite->SetDocumentFn  ([this] (const std::wstring & pane) { return IsDocumentPane (pane); });
     m_dockSite->SetOnPaneMenu  ([this] (const std::wstring & pane, POINT clientPx) { ShowDockToMenu (pane, clientPx); });
@@ -5021,21 +5021,13 @@ bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
 //
 //  DebuggerWindow::IsDocumentPane
 //
-//  The Disassembly views and the source documents are documents; every
-//  other pane is a tool window (FR-084).
+//  The source documents are documents; every other pane, the Disassembly
+//  views included, is a tool window with a title bar (FR-084).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::IsDocumentPane (const std::wstring & pane) const
 {
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        if (pane == DebuggerLayout::GetCodePaneId (view))
-        {
-            return true;
-        }
-    }
-
     return GetSourceSlotOf (pane) >= 0;
 }
 
