@@ -104,7 +104,7 @@ uint64_t MachineIdle::RunUntilIdle (MachineHost & host, uint64_t cycleCap)
 
     // Nothing to pump, and no screen to scrape either. A host always has a
     // bus; what it may not have is a machine on it.
-    if (host.GetCpu() == nullptr || host.GetMmu() == nullptr)
+    if (host.GetCpu() == nullptr)
     {
         return 0;
     }

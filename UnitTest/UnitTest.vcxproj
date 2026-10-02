@@ -216,6 +216,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="EmuTests\TapeRomLoadTests.cpp" />
+    <ClCompile Include="EmuTests\TapeDeckTests.cpp" />
+    <ClCompile Include="EmuTests\CassettePortTests.cpp" />
     <ClCompile Include="EmuTests\TapeImageLoaderTests.cpp" />
     <ClCompile Include="EmuTests\TapeSignalDecoderTests.cpp" />
     <ClCompile Include="EmuTests\AiffCodecTests.cpp" />

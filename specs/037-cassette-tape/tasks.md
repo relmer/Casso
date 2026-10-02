@@ -95,27 +95,27 @@ to the expected edge count.
 
 ### Tests
 
-- [ ] T012 [P] [US1] Write `UnitTest/EmuTests/CassettePortTests.cpp` per contracts/guest-io.md:
+- [X] T012 [P] [US1] Write `UnitTest/EmuTests/CassettePortTests.cpp` per contracts/guest-io.md:
   - on the ][, ][+ and //e, $C060/$C068 bit 7 follows the deck level at the bus cycle of the access
   - bits 0-6 are unchanged from today (floating on the ][/][+, 0 on the //e)
   - bit 7 reads 0 with the deck stopped
   - $C020-$C02F read and write each toggle the output level
   - //e $C061-$C063 buttons still work
   - //c: `HasCassettePort()` is false, there is no `CassettePort` on the bus, and $C060 is still RD80SW
-- [ ] T013 [P] [US1] Write `UnitTest/EmuTests/TapeDeckTests.cpp`:
+- [X] T013 [P] [US1] Write `UnitTest/EmuTests/TapeDeckTests.cpp`:
   - the data-model.md state transitions
   - position advances only with bus cycles; a paused CPU (no cycles) holds it
   - end of tape stops at the length
   - rewind returns to 0
   - reset or machine change stops and keeps the tape inserted
   - the cursor re-seeks correctly after rewind
-- [ ] T014 [US1] Write `UnitTest/EmuTests/TapeRomLoadTests.cpp`: the SC-001 real-ROM matrix using `TestMachine (id, Slots::Empty)`, `KeystrokeInjector` and `TapeTestEncoder` with a 256-byte known pattern:
+- [X] T014 [US1] Write `UnitTest/EmuTests/TapeRomLoadTests.cpp`: the SC-001 real-ROM matrix using `TestMachine (id, Slots::Empty)`, `KeystrokeInjector` and `TapeTestEncoder` with a 256-byte known pattern:
   - Monitor `800.8FFR` on Apple2, Apple2Plus and Apple2e
   - Applesoft `LOAD` on Apple2Plus and Apple2e
   - Integer BASIC `LOAD` on Apple2
   - each asserts memory byte-for-byte and that `TextScreenScraper` shows no `ERR`
   - assert a non-zero case count before looping
-- [ ] T015 [US1] Add the SC-003 robustness cases to `UnitTest/EmuTests/TapeRomLoadTests.cpp`, on Apple2Plus with Monitor `R`:
+- [X] T015 [US1] Add the SC-003 robustness cases to `UnitTest/EmuTests/TapeRomLoadTests.cpp`, on Apple2Plus with Monitor `R`:
   - speed ±3% must pass; ±5% is recorded
   - DC offset, gain ramp, 15 dB SNR noise, and inverted polarity
   - 8 kHz and 96 kHz; 8-bit, 24-bit and float; stereo
@@ -124,18 +124,18 @@ to the expected edge count.
 
 ### Implementation
 
-- [ ] T016 [US1] Implement `TapeDeck` in `CassoEmuCore/Devices/Tape/TapeDeck.{h,cpp}`:
+- [X] T016 [US1] Implement `TapeDeck` in `CassoEmuCore/Devices/Tape/TapeDeck.{h,cpp}`:
   - the transport `TapeTransport {Empty, Stopped, Playing, Recording}`
   - `positionSample`, `playStartCycle`, the cursor, and `lastAccessCycle`
   - atomics mirrored for the UI
   - the narrow `ITapeDeckPort` interface: `ReadInputLevel (cycle)` and `OnOutputToggle (cycle)`
   - sample mapping `(cycle - playStartCycle) * sampleRate / cpuClockHz + playStartSample`, with `cpuClockHz` from the machine timing config; until T013 passes
-- [ ] T017 [US1] Add `virtual bool HasCassettePort() const` to `CassoEmuCore/Machines/IMachine.h` (true by default) and override it to false in `CassoEmuCore/Machines/Apple2/Apple2c/Apple2c.h`
-- [ ] T018 [US1] Implement the `CassettePort` device ($C020-$C02F, output flip-flop, input forward target) in `CassoEmuCore/Machines/Apple2/Common/CassettePort.{h,cpp}`. It takes the CPU's `GetBusCyclePtr()` through `SetCpuCycleSource (const uint64_t *)` and an `ITapeDeckPort *`. Register it in `CassoEmuCore/Core/ComponentRegistry.cpp`
-- [ ] T019 [US1] Add `CassettePort` to `GetInternalDevices()` for the ][/][+ (`Machines/Apple2/Apple2/Apple2.cpp`) and the //e (`Machines/Apple2/Apple2e/Apple2e.cpp`), excluded when `HasCassettePort()` is false. In `CassoEmuCore/Shell/MachineBuilder.cpp`, wire its cycle source and keep a typed ref in `GetRefs()`
-- [ ] T020 [US1] Widen `AppleGamePort` to start at $C060 and forward $C060/$C068 to `CassettePort`, in `CassoEmuCore/Machines/Apple2/Common/AppleGamePort.{h,cpp}`. Keep $C061-$C070 behavior identical
-- [ ] T021 [US1] In `CassoEmuCore/Machines/Apple2/Apple2e/Apple2eKeyboard.{h,cpp}`, forward $C020-$C02F and $C060 to `CassettePort` outside //c mode. Route $C068 from `Apple2eSoftSwitchBank` the same way. Keep the //c RD80SW path untouched
-- [ ] T022 [US1] Give the shell a `TapeDeck` that outlives machine rebuilds, and connect each newly built `CassettePort` to it. Stop the deck on soft reset, power cycle and `MachineManager::SwitchMachine`, in `CassoEmuCore/Shell/TapeManager.{h,cpp}` and `CassoEmuCore/Shell/MachineManager.cpp`; until T012-T015 pass
+- [X] T017 [US1] Add `virtual bool HasCassettePort() const` to `CassoEmuCore/Machines/IMachine.h` (true by default) and override it to false in `CassoEmuCore/Machines/Apple2/Apple2c/Apple2c.h`
+- [X] T018 [US1] Implement the `CassettePort` device ($C020-$C02F, output flip-flop, input forward target) in `CassoEmuCore/Machines/Apple2/Common/CassettePort.{h,cpp}`. It takes the CPU's `GetBusCyclePtr()` through `SetCpuCycleSource (const uint64_t *)` and an `ITapeDeckPort *`. Register it in `CassoEmuCore/Core/ComponentRegistry.cpp`
+- [X] T019 [US1] Add `CassettePort` to `GetInternalDevices()` for the ][/][+ (`Machines/Apple2/Apple2/Apple2.cpp`) and the //e (`Machines/Apple2/Apple2e/Apple2e.cpp`), excluded when `HasCassettePort()` is false. In `CassoEmuCore/Shell/MachineBuilder.cpp`, wire its cycle source and keep a typed ref in `GetRefs()`
+- [X] T020 [US1] Widen `AppleGamePort` to start at $C060 and forward $C060/$C068 to `CassettePort`, in `CassoEmuCore/Machines/Apple2/Common/AppleGamePort.{h,cpp}`. Keep $C061-$C070 behavior identical
+- [X] T021 [US1] In `CassoEmuCore/Machines/Apple2/Apple2e/Apple2eKeyboard.{h,cpp}`, forward $C020-$C02F and $C060 to `CassettePort` outside //c mode. Route $C068 from `Apple2eSoftSwitchBank` the same way. Keep the //c RD80SW path untouched
+- [X] T022 [US1] Give the machine host (`MachineHost::GetTapeDeck`, built in `MachineBuilder::WireCassettePort`) a `TapeDeck` that outlives machine rebuilds, and connect each newly built `CassettePort` to it. Stop the deck on soft reset, power cycle and `MachineManager::SwitchMachine`, in `CassoEmuCore/Shell/TapeManager.{h,cpp}` and `CassoEmuCore/Shell/MachineManager.cpp`; until T012-T015 pass
 
 **Checkpoint**: US1 loads tapes by test harness. There is no UI yet.
 

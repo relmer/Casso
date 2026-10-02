@@ -495,6 +495,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // destroyed; the rebuilt machine re-registers from a fresh pool.
         m_shell.m_machine.GetInterruptController().ResetSources();
 
+        // The recorder outlives the machine; stop it while the old CPU's
+        // cycle count still means something. The tape stays inserted.
+        m_shell.m_machine.StopTape();
+
         m_shell.m_machine.SetCpu (nullptr);
         // The //c ROM-bank coordinator holds references into the language card
         // (owned) + MMU; drop it before those owners are torn down.

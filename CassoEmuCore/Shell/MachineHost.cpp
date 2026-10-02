@@ -27,7 +27,8 @@ MachineHost::MachineHost() :
     m_memoryBus (std::make_unique<MemoryBus>()),
     m_charRom   (std::make_unique<CharacterRomData>()),
     m_diskStore (std::make_unique<DiskImageStore>()),
-    m_config    (std::make_unique<MachineConfig>())
+    m_config    (std::make_unique<MachineConfig>()),
+    m_tapeDeck  (std::make_unique<TapeDeck>())
 {
 }
 
@@ -271,6 +272,10 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
 void MachineHost::SoftReset()
 {
+    // A reset stops the recorder, as pressing reset mid-load would leave a real
+    // one running into a guest that is no longer listening. The tape stays in.
+    StopTape();
+
     m_memoryBus->SoftResetAll();
 
     if (m_mmu != nullptr)
@@ -327,6 +332,8 @@ void MachineHost::PowerCycle()
     {
         return;
     }
+
+    StopTape();
 
     // Auto-flush dirty disks before reseeding device state so writes don't
     // get lost across a power cycle. Mounts persist (matching
@@ -454,3 +461,28 @@ void MachineHost::AttachObservers (const MachineObservers & observers)
         m_refs.gamePort->SetInputEventSink (observers.input);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::StopTape
+//
+//  Stops the recorder at the current bus cycle; the tape stays inserted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::StopTape()
+{
+    uint64_t  now = m_cpu != nullptr ? *m_cpu->GetBusCyclePtr() : 0;
+
+
+
+    m_tapeDeck->Stop (now);
+}
+
+
+
+

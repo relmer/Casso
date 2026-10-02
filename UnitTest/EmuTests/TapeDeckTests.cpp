@@ -1,0 +1,298 @@
+#include "Pch.h"
+
+#include "Devices/Tape/TapeDeck.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeckTests
+//
+//  The clock and the sample rate are both 1 MHz here, so one bus cycle is one
+//  sample and positions read directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (TapeDeckTests)
+{
+public:
+
+    static constexpr double    kClock  = 1000000.0;
+    static constexpr uint32_t  kRate   = 1000000;
+    static constexpr uint64_t  kLength = 1000;
+
+
+    static void Load (TapeDeck & deck, bool isWritable = true)
+    {
+        TapeImage  image;
+
+
+
+        image.path                 = "tape.wav";
+        image.isWritable           = isWritable;
+        image.signal.sampleRate    = kRate;
+        image.signal.lengthSamples = kLength;
+        image.signal.initialLevel  = false;
+        image.signal.transitions   = { 100.5, 200.5, 300.5, 400.5 };
+
+        deck.SetCpuClock (kClock);
+        deck.Insert (std::move (image));
+    }
+
+
+    TEST_METHOD (StartsEmptyAndInsertStopsAtZero)
+    {
+        TapeDeck  deck;
+
+
+
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Empty);
+        Assert::IsNull (deck.GetImage());
+
+        Load (deck);
+
+        Assert::IsTrue    (deck.GetTransport() == TapeTransport::Stopped);
+        Assert::IsNotNull (deck.GetImage());
+        Assert::AreEqual  (0.0, deck.GetPositionSamples (12345));
+    }
+
+
+    TEST_METHOD (LevelFollowsTransitionsAtBusCycles)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (5000);
+
+        Assert::IsFalse (deck.ReadInputLevel (5000 + 100));
+        Assert::IsTrue  (deck.ReadInputLevel (5000 + 101));
+        Assert::IsTrue  (deck.ReadInputLevel (5000 + 200));
+        Assert::IsFalse (deck.ReadInputLevel (5000 + 201));
+        Assert::IsTrue  (deck.ReadInputLevel (5000 + 350));
+        Assert::IsFalse (deck.ReadInputLevel (5000 + 900));
+    }
+
+
+    TEST_METHOD (InitialLevelHighInvertsTheReadings)
+    {
+        TapeDeck   deck;
+        TapeImage  image;
+
+
+
+        image.signal.sampleRate    = kRate;
+        image.signal.lengthSamples = kLength;
+        image.signal.initialLevel  = true;
+        image.signal.transitions   = { 100.5 };
+        deck.SetCpuClock (kClock);
+        deck.Insert (std::move (image));
+        deck.Play (0);
+
+        Assert::IsTrue  (deck.ReadInputLevel (50));
+        Assert::IsFalse (deck.ReadInputLevel (150));
+    }
+
+
+    TEST_METHOD (StoppedDeckReadsLowAndRecordsNoAccess)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+
+        Assert::IsFalse (deck.ReadInputLevel (150));
+        Assert::IsFalse (deck.HasBeenAccessed());
+    }
+
+
+    TEST_METHOD (PositionAdvancesOnlyWithCycles)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (1000);
+
+        Assert::AreEqual (0.0,   deck.GetPositionSamples (1000));
+        Assert::AreEqual (250.0, deck.GetPositionSamples (1250));
+
+        // A paused machine runs no cycles; asking again at the same cycle
+        // gives the same position however much host time has gone by.
+        Assert::AreEqual (250.0, deck.GetPositionSamples (1250));
+    }
+
+
+    TEST_METHOD (StopHoldsPositionAndPlayResumesFromIt)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (0);
+        deck.Stop (150);
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Stopped);
+        Assert::AreEqual (150.0, deck.GetPositionSamples (99999));
+
+        deck.Play (10000);
+        Assert::IsTrue  (deck.ReadInputLevel (10000));
+        Assert::IsFalse (deck.ReadInputLevel (10000 + 60));
+    }
+
+
+    TEST_METHOD (RewindStopsAndReturnsToZero)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (0);
+        Assert::IsTrue (deck.ReadInputLevel (350));
+
+        deck.Rewind (350);
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Stopped);
+        Assert::AreEqual (0.0, deck.GetPositionSamples (350));
+
+        deck.Play (1000);
+        Assert::IsFalse (deck.ReadInputLevel (1000 + 50));
+        Assert::IsTrue  (deck.ReadInputLevel (1000 + 150));
+    }
+
+
+    TEST_METHOD (CursorReseeksWhenPositionGoesBackward)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (0);
+        Assert::IsFalse (deck.ReadInputLevel (450));
+
+        deck.Stop (450);
+        deck.Rewind (450);
+        deck.Play (0);
+        Assert::IsTrue (deck.ReadInputLevel (150));
+    }
+
+
+    TEST_METHOD (EndOfTapeStopsAtTheLength)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (0);
+        deck.Update (kLength + 500);
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Stopped);
+        Assert::AreEqual ((double) kLength, deck.GetPositionSamples (kLength + 900));
+    }
+
+
+    TEST_METHOD (EjectEmptiesTheDeck)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (0);
+        deck.Eject (100);
+
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Empty);
+        Assert::IsNull (deck.GetImage());
+        Assert::IsFalse (deck.ReadInputLevel (150));
+    }
+
+
+    TEST_METHOD (RecordArmsOnlyOnAWritableStoppedTape)
+    {
+        TapeDeck  writable;
+        TapeDeck  protectedDeck;
+
+
+
+        Load (writable, true);
+        writable.SetRecordArmed (true);
+        Assert::IsTrue (writable.GetSnapshot().isRecordArmed);
+
+        Load (protectedDeck, false);
+        protectedDeck.SetRecordArmed (true);
+        Assert::IsFalse (protectedDeck.GetSnapshot().isRecordArmed);
+
+        writable.SetRecordArmed (false);
+        writable.Play (0);
+        writable.SetRecordArmed (true);
+        Assert::IsFalse (writable.GetSnapshot().isRecordArmed);
+    }
+
+
+    TEST_METHOD (ArmedPlayRecordsAndCapturesToggles)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.SetRecordArmed (true);
+        deck.Play (2000);
+
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Recording);
+
+        deck.OnOutputToggle (2100);
+        deck.OnOutputToggle (2300);
+
+        Assert::AreEqual (size_t (2), deck.GetCapturedToggles().size());
+        Assert::AreEqual (uint64_t (2000), deck.GetRecordStartCycle());
+        Assert::AreEqual (0.0, deck.GetRecordStartSample());
+        Assert::AreEqual (uint64_t (2300), deck.GetLastAccessCycle());
+    }
+
+
+    TEST_METHOD (TogglesWithoutRecordingAreDiscarded)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (0);
+        deck.OnOutputToggle (100);
+
+        Assert::IsTrue  (deck.GetCapturedToggles().empty());
+        Assert::IsFalse (deck.HasBeenAccessed());
+    }
+
+
+    TEST_METHOD (SnapshotTracksTransportAndLength)
+    {
+        TapeDeck            deck;
+        TapeDeck::Snapshot  snapshot;
+
+
+
+        Load (deck);
+        deck.Play (0);
+        deck.Update (400);
+        snapshot = deck.GetSnapshot();
+
+        Assert::IsTrue   (snapshot.transport == TapeTransport::Playing);
+        Assert::AreEqual (400.0, snapshot.positionSamples);
+        Assert::AreEqual (kLength, snapshot.lengthSamples);
+        Assert::AreEqual (kRate, snapshot.sampleRate);
+        Assert::IsTrue   (snapshot.isWritable);
+    }
+};
