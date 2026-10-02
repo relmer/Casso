@@ -61,6 +61,7 @@ public:
     DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
     DxuiToggle            & GetFastTapeToggle    () { return m_fastTape; }
     DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
+    DxuiButton            & GetRestoreDefaultsButton () { return m_reset; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
@@ -73,7 +74,7 @@ private:
     void  ApplyDriveAudioChildEnabled (bool enabled);
     void  ConfigureVolumeSlider       (DxuiSlider & slider, const RECT & rect);
     void  ConfigurePanSlider          (DxuiSlider & slider, const RECT & rect);
-    void  ResetDriveAudioToDefaults   ();
+    void  ResetPageToDefaults         ();
 
     SettingsPanelState         * m_state = nullptr;
     TestSoundFn                  m_onTestSound;

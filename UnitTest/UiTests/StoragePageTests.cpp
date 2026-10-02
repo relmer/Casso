@@ -121,4 +121,48 @@ public:
         Assert::IsTrue (rule->GetBounds().bottom   <= tape->GetRect().top);
         Assert::IsTrue (tape->GetRect().bottom     <= fastTape->GetRect().top);
     }
+
+    TEST_METHOD (RestoreDefaultsResetsTheWholePageTapeIncluded)
+    {
+        DiskPage                page (L"Storage");
+        SettingsPanelState      state;
+        const SettingsUiPrefs   defaults;
+
+
+
+        page.SetState (&state);
+        state.SetFastTapeLoading  (!defaults.fastTapeLoading);
+        state.SetTapeVolume       (0.25f);
+        state.SetTapeAutoStop     (!defaults.tapeAutoStop);
+        state.SetWriteProtect     (0, !defaults.writeProtect[0]);
+        state.SetFloppySound      (!defaults.floppySoundEnabled);
+        state.SetDriveMotorVolume (0.1f);
+
+        LayOut (page, 0, 600);
+        page.GetRestoreDefaultsButton().Click();
+
+        Assert::AreEqual (defaults.fastTapeLoading,    state.GetPrefs().fastTapeLoading);
+        Assert::AreEqual (defaults.tapeVolume,         state.GetPrefs().tapeVolume);
+        Assert::AreEqual (defaults.tapeAutoStop,       state.GetPrefs().tapeAutoStop);
+        Assert::AreEqual (defaults.writeProtect[0],    state.GetPrefs().writeProtect[0]);
+        Assert::AreEqual (defaults.floppySoundEnabled, state.GetPrefs().floppySoundEnabled);
+        Assert::AreEqual (defaults.driveMotorVolume,   state.GetPrefs().driveMotorVolume);
+        Assert::AreEqual (defaults.fastTapeLoading,    page.GetFastTapeToggle().IsChecked(), L"and the widgets show it");
+    }
+
+
+    TEST_METHOD (RestoreDefaultsSitsBelowTheTapeSection)
+    {
+        DiskPage           page (L"Storage");
+        const DxuiLabel  * autoStop = nullptr;
+
+
+
+        LayOut (page, 0, 600);
+        autoStop = FindChild<DxuiLabel> (page, L"Stop at end of tape:");
+
+        Assert::IsNotNull (autoStop);
+        Assert::IsTrue    (autoStop->GetRect().bottom <= page.GetRestoreDefaultsButton().GetBounds().top,
+                           L"it restores the whole page, so it follows both sections");
+    }
 };

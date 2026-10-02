@@ -249,9 +249,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_panTwoPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
     y += rowHeight + sectionGap;
 
-    m_reset.SetLabel (L"Restore defaults");
-    m_reset.Layout   (MakeRect (controlsX, y, resetW, rowHeight));
-    y += rowHeight + sectionGap;
 
     // The rule runs margin to margin and is laid out again on every resize,
     // so it always spans the page as it is now.
@@ -279,6 +276,11 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeAutoStopLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_tapeAutoStopLabel.SetText (L"Stop at end of tape:");
     m_tapeAutoStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // Below both sections, because it restores the whole page.
+    m_reset.SetLabel (L"Restore defaults");
+    m_reset.Layout   (MakeRect (controlsX, y, resetW, rowHeight));
 
     m_wpLabel.SetDpi         (dpi);
     m_writeModeLabel.SetDpi  (dpi);
@@ -384,7 +386,7 @@ void DiskPage::Rebuild()
     m_doorPlay.SetOnClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 2, true);  } });
     m_panOnePlay.SetOnClick ([this] { if (m_onTestSound) { m_onTestSound (0, 1, false); } });
     m_panTwoPlay.SetOnClick ([this] { if (m_onTestSound) { m_onTestSound (1, 1, false); } });
-    m_reset.SetOnClick      ([this] { ResetDriveAudioToDefaults(); });
+    m_reset.SetOnClick      ([this] { ResetPageToDefaults(); });
 }
 
 
@@ -416,8 +418,8 @@ void DiskPage::SetPopupHost (DxuiHwndSource * host)
 //  DiskPage::ApplyDriveAudioChildEnabled
 //
 //  Enables / disables every control nested under the Drive-audio toggle
-//  (mechanism, the volume + pan sliders, their play buttons, and the reset
-//  button) and dims their labels to match.
+//  (mechanism, the volume + pan sliders and their play buttons) and dims
+//  their labels to match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,7 +440,6 @@ void DiskPage::ApplyDriveAudioChildEnabled (bool enabled)
     m_doorPlay.SetEnabled  (enabled);
     m_panOnePlay.SetEnabled (enabled);
     m_panTwoPlay.SetEnabled (enabled);
-    m_reset.SetEnabled     (enabled);
     m_mechLabel.SetTextRole   (labelRole);
     m_motorLabel.SetTextRole  (labelRole);
     m_headLabel.SetTextRole   (labelRole);
@@ -528,32 +529,37 @@ void DiskPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskPage::ResetDriveAudioToDefaults
+//  DiskPage::ResetPageToDefaults
 //
-//  Restores every drive-audio knob to its SettingsUiPrefs default and syncs
-//  the slider widgets to match.
+//  Restores every setting on the page, disk drives and cassette tape alike,
+//  to its SettingsUiPrefs default, then re-syncs the widgets from the state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskPage::ResetDriveAudioToDefaults()
+void DiskPage::ResetPageToDefaults()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                hr       = S_OK;
+    const SettingsUiPrefs  defaults;
 
 
 
     CBRA (m_state != nullptr);
 
-    m_state->SetDriveMotorVolume (SettingsUiPrefs::kDefaultDriveMotorVolume);
-    m_state->SetDriveHeadVolume  (SettingsUiPrefs::kDefaultDriveHeadVolume);
-    m_state->SetDriveDoorVolume  (SettingsUiPrefs::kDefaultDriveDoorVolume);
-    m_state->SetDriveOnePan      (SettingsUiPrefs::kDefaultDriveOnePan);
-    m_state->SetDriveTwoPan      (SettingsUiPrefs::kDefaultDriveTwoPan);
+    m_state->SetWriteProtect     (0, defaults.writeProtect[0]);
+    m_state->SetWriteProtect     (1, defaults.writeProtect[1]);
+    m_state->SetWriteMode        (defaults.writeMode);
+    m_state->SetFloppySound      (defaults.floppySoundEnabled);
+    m_state->SetMechanism        (defaults.floppyMechanism);
+    m_state->SetDriveMotorVolume (defaults.driveMotorVolume);
+    m_state->SetDriveHeadVolume  (defaults.driveHeadVolume);
+    m_state->SetDriveDoorVolume  (defaults.driveDoorVolume);
+    m_state->SetDriveOnePan      (defaults.driveOnePan);
+    m_state->SetDriveTwoPan      (defaults.driveTwoPan);
+    m_state->SetFastTapeLoading  (defaults.fastTapeLoading);
+    m_state->SetTapeVolume       (defaults.tapeVolume);
+    m_state->SetTapeAutoStop     (defaults.tapeAutoStop);
 
-    m_motorVol.SetValue (SettingsUiPrefs::kDefaultDriveMotorVolume * 100.0f);
-    m_headVol.SetValue  (SettingsUiPrefs::kDefaultDriveHeadVolume  * 100.0f);
-    m_doorVol.SetValue  (SettingsUiPrefs::kDefaultDriveDoorVolume  * 100.0f);
-    m_panOne.SetValue   (SettingsUiPrefs::kDefaultDriveOnePan * 100.0f);
-    m_panTwo.SetValue   (SettingsUiPrefs::kDefaultDriveTwoPan * 100.0f);
+    Rebuild();
 
 Error:
     return;
