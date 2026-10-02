@@ -188,6 +188,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Shell\BackgroundWorkQueue.cpp" />
     <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
     <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
@@ -485,6 +486,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Shell\BackgroundWorkQueue.h" />
     <ClInclude Include="Devices\Tape\RecordingCapture.h" />
     <ClInclude Include="Devices\Tape\TapeRecorder.h" />
     <ClInclude Include="Audio\TapeAudioSource.h" />

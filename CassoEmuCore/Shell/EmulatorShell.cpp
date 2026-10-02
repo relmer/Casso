@@ -690,12 +690,14 @@ void EmulatorShell::InitAssetPathsAndStores()
     m_tapeAudioMixer.RegisterSource (&m_tapeAudioSource);
 
     m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
+    m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();
     m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
                                                    m_uiFs,
                                                    *m_userConfigStore,
                                                    m_tapeAudioDecoder,
                                                    [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
-                                                   [this] () { return m_machine.GetCurrentMachineName(); });
+                                                   [this] () { return m_machine.GetCurrentMachineName(); },
+                                                   [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
     m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { PostNotice (text); });
 }
 

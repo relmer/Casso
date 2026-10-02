@@ -167,7 +167,6 @@ void EmulatorShell::BrowseForTape()
     FileDialogSpec         spec;
     std::filesystem::path  picked;
     bool                   isPicked  = false;
-    std::string            error;
 
 
 
@@ -185,8 +184,7 @@ void EmulatorShell::BrowseForTape()
     CHR (hr);
     BAIL_OUT_IF (!isPicked, S_OK);
 
-    hr = m_tapeManager->Insert (picked.string(), error);
-    CHRF (hr, ShowNotice (L"Error: unreadable tape\n" + std::filesystem::path (error).wstring()));
+    m_tapeManager->Insert (picked.string());
 
 Error:
     return;
@@ -211,7 +209,6 @@ void EmulatorShell::CreateBlankTape()
     FileDialogSpec         spec;
     std::filesystem::path  picked;
     bool                   isPicked  = false;
-    std::string            error;
 
 
 
@@ -226,8 +223,7 @@ void EmulatorShell::CreateBlankTape()
     CHR (hr);
     BAIL_OUT_IF (!isPicked || m_tapeManager == nullptr, S_OK);
 
-    hr = m_tapeManager->CreateBlank (picked.string(), error);
-    CHRF (hr, ShowNotice (L"Error: tape not created\n" + std::filesystem::path (error).wstring()));
+    m_tapeManager->CreateBlank (picked.string());
 
 Error:
     return;

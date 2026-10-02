@@ -117,7 +117,8 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             break;
 
         case IDM_TAPE_EJECT:
-            target.ControlTape (TapeCommand::Eject);
+            // "keep" unloads without forgetting, for a machine switch.
+            target.ControlTape (cmd.payload == "keep" ? TapeCommand::Unload : TapeCommand::Eject);
             break;
 
         case IDM_TAPE_PLAY:

@@ -37,6 +37,7 @@
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
+#include "Shell/BackgroundWorkQueue.h"
 #include "Shell/TapeManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
@@ -2229,6 +2230,7 @@ private:
     std::unique_ptr<IDiskFileIo>              m_tapeFileIo;
     MfTapeAudioDecoder                        m_tapeAudioDecoder;
     std::unique_ptr<TapeManager>              m_tapeManager;
+    std::unique_ptr<BackgroundWorkQueue>      m_tapeLoader;   // reads and decodes tape files
     std::atomic<bool>                         m_fastTapeLoading { true };
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;

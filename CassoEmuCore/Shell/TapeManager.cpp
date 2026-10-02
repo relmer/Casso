@@ -27,13 +27,15 @@ TapeManager::TapeManager (
     UserConfigStore    & configStore,
     ITapeAudioDecoder  & compressedDecoder,
     PostFn               post,
-    MachineNameFn        machineName) :
+    MachineNameFn        machineName,
+    RunFn                runInBackground) :
     m_fileIo            (fileIo),
     m_fileSystem        (fileSystem),
     m_configStore       (configStore),
     m_compressedDecoder (compressedDecoder),
     m_post              (std::move (post)),
-    m_machineName       (std::move (machineName))
+    m_machineName       (std::move (machineName)),
+    m_runInBackground   (std::move (runInBackground))
 {
 }
 
@@ -45,21 +47,56 @@ TapeManager::TapeManager (
 //
 //  Insert
 //
-//  Reads and decodes the tape here, on the calling thread, then hands it to
-//  the CPU thread to put in the deck. A tape that cannot be read leaves the
-//  deck as it was and says why in error. The path is remembered for the next
-//  launch; failing to remember it does not fail the insert.
+//  Returns at once; the file is read and decoded on the background thread. A
+//  tape that cannot be read is reported and the deck keeps what it had.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT TapeManager::Insert (const std::string & path, std::string & error)
+void TapeManager::Insert (const std::string & path)
+{
+    uint64_t  request = 0;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_pendingLock);
+
+        request = ++m_request;
+    }
+
+    m_runInBackground ([this, path, request] ()
+    {
+        HRESULT  hr = LoadAndPost (path, request);
+
+
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadAndPost
+//
+//  On the background thread: reads and decodes the tape, then hands it to
+//  the CPU thread. A newer insert or an eject asked for meanwhile wins, and
+//  this tape is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TapeManager::LoadAndPost (const std::string & path, uint64_t request)
 {
     HRESULT            hr         = S_OK;
     HRESULT            hrAttr     = S_OK;
-    HRESULT            hrSave     = S_OK;
     std::vector<Byte>  bytes;
     TapeImage          image;
+    std::string        error;
     bool               isReadOnly = false;
+    bool               isCurrent  = false;
 
 
 
@@ -77,16 +114,26 @@ HRESULT TapeManager::Insert (const std::string & path, std::string & error)
     {
         std::lock_guard<std::mutex>  lock (m_pendingLock);
 
-        m_pending = std::move (image);
+        isCurrent = request == m_request;
+
+        if (isCurrent)
+        {
+            m_pending      = std::move (image);
+            m_insertedPath = path;
+        }
     }
 
-    m_insertedPath = path;
-    m_post (IDM_TAPE_INSERT, {});
-
-    hrSave = SaveTapePath (path);
-    IGNORE_RETURN_VALUE (hrSave, S_OK);
+    if (isCurrent)
+    {
+        m_post (IDM_TAPE_INSERT, {});
+    }
 
 Error:
+    if (FAILED (hr))
+    {
+        Notify (L"Error: unreadable tape\n" + std::filesystem::path (error).wstring());
+    }
+
     return hr;
 }
 
@@ -98,12 +145,39 @@ Error:
 //
 //  CreateBlank
 //
-//  A zero-length 44.1 kHz 16-bit mono WAV, written whole before it replaces
-//  anything, then inserted so it is ready to record on.
+//  Writes the blank tape and inserts it, both on the background thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT TapeManager::CreateBlank (const std::string & path, std::string & error)
+void TapeManager::CreateBlank (const std::string & path)
+{
+    m_runInBackground ([this, path] ()
+    {
+        HRESULT  hr = WriteBlank (path);
+
+
+
+        if (SUCCEEDED (hr))
+        {
+            Insert (path);
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteBlank
+//
+//  A zero-length 44.1 kHz 16-bit mono WAV, written whole before it replaces
+//  anything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TapeManager::WriteBlank (const std::string & path)
 {
     HRESULT            hr       = S_OK;
     TapeAudio          blank;
@@ -116,13 +190,10 @@ HRESULT TapeManager::CreateBlank (const std::string & path, std::string & error)
     WavCodec::Encode (blank, bytes);
 
     hr = m_fileIo.WriteAllBytes (tempPath, bytes);
-    CHRF (hr, error = "The new tape could not be written.");
+    CHRF (hr, Notify (L"Error: tape not created\nThe new tape could not be written."));
 
     hr = m_fileIo.ReplaceAtomically (tempPath, path);
-    CHRF (hr, error = "The new tape could not be written.");
-
-    hr = Insert (path, error);
-    CHR (hr);
+    CHRF (hr, Notify (L"Error: tape not created\nThe new tape could not be written."));
 
 Error:
     return hr;
@@ -136,19 +207,40 @@ Error:
 //
 //  Eject
 //
+//  Also cancels a load still in flight.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void TapeManager::Eject()
 {
-    HRESULT  hrSave = S_OK;
+    {
+        std::lock_guard<std::mutex>  lock (m_pendingLock);
 
+        ++m_request;
+        m_insertedPath.clear();
+        m_pending.reset();
+    }
 
-
-    m_insertedPath.clear();
     m_post (IDM_TAPE_EJECT, {});
+}
 
-    hrSave = SaveTapePath ({});
-    IGNORE_RETURN_VALUE (hrSave, S_OK);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetInsertedPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TapeManager::GetInsertedPath() const
+{
+    std::lock_guard<std::mutex>  lock (m_pendingLock);
+
+
+
+    return m_insertedPath;
 }
 
 
@@ -262,15 +354,13 @@ Error:
 HRESULT TapeManager::RestoreTape (const std::wstring & savedPath)
 {
     HRESULT                      hr       = S_OK;
-    std::string                  error;
     AutoMountResolver::Decision  decision = AutoMountResolver::Resolve (savedPath, m_fileSystem);
 
 
 
     if (decision.action == AutoMountResolver::Action::Mount)
     {
-        hr = Insert (std::filesystem::path (decision.path).string(), error);
-        CHR (hr);
+        Insert (std::filesystem::path (decision.path).string());
     }
     else if (decision.action == AutoMountResolver::Action::ClearStaleEntry)
     {
@@ -303,8 +393,15 @@ void TapeManager::OnMachineSwitched()
 
 
 
-    m_insertedPath.clear();
-    m_post (IDM_TAPE_EJECT, {});
+    {
+        std::lock_guard<std::mutex>  lock (m_pendingLock);
+
+        ++m_request;
+        m_insertedPath.clear();
+        m_pending.reset();
+    }
+
+    m_post (IDM_TAPE_EJECT, kKeepSavedPath);
 
     hr = RestoreSavedTape();
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -340,10 +437,20 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
         }
 
         case TapeCommand::Eject:
+        case TapeCommand::Unload:
             deck.Stop (nowCycle);
             hr = CommitPendingRecording (deck);
             IGNORE_RETURN_VALUE (hr, S_OK);
             deck.Eject (nowCycle);
+
+            // An eject forgets the tape; a machine switch unloads it and keeps
+            // it remembered for that machine.
+            if (command == TapeCommand::Eject)
+            {
+                hr = SaveTapePath ({});
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+
             break;
 
         case TapeCommand::Play:          deck.Play   (nowCycle);         break;
@@ -367,7 +474,14 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
 
     if (pending.has_value())
     {
+        std::string  path = pending->path;
+
+
+
         deck.Insert (std::move (*pending));
+
+        hr = SaveTapePath (path);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

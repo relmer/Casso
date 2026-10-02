@@ -38,14 +38,17 @@ public:
         UserConfigStore                               store { L"C:\\Casso\\User" };
         FakeTapeAudioDecoder                          mp3;
         std::vector<std::pair<WORD, std::string>>     posted;
+        std::vector<std::wstring>                     notices;
         TapeManager                                   manager;
         TapeDeck                                      deck;
 
         Harness() :
             manager (fileIo, fileSystem, store, mp3,
                      [this] (WORD id, const std::string & payload) { posted.emplace_back (id, payload); },
-                     [] () { return std::wstring(); })
+                     [] () { return std::wstring(); },
+                     [] (std::function<void()> job) { job(); })
         {
+            manager.SetNotifyFn ([this] (const std::wstring & text) { notices.push_back (text); });
         }
 
         //  Runs every posted command on the deck, as the CPU thread would.
@@ -56,7 +59,7 @@ public:
                 switch (id)
                 {
                     case IDM_TAPE_INSERT: manager.Execute (TapeCommand::Insert, deck, 0); break;
-                    case IDM_TAPE_EJECT:  manager.Execute (TapeCommand::Eject,  deck, 0); break;
+                    case IDM_TAPE_EJECT:  manager.Execute (payload == TapeManager::kKeepSavedPath ? TapeCommand::Unload : TapeCommand::Eject, deck, 0); break;
                     case IDM_TAPE_PLAY:   manager.Execute (TapeCommand::Play,   deck, 0); break;
                     case IDM_TAPE_STOP:   manager.Execute (TapeCommand::Stop,   deck, 0); break;
                     case IDM_TAPE_REWIND: manager.Execute (TapeCommand::Rewind, deck, 0); break;
@@ -87,15 +90,13 @@ public:
     TEST_METHOD (InsertDecodesOnTheCallerAndLoadsOnExecute)
     {
         Harness      h;
-        std::string  error;
-        HRESULT      hr = S_OK;
 
 
 
         h.AddWav ("C:\\Tapes\\game.wav");
-        hr = h.manager.Insert ("C:\\Tapes\\game.wav", error);
+        h.manager.Insert ("C:\\Tapes\\game.wav");
 
-        Assert::AreEqual (S_OK, hr);
+        Assert::IsTrue   (h.notices.empty());
         Assert::AreEqual (size_t (1), h.posted.size());
         Assert::AreEqual ((WORD) IDM_TAPE_INSERT, h.posted[0].first);
         Assert::IsTrue   (h.deck.GetTransport() == TapeTransport::Empty, L"nothing reaches the deck until the CPU thread runs the command");
@@ -112,16 +113,13 @@ public:
     TEST_METHOD (UnreadableTapeLeavesTheDeckAlone)
     {
         Harness      h;
-        std::string  error;
-        HRESULT      hr = S_OK;
 
 
 
         h.fileIo.files["C:\\Tapes\\junk.wav"] = { 'j', 'u', 'n', 'k' };
-        hr = h.manager.Insert ("C:\\Tapes\\junk.wav", error);
+        h.manager.Insert ("C:\\Tapes\\junk.wav");
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr);
-        Assert::IsFalse  (error.empty());
+        Assert::AreEqual (size_t (1), h.notices.size());
         Assert::IsTrue   (h.posted.empty());
         Assert::IsTrue   (h.manager.GetInsertedPath().empty());
     }
@@ -130,13 +128,12 @@ public:
     TEST_METHOD (MissingFileFailsWithAReason)
     {
         Harness      h;
-        std::string  error;
-        HRESULT      hr = h.manager.Insert ("C:\\Tapes\\gone.wav", error);
 
 
 
-        Assert::IsTrue  (FAILED (hr));
-        Assert::IsFalse (error.empty());
+        h.manager.Insert ("C:\\Tapes\\gone.wav");
+
+        Assert::AreEqual (size_t (1), h.notices.size());
         Assert::IsTrue  (h.posted.empty());
     }
 
@@ -151,10 +148,10 @@ public:
 
         h.AddWav ("C:\\Tapes\\locked.wav");
         h.fileSystem.SetReadOnlyAttribute (L"C:\\Tapes\\locked.wav", true);
-        hr = h.manager.Insert ("C:\\Tapes\\locked.wav", error);
+        h.manager.Insert ("C:\\Tapes\\locked.wav");
         h.Drain();
 
-        Assert::AreEqual (S_OK, hr);
+        Assert::IsTrue   (h.notices.empty());
         Assert::IsFalse  (h.deck.GetImage()->isWritable);
     }
 
@@ -167,7 +164,7 @@ public:
 
 
         h.AddWav ("C:\\Tapes\\game.wav");
-        h.manager.Insert ("C:\\Tapes\\game.wav", error);
+        h.manager.Insert ("C:\\Tapes\\game.wav");
         h.manager.SetRecordArmed (true);
         h.manager.Play();
         h.Drain();
@@ -196,8 +193,8 @@ public:
 
 
         h.fileSystem.WriteAllText (L"C:\\Tapes\\blank.wav", "x");
-        hr = h.manager.CreateBlank ("C:\\Tapes\\blank.wav", error);
-        Assert::AreEqual (S_OK, hr);
+        h.manager.CreateBlank ("C:\\Tapes\\blank.wav");
+        Assert::IsTrue   (h.notices.empty());
         Assert::AreEqual (1, h.fileIo.replaceCount);
 
         hr = WavCodec::Decode (h.fileIo.files["C:\\Tapes\\blank.wav"], audio, error);
@@ -220,10 +217,9 @@ public:
 
 
         h.fileIo.failNextWrite = true;
-        hr = h.manager.CreateBlank ("C:\\Tapes\\blank.wav", error);
+        h.manager.CreateBlank ("C:\\Tapes\\blank.wav");
 
-        Assert::IsTrue  (FAILED (hr));
-        Assert::IsFalse (error.empty());
+        Assert::AreEqual (size_t (1), h.notices.size());
         Assert::IsTrue  (h.posted.empty());
     }
 
@@ -279,7 +275,7 @@ public:
 
 
         h.AddWav ("C:\\Tapes\\game.wav");
-        h.manager.Insert ("C:\\Tapes\\game.wav", error);
+        h.manager.Insert ("C:\\Tapes\\game.wav");
         h.Drain();
 
         h.manager.OnMachineSwitched();
@@ -287,5 +283,50 @@ public:
         Assert::AreEqual ((WORD) IDM_TAPE_EJECT, h.posted.front().first);
         h.Drain();
         Assert::IsTrue (h.deck.GetTransport() == TapeTransport::Empty);
+    }
+
+    TEST_METHOD (EjectDuringALoadWinsOverTheLoad)
+    {
+        FakeDiskFileIo                                fileIo;
+        InMemoryFileSystem                            fileSystem;
+        UserConfigStore                               store (L"C:\\Casso\\User");
+        FakeTapeAudioDecoder                          mp3;
+        std::vector<std::pair<WORD, std::string>>     posted;
+        std::vector<std::function<void()>>           held;
+        TapeAudio                                     audio;
+        std::vector<Byte>                             bytes;
+        TapeManager                                   manager (fileIo, fileSystem, store, mp3,
+                                                               [&posted] (WORD id, const std::string & payload) { posted.emplace_back (id, payload); },
+                                                               [] () { return std::wstring(); },
+                                                               [&held] (std::function<void()> job) { held.push_back (std::move (job)); });
+
+
+
+        audio.sampleRate = 44100;
+        WavCodec::Encode (audio, bytes);
+        fileIo.files["C:\\Tapes\\slow.wav"] = bytes;
+
+        manager.Insert ("C:\\Tapes\\slow.wav");
+        Assert::IsTrue (posted.empty(), L"the decode has not run yet");
+
+        manager.Eject();
+        held.front()();
+
+        Assert::AreEqual (size_t (1), posted.size(), L"only the eject reaches the deck");
+        Assert::AreEqual ((WORD) IDM_TAPE_EJECT, posted[0].first);
+        Assert::IsTrue   (manager.GetInsertedPath().empty());
+    }
+
+
+    TEST_METHOD (MachineSwitchUnloadsWithoutForgetting)
+    {
+        Harness  h;
+
+
+
+        h.manager.OnMachineSwitched();
+
+        Assert::AreEqual ((WORD) IDM_TAPE_EJECT, h.posted.front().first);
+        Assert::AreEqual (std::string (TapeManager::kKeepSavedPath), h.posted.front().second);
     }
 };

@@ -219,9 +219,10 @@ public:
         Dispatch (IDM_TAPE_RECORD, "1", target);
         Dispatch (IDM_TAPE_RECORD, "0", target);
         Dispatch (IDM_TAPE_EJECT,  "",  target);
+        Dispatch (IDM_TAPE_EJECT,  "keep", target);
         Dispatch (IDM_TAPE_NEW,    "",  target);
 
-        Assert::AreEqual (size_t (7), target.calls.size(), L"New blank tape is the UI thread's, not the deck's");
+        Assert::AreEqual (size_t (8), target.calls.size(), L"New blank tape is the UI thread's, not the deck's");
         Assert::AreEqual (std::string ("ControlTape 0"), target.calls[0]);
         Assert::AreEqual (std::string ("ControlTape 2"), target.calls[1]);
         Assert::AreEqual (std::string ("ControlTape 3"), target.calls[2]);
@@ -229,6 +230,7 @@ public:
         Assert::AreEqual (std::string ("ControlTape 5"), target.calls[4]);
         Assert::AreEqual (std::string ("ControlTape 6"), target.calls[5]);
         Assert::AreEqual (std::string ("ControlTape 1"), target.calls[6]);
+        Assert::AreEqual (std::string ("ControlTape 7"), target.calls[7], L"keep unloads without forgetting");
     }
 
 

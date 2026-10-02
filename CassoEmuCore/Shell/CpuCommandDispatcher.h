@@ -26,6 +26,7 @@ enum class TapeCommand
     Rewind,
     ArmRecord,
     ReleaseRecord,
+    Unload,     // out of the deck but still remembered: a machine switch
 };
 
 
