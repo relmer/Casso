@@ -292,7 +292,7 @@ void EmulatorShell::BrowseForTape()
 
 
 
-    spec.filters = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.mp3" }, { L"All files", L"*.*" } };
+    spec.filters = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.aifc;*.mp3;*.flac" }, { L"All files", L"*.*" } };
 
     spec.initialFolder = m_windowCommandManager->GetDiskCreateFolder();
 

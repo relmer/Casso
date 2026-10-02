@@ -29,13 +29,14 @@ HRESULT TapeImageLoader::Load (
     TapeImage   loaded;
     bool        isWav  = WavCodec::IsWav (bytes);
     bool        isAiff = AiffCodec::IsAiff (bytes);
-    bool        isMp3  = IsMp3 (bytes);
+    bool        isFlac = IsFlac (bytes);
+    bool        isMp3  = !isFlac && IsMp3 (bytes);
 
 
 
     image = TapeImage();
 
-    CBRFEx (isWav || isAiff || isMp3, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is not a WAV, AIFF, or MP3 recording.");
+    CBRFEx (isWav || isAiff || isMp3 || isFlac, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is not a WAV, AIFF, MP3, or FLAC recording.");
 
     if (isWav)
     {
@@ -49,7 +50,9 @@ HRESULT TapeImageLoader::Load (
     }
     else
     {
-        loaded.format = TapeFormat::Mp3;
+        // MP3 and FLAC both go to the platform decoder, which tells them apart
+        // by their own headers.
+        loaded.format = isFlac ? TapeFormat::Flac : TapeFormat::Mp3;
         hr = compressedDecoder.Decode (bytes, audio, error);
     }
 
@@ -96,13 +99,34 @@ bool TapeImageLoader::IsMp3 (std::span<const Byte> bytes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TapeImageLoader::IsFlac
+//
+//  The "fLaC" marker every FLAC stream opens with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TapeImageLoader::IsFlac (std::span<const Byte> bytes)
+{
+    constexpr size_t  kMarkerLength = 4;
+
+
+
+    return bytes.size() >= kMarkerLength && memcmp (bytes.data(), "fLaC", kMarkerLength) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TapeImageLoader::IsTapeFileExtension
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TapeImageLoader::IsTapeFileExtension (const std::wstring & path)
 {
-    static constexpr const wchar_t * s_kExtensions[] = { L".wav", L".aif", L".aiff", L".aifc", L".mp3" };
+    static constexpr const wchar_t * s_kExtensions[] = { L".wav", L".aif", L".aiff", L".aifc", L".mp3", L".flac" };
     std::wstring                     extension       = std::filesystem::path (path).extension().wstring();
 
 

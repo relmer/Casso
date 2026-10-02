@@ -27,7 +27,8 @@ public:
                           TapeImage             & image,
                           std::string           & error);
 
-    static bool     IsMp3 (std::span<const Byte> bytes);
+    static bool     IsMp3  (std::span<const Byte> bytes);
+    static bool     IsFlac (std::span<const Byte> bytes);
 
     //  Whether a path's extension is one a tape recording uses, for the
     //  picker's folder scan and the file filters. Insertion itself goes by

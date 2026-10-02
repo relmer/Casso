@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Tape/MfTapeAudioDecoder.h"
+#include "Devices/Tape/TapeImageLoader.h"
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "mfplat.lib")
@@ -38,19 +39,19 @@ HRESULT MfTapeAudioDecoder::Decode (std::span<const Byte> bytes, TapeAudio & aud
     isStarted = true;
 
     hr = CreateReader (bytes, reader);
-    CHRF (hr, error = "The MP3 could not be opened.");
+    CHRF (hr, error = "The recording could not be opened.");
 
     hr = GetNativeRate (reader.Get(), sampleRate);
-    CHRF (hr, error = "The MP3 has no audio stream.");
+    CHRF (hr, error = "The recording has no audio stream.");
 
     isInRange  = sampleRate >= TapeAudio::kMinSampleRate && sampleRate <= TapeAudio::kMaxSampleRate;
     sampleRate = isInRange ? sampleRate : kFallbackSampleRate;
 
     hr = SelectMonoFloat (reader.Get(), sampleRate);
-    CHRF (hr, error = "The MP3 could not be decoded.");
+    CHRF (hr, error = "The recording could not be decoded.");
 
     hr = ReadAllSamples (reader.Get(), audio.samples);
-    CHRF (hr, error = "The MP3 could not be decoded.");
+    CHRF (hr, error = "The recording could not be decoded.");
 
     audio.sampleRate = sampleRate;
 
@@ -78,7 +79,10 @@ Error:
 //
 //  MfTapeAudioDecoder::CreateReader
 //
-//  A source reader over an in-memory copy of the bytes.
+//  A source reader over an in-memory copy of the bytes. The content type is
+//  stated rather than left for Media Foundation to guess: with no file name
+//  to go by, a byte stream that does not say what it holds may not find its
+//  decoder.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +91,7 @@ HRESULT MfTapeAudioDecoder::CreateReader (std::span<const Byte> bytes, ComPtr<IM
     HRESULT                hr      = S_OK;
     ComPtr<IStream>        stream;
     ComPtr<IMFByteStream>  byteStream;
+    ComPtr<IMFAttributes>  attributes;
     ULONG                  written = 0;
     LARGE_INTEGER          origin  = {};
 
@@ -102,6 +107,13 @@ HRESULT MfTapeAudioDecoder::CreateReader (std::span<const Byte> bytes, ComPtr<IM
     CHR (hr);
 
     hr = MFCreateMFByteStreamOnStream (stream.Get(), &byteStream);
+    CHR (hr);
+
+    hr = byteStream.As (&attributes);
+    CHR (hr);
+
+    hr = attributes->SetString (MF_BYTESTREAM_CONTENT_TYPE,
+                                TapeImageLoader::IsFlac (bytes) ? L"audio/flac" : L"audio/mpeg");
     CHR (hr);
 
     hr = MFCreateSourceReaderFromByteStream (byteStream.Get(), nullptr, &reader);

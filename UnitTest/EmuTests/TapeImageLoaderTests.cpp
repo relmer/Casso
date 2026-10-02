@@ -126,6 +126,27 @@ public:
     }
 
 
+    TEST_METHOD (FlacGoesThroughTheDecoderAndIsNotWritable)
+    {
+        std::vector<Byte>     bytes = { 'f','L','a','C', 0,0,0,34 };
+        FakeTapeAudioDecoder  mp3;
+        TapeImage             image;
+        std::string           error;
+        HRESULT               hr    = S_OK;
+
+
+
+        MakeToneAudio (mp3.audio);
+        hr = TapeImageLoader::Load (bytes, "tape.flac", false, mp3, image, error);
+
+        Assert::AreEqual (S_OK, hr);
+        Assert::AreEqual (1, mp3.callCount);
+        Assert::IsTrue   (image.format == TapeFormat::Flac);
+        Assert::IsFalse  (image.isWritable, L"only a WAV is recorded onto");
+        Assert::IsTrue   (TapeImageLoader::IsFlac (bytes));
+    }
+
+
     TEST_METHOD (DetectsMp3FrameSyncWithoutId3)
     {
         std::vector<Byte>  bytes = { 0xFF, 0xFB, 0x90, 0x00 };
@@ -178,6 +199,7 @@ public:
         Assert::IsTrue  (TapeImageLoader::IsTapeFileExtension (L"C:\\Tapes\\a.wav"));
         Assert::IsTrue  (TapeImageLoader::IsTapeFileExtension (L"C:\\Tapes\\b.AIFF"));
         Assert::IsTrue  (TapeImageLoader::IsTapeFileExtension (L"c.Mp3"));
+        Assert::IsTrue  (TapeImageLoader::IsTapeFileExtension (L"side-a.FLAC"));
         Assert::IsFalse (TapeImageLoader::IsTapeFileExtension (L"C:\\Disks\\dos.dsk"));
         Assert::IsFalse (TapeImageLoader::IsTapeFileExtension (L"noextension"));
     }

@@ -325,7 +325,7 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
-    { "--tape",    " <file>",  "Insert this WAV, AIFF or MP3 into the cassette recorder." },
+    { "--tape",    " <file>",  "Insert this WAV, AIFF, MP3, or FLAC recording into the cassette recorder." },
     { "--trace",   " [size]",  "Record a CPU execution trace, written to the desktop "
                               "by Debug > Save CPU trace or on a crash. A size takes "
                               "a K, M or G suffix." },

@@ -10,11 +10,9 @@
 //
 //  MfTapeAudioDecoder
 //
-//  Decodes compressed recordings (MP3) with Windows Media Foundation, from
-//  bytes already in memory, to mono float samples at the recording's own
-//  sample rate.
-//
-////////////////////////////////////////////////////////////////////////////////
+//  Decodes compressed recordings (MP3 and FLAC) with Windows Media
+//  Foundation, from bytes already in memory, to mono float samples at the
+//  recording's own sample rate.
 
 class MfTapeAudioDecoder : public ITapeAudioDecoder
 {

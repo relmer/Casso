@@ -10,8 +10,8 @@
 //
 //  ITapeAudioDecoder
 //
-//  Decodes a compressed recording (MP3) held in memory to mono samples. WAV
-//  and AIFF do not come through here; they are parsed directly.
+//  Decodes a compressed recording (MP3 or FLAC) held in memory to mono
+//  samples. WAV and AIFF do not come through here; they are parsed directly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ public:
 //  NullTapeAudioDecoder
 //
 //  For hosts with no compressed-audio support: every decode fails, so an MP3
-//  tape is reported as unreadable rather than inserted silent.
+//  or FLAC tape is reported as unreadable rather than inserted silent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +44,7 @@ public:
         UNREFERENCED_PARAMETER (bytes);
 
         audio = TapeAudio();
-        error = "MP3 decoding is not available.";
+        error = "Compressed recordings cannot be decoded here.";
         return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
     }
 };
