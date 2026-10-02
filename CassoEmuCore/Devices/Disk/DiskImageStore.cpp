@@ -1015,6 +1015,11 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // whole image to carry one bit is what SetImageWriteProtect exists to
     // avoid. An API that cannot be asked to do that cannot be misused into it.
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
+
+    // A write still open on a flux track has not reached the image yet, so
+    // the image is not dirty until it is committed.
+    entry.image->CommitPendingWrite();
+
     BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
 
     if (entry.image->IsWriteProtected())

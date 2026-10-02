@@ -32,6 +32,27 @@ enum class TrackKind
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IPendingWriteOwner
+//
+//  Whoever is holding a write to this image that has not reached it yet -- a
+//  drive in the middle of writing a flux track. A flush asks it to finish
+//  first, or the image would be saved without the write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IPendingWriteOwner
+{
+public:
+    virtual       ~IPendingWriteOwner () = default;
+    virtual void  CommitPendingWrite  () = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImage
 //
 //  Concrete IDiskImage. Holds up to 40 variable-length per-track bit
@@ -146,6 +167,11 @@ public:
     // bytes, may have changed. A reader that caches a resolved slot or a
     // flux cursor compares it to know when to look again.
     uint64_t            GetLayoutGeneration  () const { return m_layoutGeneration; }
+
+    // A drive holding an unfinished write registers itself here, and clears
+    // itself once the write is in. Flush and Eject finish it first.
+    void                SetPendingWriteOwner (IPendingWriteOwner * owner) { m_pendingWriteOwner = owner; }
+    void                CommitPendingWrite   ();
     void             ClearQuarterTrackMap ();
     void             SetQuarterTrackSlot (int quarterTrack, int slot);
     void             EnsureTrackSlots    (int slotCount);
@@ -184,6 +210,7 @@ private:
     vector<TrackKind>     m_slotKind;
     vector<FluxTrack>     m_fluxTracks;
     uint64_t              m_layoutGeneration    = 0;
+    IPendingWriteOwner *  m_pendingWriteOwner   = nullptr;
     DiskFormat            m_format              = DiskFormat::Dsk;
     bool                  m_loaded              = false;
     bool                  m_dirty               = false;

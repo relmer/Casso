@@ -369,6 +369,115 @@ public:
     }
 
 
+    //  Puts the engine in write mode on the flux track with a byte loaded,
+    //  and shifts it out for a while.
+    static void WriteSome (Disk2NibbleEngine & eng, uint32_t cycles)
+    {
+        eng.SetWriteMode     (true);
+        eng.SetShiftLoadMode (true);
+        eng.WriteLatch       (0xD5);
+        eng.Tick             (8);
+        eng.SetShiftLoadMode (false);
+        eng.Tick             (cycles);
+    }
+
+
+    static void MakeFluxOnlyDisk (DiskImage & disk)
+    {
+        vector<Byte>  packed;
+        size_t        bitCount = 0;
+
+        MakeTrackBits (51200, packed, bitCount);
+        MakeDisk (disk, packed, bitCount, FluxTestImages::BitsToNominalFlux (packed, bitCount));
+        disk.ClearDirty();
+    }
+
+
+    TEST_METHOD (FluxWriteIsHeldUntilWriteModeEnds)
+    {
+        DiskImage          disk;
+        Disk2NibbleEngine  eng;
+        uint64_t           total = 0;
+        vector<Byte>       before;
+
+        MakeFluxOnlyDisk (disk);
+        StartOn (eng, disk, kFluxQt);
+
+        total  = disk.GetFluxTrack (1).GetTotalTicks();
+        before = disk.GetFluxTrack (1).GetBytes();
+
+        WriteSome (eng, 400);
+        Assert::IsFalse (disk.IsDirty(), L"a write still in progress has not reached the image");
+
+        eng.SetWriteMode (false);
+
+        Assert::IsTrue   (disk.IsTrackDirty (1));
+        Assert::IsTrue   (disk.GetFluxTrack (1).GetBytes() != before, L"the write must reach the flux");
+        Assert::IsTrue   (disk.GetTrackKind (1) == TrackKind::Flux, L"a written flux track stays flux");
+        Assert::AreEqual (total, disk.GetFluxTrack (1).GetTotalTicks(), L"a write must not change the revolution");
+    }
+
+
+    TEST_METHOD (FlushInTheMiddleOfAFluxWriteSavesIt)
+    {
+        DiskImage          disk;
+        Disk2NibbleEngine  eng;
+        vector<Byte>       before;
+        HRESULT            hr = S_OK;
+
+        MakeFluxOnlyDisk (disk);
+        StartOn (eng, disk, kFluxQt);
+
+        before = disk.GetFluxTrack (1).GetBytes();
+
+        WriteSome (eng, 400);
+
+        hr = disk.Flush();
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        Assert::IsTrue (disk.GetFluxTrack (1).GetBytes() != before,
+                        L"a flush taken mid-write must include the write");
+
+        // The engine is no longer registered, so asking again does nothing.
+        disk.CommitPendingWrite();
+    }
+
+
+    TEST_METHOD (WriteProtectedFluxDiskIsNeverWritten)
+    {
+        DiskImage          disk;
+        Disk2NibbleEngine  eng;
+        vector<Byte>       before;
+
+        MakeFluxOnlyDisk (disk);
+        disk.SetUserWriteProtected (true);
+        StartOn (eng, disk, kFluxQt);
+
+        before = disk.GetFluxTrack (1).GetBytes();
+
+        WriteSome (eng, 400);
+        eng.SetWriteMode (false);
+
+        Assert::IsFalse (disk.IsDirty());
+        Assert::IsTrue  (disk.GetFluxTrack (1).GetBytes() == before);
+    }
+
+
+    TEST_METHOD (SteppingOffAFluxTrackEndsTheWrite)
+    {
+        DiskImage          disk;
+        Disk2NibbleEngine  eng;
+
+        MakeFluxOnlyDisk (disk);
+        StartOn (eng, disk, kFluxQt);
+
+        WriteSome (eng, 400);
+        eng.SetCurrentTrack (kBitBitQt);
+
+        Assert::IsTrue (disk.IsTrackDirty (1));
+    }
+
+
     TEST_METHOD (BitTrackStepsKeepTheirModuloRule)
     {
         DiskImage          disk;

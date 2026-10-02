@@ -2,9 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/FluxTrack.h"
-
-class DiskImage;
 
 
 
@@ -47,7 +46,7 @@ class DiskImage;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2NibbleEngine
+class Disk2NibbleEngine : public IPendingWriteOwner
 {
 public:
     static constexpr int   kCyclesPerBit = 4;
@@ -62,6 +61,7 @@ public:
     static constexpr size_t kUnformattedTrackBits = 51200;
 
     Disk2NibbleEngine();
+    ~Disk2NibbleEngine() override;
 
     void       SetDiskImage (DiskImage * disk);
     void       SetMotorOn (bool on);
@@ -108,7 +108,7 @@ public:
     // track now. A write to a flux track is held until it ends -- write mode
     // off, a step, motor off, a disk change -- and a flush has to end it
     // first or it would save the track without it.
-    void       CommitPendingWrite();
+    void       CommitPendingWrite() override;
 
     // Diagnostic / test peek at the flux timeline, in 1/45-tick units.
     uint64_t   GetFluxTime() const { return m_fluxNow; }

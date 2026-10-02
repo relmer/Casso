@@ -23,6 +23,24 @@ Disk2NibbleEngine::Disk2NibbleEngine()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ~Disk2NibbleEngine
+//
+//  A write still open when the drive goes away belongs in the image, and the
+//  image must not keep a pointer to a drive that no longer exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Disk2NibbleEngine::~Disk2NibbleEngine()
+{
+    CommitPendingWrite();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDiskImage
 //
 //  Called by Disk2Controller on Mount / Eject / DriveSelect transitions.
@@ -393,6 +411,7 @@ void Disk2NibbleEngine::RecordFluxWriteBit (uint8_t bit)
         m_burstSlot      = m_slot;
         m_burstStartTick = (m_fluxNow % m_fluxRevUnits) / kFluxUnitsPerTick;
         m_burstBits.clear();
+        m_disk->SetPendingWriteOwner (this);
     }
 
     m_burstBits.push_back (bit);
@@ -419,6 +438,7 @@ void Disk2NibbleEngine::CommitPendingWrite()
 
     if (m_disk != nullptr)
     {
+        m_disk->SetPendingWriteOwner (nullptr);
         m_disk->SpliceFluxWrite (m_burstSlot, m_burstStartTick, m_burstBits);
     }
 

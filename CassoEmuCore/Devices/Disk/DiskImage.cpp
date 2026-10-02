@@ -223,6 +223,27 @@ void DiskImage::SpliceFluxWrite (int slot, uint64_t startTick, const vector<uint
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommitPendingWrite
+//
+//  Asks whoever holds an unfinished write to put it in now. The owner clears
+//  itself as part of committing, so this is safe to call at any time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::CommitPendingWrite()
+{
+    if (m_pendingWriteOwner != nullptr)
+    {
+        m_pendingWriteOwner->CommitPendingWrite();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ClearQuarterTrackMap / SetQuarterTrackSlot / EnsureTrackSlots
 //
 //  Bulk-loader surface (WozLoader). ClearQuarterTrackMap marks every
@@ -832,6 +853,8 @@ void DiskImage::Eject()
 
 
 
+    CommitPendingWrite();
+
     if (m_dirty && !IsWriteProtected())
     {
         hr = Flush();
@@ -890,6 +913,8 @@ HRESULT DiskImage::Flush()
     vector<Byte>  bytes;
 
 
+
+    CommitPendingWrite();
 
     BAIL_OUT_IF (!m_dirty, S_OK);
 
