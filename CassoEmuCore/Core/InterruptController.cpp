@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "InterruptController.h"
+#include "StateReader.h"
+#include "StateWriter.h"
 
 
 
@@ -193,4 +195,68 @@ void InterruptController::ResetSources()
     m_nextSource = 0;
 
     UpdateLine();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InterruptController::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteUInt32 (m_nextSource);
+    writer.WriteUInt32 (m_aggregate);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  Fails with ERROR_INVALID_DATA when the saved machine allocated a different
+//  number of sources, or a saved bit holds a source this machine never
+//  allocated: the bits would then belong to other devices.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InterruptController::LoadState (StateReader & reader)
+{
+    HRESULT   hr          = S_OK;
+    uint16_t  version     = 0;
+    uint32_t  sourceCount = 0;
+    uint32_t  aggregate   = 0;
+    uint64_t  validMask   = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadUInt32 (sourceCount);
+    reader.ReadUInt32 (aggregate);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    validMask = (static_cast<uint64_t> (1) << m_nextSource) - 1;
+
+    CBREx (sourceCount == m_nextSource,   HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx ((aggregate & ~validMask) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_aggregate = aggregate;
+
+Error:
+    return hr;
 }

@@ -2,6 +2,8 @@
 
 #include "MemoryBusCpu.h"
 #include "Prng.h"
+#include "StateReader.h"
+#include "StateWriter.h"
 
 
 
@@ -211,4 +213,94 @@ void MemoryBusCpu::PowerCycle (Prng & prng)
     status.flags.interruptDisable = 1;
 
     SoftReset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+//  The CPU section. The interrupt lines are saved as latched here rather than
+//  re-derived from the interrupt controller, because the NMI pending edge has
+//  no other home.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteWord   (PC);
+    writer.WriteByte   (SP);
+    writer.WriteByte   (A);
+    writer.WriteByte   (X);
+    writer.WriteByte   (Y);
+    writer.WriteByte   (status.status);
+
+    writer.WriteBool   (m_irqLine);
+    writer.WriteBool   (m_nmiLine);
+    writer.WriteBool   (m_nmiPending);
+
+    writer.WriteUInt64 (m_totalCycles);
+    writer.WriteUInt64 (m_busCycle);
+
+    writer.WriteByte   (m_lastCycles);
+    writer.WriteByte   (m_lastPenalties);
+    writer.WriteWord   (m_lastBranchFrom);
+    writer.WriteBool   (m_hasLastBranch);
+
+    writer.WriteBytes  (memory.data(), kStateRamSize);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MemoryBusCpu::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadWord   (PC);
+    reader.ReadByte   (SP);
+    reader.ReadByte   (A);
+    reader.ReadByte   (X);
+    reader.ReadByte   (Y);
+    reader.ReadByte   (status.status);
+
+    reader.ReadBool   (m_irqLine);
+    reader.ReadBool   (m_nmiLine);
+    reader.ReadBool   (m_nmiPending);
+
+    reader.ReadUInt64 (m_totalCycles);
+    reader.ReadUInt64 (m_busCycle);
+
+    reader.ReadByte   (m_lastCycles);
+    reader.ReadByte   (m_lastPenalties);
+    reader.ReadWord   (m_lastBranchFrom);
+    reader.ReadBool   (m_hasLastBranch);
+
+    reader.ReadBytes  (memory.data(), kStateRamSize);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
 }

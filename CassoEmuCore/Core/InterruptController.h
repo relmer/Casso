@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "ICpu.h"
 #include "IInterruptController.h"
+#include "IMachineState.h"
 
 
 
@@ -23,7 +24,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class InterruptController : public IInterruptController
+class InterruptController : public IInterruptController, public IMachineState
 {
 public:
     static constexpr IrqSourceId    kMaxSources = 32;
@@ -55,6 +56,18 @@ public:
     // allocation pool starts over. Without it, each machine switch would
     // leak tokens and eventually exhaust the 32-source pool.
     void                            ResetSources ();
+
+    // IMachineState: which sources hold the line. The source count is wiring,
+    // saved only to check that the machine loading the state allocated the
+    // same sources. The CPU's own line latch is the CPU's state, so a load
+    // does not drive the CPU.
+    HRESULT                         SaveState (StateWriter & writer) const override;
+    HRESULT                         LoadState (StateReader & reader) override;
+
+    uint32_t                        GetAssertedSources () const { return m_aggregate; }
+
+    static constexpr uint32_t       kStateTag     = IMachineState::MakeTag ('I', 'R', 'Q', ' ');
+    static constexpr uint16_t       kStateVersion = 1;
 
 private:
     void                            UpdateLine ();

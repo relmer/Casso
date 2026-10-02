@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "IMachineState.h"
 #include "IWatchSink.h"
 #include "MemoryDevice.h"
 
@@ -56,10 +57,22 @@ struct BusEntry
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MemoryBus
+class MemoryBus : public IMachineState
 {
 public:
     MemoryBus ();
+
+    // IMachineState: the floating-bus latch only. The page tables are derived
+    // from the banking flags the MMU and language card restore, the watch and
+    // trace masks are debugger configuration, and the attached devices save
+    // themselves. A load marks the video dirty so the next frame repaints.
+    HRESULT SaveState (StateWriter & writer) const override;
+    HRESULT LoadState (StateReader & reader) override;
+
+    Byte GetFloatingBusValue () const { return m_floatingBusValue; }
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('B', 'U', 'S', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
 
     Byte ReadByte     (Word address);
     void WriteByte    (Word address, Byte value);

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Cpu6502.h"
+#include "IMachineState.h"
 #include "MemoryBus.h"
 
 class Prng;
@@ -25,7 +26,7 @@ class Prng;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MemoryBusCpu : public Cpu6502
+class MemoryBusCpu : public Cpu6502, public IMachineState
 {
 public:
     explicit MemoryBusCpu (MemoryBus & memoryBus);
@@ -52,6 +53,17 @@ public:
     // register/PC initialization.
     void    SoftReset  ();
     void    PowerCycle (Prng & prng);
+
+    // IMachineState: registers, interrupt lines, cycle counters, the last
+    // instruction's cost and branch, and the RAM this CPU backs ($0000-$BFFF,
+    // main RAM wherever no MMU re-points those pages). The instruction table,
+    // trace ring and opcode watch are not state.
+    HRESULT SaveState  (StateWriter & writer) const override;
+    HRESULT LoadState  (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', 'P', 'U', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr size_t    kStateRamSize = 0xC000;
 
 private:
     MemoryBus &  m_memoryBus;

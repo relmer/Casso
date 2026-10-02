@@ -17,7 +17,8 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus)
     : m_memoryBus (memoryBus),
       m_cpu       (std::make_unique<MemoryBusCpu> (memoryBus))
 {
-    m_cpu6502 = static_cast<Cpu6502 *> (static_cast<MemoryBusCpu *> (m_cpu.get()));
+    m_cpu6502  = static_cast<Cpu6502 *> (static_cast<MemoryBusCpu *> (m_cpu.get()));
+    m_cpuState = static_cast<MemoryBusCpu *> (m_cpu.get());
 }
 
 
@@ -39,7 +40,8 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus, std::unique_ptr<ICpu> cpu)
     // accessors are unavailable; downstream callers must use GetCpu()
     // instead. dynamic_cast is used so a future non-6502 ICpu surfaces
     // m_cpu6502 == nullptr rather than an unsafe reinterpretation.
-    m_cpu6502 = dynamic_cast<Cpu6502 *> (m_cpu.get());
+    m_cpu6502  = dynamic_cast<Cpu6502 *> (m_cpu.get());
+    m_cpuState = dynamic_cast<IMachineState *> (m_cpu.get());
 }
 
 
@@ -182,4 +184,54 @@ void EmuCpu::PowerCycle (Prng & prng)
     {
         pBusCpu->PowerCycle (prng);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmuCpu::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBREx (m_cpuState != nullptr, E_NOTIMPL);
+
+    hr = m_cpuState->SaveState (writer);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmuCpu::LoadState (StateReader & reader)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBREx (m_cpuState != nullptr, E_NOTIMPL);
+
+    hr = m_cpuState->LoadState (reader);
+    CHR (hr);
+
+Error:
+    return hr;
 }

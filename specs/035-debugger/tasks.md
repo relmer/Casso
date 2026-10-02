@@ -1171,8 +1171,8 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 ### Reverse execution, option C (R-040 design)
 
 - [ ] T441 Wait for the owner's answers to R-040's open questions (keys, default limits, when recording is on, disk hold prompts, printer output, save states, running forward from history) and record them in research.md R-040
-- [ ] T442 Add `CassoEmuCore/Core/IMachineState.h`, `Core/StateWriter.h/.cpp` and `Core/StateReader.h/.cpp`: versioned, tagged, little-endian blobs with size checks; unit tests in `UnitTest/StateStreamTests.cpp`
-- [ ] T443 Implement `SaveState`/`LoadState` on the CPU, interrupt controller and bus (`Core/Cpu65C02`, `Core/EmuCpu`, `Core/MemoryBusCpu`, `Core/InterruptController`, `Core/MemoryBus`), including cycle counters, with round-trip tests
+- [X] T442 Add `CassoEmuCore/Core/IMachineState.h`, `Core/StateWriter.h/.cpp` and `Core/StateReader.h/.cpp`: versioned, tagged, little-endian blobs with size checks; unit tests in `UnitTest/StateStreamTests.cpp`
+- [X] T443 Implement `SaveState`/`LoadState` on the CPU, interrupt controller and bus (`Core/Cpu65C02`, `Core/EmuCpu`, `Core/MemoryBusCpu`, `Core/InterruptController`, `Core/MemoryBus`), including cycle counters, with round-trip tests
 - [ ] T444 Implement state on RAM, ROM banking and soft switches: `Devices/RamDevice`, `Apple2e/Apple2eMmu`, `Apple2e/Apple2eSoftSwitchBank`, `Common/AppleSoftSwitchBank`, `Common/LanguageCard`, `Apple2c/Apple2cRomBank`, `Common/CxxxRomRouter`; re-derive page tables on load
 - [ ] T445 Implement state on video and input devices: `Common/VideoTiming`, the `IVideoMode` selection, `Common/AppleSpeaker`, `Common/AppleKeyboard`, `Apple2e/Apple2eKeyboard`, `Common/AppleGamePort`, `Common/AppleMouse`, `Common/SiriusJoyport`
 - [ ] T446 Implement state on Disk II: `Common/Disk2Controller` and `Common/Disk2NibbleEngine` (phases, quarter track, Q6/Q7, latch, bit cursor, motor counters, `m_lastCpuSync`), and per-track copy-on-write snapshots of `Devices/Disk/DiskImage` track bits

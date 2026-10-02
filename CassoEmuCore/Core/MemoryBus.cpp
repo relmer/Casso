@@ -2,6 +2,8 @@
 
 #include "MemoryBus.h"
 #include "Prng.h"
+#include "StateReader.h"
+#include "StateWriter.h"
 
 
 
@@ -737,4 +739,54 @@ void MemoryBus::BuildIoDeviceMap()
             m_ioDeviceMap[address - kIoMapBase] = it->device;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MemoryBus::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte (m_floatingBusValue);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MemoryBus::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte (m_floatingBusValue);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    m_videoDirty = true;
+
+Error:
+    return hr;
 }

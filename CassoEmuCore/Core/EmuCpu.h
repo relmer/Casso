@@ -7,6 +7,7 @@
 #include "MemoryBusCpu.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "ICycleSink.h"
+#include "IMachineState.h"
 
 class Prng;
 
@@ -30,7 +31,7 @@ class Prng;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmuCpu
+class EmuCpu : public IMachineState
 {
 public:
     // Default: construct an internal MemoryBusCpu bound to `memoryBus`.
@@ -137,10 +138,16 @@ public:
     void             SoftReset  ();
     void             PowerCycle (Prng & prng);
 
+    // IMachineState, forwarded to the strategy. EmuCpu holds no state of its
+    // own; a strategy without state support fails with E_NOTIMPL.
+    HRESULT          SaveState  (StateWriter & writer) const override;
+    HRESULT          LoadState  (StateReader & reader) override;
+
 private:
     MemoryBus &              m_memoryBus;
     std::unique_ptr<ICpu>    m_cpu;
     Cpu6502 *                m_cpu6502     = nullptr;
     VideoTiming *            m_videoTiming = nullptr;
     ICycleSink *             m_cycleSink   = nullptr;
+    IMachineState *          m_cpuState    = nullptr;
 };
