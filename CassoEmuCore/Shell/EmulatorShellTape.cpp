@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Tape/TapeImageLoader.h"
+#include "Ui/Dialogs/TapePositionDialog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -81,23 +82,19 @@ TapeDeckView EmulatorShell::GetTapeView() const
 //
 //  SyncTapeChrome
 //
-//  Once a frame: refreshes the flat recorder and places it in the drive band,
-//  left of the first drive and on the same line. It is hidden on a machine
-//  without cassette jacks, when the desk scene draws the recorder instead,
-//  and when the band holds no drives to line up with.
+//  Once a frame: refreshes the flat recorder and lays it out where the drive
+//  row put it, right of the drives. It is hidden on a machine without
+//  cassette jacks, when the desk scene draws the recorder instead, and when
+//  the band holds no drives to line up with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncTapeChrome()
 {
     RECT           drive   = m_driveChrome[0].GetOuterRect();
-    bool           isShown = MachineHasCassettePort() && !DeskSceneActive() && !IsRectEmpty (&drive);
-    UINT           dpi     = (UINT) lroundf ((float) m_scaler.GetDpi() * m_chromeSceneScale);
-    int            gap     = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
+    bool           isShown = MachineHasCassettePort() && !DeskSceneActive() && !IsRectEmpty (&drive) &&
+                             m_tapeAnchorDpi != 0;
     DxuiDpiScaler  scaler;
-    RECT           probe   = {};
-    RECT           anchor  = {};
-    int            width   = 0;
 
 
 
@@ -110,16 +107,9 @@ void EmulatorShell::SyncTapeChrome()
         return;
     }
 
-    scaler.SetDpi (dpi);
-    m_tapeChrome.Layout (RECT {}, scaler);
-    probe = m_tapeChrome.GetOuterRect();
-    width = probe.right - probe.left;
-
-    anchor.left = max (gap, (int) drive.left - width - gap);
-    anchor.top  = drive.top;
-
+    scaler.SetDpi (m_tapeAnchorDpi);
     m_tapeChrome.SetVisible (true);
-    m_tapeChrome.Layout (anchor, scaler);
+    m_tapeChrome.Layout (m_tapeAnchor, scaler);
 }
 
 
@@ -226,12 +216,59 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         case TapeDeckRegion::Stop:   m_tapeManager->Stop();                              break;
         case TapeDeckRegion::Record: m_tapeManager->SetRecordArmed (!view.isRecordArmed); break;
         case TapeDeckRegion::Eject:  m_tapeManager->Eject();                             break;
+        case TapeDeckRegion::Counter: PromptTapePosition();                             break;
         default:                                                                         break;
     }
 
     m_d3dRenderer.MarkRedrawNeeded();
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptTapePosition
+//
+//  Asks where to wind the tape, starting from where it is, and winds there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PromptTapePosition()
+{
+    HRESULT                   hr     = S_OK;
+    TapeDeckView              view   = GetTapeView();
+    TapePositionDialog        dialog;
+    DxuiWindow::CreateParams  params;
+
+
+
+    dialog.Configure (&m_chromeTheme, view.positionSeconds, view.lengthSeconds);
+
+    params.title                    = L"Tape position";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = m_hwnd;
+    params.initialSizeDip           = { 360, 170 };
+    params.minSizeDip               = { 360, 170 };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (&m_chromeTheme);
+    dialog.ShowModalDialog (IDOK);
+
+    BAIL_OUT_IF (!dialog.GetOutcome().confirmed || m_tapeManager == nullptr, S_OK);
+
+    m_tapeManager->Seek (dialog.GetOutcome().seconds);
+
+Error:
+    return;
+}
 
 
 

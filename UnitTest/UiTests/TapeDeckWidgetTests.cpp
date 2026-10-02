@@ -76,7 +76,7 @@ public:
     }
 
 
-    TEST_METHOD (ButtonsDoNotOverlapAndSitRightOfTheName)
+    TEST_METHOD (ButtonsSitUnderTheNameWithoutOverlapping)
     {
         TapeDeckWidget  widget;
         RECT            name     = {};
@@ -86,13 +86,15 @@ public:
 
         LayOut (widget);
         name     = widget.GetNameRect();
-        previous = name.right;
+        previous = name.left;
 
         for (TapeDeckRegion region : s_kButtons)
         {
             RECT  box = widget.GetButtonRect (region);
 
-            Assert::IsTrue (box.left >= previous);
+            Assert::IsTrue (box.left  >= previous);
+            Assert::IsTrue (box.top   >  name.bottom, L"the transport is under the rail");
+            Assert::IsTrue (box.right <= name.right,  L"and within the name's width");
             previous = box.right;
         }
     }
@@ -191,12 +193,65 @@ public:
     }
 
 
-    TEST_METHOD (ReadoutShowsElapsedOverLength)
+    TEST_METHOD (CounterShowsThePosition)
     {
-        Assert::AreEqual (std::wstring (L"1:23 / 4:56"), TapeDeckWidget::FormatReadout (MakeView (TapeTransport::Playing)));
-        Assert::AreEqual (std::wstring (L"0:00"),        TapeDeckWidget::FormatTime (0.0));
-        Assert::AreEqual (std::wstring (L"10:05"),       TapeDeckWidget::FormatTime (605.9));
-        Assert::IsTrue   (TapeDeckWidget::FormatReadout (TapeDeckView()).empty());
+        Assert::AreEqual (std::wstring (L"1:23"),  TapeDeckWidget::FormatCounter (MakeView (TapeTransport::Playing)));
+        Assert::AreEqual (std::wstring (L"0:00"),  TapeDeckWidget::FormatTime (0.0));
+        Assert::AreEqual (std::wstring (L"10:05"), TapeDeckWidget::FormatTime (605.9));
+        Assert::IsTrue   (TapeDeckWidget::FormatCounter (TapeDeckView()).empty());
+    }
+
+
+    TEST_METHOD (ParseTimeTakesSecondsMinutesAndHours)
+    {
+        double  seconds = -1.0;
+
+
+
+        Assert::IsTrue   (TapeDeckWidget::ParseTime (L"90", seconds));
+        Assert::AreEqual (90.0, seconds);
+        Assert::IsTrue   (TapeDeckWidget::ParseTime (L" 1:30 ", seconds));
+        Assert::AreEqual (90.0, seconds);
+        Assert::IsTrue   (TapeDeckWidget::ParseTime (L"1:02:03", seconds));
+        Assert::AreEqual (3723.0, seconds);
+        Assert::IsTrue   (TapeDeckWidget::ParseTime (L"75:00", seconds), L"minutes lead, so they may run past 59");
+        Assert::AreEqual (4500.0, seconds);
+    }
+
+
+    TEST_METHOD (ParseTimeRefusesWhatIsNotATime)
+    {
+        double  seconds = 42.0;
+
+
+
+        Assert::IsFalse  (TapeDeckWidget::ParseTime (L"",         seconds));
+        Assert::IsFalse  (TapeDeckWidget::ParseTime (L"1:75",     seconds), L"seconds stop at 59");
+        Assert::IsFalse  (TapeDeckWidget::ParseTime (L"1:",       seconds));
+        Assert::IsFalse  (TapeDeckWidget::ParseTime (L"a:30",     seconds));
+        Assert::IsFalse  (TapeDeckWidget::ParseTime (L"-5",       seconds));
+        Assert::IsFalse  (TapeDeckWidget::ParseTime (L"1:2:3:4",  seconds));
+        Assert::AreEqual (42.0, seconds, L"a refused time leaves the value alone");
+    }
+
+
+    TEST_METHOD (CounterSitsBesideTheButtonsUnderTheRail)
+    {
+        TapeDeckWidget  widget;
+        RECT            name    = {};
+        RECT            counter = {};
+
+
+
+        LayOut (widget);
+        name    = widget.GetNameRect();
+        counter = widget.GetCounterRect();
+
+        Assert::IsTrue (counter.left  >= widget.GetButtonRect (TapeDeckRegion::Eject).right);
+        Assert::IsTrue (counter.right <= name.right, L"the controls are no wider than the name");
+        Assert::IsTrue (widget.HitTest ((counter.left + counter.right) / 2, (counter.top + counter.bottom) / 2) == TapeDeckRegion::Counter);
+        Assert::IsTrue (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Counter, MakeView (TapeTransport::Stopped)));
+        Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Counter, TapeDeckView()), L"no tape, nothing to wind");
     }
 
 

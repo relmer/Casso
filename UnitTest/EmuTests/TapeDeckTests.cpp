@@ -171,6 +171,29 @@ public:
     }
 
 
+    TEST_METHOD (SeekStopsAtThePositionAndPlaysOnFromThere)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Play (0);
+
+        deck.Seek (50, 250.0 / kRate);
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Stopped);
+        Assert::AreEqual (250.0, deck.GetPositionSamples (5000), L"stopped, so it holds there");
+
+        deck.Play (1000);
+        Assert::IsFalse (deck.ReadInputLevel (1000 + 10), L"two transitions behind it");
+        Assert::IsTrue  (deck.ReadInputLevel (1000 + 60), L"the third comes at 300.5");
+
+        deck.Seek (2000, 1.0);
+        Assert::AreEqual ((double) kLength, deck.GetPositionSamples (2000), L"past the end winds to the end");
+    }
+
+
     TEST_METHOD (CursorReseeksWhenPositionGoesBackward)
     {
         TapeDeck  deck;

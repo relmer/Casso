@@ -138,6 +138,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.ControlTape (cmd.payload == "1" ? TapeCommand::ArmRecord : TapeCommand::ReleaseRecord);
             break;
 
+        case IDM_TAPE_SEEK:
+            target.ControlTape (TapeCommand::Seek);
+            break;
+
         default:
             break;
     }

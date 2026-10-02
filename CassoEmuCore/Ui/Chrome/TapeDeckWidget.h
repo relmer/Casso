@@ -17,6 +17,7 @@ enum class TapeDeckRegion
     Stop,
     Record,
     Eject,
+    Counter,
 };
 
 
@@ -29,10 +30,10 @@ enum class TapeDeckRegion
 //
 //  The flat 2D cassette recorder in the drive band, built the way the drive
 //  widgets are: a "TAPE" caption to the left, the tape's name as the control
-//  that opens the picker, and a rail under it. The rail fills with the
-//  position through the tape. A row of transport buttons and an "m:ss / m:ss"
-//  readout sit to the right of the name. The skeuomorphic theme draws the
-//  recorder in the desk scene instead.
+//  that opens the picker, and a rail under it that fills with the position
+//  through the tape. Under the rail, and no wider than it, sit the transport
+//  buttons and the tape counter; clicking the counter sets the position. The
+//  skeuomorphic theme draws the recorder in the desk scene instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,12 +53,14 @@ public:
     TapeDeckRegion  HitTest        (int x, int y) const;
     RECT            GetOuterRect   () const;
     RECT            GetNameRect    () const { return m_nameRect; }
+    RECT            GetCounterRect () const { return m_counterRect; }
     RECT            GetButtonRect  (TapeDeckRegion region) const;
     bool            IsHidden       () const { return m_hidden; }
 
     static bool          IsRegionEnabled (TapeDeckRegion region, const TapeDeckView & view);
     static std::wstring  FormatTime      (double seconds);
-    static std::wstring  FormatReadout   (const TapeDeckView & view);
+    static std::wstring  FormatCounter   (const TapeDeckView & view);
+    static bool          ParseTime       (const std::wstring & text, double & seconds);
     static float         GetProgress     (const TapeDeckView & view);
     static std::wstring  GetDisplayName  (const TapeDeckView & view);
 
@@ -79,25 +82,26 @@ private:
     static constexpr int    kNameHeightPx      = 20;
     static constexpr int    kRailGapPx         = 3;
     static constexpr int    kRailHeightPx      = 5;
-    static constexpr int    kBottomPadPx       = 8;
     static constexpr int    kCaptionWidthPx    = 44;
     static constexpr int    kCaptionGapXPx     = 6;
     static constexpr int    kCaptionHeightPx   = 14;
     static constexpr int    kCaptionDescentPx  = 2;
     static constexpr float  kCaptionFontDip    = 9.0f;
     static constexpr float  kNameFontDip       = 11.0f;
-    static constexpr float  kReadoutFontDip    = 9.0f;
+    static constexpr float  kCounterFontDip    = 9.0f;
 
     // The drive widgets' marquee timing, so a long tape name scrolls exactly
-    // as a long disk name does: a hold before the first scroll and between
-    // replays while the pointer stays over the name.
+    // as a long disk name does: at once when the pointer arrives, then again
+    // after a hold for as long as it stays.
     static constexpr int64_t  kMarqueeHoldMs         = 2000;
     static constexpr float    kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float    kMarqueeGapDip         = 25.0f;
-    // The transport row, right of the name.
-    static constexpr int    kButtonsGapXPx     = 8;
-    static constexpr int    kButtonSizePx      = 20;
+    // The transport row and counter, under the rail and within its width.
+    static constexpr int    kControlsGapYPx    = 5;
+    static constexpr int    kButtonSizePx      = 18;
     static constexpr int    kButtonGapPx       = 2;
+    static constexpr int    kCounterGapXPx     = 4;
+    static constexpr int    kControlsPadYPx    = 4;
     static constexpr float  kMarkInsetRatio    = 0.28f;   // of the button, around each drawn mark
     static constexpr float  kDisabledAlpha     = 0.30f;
     static constexpr float  kArmedAlpha        = 0.55f;
@@ -122,7 +126,7 @@ private:
     RECT            m_nameRect              = {};
     RECT            m_bandRect              = {};
     RECT            m_railRect              = {};
-    RECT            m_readoutRect           = {};
+    RECT            m_counterRect           = {};
     RECT            m_buttons[kButtonCount] = {};
     TapeDeckRegion  m_hover                 = TapeDeckRegion::None;
     UINT            m_dpi                   = kBaseDpi;

@@ -20,7 +20,7 @@ void TapeDeckWidget::Hide()
     m_nameRect    = {};
     m_bandRect    = {};
     m_railRect    = {};
-    m_readoutRect = {};
+    m_counterRect = {};
     m_hover       = TapeDeckRegion::None;
     m_hidden      = true;
 
@@ -72,8 +72,9 @@ bool TapeDeckWidget::UpdateHover (int x, int y)
 //  boundsDip.left / top is the anchor; the size is intrinsic, as with the
 //  drive widgets.
 //
-//      TAPE  [ adventure.wav       ]  [<<][>][#][o][^]
-//            [=======.............]  1:23 / 4:56
+//      TAPE  [   adventure.wav    ]
+//            [=======.............]
+//            [<<][>][#][o][^]  1:23
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +87,7 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     int   nameW    = Scale (kNameWidthPx, dpi);
     int   button   = Scale (kButtonSizePx, dpi);
     int   gap      = Scale (kButtonGapPx, dpi);
-    int   buttonsX = nameX + nameW + Scale (kButtonsGapXPx, dpi);
+    int   controlY = 0;
 
 
 
@@ -106,17 +107,22 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     m_captionRect.top    = m_captionRect.bottom - Scale (kCaptionHeightPx, dpi);
 
     // The name band, caption included, is the control that opens the picker,
-    // as a drive's band is.
-    m_bandRect = { x, y, nameX + nameW, m_railRect.bottom + Scale (kBottomPadPx, dpi) };
+    // as a drive's band is. It stops at the rail; the controls row is below.
+    m_bandRect = { x, y, nameX + nameW, m_railRect.bottom + Scale (kControlsGapYPx, dpi) / 2 };
+
+    // The buttons from the rail's left edge, the counter in what is left of
+    // its width, so the whole recorder is no wider than its name.
+    controlY = m_railRect.bottom + Scale (kControlsGapYPx, dpi);
 
     for (size_t i = 0; i < kButtonCount; i++)
     {
-        int  left = buttonsX + (int) i * (button + gap);
+        int  left = nameX + (int) i * (button + gap);
 
-        m_buttons[i] = { left, y, left + button, y + button };
+        m_buttons[i] = { left, controlY, left + button, controlY + button };
     }
 
-    m_readoutRect = { buttonsX, m_nameRect.bottom, m_buttons[kButtonCount - 1].right, m_bandRect.bottom };
+    m_counterRect = { m_buttons[kButtonCount - 1].right + Scale (kCounterGapXPx, dpi), controlY,
+                      nameX + nameW, controlY + button };
 
     SetBounds (GetOuterRect());
 }
@@ -149,6 +155,11 @@ TapeDeckRegion TapeDeckWidget::HitTest (int x, int y) const
         }
     }
 
+    if (IsPointInRect (m_counterRect, x, y))
+    {
+        return TapeDeckRegion::Counter;
+    }
+
     return IsPointInRect (m_bandRect, x, y) ? TapeDeckRegion::Name : TapeDeckRegion::None;
 }
 
@@ -168,8 +179,12 @@ RECT TapeDeckWidget::GetOuterRect() const
 
 
 
-    outer.right  = max (outer.right,  m_buttons[kButtonCount - 1].right);
-    outer.bottom = max (outer.bottom, m_readoutRect.bottom);
+    if (m_hidden)
+    {
+        return {};
+    }
+
+    outer.bottom = m_counterRect.bottom + Scale (kControlsPadYPx, m_dpi);
 
     return outer;
 }
@@ -227,13 +242,14 @@ bool TapeDeckWidget::IsRegionEnabled (TapeDeckRegion region, const TapeDeckView 
 
     switch (region)
     {
-        case TapeDeckRegion::Name:   return true;
-        case TapeDeckRegion::Rewind: return hasTape;
-        case TapeDeckRegion::Play:   return view.transport == TapeTransport::Stopped;
-        case TapeDeckRegion::Stop:   return isMoving;
-        case TapeDeckRegion::Record: return hasTape && view.isWritable && !isMoving;
-        case TapeDeckRegion::Eject:  return hasTape;
-        default:                     return false;
+        case TapeDeckRegion::Name:    return true;
+        case TapeDeckRegion::Rewind:  return hasTape;
+        case TapeDeckRegion::Play:    return view.transport == TapeTransport::Stopped;
+        case TapeDeckRegion::Stop:    return isMoving;
+        case TapeDeckRegion::Record:  return hasTape && view.isWritable && !isMoving;
+        case TapeDeckRegion::Eject:   return hasTape;
+        case TapeDeckRegion::Counter: return hasTape;
+        default:                      return false;
     }
 }
 
@@ -265,20 +281,86 @@ std::wstring TapeDeckWidget::FormatTime (double seconds)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FormatReadout
+//  FormatCounter
 //
-//  Empty with no tape, so the row does not claim a length for nothing.
+//  The position, as a deck's counter shows it. Empty with no tape, so the
+//  counter does not claim a place on nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring TapeDeckWidget::FormatReadout (const TapeDeckView & view)
+std::wstring TapeDeckWidget::FormatCounter (const TapeDeckView & view)
 {
     if (view.transport == TapeTransport::Empty)
     {
         return {};
     }
 
-    return FormatTime (view.positionSeconds) + L" / " + FormatTime (view.lengthSeconds);
+    return FormatTime (view.positionSeconds);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseTime
+//
+//  A position as a person types it: seconds ("90"), minutes and seconds
+//  ("1:30"), or hours, minutes and seconds ("1:02:30"). Each field after the
+//  first is under 60. Spaces around the text are ignored; anything else that
+//  is not a digit or a colon makes it unreadable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TapeDeckWidget::ParseTime (const std::wstring & text, double & seconds)
+{
+    constexpr int     kMaxFields = 3;
+    constexpr double  kPerField  = 60.0;
+    size_t            first      = text.find_first_not_of (L" \t");
+    size_t            last       = text.find_last_not_of  (L" \t");
+    std::wstring      body;
+    double            total      = 0.0;
+    int               fields     = 0;
+    bool              ok         = true;
+
+
+
+    if (first == std::wstring::npos)
+    {
+        return false;
+    }
+
+    body = text.substr (first, last - first + 1);
+
+    for (size_t start = 0; ok && start <= body.size(); )
+    {
+        size_t        colon = body.find (L':', start);
+        std::wstring  field = body.substr (start, colon == std::wstring::npos ? std::wstring::npos : colon - start);
+        double        value = 0.0;
+
+        ok = !field.empty() && field.size() <= 4 &&
+             field.find_first_not_of (L"0123456789") == std::wstring::npos;
+
+        if (ok)
+        {
+            value = (double) std::stoi (field);
+            ok    = fields == 0 || value < kPerField;
+            total = total * kPerField + value;
+            fields++;
+        }
+
+        start = (colon == std::wstring::npos) ? body.size() + 1 : colon + 1;
+    }
+
+    ok = ok && fields <= kMaxFields;
+
+    if (ok)
+    {
+        seconds = total;
+    }
+
+    return ok;
 }
 
 
@@ -383,10 +465,11 @@ int64_t TapeDeckWidget::GetNowMs()
 //
 //  PaintName
 //
-//  A name that fits is centered. One that does not scrolls through the row as
-//  a marquee: two copies a name-plus-gap apart, clipped to the row, so as the
-//  first leaves on the left the second follows it in from the right and the
-//  scroll ends exactly where it began.
+//  A name that fits is centered. One that does not shows its head, and while
+//  the pointer is on it scrolls through the row as a marquee: two copies a
+//  name-plus-gap apart, clipped to the row, so as the first leaves on the left
+//  the second follows it in from the right and the scroll ends exactly where
+//  it began.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -422,15 +505,17 @@ void TapeDeckWidget::PaintName (IDxuiTextRenderer & text, const std::wstring & n
         BAIL_OUT_IF (true, S_OK);
     }
 
-    // A new name waits the hold before its first scroll.
+    // ONLY UNDER THE POINTER. A name scrolling on its own pulls the eye to
+    // the band for no reason; at rest it shows its head, and hovering it is
+    // what asks to read the rest.
     if (name != m_marqueeName)
     {
         m_marqueeName    = name;
-        m_marqueeStartMs = nowMs + kMarqueeHoldMs;
+        m_marqueeStartMs = nowMs;
     }
 
     period = textW + kMarqueeGapDip * dipScale;
-    offset = GetMarqueeOffset (nowMs, m_marqueeStartMs, period, speed);
+    offset = (m_hover == TapeDeckRegion::Name) ? GetMarqueeOffset (nowMs, m_marqueeStartMs, period, speed) : 0.0f;
 
     // Finished, and the pointer is still on the name: go again after the hold.
     if (m_hover == TapeDeckRegion::Name && speed > 0.0f &&
@@ -479,7 +564,7 @@ void TapeDeckWidget::Paint (
     float               dipScale   = (float) m_dpi / (float) kBaseDpi;
     bool                hasTape    = m_view.transport != TapeTransport::Empty;
     std::wstring        name       = GetDisplayName (m_view);
-    std::wstring        readout    = FormatReadout (m_view);
+    std::wstring        counter    = FormatCounter (m_view);
 
 
 
@@ -487,11 +572,21 @@ void TapeDeckWidget::Paint (
 
     BAIL_OUT_IF (m_hidden, S_OK);
 
+    // The highlight spans the name and the rail under it, not the caption,
+    // as a drive's spans its name and head bar.
     if (m_hover == TapeDeckRegion::Name)
     {
-        painter.FillRect ((float) m_bandRect.left, (float) m_bandRect.top,
-                          (float) (m_bandRect.right - m_bandRect.left),
-                          (float) (m_railRect.bottom - m_bandRect.top),
+        painter.FillRect ((float) m_nameRect.left, (float) m_nameRect.top,
+                          (float) (m_nameRect.right - m_nameRect.left),
+                          (float) (m_railRect.bottom - m_nameRect.top),
+                          theme.buttonHover);
+    }
+
+    if (m_hover == TapeDeckRegion::Counter && IsRegionEnabled (TapeDeckRegion::Counter, m_view))
+    {
+        painter.FillRect ((float) m_counterRect.left, (float) m_counterRect.top,
+                          (float) (m_counterRect.right - m_counterRect.left),
+                          (float) (m_counterRect.bottom - m_counterRect.top),
                           theme.buttonHover);
     }
 
@@ -508,11 +603,11 @@ void TapeDeckWidget::Paint (
 
     PaintName (text, name, hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel);
 
-    hr = text.DrawString (readout.c_str(),
-                          (float) m_readoutRect.left, (float) m_readoutRect.top,
-                          (float) (m_readoutRect.right - m_readoutRect.left),
-                          (float) (m_readoutRect.bottom - m_readoutRect.top),
-                          theme.dropdownAccel, kReadoutFontDip * dipScale, kFontFamily,
+    hr = text.DrawString (counter.c_str(),
+                          (float) m_counterRect.left, (float) m_counterRect.top,
+                          (float) (m_counterRect.right - m_counterRect.left),
+                          (float) (m_counterRect.bottom - m_counterRect.top),
+                          theme.dropdownAccel, kCounterFontDip * dipScale, kFontFamily,
                           DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
 

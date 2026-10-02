@@ -96,6 +96,10 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     size_t         i             = 0;
     DxuiDpiScaler  scaler;
     RECT           anchor        = {};
+    bool           showTape      = false;
+    int            tapeW         = 0;
+    int            tapeH         = 0;
+    int            rowH          = 0;
 
 
 
@@ -123,6 +127,21 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     visibleCount = std::clamp (visibleCount, 1, static_cast<int> (driveChrome.size()));
     x            = DriveRowLayout::ComputeRowOriginX (clientW, widgetW, gap, visibleCount);
 
+    // THE RECORDER JOINS THE ROW, to the right of the drives, and the row
+    // centers as one unit with it. Measured at this DPI like the drives.
+    showTape = MachineHasCassettePort();
+
+    if (showTape)
+    {
+        RECT  tapeProbe = {};
+
+        m_tapeChrome.Layout (RECT {}, scaler);
+        tapeProbe = m_tapeChrome.GetOuterRect();
+        tapeW     = tapeProbe.right  - tapeProbe.left;
+        tapeH     = tapeProbe.bottom - tapeProbe.top;
+        x         = std::max (0, x - (gap + tapeW) / 2);
+    }
+
     // A LONE drive centers on the part that carries the weight -- the disk
     // name and its head bar -- not on the whole widget. The 2D widget hangs
     // its "DRIVE 1" caption off to the left, so centering the outer box put
@@ -133,6 +152,7 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     // the caption column's width. Two drives keep centering on the pair: the
     // caption then reads as part of a repeating unit rather than as a tail on
     // a single object.
+    if (!showTape)
     {
         int  captionLead = driveChrome[0].GetBodyRect().left - probe.left;
 
@@ -142,8 +162,13 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     // Anchor the widget to the bottom so the margin between the
     // basename label and the window edge mirrors the gap between
     // the drive body and the label (s_kLabelStripGapPx, scaled).
+    //
+    // The row is as tall as its tallest member, and every member hangs from
+    // its top, so the drives line up with the recorder rather than with the
+    // band's bottom edge.
     bottomGap = MulDiv (s_kLabelBottomGapDp, static_cast<int> (dpi), s_kBaseDpi);
-    y         = std::max (commandBarTop, clientH - widgetH - bottomGap);
+    rowH      = std::max (widgetH, tapeH);
+    y         = std::max (commandBarTop, clientH - rowH - bottomGap);
 
     for (i = 0; i < driveChrome.size(); i++)
     {
@@ -155,6 +180,15 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
         // widgets back, so it is where they earn their visibility.
         driveChrome[i].SetVisible (true);
         driveChrome[i].Layout (widgetAnchor, scaler);
+    }
+
+    // SyncTapeChrome lays the recorder out every frame from this anchor.
+    if (showTape)
+    {
+        int  tapeX = DriveRowLayout::ComputeWidgetX (x, visibleCount, widgetW, gap);
+
+        m_tapeAnchor    = { tapeX, y, tapeX, y };
+        m_tapeAnchorDpi = dpi;
     }
 }
 

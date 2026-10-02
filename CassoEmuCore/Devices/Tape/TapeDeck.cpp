@@ -204,6 +204,42 @@ void TapeDeck::Rewind (uint64_t nowCycle)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TapeDeck::Seek
+//
+//  Winds to a position, in seconds from the start, and stops there, as
+//  fast-forward or rewind to a counter reading would. A position past the end
+//  stops at the end. With no tape there is nothing to wind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeck::Seek (uint64_t nowCycle, double seconds)
+{
+    const std::vector<double> &  transitions = m_image.signal.transitions;
+    double                       sample      = 0.0;
+
+
+
+    if (!m_hasImage)
+    {
+        return;
+    }
+
+    Halt (nowCycle);
+
+    sample = clamp (seconds * (double) m_image.signal.sampleRate, 0.0, (double) m_image.signal.lengthSamples);
+
+    m_startSample  = sample;
+    m_cursor       = (size_t) (upper_bound (transitions.begin(), transitions.end(), sample) - transitions.begin());
+    m_cursorSample = sample;
+
+    PublishSnapshot();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TapeDeck::SetRecordArmed
 //
 //  Record latches only on a writable tape that is not moving, like the record

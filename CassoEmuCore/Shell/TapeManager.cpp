@@ -328,6 +328,24 @@ void TapeManager::Rewind()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Seek
+//
+//  Winds the tape to a position, in seconds from the start. The position
+//  waits here for the CPU thread, which owns the deck.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeManager::Seek (double seconds)
+{
+    m_seekSeconds.store (seconds, std::memory_order_release);
+    m_post (IDM_TAPE_SEEK, {});
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetRecordArmed
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -500,6 +518,14 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
                 deck.Rewind (nowCycle);
             }
 
+            break;
+
+        // Winding stops the deck and keeps whatever it recorded, as rewind does.
+        case TapeCommand::Seek:
+            deck.Stop (nowCycle);
+            hr = CommitPendingRecording (deck);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            deck.Seek (nowCycle, m_seekSeconds.load (std::memory_order_acquire));
             break;
 
         case TapeCommand::ArmRecord:     deck.SetRecordArmed (true);     break;

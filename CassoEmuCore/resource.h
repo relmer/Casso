@@ -94,6 +94,7 @@
 #define IDM_TAPE_STOP               40082
 #define IDM_TAPE_REWIND             40083
 #define IDM_TAPE_RECORD             40084
+#define IDM_TAPE_SEEK               40085
 
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).

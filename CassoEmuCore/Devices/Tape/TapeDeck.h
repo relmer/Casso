@@ -59,6 +59,7 @@ public:
     void  Play           (uint64_t nowCycle);
     void  Stop           (uint64_t nowCycle);
     void  Rewind         (uint64_t nowCycle);
+    void  Seek           (uint64_t nowCycle, double seconds);
     void  SetRecordArmed (bool isArmed);
     void  SetAutoStop    (bool isOn) { m_isAutoStop.store (isOn, std::memory_order_relaxed); }
     void  Update         (uint64_t nowCycle);

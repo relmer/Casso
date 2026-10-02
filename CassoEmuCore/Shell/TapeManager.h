@@ -48,6 +48,7 @@ public:
     void     Play              ();
     void     Stop              ();
     void     Rewind            ();
+    void     Seek              (double seconds);
     void     SetRecordArmed    (bool isArmed);
     HRESULT  RestoreSavedTape  ();
     HRESULT  RestoreTape       (const std::wstring & savedPath);
@@ -72,6 +73,8 @@ public:
 
 private:
     HRESULT  SaveTapePath    (const std::string & path);
+
+    std::atomic<double>  m_seekSeconds { 0.0 };     // where the next Seek command winds to
     HRESULT  LoadAndPost     (const std::string & path, uint64_t request);
     HRESULT  WriteBlank      (const std::string & path);
     void     Notify          (const std::wstring & text) const { if (m_notify) { m_notify (text); } }
