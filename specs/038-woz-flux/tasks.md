@@ -30,7 +30,7 @@ parallel (different files, no dependency on an unfinished task).
 
 ---
 
-## Phase 3: User Story 1 - Boot a disk with flux tracks (P1) MVP
+## Phase 3: User Story 1 - Boot a disk with flux tracks (P1)
 
 **Goal**: quarter tracks mapped in FLUX play by time, and *Bandits* boots.
 
@@ -162,6 +162,7 @@ parallel (different files, no dependency on an unfinished task).
 
 ## Implementation strategy
 
-- **MVP**: Phases 1-3 (US1). *Bandits* boots, and that fixes GH #159 as reported.
-- **Then** US2, so a flux disk survives a save. Shipping US1 alone would leave Serialize writing a stale FLUX pass-through after any write, so US2 ships with it.
-- **Then** US3 and Polish. One merge to master after T036.
+All three stories and the polish phase ship together in one merge to master
+after T036. Nothing merges partway. The phase order is only build order: US1
+first, so *Bandits* is checked against real playback before writes are built
+on top of it.
