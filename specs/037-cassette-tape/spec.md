@@ -30,6 +30,15 @@ spec.
 - Q: Should fast tape loading reuse the existing Maximum speed mode or use a separate turbo? → A: A temporary Maximum override; the speed menu keeps showing the user's setting, which is restored afterward.
 - Q: Are +/-3% speed drift and a 16 KB load in under 10 s with fast loading the right targets? → A: Yes, as written in SC-003 and SC-004.
 
+### Session 2026-10-02 (implementation review)
+
+- Q: Where do the tape settings live? → A: The Disk settings tab is renamed Storage: a Disk drives section, a margin-to-margin rule that follows resizes, then a Cassette tape section (Fast tape loading, Tape volume, Stop at end of tape). Hard disks, when supported, get their own section between the two.
+- Q: Is the tape position kept across launches? → A: No; a remembered tape always comes back rewound to 0, so there is no rewind-on-insert setting.
+- Q: How is a tape chosen? → A: With the disk picker itself, given a tape media kind: tape extensions only, no stock downloads, a create-new-tape row. Disks and tapes share one recent list (each picker filters by extension) and one set of scanned folders; new tapes go in the disk create folder.
+- Q: Which thread reads and decodes a tape? → A: A background work queue, never the UI thread; the CPU thread inserts the tape and saves its path, as disk mounts do. A load taking over 150 ms shows Loading <name>... in the widget with only Eject enabled.
+- Q: Rebase onto 035-debugger? → A: No. Merge master into 037 after 035 ships, then add the debugger integration (tasks T061-T067).
+- Q: What metadata could Casso Explorer (033) show for a tape? → A: Container info and WAV/AIFF/ID3 tags, plus a pseudo-catalog from a decode-only scan (records, sizes, checksums, Applesoft/Integer listings). Tapes have no catalog, filenames or load addresses. Explorer's, not 037's.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Load a program from a tape recording (Priority: P1)
@@ -205,13 +214,18 @@ on the //c.
   be skipped.
 - **FR-012**: A preference MUST let the user choose real-time loading instead,
   with authentic speed and audible tape sound.
+- **FR-012a**: The tape's own sound MUST have a volume setting, and the deck
+  MUST stop at the end of the tape unless the user turns that off.
+- **FR-012b**: Reading and decoding a tape file MUST NOT run on the UI thread;
+  a load that takes noticeable time MUST show that it is loading.
 
 **User interface**
 
 - **FR-013**: A tape-deck control MUST offer insert, new blank tape, eject,
   play, stop, record, and rewind, and MUST show the tape's position and progress.
 - **FR-014**: The tape-deck control MUST follow the conventions of the existing
-  drive widgets and device toolbar.
+  drive widgets and device toolbar. Choosing a tape MUST use the disk picker,
+  sharing its recent list and scanned folders, filtered to tape files.
 - **FR-015**: The tape deck MUST NOT appear on machine models without a
   cassette port.
 - **FR-016**: Casso MUST remember the inserted tape across sessions and

@@ -352,3 +352,10 @@ real builder. `Slots::Empty` boots to the BASIC prompt. `KeystrokeInjector`,
 data, so roughly 8 M cycles per load test. Tests use short leaders, and the
 robustness matrix runs on the ][+ only, keeping the Debug suite's added time
 small.
+
+## Updates during implementation
+
+- **R4, R6:** decoding runs on a background work queue (`BackgroundWorkQueue`), not the UI thread; the CPU thread inserts and saves the path. Recording commits on the CPU thread.
+- **R7:** the picker is the disk picker with a tape media kind and the shared recent list, not a plain file dialog or a separate `recentTapes` list. The transport marks are drawn shapes (MDL2 has no eject). The widget shows a loading state. Drag-and-drop and a name marquee remain follow-ons (T058, T060).
+- **R8:** the settings are on the Storage tab (formerly Disk), not the Hardware page, and add Tape volume and Stop at end of tape.
+- **R9:** c2t was used only as a timing reference for `TapeTestEncoder`; no c2t fixtures were made.

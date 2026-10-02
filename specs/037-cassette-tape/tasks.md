@@ -160,7 +160,7 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
   - a saved `tapePath` reinserts at position 0, stopped
   - a missing file clears the entry and leaves the deck empty (FR-016)
   - the //c never reinserts
-- [ ] T025 [P] [US4] Extend `UnitTest/EmuTests/ChromeBandLayoutTests.cpp` or `DriveRowLayoutTests.cpp`: the band row includes the tape deck left of the drives on the ][/][+/e, and omits it on the //c
+- [ ] T025 [P] [US4] (Not done: the band placement lives in `EmulatorShell::SyncTapeChrome`, which no unit test can drive; the widget's own geometry is covered by TapeDeckWidgetTests.) Extend `UnitTest/EmuTests/ChromeBandLayoutTests.cpp` or `DriveRowLayoutTests.cpp`: the band row includes the tape deck left of the drives on the ][/][+/e, and omits it on the //c
 
 ### Implementation
 
