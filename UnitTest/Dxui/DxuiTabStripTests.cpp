@@ -62,6 +62,29 @@ public:
         Assert::AreEqual (-1, ts.HitTest (500, 500));
     }
 
+    TEST_METHOD (Move_IsHandledOnlyWhenTheHoveredTabChanges)
+    {
+        // A handled move is what makes the window repaint at once; an unhandled
+        // one waits for the dialog's half-second tick, which is how the hover
+        // highlight came to trail the pointer.
+        DxuiTabStrip    ts;
+        DxuiMouseEvent  ev;
+
+        ts.SetTabs (MakeThreeTabs());
+        ev.kind = DxuiMouseEventKind::Move;
+
+        ev.positionDip = { 10, 10 };
+        Assert::IsTrue  (ts.OnMouse (ev), L"entering a tab repaints");
+
+        ev.positionDip = { 20, 12 };
+        Assert::IsFalse (ts.OnMouse (ev), L"moving within it does not");
+
+        ev.positionDip = { 100, 10 };
+        Assert::IsTrue  (ts.OnMouse (ev), L"crossing to the next tab repaints");
+
+        ev.positionDip = { 500, 500 };
+        Assert::IsTrue  (ts.OnMouse (ev), L"and so does leaving the strip");
+    }
     TEST_METHOD (Click_SelectsAndFiresOnChange)
     {
         DxuiTabStrip  ts;
