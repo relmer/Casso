@@ -137,16 +137,17 @@ or higher with both flux fields non-zero.
 ## R8. Reading the FLUX chunk
 
 **Decision**: Find FLUX by the chunk walk, as TMAP is found today. It is
-honored at any INFO version (spec edge case). A FLUX chunk shorter than 160
-bytes, or one present while INFO's flux-block field is zero, refuses the mount
-as `MalformedWoz` (FR-008). FLUX takes precedence over TMAP for the same quarter
+honored whatever INFO's version and flux fields say (clarification 3); INFO is
+not consulted on read. Only a FLUX chunk shorter than 160 bytes refuses the
+mount as `MalformedWoz` (FR-008). FLUX takes precedence over TMAP for the same quarter
 track. A flux track's byte count must fit inside its block count × 512, its
 blocks must lie inside the file, and its last byte must not be 255. A track
 that breaks any of these is a damaged track (R9), not a refused mount.
 
-**Rationale**: The reference requires version 3 or higher, but a lenient reader
-loses nothing. The spec chose to honor such files, and the chunk walk finds the
-chunk without using the INFO field.
+**Rationale**: The reference requires INFO version 3 or higher with both flux
+fields non-zero. A file that has a usable FLUX chunk but disagrees with INFO
+can only boot if the chunk is used, and the chunk walk finds it without INFO.
+Writes still set INFO correctly (R7), so Casso never produces such a file.
 
 ## R9. Damaged tracks: read-only mount and report
 

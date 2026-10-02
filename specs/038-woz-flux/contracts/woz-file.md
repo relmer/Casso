@@ -4,9 +4,8 @@
 
 | Input | Result |
 |-------|--------|
-| FLUX chunk, 160+ bytes, INFO flux block non-zero (any INFO version) | Quarter tracks in FLUX play as flux; FLUX overrides TMAP |
+| FLUX chunk of 160+ bytes (any INFO version or flux fields) | Quarter tracks in FLUX play as flux; FLUX overrides TMAP |
 | FLUX chunk under 160 bytes | Mount refused, `MalformedWoz` |
-| FLUX chunk present, INFO flux block = 0 | Mount refused, `MalformedWoz` |
 | No FLUX chunk | Exactly today's behavior |
 | A TMAP or FLUX track whose blocks lie outside the file, whose count overruns its blocks, or (flux) whose data ends in 255 | Mount succeeds read-only; the track reads as unformatted; the report on insert lists it |
 | A WOZ 1 track record past the end of TRKS | Same as the row above (today: mount refused) |

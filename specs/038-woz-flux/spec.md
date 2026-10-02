@@ -59,6 +59,15 @@ has to leave the flux timing available for it.
   insert lists them. This applies to damaged bit tracks too, which today
   refuse the whole mount. A FLUX or TMAP map that cannot be trusted at all
   still refuses the mount.
+- Q: When must Casso honor a FLUX chunk? → A: Whenever the chunk is at least
+  160 bytes, whatever INFO's version and flux fields say. Casso finds the
+  chunk by walking the chunk list, so the INFO fields are not needed to read
+  it. Only a FLUX chunk shorter than 160 bytes refuses the mount. Casso still
+  writes the INFO flux fields correctly on save.
+- Q: When Casso writes to a flux track, how long should each written cell be?
+  → A: 31.29 ticks, the controller's own cell of 4 CPU cycles, not the
+  format's nominal 32 ticks (4 µs). This is the timing an emulated Disk II
+  produces, so a stretch Casso wrote reads back exactly.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -110,7 +119,8 @@ byte-for-byte identical and the written stretch reads back as written.
    **Then** the FLUX chunk and every flux track are byte-for-byte unchanged.
 2. **Given** the drive wrote part of a flux track, **When** Casso saves, **Then**
    the track stays in the FLUX map, the rewritten stretch is stored as flux at
-   nominal cell timing, and the rest keeps its original timing.
+   the controller's cell timing (31.29 ticks), and the rest keeps its original
+   timing.
 3. **Given** a rewritten flux track grew larger, **When** Casso saves, **Then**
    the TRKS entry and INFO's largest-flux-track field reflect its new size.
 4. **Given** a saved flux image, **When** it is opened in Casso again, **Then**
@@ -132,9 +142,9 @@ with no explanation, and a damaged preservation dump should still open.
 
 **Independent Test**: Mount images with a truncated flux track, a FLUX entry
 pointing past the end of the file, a TRKS bit-track entry pointing past the end
-of the file, a FLUX chunk too short for its map, and a flux-block field of zero
-alongside a FLUX chunk. Confirm the track-level cases mount read-only with a
-report that lists the damaged tracks, and the map-level cases are refused.
+of the file, and a FLUX chunk too short for its map. Confirm the track-level
+cases mount read-only with a report that lists the damaged tracks, and the
+short FLUX chunk is refused.
 
 **Acceptance Scenarios**:
 
@@ -145,9 +155,8 @@ report that lists the damaged tracks, and the map-level cases are refused.
 2. **Given** such a disk, **When** the user opens salvage, **Then** salvage
    works as it does for a checksum-damaged disk, and the report says a
    salvaged copy keeps sector data but not flux timing or copy protection.
-3. **Given** a FLUX chunk too short for its map, or a FLUX chunk with INFO's
-   flux-block field of zero, **When** it is mounted, **Then** Casso refuses the
-   mount and reports a malformed WOZ image.
+3. **Given** a FLUX chunk too short for its map, **When** it is mounted,
+   **Then** Casso refuses the mount and reports a malformed WOZ image.
 4. **Given** any of these reports, **When** it is shown, **Then** it follows
    Casso's error message format (a short label, then complete sentences).
 
@@ -160,8 +169,9 @@ report that lists the damaged tracks, and the map-level cases are refused.
   bits on a bit track.
 - A gap encoded across several 255 bytes, longer than one cell by a large
   margin: it decodes to one long gap, not several short ones.
-- An image whose INFO version is below 3 but which still has a FLUX chunk:
-  the FLUX chunk is honored.
+- An image whose INFO version is below 3, or whose INFO flux fields are zero
+  or wrong, but which has a FLUX chunk of at least 160 bytes: the FLUX chunk
+  is honored.
 - Write-protected flux disk: writes are blocked and the image is never
   re-encoded.
 - Quarter tracks a flux half track bleeds into: the drive picks up the nearest
@@ -172,8 +182,9 @@ report that lists the damaged tracks, and the map-level cases are refused.
 
 ### Functional Requirements
 
-- **FR-001**: Casso MUST read the FLUX chunk, INFO's flux-block field and
-  INFO's largest-flux-track field from WOZ 2.1 images.
+- **FR-001**: Casso MUST read the FLUX chunk from WOZ images, finding it by
+  the chunk walk. INFO's version and flux fields MUST NOT decide whether it is
+  read.
 - **FR-002**: A quarter track mapped in FLUX MUST be played as flux; FLUX
   takes precedence over TMAP for the same quarter track.
 - **FR-003**: The drive MUST deliver each flux transition on the read-circuit
@@ -185,16 +196,15 @@ report that lists the damaged tracks, and the map-level cases are refused.
 - **FR-005**: Long gaps without transitions on a flux track MUST produce the
   same random-bit behavior as long zero runs on a bit track.
 - **FR-006**: Writing to a flux track MUST keep it a flux track; the written
-  stretch is stored at nominal cell timing and the rest of the track keeps its
-  recorded timing.
+  stretch is stored at the controller's cell timing (31.29 ticks) and the rest
+  of the track keeps its recorded timing.
 - **FR-007**: Saving an image MUST write unwritten flux tracks back
   byte-for-byte, and MUST update the TRKS entries and INFO's flux fields for
   any rewritten flux track.
 - **FR-008**: A WOZ image with damaged tracks, flux or bit (a track entry
   referring to data outside the file, or truncated track data), MUST mount
   read-only with those tracks unformatted, and the report on insert MUST list
-  the damaged tracks. A FLUX map that cannot be used at all (chunk too short,
-  or INFO's flux-block field zero alongside a FLUX chunk) MUST refuse the
+  the damaged tracks. A FLUX chunk shorter than 160 bytes MUST refuse the
   mount with a malformed-WOZ diagnosis. Damage MUST never appear as a silent
   unformatted track.
 - **FR-012**: Salvage MUST work on a disk with damaged tracks as it does on a
