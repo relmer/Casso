@@ -37,11 +37,28 @@ so flux tracks have to be played back by time.
 ## Scope
 
 Applies to every machine with a Disk II controller (Apple ][, ][+, //e and
-//c) and to 5.25" WOZ 2.1 images. 3.5" flux tracks are out of scope.
+//c) and to 5.25" WOZ 2.1 images. 3.5" flux tracks are out of scope. Mounting
+images with damaged tracks (User Story 3) also covers bit tracks in WOZ 1 and
+WOZ 2 images.
 
 A disk inspector that draws flux timing (in Casso Explorer and in Casso,
 modeled on AppleEm's Disk Inspector) is a separate future spec. This spec only
 has to leave the flux timing available for it.
+
+## Clarifications
+
+### Session 2026-10-02
+
+- Q: How should automated tests check that *Bandits* boots, given the disk
+  can't be checked in yet? → A: *Bandits* is used only for local testing while
+  this spec is in development. No test that depends on it merges to master;
+  the merged tests use made-up flux images only.
+- Q: When a WOZ image has damaged flux data, should Casso refuse to mount it,
+  or mount it and warn? → A: Mount it read-only, as 1.17.0 does for a
+  checksum-damaged disk; damaged tracks read as unformatted and the report on
+  insert lists them. This applies to damaged bit tracks too, which today
+  refuse the whole mount. A FLUX or TMAP map that cannot be trusted at all
+  still refuses the mount.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -101,27 +118,38 @@ byte-for-byte identical and the written stretch reads back as written.
 
 ---
 
-### User Story 3 - Clear message for a flux image Casso cannot use (Priority: P3)
+### User Story 3 - Open a WOZ image with damaged tracks (Priority: P3)
 
-A user inserts a WOZ image whose FLUX chunk or flux track data is damaged.
-Casso reports the problem when the disk is mounted instead of letting the boot
-hang with no explanation.
+A user inserts a WOZ image in which some tracks, flux or bit, are damaged.
+Casso mounts it read-only, as it already does for a disk whose checksum does
+not match, and reports which tracks are damaged when the disk is inserted. The
+undamaged tracks read normally, so a program that never reads a damaged track
+still runs, and one that does hang is no longer a mystery.
 
 **Why this priority**: The reporter's minimum expectation was "either the disk
-boots or an error". Damaged flux data should never look like a blank track.
+boots or an error". Damaged track data should never look like a blank track
+with no explanation, and a damaged preservation dump should still open.
 
 **Independent Test**: Mount images with a truncated flux track, a FLUX entry
-pointing past the end of the file, and a flux-block field of zero alongside a
-FLUX chunk, and confirm each produces a mount diagnosis.
+pointing past the end of the file, a TRKS bit-track entry pointing past the end
+of the file, a FLUX chunk too short for its map, and a flux-block field of zero
+alongside a FLUX chunk. Confirm the track-level cases mount read-only with a
+report that lists the damaged tracks, and the map-level cases are refused.
 
 **Acceptance Scenarios**:
 
-1. **Given** a WOZ image whose FLUX chunk refers to track data outside the
-   file, **When** it is mounted, **Then** Casso reports a malformed WOZ image
-   and says the flux data is damaged.
-2. **Given** a damaged flux track, **When** the mount is reported, **Then** the
-   message follows Casso's error message format (a short label, then complete
-   sentences).
+1. **Given** a WOZ image whose FLUX or TMAP entry refers to track data outside
+   the file, or whose track data is truncated, **When** it is mounted, **Then**
+   it mounts read-only, the damaged tracks read as unformatted, and the report
+   on insert lists them.
+2. **Given** such a disk, **When** the user opens salvage, **Then** salvage
+   works as it does for a checksum-damaged disk, and the report says a
+   salvaged copy keeps sector data but not flux timing or copy protection.
+3. **Given** a FLUX chunk too short for its map, or a FLUX chunk with INFO's
+   flux-block field of zero, **When** it is mounted, **Then** Casso refuses the
+   mount and reports a malformed WOZ image.
+4. **Given** any of these reports, **When** it is shown, **Then** it follows
+   Casso's error message format (a short label, then complete sentences).
 
 ### Edge Cases
 
@@ -162,9 +190,16 @@ FLUX chunk, and confirm each produces a mount diagnosis.
 - **FR-007**: Saving an image MUST write unwritten flux tracks back
   byte-for-byte, and MUST update the TRKS entries and INFO's flux fields for
   any rewritten flux track.
-- **FR-008**: Damaged flux data (references outside the file, truncated
-  tracks, inconsistent INFO fields) MUST produce a mount diagnosis with a
-  specific message, never a silent unformatted track.
+- **FR-008**: A WOZ image with damaged tracks, flux or bit (a track entry
+  referring to data outside the file, or truncated track data), MUST mount
+  read-only with those tracks unformatted, and the report on insert MUST list
+  the damaged tracks. A FLUX map that cannot be used at all (chunk too short,
+  or INFO's flux-block field zero alongside a FLUX chunk) MUST refuse the
+  mount with a malformed-WOZ diagnosis. Damage MUST never appear as a silent
+  unformatted track.
+- **FR-012**: Salvage MUST work on a disk with damaged tracks as it does on a
+  checksum-damaged disk, and MUST say that the salvaged copy does not keep
+  flux timing or copy protection when the source has flux tracks.
 - **FR-009**: Bit-track playback and every non-flux image format MUST behave
   exactly as before.
 - **FR-010**: The recorded flux timing of each track MUST remain available to
@@ -188,7 +223,8 @@ FLUX chunk, and confirm each produces a mount diagnosis.
 ### Measurable Outcomes
 
 - **SC-001**: `00_Bandits.woz` boots to its title screen on an Apple //e
-  Enhanced.
+  Enhanced, checked locally during development; no merged test depends on
+  the image.
 - **SC-002**: A made-up flux track mixing 3.7 µs and 4.1 µs cells reads back
   with each stretch's cell length within one read-circuit step of what the
   image holds.
@@ -200,8 +236,9 @@ FLUX chunk, and confirm each produces a mount diagnosis.
   scenario suites pass.
 - **SC-005**: Emulation speed at maximum speed on a flux disk is within 2% of
   the same machine on a bit-only disk.
-- **SC-006**: Each damaged-flux case in User Story 3 produces a mount
-  diagnosis; none hangs silently.
+- **SC-006**: Each damaged-track case in User Story 3 mounts read-only with a
+  report listing the damaged tracks, each unusable-map case is refused with a
+  diagnosis, and none hangs silently.
 
 ## Assumptions
 
@@ -211,9 +248,9 @@ FLUX chunk, and confirm each produces a mount diagnosis.
 - AppleEm (mikedaley/web-a2e, MIT license) is the reference for the timing
   model; its commit 74d710b plays flux by time and confirms *Bandits* needs it.
   Casso converts written flux tracks to flux, not to bits as AppleEm does.
-- *Bandits* is the only flux image on hand. The reporter will be asked for
-  permission to check it in as a test fixture; until then it is tested
-  locally, and made-up flux tracks cover the unit tests.
+- *Bandits* is the only flux image on hand. It is used for local testing
+  during this spec's development only and is never checked in; made-up flux
+  tracks cover every unit and scenario test that merges to master.
 - Flux data is kept in memory at about its size in the file (about 38 KB per
   track), not expanded to one bit per read-circuit step.
 - The disk inspector is out of scope and gets its own spec.
