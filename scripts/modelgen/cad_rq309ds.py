@@ -9,7 +9,7 @@ every Y below is a photo row read as millimeters from the front, not a number
 picked by eye:
 
     handle      0 -  11     chrome band wrapped round the front end
-    keys       11 -  44     six black keys on the sloped front, dished ovals
+    keys       11 -  44     six black keys, flat-topped, stadium-shaped dishes
     strip      44 -  83     silver: black "Panasonic" band with the mic slots
                             at its left, then the RECORD ... EJECT legend row
     door       86 - 154     smoked clear lid, the cassette showing through
@@ -169,22 +169,25 @@ def build():
         legend = t if legend is None else legend.union(t)
     m.add("legend", legend, BAND)
 
-    # Keys: rounded black blocks standing on the slope, each with a dished oval.
+    # Keys: rounded black blocks with FLAT tops, parallel to the grille, standing
+    # up out of the slope; each carries a stadium-shaped dish -- a rounded
+    # rectangle closed by a semicircle at each end.
     kw = pitch - 2.0
-    kl = SLOPE_Y / math.cos(math.radians(SLOPE_A)) - 6.0
+    ky0, ky1 = 6.0, SLOPE_Y - 1.0
+    kl = ky1 - ky0
+    ktop = top + 3.0
     for i in range(6):
         kx = kx0 + i * pitch + 1.0
-        key = (cq.Workplane("XY").box(kw, kl, 9.0, centered=(False, False, False))
-               .translate((kx, 0, -4.0))
+        key = (box(kx, kx + kw, ky0, ky1, FRONT_H - 6.0, ktop)
                .edges("|Z").fillet(2.0)
                .faces(">Z").edges().fillet(1.2))
-        dish = (cq.Workplane("XY").workplane(offset=4.3)
-                .center(kx + kw / 2, kl / 2).ellipse(kw * 0.34, kl * 0.36).extrude(2.0))
-        m.add(f"keys_{i}", on_slope(key.cut(dish), 4.0), KEY, angular=0.2)
-        floor = (cq.Workplane("XY").workplane(offset=4.3)
-                 .center(kx + kw / 2, kl / 2).ellipse(kw * 0.34, kl * 0.36).extrude(0.05))
-        m.add(f"key_dish_{i}", on_slope(floor, 4.0), KEY_DISH, angular=0.2)
-
+        dw = kw * 0.62
+        dish = (cq.Workplane("XY").workplane(offset=ktop - 0.8)
+                .center(kx + kw / 2, ky0 + kl / 2).slot2D(kl * 0.72, dw, 90).extrude(2.0))
+        m.add(f"keys_{i}", key.cut(dish), KEY, angular=0.2)
+        floor = (cq.Workplane("XY").workplane(offset=ktop - 0.8)
+                 .center(kx + kw / 2, ky0 + kl / 2).slot2D(kl * 0.72, dw, 90).extrude(0.05))
+        m.add(f"key_dish_{i}", floor, KEY_DISH, angular=0.2)
     # Chrome handle: a flat band wrapped round the front end and a little way
     # down each side.
     hz0, hz1 = 10.0, 24.0
