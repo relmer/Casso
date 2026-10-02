@@ -18,7 +18,7 @@ std::wstring BreakpointColumns::GetHeading (Column column)
 
 
 
-    return (column < Column::Count) ? kHeadings[(size_t) column] : L"";
+    return (column >= Column::Name && column < Column::Count) ? kHeadings[(size_t) column] : L"";
 }
 
 
