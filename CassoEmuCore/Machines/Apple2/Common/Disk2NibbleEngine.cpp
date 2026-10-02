@@ -2,6 +2,8 @@
 
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -533,6 +535,134 @@ uint8_t Disk2NibbleEngine::NextWeakBit()
     m_weakRngState = m_weakRngState * kLcgMultiplier + kLcgIncrement;
 
     return (m_weakRngState < kWeakThreshold) ? 1 : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Disk2NibbleEngine::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte   (static_cast<Byte> (m_currentTrack));
+    writer.WriteBool   (m_motorOn);
+    writer.WriteBool   (m_writeMode);
+    writer.WriteBool   (m_shiftLoadMode);
+    writer.WriteUInt64 (m_bitPos);
+    writer.WriteByte   (m_lssState);
+    writer.WriteByte   (static_cast<Byte> (m_lssClock));
+    writer.WriteByte   (m_readLatch);
+    writer.WriteByte   (m_bus);
+    writer.WriteBool   (m_latchIsFresh);
+    writer.WriteByte   (m_headWindow);
+    writer.WriteUInt32 (m_weakRngState);
+    writer.WriteUInt64 (m_readNibbles);
+    writer.WriteUInt64 (m_writeNibbles);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  Reads into locals and range-checks the head position, the sequencer state
+//  and clock, and the bit cursor before committing anything, so a bad blob
+//  leaves the engine as it was. The cursor is checked against the track the
+//  loaded head position resolves to on the disk now attached; an empty drive
+//  or an unformatted position has no length to check against.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Disk2NibbleEngine::LoadState (StateReader & reader)
+{
+    constexpr uint8_t  kLssStateCount = 16;
+    constexpr Byte     kLssClockCount = 8;
+
+
+
+    HRESULT   hr            = S_OK;
+    uint16_t  version       = 0;
+    Byte      currentTrack  = 0;
+    bool      motorOn       = false;
+    bool      writeMode     = false;
+    bool      shiftLoadMode = false;
+    uint64_t  bitPos        = 0;
+    Byte      lssState      = 0;
+    Byte      lssClock      = 0;
+    Byte      readLatch     = 0;
+    Byte      bus           = 0;
+    bool      latchIsFresh  = false;
+    Byte      headWindow    = 0;
+    uint32_t  weakRngState  = 0;
+    uint64_t  readNibbles   = 0;
+    uint64_t  writeNibbles  = 0;
+    int       slot          = -1;
+    size_t    trackBits     = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte   (currentTrack);
+    reader.ReadBool   (motorOn);
+    reader.ReadBool   (writeMode);
+    reader.ReadBool   (shiftLoadMode);
+    reader.ReadUInt64 (bitPos);
+    reader.ReadByte   (lssState);
+    reader.ReadByte   (lssClock);
+    reader.ReadByte   (readLatch);
+    reader.ReadByte   (bus);
+    reader.ReadBool   (latchIsFresh);
+    reader.ReadByte   (headWindow);
+    reader.ReadUInt32 (weakRngState);
+    reader.ReadUInt64 (readNibbles);
+    reader.ReadUInt64 (writeNibbles);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx (currentTrack <= kMaxTrack,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (lssState     <  kLssStateCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (lssClock     <  kLssClockCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    if (m_disk != nullptr)
+    {
+        slot      = m_disk->ResolveQuarterTrack (currentTrack);
+        trackBits = (slot < 0) ? kUnformattedTrackBits : m_disk->GetTrackBitCount (slot);
+    }
+
+    CBREx (trackBits == 0 || bitPos < trackBits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_currentTrack  = currentTrack;
+    m_motorOn       = motorOn;
+    m_writeMode     = writeMode;
+    m_shiftLoadMode = shiftLoadMode;
+    m_bitPos        = static_cast<size_t> (bitPos);
+    m_lssState      = lssState;
+    m_lssClock      = lssClock;
+    m_readLatch     = readLatch;
+    m_bus           = bus;
+    m_latchIsFresh  = latchIsFresh;
+    m_headWindow    = headWindow;
+    m_weakRngState  = weakRngState;
+    m_readNibbles   = readNibbles;
+    m_writeNibbles  = writeNibbles;
+
+Error:
+    return hr;
 }
 
 

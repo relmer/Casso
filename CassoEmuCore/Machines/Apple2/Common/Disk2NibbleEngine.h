@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
+
 class DiskImage;
 
 
@@ -40,7 +42,7 @@ class DiskImage;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2NibbleEngine
+class Disk2NibbleEngine : public IMachineState
 {
 public:
     static constexpr int   kCyclesPerBit = 4;
@@ -96,6 +98,17 @@ public:
     // rising edge -- byte-identical to the real "byte ready"
     // signal. Does NOT affect ReadLatch's CPU-visible value.
     bool       ConsumeFreshNibble (uint8_t & outNibble);
+
+    // IMachineState: head position, motor and Q6/Q7 as last pushed in, the bit
+    // cursor, the sequencer registers, the head window, the weak-bit generator
+    // and the nibble counters. The disk pointer is wiring and is not saved, so
+    // the media must be loaded before this, which checks the bit cursor
+    // against the track under the head.
+    HRESULT    SaveState (StateWriter & writer) const override;
+    HRESULT    LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('D', '2', 'E', 'N');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     // Logic State Sequencer clocking. The P6 sequencer runs at 2 MHz --
@@ -158,6 +171,7 @@ private:
     uint8_t    NextWeakBit();
     size_t     GetCurrentTrackBits() const;
 
+protected:
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;
     bool         m_motorOn       = false;

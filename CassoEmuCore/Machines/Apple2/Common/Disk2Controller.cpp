@@ -4,6 +4,8 @@
 #include "Audio/IDriveAudioSink.h"
 #include "Machines/Apple2/Common/IDisk2EventSink.h"
 #include "Core/Prng.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -1074,4 +1076,145 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     snapshot.groups.push_back (std::move (sequencer));
     snapshot.visual = DiagnosticsDiskHead { m_quarterTrack, kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Disk2Controller::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr    = S_OK;
+    int      drive = 0;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte   (m_phases);
+    writer.WriteByte   (static_cast<Byte> (m_phase));
+    writer.WriteByte   (static_cast<Byte> (m_quarterTrack));
+    writer.WriteBool   (m_motorOn);
+    writer.WriteUInt32 (m_motorSpindownCycles);
+    writer.WriteUInt32 (m_motorSpinupRemaining);
+    writer.WriteByte   (static_cast<Byte> (m_activeDrive));
+    writer.WriteBool   (m_q6);
+    writer.WriteBool   (m_q7);
+    writer.WriteBool   (m_iwmMode);
+    writer.WriteByte   (m_iwmModeReg);
+    writer.WriteUInt32 (m_cyclesSinceIdleCallback);
+    writer.WriteBool   (m_busySinceIdleCallback);
+    writer.WriteUInt64 (m_lastCpuSync);
+
+    for (drive = 0; drive < kDriveCount; drive++)
+    {
+        hr = m_engine[drive].SaveState (writer);
+        CHR (hr);
+    }
+
+    hr = writer.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  The engines load inside this section and check their own fields; this
+//  checks the phase mask, phase, head position and drive select, and that the
+//  saved machine had the same IWM wiring. Nothing goes through Reset or the
+//  switch handlers, so no sink hears a motor or drive change and the motor-off
+//  flush does not run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Disk2Controller::LoadState (StateReader & reader)
+{
+    constexpr Byte  kPhaseMaskLimit = 1 << kPhaseCount;
+
+
+
+    HRESULT   hr                      = S_OK;
+    uint16_t  version                 = 0;
+    int       drive                   = 0;
+    Byte      phases                  = 0;
+    Byte      phase                   = 0;
+    Byte      quarterTrack            = 0;
+    bool      motorOn                 = false;
+    uint32_t  motorSpindownCycles     = 0;
+    uint32_t  motorSpinupRemaining    = 0;
+    Byte      activeDrive             = 0;
+    bool      q6                      = false;
+    bool      q7                      = false;
+    bool      iwmMode                 = false;
+    Byte      iwmModeReg              = 0;
+    uint32_t  cyclesSinceIdleCallback = 0;
+    bool      busySinceIdleCallback   = false;
+    uint64_t  lastCpuSync             = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte   (phases);
+    reader.ReadByte   (phase);
+    reader.ReadByte   (quarterTrack);
+    reader.ReadBool   (motorOn);
+    reader.ReadUInt32 (motorSpindownCycles);
+    reader.ReadUInt32 (motorSpinupRemaining);
+    reader.ReadByte   (activeDrive);
+    reader.ReadBool   (q6);
+    reader.ReadBool   (q7);
+    reader.ReadBool   (iwmMode);
+    reader.ReadByte   (iwmModeReg);
+    reader.ReadUInt32 (cyclesSinceIdleCallback);
+    reader.ReadBool   (busySinceIdleCallback);
+    reader.ReadUInt64 (lastCpuSync);
+
+    for (drive = 0; drive < kDriveCount; drive++)
+    {
+        hr = m_engine[drive].LoadState (reader);
+        CHR (hr);
+    }
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx (phases       <  kPhaseMaskLimit,  HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (phase        <  kPhaseCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (quarterTrack <= kMaxQuarterTrack, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (activeDrive  <  kDriveCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (iwmMode      == m_iwmMode,        HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_phases                  = phases;
+    m_phase                   = phase;
+    m_quarterTrack            = quarterTrack;
+    m_motorOn                 = motorOn;
+    m_motorSpindownCycles     = motorSpindownCycles;
+    m_motorSpinupRemaining    = motorSpinupRemaining;
+    m_activeDrive             = activeDrive;
+    m_q6                      = q6;
+    m_q7                      = q7;
+    m_iwmModeReg              = iwmModeReg;
+    m_cyclesSinceIdleCallback = cyclesSinceIdleCallback;
+    m_busySinceIdleCallback   = busySinceIdleCallback;
+    m_lastCpuSync             = lastCpuSync;
+
+Error:
+    return hr;
+}
+
 

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "IDiskImage.h"
+#include "Core/IMachineState.h"
 #include "Machines/Apple2/Common/WozMetadata.h"
 
 
@@ -24,7 +25,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskImage : public IDiskImage
+class DiskImage : public IDiskImage, public IMachineState
 {
 public:
     static constexpr int     kMaxTracks                  = 40;
@@ -115,7 +116,7 @@ public:
     // Direct bit-buffer access for bulk writers (NibblizationLayer, WozLoader).
     // ResizeTrack must be called first; the returned buffer length matches the
     // packed-byte size for the track. Bypasses write-protect.
-    vector<Byte> &   GetTrackBitsForWrite (int track) { return m_trackBits[track]; }
+    vector<Byte> &   GetTrackBitsForWrite (int track) { TouchTrack (track); return m_trackBits[track]; }
 
     // Const counterpart for read-only serializers (WozLoader::Serialize).
     // Returns the packed MSB-first bit bytes backing a track slot.
@@ -128,7 +129,30 @@ public:
     // file. Track bit streams remain whatever the caller has put there.
     void  SetLoadedForTest (bool loaded, bool dirty);
 
+    // Change tracking for DiskTrackSnapshot. The identity is unique per loaded
+    // medium (renewed on construction, load and eject); a track's generation
+    // changes on every write to its bits or length. A snapshot can share a
+    // track buffer with an earlier one exactly when both match.
+    uint64_t         GetImageId          () const { return m_imageId; }
+    uint64_t         GetTrackGeneration  (int track) const;
+
+    // IMachineState: the guest-visible media, that is every track's bits and
+    // length, the dirty flags, and the image and user write-protect flags. The
+    // file path, format, metadata and quarter-track map come from the file and
+    // are wiring: the loading machine must have the same medium mounted, and a
+    // mismatch in loaded state or track count fails.
+    HRESULT          SaveState           (StateWriter & writer) const override;
+    HRESULT          LoadState           (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('D', 'I', 'S', 'K');
+    static constexpr uint16_t  kStateVersion      = 1;
+    static constexpr uint32_t  kMaxStateTrackSize = 0x100000;
+
 private:
+    friend class DiskTrackSnapshot;
+
+    void     TouchTrack       (int track);
+    void     RenewIdentity    ();
     HRESULT  LoadDsk          (const vector<Byte> & raw);
     void     InitWholeTrackMap ();
 
@@ -153,4 +177,7 @@ private:
     bool                  m_sourceCrcMismatch   = false;
     vector<Byte>          m_rawSourceBytes;
     WozMetadata           m_wozMetadata;
+    vector<uint64_t>      m_trackGeneration;
+    uint64_t              m_imageId             = 0;
+    uint64_t              m_lastGeneration      = 0;
 };

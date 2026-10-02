@@ -2,9 +2,19 @@
 
 #include "DiskImage.h"
 #include "DiskImageStore.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+
+
+
+
+
+// Source of DiskImage identities. Shared by every image, so an identity is
+// never reused within the process, whichever thread loads the medium.
+static std::atomic<uint64_t>  s_nextImageId { 0 };
 
 
 
@@ -25,6 +35,7 @@ DiskImage::DiskImage()
     m_trackBitCounts.resize (kDefaultTrackCount, 0);
     m_trackDirty.resize     (kDefaultTrackCount, false);
     InitWholeTrackMap();
+    RenewIdentity();
 }
 
 
@@ -158,6 +169,7 @@ void DiskImage::EnsureTrackSlots (int slotCount)
         m_trackBits.resize      (slotCount);
         m_trackBitCounts.resize (slotCount, 0);
         m_trackDirty.resize     (slotCount, false);
+        m_trackGeneration.resize (slotCount, 0);
     }
 }
 
@@ -315,6 +327,8 @@ void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
 
         m_trackDirty[track] = true;
         m_dirty             = true;
+
+        TouchTrack (track);
     }
 }
 
@@ -429,6 +443,8 @@ void DiskImage::MarkTrackDirty (int track)
     {
         m_trackDirty[track] = true;
         m_dirty             = true;
+
+        TouchTrack (track);
     }
 }
 
@@ -530,6 +546,8 @@ void DiskImage::ResizeTrack (int track, size_t bitCount)
 
     m_trackBits[track].assign (bytesNeeded, 0);
     m_trackBitCounts[track] = bitCount;
+
+    TouchTrack (track);
 }
 
 
@@ -555,6 +573,8 @@ void DiskImage::SetTrackBitCount (int track, size_t bitCount)
     }
 
     m_trackBitCounts[track] = bitCount;
+
+    TouchTrack (track);
 }
 
 
@@ -601,6 +621,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_rawSourceBytes = raw;
     m_wozMetadata.Clear();
     InitWholeTrackMap();
+    RenewIdentity();
 
     switch (fmt)
     {
@@ -726,6 +747,7 @@ void DiskImage::Eject()
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);
     InitWholeTrackMap();
+    RenewIdentity();
     m_loaded              = false;
     m_dirty               = false;
     m_imageWriteProtected = false;
@@ -789,3 +811,200 @@ HRESULT DiskImage::Flush()
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TouchTrack
+//
+//  Gives a track a generation no earlier state of this medium had, so a
+//  snapshot taken before the change no longer matches it. The counter only
+//  ever rises, which keeps that true after a snapshot is restored and the
+//  machine runs a different way from there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::TouchTrack (int track)
+{
+    if (track >= 0 && track < static_cast<int> (m_trackGeneration.size()))
+    {
+        m_trackGeneration[track] = ++m_lastGeneration;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenewIdentity
+//
+//  A new medium (or none): no snapshot of the old one may share its buffers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::RenewIdentity()
+{
+    m_imageId        = ++s_nextImageId;
+    m_lastGeneration = 0;
+
+    m_trackGeneration.assign (m_trackBits.size(), 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTrackGeneration
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DiskImage::GetTrackGeneration (int track) const
+{
+    bool  inRange = (track >= 0 && track < static_cast<int> (m_trackGeneration.size()));
+
+
+
+    return inRange ? m_trackGeneration[track] : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+//  Every track in full. Keyframes use DiskTrackSnapshot instead, which shares
+//  unchanged tracks with the previous keyframe; this is the form for a state
+//  written to a file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImage::SaveState (StateWriter & writer) const
+{
+    size_t  track = 0;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool   (m_loaded);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_trackBits.size()));
+
+    for (track = 0; track < m_trackBits.size(); track++)
+    {
+        writer.WriteUInt64 (m_trackBitCounts[track]);
+        writer.WriteBool   (m_trackDirty[track]);
+        writer.WriteUInt32 (static_cast<uint32_t> (m_trackBits[track].size()));
+        writer.WriteBytes  (m_trackBits[track].data(), m_trackBits[track].size());
+    }
+
+    writer.WriteBool (m_dirty);
+    writer.WriteBool (m_imageWriteProtected);
+    writer.WriteBool (m_userWriteProtected);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  The medium must already be mounted: a saved state whose loaded flag or
+//  track count differs from this image's belongs to another disk. Each track's
+//  byte size is capped before it is allocated, and its bit count must fit in
+//  its bytes, so a corrupt blob cannot size a buffer or send ReadBit past one.
+//  The tracks are read into a staging copy and committed only after the
+//  section closes cleanly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImage::LoadState (StateReader & reader)
+{
+    HRESULT               hr                  = S_OK;
+    uint16_t              version             = 0;
+    bool                  loaded              = false;
+    uint32_t              trackCount          = 0;
+    uint32_t              track               = 0;
+    uint32_t              byteCount           = 0;
+    uint64_t              bitCount            = 0;
+    uint64_t              maxBits             = 0;
+    bool                  trackDirty          = false;
+    bool                  dirty               = false;
+    bool                  imageWriteProtected = false;
+    bool                  userWriteProtected  = false;
+    vector<vector<Byte>>  trackBits;
+    vector<size_t>        trackBitCounts;
+    vector<bool>          trackDirtyFlags;
+    uint32_t              diskTracks          = static_cast<uint32_t> (m_trackBits.size());
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool   (loaded);
+    reader.ReadUInt32 (trackCount);
+
+    CBREx (loaded     == m_loaded,   HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (trackCount == diskTracks, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    trackBits.resize       (trackCount);
+    trackBitCounts.resize  (trackCount, 0);
+    trackDirtyFlags.resize (trackCount, false);
+
+    for (track = 0; track < trackCount; track++)
+    {
+        reader.ReadUInt64 (bitCount);
+        reader.ReadBool   (trackDirty);
+        reader.ReadUInt32 (byteCount);
+
+        maxBits = static_cast<uint64_t> (byteCount) * CHAR_BIT;
+
+        CBREx (byteCount <= kMaxStateTrackSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+        CBREx (bitCount  <= maxBits,            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        trackBits[track].resize (byteCount);
+        reader.ReadBytes (trackBits[track].data(), byteCount);
+
+        trackBitCounts[track]  = static_cast<size_t> (bitCount);
+        trackDirtyFlags[track] = trackDirty;
+    }
+
+    reader.ReadBool (dirty);
+    reader.ReadBool (imageWriteProtected);
+    reader.ReadBool (userWriteProtected);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    m_trackBits.swap      (trackBits);
+    m_trackBitCounts.swap (trackBitCounts);
+    m_trackDirty.swap     (trackDirtyFlags);
+
+    m_dirty               = dirty;
+    m_imageWriteProtected = imageWriteProtected;
+    m_userWriteProtected  = userWriteProtected;
+
+    for (track = 0; track < trackCount; track++)
+    {
+        TouchTrack (static_cast<int> (track));
+    }
+
+Error:
+    return hr;
+}
+
+

@@ -5,6 +5,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/IMachineState.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
@@ -34,7 +35,7 @@ class IDisk2EventSink;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2Controller : public MemoryDevice, public IDiagnosticsProvider
+class Disk2Controller : public MemoryDevice, public IDiagnosticsProvider, public IMachineState
 {
 public:
     static constexpr int    kDriveCount      = 2;
@@ -180,6 +181,20 @@ public:
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
+    // IMachineState: phase magnets, head position, motor and its spin-up and
+    // spin-down counters, drive select, Q6/Q7, the IWM mode register, the idle
+    // callback's rate-limit window, the last catch-up cycle, and both drive
+    // engines nested in this section. The disks are not in this section: their
+    // media is saved through DiskImage or DiskTrackSnapshot and must be loaded
+    // first. Sinks, callbacks, the cycle source and the IWM-mode flag are
+    // wiring; the flag is saved only to check it matches. A load fires no sink
+    // and no callback.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('D', 'S', 'K', '2');
+    static constexpr uint16_t  kStateVersion = 1;
+
 private:
     void   HandleSwitch (int offset);
     void   HandlePhase (int phase, bool on);
@@ -190,6 +205,7 @@ private:
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);
 
+protected:
     int                  m_slot;
     Word                 m_ioStart;
     Word                 m_ioEnd;
