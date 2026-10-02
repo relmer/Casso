@@ -2195,6 +2195,7 @@ public:
 
     void  SetText           (const std::wstring & title, const std::wstring & intro) { m_title = title; m_intro = intro; }
     void  SetModelRows      (std::vector<ModelRow> rows)                             { m_model = std::move (rows); }
+    void  SetMediaColumn    (const std::wstring & label)                             { m_mediaColumn = label; }
     void  AddButton         (const DialogButton & button)                           { m_buttons.push_back (button); }
     void  SetCloseBoxResult (int code)                                              { m_closeBoxResult = code; }
     void  SetAnchorRect     (const RECT & anchorRectPx)                             { m_anchorRectPx = anchorRectPx; m_hasAnchor = true; }
@@ -2241,6 +2242,7 @@ private:
     std::string                m_themeName;
     std::wstring               m_title;
     std::wstring               m_intro;
+    std::wstring               m_mediaColumn = L"Disk image";
     std::vector<ModelRow>      m_model;
     std::vector<DialogButton>  m_buttons;
     std::optional<int>         m_closeBoxResult;
@@ -2373,7 +2375,7 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
 
     cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
-    cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ m_mediaColumn,  0, false, DxuiTextRenderer::HAlign::Left });
     cols.push_back ({ L"Location",    0, false, DxuiTextRenderer::HAlign::Left });
 
     m_list.SetDpi                    (m_dpi);
@@ -2942,6 +2944,7 @@ MediaPickerKind AssetBootstrap::MakeDiskPickerKind (int drive)
     kind.intro          = format (L"Choose a disk image for Drive {}, browse for another, or download a stock master from the Asimov archive.", drive);
     kind.emptyIntro     = format (L"No recent disks for Drive {}. Browse for an image, or download a stock master from the Asimov archive.", drive);
     kind.createLabel    = L"<Create new disk...>";
+    kind.mediaColumn    = L"Disk image";
     kind.offerDownloads = true;
 
     return kind;
@@ -2970,6 +2973,7 @@ MediaPickerKind AssetBootstrap::MakeTapePickerKind()
     kind.intro          = L"Choose a tape recording, or browse for another.";
     kind.emptyIntro     = L"No recent tapes. Browse for a recording, or create a new blank tape.";
     kind.createLabel    = L"<Create new tape...>";
+    kind.mediaColumn    = L"Tape";
     kind.offerDownloads = false;
 
     return kind;
@@ -3135,6 +3139,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         session.SetText          (title, intro);
         session.SetModelRows     (models);
+        session.SetMediaColumn   (kind.mediaColumn);
         session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
         session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
         session.SetCloseBoxResult (s_kCloseBoxResult);

@@ -1681,6 +1681,7 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "apple2-family-keyboard",         "Keyboard" },
         { "apple2-family-speaker",          "Speaker" },
         { "apple2-family-softswitches",     "Soft switches" },
+        { "apple2-family-cassette",         "Cassette port" },
         // The //e-generation keyboard/soft-switch controllers are shared by the
         // //e and the //c, so the label stays machine-neutral (the machine name
         // is already shown at the top of the panel) rather than hardcoding //e.

@@ -27,6 +27,7 @@ struct MediaPickerKind
     std::wstring  intro;            // shown when there are recent entries
     std::wstring  emptyIntro;       // shown when there are none
     std::wstring  createLabel;      // the pinned <Create new ...> row
+    std::wstring  mediaColumn;      // the list header over the file names
     bool          offerDownloads = false;
 };
 
