@@ -1310,3 +1310,6 @@ follows with little extra work.
 is acceptable; the ring size (memory against reach); and whether machine
 save states are wanted on their own merits, which decides whether Option B
 is worth its cost.
+
+**Owner decision 2026-10-03:** option C, rewinding the whole machine including devices. Disk writes made while reverse execution is on stay in memory and never reach the image file until they are committed later, or are dropped. See T439.
+

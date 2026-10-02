@@ -1165,3 +1165,5 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T436 Owner answer 2026-10-03: the console's gap between commands is 75% of a line, not a whole one
 - [X] T437 Owner answer 2026-10-03: in light themes an enabled check box has a visible outline (DxuiCheckbox)
 - [X] T438 Owner question 2026-10-03: how can the debugger support reverse execution (step back, step back over, step back out)? Write up the design options and costs for the owner; build nothing yet
+- [ ] T439 Owner decision 2026-10-03 on R-040: reverse execution uses option C (an undo log for recent history, snapshots plus replay for older), rewinding the whole machine, devices included. Disk writes are part of it: while reverse execution is on, writes stay in memory and never reach the disk image file, so a rewind can discard them; they are written to the host file later, or dropped. Plan the design in research.md R-040 and break it into tasks before building
+- [ ] T440 Owner answer 2026-10-03: the Disk II lamp row does not wrap; in a narrow pane it scales down to fit, so "Motor" is never cut off
