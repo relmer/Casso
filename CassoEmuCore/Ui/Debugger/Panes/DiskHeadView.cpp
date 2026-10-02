@@ -130,7 +130,7 @@ uint32_t DiskHeadView::GetHeadColor (const IDxuiTheme & theme) const
 
 int DiskHeadView::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 {
-    int  rows = IsLabelBelow ((float) widthPx, scaler) ? 2 : 1;
+    int  rows = 1 + (IsLabelBelow ((float) widthPx, scaler) ? 1 : 0) + (IsLabelSplit ((float) widthPx, scaler) ? 1 : 0);
 
 
 
@@ -149,12 +149,41 @@ int DiskHeadView::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scale
 
 std::wstring DiskHeadView::GetLabel() const
 {
+    return std::format (L"{}  {}", GetDriveText(), GetTrackText());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::GetDriveText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskHeadView::GetDriveText() const
+{
+    return std::format (L"Drive {}", m_head.drive + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::GetTrackText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskHeadView::GetTrackText() const
+{
     constexpr int  kHundredths = 100;
 
 
 
-    return std::format (L"Drive {}  track {}.{:02}", m_head.drive + 1, m_head.quarterTrack / kQuarters,
-                        (m_head.quarterTrack % kQuarters) * (kHundredths / kQuarters));
+    return std::format (L"track {}.{:02}", m_head.quarterTrack / kQuarters, (m_head.quarterTrack % kQuarters) * (kHundredths / kQuarters));
 }
 
 
@@ -184,6 +213,32 @@ bool DiskHeadView::IsLabelBelow (float widthPx, const DxuiDpiScaler & scaler) co
 
 
     return lamps + label > widthPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::IsLabelSplit
+//
+//  Where even a row of its own is too narrow for the whole label, the drive
+//  and the track take a row each. The break falls only between the two, so a
+//  word or a track number is never divided. The widest track is assumed, as
+//  for IsLabelBelow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskHeadView::IsLabelSplit (float widthPx, const DxuiDpiScaler & scaler) const
+{
+    static constexpr float  kAdvancePerDip = 0.6f;
+    static constexpr size_t kWidestLabel   = std::size (L"Drive 2  track 39.75") - 1;
+    float                   label          = scaler.ToPxf (m_fontDip) * kAdvancePerDip * (float) kWidestLabel;
+
+
+
+    return label > widthPx;
 }
 
 
@@ -391,9 +446,24 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
         top += row;
     }
 
-    size  = m_scaler.ToPxf (font.sizeDip);
-    label = GetLabel();
-    hr    = text.DrawString (label.c_str(), x, top, std::max (0.0f, (float) m_boundsDip.right - x), row, theme.Foreground(), size, font.face,
-                             DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    size = m_scaler.ToPxf (font.sizeDip);
+
+    if (IsLabelSplit ((float) (m_boundsDip.right - m_boundsDip.left), m_scaler))
+    {
+        label = GetDriveText();
+        hr    = text.DrawString (label.c_str(), x, top, std::max (0.0f, (float) m_boundsDip.right - x), row, theme.Foreground(), size, font.face,
+                                 DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        top   += row;
+        label  = GetTrackText();
+    }
+    else
+    {
+        label = GetLabel();
+    }
+
+    hr = text.DrawString (label.c_str(), x, top, std::max (0.0f, (float) m_boundsDip.right - x), row, theme.Foreground(), size, font.face,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

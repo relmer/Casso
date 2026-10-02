@@ -42,7 +42,8 @@ public:
     void                         SetHead (const DiagnosticsDiskHead & head);
     const DiagnosticsDiskHead &  GetHead () const                           { return m_head; }
 
-    //  A row more where the drive and track do not fit beside the lamps.
+    //  A row more where the drive and track do not fit beside the lamps, and
+    //  another where they do not fit on one row.
     int                          GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
     //  The head marker's left edge and width, in pixels.
@@ -65,10 +66,14 @@ private:
 
     int   GetQuarterCount () const { return std::max (1, m_head.maxQuarterTrack + 1); }
 
-    //  "Drive 1  track 17.25", and whether it goes on a row of its own below
-    //  the lamps at this width.
+    //  "Drive 1  track 17.25" and its two halves, whether it goes on a row of
+    //  its own below the lamps at this width, and whether its halves need a
+    //  row each.
     std::wstring  GetLabel      () const;
+    std::wstring  GetDriveText  () const;
+    std::wstring  GetTrackText  () const;
     bool          IsLabelBelow  (float widthPx, const DxuiDpiScaler & scaler) const;
+    bool          IsLabelSplit  (float widthPx, const DxuiDpiScaler & scaler) const;
 
     //  1 where the lamp row fits the width, less where it has to shrink.
     float         GetLampScale  (float widthPx) const;
