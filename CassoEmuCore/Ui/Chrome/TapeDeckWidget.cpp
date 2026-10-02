@@ -49,6 +49,13 @@ bool TapeDeckWidget::UpdateHover (int x, int y)
 
 
 
+    // Arriving on the name scrolls a long one at once rather than after the
+    // hold, as the drive widgets do.
+    if (moved && region == TapeDeckRegion::Name)
+    {
+        m_marqueeStartMs = GetNowMs();
+    }
+
     m_hover = region;
 
     return moved;
@@ -328,6 +335,135 @@ std::wstring TapeDeckWidget::GetDisplayName (const TapeDeckView & view)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMarqueeOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float TapeDeckWidget::GetMarqueeOffset (int64_t nowMs, int64_t startMs, float periodPx, float speedPxPerSec)
+{
+    int64_t  scrollMs = 0;
+    float    offset   = 0.0f;
+
+
+
+    if (speedPxPerSec > 0.0f && periodPx > 0.0f)
+    {
+        scrollMs = (int64_t) (periodPx / speedPxPerSec * 1000.0f);
+    }
+
+    if (scrollMs > 0 && nowMs >= startMs && nowMs < startMs + scrollMs)
+    {
+        offset = periodPx * (float) (nowMs - startMs) / (float) scrollMs;
+    }
+
+    return offset;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNowMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t TapeDeckWidget::GetNowMs()
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintName
+//
+//  A name that fits is centered. One that does not scrolls through the row as
+//  a marquee: two copies a name-plus-gap apart, clipped to the row, so as the
+//  first leaves on the left the second follows it in from the right and the
+//  scroll ends exactly where it began.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeckWidget::PaintName (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb)
+{
+    HRESULT  hr       = S_OK;
+    float    dipScale = (float) m_dpi / (float) kBaseDpi;
+    float    fontDip  = kNameFontDip * dipScale;
+    float    left     = (float) m_nameRect.left;
+    float    top      = (float) m_nameRect.top;
+    float    width    = (float) (m_nameRect.right - m_nameRect.left);
+    float    height   = (float) (m_nameRect.bottom - m_nameRect.top);
+    float    textW    = 0.0f;
+    float    textH    = 0.0f;
+    float    period   = 0.0f;
+    float    speed    = kMarqueeSpeedDipPerSec * dipScale;
+    float    offset   = 0.0f;
+    bool     clipped  = false;
+    int64_t  nowMs    = GetNowMs();
+
+
+
+    hr = text.MeasureString (name.c_str(), fontDip, kFontFamily, textW, textH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (textW <= width)
+    {
+        m_marqueeName.clear();
+
+        hr = text.DrawString (name.c_str(), left, top, width, height, argb, fontDip, kFontFamily,
+                              DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // A new name waits the hold before its first scroll.
+    if (name != m_marqueeName)
+    {
+        m_marqueeName    = name;
+        m_marqueeStartMs = nowMs + kMarqueeHoldMs;
+    }
+
+    period = textW + kMarqueeGapDip * dipScale;
+    offset = GetMarqueeOffset (nowMs, m_marqueeStartMs, period, speed);
+
+    // Finished, and the pointer is still on the name: go again after the hold.
+    if (m_hover == TapeDeckRegion::Name && speed > 0.0f &&
+        nowMs - (m_marqueeStartMs + (int64_t) (period / speed * 1000.0f)) >= kMarqueeHoldMs)
+    {
+        m_marqueeStartMs = nowMs;
+    }
+
+    hr      = text.PushClipRect (left, top, width, height);
+    clipped = SUCCEEDED (hr);
+
+    for (float x : { left - offset, left - offset + period })
+    {
+        hr = text.DrawString (name.c_str(), x, top, textW + 1.0f, height, argb, fontDip, kFontFamily,
+                              DxuiTextRenderer::HAlign::Left, DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (clipped)
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -369,14 +505,7 @@ void TapeDeckWidget::Paint (
                           DxuiTextRenderer::HAlign::Left, DxuiTextRenderer::VAlign::Bottom);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (name.c_str(),
-                          (float) m_nameRect.left, (float) m_nameRect.top,
-                          (float) (m_nameRect.right - m_nameRect.left),
-                          (float) (m_nameRect.bottom - m_nameRect.top),
-                          hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel,
-                          kNameFontDip * dipScale, kFontFamily,
-                          DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    PaintName (text, name, hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel);
 
     hr = text.DrawString (readout.c_str(),
                           (float) m_readoutRect.left, (float) m_readoutRect.top,

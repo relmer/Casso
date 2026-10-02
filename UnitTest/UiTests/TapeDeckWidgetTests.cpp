@@ -237,4 +237,19 @@ public:
         Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Record, view));
         Assert::AreEqual (std::wstring (L"Loading long.mp3\x2026"), TapeDeckWidget::GetDisplayName (view));
     }
+
+    TEST_METHOD (MarqueeRestsBeforeAndAfterItsScrollAndTravelsOnePeriod)
+    {
+        constexpr int64_t  kStart  = 10000;
+        constexpr float    kPeriod = 90.0f;     // px: a name plus the gap
+        constexpr float    kSpeed  = 45.0f;     // px a second, so two seconds a scroll
+
+
+
+        Assert::AreEqual (0.0f,  TapeDeckWidget::GetMarqueeOffset (kStart - 1,    kStart, kPeriod, kSpeed), L"waiting out the hold");
+        Assert::AreEqual (0.0f,  TapeDeckWidget::GetMarqueeOffset (kStart,        kStart, kPeriod, kSpeed));
+        Assert::AreEqual (45.0f, TapeDeckWidget::GetMarqueeOffset (kStart + 1000, kStart, kPeriod, kSpeed), 0.01f, L"halfway after a second");
+        Assert::AreEqual (0.0f,  TapeDeckWidget::GetMarqueeOffset (kStart + 2000, kStart, kPeriod, kSpeed), L"back at rest, seamlessly");
+        Assert::AreEqual (0.0f,  TapeDeckWidget::GetMarqueeOffset (kStart + 500,  kStart, kPeriod, 0.0f),   L"no speed, no scroll");
+    }
 };

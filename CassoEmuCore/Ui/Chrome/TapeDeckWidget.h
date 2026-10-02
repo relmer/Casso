@@ -61,6 +61,11 @@ public:
     static float         GetProgress     (const TapeDeckView & view);
     static std::wstring  GetDisplayName  (const TapeDeckView & view);
 
+    // How far a name too long for its row has scrolled at nowMs, for a scroll
+    // that began at startMs and travels one name-plus-gap period. Zero before
+    // it begins and once it has finished, which is where the name rests.
+    static float         GetMarqueeOffset (int64_t nowMs, int64_t startMs, float periodPx, float speedPxPerSec);
+
     static constexpr size_t  kButtonCount = 5;
 
 private:
@@ -83,6 +88,12 @@ private:
     static constexpr float  kNameFontDip       = 11.0f;
     static constexpr float  kReadoutFontDip    = 9.0f;
 
+    // The drive widgets' marquee timing, so a long tape name scrolls exactly
+    // as a long disk name does: a hold before the first scroll and between
+    // replays while the pointer stays over the name.
+    static constexpr int64_t  kMarqueeHoldMs         = 2000;
+    static constexpr float    kMarqueeSpeedDipPerSec = 45.0f;
+    static constexpr float    kMarqueeGapDip         = 25.0f;
     // The transport row, right of the name.
     static constexpr int    kButtonsGapXPx     = 8;
     static constexpr int    kButtonSizePx      = 20;
@@ -96,13 +107,14 @@ private:
     static constexpr uint32_t  kRecordRedArgb = 0xFFE04848;
 
     static int   Scale          (int value, UINT dpi);
-    static bool  IsPointInRect  (const RECT & rect, int x, int y);
+    static bool     IsPointInRect  (const RECT & rect, int x, int y);
+    static int64_t  GetNowMs       ();
 
     void      PaintRail    (IDxuiPainter & painter, const CassoTheme & theme);
     void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme);
     void      PaintMark    (IDxuiPainter & painter, TapeDeckRegion region, const RECT & box, uint32_t argb);
     uint32_t  GetMarkColor (TapeDeckRegion region, const CassoTheme & theme) const;
-
+    void      PaintName    (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
     static TapeDeckRegion  GetButtonRegion (size_t index);
 
     TapeDeckView    m_view;
@@ -115,4 +127,6 @@ private:
     TapeDeckRegion  m_hover                 = TapeDeckRegion::None;
     UINT            m_dpi                   = kBaseDpi;
     bool            m_hidden                = true;
+    std::wstring    m_marqueeName;                          // the name the schedule below is for
+    int64_t         m_marqueeStartMs        = 0;            // when its scroll begins
 };
