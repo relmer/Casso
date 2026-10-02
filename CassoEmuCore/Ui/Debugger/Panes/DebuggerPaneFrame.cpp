@@ -23,6 +23,27 @@ void DebuggerPaneFrame::AddPart (IDxuiControl * control, HeightFn height, ShownF
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerPaneFrame::SetPartInsetDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerPaneFrame::SetPartInsetDip (IDxuiControl * control, int dip)
+{
+    for (Part & part : m_parts)
+    {
+        if (part.control == control)
+        {
+            part.insetDip = dip;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerPaneFrame::IsPartShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +77,8 @@ void DebuggerPaneFrame::Relayout()
 //  DebuggerPaneFrame::Layout
 //
 //  Fixed parts take their heights first, then the part without one takes
-//  the rest; a gap separates each shown part from the next.
+//  the rest; a gap separates each shown part from the next. A part's top
+//  inset is added to a fixed part's height and taken from a filling part's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +90,7 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
     int                shown   = 0;
     int                fill    = 0;
     long               y       = boundsDip.top;
+    int                inset   = 0;
     std::vector<int>   heights (m_parts.size(), 0);
 
 
@@ -86,7 +109,8 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
 
         if (m_parts[i].height != nullptr)
         {
-            heights[i] = std::max (0, m_parts[i].height (width, scaler));
+            inset      = scaler.ToPx (m_parts[i].insetDip);
+            heights[i] = std::max (0, m_parts[i].height (width - inset * 2, scaler)) + inset;
             fixed     += heights[i];
         }
     }
@@ -104,8 +128,9 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
             continue;
         }
 
+        inset      = scaler.ToPx (m_parts[i].insetDip);
         heights[i] = (m_parts[i].height != nullptr) ? heights[i] : fill;
-        m_parts[i].control->Layout (RECT { boundsDip.left, y, boundsDip.right, y + heights[i] }, scaler);
+        m_parts[i].control->Layout (RECT { boundsDip.left + inset, y + inset, boundsDip.right - inset, y + heights[i] }, scaler);
         y += heights[i] + kGapDip;
     }
 }

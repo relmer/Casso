@@ -1652,6 +1652,24 @@ std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::AddCommandGap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::AddCommandGap (std::vector<std::string> & lines)
+{
+    if (!lines.empty())
+    {
+        lines.insert (lines.begin(), std::string());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::ExecuteAction
 //
 //  PANEL is the window's own, so it runs on the panes; anything else goes to

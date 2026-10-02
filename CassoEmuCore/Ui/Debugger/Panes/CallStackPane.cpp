@@ -65,15 +65,20 @@ void CallStackPane::Configure()
 //
 //  CallStackPane::Apply
 //
+//  The columns fit the frames shown whenever they change, as the machine
+//  pauses or steps.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CallStackPane::Apply (const CallStackData & data)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
+    std::vector<Row>                              rows    = GetRows (data);
+    bool                                          changed = !IsSameText (rows, m_rows);
 
 
 
-    m_rows = GetRows (data);
+    m_rows = std::move (rows);
 
     for (const Row & row : m_rows)
     {
@@ -82,11 +87,36 @@ void CallStackPane::Apply (const CallStackData & data)
 
     m_list->SetRows (std::move (cells));
 
+    //  New frames size the columns to themselves again, narrower as well as
+    //  wider, rather than keeping the widest text the pane has ever shown.
+    if (changed)
+    {
+        m_list->ResetAutoFit();
+    }
+
     if (data.mechanism != m_mechanism)
     {
         m_mechanism = data.mechanism;
         m_modeButton->SetLabel (GetModeLabel (m_mechanism));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::IsSameText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CallStackPane::IsSameText (const std::vector<Row> & a, const std::vector<Row> & b)
+{
+    return std::equal (a.begin(), a.end(), b.begin(), b.end(), [] (const Row & x, const Row & y)
+    {
+        return x.site == y.site && x.routine == y.routine && x.foundBy == y.foundBy;
+    });
 }
 
 

@@ -59,6 +59,13 @@ public:
     //  The bit decode as one cell: the names in order, each clear one dimmed.
     static DxuiListView::Cell  MakeBitsCell (const std::vector<DiagnosticsBit> & bits);
 
+    //  A switch's value: ON at full strength, off dimmed. Any other value
+    //  as published.
+    static DxuiListView::Cell  MakeValueCell (const DiagnosticsRow & row);
+
+    //  The graphic is kept this far from the pane's edges.
+    static constexpr int  kGraphicInsetDip = 6;
+
 private:
     enum class Visual
     {

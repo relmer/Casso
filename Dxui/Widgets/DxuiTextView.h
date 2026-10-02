@@ -97,6 +97,10 @@ public:
     float  GetZoom         () const               { return m_zoom; }
     void   SetTextStrength (float strength)       { m_textStrength = strength; }
 
+    //  A line's height as a multiple of the face's, the extra split above and
+    //  below the text. 1 by default; ignored while the cell size is pinned.
+    void   SetLineSpacing  (float spacing);
+
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
     int   GetTopLine   () const { return m_topLine; }
@@ -292,6 +296,8 @@ private:
     bool                    m_cellPinned      = false;
     float                   m_zoom            = 1.0f;
     float                   m_textStrength    = 1.0f;
+    float                   m_lineSpacing     = 1.0f;
+    int                     m_textTopPx       = 0;
     int                     m_gutterDip       = 0;
     int                     m_gutterIconDip   = 0;
     UINT                    m_measuredDpi     = 0;

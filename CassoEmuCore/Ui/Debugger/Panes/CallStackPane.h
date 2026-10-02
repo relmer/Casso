@@ -60,6 +60,8 @@ public:
     static std::wstring      GetModeLabel (CallStackMechanism mechanism);
 
 private:
+    static bool  IsSameText (const std::vector<Row> & a, const std::vector<Row> & b);
+
     DxuiListView        * m_list       = nullptr;
     DxuiButton          * m_modeButton = nullptr;
     RunFn                 m_run;

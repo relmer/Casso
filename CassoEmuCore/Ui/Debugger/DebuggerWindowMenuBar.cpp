@@ -691,8 +691,9 @@ Error:
 //  DebuggerWindow::ConfigureConsoleBar
 //
 //  The console pane's toolbar, in the breakpoints pane's style: the mode the
-//  console reads, which the memory Address box follows too, as a "Mode:"
-//  label and a drop-down showing the mode in force.
+//  console reads, which the memory Address box follows too, as a drop-down
+//  drawn as the breakpoints pane's "Show columns" is, reading "Mode:" and
+//  the mode in force.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -704,14 +705,11 @@ void DebuggerWindow::ConfigureConsoleBar()
 
     m_dialectCommand        = std::make_shared<DxuiCommand>();
     m_dialectCommand->id    = kDialectEntry;
-    m_dialectCommand->label = L"Mode";
-
-    m_modeEntry = std::make_unique<ConsoleModeEntry>();
-    m_modeEntry->SetTooltip (L"Mode\nChoose the command mode for the console and the memory Address box");
+    m_dialectCommand->label = GetModeLabel (L"AppleWin");
+    m_dialectCommand->tip   = L"Choose the command mode for the console and the memory Address box";
 
     dialect.command       = m_dialectCommand;
     dialect.kind          = DxuiToolbar::Kind::DropDown;
-    dialect.custom        = m_modeEntry.get();
     dialect.neverOverflow = true;
 
     m_consoleBar->SetTextRenderer (GetTextRenderer());
@@ -742,6 +740,7 @@ void DebuggerWindow::ConfigureConsoleBar()
 void DebuggerWindow::SetConsoleBarMenus()
 {
     std::vector<DxuiPopupMenuItem>  modes;
+    std::wstring                    before = m_dialectCommand->label;
 
 
 
@@ -756,7 +755,7 @@ void DebuggerWindow::SetConsoleBarMenus()
 
         if (current || (m_snapshot == nullptr && mode == CommandMode::AppleWin))
         {
-            m_modeEntry->SetModeText (label);
+            m_dialectCommand->label = GetModeLabel (label);
         }
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (label, current, [this, target]
@@ -766,6 +765,28 @@ void DebuggerWindow::SetConsoleBarMenus()
     }
 
     m_consoleBar->SetDropDownItems (kDialectEntry, std::move (modes));
+
+    //  The entry is as wide as its text, so a new mode lays the strip out
+    //  again.
+    if (m_dialectCommand->label != before)
+    {
+        PlaceConsoleBar();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetModeLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetModeLabel (const wchar_t * mode)
+{
+    return std::wstring (L"Mode: ") + mode;
 }
 
 

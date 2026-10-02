@@ -24,6 +24,7 @@ public:
     static constexpr int  kRowDip   = 12;
     static constexpr int  kGapDip   = 2;
     static constexpr int  kLabelDip = 84;
+    static constexpr int  kTextDip  = 18;     // a line of the pane's text, descenders included
 
     void                       SetMeters (const DiagnosticsMeters & meters) { m_meters = meters; }
     const DiagnosticsMeters &  GetMeters () const                           { return m_meters; }

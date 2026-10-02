@@ -14,7 +14,7 @@
 
 DiagnosticsRow IDiagnosticsProvider::MakeFlagRow (const std::string & label, bool on)
 {
-    return DiagnosticsRow { label, on ? "on" : "off", {} };
+    return DiagnosticsRow { label, on ? "on" : "off", {}, true };
 }
 
 

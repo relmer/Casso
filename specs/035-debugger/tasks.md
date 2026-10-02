@@ -1105,8 +1105,8 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T376 Owner review 2026-10-02: Visual Studio's drop-target compasses (T325) are not visible during a drag; find why and show them
 - [ ] T377 Owner review 2026-10-02: Detach must truly detach: decide and implement what attached and detached mean (see the owner's question)
 - [X] T378 Regression found 2026-10-02 on screen after the batch 11 merge: the Registers and Stack panes show their new Undo/Redo bar but no list rows and no column headers (the Watches pane may be affected too). Find the cause (the undo-bar frames from 454d794d2 merged with the in-place editors from b3bd1c3fb; see `DebuggerWindowUndoBars.cpp`, the pane control list near `kRegisters` in `DebuggerWindow.cpp`, and `ClipPaneControls`), fix it, add a test that fails on the broken code, and confirm on screen that both panes show their rows
-- [ ] T379 Owner review 2026-10-02: the console's Mode toolbar puts "Mode:" against the pane's left edge; make it a real pane toolbar laid out like the other panes' bars
-- [ ] T380 Owner review 2026-10-02: the console's dialect drop-down (AppleWin) is too short for its text and styled differently; draw it as the breakpoints pane's "Show columns" drop-down is drawn
+- [X] T379 Owner review 2026-10-02: the console's Mode toolbar puts "Mode:" against the pane's left edge; make it a real pane toolbar laid out like the other panes' bars
+- [X] T380 Owner review 2026-10-02: the console's dialect drop-down (AppleWin) is too short for its text and styled differently; draw it as the breakpoints pane's "Show columns" drop-down is drawn
 - [X] T381 Owner review 2026-10-02: grabbing the debug toolbar's handle pauses the debugger; a drag must not change run state
 - [ ] T382 Owner review 2026-10-02: while a toolbar is dragged over a dock band, the band appears (taking space if hidden), the toolbar snaps into it and slides along it with the mouse, and leaving takes a pull past a threshold before it pops out
 - [ ] T383 Owner review 2026-10-02: the debug toolbar never collapses into its overflow while its band has room or while floating; on a window resize a docked bar slides within its band rather than shrinking, unless another toolbar or the auto-hide tabs block it
@@ -1114,12 +1114,12 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T385 Owner review 2026-10-02: a docked toolbar draws no edge along its long sides (the panes beside it give those), only its short edges
 - [ ] T386 Owner review 2026-10-02: a floating toolbar turns vertical as it nears a vertical band and stays vertical until it nears a horizontal one, so the user picks its orientation and can still leave it floating
 - [X] T387 Owner review 2026-10-02: the debug toolbar's buttons are drawn in color with Visual Studio's shapes as vector icons (vs-reference/vs-debug-toolbar-commands.png)
-- [ ] T388 Owner review 2026-10-02: the console's line spacing is a little tight; add extra space between one command's output and the next command
+- [X] T388 Owner review 2026-10-02: the console's line spacing is a little tight; add extra space between one command's output and the next command
 - [X] T389 Owner review 2026-10-02: the disassembly's "Show ..." check boxes draw no box around them and sit a little farther apart
 - [X] T390 Owner review 2026-10-02: dragging the disassembly's yellow PC triangle to another statement sets PC there; the context menu gains "Set next statement"
-- [ ] T391 Owner review 2026-10-02: the call stack's columns size to their contents whenever the data changes while paused or stepping
-- [ ] T392 Owner review 2026-10-02: the MMU pane's R/W labels touch the pane's edge; check every pane for content against its edges and inset it
-- [ ] T393 Owner review 2026-10-02: MMU switches that are on show "ON" uppercase in the theme's bright text; off shows "off" lowercase in the theme's gray
+- [X] T391 Owner review 2026-10-02: the call stack's columns size to their contents whenever the data changes while paused or stepping
+- [X] T392 Owner review 2026-10-02: the MMU pane's R/W labels touch the pane's edge; check every pane for content against its edges and inset it
+- [X] T393 Owner review 2026-10-02: MMU switches that are on show "ON" uppercase in the theme's bright text; off shows "off" lowercase in the theme's gray
 - [X] T394 Owner review 2026-10-02: find matches are highlighted in the PC row's background color; the current match uses the PC arrow's yellow and moves as the user steps between matches
 - [X] T395 Owner review 2026-10-02: the find widget's up/down, in-selection and close buttons are too small or indistinct; draw them at Visual Studio Code's size and contrast (vs-reference)
 - [X] T396 Owner review 2026-10-02: changing a find option re-runs the search with the current text
@@ -1132,7 +1132,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T403 Owner review 2026-10-02: menu access-key underlines sit too far below their letter; pressing Alt shows the underlines in every submenu as well
 - [X] T404 Owner review 2026-10-02: the light theme's disassembly is still poor: black text too stark, instruction operands barely readable, the cyan result barely readable; give every color AA contrast against the light background
 - [ ] T405 Owner answer 2026-10-02: breakpoint export stays in AppleWin's format, and import reads it in any console dialect
-- [ ] T406 Owner answer 2026-10-02: the Mockingboard pane's "running" timer text clips its descenders; fix it
+- [X] T406 Owner answer 2026-10-02: the Mockingboard pane's "running" timer text clips its descenders; fix it
 - [ ] T407 Owner answer 2026-10-02: the Watches pane is shown by default, not auto-hidden, and, as in Visual Studio, ends with an "add new watch" row edited in place; existing watches edit in place
 - [ ] T408 Owner answer 2026-10-02 to T358: pane toolbar labels use the theme's body font, decided inside Dxui
 - [ ] T409 Owner answer 2026-10-02 to T377: Detach removes the debugger's CPU hook so the machine runs untouched; reopening the debugger attaches again with breakpoints intact

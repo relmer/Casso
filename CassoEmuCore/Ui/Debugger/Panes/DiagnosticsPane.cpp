@@ -43,6 +43,10 @@ DiagnosticsPane::DiagnosticsPane (
                       [this] { return m_visual == Visual::Meters; });
     m_frame->AddPart (m_list);
 
+    m_frame->SetPartInsetDip (m_map,    kGraphicInsetDip);
+    m_frame->SetPartInsetDip (m_head,   kGraphicInsetDip);
+    m_frame->SetPartInsetDip (m_meters, kGraphicInsetDip);
+
     m_map->SetVisible    (false);
     m_head->SetVisible   (false);
     m_meters->SetVisible (false);
@@ -155,12 +159,44 @@ std::vector<std::vector<DxuiListView::Cell>> DiagnosticsPane::MakeRows (const Di
         for (const DiagnosticsRow & row : group.rows)
         {
             rows.push_back ({ { L"  " + TextEncoding::NarrowToWide (row.label) },
-                              { TextEncoding::NarrowToWide (row.value) },
+                              MakeValueCell (row),
                               MakeBitsCell (row.bits) });
         }
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiagnosticsPane::MakeValueCell
+//
+//  A switch that is on reads as ON in the list's full-strength text, and one
+//  that is off as off in its muted text, so the set switches stand out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Cell DiagnosticsPane::MakeValueCell (const DiagnosticsRow & row)
+{
+    DxuiListView::Cell  cell;
+    bool                isOn = row.value == "on";
+
+
+
+    if (!row.isSwitch)
+    {
+        cell.text = TextEncoding::NarrowToWide (row.value);
+        return cell;
+    }
+
+    cell.text = isOn ? L"ON" : L"off";
+    cell.dim  = !isOn;
+
+    return cell;
 }
 
 

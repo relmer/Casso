@@ -412,7 +412,8 @@ void DebuggerWindow::ConfigureWidgets()
     //  selection that runs through the text as an editor's does, and Ctrl+C
     //  to copy it.
     m_consoleView->SetOwnerWindow (GetHwnd());
-    m_consoleView->SetFollowEnd (true);
+    m_consoleView->SetFollowEnd   (true);
+    m_consoleView->SetLineSpacing (kConsoleLineSpacing);
 
     //  Activating a breakpoint shows its address; its checkbox turns it on
     //  and off, as Visual Studio's Breakpoints window does.
@@ -7100,15 +7101,23 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
     bool                            atEnd   = m_consoleView->IsAtEnd();
     int                             top     = m_consoleView->GetTopLine();
     int                             dropped = 0;
+    auto                            first   = lines.begin();
 
 
 
-    if (lines.empty())
+    //  A command's gap sets it apart from the one before, so the console
+    //  does not open on one.
+    while (m_console.empty() && first != lines.end() && first->empty())
+    {
+        ++first;
+    }
+
+    if (first == lines.end())
     {
         return;
     }
 
-    m_console.insert (m_console.end(), lines.begin(), lines.end());
+    m_console.insert (m_console.end(), first, lines.end());
 
     if ((int) m_console.size() > kConsoleLineLimit)
     {

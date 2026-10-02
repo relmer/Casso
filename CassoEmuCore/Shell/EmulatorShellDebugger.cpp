@@ -838,6 +838,7 @@ void EmulatorShell::OpenDebugChannel()
         }
 
         lines = m_debugViewState.ExecuteConsoleLine (m_debugger->GetSession(), line, mode);
+        DebuggerViewState::AddCommandGap (lines);
 
         {
             std::lock_guard<std::mutex>  held (m_debugViewMutex);
@@ -927,6 +928,7 @@ void EmulatorShell::RunDebugActions()
     {
         std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugger->GetSession(), action);
 
+        DebuggerViewState::AddCommandGap (shown);
         lines.insert (lines.end(), shown.begin(), shown.end());
     }
 

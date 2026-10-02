@@ -1367,6 +1367,34 @@ void DxuiTextView::SetZoom (float zoom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::SetLineSpacing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetLineSpacing (float spacing)
+{
+    if (spacing == m_lineSpacing || spacing < 1.0f)
+    {
+        return;
+    }
+
+    m_lineSpacing = spacing;
+
+    if (!m_cellPinned)
+    {
+        m_cellWidthPx  = 0;
+        m_cellHeightPx = 0;
+    }
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1420,7 +1448,8 @@ void DxuiTextView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & 
 
     m_cellWidthPx  = (std::max) (1, (int) (width / 8.0f + 0.5f));
     m_cellAdvance  = (std::max) (1.0f, width / 8.0f);
-    m_cellHeightPx = (std::max) (1, (int) (height + 0.5f));
+    m_cellHeightPx = (std::max) (1, (int) (height * m_lineSpacing + 0.5f));
+    m_textTopPx    = (std::max) (0, (m_cellHeightPx - (int) (height + 0.5f)) / 2);
     m_measuredDpi  = m_scaler.GetDpi();
 
     Rebuild();
@@ -1671,8 +1700,8 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
         }
 
         hr = text.DrawString (chars.substr ((size_t) start, (size_t) (stop - start)).c_str(),
-                              (float) (left + (column + start) * m_cellAdvance), (float) y,
-                              (float) ((stop - start + 1) * m_cellAdvance), (float) m_cellHeightPx,
+                              (float) (left + (column + start) * m_cellAdvance), (float) (y + m_textTopPx),
+                              (float) ((stop - start + 1) * m_cellAdvance), (float) (m_cellHeightPx - m_textTopPx),
                               argb, font.sizeDip, font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);

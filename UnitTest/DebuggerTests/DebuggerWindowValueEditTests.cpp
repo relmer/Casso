@@ -96,7 +96,7 @@ namespace DebuggerValueEditTests
         using DebuggerWindow::GetRegisterList;
         using DebuggerWindow::GetStackEditor;
         using DebuggerWindow::GetRegisterEditor;
-        using DebuggerWindow::GetModeEntry;
+        using DebuggerWindow::GetModeText;
         using DebuggerWindow::SetConsoleBarMenus;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::GetFocused;
@@ -364,14 +364,13 @@ namespace DebuggerValueEditTests
 
             window.OnCreate();
 
-            Assert::IsNotNull (window.GetModeEntry(), L"the console bar holds the mode entry");
-            Assert::AreEqual  (std::wstring (L"AppleWin"), window.GetModeEntry()->GetModeText(), L"AppleWin before any snapshot");
+            Assert::AreEqual (std::wstring (L"Mode: AppleWin"), window.GetModeText(), L"AppleWin before any snapshot");
 
             snapshot->mode = CommandMode::Monitor;
             window.SetSnapshotForTest (snapshot);
             window.SetConsoleBarMenus();
 
-            Assert::AreEqual (std::wstring (L"Monitor"), window.GetModeEntry()->GetModeText());
+            Assert::AreEqual (std::wstring (L"Mode: Monitor"), window.GetModeText());
         }
     };
 }

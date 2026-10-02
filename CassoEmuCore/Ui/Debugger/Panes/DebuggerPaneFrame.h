@@ -40,6 +40,11 @@ public:
     //  Room left below the last part, so a control drawn with a border of its
     //  own, the console's command box, does not sit on the pane's edge.
     void  SetBottomMarginDip (int dip) { m_bottomMarginDip = dip; }
+
+    //  Room kept clear on a part's left, right and top, so a graphic that draws
+    //  to its own bounds does not touch the pane's edge.
+    void  SetPartInsetDip (IDxuiControl * control, int dip);
+
     //  Lays the parts out again, for a part whose height or shown state
     //  changed while the frame kept its bounds.
     void  Relayout ();
@@ -55,9 +60,10 @@ public:
 private:
     struct Part
     {
-        IDxuiControl  * control = nullptr;
+        IDxuiControl  * control  = nullptr;
         HeightFn        height;
         ShownFn         shown;
+        int             insetDip = 0;
     };
 
     bool  IsPartShown (const Part & part) const;

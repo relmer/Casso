@@ -9,7 +9,6 @@
 #include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiToolbar.h"
-#include "Ui/Debugger/ConsoleModeEntry.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
@@ -389,7 +388,8 @@ protected:
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
     DxuiToolbar *                         GetConsoleBar      () const { return m_consoleBar; }
-    const ConsoleModeEntry *              GetModeEntry       () const { return m_modeEntry.get(); }
+    std::wstring                          GetModeText        () const { return m_dialectCommand->label; }
+    static std::wstring                   GetModeLabel       (const wchar_t * mode);
     DxuiToolbar *                         GetSourceBar       (int slot) const { return m_sourceDocs[(size_t) slot].bar; }
     DxuiMenuBar *                         GetMenuBar         () const { return m_menuBar; }
 
@@ -465,6 +465,7 @@ private:
     static constexpr int    kMinWidthDip        = 760;
     static constexpr int    kMinHeightDip       = 520;
     static constexpr int    kConsoleLineLimit   = 2000;
+    static constexpr float  kConsoleLineSpacing = 1.2f;
 
     //  Pane metrics (FR-026a): the monospace face at a size whose line height
     //  a row barely exceeds, small cell padding, and eight rows owed to every
@@ -805,7 +806,6 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleBarSlot;
     DxuiToolbar                                                                    * m_consoleBar         = nullptr;
     std::shared_ptr<DxuiCommand>                                                     m_dialectCommand;
-    std::unique_ptr<ConsoleModeEntry>                                                m_modeEntry;
     std::unique_ptr<DebuggerCommands>                                                m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_menuCommands;
     DxuiDockSite                                                                   * m_dockSite           = nullptr;

@@ -79,6 +79,8 @@ void MeterBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const ID
     float           y     = (float) m_boundsDip.top;
     float           bar   = std::max (0.0f, (float) (m_boundsDip.right - m_boundsDip.left) - label);
     float           pad   = m_scaler.ToPxf ((float) kGapDip);
+    float           textH = m_scaler.ToPxf ((float) kTextDip);
+    float           textY = 0.0f;
     std::wstring    name;
     std::wstring    status;
     HRESULT         hr    = S_OK;
@@ -99,12 +101,16 @@ void MeterBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const ID
 
         painter.FillRect (left + label, y, bar, row, theme.ControlBackground());
 
+        //  The text's box is a full line tall, centered on the row, so a
+        //  descender is not cut off at the row's foot.
+        textY = y + (row - textH) * 0.5f;
+
         //  A steady state in place of the bar, for a level a once-a-frame
         //  sample cannot follow.
         if (!level.status.empty())
         {
             status = TextEncoding::NarrowToWide (level.status);
-            hr     = text.DrawString (status.c_str(), left + label + pad, y, bar - pad, row, theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face,
+            hr     = text.DrawString (status.c_str(), left + label + pad, textY, bar - pad, textH, theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face,
                                       DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
@@ -114,7 +120,7 @@ void MeterBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const ID
         }
 
         name = TextEncoding::NarrowToWide (level.name);
-        hr   = text.DrawString (name.c_str(), left, y, label, row, theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
+        hr   = text.DrawString (name.c_str(), left, textY, label, textH, theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
                                 DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 

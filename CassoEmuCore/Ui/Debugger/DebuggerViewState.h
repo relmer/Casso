@@ -521,6 +521,10 @@ public:
     //  parser (FR-135). CPU thread only.
     std::vector<std::string>  ExecuteAction (DebugSession & session, const DebuggerAction & action);
 
+    //  A blank line ahead of a command's lines, which sets the command and its
+    //  output apart from the one before. No lines get none.
+    static void  AddCommandGap (std::vector<std::string> & lines);
+
     //  A breakpoints pane action as one undo step, or its undo or redo:
     //  each action's echo behind the prompt, then that action's reply.
     //  An import ends with how many of the file's lines were skipped.
