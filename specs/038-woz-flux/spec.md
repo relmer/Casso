@@ -26,7 +26,7 @@ tracks to bit tracks, the FLUX chunk maps quarter tracks to flux tracks, and
 both kinds of track data live in the TRKS chunk.
 
 The reported disk, Sirius's *Bandits*, holds 15 bit tracks (track 0 and tracks
-21-34) and 19 flux tracks (half tracks 1.5 through 20.5). Its copy protection
+21-34) and 19 flux tracks (half tracks 1.5 through 19.5). Its copy protection
 writes parts of each flux track with cells about 3.7 µs long and parts with
 cells about 4.1 µs long, and its loader times its reads to tell them apart.
 Casso ignores the FLUX chunk today, so those 19 tracks read as unformatted and

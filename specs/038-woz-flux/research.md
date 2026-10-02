@@ -66,7 +66,7 @@ tick / total ticks, and back again. Bit-to-bit moves keep today's
 `m_bitPos %= newBits` rule exactly. Flux-to-flux moves use the fraction too.
 
 **Rationale**: FR-004. *Bandits* steps between bit track 0, flux tracks
-1.5-20.5 and bit tracks 21-34, so a mismatch here shows up as a lost sync on
+1.5-19.5 and bit tracks 21-34, so a mismatch here shows up as a lost sync on
 the step. Its bit tracks have about 51,000 bits and its flux revolutions are
 about 200.5 ms. Both span one revolution, so a fraction is the honest common
 measure. Bit-to-bit stays as it is to keep FR-009.
