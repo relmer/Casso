@@ -83,7 +83,8 @@ has to leave the flux timing available for it.
 - Q: How should the damaged-disk report on insert be laid out? -> A: Pending
   owner approval (T043). Direction given: a bulleted list of every problem found,
   each with the tracks it affects written as runs ("Unable to read tracks 1-5,
-  8-9, 13: ..."), followed by what Casso did and what the user can do.
+  8-9, 13."), with no per-track reason (missing and cut-short data read the
+  same to a user), followed by what Casso did and what the user can do.
 
 ## User Scenarios & Testing *(mandatory)*
 

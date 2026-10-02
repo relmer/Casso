@@ -207,14 +207,13 @@ parallel (different files, no dependency on an unfinished task).
   > Casso found these problems in this disk image:
   >
   > • The stored checksum does not match the contents.
-  > • Unable to read tracks 1-5, 8-9, 13: their data is missing from the file.
-  > • Unable to read track 20: its data is cut short.
+  > • Unable to read tracks 1-5, 8-9, 13, 20.
   >
   > {path}
   >
   > Casso has loaded the disk so you can read it, and has write-protected it for this session, because rewriting the file would hide the damage. Unreadable tracks read as blank. A salvaged copy is a standard disk image of the readable sectors, without this disk's flux timing or its copy protection.
 
-  - One bullet per problem, using `s_kchBullet` from `Core/UnicodeSymbols.h`. Reasons group by `DamageReason`: `OutsideFile` and `V1RecordPastTrks` read "their data is missing from the file"; `CountExceedsBlocks` and `TruncatedRun` read "its data is cut short".
+  - One bullet per problem, using `s_kchBullet` from `Core/UnicodeSymbols.h`. Every damaged track goes in one "Unable to read" bullet with no reason clause: the owner judged "missing from the file" and "cut short" to mean the same thing to a user (2026-10-02). `DamageReason` stays recorded for tests and diagnostics only.
   - Track lists become runs of tracks one whole track apart ("1-5, 8-9, 13"; Bandits' half tracks read "1.5-19.5"), with "track" or "tracks" by how many the list covers. This replaces the eight-then-"N more" cutoff in `FormatTrackList`.
   - "Unreadable tracks read as blank." only with damaged tracks; the salvage sentence only on flux disks. A checksum-only disk has one bullet.
   - The drive tooltip and the write-protect refusal keep their single-sentence wording.
