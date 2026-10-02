@@ -240,6 +240,8 @@
     <ClCompile Include="Core\EmuCpu.cpp" />
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
+    <ClCompile Include="Core\StateReader.cpp" />
+    <ClCompile Include="Core\StateWriter.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
     <ClCompile Include="Core\CpuFactory.cpp" />
     <ClCompile Include="Core\Cpu65C02.cpp" />
@@ -666,6 +668,9 @@
     <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\IInterruptController.h" />
     <ClInclude Include="Core\InterruptController.h" />
+    <ClInclude Include="Core\IMachineState.h" />
+    <ClInclude Include="Core\StateReader.h" />
+    <ClInclude Include="Core\StateWriter.h" />
     <ClInclude Include="Devices\IMmu.h" />
     <ClInclude Include="Devices\IVideoMode.h" />
     <ClInclude Include="Devices\ISoftSwitchBank.h" />

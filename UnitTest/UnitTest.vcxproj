@@ -158,6 +158,8 @@
     <ClCompile Include="UndocumentedOpcodeTests.cpp" />
     <ClCompile Include="Cpu6502InterfaceTests.cpp" />
     <ClCompile Include="CpuIrqTests.cpp" />
+    <ClCompile Include="MachineStateTests.cpp" />
+    <ClCompile Include="StateStreamTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblerTests.cpp" />
