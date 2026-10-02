@@ -259,6 +259,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowPaneFindTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetInputTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetLayerTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerFindReviewTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowClosedPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerClosedPanesSettingTests.cpp" />

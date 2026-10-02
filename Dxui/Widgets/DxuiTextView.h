@@ -176,6 +176,13 @@ public:
     static uint32_t  GetFindHighlightFill (const IDxuiTheme & theme);
     static uint32_t  GetFindHighlightText (const IDxuiTheme & theme);
 
+    //  Colors of the owner's own for the marks: one under every match and
+    //  one under the match the search is at, the selected one. 0 for either
+    //  keeps the theme's fill above for it.
+    void      SetFindColors  (uint32_t matchArgb, uint32_t currentArgb) { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
+    bool      IsCurrentMatch (const FindMatch & match) const;
+    uint32_t  GetFindFillOf  (const FindMatch & match, const IDxuiTheme & theme) const;
+
     //  Every match in the rows, in order. False when the needle is not a valid
     //  regular expression.
     static bool  FindAllInRows (const std::vector<std::wstring> & rows,
@@ -252,7 +259,8 @@ private:
     static bool   IsWordChar        (wchar_t ch) { return iswalnum (ch) || ch == L'_'; }
     static bool   IsWholeWordAt     (const std::wstring & text, size_t at, size_t length);
     bool          GetScopedMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, std::vector<FindMatch> & outMatches) const;
-    void          FillHighlights    (IDxuiPainter & painter, int y, int column, int flatStart, int count, int row, uint32_t argb, uint32_t edge) const;
+    void          KeepUserSelection ();
+    void          FillHighlights    (IDxuiPainter & painter, const IDxuiTheme & theme, int y, int column, int flatStart, int count, int row, uint32_t edge) const;
 
     //  A copy in lower case, one character for one.
     static std::wstring  GetLowered (const std::wstring & text);
@@ -279,30 +287,34 @@ private:
     //  The face's advance, which is rarely a whole number of pixels. Columns
     //  are placed by it rather than by the rounded cell width, so a line split
     //  into selected and unselected runs lands where the whole line would.
-    float                   m_cellAdvance   = 0.0f;
-    int                     m_cellHeightPx  = 0;
-    bool                    m_cellPinned    = false;
-    float                   m_zoom          = 1.0f;
-    float                   m_textStrength  = 1.0f;
-    int                     m_gutterDip     = 0;
-    int                     m_gutterIconDip = 0;
-    UINT                    m_measuredDpi   = 0;
-    int                     m_topLine       = 0;
-    bool                    m_followEnd     = false;
-    bool                    m_atEnd         = true;
+    float                   m_cellAdvance     = 0.0f;
+    int                     m_cellHeightPx    = 0;
+    bool                    m_cellPinned      = false;
+    float                   m_zoom            = 1.0f;
+    float                   m_textStrength    = 1.0f;
+    int                     m_gutterDip       = 0;
+    int                     m_gutterIconDip   = 0;
+    UINT                    m_measuredDpi     = 0;
+    int                     m_topLine         = 0;
+    bool                    m_followEnd       = false;
+    bool                    m_atEnd           = true;
     Position                m_anchor;
     Position                m_caret;
-    bool                    m_scoped        = false;
+    bool                    m_scoped          = false;
     Position                m_scopeStart;
     Position                m_scopeEnd;
     std::vector<FindMatch>  m_highlights;
+    Position                m_userAnchor;
+    Position                m_userCaret;
+    uint32_t                m_findMatchArgb   = 0;
+    uint32_t                m_findCurrentArgb = 0;
     Position                m_lastClick;
-    int64_t                 m_lastClickMs   = 0;
-    bool                    m_dragging      = false;
-    bool                    m_wordDrag      = false;
+    int64_t                 m_lastClickMs     = 0;
+    bool                    m_dragging        = false;
+    bool                    m_wordDrag        = false;
     Position                m_wordFirst;
     Position                m_wordLast;
-    HWND                    m_hwnd          = nullptr;
+    HWND                    m_hwnd            = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;

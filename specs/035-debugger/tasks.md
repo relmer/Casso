@@ -1120,10 +1120,10 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T391 Owner review 2026-10-02: the call stack's columns size to their contents whenever the data changes while paused or stepping
 - [ ] T392 Owner review 2026-10-02: the MMU pane's R/W labels touch the pane's edge; check every pane for content against its edges and inset it
 - [ ] T393 Owner review 2026-10-02: MMU switches that are on show "ON" uppercase in the theme's bright text; off shows "off" lowercase in the theme's gray
-- [ ] T394 Owner review 2026-10-02: find matches are highlighted in the PC row's background color; the current match uses the PC arrow's yellow and moves as the user steps between matches
-- [ ] T395 Owner review 2026-10-02: the find widget's up/down, in-selection and close buttons are too small or indistinct; draw them at Visual Studio Code's size and contrast (vs-reference)
-- [ ] T396 Owner review 2026-10-02: changing a find option re-runs the search with the current text
-- [ ] T397 Owner review 2026-10-02: find in selection does not work; make it search only the selection taken when the option was turned on
+- [X] T394 Owner review 2026-10-02: find matches are highlighted in the PC row's background color; the current match uses the PC arrow's yellow and moves as the user steps between matches
+- [X] T395 Owner review 2026-10-02: the find widget's up/down, in-selection and close buttons are too small or indistinct; draw them at Visual Studio Code's size and contrast (vs-reference)
+- [X] T396 Owner review 2026-10-02: changing a find option re-runs the search with the current text
+- [X] T397 Owner review 2026-10-02: find in selection does not work; make it search only the selection taken when the option was turned on
 - [X] T398 Owner review 2026-10-02: the debug toolbar's default position is the top band, below the menu bar
 - [ ] T399 Owner review 2026-10-02: the disassembly's viewing options default to all checked
 - [ ] T400 Owner review 2026-10-02: undo text quotes the operation: Undo "changed 3 bytes at $0300", in tips and menu items

@@ -2918,16 +2918,23 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
     //  The widget floats over its pane's text, so it comes after every
     //  pane's controls: its plate, then what sits on the plate.
     state.plate       = CreateChild<FindWidgetPlate> ();
-    state.chevron     = CreateChild<DxuiButton>      (s_kpszChevronRight);
+    state.chevron     = CreateChild<DxuiButton>      (s_kpszMdl2ChevronRight);
     state.box         = CreateChild<DxuiTextInput>   ();
     state.caseButton  = CreateChild<DxuiButton>      (L"Aa");
     state.wordButton  = CreateChild<DxuiButton>      (L"ab");
     state.regexButton = CreateChild<DxuiButton>      (L".*");
     state.status      = CreateChild<DxuiLabel>       ();
-    state.prevButton  = CreateChild<DxuiButton>      (s_kpszUpArrow);
-    state.nextButton  = CreateChild<DxuiButton>      (s_kpszDownArrow);
-    state.selButton   = CreateChild<DxuiButton>      (s_kpszIdenticalTo);
-    state.closeButton = CreateChild<DxuiButton>      (s_kpszMultiplyX);
+    state.prevButton  = CreateChild<DxuiButton>      (s_kpszMdl2Up);
+    state.nextButton  = CreateChild<DxuiButton>      (s_kpszMdl2Down);
+    state.selButton   = CreateChild<DxuiButton>      (s_kpszMdl2AlignLeft);
+    state.closeButton = CreateChild<DxuiButton>      (s_kpszMdl2Cancel);
+
+    //  Icon glyphs at Visual Studio Code's 16 pixels, which read at a glance
+    //  where a text face's arrows are thin and small.
+    for (DxuiButton * button : { state.chevron, state.prevButton, state.nextButton, state.selButton, state.closeButton })
+    {
+        button->SetGlyphFont (L"Segoe MDL2 Assets", (button == state.chevron) ? 12.0f : 16.0f);
+    }
 
     state.box->SetHwnd        (GetHwnd());
     state.box->SetMaxLength   (256);
@@ -3420,10 +3427,7 @@ void DebuggerWindow::SetFindInSelection (bool on)
         view->ClearFindScope();
     }
 
-    m_findStatusText.clear();
-    m_findStatus->SetText (m_findStatusText);
-
-    Invalidate();
+    RefindAfterOptionChange();
 }
 
 
@@ -3574,7 +3578,7 @@ void DebuggerWindow::PlaceFindBar()
 
 void DebuggerWindow::PlaceActiveFindBar()
 {
-    constexpr int    kButtonDip = 22;
+    constexpr int    kButtonDip = 24;
     auto             px         = [this] (int dip) { return m_scaler.ToPx (dip); };
     DxuiTextView   * view       = GetFindView();
     bool             paneThere  = m_findPane == DebuggerLayout::kConsole || GetSourceSlotOf (m_findPane) >= 0;
@@ -3781,10 +3785,7 @@ void DebuggerWindow::SetFindOptions (bool matchCase, bool wholeWord, bool isRege
     m_findWordButton->SetEmphasis  (wholeWord);
     m_findRegexButton->SetEmphasis (isRegex);
 
-    m_findStatusText.clear();
-    m_findStatus->SetText (m_findStatusText);
-
-    Invalidate();
+    RefindAfterOptionChange();
 }
 
 
@@ -3829,6 +3830,8 @@ void DebuggerWindow::FindInPane (bool forward)
 
     RecordFindHistory();
 
+    GetFindView()->SetFindColors (GetPcRowArgb(), GetPcMarkerArgb());
+
     result           = GetFindView()->SelectMatch (needle, m_findMatchCase, m_findWholeWord, m_findRegex, forward, index, count);
     m_findStatusText = GetFindStatusText (result, index, count);
     m_findStatus->SetText (m_findStatusText);
@@ -3872,6 +3875,10 @@ void DebuggerWindow::SearchAsTyped()
         return;
     }
 
+    //  The marks are the PC row's colors, the one the search is at the PC
+    //  arrow's yellow.
+    view->SetFindColors (GetPcRowArgb(), GetPcMarkerArgb());
+
     if (needle.empty())
     {
         view->ClearFindHighlights();
@@ -3884,6 +3891,34 @@ void DebuggerWindow::SearchAsTyped()
     }
 
     m_findStatus->SetText (m_findStatusText);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RefindAfterOptionChange
+//
+//  A changed option changes what matches, so with find open and text in the
+//  box the search runs again at once, as it does when the text changes.
+//  Otherwise the last count no longer holds and is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RefindAfterOptionChange()
+{
+    if (m_findOpen && !m_findBox->GetText().empty())
+    {
+        SearchAsTyped();
+        return;
+    }
+
+    m_findStatusText.clear();
+    m_findStatus->SetText (m_findStatusText);
+
     Invalidate();
 }
 

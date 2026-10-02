@@ -51,6 +51,10 @@ public:
     // Emphasizes a Default button (e.g. a dialog's default action) with a
     // themed accent outline, without promoting it to Primary.
     void  SetEmphasis (bool on) { m_emphasis = on; }
+
+    //  The label's face and size in DIPs, for a label that is an icon font's
+    //  glyph. Null and 0 keep the body face at 13.
+    void  SetGlyphFont (const wchar_t * face, float sizeDip) { m_face = face; m_fontSizeDip = sizeDip; }
     void  SetMouse    (int x, int y, bool down);
     void  SetFocused  (bool focused) { m_focused = focused; }
     bool  IsFocused   () const { return m_focused; }
@@ -77,17 +81,19 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Button; }
 
 private:
-    std::wstring   m_label;
-    wchar_t        m_accelerator = 0;
-    ClickFn        m_click;
-    bool           m_hover       = false;
-    bool           m_pressed     = false;
-    bool           m_focused     = false;
-    bool           m_enabled     = true;
-    bool           m_visible     = true;
-    DxuiDpiScaler  m_scaler;
-    Variant        m_variant     = Variant::Default;
-    DxuiElide      m_elide       = DxuiElide::None;
-    bool           m_emphasis    = false;
-    int            m_commandId   = 0;
+    std::wstring     m_label;
+    wchar_t          m_accelerator = 0;
+    ClickFn          m_click;
+    bool             m_hover       = false;
+    bool             m_pressed     = false;
+    bool             m_focused     = false;
+    bool             m_enabled     = true;
+    bool             m_visible     = true;
+    DxuiDpiScaler    m_scaler;
+    Variant          m_variant     = Variant::Default;
+    DxuiElide        m_elide       = DxuiElide::None;
+    bool             m_emphasis    = false;
+    const wchar_t  * m_face        = nullptr;
+    float            m_fontSizeDip = 0.0f;
+    int              m_commandId   = 0;
 };

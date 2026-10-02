@@ -335,9 +335,11 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     }
 
     {
-        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
-                                                       (float) (m_boundsDip.right - m_boundsDip.left),
-                                                       m_elide);
+        const wchar_t * face  = (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
+        float           size  = (m_fontSizeDip > 0.0f) ? m_scaler.ToPxf (m_fontSizeDip) : fontDip;
+        std::wstring    drawn = DxuiTextElide::ToWidth (text, m_label, size, face,
+                                                        (float) (m_boundsDip.right - m_boundsDip.left),
+                                                        m_elide);
 
         hr = text.DrawString (drawn.c_str(),
                           (float) m_boundsDip.left,
@@ -345,8 +347,8 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                           (float) (m_boundsDip.right  - m_boundsDip.left),
                           (float) (m_boundsDip.bottom - m_boundsDip.top),
                           textColor,
-                          fontDip,
-                          DxuiTheme::kBodyFace,
+                          size,
+                          face,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);

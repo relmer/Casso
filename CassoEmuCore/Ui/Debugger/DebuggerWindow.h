@@ -435,7 +435,7 @@ private:
     };
 
     static constexpr size_t  kFindHistoryMax      = 20;
-    static constexpr int     kFindWidgetWidthDip  = 440;
+    static constexpr int     kFindWidgetWidthDip  = 460;
     static constexpr int     kFindWidgetHeightDip = 34;
     static constexpr int     kFindWidgetScrollDip = 18;
     static constexpr int     kFindCountDip        = 74;
@@ -526,6 +526,7 @@ private:
     std::wstring  GetFindPaneOfControl (const IDxuiControl * control) const;
     void     RecordFindHistory ();
     void     SearchAsTyped    ();
+    void     RefindAfterOptionChange ();
     DebuggerPaneFrame * GetFindFrame  () const;
     static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();

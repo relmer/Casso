@@ -694,6 +694,8 @@ DxuiTextView::FindResult DxuiTextView::SelectMatch (const std::wstring & needle,
     outIndex = 0;
     outCount = 0;
 
+    KeepUserSelection();
+
     (void) GetScopedMatches (needle, matchCase, wholeWord, isRegex, matches);
     m_highlights = matches;
 
@@ -758,6 +760,8 @@ DxuiTextView::FindResult DxuiTextView::SelectMatchInView (const std::wstring & n
 
     outIndex = 0;
     outCount = 0;
+
+    KeepUserSelection();
 
     (void) GetScopedMatches (needle, matchCase, wholeWord, isRegex, matches);
     m_highlights = matches;
@@ -901,15 +905,89 @@ uint32_t DxuiTextView::GetFindHighlightText (const IDxuiTheme & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::IsCurrentMatch
+//
+//  The match the search is at is the one the selection covers exactly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::IsCurrentMatch (const FindMatch & match) const
+{
+    Position  from = (std::min) (m_anchor, m_caret);
+    Position  to   = (std::max) (m_anchor, m_caret);
+
+
+
+    return from == match.start && to == Position { match.start.row, match.start.offset + match.length };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetFindFillOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTextView::GetFindFillOf (const FindMatch & match, const IDxuiTheme & theme) const
+{
+    if (m_findCurrentArgb != 0 && IsCurrentMatch (match))
+    {
+        return m_findCurrentArgb;
+    }
+
+    return (m_findMatchArgb != 0) ? m_findMatchArgb : GetFindHighlightFill (theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::SetFindScopeToSelection
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextView::SetFindScopeToSelection()
 {
-    m_scoped     = HasSelection();
-    m_scopeStart = (std::min) (m_anchor, m_caret);
-    m_scopeEnd   = (std::max) (m_anchor, m_caret);
+    bool  byFind = std::ranges::any_of (m_highlights, [this] (const FindMatch & match) { return IsCurrentMatch (match); });
+
+
+
+    //  A search selects its match, so the selection to keep to is the one
+    //  there before the search moved it.
+    m_scoped     = byFind ? !(m_userAnchor == m_userCaret) : HasSelection();
+    m_scopeStart = byFind ? (std::min) (m_userAnchor, m_userCaret) : (std::min) (m_anchor, m_caret);
+    m_scopeEnd   = byFind ? (std::max) (m_userAnchor, m_userCaret) : (std::max) (m_anchor, m_caret);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::KeepUserSelection
+//
+//  Called before a search moves the selection: a selection the search did
+//  not make is kept, for find in selection to take.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::KeepUserSelection()
+{
+    bool  byFind = std::ranges::any_of (m_highlights, [this] (const FindMatch & match) { return IsCurrentMatch (match); });
+
+
+
+    if (!byFind)
+    {
+        m_userAnchor = m_anchor;
+        m_userCaret  = m_caret;
+    }
 }
 
 
@@ -1430,9 +1508,10 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     uint32_t                 selArgb  = theme.SelectionBackground();
     std::vector<uint32_t>    colors   = GetRowColors (row);
     int                      gutter   = GetGutterPx();
-    uint32_t                 litArgb  = GetFindHighlightFill (theme);
     uint32_t                 litText  = GetFindHighlightText (theme);
     uint32_t                 litEdge  = (litText == (theme.Foreground() | 0xFF000000u)) ? theme.ContentBackground() : theme.Foreground();
+    uint32_t                 fore     = theme.Foreground()        | 0xFF000000u;
+    uint32_t                 back     = theme.ContentBackground() | 0xFF000000u;
     std::vector<bool>        lit;
 
 
@@ -1469,11 +1548,21 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    //  The current match's own fill is opaque, so its characters take the
+    //  color with more contrast on it; the other matches' is a tint, which
+    //  leaves their text its own colors.
+    if (m_findCurrentArgb != 0)
+    {
+        litText = (DxuiColor::ComputeContrastRatio (fore, m_findCurrentArgb | 0xFF000000u) >= DxuiColor::ComputeContrastRatio (back, m_findCurrentArgb | 0xFF000000u)) ? fore : back;
+    }
+
     //  A highlighted match's characters are drawn in the color that reads on
     //  its fill.
     for (const FindMatch & match : m_highlights)
     {
-        if (match.start.row == line.row)
+        bool  ownTint = (m_findCurrentArgb != 0 && !IsCurrentMatch (match)) || (m_findCurrentArgb == 0 && m_findMatchArgb != 0);
+
+        if (match.start.row == line.row && !ownTint)
         {
             lit.resize ((size_t) GetRowLength (row) + 1, false);
 
@@ -1495,7 +1584,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                GetCellStart (row, c + 1) - column - (int) cell.size(), selFrom, selTo, selArgb);
         }
 
-        FillHighlights (painter, y, column, GetCellBase (row, c), (int) cell.size(), line.row, litArgb, litEdge);
+        FillHighlights (painter, theme, y, column, GetCellBase (row, c), (int) cell.size(), line.row, litEdge);
         DrawRun (text, theme, font, y, column, GetCellBase (row, c), cell, selected, selFrom, selTo, colors, lit, litText);
     }
 
@@ -1510,7 +1599,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                0, selFrom, selTo, selArgb);
         }
 
-        FillHighlights (painter, y, column, GetCellBase (row, last) + line.start, line.length, line.row, litArgb, litEdge);
+        FillHighlights (painter, theme, y, column, GetCellBase (row, last) + line.start, line.length, line.row, litEdge);
         DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo, colors, lit, litText);
     }
 }
@@ -1656,15 +1745,14 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
 //
 //  Each highlighted match on the row that falls in the `count` characters
 //  starting at `flatStart`, the way the selection is filled. The selected
-//  match, the one the search is at, is also outlined in `edge`.
+//  match, the one the search is at, is also outlined in `edge`, unless it
+//  has a fill of its own to set it apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextView::FillHighlights (IDxuiPainter & painter, int y, int column, int flatStart, int count, int row, uint32_t argb, uint32_t edge) const
+void DxuiTextView::FillHighlights (IDxuiPainter & painter, const IDxuiTheme & theme, int y, int column, int flatStart, int count, int row, uint32_t edge) const
 {
-    int       left = GetTextLeft();
-    Position  from = (std::min) (m_anchor, m_caret);
-    Position  to   = (std::max) (m_anchor, m_caret);
+    int  left = GetTextLeft();
 
 
 
@@ -1678,9 +1766,9 @@ void DxuiTextView::FillHighlights (IDxuiPainter & painter, int y, int column, in
             continue;
         }
 
-        FillSelectedRange (painter, y, column, flatStart, count, 0, match.start.offset, match.start.offset + match.length, argb);
+        FillSelectedRange (painter, y, column, flatStart, count, 0, match.start.offset, match.start.offset + match.length, GetFindFillOf (match, theme));
 
-        if (from == match.start && to == Position { row, match.start.offset + match.length })
+        if (m_findCurrentArgb == 0 && IsCurrentMatch (match))
         {
             painter.OutlineRect ((float) (left + (column + first - flatStart) * m_cellAdvance), (float) y,
                                  (float) ((end - first) * m_cellAdvance), (float) m_cellHeightPx,
