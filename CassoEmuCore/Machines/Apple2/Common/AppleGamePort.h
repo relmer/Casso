@@ -8,6 +8,8 @@
 
 class IInputEventSink;
 class SiriusJoyport;
+class InputJournal;
+struct InputRecord;
 
 
 
@@ -58,6 +60,13 @@ public:
     // The game-port adapter, asked first for every button and paddle read.
     void SetJoyport (const SiriusJoyport * joyport) { m_joyport = joyport; }
 
+    // Reverse execution: while attached, the first read to see a button or
+    // paddle another thread staged records it (see InputJournal). Null
+    // detaches. ApplyInput puts a recorded value back for a replay and
+    // returns false for a record this port does not hold.
+    void SetInputJournal (InputJournal * journal);
+    bool ApplyInput      (const InputRecord & record);
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
@@ -83,8 +92,11 @@ protected:
     // to the position. Matches the //e game-port full-scale read (~2.82 ms).
     static constexpr uint64_t s_knPaddleCyclesPerUnit = 11;
 
-    Byte ReadButton        (Word address) const;
-    Byte ReadPaddle        (Word address) const;
+    Byte ReadButton         (Word address);
+    Byte ReadPaddle         (Word address);
+    void ObserveButton      (int index, bool pressed);
+    void ObservePaddle      (int axis, Byte position);
+    void SyncObservedInputs ();
     void EmitHostPaddle    (int axis, Byte value);
     void EmitHostButton    (int index, bool pressed);
     void EmitButtonRead    (Word address, Byte value);
@@ -98,6 +110,9 @@ protected:
     IInputEventSink      * m_inputSink                                  = nullptr;
     const SiriusJoyport  * m_joyport                                    = nullptr;
     const uint64_t       * m_cpuCycleSource                             = nullptr;
+    InputJournal         * m_inputJournal                               = nullptr;
+    bool                   m_observedButton[s_knButtonCount]            = {};
+    Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
     uint64_t               m_paddleTriggerCycle                         = 0;
     atomic<bool>           m_buttonState[s_knButtonCount]               = {};
     atomic<Byte>           m_paddlePosition[s_knPaddleAxisCount];

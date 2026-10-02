@@ -336,6 +336,124 @@ void MachineHost::RecordInput (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::SetInputJournalOn
+//
+//  Turns the journal on or off and points the devices at it, or at nothing,
+//  so a device whose reads see host input pays one null test while it is
+//  off. CPU thread, between instructions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetInputJournalOn (bool isOn)
+{
+    m_inputJournal.SetOn (isOn);
+    AttachInputJournal();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachInputJournal
+//
+//  Hands the journal to every device that records the host input its reads
+//  see, or null when the journal is off. A machine switch builds new
+//  devices, so the builder calls this again once they are wired.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::AttachInputJournal()
+{
+    InputJournal  * journal = m_inputJournal.IsOn() ? &m_inputJournal : nullptr;
+
+
+
+    m_inputJournal.SetCycleSource ((m_cpu != nullptr) ? m_cpu->GetCycleCounterPtr() : nullptr);
+
+    if (m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->SetInputJournal (journal);
+    }
+
+    if (m_refs.gamePort != nullptr)
+    {
+        m_refs.gamePort->SetInputJournal (journal);
+    }
+
+    if (m_refs.iieSoftSwitches != nullptr)
+    {
+        m_refs.iieSoftSwitches->SetInputJournal (journal);
+    }
+
+    if (m_mouse != nullptr)
+    {
+        m_mouse->SetInputJournal (journal);
+    }
+
+    if (m_joyport != nullptr)
+    {
+        m_joyport->SetInputJournal (journal);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ApplyDeviceInput
+//
+//  Replay: hands one journal record a device made at a read back to that
+//  device, which stores the value so the same read returns the same result.
+//  The caller applies each record just before the instruction that begins at
+//  its cycle. Returns false for a record no device here holds -- a reset,
+//  power cycle or disk change, which the replayer dispatches as a command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineHost::ApplyDeviceInput (const InputRecord & record)
+{
+    bool  isApplied = false;
+
+
+
+    if (m_refs.keyboard != nullptr)
+    {
+        isApplied = m_refs.keyboard->ApplyInput (record);
+    }
+
+    if (!isApplied && m_refs.iieSoftSwitches != nullptr)
+    {
+        isApplied = m_refs.iieSoftSwitches->ApplyInput (record);
+    }
+
+    if (!isApplied && m_refs.gamePort != nullptr)
+    {
+        isApplied = m_refs.gamePort->ApplyInput (record);
+    }
+
+    if (!isApplied && m_mouse != nullptr)
+    {
+        isApplied = m_mouse->ApplyInput (record);
+    }
+
+    if (!isApplied && m_joyport != nullptr)
+    {
+        isApplied = m_joyport->ApplyInput (record);
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SetOpcodeWatch
 //
 //  Kept here as well as in the CPU, so a CPU the machine is rebuilt with

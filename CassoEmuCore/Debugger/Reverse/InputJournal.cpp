@@ -50,6 +50,47 @@ void InputJournal::Record (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RecordObserved
+//
+//  Appends one input a device saw at a CPU-thread read: a value another
+//  thread wrote, which this read is the first to see. The cycle is the one
+//  the reading instruction began at, so a replay applies the value just
+//  before that instruction and the read returns what it returned live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void InputJournal::RecordObserved (
+    uint64_t   cycle,
+    InputKind  kind,
+    Byte       value,
+    uint16_t   detail,
+    uint64_t   data)
+{
+    InputRecord  record;
+
+
+
+    if (!m_isOn)
+    {
+        return;
+    }
+
+    record.position = (m_positionSource != nullptr) ? *m_positionSource : 0;
+    record.cycle    = cycle;
+    record.kind     = kind;
+    record.value    = value;
+    record.detail   = detail;
+    record.data     = data;
+
+    m_records.push_back (std::move (record));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetRecord
 //
 //  Takes an absolute index in [GetBeginIndex, GetEndIndex).

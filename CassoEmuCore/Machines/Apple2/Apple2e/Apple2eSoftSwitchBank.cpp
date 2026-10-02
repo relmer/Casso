@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/IVideoTiming.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
 
 
 
@@ -157,7 +158,7 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 
     if (m_keyboard != nullptr)
     {
-        kbdBits = m_keyboard->GetLatchedKeyDataBits();
+        kbdBits = m_keyboard->ReadLatchedKeyDataBits();
     }
 
     // //c IOU mouse overrides: with no slots, the //c repurposes
@@ -225,7 +226,7 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
+Byte Apple2eSoftSwitchBank::ReadPaddle (Word address)
 {
     int       axis    = static_cast<int> (address - s_kwPaddle0Address);
     Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
@@ -233,6 +234,11 @@ Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
     Byte      value   = 0;
 
 
+
+    if (m_inputJournal != nullptr)
+    {
+        ObservePaddle (axis, pos);
+    }
 
     if (m_cpuCycleSource != nullptr)
     {
@@ -276,6 +282,98 @@ void Apple2eSoftSwitchBank::SetPaddle (int axis, Byte position)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetInputJournal
+//
+//  The positions staged at the moment of attaching are what a keyframe
+//  taken then holds, so they count as seen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::SetInputJournal (InputJournal * journal)
+{
+    m_inputJournal = journal;
+    SyncObservedInputs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2eSoftSwitchBank::ApplyInput (const InputRecord & record)
+{
+    bool  isApplied = record.kind == InputKind::Paddle && record.detail < s_knPaddleAxisCount;
+
+
+
+    if (isApplied)
+    {
+        m_paddlePosition[record.detail].store (record.value, memory_order_release);
+        m_observedPaddle[record.detail] = record.value;
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObservePaddle
+//
+//  Journal attached. Records a position another thread staged since the
+//  last read that saw it. Kept out of line so the read pays only the null
+//  test while the journal is off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void Apple2eSoftSwitchBank::ObservePaddle (int axis, Byte position)
+{
+    if (position != m_observedPaddle[axis])
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Paddle, position, static_cast<uint16_t> (axis), 0);
+        m_observedPaddle[axis] = position;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncObservedInputs
+//
+//  The CPU thread changed the staged positions itself (attach, reset, load),
+//  so the next read that sees them is not seeing another thread's input.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::SyncObservedInputs()
+{
+    int  axis = 0;
+
+
+
+    for (axis = 0; axis < s_knPaddleAxisCount; axis++)
+    {
+        m_observedPaddle[axis] = m_paddlePosition[axis].load (memory_order_acquire);
+    }
 }
 
 
@@ -655,6 +753,8 @@ void Apple2eSoftSwitchBank::Reset()
     {
         axis.store (s_knPaddleCenter, memory_order_release);
     }
+
+    SyncObservedInputs();
 }
 
 
@@ -798,6 +898,8 @@ HRESULT Apple2eSoftSwitchBank::LoadState (StateReader & reader)
 
     hr = reader.EndSection();
     CHR (hr);
+
+    SyncObservedInputs();
 
     if (m_mmu != nullptr)
     {

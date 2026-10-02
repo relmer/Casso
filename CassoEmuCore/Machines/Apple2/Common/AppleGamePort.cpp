@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
@@ -89,11 +90,11 @@ void AppleGamePort::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleGamePort::ReadButton (Word address) const
+Byte AppleGamePort::ReadButton (Word address)
 {
     int   idx      = static_cast<int> (address - s_kwFirstButtonAddress);
-    bool  pressed  = m_buttonState[idx].load (memory_order_acquire);
-    Byte  value    = pressed ? 0x80 : 0x00;
+    bool  pressed  = false;
+    Byte  value    = 0;
     Byte  joyValue = 0;
 
 
@@ -101,6 +102,16 @@ Byte AppleGamePort::ReadButton (Word address) const
     if (m_joyport != nullptr && m_joyport->TryReadButton (idx, joyValue))
     {
         value = joyValue;
+    }
+    else
+    {
+        pressed = m_buttonState[idx].load (memory_order_acquire);
+        value   = pressed ? 0x80 : 0x00;
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveButton (idx, pressed);
+        }
     }
 
     return value;
@@ -125,7 +136,7 @@ Byte AppleGamePort::ReadButton (Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleGamePort::ReadPaddle (Word address) const
+Byte AppleGamePort::ReadPaddle (Word address)
 {
     int       axis    = static_cast<int> (address - s_kwPaddle0Address);
     Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
@@ -133,6 +144,11 @@ Byte AppleGamePort::ReadPaddle (Word address) const
     Byte      value   = 0;
 
 
+
+    if (m_inputJournal != nullptr)
+    {
+        ObservePaddle (axis, pos);
+    }
 
     if (m_cpuCycleSource != nullptr)
     {
@@ -208,6 +224,135 @@ void AppleGamePort::SetButton (int index, bool pressed)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetInputJournal
+//
+//  What is staged at the moment of attaching is what a keyframe taken then
+//  holds, so it counts as seen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleGamePort::SetInputJournal (InputJournal * journal)
+{
+    m_inputJournal = journal;
+    SyncObservedInputs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleGamePort::ApplyInput (const InputRecord & record)
+{
+    constexpr int  kFirstLine = static_cast<int> (InputLine::GamePortButton0);
+    int            button     = static_cast<int> (record.detail) - kFirstLine;
+    bool           isApplied  = false;
+
+
+
+    if (record.kind == InputKind::Paddle && record.detail < s_knPaddleAxisCount)
+    {
+        m_paddlePosition[record.detail].store (record.value, memory_order_release);
+        m_observedPaddle[record.detail] = record.value;
+        isApplied = true;
+    }
+    else if (record.kind == InputKind::Button && button >= 0 && button < s_knButtonCount)
+    {
+        m_buttonState[button].store (record.value != 0, memory_order_release);
+        m_observedButton[button] = record.value != 0;
+        isApplied = true;
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveButton
+//
+//  Journal attached. Records a button another thread changed since the last
+//  read that saw it. Kept out of line so the read pays only the null test
+//  while the journal is off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void AppleGamePort::ObserveButton (int index, bool pressed)
+{
+    constexpr int  kFirstLine = static_cast<int> (InputLine::GamePortButton0);
+
+
+
+    if (pressed != m_observedButton[index])
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Button, pressed ? 1 : 0, static_cast<uint16_t> (kFirstLine + index), 0);
+        m_observedButton[index] = pressed;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObservePaddle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void AppleGamePort::ObservePaddle (int axis, Byte position)
+{
+    if (position != m_observedPaddle[axis])
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Paddle, position, static_cast<uint16_t> (axis), 0);
+        m_observedPaddle[axis] = position;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncObservedInputs
+//
+//  The CPU thread changed the staged state itself (attach, reset, load), so
+//  the next read that sees it is not seeing another thread's input.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleGamePort::SyncObservedInputs()
+{
+    int  i = 0;
+
+
+
+    for (i = 0; i < s_knButtonCount; i++)
+    {
+        m_observedButton[i] = m_buttonState[i].load (memory_order_acquire);
+    }
+
+    for (i = 0; i < s_knPaddleAxisCount; i++)
+    {
+        m_observedPaddle[i] = m_paddlePosition[i].load (memory_order_acquire);
+    }
 }
 
 
@@ -405,6 +550,8 @@ void AppleGamePort::Reset()
     {
         last = -1;
     }
+
+    SyncObservedInputs();
 }
 
 
@@ -532,6 +679,8 @@ HRESULT AppleGamePort::LoadState (StateReader & reader)
         m_paddlePosition[i].store (paddles[i], memory_order_release);
         m_lastEmittedPaddle[i] = -1;
     }
+
+    SyncObservedInputs();
 
 Error:
     return hr;

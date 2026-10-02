@@ -11,6 +11,8 @@ class IVideoTiming;
 class IInputEventSink;
 class IRomBankSwitch;
 class SiriusJoyport;
+class InputJournal;
+struct InputRecord;
 
 
 
@@ -96,6 +98,13 @@ public:
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
     void SetPaddle (int axis, Byte position);
 
+    // Reverse execution: while attached, the first paddle read to see a
+    // position another thread staged records it (see InputJournal). Null
+    // detaches. ApplyInput puts a recorded position back for a replay and
+    // returns false for a record this bank does not hold.
+    void SetInputJournal (InputJournal * journal);
+    bool ApplyInput      (const InputRecord & record);
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
@@ -132,7 +141,9 @@ private:
     static constexpr Byte     s_knPaddleTiming        = 0x80;
 
     Byte ReadStatusRegister (Word address);
-    Byte ReadPaddle         (Word address) const;
+    Byte ReadPaddle         (Word address);
+    void ObservePaddle      (int axis, Byte position);
+    void SyncObservedInputs ();
     void EmitHostPaddle     (int axis, Byte value);
     void EmitPaddleTrigger  ();
     void EmitPaddleRead     (Word address, Byte value);
@@ -147,6 +158,8 @@ private:
     IInputEventSink      * m_inputSink                                  = nullptr;
     const uint64_t       * m_cpuCycleSource                             = nullptr;
     const SiriusJoyport  * m_joyport                                    = nullptr;
+    InputJournal         * m_inputJournal                               = nullptr;
+    Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
     uint64_t               m_paddleTriggerCycle                         = 0;
     bool                   m_80colMode                                  = false;
     bool                   m_doubleHiRes                                = false;

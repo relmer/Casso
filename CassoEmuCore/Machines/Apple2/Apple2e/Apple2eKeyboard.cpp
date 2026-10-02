@@ -44,6 +44,7 @@ Apple2eKeyboard::Apple2eKeyboard (MemoryBus * bus)
 Byte Apple2eKeyboard::Read (Word address)
 {
     Byte  value = 0;
+    bool  isIn  = false;
 
 
 
@@ -90,8 +91,14 @@ Byte Apple2eKeyboard::Read (Word address)
         // reads bit 7 clear (0x00) = 40 columns (Apple TIL02094, matching the
         // constants). On the //e there is no device here — $C060 stays the
         // floating-bus 0.
-        value = m_eightyColSwitchIn.load (memory_order_acquire) ? kEightyColSwitchIn
-                                                                : kEightyColSwitchOut;
+        isIn = m_eightyColSwitchIn.load (memory_order_acquire);
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveLine (InputLine::EightyColumnSwitch, isIn);
+        }
+
+        value = isIn ? kEightyColSwitchIn : kEightyColSwitchOut;
     }
     else if (address <= 0xC010)
     {
@@ -124,10 +131,11 @@ Byte Apple2eKeyboard::Read (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Apple2eKeyboard::ReadButton (Word address) const
+Byte Apple2eKeyboard::ReadButton (Word address)
 {
     int   index    = static_cast<int> (address - kFirstButtonAddress);
     Byte  value    = 0;
+    bool  isHost   = false;
     bool  isDown   = false;
     Byte  joyValue = 0;
 
@@ -139,12 +147,26 @@ Byte Apple2eKeyboard::ReadButton (Word address) const
     }
     else if (address == 0xC061)
     {
-        isDown = m_openApple.load (memory_order_acquire) || m_holdOpenApple.load (memory_order_acquire);
+        isHost = m_openApple.load (memory_order_acquire);
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveLine (InputLine::OpenApple, isHost);
+        }
+
+        isDown = isHost || m_holdOpenApple.load (memory_order_acquire);
         value  = isDown ? 0x80 : 0x00;
     }
     else if (address == 0xC062)
     {
-        isDown = m_closedApple.load (memory_order_acquire) || m_holdClosedApple.load (memory_order_acquire);
+        isHost = m_closedApple.load (memory_order_acquire);
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveLine (InputLine::ClosedApple, isHost);
+        }
+
+        isDown = isHost || m_holdClosedApple.load (memory_order_acquire);
         value  = isDown ? 0x80 : 0x00;
     }
     else if (m_mouse != nullptr)
@@ -153,10 +175,100 @@ Byte Apple2eKeyboard::ReadButton (Word address) const
     }
     else
     {
-        value = m_shift.load (memory_order_acquire) ? 0x80 : 0x00;
+        isHost = m_shift.load (memory_order_acquire);
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveLine (InputLine::Shift, isHost);
+        }
+
+        value = isHost ? 0x80 : 0x00;
     }
 
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveLine
+//
+//  CPU thread, journal attached. Records a switch another thread changed
+//  since the last read that saw it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void Apple2eKeyboard::ObserveLine (InputLine line, bool isOn)
+{
+    int  index = static_cast<int> (line);
+
+
+
+    if (m_observedLine[index] != isOn)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Button, isOn ? 1 : 0, static_cast<uint16_t> (line), 0);
+        m_observedLine[index] = isOn;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncObservedInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::SyncObservedInputs()
+{
+    AppleKeyboard::SyncObservedInputs();
+
+    m_observedLine[static_cast<int> (InputLine::OpenApple)]          = m_openApple.load         (memory_order_acquire);
+    m_observedLine[static_cast<int> (InputLine::ClosedApple)]        = m_closedApple.load       (memory_order_acquire);
+    m_observedLine[static_cast<int> (InputLine::Shift)]              = m_shift.load             (memory_order_acquire);
+    m_observedLine[static_cast<int> (InputLine::EightyColumnSwitch)] = m_eightyColSwitchIn.load (memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2eKeyboard::ApplyInput (const InputRecord & record)
+{
+    bool  isOn      = record.value != 0;
+    bool  isApplied = record.kind == InputKind::Button && record.detail < kObservedLineCount;
+
+
+
+    if (!isApplied)
+    {
+        isApplied = AppleKeyboard::ApplyInput (record);
+    }
+    else
+    {
+        switch (static_cast<InputLine> (record.detail))
+        {
+            case InputLine::OpenApple:          m_openApple.store         (isOn, memory_order_release); break;
+            case InputLine::ClosedApple:        m_closedApple.store       (isOn, memory_order_release); break;
+            case InputLine::Shift:              m_shift.store             (isOn, memory_order_release); break;
+            default:                            m_eightyColSwitchIn.store (isOn, memory_order_release); break;
+        }
+
+        m_observedLine[record.detail] = isOn;
+    }
+
+    return isApplied;
 }
 
 
@@ -531,6 +643,8 @@ void Apple2eKeyboard::Reset()
 
     m_lastEmittedHostButton[0] = -1;
     m_lastEmittedHostButton[1] = -1;
+
+    SyncObservedInputs();
 }
 
 
@@ -730,6 +844,8 @@ HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
     {
         m_lastEmittedHostButton[i] = -1;
     }
+
+    SyncObservedInputs();
 
 Error:
     return hr;

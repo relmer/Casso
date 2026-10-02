@@ -226,6 +226,15 @@ public:
 
     void  RecordInput (InputKind kind, Byte value, uint16_t detail, std::string_view payload);
 
+    //  Turn the journal on or off and point the devices whose reads see
+    //  host input at it (see InputJournal::RecordObserved). The builder
+    //  calls AttachInputJournal again after a machine switch. For a replay,
+    //  ApplyDeviceInput hands one such record back to its device; it
+    //  returns false for a record no device here holds.
+    void  SetInputJournalOn  (bool isOn);
+    void  AttachInputJournal ();
+    bool  ApplyDeviceInput   (const InputRecord & record);
+
     //  The opcodes, a 256-entry table read in place, whose fetches the CPU
     //  tells the watcher of (see IOpcodeWatcher); null for none. It survives
     //  the CPU being replaced.

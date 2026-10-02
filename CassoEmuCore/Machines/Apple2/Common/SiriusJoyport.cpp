@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 
 
@@ -134,11 +135,11 @@ bool SiriusJoyport::TryReadButton (int index, Byte & value) const
 
     CBRA (index >= 0 && index < kButtonCount);
 
-    isReleased = !IsAttached() || IsInResetWindow();
+    isReleased = !LoadAttached() || IsInResetWindow();
     BAIL_OUT_IF (isReleased, S_OK);
 
     jack     = IsAnnunciatorOn (kAnnunciatorJack) ? JoyportJacks::kRightJack : JoyportJacks::kLeftJack;
-    switches = JoystickSwitches (m_jacks[jack].load (memory_order_acquire));
+    switches = JoystickSwitches (LoadJack (jack));
     selected = GetSelectedSwitch (index);
 
     value       = switches.test (static_cast<size_t> (selected)) ? kSwitchClosed : kSwitchOpen;
@@ -164,7 +165,212 @@ Error:
 
 bool SiriusJoyport::IsDrivingPaddles() const
 {
-    return IsAttached() && !m_arePaddlesConnected.load (memory_order_acquire);
+    return LoadAttached() && !LoadPaddlesConnected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadAttached
+//
+//  CPU thread. The attached setting as a guest read sees it. With a journal
+//  attached the value goes to ObserveSetting; the recording itself is kept
+//  out of line, so with the journal off this costs one null test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SiriusJoyport::LoadAttached() const
+{
+    bool  isAttached = m_isAttached.load (memory_order_acquire);
+
+
+
+    if (m_inputJournal != nullptr)
+    {
+        ObserveSetting (InputLine::JoyportAttached, isAttached);
+    }
+
+    return isAttached;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadPaddlesConnected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SiriusJoyport::LoadPaddlesConnected() const
+{
+    bool  isConnected = m_arePaddlesConnected.load (memory_order_acquire);
+
+
+
+    if (m_inputJournal != nullptr)
+    {
+        ObserveSetting (InputLine::JoyportPaddlesConnected, isConnected);
+    }
+
+    return isConnected;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadJack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unsigned long SiriusJoyport::LoadJack (size_t jack) const
+{
+    unsigned long  switches = m_jacks[jack].load (memory_order_acquire);
+
+
+
+    if (m_inputJournal != nullptr)
+    {
+        ObserveJack (jack, switches);
+    }
+
+    return switches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveSetting
+//
+//  Journal attached. Records the attached setting or the rear sockets when
+//  another thread changed it since the last read that saw it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void SiriusJoyport::ObserveSetting (InputLine line, bool isOn) const
+{
+    bool  & observed = (line == InputLine::JoyportAttached) ? m_observedAttached : m_observedPaddles;
+
+
+
+    if (isOn != observed)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Button, isOn ? 1 : 0, static_cast<uint16_t> (line), 0);
+        observed = isOn;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveJack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void SiriusJoyport::ObserveJack (size_t jack, unsigned long switches) const
+{
+    if (switches != m_observedJacks[jack])
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::JoyportJack, 0, static_cast<uint16_t> (jack), switches);
+        m_observedJacks[jack] = switches;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetInputJournal
+//
+//  The settings at the moment of attaching are what a keyframe taken then
+//  holds, so they count as seen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SiriusJoyport::SetInputJournal (InputJournal * journal)
+{
+    m_inputJournal = journal;
+    SyncObservedInputs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SiriusJoyport::ApplyInput (const InputRecord & record)
+{
+    bool  isOn      = record.value != 0;
+    bool  isApplied = true;
+
+
+
+    if (record.kind == InputKind::JoyportJack && record.detail < JoyportJacks::kJackCount)
+    {
+        m_jacks[record.detail].store (static_cast<unsigned long> (record.data), memory_order_release);
+        m_observedJacks[record.detail] = static_cast<unsigned long> (record.data);
+    }
+    else if (record.kind == InputKind::Button && record.detail == static_cast<uint16_t> (InputLine::JoyportAttached))
+    {
+        m_isAttached.store (isOn, memory_order_release);
+        m_observedAttached = isOn;
+    }
+    else if (record.kind == InputKind::Button && record.detail == static_cast<uint16_t> (InputLine::JoyportPaddlesConnected))
+    {
+        m_arePaddlesConnected.store (isOn, memory_order_release);
+        m_observedPaddles = isOn;
+    }
+    else
+    {
+        isApplied = false;
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncObservedInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SiriusJoyport::SyncObservedInputs()
+{
+    size_t  jack = 0;
+
+
+
+    m_observedAttached = m_isAttached.load          (memory_order_acquire);
+    m_observedPaddles  = m_arePaddlesConnected.load (memory_order_acquire);
+
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
+    {
+        m_observedJacks[jack] = m_jacks[jack].load (memory_order_acquire);
+    }
 }
 
 
@@ -315,6 +521,8 @@ HRESULT SiriusJoyport::LoadState (StateReader & reader)
 
         m_jacks[jack].store (jacks[jack], memory_order_release);
     }
+
+    SyncObservedInputs();
 
 Error:
     return hr;

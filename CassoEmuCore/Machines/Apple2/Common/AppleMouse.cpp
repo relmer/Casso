@@ -4,6 +4,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Core/MemoryBus.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/IVideoTiming.h"
 
 
@@ -105,7 +106,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
         if (m_retargetCountdown <= cyc)
         {
             m_retargetCountdown = kRetargetIntervalCycles;
-            RetargetFromHoles();
+            RetargetFromHoles (cpuCycles);
         }
         else
         {
@@ -132,6 +133,13 @@ void AppleMouse::Tick (uint32_t cpuCycles)
 
             int  dx = m_hostDx.exchange (0, std::memory_order_acq_rel);
             int  dy = m_hostDy.exchange (0, std::memory_order_acq_rel);
+
+            // Both deltas in one record, X in the high half.
+            if (m_inputJournal != nullptr)
+            {
+                m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - cpuCycles, InputKind::MouseMove, 0, 0,
+                                                (static_cast<uint64_t> (static_cast<uint32_t> (dx)) << 32) | static_cast<uint32_t> (dy));
+            }
 
             m_pendingX = std::clamp (m_pendingX + dx, -kMaxPending, kMaxPending);
             m_pendingY = std::clamp (m_pendingY + dy, -kMaxPending, kMaxPending);
@@ -209,12 +217,26 @@ void AppleMouse::SetHostTargetFraction (uint16_t fx, uint16_t fy)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleMouse::RetargetFromHoles()
+void AppleMouse::RetargetFromHoles (uint32_t cpuCycles)
 {
-    // No bus, or no host position staged: nothing to project.
-    if (m_bus != nullptr && m_hasTarget.load (std::memory_order_acquire))
+    bool      hasTarget = m_hasTarget.load (std::memory_order_acquire);
+    uint32_t  target    = m_hostTarget.load (std::memory_order_acquire);
+
+
+
+    // The flag and the position are one input: a change to either records
+    // both, as this pass read them.
+    if (m_inputJournal != nullptr && (hasTarget != m_observedHasTarget || target != m_observedTarget))
     {
-        uint32_t  packed = m_hostTarget.load (std::memory_order_acquire);
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - cpuCycles, InputKind::MouseTarget, hasTarget ? 1 : 0, 0, target);
+        m_observedHasTarget = hasTarget;
+        m_observedTarget    = target;
+    }
+
+    // No bus, or no host position staged: nothing to project.
+    if (m_bus != nullptr && hasTarget)
+    {
+        uint32_t  packed = target;
         int       fx     = static_cast<int> (packed >> 16);
         int       fy     = static_cast<int> (packed & 0xFFFF);
         int       xMin   = 0;
@@ -280,7 +302,121 @@ void AppleMouse::RetargetFromHoles()
 
 Byte AppleMouse::ReadButton() const
 {
-    return m_hostButton.load (std::memory_order_acquire) ? 0x00 : 0x80;
+    bool  isDown = m_hostButton.load (std::memory_order_acquire);
+
+
+
+    if (m_inputJournal != nullptr)
+    {
+        ObserveButton (isDown);
+    }
+
+    return isDown ? 0x00 : 0x80;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveButton
+//
+//  Journal attached. Records the button when another thread changed it since
+//  the last read that saw it; out of line, so a read with the journal off
+//  pays only the null test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void AppleMouse::ObserveButton (bool isDown) const
+{
+    if (isDown != m_observedButton)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::MouseButton, isDown ? 1 : 0, 0, 0);
+        m_observedButton = isDown;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetInputJournal
+//
+//  The host state at the moment of attaching is what a keyframe taken then
+//  holds, so it counts as seen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleMouse::SetInputJournal (InputJournal * journal)
+{
+    m_inputJournal = journal;
+    SyncObservedInputs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+//  Motion is stored, not added: the record holds everything the drain took,
+//  and with no host thread writing during a replay there is nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleMouse::ApplyInput (const InputRecord & record)
+{
+    bool  isApplied = true;
+
+
+
+    switch (record.kind)
+    {
+        case InputKind::MouseMove:
+            m_hostDx.store (static_cast<int> (static_cast<uint32_t> (record.data >> 32)), std::memory_order_release);
+            m_hostDy.store (static_cast<int> (static_cast<uint32_t> (record.data)),       std::memory_order_release);
+            break;
+
+        case InputKind::MouseButton:
+            m_hostButton.store (record.value != 0, std::memory_order_release);
+            m_observedButton = record.value != 0;
+            break;
+
+        case InputKind::MouseTarget:
+            m_hostTarget.store (static_cast<uint32_t> (record.data), std::memory_order_release);
+            m_hasTarget.store  (record.value != 0,                    std::memory_order_release);
+            m_observedTarget    = static_cast<uint32_t> (record.data);
+            m_observedHasTarget = record.value != 0;
+            break;
+
+        default:
+            isApplied = false;
+            break;
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncObservedInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleMouse::SyncObservedInputs()
+{
+    m_observedButton    = m_hostButton.load (std::memory_order_acquire);
+    m_observedHasTarget = m_hasTarget.load  (std::memory_order_acquire);
+    m_observedTarget    = m_hostTarget.load (std::memory_order_acquire);
 }
 
 
@@ -393,6 +529,7 @@ void AppleMouse::Reset()
     m_lastInVblank     = false;
     m_sampleAccum = 0;
 
+    SyncObservedInputs();
     UpdateIrqLines();
 }
 
@@ -540,6 +677,7 @@ HRESULT AppleMouse::LoadState (StateReader & reader)
     m_hostTarget.store (hostTarget,                std::memory_order_release);
     m_hasTarget.store  (hasTarget,                 std::memory_order_release);
 
+    SyncObservedInputs();
     UpdateIrqLines();
 
 Error:

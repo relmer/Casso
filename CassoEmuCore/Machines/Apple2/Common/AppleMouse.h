@@ -8,6 +8,8 @@
 
 class IVideoTiming;
 class MemoryBus;
+class InputJournal;
+struct InputRecord;
 
 
 
@@ -91,6 +93,17 @@ public:
     void    SetHostTargetFraction (uint16_t fx, uint16_t fy);
     void    ClearHostTarget       () { m_hasTarget.store (false, std::memory_order_release); }
 
+    // Reverse execution (CPU thread). While attached, the first CPU-thread
+    // look at host state another thread wrote records it (see InputJournal):
+    // the button at a $C063 read, the motion Tick drains, and the target
+    // the retarget pass reads. A record made in Tick is stamped with the
+    // cycle the instruction whose cycles it counts began at, so a replay
+    // applying it before that instruction has it in place when Tick runs.
+    // Null detaches. ApplyInput puts a recorded value back and returns false
+    // for a record the mouse does not hold.
+    void    SetInputJournal (InputJournal * journal);
+    bool    ApplyInput      (const InputRecord & record);
+
     // ICycleSink (CPU thread, from EmuCpu::AddCycles)
 
     // Cadence for the mouse's per-tick bookkeeping (retarget countdown, VBL
@@ -151,7 +164,9 @@ public:
 
 protected:
     void    UpdateIrqLines();
-    void    RetargetFromHoles();
+    void    RetargetFromHoles  (uint32_t cpuCycles);
+    void    ObserveButton      (bool isDown) const;
+    void    SyncObservedInputs ();
 
     // Firmware screen holes (slot 7): position, clamp min/max, per axis.
     static constexpr Word     kHoleXPosLo  = 0x047F, kHoleXPosHi  = 0x057F;
@@ -175,6 +190,13 @@ protected:
     std::atomic<bool>         m_hasTarget   { false };
     uint32_t           m_retargetCountdown = 0;
     class MemoryBus  * m_bus               = nullptr;
+
+    // The host state the journal last saw (CPU thread, journal attached).
+    // The button is read by a const status read, so it is mutable.
+    InputJournal     * m_inputJournal      = nullptr;
+    mutable bool       m_observedButton    = false;
+    bool               m_observedHasTarget = false;
+    uint32_t           m_observedTarget    = 0;
 
     // CPU-side movement queue: signed units not yet latched.
     int                       m_pendingX    = 0;

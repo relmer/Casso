@@ -111,6 +111,10 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
 
     WirePageTable();
 
+    // A journal that was on before a machine switch records against the new
+    // devices too.
+    m_host.AttachInputJournal();
+
 Error:
     return hr;
 }

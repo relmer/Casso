@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IMachineState.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 
 class AppleSpeaker;
@@ -154,6 +155,10 @@ public:
 
     Byte MapSpecialKey (AppleSpecialKey key) const override;
 
+    // Replay: the base keyboard's records plus Open Apple, Closed Apple,
+    // Shift and the //c 80/40 switch.
+    bool ApplyInput (const InputRecord & record) override;
+
     // IMachineState: the base keyboard's section, the modifier keys, the
     // reset hold, and the //c case switches. Whether the machine is a //c and
     // the host layout are wiring and host settings, not saved.
@@ -185,7 +190,16 @@ protected:
     // button: fires only when that button's returned byte changed.
     void EmitButtonRead (Word address, Byte value);
     void EmitHostButton (int index, bool pressed);
-    Byte ReadButton     (Word address) const;
+    Byte ReadButton     (Word address);
+
+    // The host-written switches a read can see, in InputLine order up to the
+    // 80/40 switch. ObserveLine runs with a journal attached only.
+    static constexpr int  kObservedLineCount = static_cast<int> (InputLine::EightyColumnSwitch) + 1;
+
+    void ObserveLine        (InputLine line, bool isOn);
+    void SyncObservedInputs () override;
+
+    bool  m_observedLine[kObservedLineCount] = {};
 
     MemoryBus *                    m_bus               = nullptr;
     const class SiriusJoyport *    m_joyport           = nullptr;

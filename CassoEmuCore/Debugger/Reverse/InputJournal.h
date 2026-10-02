@@ -29,6 +29,36 @@ enum class InputKind : uint8_t
     DiskEject,
     DriveWriteProtect,
     ImageWriteProtect,
+    KeyLatch,
+    MouseTarget,
+    JoyportJack,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InputLine
+//
+//  Which switch a Button record holds, in its detail. The game port's three
+//  pushbuttons on a ][ / ][+, the //e keys that share those lines, the //c
+//  80/40 case switch, and the two Joyport settings a read depends on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class InputLine : uint16_t
+{
+    OpenApple,
+    ClosedApple,
+    Shift,
+    EightyColumnSwitch,
+    GamePortButton0,
+    GamePortButton1,
+    GamePortButton2,
+    JoyportAttached,
+    JoyportPaddlesConnected,
 };
 
 
@@ -41,7 +71,9 @@ enum class InputKind : uint8_t
 //
 //  One journaled input: the position and cycle at which the CPU thread
 //  applied it, what it was, and its arguments. Only a disk mount carries text
-//  (the image path), so the payload is empty on nearly every record.
+//  (the image path), so the payload is empty on nearly every record. Data
+//  holds what does not fit a byte: both mouse deltas, a mouse target, or a
+//  Joyport jack's switches.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +84,7 @@ struct InputRecord
     InputKind    kind     = InputKind::KeyPress;
     Byte         value    = 0;
     uint16_t     detail   = 0;
+    uint64_t     data     = 0;
     std::string  payload;
 };
 
@@ -75,6 +108,13 @@ struct InputRecord
 //
 //  A journal that is off ignores every Record call. CPU-thread only.
 //
+//  Devices whose state another thread writes record through RecordObserved,
+//  at the first CPU-thread read that sees a new value, stamped with the
+//  cycle the instruction making that read began at. A replay applies each
+//  such record just before the instruction that starts at its cycle. A
+//  device holds a pointer to the journal only while it is on, so with the
+//  journal off its reads pay one null test and nothing else.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class InputJournal
@@ -83,8 +123,12 @@ public:
     void  SetOn             (bool isOn)                       { m_isOn = isOn; }
     bool  IsOn              () const                          { return m_isOn; }
     void  SetPositionSource (const uint64_t * positionSource) { m_positionSource = positionSource; }
+    void  SetCycleSource    (const uint64_t * cycleSource)    { m_cycleSource = cycleSource; }
 
-    void  Record (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, std::string_view payload);
+    uint64_t  GetCycle() const { return (m_cycleSource != nullptr) ? *m_cycleSource : 0; }
+
+    void  Record         (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, std::string_view payload);
+    void  RecordObserved (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, uint64_t data);
 
     size_t               GetBeginIndex () const { return m_firstIndex; }
     size_t               GetEndIndex   () const { return m_firstIndex + m_records.size(); }
@@ -95,8 +139,9 @@ public:
     void  Clear         ();
 
 private:
-    std::deque<InputRecord>   m_records;
-    size_t                    m_firstIndex     = 0;
-    const uint64_t          * m_positionSource = nullptr;
-    bool                      m_isOn           = false;
+    std::deque<InputRecord>    m_records;
+    size_t                     m_firstIndex     = 0;
+    const uint64_t           * m_positionSource = nullptr;
+    const uint64_t           * m_cycleSource    = nullptr;
+    bool                       m_isOn           = false;
 };

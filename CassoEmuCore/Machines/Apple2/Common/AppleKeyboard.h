@@ -8,6 +8,8 @@
 #include "Debugger/IDiagnosticsProvider.h"
 
 class IInputEventSink;
+class InputJournal;
+struct InputRecord;
 
 
 
@@ -102,6 +104,24 @@ public:
         return static_cast<Byte> (m_latchedKey.load (memory_order_acquire) & 0x7F);
     }
 
+    // The same bits for a guest status read on the CPU thread, which also
+    // journals a latch another thread wrote since the last read.
+    Byte ReadLatchedKeyDataBits();
+
+    // Reverse execution. While a journal is attached, the first CPU-thread
+    // read to see a latch value or key-down state another thread wrote
+    // records it there; detached (null), each read pays one null test.
+    // Attaching takes the current state as already seen.
+    void SetInputJournal (InputJournal * journal);
+
+    // Replay: put back a value a read observed, as a journal record holds
+    // it. Returns false for a record this keyboard does not hold.
+    virtual bool ApplyInput (const InputRecord & record);
+
+    // Latch a key from the CPU thread when the caller journals the key
+    // itself (a paste), so the next read does not record it a second time.
+    void PressKeyOnCpuThread (Byte asciiChar);
+
     // Called from EmulatorShell for special keys (UI thread)
     void SetKeyDown (bool down) { m_anyKeyDown.store (down, memory_order_release); }
 
@@ -175,6 +195,19 @@ protected:
     // tight poll loop produces one event per transition.
     void EmitKbdDataRead (Word address, Byte value);
     void EmitKbdStrobe   (Word address, Byte value, bool clearedStrobe);
+
+    // CPU thread, journal attached only: record the latch or key-down state
+    // a read just saw when another thread changed it since the last read.
+    void ObserveLatch   (Byte latch);
+    void ObserveKeyDown (bool isDown);
+
+    // Take the current host-written state as seen: on attaching, and after
+    // the CPU thread itself rewrites it (reset, load).
+    virtual void SyncObservedInputs();
+
+    InputJournal * m_inputJournal     = nullptr;
+    Byte           m_observedLatch    = 0;
+    bool           m_observedKeyDown  = false;
 
     // m_latchedKey bit 7 = strobe (new key available).  Atomic because
     // PressKey is called from the UI thread while Read is called from

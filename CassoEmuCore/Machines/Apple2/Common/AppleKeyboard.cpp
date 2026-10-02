@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Devices/IInputEventSink.h"
 
 
@@ -54,6 +55,7 @@ Byte AppleKeyboard::Read (Word address)
     Byte  value         = 0;
     Byte  old           = 0;
     bool  clearedStrobe = false;
+    bool  isDown        = false;
 
 
 
@@ -61,6 +63,12 @@ Byte AppleKeyboard::Read (Word address)
     {
         // $C000-$C00F: Read keyboard data (bit 7 = strobe)
         value = m_latchedKey.load (memory_order_acquire);
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveLatch (value);
+        }
+
         EmitKbdDataRead (address, value);
     }
     else if (address >= 0xC010 && address <= 0xC01F)
@@ -69,9 +77,17 @@ Byte AppleKeyboard::Read (Word address)
         old           = m_latchedKey.fetch_and (0x7F, memory_order_acq_rel);
         clearedStrobe = (old & 0x80) != 0;
         value         = old & 0x7F;
+        isDown        = m_anyKeyDown.load (memory_order_acquire);
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveLatch   (old);
+            ObserveKeyDown (isDown);
+            m_observedLatch = value;
+        }
 
         // Return the key with bit 7 reflecting any-key-down state
-        if (m_anyKeyDown.load (memory_order_acquire))
+        if (isDown)
         {
             value = value | 0x80;
         }
@@ -94,12 +110,24 @@ Byte AppleKeyboard::Read (Word address)
 
 void AppleKeyboard::Write (Word address, Byte value)
 {
+    Byte  old = 0;
+
+
+
     UNREFERENCED_PARAMETER (value);
 
-    // Writing to $C010 also clears strobe
+    // Writing to $C010 also clears strobe. The guest does not see the latch
+    // here, but a key another thread latched is cleared to data bits a later
+    // read returns, so a journaled write observes it like a read.
     if (address >= 0xC010 && address <= 0xC01F)
     {
-        m_latchedKey.fetch_and (0x7F, memory_order_release);
+        old = m_latchedKey.fetch_and (0x7F, memory_order_acq_rel);
+
+        if (m_inputJournal != nullptr)
+        {
+            ObserveLatch (old);
+            m_observedLatch = static_cast<Byte> (old & 0x7F);
+        }
     }
 }
 
@@ -125,6 +153,9 @@ void AppleKeyboard::Reset()
     m_lastEmittedKbdData   = -1;
     m_lastEmittedStrobe    = -1;
     m_lastHostKeyDownAscii = 0;
+
+    m_observedLatch   = 0;
+    m_observedKeyDown = false;
 }
 
 
@@ -160,6 +191,175 @@ void AppleKeyboard::PressKey (Byte asciiChar)
     // Store key with bit 7 set (strobe) in a single atomic write
     m_latchedKey.store (
         TranslateTypedChar (asciiChar) | 0x80, memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PressKeyOnCpuThread
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::PressKeyOnCpuThread (Byte asciiChar)
+{
+    Byte  latch = static_cast<Byte> (TranslateTypedChar (asciiChar) | 0x80);
+
+
+
+    m_latchedKey.store (latch, memory_order_release);
+
+    if (m_inputJournal != nullptr)
+    {
+        m_observedLatch = latch;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadLatchedKeyDataBits
+//
+//  The //e status reads at $C011-$C01F carry the latch's data bits in bits
+//  0-6, so they observe the latch like a $C000 read does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleKeyboard::ReadLatchedKeyDataBits()
+{
+    Byte  latch = m_latchedKey.load (memory_order_acquire);
+
+
+
+    if (m_inputJournal != nullptr)
+    {
+        ObserveLatch (latch);
+    }
+
+    return static_cast<Byte> (latch & 0x7F);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetInputJournal
+//
+//  The state at the moment of attaching is what a keyframe taken then
+//  holds, so it counts as seen; only a later change is an input.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::SetInputJournal (InputJournal * journal)
+{
+    m_inputJournal = journal;
+    SyncObservedInputs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncObservedInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::SyncObservedInputs()
+{
+    m_observedLatch   = m_latchedKey.load (memory_order_acquire);
+    m_observedKeyDown = m_anyKeyDown.load (memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+//  A latch record holds the whole latch byte, strobe included, as the read
+//  saw it; a key-down record holds the any-key-down line. Stored as they
+//  are, so the read returns what it returned when the record was made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleKeyboard::ApplyInput (const InputRecord & record)
+{
+    bool  isApplied = true;
+
+
+
+    switch (record.kind)
+    {
+        case InputKind::KeyLatch:
+            m_latchedKey.store (record.value, memory_order_release);
+            m_observedLatch = record.value;
+            break;
+
+        case InputKind::KeyDown:
+            m_anyKeyDown.store (record.value != 0, memory_order_release);
+            m_observedKeyDown = record.value != 0;
+            break;
+
+        case InputKind::AutoRepeat:
+        case InputKind::PasteChar:
+            PressKeyOnCpuThread (record.value);
+            break;
+
+        default:
+            isApplied = false;
+            break;
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveLatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void AppleKeyboard::ObserveLatch (Byte latch)
+{
+    if (latch != m_observedLatch)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::KeyLatch, latch, 0, 0);
+        m_observedLatch = latch;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveKeyDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void AppleKeyboard::ObserveKeyDown (bool isDown)
+{
+    if (isDown != m_observedKeyDown)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::KeyDown, isDown ? 1 : 0, 0, 0);
+        m_observedKeyDown = isDown;
+    }
 }
 
 
@@ -355,6 +555,13 @@ Byte AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
             m_repeatStarted  = true;
             fired            = (Byte) (key & kKeyCodeMask);
             PressKey (fired);
+
+            // The shell journals each repeat itself, so the read that sees
+            // this latch is not the first to know of it.
+            if (m_inputJournal != nullptr)
+            {
+                m_observedLatch = static_cast<Byte> (TranslateTypedChar (fired) | 0x80);
+            }
 
             if (m_inputSink != nullptr)
             {
@@ -582,6 +789,8 @@ HRESULT AppleKeyboard::LoadState (StateReader & reader)
 
     m_lastEmittedKbdData = -1;
     m_lastEmittedStrobe  = -1;
+    m_observedLatch      = latchedKey;
+    m_observedKeyDown    = anyKeyDown;
 
 Error:
     return hr;

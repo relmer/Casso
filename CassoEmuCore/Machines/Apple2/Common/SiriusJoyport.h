@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IMachineState.h"
 #include "Controllers/ControllerTypes.h"
+#include "Debugger/Reverse/InputJournal.h"
 
 class AppleSoftSwitchBank;
 
@@ -50,6 +51,14 @@ public:
     bool  TryReadButton    (int index, Byte & value) const;
     bool  IsDrivingPaddles () const;
 
+    // Reverse execution: while attached, the first read to see a jack, the
+    // attached setting or the rear sockets as another thread changed them
+    // records it (see InputJournal). Null detaches. ApplyInput puts a
+    // recorded value back for a replay and returns false for a record this
+    // Joyport does not hold.
+    void  SetInputJournal (InputJournal * journal);
+    bool  ApplyInput      (const InputRecord & record);
+
     // IMachineState: the jack switches and the reset window. Whether the
     // Joyport is attached is a host setting, not saved.
     HRESULT  SaveState (StateWriter & writer) const override;
@@ -68,11 +77,21 @@ protected:
     static constexpr Byte  kSwitchClosed         = 0x00;
 
     // Each jack's JoystickSwitches bits, as the UI thread last wrote them.
-    using JackStore = std::array<atomic<unsigned long>, JoyportJacks::kJackCount>;
+    using JackStore     = std::array<atomic<unsigned long>, JoyportJacks::kJackCount>;
+    using ObservedJacks = std::array<unsigned long,         JoyportJacks::kJackCount>;
 
     bool            IsInResetWindow   () const;
     bool            IsAnnunciatorOn   (int index) const;
     JoystickSwitch  GetSelectedSwitch (int index) const;
+
+    // The reads are const to the devices that ask them; what they last saw
+    // is bookkeeping for the journal, not state a read changes.
+    bool            LoadAttached         () const;
+    bool            LoadPaddlesConnected () const;
+    unsigned long   LoadJack             (size_t jack) const;
+    void            ObserveSetting       (InputLine line, bool isOn) const;
+    void            ObserveJack          (size_t jack, unsigned long switches) const;
+    void            SyncObservedInputs   ();
 
     const AppleSoftSwitchBank  * m_annunciatorSource   = nullptr;
     const uint64_t             * m_cycleSource         = nullptr;
@@ -81,4 +100,9 @@ protected:
     JackStore                    m_jacks               {};
     uint64_t                     m_resetCycle          = 0;
     bool                         m_hasResetStamp       = false;
+
+    InputJournal               * m_inputJournal        = nullptr;
+    mutable bool                 m_observedAttached    = false;
+    mutable bool                 m_observedPaddles     = false;
+    mutable ObservedJacks        m_observedJacks       = {};
 };
