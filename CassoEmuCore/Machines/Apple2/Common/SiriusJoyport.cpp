@@ -471,6 +471,8 @@ HRESULT SiriusJoyport::SaveState (StateWriter & writer) const
 
     writer.WriteUInt64 (m_resetCycle);
     writer.WriteBool   (m_hasResetStamp);
+    writer.WriteBool   (m_isAttached.load          (memory_order_acquire));
+    writer.WriteBool   (m_arePaddlesConnected.load (memory_order_acquire));
 
     return writer.EndSection();
 }
@@ -495,6 +497,8 @@ HRESULT SiriusJoyport::LoadState (StateReader & reader)
     uint32_t            jackCount                       = 0;
     uint32_t            jacks[JoyportJacks::kJackCount] = {};
     size_t              jack                            = 0;
+    bool                isAttached                      = m_isAttached.load (memory_order_acquire);
+    bool                arePaddlesConnected             = m_arePaddlesConnected.load (memory_order_acquire);
 
 
 
@@ -512,8 +516,17 @@ HRESULT SiriusJoyport::LoadState (StateReader & reader)
     reader.ReadUInt64 (m_resetCycle);
     reader.ReadBool   (m_hasResetStamp);
 
+    if (version >= kAttachedVersion)
+    {
+        reader.ReadBool (isAttached);
+        reader.ReadBool (arePaddlesConnected);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
+
+    m_isAttached.store          (isAttached,          memory_order_release);
+    m_arePaddlesConnected.store (arePaddlesConnected, memory_order_release);
 
     for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
     {

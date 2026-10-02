@@ -213,7 +213,10 @@
     <ClCompile Include="Debugger\TraceController.cpp" />
     <ClCompile Include="Debugger\TraceLookahead.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
+    <ClCompile Include="Debugger\Reverse\Replayer.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
     <ClCompile Include="Debugger\Reverse\SnapshotCompressor.cpp" />
+    <ClCompile Include="Debugger\Reverse\UndoRing.cpp" />
     <ClCompile Include="Debugger\Handlers\TraceHandlers.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\TracePane.cpp" />
     <ClCompile Include="Debugger\SymbolTable.cpp" />
@@ -633,11 +636,16 @@
     <ClInclude Include="Debugger\Handlers\ConfigHandlers.h" />
     <ClInclude Include="Debugger\Handlers\CallStackHandlers.h" />
     <ClInclude Include="Debugger\ProfileTable.h" />
+    <ClInclude Include="Debugger\Reverse\IHistoryRecorder.h" />
     <ClInclude Include="Debugger\Reverse\InputJournal.h" />
+    <ClInclude Include="Debugger\Reverse\IReverseStopTest.h" />
     <ClInclude Include="Debugger\TraceController.h" />
     <ClInclude Include="Debugger\TraceLookahead.h" />
     <ClInclude Include="Debugger\Reverse\KeyframeStore.h" />
+    <ClInclude Include="Debugger\Reverse\Replayer.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseController.h" />
     <ClInclude Include="Debugger\Reverse\SnapshotCompressor.h" />
+    <ClInclude Include="Debugger\Reverse\UndoRing.h" />
     <ClInclude Include="Debugger\Handlers\TraceHandlers.h" />
     <ClInclude Include="Ui\Debugger\Panes\TracePane.h" />
     <ClInclude Include="Debugger\SymbolTable.h" />

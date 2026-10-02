@@ -798,7 +798,11 @@
     <ClCompile Include="EmuTests\FixtureRomSource.cpp" />
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostStateTests.cpp" />
+    <ClCompile Include="EmuTests\JoyportHostSettingStateTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
+    <ClCompile Include="EmuTests\UndoRingTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
     <ClCompile Include="EmuTests\AppleKeyMappingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
@@ -818,6 +822,7 @@
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
+    <ClInclude Include="EmuTests\ReverseSessionRig.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />

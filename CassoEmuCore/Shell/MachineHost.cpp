@@ -6,6 +6,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/Reverse/IHistoryRecorder.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
@@ -224,6 +225,11 @@ Byte MachineHost::StepOne()
     // NMI/IRQ vector in place of the opcode fetch, reporting the cost through
     // GetLastInstructionCycles either way -- so a bare StepOne is the whole
     // step, and a separate interrupt poll would be a second, redundant one.
+    if (m_historyRecorder != nullptr)
+    {
+        m_historyRecorder->OnInstructionStart (*this);
+    }
+
     m_cpu->StepOne();
 
     return FinishStep();
@@ -253,6 +259,11 @@ Byte MachineHost::StepOneWithHook()
     if (filter.pages[pc >> 8])
     {
         return StepOneAsked (filter, pc);
+    }
+
+    if (m_historyRecorder != nullptr)
+    {
+        m_historyRecorder->OnInstructionStart (*this);
     }
 
     m_cpu->StepOne();
@@ -286,6 +297,11 @@ __declspec (noinline) Byte MachineHost::StepOneAsked (const DebugHookFilter & fi
     if (isAsked && m_debugHook->ShouldStopBefore (pc))
     {
         return (0);
+    }
+
+    if (m_historyRecorder != nullptr)
+    {
+        m_historyRecorder->OnInstructionStart (*this);
     }
 
     m_cpu->StepOne();
@@ -370,7 +386,8 @@ void MachineHost::AttachInputJournal()
 
 
 
-    m_inputJournal.SetCycleSource ((m_cpu != nullptr) ? m_cpu->GetCycleCounterPtr() : nullptr);
+    m_inputJournal.SetCycleSource    ((m_cpu != nullptr) ? m_cpu->GetCycleCounterPtr() : nullptr);
+    m_inputJournal.SetPositionSource (&m_position);
 
     if (m_refs.keyboard != nullptr)
     {
@@ -454,6 +471,107 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::SaveHostInputState
+//
+//  Each device's own section, back to back, in GetHostInputParts order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::SaveHostInputState (std::string & outBlob) const
+{
+    HRESULT                       hr    = S_OK;
+    StateWriter                   writer;
+    std::vector<IMachineState *>  parts = const_cast<MachineHost &> (*this).GetHostInputParts();
+
+
+
+    for (const IMachineState * part : parts)
+    {
+        hr = part->SaveState (writer);
+        CHR (hr);
+    }
+
+    outBlob.assign (writer.GetBytes().begin(), writer.GetBytes().end());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::LoadHostInputState
+//
+//  A blob saved by this machine's devices loads back into the same devices;
+//  one from another machine fails on the first section tag that differs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::LoadHostInputState (std::string_view blob)
+{
+    HRESULT                       hr     = S_OK;
+    std::vector<IMachineState *>  parts  = GetHostInputParts();
+    StateReader                   reader (reinterpret_cast<const Byte *> (blob.data()), blob.size());
+
+
+
+    for (IMachineState * part : parts)
+    {
+        hr = part->LoadState (reader);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::GetHostInputParts
+//
+//  The devices whose state the UI and controller threads write, each once:
+//  the keyboard through its most derived type, as GetStateParts saves it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IMachineState *> MachineHost::GetHostInputParts()
+{
+    std::vector<IMachineState *>  parts;
+    IMachineState               * candidates[] =
+    {
+        dynamic_cast<IMachineState *> (m_refs.keyboard),
+        m_refs.iieSoftSwitches,
+        m_refs.gamePort,
+        m_mouse.get(),
+        m_joyport.get(),
+    };
+
+
+
+    for (IMachineState * part : candidates)
+    {
+        if (part != nullptr)
+        {
+            parts.push_back (part);
+        }
+    }
+
+    return parts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SetOpcodeWatch
 //
 //  Kept here as well as in the CPU, so a CPU the machine is rebuilt with
@@ -502,6 +620,8 @@ Byte MachineHost::FinishStep()
     {
         m_refs.mockingboard->Tick (cycles);
     }
+
+    m_position++;
 
     return (cycles);
 }

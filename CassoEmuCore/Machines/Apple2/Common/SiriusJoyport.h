@@ -59,15 +59,18 @@ public:
     void  SetInputJournal (InputJournal * journal);
     bool  ApplyInput      (const InputRecord & record);
 
-    // IMachineState: the jack switches and the reset window. Whether the
-    // Joyport is attached is a host setting, not saved.
+    // IMachineState: the jack switches, whether the Joyport is attached and
+    // the rear sockets are in use, and the reset window. Version 1 held no
+    // attached setting or sockets, so loading it leaves both as they are.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('J', 'O', 'Y', 'P');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
 protected:
+    static constexpr uint16_t  kAttachedVersion = 2;    // first state version holding the host settings
+
     static constexpr int   kAnnunciatorJack      = 0;
     static constexpr int   kAnnunciatorDirection = 1;
     static constexpr int   kButtonFire           = 0;

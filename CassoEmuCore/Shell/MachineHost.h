@@ -24,6 +24,7 @@ class Apple2eMmu;
 class AppleMouse;
 class DebugHook;
 struct DebugHookFilter;
+class IHistoryRecorder;
 class SiriusJoyport;
 class IDisk2EventSink;
 class IInputEventSink;
@@ -218,6 +219,20 @@ public:
     void         SetDebugHook (DebugHook * hook) noexcept { m_debugHook = hook; }
     DebugHook *  GetDebugHook () const noexcept           { return m_debugHook; }
 
+    //  Reverse execution's recorder, or null. While set, StepOne tells it of
+    //  each instruction about to run; unset, each instruction costs one
+    //  pointer test.
+    void                SetHistoryRecorder (IHistoryRecorder * recorder) noexcept { m_historyRecorder = recorder; }
+    IHistoryRecorder *  GetHistoryRecorder () const noexcept                     { return m_historyRecorder; }
+
+    //  The machine's position: the instructions it has retired, an interrupt
+    //  dispatch counting as one. It never restarts on its own, not even on a
+    //  power cycle, so it orders history where the cycle counter cannot.
+    //  Reverse execution sets it when it restores a snapshot.
+    uint64_t         GetPosition    () const noexcept    { return m_position; }
+    void             SetPosition    (uint64_t position)  { m_position = position; }
+    const uint64_t * GetPositionPtr () const noexcept    { return &m_position; }
+
     //  The host inputs applied on the CPU thread, in order. RecordInput
     //  stamps one with the current cycle; with the journal off it records
     //  nothing. The journal outlives a machine switch.
@@ -234,6 +249,12 @@ public:
     void  SetInputJournalOn  (bool isOn);
     void  AttachInputJournal ();
     bool  ApplyDeviceInput   (const InputRecord & record);
+
+    //  The saved state of every device whose state another thread writes
+    //  (keyboard, game port, //e paddles and buttons, mouse, Joyport), as
+    //  one blob, and back; see InputKind::HostState.
+    HRESULT  SaveHostInputState (std::string & outBlob) const;
+    HRESULT  LoadHostInputState (std::string_view blob);
 
     //  The opcodes, a 256-entry table read in place, whose fetches the CPU
     //  tells the watcher of (see IOpcodeWatcher); null for none. It survives
@@ -300,6 +321,7 @@ private:
     Byte  StepOneAsked     (const DebugHookFilter & filter, Word pc);
 
     std::vector<IMachineState *>  GetStateParts       ();
+    std::vector<IMachineState *>  GetHostInputParts   ();
     uint32_t                      GetMountedDiskMask  () const;
     void                          WriteStateHeader    (StateWriter & writer, size_t partCount) const;
     HRESULT                       CheckStateHeader    (StateReader & reader, size_t partCount);
@@ -323,9 +345,11 @@ private:
     std::unique_ptr<EmuCpu>  m_cpu;
     std::unique_ptr<Prng>    m_prng;
 
-    DebugHook       *  m_debugHook    = nullptr;
-    const bool      *  m_watchOpcodes = nullptr;
-    IOpcodeWatcher  *  m_watcher      = nullptr;
+    DebugHook         *  m_debugHook       = nullptr;
+    const bool        *  m_watchOpcodes    = nullptr;
+    IOpcodeWatcher    *  m_watcher         = nullptr;
+    IHistoryRecorder  *  m_historyRecorder = nullptr;
+    uint64_t             m_position        = 0;
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;

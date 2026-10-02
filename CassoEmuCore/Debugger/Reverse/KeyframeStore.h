@@ -45,12 +45,13 @@ struct KeyframeSettings
 
 struct KeyframeInfo
 {
-    uint64_t  position    = 0;      // instructions retired when it was taken
-    uint64_t  cycle       = 0;      // CPU cycle count when it was taken
-    uint64_t  checksum    = 0;      // of the whole state: RAM, CPU, devices, disk media
-    size_t    stateBytes  = 0;      // unpacked size
-    size_t    storedBytes = 0;      // packed size held in memory
-    bool      isWhole     = false;  // false: XOR difference from its group's whole snapshot
+    uint64_t  position     = 0;      // instructions retired when it was taken
+    uint64_t  cycle        = 0;      // CPU cycle count when it was taken
+    size_t    journalIndex = 0;      // input journal end index when it was taken
+    uint64_t  checksum     = 0;      // of the whole state: RAM, CPU, devices, disk media
+    size_t    stateBytes   = 0;      // unpacked size
+    size_t    storedBytes  = 0;      // packed size held in memory
+    bool      isWhole      = false;  // false: XOR difference from its group's whole snapshot
 };
 
 
@@ -91,7 +92,8 @@ public:
 
     bool      IsDue             (uint64_t cycle) const { return cycle >= m_nextDueCycle; }
 
-    HRESULT   Add               (uint64_t position, uint64_t cycle, const std::vector<Byte> & state);
+    HRESULT   Add               (uint64_t position, uint64_t cycle, const std::vector<Byte> & state) { return Add (position, cycle, 0, state); }
+    HRESULT   Add               (uint64_t position, uint64_t cycle, size_t journalIndex, const std::vector<Byte> & state);
     HRESULT   Capture           (const MachineHost & machine, uint64_t position);
 
     HRESULT   Restore           (size_t index, std::vector<Byte> & outState);

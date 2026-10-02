@@ -37,6 +37,8 @@ public:
     void                      WriteBytes   (const Byte * data, size_t count);
 
     const std::vector<Byte> & GetBytes        () const { return m_bytes; }
+    std::vector<Byte>         TakeBytes       ()       { return std::move (m_bytes); }
+    void                      Reuse           (std::vector<Byte> && buffer);
     bool                      HasOpenSection  () const { return !m_openSections.empty(); }
 
 private:

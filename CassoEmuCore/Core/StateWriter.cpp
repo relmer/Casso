@@ -8,6 +8,26 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Reuse
+//
+//  Starts the stream over in buffer, keeping its capacity, so a writer that
+//  saves the machine many times allocates once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StateWriter::Reuse (std::vector<Byte> && buffer)
+{
+    m_bytes = std::move (buffer);
+    m_bytes.clear();
+    m_openSections.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginSection
 //
 //  Writes the section header with a placeholder size and opens the section.

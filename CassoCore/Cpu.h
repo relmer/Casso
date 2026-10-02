@@ -73,6 +73,7 @@ public:
     Byte                GetX              () const            { return X; }
     Byte                GetY              () const            { return Y; }
     Byte                GetSP             () const            { return SP; }
+    Byte                GetP              () const            { return status.status; }
     const Microcode &   GetMicrocode      (Byte opcode) const { return instructionSet[opcode]; }
     const Microcode *   GetInstructionSet () const            { return instructionSet.data (); }
 

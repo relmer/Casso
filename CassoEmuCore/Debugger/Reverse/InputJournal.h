@@ -10,6 +10,12 @@
 //
 //  Every host input that can change what the emulated machine computes.
 //
+//  HostState is not an input but a sync point: the saved state of every
+//  device another thread writes, taken where reverse execution snapshots the
+//  machine. A snapshot can catch a value the host wrote that no read has seen
+//  yet; a replay crossing that point loads the same values, so it reaches the
+//  snapshot's state exactly.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class InputKind : uint8_t
@@ -32,6 +38,7 @@ enum class InputKind : uint8_t
     KeyLatch,
     MouseTarget,
     JoyportJack,
+    HostState,
 };
 
 
@@ -75,16 +82,22 @@ enum class InputLine : uint16_t
 //  holds what does not fit a byte: both mouse deltas, a mouse target, or a
 //  Joyport jack's switches.
 //
+//  An observed record was made by a device during the instruction at its
+//  position; any other was applied at the boundary before that instruction.
+//  A replay landing on a position has applied the second kind there but not
+//  yet the first.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct InputRecord
 {
-    uint64_t     position = 0;
-    uint64_t     cycle    = 0;
-    InputKind    kind     = InputKind::KeyPress;
-    Byte         value    = 0;
-    uint16_t     detail   = 0;
-    uint64_t     data     = 0;
+    uint64_t     position   = 0;
+    uint64_t     cycle      = 0;
+    InputKind    kind       = InputKind::KeyPress;
+    Byte         value      = 0;
+    uint16_t     detail     = 0;
+    uint64_t     data       = 0;
+    bool         isObserved = false;
     std::string  payload;
 };
 

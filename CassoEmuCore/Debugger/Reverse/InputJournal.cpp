@@ -75,12 +75,13 @@ __declspec (noinline) void InputJournal::RecordObserved (
         return;
     }
 
-    record.position = (m_positionSource != nullptr) ? *m_positionSource : 0;
-    record.cycle    = cycle;
-    record.kind     = kind;
-    record.value    = value;
-    record.detail   = detail;
-    record.data     = data;
+    record.position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
+    record.cycle      = cycle;
+    record.kind       = kind;
+    record.value      = value;
+    record.detail     = detail;
+    record.data       = data;
+    record.isObserved = true;
 
     m_records.push_back (std::move (record));
 }

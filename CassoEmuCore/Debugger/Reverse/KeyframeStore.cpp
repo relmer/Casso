@@ -54,9 +54,11 @@ void KeyframeStore::Clear()
 //  Add
 //
 //  Stores one machine state taken at the given position and cycle, which
-//  must be later than the newest keyframe's. It is stored whole when it
-//  opens a group (the store is empty, the group holds wholeEvery keyframes
-//  already, or the state's size changed) and as a difference otherwise.
+//  must be later than the newest keyframe's, with the input journal's end
+//  index at that moment, where a replay from it starts reading inputs. It
+//  is stored whole when it opens a group (the store is empty, the group
+//  holds wholeEvery keyframes already, or the state's size changed) and as
+//  a difference otherwise.
 //  Then the next keyframe is scheduled and the budget enforced.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +66,7 @@ void KeyframeStore::Clear()
 HRESULT KeyframeStore::Add (
     uint64_t                   position,
     uint64_t                   cycle,
+    size_t                     journalIndex,
     const std::vector<Byte>  & state)
 {
     HRESULT       hr          = S_OK;
@@ -77,10 +80,11 @@ HRESULT KeyframeStore::Add (
 
     CBRAEx (isLater, E_INVALIDARG);
 
-    info.position   = position;
-    info.cycle      = cycle;
-    info.checksum   = ComputeChecksum (state.data(), state.size());
-    info.stateBytes = state.size();
+    info.position     = position;
+    info.cycle        = cycle;
+    info.journalIndex = journalIndex;
+    info.checksum     = ComputeChecksum (state.data(), state.size());
+    info.stateBytes   = state.size();
 
     if (isEmpty || !isSameSize || isGroupFull)
     {
@@ -128,7 +132,7 @@ HRESULT KeyframeStore::Capture (
     hr = machine.SaveState (writer);
     CHR (hr);
 
-    hr = Add (position, cpu->GetTotalCycles(), writer.GetBytes());
+    hr = Add (position, cpu->GetTotalCycles(), machine.GetInputJournal().GetEndIndex(), writer.GetBytes());
     CHR (hr);
 
 Error:
