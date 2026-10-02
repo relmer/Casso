@@ -32,6 +32,7 @@ public:
     void                Fill      (uint8_t * dst, size_t count);
 
     uint64_t            GetState  () const { return m_state; }
+    void                SetState  (uint64_t state) { m_state = state; }
 
 private:
     uint64_t            m_state = 0;

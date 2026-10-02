@@ -4,6 +4,7 @@
 
 #include "Core/ComponentRegistry.h"
 #include "Core/EmuCpu.h"
+#include "Core/IMachineState.h"
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
@@ -239,6 +240,21 @@ public:
     //  contents a real one would have rather than the ones it just had.
     void  PowerCycle();
 
+    //  The whole machine's state as one stream, and back. The stream opens
+    //  with the machine's name and ROM identity, so a state from another
+    //  machine or another ROM set fails to load with ERROR_INVALID_DATA. The
+    //  machine must already be built with the same devices and the same disks
+    //  mounted; a failed load leaves it unusable. Call both on the thread
+    //  that runs the machine.
+    HRESULT   SaveState      (StateWriter & writer) const;
+    HRESULT   LoadState      (StateReader & reader);
+
+    //  A hash of every ROM image the machine was built with.
+    uint64_t  GetRomIdentity () const;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'A', 'C', 'H');
+    static constexpr uint16_t  kStateVersion = 1;
+
     //  Where this machine's pending printer strip persists across a switch
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
     std::filesystem::path  GetPendingPrintDir() const;
@@ -264,6 +280,17 @@ private:
     Byte  StepOneWithHook  ();
     Byte  FinishStep       ();
     Byte  StepOneAsked     (const DebugHookFilter & filter, Word pc);
+
+    std::vector<IMachineState *>  GetStateParts       ();
+    uint32_t                      GetMountedDiskMask  () const;
+    void                          WriteStateHeader    (StateWriter & writer, size_t partCount) const;
+    HRESULT                       CheckStateHeader    (StateReader & reader, size_t partCount);
+
+    static uint64_t  HashBytes (uint64_t hash, const Byte * data, size_t size);
+    static uint64_t  HashBytes (uint64_t hash, const std::vector<Byte> & bytes);
+
+    static constexpr uint64_t  kFnvOffset = 0xCBF29CE484222325ULL;
+    static constexpr uint64_t  kFnvPrime  = 0x00000100000001B3ULL;
 
     // 4K of page tables; on the heap, see m_diskStore.
     std::unique_ptr<MemoryBus>  m_memoryBus;

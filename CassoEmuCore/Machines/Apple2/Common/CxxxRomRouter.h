@@ -49,6 +49,10 @@ public:
     void SetSlotRom     (int slot, vector<Byte> data);
     bool HasSlotRom     (int slot) const;
 
+    // The images as loaded, for the machine's ROM identity.
+    const vector<Byte> & GetInternalRom () const         { return m_internal; }
+    const vector<Byte> & GetSlotRom     (int slot) const { return m_slotRom[slot]; }
+
     // Page-table read pointer for a $C100-$CFFF page ($C1-$CF), or null if the
     // page must stay on the Read handler. Only the //c (no external slots)
     // serves the whole window as static internal ROM, so only there is a

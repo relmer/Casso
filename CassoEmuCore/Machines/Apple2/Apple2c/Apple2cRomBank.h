@@ -46,6 +46,9 @@ public:
 
     int  GetCurrentBank () const { return m_current; }
 
+    // One 16K image as loaded, for the machine's ROM identity.
+    const vector<Byte> & GetBankImage (int bank) const { return m_bank[bank]; }
+
     // The debugger's ROM patch at $C100-$FFFF: written into the current
     // bank's own image, which a flip re-slices from, and into the live copies
     // the router and the language card read, so it holds across flips.
