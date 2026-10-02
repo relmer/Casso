@@ -9,6 +9,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Debugger/IDiagnosticsProvider.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
@@ -217,6 +218,14 @@ public:
     void         SetDebugHook (DebugHook * hook) noexcept { m_debugHook = hook; }
     DebugHook *  GetDebugHook () const noexcept           { return m_debugHook; }
 
+    //  The host inputs applied on the CPU thread, in order. RecordInput
+    //  stamps one with the current cycle; with the journal off it records
+    //  nothing. The journal outlives a machine switch.
+    InputJournal        &  GetInputJournal()       noexcept { return m_inputJournal; }
+    const InputJournal  &  GetInputJournal() const noexcept { return m_inputJournal; }
+
+    void  RecordInput (InputKind kind, Byte value, uint16_t detail, std::string_view payload);
+
     //  The opcodes, a 256-entry table read in place, whose fetches the CPU
     //  tells the watcher of (see IOpcodeWatcher); null for none. It survives
     //  the CPU being replaced.
@@ -338,4 +347,6 @@ private:
     std::wstring  m_assetBaseDir;
 
     SpeedMode     m_speedMode = SpeedMode::Authentic;
+
+    InputJournal  m_inputJournal;
 };

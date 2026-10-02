@@ -162,6 +162,85 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetJournalInput
+//
+//  The commands that change what the machine computes: reset, power cycle,
+//  and a disk mount, eject or write-protect change. Each is recorded with the
+//  drive in value, and a reset with the Apple keys it holds in detail, so a
+//  replay can make the same call. Everything else -- audio, the debugger,
+//  a machine switch, which replaces the whole machine -- is not an input.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetJournalInput (const EmulatorCommand & cmd, InputRecord & input)
+{
+    bool  isInput = true;
+
+
+
+    input = InputRecord();
+
+    switch (cmd.id)
+    {
+        case IDM_MACHINE_RESET:
+            input.kind = InputKind::Reset;
+
+            if (cmd.payload.find ("open") != std::string::npos)
+            {
+                input.detail |= kResetHoldsOpenApple;
+            }
+
+            if (cmd.payload.find ("closed") != std::string::npos)
+            {
+                input.detail |= kResetHoldsClosedApple;
+            }
+
+            break;
+
+        case IDM_MACHINE_POWERCYCLE:
+            input.kind = InputKind::PowerCycle;
+            break;
+
+        case IDM_DISK_INSERT1:
+        case IDM_DISK_INSERT2:
+            input.kind    = InputKind::DiskMount;
+            input.value   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+            input.payload = cmd.payload;
+            break;
+
+        case IDM_DISK_EJECT1:
+        case IDM_DISK_EJECT2:
+            input.kind  = InputKind::DiskEject;
+            input.value = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
+            break;
+
+        case IDM_DISK_WRITEPROTECT1:
+        case IDM_DISK_WRITEPROTECT2:
+            input.kind   = InputKind::DriveWriteProtect;
+            input.value  = (cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1;
+            input.detail = (!cmd.payload.empty() && cmd.payload[0] == '1') ? 1 : 0;
+            break;
+
+        case IDM_DISK_WP1:
+        case IDM_DISK_WP2:
+            input.kind  = InputKind::ImageWriteProtect;
+            input.value = (cmd.id == IDM_DISK_WP1) ? 0 : 1;
+            break;
+
+        default:
+            isInput = false;
+            break;
+    }
+
+    return isInput;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchResolveChange
 //
 //  "<slot> <drive> <action> <path>", chosen on the UI thread and carried out

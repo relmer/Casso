@@ -327,6 +327,17 @@ void EmulatorShell::OnCpuThreadStop()
 
 void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 {
+    InputRecord  input;
+
+
+
+    // Journaled before it is applied, so the stamp is the boundary the
+    // machine was at when the reset, power cycle or disk change landed.
+    if (m_machine.GetInputJournal().IsOn() && CpuCommandDispatcher::TryGetJournalInput (cmd, input))
+    {
+        m_machine.RecordInput (input.kind, input.value, input.detail, input.payload);
+    }
+
     CpuCommandDispatcher::Dispatch (cmd, *this);
 }
 
@@ -979,11 +990,15 @@ void EmulatorShell::RunCpuThreadFrame()
 //  the sub-microsecond remainder is carried instead of being dropped every
 //  frame -- at Maximum speed the frames are short enough for that to matter.
 //
+//  Each repeat that fires is journaled as a key press at the cycle it landed
+//  on, so a replay applies the same presses without this host-time timer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::TickKeyboardAutoRepeat()
 {
     uint32_t  elapsed = 0;
+    Byte      fired   = 0;
 
 
 
@@ -1003,7 +1018,12 @@ void EmulatorShell::TickKeyboardAutoRepeat()
         return;
     }
 
-    m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+    fired = m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+
+    if (fired != 0)
+    {
+        m_machine.RecordInput (InputKind::AutoRepeat, fired, 0, {});
+    }
 }
 
 
@@ -1060,6 +1080,7 @@ void EmulatorShell::ExecuteCpuSlices()
     uint32_t  sliceTarget     = 0;
     uint32_t  sliceActual     = 0;
     uint32_t  numSamples      = 0;
+    Byte      pasted          = 0;
 
 
 
@@ -1108,7 +1129,12 @@ void EmulatorShell::ExecuteCpuSlices()
 
         // Feed the next paste character if available; the slice budget is
         // the guest-time currency the settle pacing is measured in.
-        m_clipboardManager->DrainPasteBuffer (sliceTarget);
+        pasted = m_clipboardManager->DrainPasteBuffer (sliceTarget);
+
+        if (pasted != 0)
+        {
+            m_machine.RecordInput (InputKind::PasteChar, pasted, 0, {});
+        }
 
         sliceActual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
         executed   += sliceActual;

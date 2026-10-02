@@ -409,11 +409,12 @@ bool ClipboardManager::AppendPasteText (const std::wstring & text, bool capsLock
 //  lock taken only when a send is due.
 //
 //  A zero character doubles as "nothing to send" -- the paste path never
-//  queues a NUL, so it needs no separate empty flag.
+//  queues a NUL, so it needs no separate empty flag. The character sent is
+//  returned, 0 for none, so the caller can journal it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::DrainPasteBuffer (uint32_t cyclesElapsed)
+Byte ClipboardManager::DrainPasteBuffer (uint32_t cyclesElapsed)
 {
     // 20k cycles = 20 ms of emulated 1 MHz time: longer than a worst-case
     // 24-row text scroll (~15k cycles), short enough that a whole-line paste
@@ -431,19 +432,19 @@ void ClipboardManager::DrainPasteBuffer (uint32_t cyclesElapsed)
 
     if (keyboard == nullptr)
     {
-        return;
+        return 0;
     }
 
     if (!keyboard->IsStrobeClear())
     {
         m_strobeClearCycles = 0;
-        return;
+        return 0;
     }
 
     if (m_strobeClearCycles < kStrobeSettleCycles)
     {
         m_strobeClearCycles += cyclesElapsed;
-        return;
+        return 0;
     }
 
     {
@@ -463,6 +464,8 @@ void ClipboardManager::DrainPasteBuffer (uint32_t cyclesElapsed)
         keyboard->PressKey (ch);
         m_strobeClearCycles = 0;
     }
+
+    return ch;
 }
 
 

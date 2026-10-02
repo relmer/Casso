@@ -300,11 +300,16 @@ void AppleKeyboard::EmitKbdStrobe (Word address, Byte value, bool clearedStrobe)
 //  real -- fire hundreds of characters a second and left the machine
 //  impossible to type on.
 //
+//  Returns the key a repeat latched, or 0 when none fired, so the caller can
+//  journal each repeat as a key press at the cycle it landed on. A replay
+//  does not call this at all; it applies the journaled presses instead.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
+Byte AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
 {
     Byte      key       = m_repeatKey.load (memory_order_acquire);
+    Byte      fired     = 0;
     bool      keyHeld   = m_anyKeyDown.load (memory_order_acquire);
     uint32_t  elapsed   = elapsedMicroseconds;
     uint32_t  threshold = 0;
@@ -348,7 +353,8 @@ void AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
         {
             m_repeatAccumUs -= threshold;
             m_repeatStarted  = true;
-            PressKey ((Byte) (key & kKeyCodeMask));
+            fired            = (Byte) (key & kKeyCodeMask);
+            PressKey (fired);
 
             if (m_inputSink != nullptr)
             {
@@ -356,6 +362,8 @@ void AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
             }
         }
     }
+
+    return fired;
 }
 
 

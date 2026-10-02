@@ -64,7 +64,7 @@ public:
 
     // `cyclesElapsed` is the emulated-cycle budget of the slice about to run
     // -- the settle pacing below is measured in guest time.
-    void  DrainPasteBuffer   (uint32_t cyclesElapsed);
+    Byte  DrainPasteBuffer   (uint32_t cyclesElapsed);
 
     // Screen-text scrape, factored out of CopyScreenText so it can be unit
     // tested without the Win32 clipboard. Returns CRLF-terminated rows with

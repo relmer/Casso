@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Debugger/DebugCommand.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Shell/CpuManager.h"
 
 
@@ -104,6 +105,13 @@ public:
     //  A code view's name: `base` for the first, `base` with 2 to 4 after it
     //  for the others; index is 0 to 3.
     static bool  TryGetCodeView (const std::string & view, const std::string & base, int & index);
+
+    //  Whether the command is a host input the input journal records, and
+    //  the kind, drive or flags, and path to record for it.
+    static bool  TryGetJournalInput (const EmulatorCommand & cmd, InputRecord & input);
+
+    static constexpr uint16_t  kResetHoldsOpenApple   = 1;
+    static constexpr uint16_t  kResetHoldsClosedApple = 2;
 
 private:
 

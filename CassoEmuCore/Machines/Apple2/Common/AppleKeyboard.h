@@ -145,7 +145,7 @@ public:
     // but only while the key remains physically down (any-key-down set).
     // Elapsed time beyond the initial delay is clamped, so a pause or a
     // breakpoint cannot bank up a burst of repeats to fire on resume.
-    void TickAutoRepeat (uint32_t elapsedMicroseconds);
+    Byte TickAutoRepeat (uint32_t elapsedMicroseconds);
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 

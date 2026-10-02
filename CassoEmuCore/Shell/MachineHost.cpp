@@ -298,6 +298,44 @@ __declspec (noinline) Byte MachineHost::StepOneAsked (const DebugHookFilter & fi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::RecordInput
+//
+//  Stamps a host input with the CPU's cycle count. Called on the CPU thread
+//  at an instruction boundary, before or in the same breath as the input is
+//  applied, so the stamp is the point the guest first sees it. A machine with
+//  no CPU yet stamps zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::RecordInput (
+    InputKind         kind,
+    Byte              value,
+    uint16_t          detail,
+    std::string_view  payload)
+{
+    uint64_t  cycle = 0;
+
+
+
+    if (!m_inputJournal.IsOn())
+    {
+        return;
+    }
+
+    if (m_cpu != nullptr)
+    {
+        cycle = m_cpu->GetTotalCycles();
+    }
+
+    m_inputJournal.Record (cycle, kind, value, detail, payload);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SetOpcodeWatch
 //
 //  Kept here as well as in the CPU, so a CPU the machine is rebuilt with
