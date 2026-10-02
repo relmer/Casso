@@ -169,18 +169,22 @@ def build():
         legend = t if legend is None else legend.union(t)
     m.add("legend", legend, BAND)
 
-    # Keys: rounded black blocks with FLAT tops, parallel to the grille, standing
-    # up out of the slope; each carries a stadium-shaped dish -- a rounded
-    # rectangle closed by a semicircle at each end.
+    # Keys: 2 mm black plates with FLAT tops, parallel to the grille. They do
+    # not reach down into the slope: each is hinged at the back, just under the
+    # edge of the legend plate, and cantilevers forward over the slope. Each
+    # carries a stadium-shaped dish -- a rounded rectangle closed by a
+    # semicircle at each end.
     kw = pitch - 2.0
-    ky0, ky1 = 6.0, SLOPE_Y - 1.0
+    ky0, ky1 = 6.0, SLOPE_Y + 1.0
     kl = ky1 - ky0
     ktop = top + 3.0
     for i in range(6):
         kx = kx0 + i * pitch + 1.0
-        key = (box(kx, kx + kw, ky0, ky1, FRONT_H - 6.0, ktop)
+        key = (box(kx, kx + kw, ky0, ky1, ktop - 2.0, ktop)
                .edges("|Z").fillet(2.0)
-               .faces(">Z").edges().fillet(1.2))
+               .faces(">Z").edges().fillet(0.6))
+        hinge = box(kx + 2.0, kx + kw - 2.0, ky1 - 4.0, ky1 - 0.5, top - 2.0, ktop - 1.0)
+        key = key.union(hinge)
         dw = kw * 0.62
         dish = (cq.Workplane("XY").workplane(offset=ktop - 0.8)
                 .center(kx + kw / 2, ky0 + kl / 2).slot2D(kl * 0.72, dw, 90).extrude(2.0))
