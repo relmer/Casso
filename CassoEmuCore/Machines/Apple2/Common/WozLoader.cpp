@@ -277,6 +277,7 @@ static HRESULT ParseV2Track (
     size_t     byteOffset    = 0;
     size_t     byteCount     = 0;
     size_t     rawSize       = 0;
+    bool       insideFile    = false;
 
 
 
@@ -289,8 +290,17 @@ static HRESULT ParseV2Track (
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
     byteCount  = (bitCount + 7) / 8;
     rawSize    = raw.size();
+    insideFile = (byteOffset + byteCount <= rawSize);
 
-    CBR (byteOffset + byteCount <= rawSize);
+    // A track whose data is not in the file is damage to that track alone.
+    // The slot stays blank, the image is held read-only, and the rest of the
+    // disk still mounts.
+    if (!insideFile)
+    {
+        out.AddDamagedTrack ({ destTrack, false, DamageReason::OutsideFile });
+    }
+
+    BAIL_OUT_IF (!insideFile, S_OK);
 
     out.ResizeTrack (destTrack, bitCount);
 
@@ -338,6 +348,8 @@ static HRESULT ParseV2FluxTrack (
     size_t        byteOffset = 0;
     size_t        rawSize    = raw.size();
     bool          isValid    = false;
+    bool          damaged    = false;
+    DamageReason  damage     = DamageReason::OutsideFile;
     vector<Byte>  flux;
 
 
@@ -354,14 +366,35 @@ static HRESULT ParseV2FluxTrack (
 
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
 
-    CBR (byteOffset + byteCount <= rawSize);
-    CBR (byteCount <= static_cast<size_t> (blockCount) * WozLoader::kV2BlockSize);
+    // Any of these is damage to this track alone: the slot stays a flux
+    // track with nothing on it, the image is held read-only, and the rest of
+    // the disk still mounts.
+    if (byteOffset + byteCount > rawSize)
+    {
+        damaged = true;
+        damage  = DamageReason::OutsideFile;
+    }
+    else if (byteCount > static_cast<size_t> (blockCount) * WozLoader::kV2BlockSize)
+    {
+        damaged = true;
+        damage  = DamageReason::CountExceedsBlocks;
+    }
+    else
+    {
+        flux.assign (raw.begin() + static_cast<ptrdiff_t> (byteOffset),
+                     raw.begin() + static_cast<ptrdiff_t> (byteOffset + byteCount));
 
-    flux.assign (raw.begin() + static_cast<ptrdiff_t> (byteOffset),
-                 raw.begin() + static_cast<ptrdiff_t> (byteOffset + byteCount));
+        isValid = FluxTrack::IsValidStream (flux);
+        damaged = !isValid;
+        damage  = DamageReason::TruncatedRun;
+    }
 
-    isValid = FluxTrack::IsValidStream (flux);
-    CBR (isValid);
+    if (damaged)
+    {
+        out.AddDamagedTrack ({ destTrack, true, damage });
+    }
+
+    BAIL_OUT_IF (damaged, S_OK);
 
     out.SetFluxTrack (destTrack, flux);
 
@@ -753,14 +786,20 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
             {
                 size_t   recOffset = static_cast<size_t> (trackIndex) * kV1TrackRecordSize;
+                bool     inTrks    = (recOffset + kV1TrackRecordSize <= trksSize);
 
-                CBR (recOffset + kV1TrackRecordSize <= trksSize);
-
-                if (!parsed[trackIndex])
+                // A record past the end of TRKS is damage to that track
+                // alone; the rest of the disk still mounts.
+                if (!inTrks && !parsed[trackIndex])
+                {
+                    out.AddDamagedTrack ({ trackIndex, false, DamageReason::V1RecordPastTrks });
+                }
+                else if (!parsed[trackIndex])
                 {
                     ParseV1Track (trksData + recOffset, trackIndex, out);
-                    parsed[trackIndex] = true;
                 }
+
+                parsed[trackIndex] = true;
             }
 
             out.SetQuarterTrackSlot (qt, trackIndex);

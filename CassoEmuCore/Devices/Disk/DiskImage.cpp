@@ -122,6 +122,25 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMappedSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::GetMappedSlot (int quarterTrack) const
+{
+    bool  inMap = (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()));
+
+
+
+    return inMap ? m_quarterTrackMap[quarterTrack] : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTrackKind
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -494,7 +513,7 @@ bool DiskImage::IsWriteProtected() const
         || m_userWriteProtected
         || m_fileReadOnly
         || m_fileNoPermission
-        || m_sourceCrcMismatch;
+        || IsDamaged();
 }
 
 
@@ -518,6 +537,7 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo() const
     info.readOnlyFile     = m_fileReadOnly;
     info.noPermission     = m_fileNoPermission;
     info.checksumMismatch = m_sourceCrcMismatch;
+    info.damagedTracks    = HasDamagedTracks();
 
     return info;
 }
@@ -758,6 +778,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_dirty          = false;
     m_rawSourceBytes = raw;
     m_wozMetadata.Clear();
+    m_damagedTracks.clear();
     m_slotKind.assign   (m_slotKind.size(), TrackKind::Bits);
     m_fluxTracks.assign (m_fluxTracks.size(), FluxTrack());
     InitWholeTrackMap();
@@ -897,6 +918,7 @@ void DiskImage::Eject()
     m_fileReadOnly        = false;
     m_fileNoPermission    = false;
     m_sourceCrcMismatch   = false;
+    m_damagedTracks.clear();
 }
 
 

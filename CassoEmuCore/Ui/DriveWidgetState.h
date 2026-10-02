@@ -305,11 +305,13 @@ inline std::wstring ComposeWriteProtectTooltip (
     // write-protect, so it leads with its own sentence instead of joining the
     // parenthetical list -- and it says why, because "write-protected" alone
     // invites the user to go looking for the toggle that would clear it.
-    if (wp.checksumMismatch)
+    if (wp.IsDamaged())
     {
         msg = imageName.empty() ? L"This disk image" : (L"\"" + imageName + L"\"");
-        msg += L" is damaged: its stored checksum does not match its contents. "
-               L"Casso will not write to it, because rewriting the file would "
+        msg += wp.checksumMismatch
+               ? L" is damaged: its stored checksum does not match its contents. "
+               : L" is damaged: some of its tracks could not be read from the file. ";
+        msg += L"Casso will not write to it, because rewriting the file would "
                L"hide the damage.";
 
         // and nothing else. The other causes are true but immaterial: the disk
@@ -350,7 +352,7 @@ inline std::wstring ComposeWriteProtectTooltip (
         }
 
         msg += L"Drive " + std::to_wstring (driveNumber)
-             + ((causes.empty() && !wp.checksumMismatch)
+             + ((causes.empty() && !wp.IsDamaged())
                     ? L" is write-protected in Settings > Disk."
                     : L" is also write-protected in Settings > Disk.");
     }

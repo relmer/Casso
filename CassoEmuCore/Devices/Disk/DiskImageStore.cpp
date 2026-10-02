@@ -783,9 +783,9 @@ wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
     }
 
     return L"This disk is damaged, so Casso will not write to it:\n\n" + widePath +
-           L"\n\nRewriting it would give the file a newly computed checksum, "
-           L"leaving nothing able to detect the damage it already carries. The "
-           L"disk stays readable and the emulated machine sees it as "
+           L"\n\nRewriting it would hide the damage it already carries, behind "
+           L"a newly computed checksum or blank tracks where unreadable ones "
+           L"were. The disk stays readable and the emulated machine sees it as "
            L"write-protected. Work on a copy if you need to write to it.";
 }
 
@@ -1375,7 +1375,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         // recomputes the header checksum, and that checksum failing to match
         // IS the damage report -- so the one write that is otherwise harmless
         // is the one write that would destroy the evidence.
-        isDamaged = entry.image->HasSourceCrcMismatch();
+        isDamaged = entry.image->IsDamaged();
         CBRN (!isDamaged, FormatDamagedImageMessage (entry.path).c_str());
 
         // Guest writes go out FIRST, while the image still accepts a flush.
@@ -1574,7 +1574,7 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
         // protected track burns its whole attempt budget before giving up.
         // Salvage is only ever offered for a damaged disk, so an undamaged one
         // never needs the decode at all.
-        isDamaged = entry.image->HasSourceCrcMismatch();
+        isDamaged = entry.image->IsDamaged();
         BAIL_OUT_IF (!isDamaged, S_OK);
 
         hr = DecodeForSalvage (entry, sectors, out.report);

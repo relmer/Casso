@@ -32,6 +32,35 @@ enum class TrackKind
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DamageReason / DamagedTrack
+//
+//  Why a track could not be read from its file. The image still mounts, read
+//  only, with the track blank, and the mount report lists it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DamageReason
+{
+    OutsideFile,           // the track's blocks lie outside the file
+    CountExceedsBlocks,    // its bit or byte count needs more than its blocks hold
+    TruncatedRun,          // flux data ending in a 255 with nothing to end the run
+    V1RecordPastTrks,      // a WOZ 1 track record past the end of TRKS
+};
+
+
+struct DamagedTrack
+{
+    int           trkIndex = 0;
+    bool          isFlux   = false;
+    DamageReason  reason   = DamageReason::OutsideFile;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IPendingWriteOwner
 //
 //  Whoever is holding a write to this image that has not reached it yet -- a
@@ -117,6 +146,17 @@ public:
     void             SetSourceCrcMismatch   (bool bad) { m_sourceCrcMismatch = bad; }
     bool             HasSourceCrcMismatch   () const { return m_sourceCrcMismatch; }
 
+    // Tracks that could not be read from the file at load. Like a checksum
+    // mismatch, any of them holds the image read-only: rewriting the file
+    // would replace the damaged tracks with blank ones and hide the damage.
+    void                         AddDamagedTrack     (const DamagedTrack & track) { m_damagedTracks.push_back (track); }
+    const vector<DamagedTrack> & GetDamagedTracks    () const { return m_damagedTracks; }
+    bool                         HasDamagedTracks    () const { return !m_damagedTracks.empty(); }
+
+    // Either kind of damage: what read-only enforcement, salvage and the
+    // mount report all key off.
+    bool                         IsDamaged           () const { return m_sourceCrcMismatch || HasDamagedTracks(); }
+
     // The parts of a source WOZ the track model cannot express -- the INFO
     // chunk's non-geometry fields and every chunk Casso does not parse (META
     // above all). The writer rebuilds INFO/TMAP/TRKS from the live tracks,
@@ -150,6 +190,11 @@ public:
     // track (qt / 4); WOZ images install an explicit map from the TMAP so
     // half/quarter-track-formatted protections resolve to distinct streams.
     int              ResolveQuarterTrack (int quarterTrack) const;
+
+    // The slot the map gives a quarter track, whether or not that slot holds
+    // data -- which a report about tracks that failed to load needs, since a
+    // damaged slot resolves to nothing.
+    int              GetMappedSlot       (int quarterTrack) const;
 
     // Flux slots. A slot is a flux track when the image's FLUX map refers to
     // it; its bit buffer then stays empty and every bit-level accessor sees
@@ -215,6 +260,7 @@ private:
     vector<FluxTrack>     m_fluxTracks;
     uint64_t              m_layoutGeneration    = 0;
     IPendingWriteOwner *  m_pendingWriteOwner   = nullptr;
+    vector<DamagedTrack>  m_damagedTracks;
     DiskFormat            m_format              = DiskFormat::Dsk;
     bool                  m_loaded              = false;
     bool                  m_dirty               = false;
