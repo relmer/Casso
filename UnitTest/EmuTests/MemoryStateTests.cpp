@@ -351,25 +351,25 @@ namespace MemoryState
     public:
         TEST_METHOD (RoundTripsEveryField)
         {
-            MemoryRig          source (kSourceSeed);
-            MemoryRig          target (kTargetSeed);
+            auto               source = std::make_unique<MemoryRig> (kSourceSeed);   // heap: a rig overflows the frame (C6262)
+            auto               target = std::make_unique<MemoryRig> (kTargetSeed);
             std::vector<Byte>  bytes;
 
 
 
-            source.SetEveryField();
-            bytes = source.Save();
+            source->SetEveryField();
+            bytes = source->Save();
 
-            target.Load (bytes);
+            target->Load (bytes);
 
-            AssertSameState (source, target);
+            AssertSameState (*source, *target);
         }
 
 
         TEST_METHOD (RunAfterLoadMatchesRunAfterSave)
         {
-            MemoryRig          source (kSourceSeed);
-            MemoryRig          fresh  (kTargetSeed);
+            auto               source = std::make_unique<MemoryRig> (kSourceSeed);   // heap: a rig overflows the frame (C6262)
+            auto               fresh  = std::make_unique<MemoryRig> (kTargetSeed);
             std::vector<Byte>  bytes;
             std::vector<Byte>  first;
             std::vector<Byte>  again;
@@ -377,15 +377,15 @@ namespace MemoryState
 
 
 
-            source.SetEveryField();
-            bytes = source.Save();
-            first = source.Run();
+            source->SetEveryField();
+            bytes = source->Save();
+            first = source->Run();
 
-            source.Load (bytes);
-            again = source.Run();
+            source->Load (bytes);
+            again = source->Run();
 
-            fresh.Load (bytes);
-            elsewhere = fresh.Run();
+            fresh->Load (bytes);
+            elsewhere = fresh->Run();
 
             Assert::IsTrue (first == again,     L"same rig after load");
             Assert::IsTrue (first == elsewhere, L"fresh rig after load");
@@ -394,20 +394,20 @@ namespace MemoryState
 
         TEST_METHOD (RunAfterBackwardLoadMatchesRunAfterSave)
         {
-            MemoryRig          source (kSourceSeed);
-            MemoryRig          fresh  (kTargetSeed);
+            auto               source = std::make_unique<MemoryRig> (kSourceSeed);   // heap: a rig overflows the frame (C6262)
+            auto               fresh  = std::make_unique<MemoryRig> (kTargetSeed);
             std::vector<Byte>  bytes;
             std::vector<Byte>  first;
             std::vector<Byte>  elsewhere;
 
 
 
-            source.SetEveryField();
-            bytes = source.Save (true);
-            first = source.Run();
+            source->SetEveryField();
+            bytes = source->Save (true);
+            first = source->Run();
 
-            fresh.Load (bytes, true);
-            elsewhere = fresh.Run();
+            fresh->Load (bytes, true);
+            elsewhere = fresh->Run();
 
             Assert::IsTrue (first == elsewhere, L"fresh rig after backward load");
         }
@@ -476,13 +476,13 @@ namespace MemoryState
 
         TEST_METHOD (RomBankRoundTripsAndReapplies)
         {
-            MemoryBus          sourceBus;
+            auto               sourceBus  = std::make_unique<MemoryBus>();   // heap: the page tables overflow the frame (C6262)
             Apple2eMmu         sourceMmu;
-            LanguageCard       sourceLc   (sourceBus);
+            LanguageCard       sourceLc   (*sourceBus);
             Apple2cRomBank     source     (sourceLc, sourceMmu);
-            MemoryBus          targetBus;
+            auto               targetBus  = std::make_unique<MemoryBus>();
             Apple2eMmu         targetMmu;
-            LanguageCard       targetLc   (targetBus);
+            LanguageCard       targetLc   (*targetBus);
             Apple2cRomBank     target     (targetLc, targetMmu);
             Byte               cxxx       = 0;
             HRESULT            hr         = S_OK;

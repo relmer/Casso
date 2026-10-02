@@ -43,11 +43,11 @@ namespace PrinterCardTests
         _putenv_s (PrinterCard::kTextPathVariable, path.string().c_str());
 
         {
-            PrinterCard  card (1);
+            auto  card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
 
             for (Byte value : { (Byte) 0xC8, (Byte) 0xE9, (Byte) 0x8D, (Byte) 0x0A, (Byte) 0xA1 })
             {
-                card.Write (PrinterCard::kSlotIoBase + 0x10, value);
+                card->Write (PrinterCard::kSlotIoBase + 0x10, value);
             }
         }
 

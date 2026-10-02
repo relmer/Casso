@@ -491,7 +491,7 @@ namespace DebuggerTests
 
         TEST_METHOD (TasAndLasReloadTheStackAsTxsDoes)
         {
-            std::array<Byte, 0x10000>  memory   = {};
+            std::vector<Byte>          memory   (0x10000);   // heap: 64 KB overflows the frame (C6262)
             CallStackRecorder          recorder;
             CallStackData              data;
 
@@ -545,7 +545,7 @@ namespace DebuggerTests
         //  them, so the breaks stay as few as the frames that hold them.
         TEST_METHOD (ARunawayRecursionKeepsItsBreaksBounded)
         {
-            std::array<Byte, 0x10000>  memory = {};
+            std::vector<Byte>          memory (0x10000);   // heap: 64 KB overflows the frame (C6262)
             CallStackRecorder          recorder;
             Byte                       sp     = 0xFF;
 

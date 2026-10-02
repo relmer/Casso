@@ -127,31 +127,31 @@ namespace DebuggerWindowClosedPaneTests
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
             ClosedPaneHost    host;
             DxuiDpiScaler     scaler;
-            ClosedPaneWindow  first  (theme, host);
-            ClosedPaneWindow  second (theme, host);
-            ClosedPaneWindow  third  (theme, host);
+            auto              first  = std::make_unique<ClosedPaneWindow> (theme, host);   // heap: three windows overflow the frame (C6262)
+            auto              second = std::make_unique<ClosedPaneWindow> (theme, host);
+            auto              third  = std::make_unique<ClosedPaneWindow> (theme, host);
 
 
 
             scaler.SetDpi (96);
 
-            first.OnCreate();
-            first.Layout (RECT { 0, 0, 1400, 900 }, scaler);
-            first.ClosePane (DebuggerLayout::kRegisters);
+            first->OnCreate();
+            first->Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            first->ClosePane (DebuggerLayout::kRegisters);
 
-            second.OnCreate();
-            second.Layout (RECT { 0, 0, 1400, 900 }, scaler);
-            Assert::IsFalse (second.IsPaneShown (DebuggerLayout::kRegisters), L"the registers stay closed");
-            Assert::IsTrue  (second.IsPaneShown (DebuggerLayout::kWatches),   L"the others still show");
-            Assert::IsTrue  (second.GetPaneLayout().IsDocked (DebuggerLayout::kRegisters), L"it keeps its place");
+            second->OnCreate();
+            second->Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            Assert::IsFalse (second->IsPaneShown (DebuggerLayout::kRegisters), L"the registers stay closed");
+            Assert::IsTrue  (second->IsPaneShown (DebuggerLayout::kWatches),   L"the others still show");
+            Assert::IsTrue  (second->GetPaneLayout().IsDocked (DebuggerLayout::kRegisters), L"it keeps its place");
 
-            second.ShowPane (DebuggerLayout::kRegisters);
-            Assert::IsTrue (second.IsPaneShown (DebuggerLayout::kRegisters), L"the View menu shows it again");
+            second->ShowPane (DebuggerLayout::kRegisters);
+            Assert::IsTrue (second->IsPaneShown (DebuggerLayout::kRegisters), L"the View menu shows it again");
 
-            third.OnCreate();
-            third.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            third->OnCreate();
+            third->Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (third.IsPaneShown (DebuggerLayout::kRegisters), L"shown again is saved too");
+            Assert::IsTrue (third->IsPaneShown (DebuggerLayout::kRegisters), L"shown again is saved too");
         }
 
 

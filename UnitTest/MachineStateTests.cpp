@@ -148,10 +148,10 @@ namespace MachineState
         {
             constexpr Byte     kSeed       = 0x35;
             constexpr Byte     kTargetSeed = 0xCA;
-            MemoryBus          sourceBus;
-            MemoryBus          targetBus;
-            StateProbeCpu      source (sourceBus);
-            StateProbeCpu      target (targetBus);
+            auto               sourceBus   = std::make_unique<MemoryBus>();   // heap: the page tables overflow the frame (C6262)
+            auto               targetBus   = std::make_unique<MemoryBus>();
+            StateProbeCpu      source (*sourceBus);
+            StateProbeCpu      target (*targetBus);
             std::vector<Byte>  bytes;
             HRESULT            hr          = S_OK;
 
@@ -172,14 +172,14 @@ namespace MachineState
         {
             constexpr Byte     kSeed       = 0x5A;
             constexpr Byte     kTargetSeed = 0xA5;
-            MemoryBus          sourceBus;
-            MemoryBus          targetBus;
-            auto               owned       = std::make_unique<StateProbeCpu> (sourceBus);
+            auto               sourceBus   = std::make_unique<MemoryBus>();   // heap: the page tables overflow the frame (C6262)
+            auto               targetBus   = std::make_unique<MemoryBus>();
+            auto               owned       = std::make_unique<StateProbeCpu> (*sourceBus);
             StateProbeCpu    * source      = owned.get();
-            EmuCpu             sourceEmu (sourceBus, std::move (owned));
-            auto               loaded      = std::make_unique<StateProbeCpu> (targetBus);
+            EmuCpu             sourceEmu (*sourceBus, std::move (owned));
+            auto               loaded      = std::make_unique<StateProbeCpu> (*targetBus);
             StateProbeCpu    * target      = loaded.get();
-            EmuCpu             targetEmu (targetBus, std::move (loaded));
+            EmuCpu             targetEmu (*targetBus, std::move (loaded));
             StateWriter        writer;
             HRESULT            hr          = S_OK;
 

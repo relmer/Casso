@@ -164,22 +164,22 @@ namespace SerialPrinterState
 
         TEST_METHOD (PrinterRoundTripsTouched)
         {
-            PrinterCard        touched (kSlot);
-            PrinterCard        fresh   (kSlot);
-            PrinterCard        other   (kSlot);
-            HRESULT            hr      = S_OK;
+            auto     touched = std::make_unique<PrinterCard> (kSlot);   // heap: each card embeds a 64KB ring (C6262)
+            auto     fresh   = std::make_unique<PrinterCard> (kSlot);
+            auto     other   = std::make_unique<PrinterCard> (kSlot);
+            HRESULT  hr      = S_OK;
 
 
 
-            touched.Write (touched.GetStart(), 'A');
+            touched->Write (touched->GetStart(), 'A');
 
-            hr = LoadFrom (fresh, Save (touched));
+            hr = LoadFrom (*fresh, Save (*touched));
             Assert::AreEqual (S_OK, hr);
-            Assert::IsTrue   (fresh.HasBeenTouched());
+            Assert::IsTrue   (fresh->HasBeenTouched());
 
-            hr = LoadFrom (touched, Save (other));
+            hr = LoadFrom (*touched, Save (*other));
             Assert::AreEqual (S_OK, hr);
-            Assert::IsFalse  (touched.HasBeenTouched());
+            Assert::IsFalse  (touched->HasBeenTouched());
         }
     };
 }

@@ -343,7 +343,7 @@ namespace DebuggerTests
 
         static std::vector<Word>  Walk (std::initializer_list<std::pair<Word, std::vector<Byte>>> code, Word pc, Byte p, size_t count = 8)
         {
-            std::array<Byte, 0x10000>  memory = {};
+            std::vector<Byte>          memory (0x10000);   // heap: 64 KB overflows the frame (C6262)
             TestCpu                    cpu;
             std::vector<Word>          addresses;
 

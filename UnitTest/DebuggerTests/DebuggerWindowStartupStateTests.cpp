@@ -212,7 +212,7 @@ namespace DebuggerStartupStateTests
             CassoTheme                theme  = CassoTheme::MakeSkeuomorphic();
             StartupHost               host;
             StartupWindow             window (theme, host);
-            ControllerRig             rig;
+            auto                      rig    = std::make_unique<ControllerRig>();   // heap: the rig and the window overflow the frame (C6262)
             std::vector<std::string>  lines;
 
 
@@ -224,9 +224,9 @@ namespace DebuggerStartupStateTests
 
             Assert::AreEqual ((size_t) 1, host.actions.size(), L"the panel reopens through the window's own action");
 
-            lines = rig.view.ExecuteAction (rig.controller.GetSession(), host.actions[0]);
+            lines = rig->view.ExecuteAction (rig->controller.GetSession(), host.actions[0]);
 
-            Assert::IsTrue (rig.view.IsPanelOpen ("mmu"));
+            Assert::IsTrue (rig->view.IsPanelOpen ("mmu"));
             Assert::IsTrue (lines.empty(), L"no echo and no reply");
         }
 

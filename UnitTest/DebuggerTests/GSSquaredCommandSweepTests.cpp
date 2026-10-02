@@ -192,10 +192,10 @@ namespace DebuggerTests
         {
             for (const Row & row : kRows)
             {
-                SweepRig  gssquared ("GSSQUARED");
-                SweepRig  appleWin  ("APPLEWIN");
-                Reply     viaGs     = gssquared.session.ExecuteLine (row.gssquared);
-                Reply     viaAw     = appleWin.session.ExecuteLine  (row.appleWin);
+                auto      gssquared = std::make_unique<SweepRig> ("GSSQUARED");   // heap: two rigs overflow the frame (C6262)
+                auto      appleWin  = std::make_unique<SweepRig> ("APPLEWIN");
+                Reply     viaGs     = gssquared->session.ExecuteLine (row.gssquared);
+                Reply     viaAw     = appleWin->session.ExecuteLine  (row.appleWin);
 
                 //  PANEL is the window's own, so outside the window both modes
                 //  report it not available alike.
@@ -206,23 +206,23 @@ namespace DebuggerTests
                 Assert::AreEqual ((int) expected, (int) viaAw.status, Widen (std::string (row.appleWin) + ": " + viaAw.error.detail).c_str());
                 Assert::AreEqual ((int) viaAw.status, (int) viaGs.status, Widen (std::string (row.gssquared) + ": " + viaGs.error.detail).c_str());
                 Assert::AreEqual (viaAw.data.index(), viaGs.data.index(), Widen (row.gssquared).c_str());
-                Assert::AreEqual (Widen (appleWin.DescribeEffect()), Widen (gssquared.DescribeEffect()), Widen (row.gssquared).c_str());
+                Assert::AreEqual (Widen (appleWin->DescribeEffect()), Widen (gssquared->DescribeEffect()), Widen (row.gssquared).c_str());
             }
         }
 
         //  `watch first.last` is one AppleWin W per address.
         TEST_METHOD (WatchRange_IsAWatchPerAddress)
         {
-            SweepRig  gssquared ("GSSQUARED");
-            SweepRig  appleWin  ("APPLEWIN");
+            auto  gssquared = std::make_unique<SweepRig> ("GSSQUARED");   // heap: two rigs overflow the frame (C6262)
+            auto  appleWin  = std::make_unique<SweepRig> ("APPLEWIN");
 
 
 
-            Assert::IsTrue (gssquared.session.ExecuteLine ("watch 6.8").status == CommandStatus::Ok);
-            Assert::IsTrue (appleWin.session.ExecuteLine  ("W 6").status == CommandStatus::Ok);
-            Assert::IsTrue (appleWin.session.ExecuteLine  ("W 7").status == CommandStatus::Ok);
-            Assert::IsTrue (appleWin.session.ExecuteLine  ("W 8").status == CommandStatus::Ok);
-            Assert::AreEqual (Widen (appleWin.DescribeEffect()), Widen (gssquared.DescribeEffect()));
+            Assert::IsTrue (gssquared->session.ExecuteLine ("watch 6.8").status == CommandStatus::Ok);
+            Assert::IsTrue (appleWin->session.ExecuteLine  ("W 6").status == CommandStatus::Ok);
+            Assert::IsTrue (appleWin->session.ExecuteLine  ("W 7").status == CommandStatus::Ok);
+            Assert::IsTrue (appleWin->session.ExecuteLine  ("W 8").status == CommandStatus::Ok);
+            Assert::AreEqual (Widen (appleWin->DescribeEffect()), Widen (gssquared->DescribeEffect()));
         }
 
         //  A breakpoint set in GSSquared mode is the one AppleWin's BPL lists

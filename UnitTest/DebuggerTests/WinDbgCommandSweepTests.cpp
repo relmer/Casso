@@ -208,19 +208,19 @@ namespace DebuggerTests
         //  bytes: the reply data is identical, only the text differs.
         TEST_METHOD (Dump_ExecutesTheSameAsD)
         {
-            Rig                          windbg;
-            Rig                          appleWin;
+            auto                         windbg   = std::make_unique<Rig>();   // heap: two rigs overflow the frame (C6262)
+            auto                         appleWin = std::make_unique<Rig>();
             Reply                        fromWinDbg;
             Reply                        fromAppleWin;
 
 
 
-            windbg.session.ExecuteLine ("MODE WINDBG");
+            windbg->session.ExecuteLine ("MODE WINDBG");
 
             for (const char * line : { "db 0x300 l8", "db 300 l8", "db $300 l8" })
             {
-                fromWinDbg   = windbg.session.ExecuteLine (line);
-                fromAppleWin = appleWin.session.ExecuteLine ("D 300,8");
+                fromWinDbg   = windbg->session.ExecuteLine (line);
+                fromAppleWin = appleWin->session.ExecuteLine ("D 300,8");
 
                 Assert::IsTrue   (std::get<MemoryData> (fromWinDbg.data).rows.size() == std::get<MemoryData> (fromAppleWin.data).rows.size(), Widen (line).c_str());
                 Assert::IsTrue   (std::get<MemoryData> (fromWinDbg.data).rows[0].bytes == std::get<MemoryData> (fromAppleWin.data).rows[0].bytes, Widen (line).c_str());
