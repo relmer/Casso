@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Devices/Tape/ITapeDeckPort.h"
+#include "Devices/Tape/RecordingCapture.h"
 #include "Devices/Tape/TapeImage.h"
 
 
@@ -53,6 +54,7 @@ public:
 
     void  SetCpuClock    (double cpuClockHz);
     void  Insert         (TapeImage && image);
+    void  ReplaceImage   (TapeImage && image);
     void  Eject          (uint64_t nowCycle);
     void  Play           (uint64_t nowCycle);
     void  Stop           (uint64_t nowCycle);
@@ -71,9 +73,14 @@ public:
     const TapeImage  * GetImage           () const { return m_hasImage ? &m_image : nullptr; }
     Snapshot           GetSnapshot        () const;
 
-    const std::vector<uint64_t> & GetCapturedToggles   () const { return m_capturedToggles; }
-    double                        GetRecordStartSample () const { return m_recordStartSample; }
-    uint64_t                      GetRecordStartCycle  () const { return m_recordStartCycle; }
+    const std::vector<uint64_t> & GetCapturedToggles   () const { return m_capture.toggleCycles; }
+    double                        GetRecordStartSample () const { return m_capture.startSample; }
+    uint64_t                      GetRecordStartCycle  () const { return m_capture.startCycle; }
+    double                        GetCpuClock          () const { return m_cpuClockHz; }
+
+    //  A recording that has stopped, by any path, and not yet been written.
+    bool  HasPendingRecording () const { return m_hasPendingRecording; }
+    void  TakeRecording       (RecordingCapture & capture);
 
 private:
     static constexpr double  kDefaultCpuClockHz = 1020484.0;   // NTSC Apple II; replaced by the machine's own rate
@@ -83,20 +90,19 @@ private:
     void    Halt             (uint64_t nowCycle);
     void    PublishSnapshot  ();
 
-    TapeImage              m_image;
-    bool                   m_hasImage          = false;
-    TapeTransport          m_transport         = TapeTransport::Empty;
-    double                 m_cpuClockHz        = kDefaultCpuClockHz;
-    double                 m_startSample       = 0.0;
-    uint64_t               m_startCycle        = 0;
-    size_t                 m_cursor            = 0;
-    double                 m_cursorSample      = 0.0;
-    bool                   m_isRecordArmed     = false;
-    uint64_t               m_lastAccessCycle   = 0;
-    bool                   m_hasBeenAccessed   = false;
-    std::vector<uint64_t>  m_capturedToggles;
-    double                 m_recordStartSample = 0.0;
-    uint64_t               m_recordStartCycle  = 0;
+    TapeImage         m_image;
+    bool              m_hasImage            = false;
+    TapeTransport     m_transport           = TapeTransport::Empty;
+    double            m_cpuClockHz          = kDefaultCpuClockHz;
+    double            m_startSample         = 0.0;
+    uint64_t          m_startCycle          = 0;
+    size_t            m_cursor              = 0;
+    double            m_cursorSample        = 0.0;
+    bool              m_isRecordArmed       = false;
+    uint64_t          m_lastAccessCycle     = 0;
+    bool              m_hasBeenAccessed     = false;
+    RecordingCapture  m_capture;
+    bool              m_hasPendingRecording = false;
 
     std::atomic<TapeTransport>  m_shownTransport  { TapeTransport::Empty };
     std::atomic<double>         m_shownPosition   { 0.0 };

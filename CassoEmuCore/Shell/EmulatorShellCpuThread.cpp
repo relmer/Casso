@@ -939,6 +939,12 @@ void EmulatorShell::ExecuteCpuSlices()
         m_machine.GetTapeDeck().Update (*m_machine.GetCpu()->GetBusCyclePtr());
         ApplyTapeTurbo();
 
+        if (m_machine.GetTapeDeck().HasPendingRecording())
+        {
+            hr = m_tapeManager->CommitPendingRecording (m_machine.GetTapeDeck());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
         if (audioActive)
         {
             numSamples = m_sampleBudget.SamplesFor (sliceActual, cyclesPerSample);

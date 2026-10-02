@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Devices/Tape/TapeImageLoader.h"
+#include "Devices/Tape/TapeRecorder.h"
+#include "Devices/Tape/WavCodec.h"
+#include "FakeDiskFileIo.h"
 #include "KeystrokeInjector.h"
 #include "TapeTestEncoder.h"
 #include "TestMachine.h"
@@ -451,5 +454,108 @@ public:
         machine.PowerCycle();
         Assert::IsTrue    (machine.GetTapeDeck().GetTransport() == TapeTransport::Stopped);
         Assert::IsNotNull (machine.GetTapeDeck().GetImage());
+    }
+
+    //  Records onto a blank tape while the guest runs `command`, then commits
+    //  the recording into `io` and returns the rewritten tape.
+    static void RecordOnto (TestMachine & machine, FakeDiskFileIo & io, const char * pszCommand, uint64_t runCycles, TapeImage & recorded)
+    {
+        static constexpr const char * kpszPath = "C:\\Tapes\\round-trip.wav";
+        TapeAudio             blank;
+        std::vector<Byte>     bytes;
+        NullTapeAudioDecoder  mp3;
+        TapeImage             image;
+        RecordingCapture      capture;
+        std::string           error;
+        HRESULT               hr = S_OK;
+
+
+
+        blank.sampleRate = 44100;
+        WavCodec::Encode (blank, bytes);
+        io.files[kpszPath] = bytes;
+
+        hr = TapeImageLoader::Load (bytes, kpszPath, false, mp3, image, error);
+        Assert::AreEqual (S_OK, hr);
+
+        machine.GetTapeDeck().Insert (std::move (image));
+        machine.GetTapeDeck().SetRecordArmed (true);
+        machine.GetTapeDeck().Play (GetNow (machine));
+        Assert::IsTrue (machine.GetTapeDeck().GetTransport() == TapeTransport::Recording);
+
+        KeystrokeInjector::InjectLine (machine, pszCommand, kAfterCommand);
+        machine.RunCycles (runCycles);
+
+        machine.GetTapeDeck().Stop (GetNow (machine));
+        Assert::IsTrue (machine.GetTapeDeck().HasPendingRecording());
+        machine.GetTapeDeck().TakeRecording (capture);
+        Assert::IsTrue (capture.toggleCycles.size() > 1000, L"the guest's WRITE toggled the output");
+
+        hr = TapeRecorder::Commit (io, kpszPath, capture, machine.GetConfig().clockSpeed, recorded, error);
+        Assert::AreEqual (S_OK, hr, ToWide (error).c_str());
+    }
+
+
+    static void MonitorRoundTrip (const char * pszModel)
+    {
+        constexpr uint64_t  kWriteCycles = 14'000'000ULL;
+        TestMachine         source (pszModel, TestMachine::Slots::Empty);
+        TestMachine         target (pszModel, TestMachine::Slots::Empty);
+        FakeDiskFileIo      io;
+        std::vector<Byte>   pattern;
+        TapeImage           recorded;
+
+
+
+        MakePattern (pattern);
+        Boot (source);
+        EnterMonitor (source);
+
+        for (size_t i = 0; i < pattern.size(); i++)
+        {
+            source.GetMemoryBus().WriteByte ((Word) (kLoadStart + i), pattern[i]);
+        }
+
+        RecordOnto (source, io, "800.8FFW", kWriteCycles, recorded);
+
+        Boot (target);
+        EnterMonitor (target);
+        target.GetTapeDeck().Insert (std::move (recorded));
+        KeystrokeInjector::InjectLine (target, "800.8FFR", kAfterCommand);
+        PlayToEnd (target);
+
+        CheckMemory (target, pattern, ToWide (pszModel).c_str());
+    }
+
+
+    TEST_METHOD (MonitorWriteThenReadRoundTripsOnTheIIPlus) { MonitorRoundTrip ("Apple2Plus"); }
+    TEST_METHOD (MonitorWriteThenReadRoundTripsOnTheIIe)    { MonitorRoundTrip ("Apple2e"); }
+
+
+    TEST_METHOD (ApplesoftSaveThenLoadRoundTripsOnTheIIPlus)
+    {
+        constexpr uint64_t  kSaveCycles = 26'000'000ULL;
+        TestMachine         source ("Apple2Plus", TestMachine::Slots::Empty);
+        TestMachine         target ("Apple2Plus", TestMachine::Slots::Empty);
+        FakeDiskFileIo      io;
+        TapeImage           recorded;
+        std::string         screen;
+
+
+
+        Boot (source);
+        KeystrokeInjector::InjectLine (source, "10 PRINT 54321", kAfterCommand);
+        KeystrokeInjector::InjectLine (source, "20 END",         kAfterCommand);
+        RecordOnto (source, io, "SAVE", kSaveCycles, recorded);
+
+        Boot (target);
+        target.GetTapeDeck().Insert (std::move (recorded));
+        KeystrokeInjector::InjectLine (target, "LOAD", kAfterCommand);
+        PlayToEnd (target);
+        KeystrokeInjector::InjectLine (target, "LIST", kAfterCommand);
+
+        screen = GetScreen (target);
+        Assert::IsTrue (screen.find ("ERR") == std::string::npos,              ToWide (screen).c_str());
+        Assert::IsTrue (screen.find ("10  PRINT 54321") != std::string::npos,  ToWide (screen).c_str());
     }
 };

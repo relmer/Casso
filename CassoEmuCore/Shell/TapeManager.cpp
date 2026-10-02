@@ -4,6 +4,7 @@
 #include "Config/IFileSystem.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Tape/TapeImageLoader.h"
+#include "Devices/Tape/TapeRecorder.h"
 #include "Devices/Tape/WavCodec.h"
 #include "Shell/TapeManager.h"
 #include "Ui/AutoMountResolver.h"
@@ -323,6 +324,7 @@ void TapeManager::OnMachineSwitched()
 
 void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCycle)
 {
+    HRESULT                   hr = S_OK;
     std::optional<TapeImage>  pending;
 
 
@@ -337,10 +339,28 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
             break;
         }
 
-        case TapeCommand::Eject:         deck.Eject  (nowCycle);         break;
+        case TapeCommand::Eject:
+            deck.Stop (nowCycle);
+            hr = CommitPendingRecording (deck);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            deck.Eject (nowCycle);
+            break;
+
         case TapeCommand::Play:          deck.Play   (nowCycle);         break;
-        case TapeCommand::Stop:          deck.Stop   (nowCycle);         break;
-        case TapeCommand::Rewind:        deck.Rewind (nowCycle);         break;
+
+        case TapeCommand::Stop:
+        case TapeCommand::Rewind:
+            deck.Stop (nowCycle);
+            hr = CommitPendingRecording (deck);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (command == TapeCommand::Rewind)
+            {
+                deck.Rewind (nowCycle);
+            }
+
+            break;
+
         case TapeCommand::ArmRecord:     deck.SetRecordArmed (true);     break;
         case TapeCommand::ReleaseRecord: deck.SetRecordArmed (false);    break;
     }
@@ -349,6 +369,48 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
     {
         deck.Insert (std::move (*pending));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitPendingRecording
+//
+//  Writes a stopped recording onto the tape and swaps the rewritten tape into
+//  the deck. Stop, rewind and eject commit at once; a reset, power cycle or
+//  machine switch stops the deck on its own, and the shell commits that on
+//  the next slice. A recording that cannot be written is reported and the
+//  deck keeps the tape it had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TapeManager::CommitPendingRecording (TapeDeck & deck)
+{
+    HRESULT             hr         = S_OK;
+    RecordingCapture    capture;
+    TapeImage           image;
+    std::string         error;
+    const TapeImage   * inserted   = deck.GetImage();
+    bool                hasPending = deck.HasPendingRecording() && inserted != nullptr;
+    std::string         path;
+
+
+
+    BAIL_OUT_IF (!hasPending, S_OK);
+
+    path = inserted->path;
+    deck.TakeRecording (capture);
+
+    hr = TapeRecorder::Commit (m_fileIo, path, capture, deck.GetCpuClock(), image, error);
+    CHRF (hr, Notify (L"Error: recording not saved\n" + std::filesystem::path (error).wstring()));
+
+    deck.ReplaceImage (std::move (image));
+
+Error:
+    return hr;
 }
 
 

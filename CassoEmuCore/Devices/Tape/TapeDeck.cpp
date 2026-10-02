@@ -42,9 +42,53 @@ void TapeDeck::Insert (TapeImage && image)
     m_cursor        = 0;
     m_cursorSample  = 0.0;
     m_isRecordArmed = false;
-    m_capturedToggles.clear();
+    m_capture             = RecordingCapture();
+    m_hasPendingRecording = false;
 
     PublishSnapshot();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::ReplaceImage
+//
+//  Swaps in the rewritten tape after a recording, leaving the transport and
+//  the position where they are, so the tape stands just past what was
+//  recorded, as it would on a real deck.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeck::ReplaceImage (TapeImage && image)
+{
+    m_image        = std::move (image);
+    m_hasImage     = true;
+    m_cursor       = 0;
+    m_cursorSample = 0.0;
+
+    PublishSnapshot();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::TakeRecording
+//
+//  Hands over the stopped recording for writing; the deck no longer holds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeck::TakeRecording (RecordingCapture & capture)
+{
+    capture               = std::move (m_capture);
+    m_capture             = RecordingCapture();
+    m_hasPendingRecording = false;
 }
 
 
@@ -71,7 +115,8 @@ void TapeDeck::Eject (uint64_t nowCycle)
     m_cursor        = 0;
     m_cursorSample  = 0.0;
     m_isRecordArmed = false;
-    m_capturedToggles.clear();
+    m_capture             = RecordingCapture();
+    m_hasPendingRecording = false;
 
     PublishSnapshot();
 }
@@ -101,9 +146,10 @@ void TapeDeck::Play (uint64_t nowCycle)
     if (m_isRecordArmed && m_image.isWritable)
     {
         m_transport         = TapeTransport::Recording;
-        m_recordStartSample = m_startSample;
-        m_recordStartCycle  = nowCycle;
-        m_capturedToggles.clear();
+        m_capture             = RecordingCapture();
+        m_capture.startSample = m_startSample;
+        m_capture.startCycle  = nowCycle;
+        m_hasPendingRecording = false;
     }
     else
     {
@@ -301,7 +347,7 @@ void TapeDeck::OnOutputToggle (uint64_t busCycle)
         return;
     }
 
-    m_capturedToggles.push_back (busCycle);
+    m_capture.toggleCycles.push_back (busCycle);
     m_lastAccessCycle = busCycle;
     m_hasBeenAccessed = true;
 }
@@ -411,6 +457,12 @@ void TapeDeck::Halt (uint64_t nowCycle)
     }
 
     m_startSample = GetSampleAtCycle (nowCycle);
+
+    if (m_transport == TapeTransport::Recording)
+    {
+        m_capture.endCycle    = nowCycle;
+        m_hasPendingRecording = true;
+    }
 
     if (m_transport == TapeTransport::Playing)
     {

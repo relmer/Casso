@@ -696,6 +696,7 @@ void EmulatorShell::InitAssetPathsAndStores()
                                                    m_tapeAudioDecoder,
                                                    [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
                                                    [this] () { return m_machine.GetCurrentMachineName(); });
+    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { PostNotice (text); });
 }
 
 

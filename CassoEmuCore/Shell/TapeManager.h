@@ -53,11 +53,17 @@ public:
     const std::string &  GetInsertedPath () const { return m_insertedPath; }
 
     void     Execute           (TapeCommand command, TapeDeck & deck, uint64_t nowCycle);
+    HRESULT  CommitPendingRecording (TapeDeck & deck);
+
+    //  Where a recording that could not be written is reported. Called on the
+    //  CPU thread, so the shell posts it on.
+    void     SetNotifyFn       (std::function<void (const std::wstring &)> notify) { m_notify = std::move (notify); }
 
     static constexpr uint32_t  kBlankSampleRate = 44100;
 
 private:
     HRESULT  SaveTapePath    (const std::string & path);
+    void     Notify          (const std::wstring & text) const { if (m_notify) { m_notify (text); } }
 
     IDiskFileIo        & m_fileIo;
     IFileSystem        & m_fileSystem;
@@ -66,6 +72,7 @@ private:
     PostFn               m_post;
     MachineNameFn        m_machineName;
     std::string          m_insertedPath;
+    std::function<void (const std::wstring &)>  m_notify;
 
     std::mutex                m_pendingLock;
     std::optional<TapeImage>  m_pending;

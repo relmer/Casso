@@ -233,24 +233,24 @@ identical memory; host time drops sharply with it on.
 
 ### Tests
 
-- [ ] T048 [P] [US3] Write `UnitTest/EmuTests/TapeRecorderTests.cpp`:
+- [X] T048 [P] [US3] Write `UnitTest/EmuTests/TapeRecorderTests.cpp`:
   - toggles map to the expected sample edges at the tape's rate, as a square wave at 80% full scale
   - a splice at mid-tape leaves earlier samples untouched and extends past the end
   - the commit writes through `FakeDiskFileIo::ReplaceAtomically` and re-decodes the transitions
   - record is unavailable for MP3, AIFF and read-only tapes
   - a toggle with record not armed is discarded
-- [ ] T049 [US3] Add the SC-002 round trips to `UnitTest/EmuTests/TapeRomLoadTests.cpp`:
+- [X] T049 [US3] Add the SC-002 round trips to `UnitTest/EmuTests/TapeRomLoadTests.cpp`:
   - Monitor `800.8FFW` onto a blank tape on Apple2Plus and Apple2e, then reinsert into a fresh machine, `800.8FFR`, and compare
   - Applesoft `SAVE`/`LOAD` on Apple2Plus
 
 ### Implementation
 
-- [ ] T050 [US3] Implement `RecordingCapture` and `TapeRecorder` (render, re-read the WAV through `IDiskFileIo`, splice, write it back, re-decode, drop the PCM) in `CassoEmuCore/Devices/Tape/TapeRecorder.{h,cpp}`. Hook the capture into `TapeDeck::OnOutputToggle` while recording. Commit on stop and on eject. Until T048 passes
-- [ ] T051 [US3] Implement new blank tape in `TapeManager`:
-  - `IHostDialogs::PickFileToSave` with the default folder `Documents\Casso Tapes`, remembering the last folder
+- [X] T050 [US3] Implement `RecordingCapture` and `TapeRecorder` (render, re-read the WAV through `IDiskFileIo`, splice, write it back, re-decode, drop the PCM) in `CassoEmuCore/Devices/Tape/TapeRecorder.{h,cpp}`. Hook the capture into `TapeDeck::OnOutputToggle` while recording. Commit on stop and on eject. Until T048 passes
+- [X] T051 [US3] Implement new blank tape in `TapeManager`:
+  - `IHostDialogs::PickFileToSave` (the dialog's own default folder; a remembered tape folder is left for later)
   - write a zero-length 44.1 kHz 16-bit mono WAV atomically, then insert it
   - every backing-out path leaves the deck unchanged
-- [ ] T052 [US3] Wire record arming in the widget and menu, with the protected badge per contracts/tape-deck-ui.md; until T049 passes
+- [X] T052 [US3] Wire record arming in the widget and menu, with the protected badge per contracts/tape-deck-ui.md; until T049 passes
 - [ ] T053 [US3] Manual check per quickstart.md step 4, including opening a Casso-written WAV in another Apple II tape tool (SC-002 scenario 2)
 
 ---
