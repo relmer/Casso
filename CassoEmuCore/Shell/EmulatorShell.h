@@ -1697,7 +1697,6 @@ private:
     // The write-protect tooltip belongs to the strip now that the padlock
     // does -- see SyncSceneDriveLabels.
     std::array<RECT, 2>       m_sceneDriveLabelRect = {};
-    std::array<bool, 2>       m_sceneDriveLabelCut  = {};   // shortened to fit, so hovering shows it whole
 
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no

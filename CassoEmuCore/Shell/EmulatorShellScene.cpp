@@ -1025,7 +1025,6 @@ void EmulatorShell::SyncSceneDriveLabels()
     {
         std::wstring &  name = names[i];
         RECT            rc   = {};
-        bool            cut  = false;
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
@@ -1067,8 +1066,7 @@ void EmulatorShell::SyncSceneDriveLabels()
             {
                 // The same DIP-to-pixel the widget itself paints at, so the
                 // width this truncates to is the width it renders.
-                float         px   = fontDip * (float) m_scaler.GetDpi() / 96.0f;
-                std::wstring  full = name;
+                float  px = fontDip * (float) m_scaler.GetDpi() / 96.0f;
 
                 name = DxuiTextElide::ToWidth (*text,
                                                name,
@@ -1076,8 +1074,6 @@ void EmulatorShell::SyncSceneDriveLabels()
                                                DxuiTheme::kBodyFace,
                                                (float) (rc.right - rc.left),
                                                DxuiElide::Tail);
-
-                cut = name != full;
             }
         }
 
@@ -1092,7 +1088,6 @@ void EmulatorShell::SyncSceneDriveLabels()
         // tooltip, and the quad covers exactly these pixels, so the hover
         // target lands on the name whichever way the name was drawn.
         m_sceneDriveLabelRect[i] = name.empty() ? RECT{} : rc;
-        m_sceneDriveLabelCut[i]  = cut;
     }
 
     if (inScene)

@@ -512,16 +512,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                                  m_driveWidgetState[i].writeProtect);
                     break;
                 }
-
-                // A name shortened to fit shows whole under the pointer, the
-                // way the flat widget scrolls it.
-                if (m_sceneDriveLabelRect[i].right > m_sceneDriveLabelRect[i].left &&
-                    PtInRect (&m_sceneDriveLabelRect[i], lp) && m_sceneDriveLabelCut[i])
-                {
-                    anchor = m_sceneDriveLabelRect[i];
-                    tip    = std::filesystem::path (m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring();
-                    break;
-                }
             }
         }
 
