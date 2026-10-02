@@ -28,6 +28,21 @@ Operations:
 - `GetBytes()` and `GetTotalTicks()` give read-only access for Serialize and
   for the future disk inspector (FR-010).
 
+## FluxBitView (new class, `CassoEmuCore/Devices/Disk/FluxBitView.h/.cpp`)
+
+A decode of one flux track into bits at the controller's cell, used only by
+sector-level work (R11).
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `m_bits` | `vector<Byte>` | Packed bits, MSB first, the same layout as `DiskImage` bit tracks |
+| `m_bitCount` | `size_t` | Number of decoded bits |
+| `m_bitStartTick` | `vector<uint64_t>` | The tick at which each bit starts |
+
+Each transition decodes as `round (gap / cell) - 1` zero bits, then a 1.
+Long gaps decode as zeros, never as random bits. `GetTickForBit (index)` gives
+the splice point for a sector write.
+
 ## DiskImage (extended)
 
 | Addition | Type | Meaning |
@@ -40,7 +55,14 @@ Operations:
 pass it and get it back.
 
 `DamagedTrack` is a plain struct with no methods, nested in `DiskImage`:
-`{ int trkIndex; bool isFlux; DamageReason reason; }`. The quarter tracks
+`{ int trkIndex; bool isFlux; DamageReason reason; }`. `DamageReason` is a
+free enum in `DiskImage.h` with these values:
+
+- `OutsideFile`: the track's blocks lie outside the file.
+- `CountExceedsBlocks`: the bit or byte count needs more than block count ×
+  512 bytes.
+- `TruncatedRun`: the flux data ends in 255.
+- `V1RecordPastTrks`: a WOZ 1 track record lies past the end of TRKS. The quarter tracks
 affected are found through the map.
 
 Slot identity: a slot number is the TRKS index, as today. TMAP and FLUX both

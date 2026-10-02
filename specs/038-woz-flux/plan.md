@@ -18,6 +18,9 @@ tracks read as unformatted and the boot hangs (GH #159). The plan:
   back in as flux at the controller's own cell timing.
 - **Saving:** Serialize rebuilds FLUX and the INFO flux fields, and copies
   unwritten flux tracks verbatim.
+- **Sector-level tools** (the `disk` command, Casso Explorer, salvage) read
+  flux tracks through a bit decode at the controller's cell. A sector write
+  splices only that sector's data field into the flux.
 - **Damaged tracks, flux or bit:** the disk mounts read-only and enters the
   existing 1.17.0 damaged-disk path (report on insert, salvage) instead of
   refusing the mount.
@@ -71,7 +74,7 @@ empty.
 specs/038-woz-flux/
 ├── spec.md
 ├── plan.md               # this file
-├── research.md           # R1-R11 decisions
+├── research.md           # R1-R12 decisions
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
@@ -86,17 +89,22 @@ specs/038-woz-flux/
 CassoEmuCore/
 ├── Devices/Disk/
 │   ├── FluxTrack.h / .cpp              # NEW: raw flux, cursor, splice
+│   ├── FluxBitView.h / .cpp            # NEW: flux decoded to bits for sector work
+│   ├── DamagedMountReport.h / .cpp     # NEW: damaged-mount report text
 │   ├── DiskImage.h / .cpp              # slot kind, flux tracks, damaged-track list
-│   └── DiskImageStore.cpp              # salvage offered for damaged tracks
+│   └── DiskImageStore.cpp              # salvage offered for damaged tracks; flush commits an open burst
 ├── Machines/Apple2/Common/
 │   ├── Disk2NibbleEngine.h / .cpp      # cached slot, flux time base, weak bits, write burst
+│   ├── NibblizationLayer.h / .cpp      # reads from a track source; flux sector writes splice
 │   ├── WozLoader.h / .cpp              # FLUX read, damaged-track tolerance, Serialize FLUX/INFO
 │   └── WozMetadata.h                   # FLUX no longer pass-through
 └── Shell/
     └── EmulatorShellDisks.cpp          # report lists damaged tracks (text from core formatter)
 
 UnitTest/EmuTests/
+├── FluxTestImages.h / .cpp             # NEW: bits-to-flux converter (also compiled into ScenarioTests)
 ├── FluxTrackTests.cpp                  # NEW
+├── FluxSectorAccessTests.cpp           # NEW: FluxBitView, sector read/write, salvage on flux
 ├── Disk2NibbleEngineFluxTests.cpp      # NEW: timing, angle, weak bits, writes
 ├── WozLoaderTests.cpp                  # FLUX parse, precedence, save round trip
 ├── DamagedDiskMountTests.cpp           # NEW: damaged tracks, map refusals, report text
@@ -122,10 +130,13 @@ file pair is `FluxTrack`.
    steps 1-3.
 5. **Writes**: the burst buffer, `SpliceWrite`, and dirty marking.
 6. **Serialize**: the FLUX chunk, INFO fields and verbatim flux bytes, plus the
-   round-trip tests (SC-003, US2).
-7. **Damaged tracks**: loader tolerance, the `DiskImage` list, read-only,
-   salvage offer and report formatter (US3, SC-006).
-8. **Scenario test and microbenchmark.** Then the pre-merge gate in
+   round-trip tests (SC-003, US2). Flush commits an open write burst first.
+7. **Sector-level access**: `FluxBitView`, flux-aware decoding, and data-field
+   splicing for sector writes (FR-013).
+8. **Damaged tracks**: loader tolerance, the `DiskImage` list, read-only,
+   salvage offer (reading flux through step 7) and report formatter (US3,
+   SC-006).
+9. **Scenario test and microbenchmark.** Then the pre-merge gate in
    quickstart §5.
 
 ## Risks

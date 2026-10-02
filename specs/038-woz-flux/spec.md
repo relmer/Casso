@@ -39,7 +39,8 @@ so flux tracks have to be played back by time.
 Applies to every machine with a Disk II controller (Apple ][, ][+, //e and
 //c) and to 5.25" WOZ 2.1 images. 3.5" flux tracks are out of scope. Mounting
 images with damaged tracks (User Story 3) also covers bit tracks in WOZ 1 and
-WOZ 2 images.
+WOZ 2 images. Flux support extends to the sector-level tools (the `disk`
+command, Casso Explorer and salvage), not only the drive.
 
 A disk inspector that draws flux timing (in Casso Explorer and in Casso,
 modeled on AppleEm's Disk Inspector) is a separate future spec. This spec only
@@ -68,6 +69,12 @@ has to leave the flux timing available for it.
   → A: 31.29 ticks, the controller's own cell of 4 CPU cycles, not the
   format's nominal 32 ticks (4 µs). This is the timing an emulated Disk II
   produces, so a stretch Casso wrote reads back exactly.
+- Q: What do the sector-level tools (the `disk` command, Casso Explorer,
+  salvage) do with a flux disk? → A: They read and write it. A flux track is
+  decoded to bits at the controller's timing to find its sectors. A sector
+  write replaces only that sector's data field, spliced into the flux at the
+  same 31.29-tick cell the drive writes; the rest of the track keeps its
+  recorded timing.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -176,6 +183,8 @@ short FLUX chunk is refused.
   re-encoded.
 - Quarter tracks a flux half track bleeds into: the drive picks up the nearest
   mapped track the same way it does for bit tracks.
+- A disk is flushed while the drive is in the middle of a write to a flux
+  track: the write so far is spliced in before the image is saved.
 - Bit-only WOZ, NIB, DSK, DO and PO images behave exactly as before.
 
 ## Requirements *(mandatory)*
@@ -207,9 +216,6 @@ short FLUX chunk is refused.
   the damaged tracks. A FLUX chunk shorter than 160 bytes MUST refuse the
   mount with a malformed-WOZ diagnosis. Damage MUST never appear as a silent
   unformatted track.
-- **FR-012**: Salvage MUST work on a disk with damaged tracks as it does on a
-  checksum-damaged disk, and MUST say that the salvaged copy does not keep
-  flux timing or copy protection when the source has flux tracks.
 - **FR-009**: Bit-track playback and every non-flux image format MUST behave
   exactly as before.
 - **FR-010**: The recorded flux timing of each track MUST remain available to
@@ -217,12 +223,21 @@ short FLUX chunk is refused.
   re-reading the file.
 - **FR-011**: Playing flux tracks MUST NOT measurably slow emulation compared
   with playing bit tracks.
+- **FR-012**: Salvage MUST work on a disk with damaged tracks as it does on a
+  checksum-damaged disk, MUST read sectors on flux tracks, and MUST say that
+  the salvaged copy does not keep flux timing or copy protection when the
+  source has flux tracks.
+- **FR-013**: Sector-level tools (the `disk` command, Casso Explorer, and
+  anything else that reads or writes sectors rather than playing the drive)
+  MUST read sectors on flux tracks, and MUST write a sector to a flux track by
+  replacing only its data field at the controller's cell timing, leaving the
+  rest of the track's flux unchanged.
 
 ### Key Entities
 
 - **Flux track**: one revolution of a quarter track as a sequence of times
-  between flux transitions, in 125 ns ticks, plus the record of which
-  stretches the drive has rewritten.
+  between flux transitions, in 125 ns ticks. A write is spliced into the
+  sequence when it ends, so no separate record of written stretches is kept.
 - **FLUX map**: 160 entries mapping quarter tracks to flux tracks in TRKS,
   laid out like TMAP.
 - **Track slot**: what the head reads at a quarter track; either a bit track

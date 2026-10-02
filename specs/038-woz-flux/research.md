@@ -102,6 +102,13 @@ end of the revolution wraps. The track is marked dirty.
 because that is the timing a real Disk II writes at. A track written and read
 back in Casso then reads exactly as written.
 
+**Flush mid-burst**: `DiskImageStore` flushes on its own path, so it cannot
+end a burst the engine is holding. Before serializing, the flush asks the
+engine to commit any open burst through the controller, on the emulation
+thread, using the same request route the flush already takes to reach the
+drive. A test flushes in the middle of a burst and checks that the partial
+write is saved.
+
 **Rationale**: FR-006 and US2. Re-encoding once per burst, about one sector,
 costs a single 38 KB pass, so no per-bit splicing is needed. Reads never happen
 during a burst, so there is nothing to overlay.
@@ -179,14 +186,60 @@ path, not a new path.
 `ResolveQuarterTrack` on every one of the 410,000 clocks a revolution takes.
 Dispatch once per clock on a cached `bool m_isFluxSlot`. Measure with a new
 `Disk2NibbleEngine` microbenchmark that ticks a bit track and a flux track for
-the same number of cycles, Release only, pinned to one CCD (memory note
-`reference-pin-perf-runs-to-one-ccd`). SC-005's 2% budget is checked at
-maximum speed on the real machine.
+the same number of cycles, Release only. In the unit suite it prints both
+times and asserts only a loose sanity bound (flux ≤ 1.5 × bit), because a 2%
+timing assertion is flaky on CI runners and unpinned machines. SC-005's 2%
+budget is checked by hand, pinned to one CCD (memory note
+`reference-pin-perf-runs-to-one-ccd`), at maximum speed on the real machine.
 
 **Rationale**: FR-011 and SC-005. Caching removes more cost than the flux
 branch adds, so the bit path should get slightly faster, not slower.
 
-## R11. Test images without *Bandits*
+## R11. Sector-level access to flux tracks (salvage, `disk` command, Explorer)
+
+**Decision**: Add a `FluxBitView`, a decode of one flux track into bits at the
+controller's cell (1408/45 ticks), plus a parallel array giving the tick at
+which each bit starts. Each transition becomes
+`round (gap / cell) - 1` zero bits followed by a 1. The gap is measured from
+the previous transition, so the cell grid follows the track's own drift, the
+way a data separator does. Gaps longer than the weak-bit window decode as
+zeros, never as random bits, so a sector read is deterministic. This view is
+used only for sector work. Playback never uses it (R1-R2).
+
+`NibblizationLayer`'s reads (`ReadNibbleAt`, `DecodeTracks`, `Denibblize`,
+`SalvageSectors`) take their bits from a track source. On a bit slot that is
+`DiskImage`'s packed bits, as today. On a flux slot it is a `FluxBitView`
+built for the call. Nothing else in the decoder changes, so bit-track results
+are unchanged.
+
+**Sector writes** split by track kind:
+- **Bit tracks** keep `RenibblizeTracks` exactly as it is, regenerating each
+  touched track (FR-009).
+- **Flux tracks** never regenerate. For each changed sector, the writer finds
+  that sector's data field in the `FluxBitView`, encodes the new data field
+  (prolog, 6-and-2 data, checksum, epilog) with the same helper
+  `AppendDataField` uses, and calls `FluxTrack::SpliceWrite` at the field's
+  start tick. That is the same splice and the same 31.29-tick cell the drive
+  write uses (R6). The address fields, the gaps and every other sector keep
+  their recorded flux.
+
+A sector whose data field cannot be found on a flux track fails the write with
+the existing "sector not found" error, rather than regenerating the track.
+
+**Rationale**: FR-012 and FR-013. Without this, salvage would zero every flux
+track, and the sector tools would see flux disks as blank (analysis findings
+C1 and C2). Splicing only the data field keeps a protected flux track as
+intact as a sector write can.
+
+**Alternatives considered**: Regenerating the touched flux track as fresh
+standard flux, which mirrors the bit path, throws away the timing on 15 sectors
+the write never touched. Refusing writes leaves a feature half done.
+
+**Note**: The bit path still regenerates whole tracks on a sector write, which
+is coarser than the flux path. Changing that is out of scope here. It is worth
+a follow-up, since the same data-field splice would work on bits.
+
+## R12. Test images without *Bandits*
 
 **Decision**: Build synthetic flux WOZ images in the tests. `WozLoader` gets a
 `BuildSyntheticV21` helper next to `BuildSyntheticV2`, and a test-side converter
