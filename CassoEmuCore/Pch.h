@@ -105,6 +105,7 @@
 #include <printpreview.h>
 #include <DispatcherQueue.h>
 #include <bcrypt.h>
+#include <compressapi.h>
 
 //
 //  Game controllers. These come last in this block deliberately: dinput.h

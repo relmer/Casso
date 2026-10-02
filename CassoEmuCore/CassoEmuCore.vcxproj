@@ -212,6 +212,8 @@
     <ClCompile Include="Debugger\Reverse\InputJournal.cpp" />
     <ClCompile Include="Debugger\TraceController.cpp" />
     <ClCompile Include="Debugger\TraceLookahead.cpp" />
+    <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
+    <ClCompile Include="Debugger\Reverse\SnapshotCompressor.cpp" />
     <ClCompile Include="Debugger\Handlers\TraceHandlers.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\TracePane.cpp" />
     <ClCompile Include="Debugger\SymbolTable.cpp" />
@@ -634,6 +636,8 @@
     <ClInclude Include="Debugger\Reverse\InputJournal.h" />
     <ClInclude Include="Debugger\TraceController.h" />
     <ClInclude Include="Debugger\TraceLookahead.h" />
+    <ClInclude Include="Debugger\Reverse\KeyframeStore.h" />
+    <ClInclude Include="Debugger\Reverse\SnapshotCompressor.h" />
     <ClInclude Include="Debugger\Handlers\TraceHandlers.h" />
     <ClInclude Include="Ui\Debugger\Panes\TracePane.h" />
     <ClInclude Include="Debugger\SymbolTable.h" />

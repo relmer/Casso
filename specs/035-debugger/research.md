@@ -1676,3 +1676,18 @@ documented failure. Its budget (about 50 MB for 60 s) is far above Mesen's
    Mesen users asked for that indicator after the fact.
 6. Consider step back by frame and by scanline as cheap extra commands, as in
    Mesen 2; both are keyframe-relative predicates.
+
+**Keyframe store (2026-10-02).** `Debugger/Reverse/KeyframeStore` keeps
+snapshots in groups: the first of a group whole, the next `wholeEvery - 1`
+(default 29) as XOR differences against it, all packed with the Windows
+Compression API's XPRESS (`cabinet.dll`, part of Windows; no third-party
+code). The newest whole snapshot is also held unpacked. Disk media needs no
+separate track delta: an untouched track XORs to zeros and packs to almost
+nothing. Each keyframe stores a 64-bit checksum of its whole state blob (CPU,
+RAM, devices, disk media), and `DoesStateMatch` and `TruncateAfter` are what
+the replay check needs. Over budget, the oldest group goes whole. Measured on
+a //e with a disk mounted, Release x64, unpinned, one keyframe per frame for
+120 frames: the state is 421,931 bytes, a capture (save, checksum, XOR, pack)
+takes about 350 us, and 120 keyframes hold 1.38 MB, about 8 KB each beside
+the unpacked whole. At the default of one keyframe per 10 frames that is
+about 2 ms per emulated second.

@@ -797,6 +797,7 @@
     <ClCompile Include="EmuTests\FixtureRomSource.cpp" />
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostStateTests.cpp" />
+    <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
     <ClCompile Include="EmuTests\AppleKeyMappingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
