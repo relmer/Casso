@@ -106,6 +106,8 @@ HRESULT DxuiDragOverlay::Show (HWND owner, const RECT & screenRect, const std::v
         CHRA (hr);
     }
 
+    CBRA (m_hwnd != nullptr);
+
     bmi.bmiHeader.biSize        = sizeof (bmi.bmiHeader);
     bmi.bmiHeader.biWidth       = width;
     bmi.bmiHeader.biHeight      = -height;
