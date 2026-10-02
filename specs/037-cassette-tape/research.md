@@ -265,9 +265,9 @@ expect most widely.
 
 **3D desk scene**: Apple never sold a tape drive. The manuals called for any
 portable cassette recorder, and the Panasonic RQ-309DS was the one Apple
-recommended by name. The desk scene therefore gets a generic, unbranded
-portable recorder:
-- a new `CassetteRecorder` `DeskDeviceKind`
+recommended by name. The desk scene therefore gets an accurate model of the
+Panasonic RQ-309DS, built from reference photos and measurements:
+- a new `CassetteRecorder` `DeskDeviceKind` (the RQ-309DS)
 - a hand-authored `Resources\Models\CassetteRecorder\CassetteRecorder.mesh`,
   like the Disk II and ImageWriter meshes
 - a desk placement in `DeskSceneLayout`
@@ -316,8 +316,9 @@ real builder. `Slots::Empty` boots to the BASIC prompt. `KeystrokeInjector`,
 - **c2t as the reference**: c2t (Egan Ford, BSD-3-Clause,
   https://github.com/datajerk/c2t) is the standard tool for making Apple II
   tape audio. `TapeTestEncoder` is this project's own implementation, written
-  with c2t's source as the reference for leader, sync and bit timing. Its
-  banner credits c2t; as test code it needs no dependency entry. No c2t binary
+  with c2t's source as the reference for leader, sync and bit timing. No c2t
+  code is copied: it would not meet this project's style or EHM rules, so the
+  encoder is written fresh. Its banner credits c2t; as test code it needs no dependency entry. No c2t binary
   is built or run. Interoperability with other tools (SC-002 scenario 2) is a
   manual check of a Casso-written WAV.
 - **Real-ROM load tests** (the SC-001 matrix):

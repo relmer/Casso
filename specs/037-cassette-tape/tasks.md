@@ -62,7 +62,7 @@ story's tests depend on.
   - parameters: sample rate, bit depth, leader seconds, speed factor, DC offset, gain ramp, seeded noise SNR, polarity, channels
   - outputs a WAV byte buffer through `WavCodec`
   - Test code only; it is never linked into `CassoEmuCore`
-  - This project's own implementation, written with c2t's source (Egan Ford, BSD-3-Clause, https://github.com/datajerk/c2t) as the reference for leader, sync and bit timing; credit c2t in the file banner. Never build or run c2t itself
+  - This project's own implementation, written with c2t's source (Egan Ford, BSD-3-Clause, https://github.com/datajerk/c2t) as the reference for leader, sync and bit timing only. Copy no c2t code; write it fresh to the project's style and EHM rules. Credit c2t in the file banner. Never build or run c2t itself
 - [ ] T007 [P] Implement `WavCodec` (read and 16-bit mono write over `std::vector<Byte>`) in `CassoEmuCore/Devices/Tape/WavCodec.{h,cpp}`, until T003 passes
 - [ ] T008 [P] Implement `AiffCodec` (read) in `CassoEmuCore/Devices/Tape/AiffCodec.{h,cpp}`, until T004 passes
 - [ ] T009 [P] Implement `TapeSignalDecoder` in `CassoEmuCore/Devices/Tape/TapeSignalDecoder.{h,cpp}` until T005 passes:
@@ -182,7 +182,7 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
   - a `CassetteRecorder` device is present on the ][/][+/e and absent on the //c
   - hit regions for the record, play, rewind and stop/eject keys, the cassette door and the counter map to the same commands as the flat widget
   - the flat widget is hidden while the 3D scene is active
-- [ ] T035 [US4] Author `Resources/Models/CassetteRecorder/CassetteRecorder.mesh`: a generic, unbranded early-1980s portable cassette recorder (Apple never sold one; the manuals called for any portable recorder). Give it a row of piano keys, a cassette door with a window, a tape counter and a handle. Sub-meshes are identified by material color, as in `DiskII.mesh`. Judge the result by its overall look on a screenshot, and redesign wrong forms rather than tuning constants
+- [ ] T035 [US4] Author `Resources/Models/CassetteRecorder/CassetteRecorder.mesh` as an accurate model of the Panasonic RQ-309DS, the recorder Apple recommended by name. First collect reference photos (front, top, sides, back) and its published dimensions, and record the sources in `Resources/Models/CassetteRecorder/README.md`. Model it from those, never from memory: the case proportions, the piano-key row with each key's legend and color, the cassette door and window, the tape counter, the speaker grille, the jacks, the controls and the handle, plus its markings and finish. Sub-meshes are identified by material color, as in `DiskII.mesh`. Judge the result by its overall look on a screenshot, and redesign wrong forms rather than tuning constants
 - [ ] T036 [US4] Add the `CassetteRecorder` `DeskDeviceKind` with its placement, key-press animation and door, and wire it to `TapeDeckState`, in `CassoEmuCore/Ui/Scene/DeskSceneModel.{h,cpp}`, `DeskSceneLayout.{h,cpp}`, `DeskSceneHitTester.{h,cpp}` and `DeskScene.cpp`. Route its hits through the same `TapeManager` commands as the flat widget. Hide the flat widget in that theme. Until T034 passes
 - [ ] T037 [US4] Launch Casso (background, `--title 037-cassette-tape`) and screenshot the deck empty, loaded, playing and stopped, in both the flat theme and the 3D desk scene, and on the //c (absent). Validate visually before handoff
 

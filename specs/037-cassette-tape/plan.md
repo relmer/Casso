@@ -56,7 +56,7 @@ synthesized from the transitions.
 | IV. Performance | Pass: decode once at insert; cursor walk per access |
 | V. Simplicity | Pass: reuses Maximum, `IDriveAudioSource`, `DiskMru`, `AutoMountResolver`; no new dependency |
 | VI. Thin exe | Pass: nothing goes in `Casso`; everything is in `CassoEmuCore` |
-| Security (no external binaries) | Pass: the test encoder is this project's own code, written with c2t (BSD-3-Clause) as the reference; no c2t binary is built or run |
+| Security (no external binaries) | Pass: the test encoder is this project's own code, written with c2t (BSD-3-Clause) as the reference; no c2t code is copied and no c2t binary is built or run |
 
 Post-design re-check: unchanged, no violations, so Complexity Tracking stays
 empty.
@@ -116,7 +116,7 @@ UnitTest/
 ├── EmuTests/TapeTurboGovernorTests.cpp, TapeDeckTests.cpp, TapeRecorderTests.cpp
 └── UiTests/TapeDeckWidgetTests.cpp, TapeAutoMountTests.cpp, DeskSceneRecorderTests.cpp
 
-Resources/Models/CassetteRecorder/CassetteRecorder.mesh   generic portable recorder
+Resources/Models/CassetteRecorder/CassetteRecorder.mesh   Panasonic RQ-309DS
 ```
 
 **Structure Decision**: the tape model gets its own `Devices/Tape` folder,

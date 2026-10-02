@@ -262,7 +262,8 @@ on the //c.
 
 ## Testing Approach
 
-- Generate `.wav` files from known binaries with Egan Ford's c2t; load them
+- Generate `.wav` files from known binaries with a test encoder written
+  using Egan Ford's c2t as the reference (no c2t code copied); load them
   through the real ROM (Monitor `addr.addrR` and Applesoft `LOAD`) and verify
   memory byte-for-byte.
 - Record-then-playback round trip.
