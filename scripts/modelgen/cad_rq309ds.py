@@ -84,7 +84,7 @@ def on_slope(solid, y_front):
 
 
 def perforation(x0, x1, y0, y1, z, pitch=2.0, dot=0.8):
-    """The grille's holes as dark dots: thousands of real holes would cost
+    """The grille's holes as dark round dots: thousands of real holes would cost
     a quarter of a million triangles for a texture the eye reads as gray."""
     tris = []
     row = 0
@@ -92,9 +92,12 @@ def perforation(x0, x1, y0, y1, z, pitch=2.0, dot=0.8):
     while y < y1 - dot:
         x = x0 + pitch / 2 + (pitch / 2 if row % 2 else 0.0)
         while x < x1 - dot:
-            a, b = (x, y, z), (x + dot, y, z)
-            c, d = (x + dot, y + dot, z), (x, y + dot, z)
-            tris += [(a, b, c), (a, c, d)]
+            # An octagon reads as round at any distance the scene is viewed
+            # from, at six triangles a hole rather than the square's two.
+            cx, cy, r = x + dot / 2, y + dot / 2, dot / 2
+            ring = [(cx + r * math.cos(math.pi * k / 4), cy + r * math.sin(math.pi * k / 4), z)
+                    for k in range(8)]
+            tris += [(ring[0], ring[k], ring[k + 1]) for k in range(1, 7)]
             x += pitch
         y += pitch * 0.866
         row += 1
@@ -173,31 +176,34 @@ def build():
     # hinged at the back, just under the edge of the legend plate, and
     # cantilevers forward over the slope.
     #
-    # The dish is cut by a CAPSULE -- a cylinder along the key with a sphere
-    # at each end -- sunk until it breaks the top face. Where it breaks through
-    # it leaves a stadium (a rounded rectangle closed by a semicircle at each
-    # end), and below that the hollow curves down smoothly in both directions:
-    # across the key along the cylinder, along it into the spherical ends.
+    # The recess is a stadium -- a rounded rectangle closed by a semicircle at
+    # each end -- cut STRAIGHT DOWN into the key, flat at the bottom. Both of
+    # its edges are rounded over a little: where the wall meets the key face,
+    # and where it meets the floor.
     kw = pitch - 2.0
     ky0, ky1 = 6.0, SLOPE_Y + 1.0
     kl = ky1 - ky0
     ktop = top + 0.6
     KEY_T = 5.0
-    DISH_W, DISH_D = kw * 0.62, 1.6
-    dish_r = (DISH_W * DISH_W / 4.0 + DISH_D * DISH_D) / (2.0 * DISH_D)
-    dish_l = kl * 0.72 - DISH_W            # the straight run between the ends
+    RECESS_D = 2.0
+    RIM_R, FLOOR_R = 0.5, 0.6
+    rw = kw * 0.31                          # the half width of the stadium
+    rl = kl * 0.72                          # its overall length
     for i in range(6):
         kx = kx0 + i * pitch + 1.0
+        cx, cy = kx + kw / 2, ky0 + kl / 2
         key = (box(kx, kx + kw, ky0, ky1, ktop - KEY_T, ktop)
                .edges("|Z").fillet(2.0)
                .faces(">Z").edges().fillet(0.8))
+        tool = (cq.Workplane("XY").workplane(offset=ktop - RECESS_D)
+                .center(cx, cy).slot2D(rl, 2.0 * rw, 90).extrude(RECESS_D + 1.0)
+                .faces("<Z").edges().fillet(FLOOR_R))
+        key = key.cut(tool)
+        rim = cq.selectors.BoxSelector((cx - rw - 0.1, cy - rl / 2 - 0.1, ktop - 0.01),
+                                       (cx + rw + 0.1, cy + rl / 2 + 0.1, ktop + 0.01))
+        key = key.edges(rim).fillet(RIM_R)
         hinge = box(kx + 2.0, kx + kw - 2.0, ky1 - 4.0, ky1 - 0.5, top - 6.0, ktop - KEY_T + 0.5)
-        cx, cy, cz = kx + kw / 2, ky0 + kl / 2, ktop - DISH_D + dish_r
-        y0 = cy - dish_l / 2
-        capsule = (cq.Workplane(obj=cq.Solid.makeCylinder(dish_r, dish_l, cq.Vector(cx, y0, cz), cq.Vector(0, 1, 0)))
-                   .union(cq.Workplane(obj=cq.Solid.makeSphere(dish_r, cq.Vector(cx, y0, cz))))
-                   .union(cq.Workplane(obj=cq.Solid.makeSphere(dish_r, cq.Vector(cx, y0 + dish_l, cz)))))
-        m.add(f"keys_{i}", key.cut(capsule).union(hinge), KEY, angular=0.12)
+        m.add(f"keys_{i}", key.union(hinge), KEY, angular=0.25)
     # Chrome handle: a flat band wrapped round the front end and a little way
     # down each side.
     hz0, hz1 = 10.0, 24.0
