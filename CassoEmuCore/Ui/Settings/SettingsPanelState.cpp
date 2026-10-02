@@ -686,6 +686,21 @@ void SettingsPanelState::SetFloppySound (bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetFastTapeLoading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetFastTapeLoading (bool enabled)
+{
+    m_current.prefs.fastTapeLoading = enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMechanism
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1046,6 +1061,7 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplyColorMode   (m_current.prefs.colorMode);
     sink.ApplyFloppySound (m_current.prefs.floppySoundEnabled);
     sink.ApplyMechanism   (m_current.prefs.floppyMechanism);
+    sink.ApplyFastTapeLoading (m_current.prefs.fastTapeLoading);
     sink.ApplyDriveVolumes (m_current.prefs.driveMotorVolume,
                             m_current.prefs.driveHeadVolume,
                             m_current.prefs.driveDoorVolume);
@@ -1150,6 +1166,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs.floppySoundEnabled = TryGetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
+    outPrefs.fastTapeLoading    = TryGetBoolOpt   (*uiObj, "fastTapeLoading",     true);
 
     outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);
     outPrefs.mouseConnected         = TryGetBoolOpt (*uiObj, "mouseConnected", true);
@@ -1981,6 +1998,7 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
+    uiObj.emplace_back ("fastTapeLoading",    JsonValue (prefs.fastTapeLoading));
     // The legacy boolean is written ONLY when the machine has no disk port to
     // hold the answer. Where a port exists it is authoritative, and writing
     // both would put two answers to one question back on disk -- exactly what
@@ -2102,6 +2120,7 @@ bool SettingsPanelState::ArePrefsEqual (
         && a.writeMode              == b.writeMode
         && a.floppySoundEnabled     == b.floppySoundEnabled
         && a.floppyMechanism        == b.floppyMechanism
+        && a.fastTapeLoading        == b.fastTapeLoading
         && a.externalDriveConnected == b.externalDriveConnected
         && a.mouseConnected         == b.mouseConnected
         && a.driveMotorVolume       == b.driveMotorVolume

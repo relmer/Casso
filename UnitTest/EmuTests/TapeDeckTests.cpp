@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Audio/TapeAudioSource.h"
 #include "Devices/Tape/TapeDeck.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -294,5 +295,33 @@ public:
         Assert::AreEqual (kLength, snapshot.lengthSamples);
         Assert::AreEqual (kRate, snapshot.sampleRate);
         Assert::IsTrue   (snapshot.isWritable);
+    }
+
+    TEST_METHOD (TapeSoundFollowsTheLevelOnlyWhilePlaying)
+    {
+        TapeDeck         deck;
+        TapeAudioSource  source;
+        uint64_t         now     = 0;
+        float            pcm[4]  = {};
+
+
+
+        Load (deck);
+        source.Attach (&deck, [&now] () { return now; });
+
+        source.GeneratePCM (pcm, 4);
+        Assert::AreEqual (0.0f, pcm[3], L"silent while stopped");
+
+        deck.Play (0);
+        now = 400;
+        source.GeneratePCM (pcm, 4);
+
+        // Samples land at cycles 100, 200, 300 and 400: low before the first
+        // edge at 100.5, then high, low and high.
+        Assert::AreEqual (-TapeAudioSource::kAmplitude, pcm[0]);
+        Assert::AreEqual ( TapeAudioSource::kAmplitude, pcm[1]);
+        Assert::AreEqual (-TapeAudioSource::kAmplitude, pcm[2]);
+        Assert::AreEqual ( TapeAudioSource::kAmplitude, pcm[3]);
+        Assert::IsFalse  (deck.HasBeenAccessed(), L"listening is not the guest reading the tape");
     }
 };

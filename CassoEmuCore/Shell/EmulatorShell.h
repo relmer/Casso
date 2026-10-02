@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/PrinterAudioSource.h"
+#include "Audio/TapeAudioSource.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Devices/Tape/MfTapeAudioDecoder.h"
@@ -433,6 +434,10 @@ private:
     // the IDM_TAPE_* commands.
     void ControlTape (TapeCommand command);
 
+
+    // Engages or releases the fast-load override from the tape governor.
+    void ApplyTapeTurbo ();
+
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.
     void LoadAudioAssetsForDeviceRate();
@@ -775,6 +780,10 @@ public:
     // wrapper over the CpuManager queue.
 public:
     void PostCommand (WORD id, const string & payload = "");
+
+    // Whether tape loads run at Maximum speed. Read by the CPU thread each
+    // slice; written by Settings and at startup.
+    void SetFastTapeLoading (bool enabled) { m_fastTapeLoading.store (enabled, std::memory_order_relaxed); }
 
     // Single-step the CPU from the UI thread. Only safe when the
     // CPU thread is paused (provably idle on pauseCV.wait); the
@@ -2007,6 +2016,8 @@ private:
     // sources are owned by the MockingboardCard device; the mixer holds
     // borrowed pointers, re-registered by MachineManager on every build.
     DriveAudioMixer                      m_mockingboardAudioMixer;
+    DriveAudioMixer                      m_tapeAudioMixer;
+    TapeAudioSource                      m_tapeAudioSource;
 
     // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
     // at startup and updated via SetDriveAudioVolumes. Stored on the shell
@@ -2218,6 +2229,7 @@ private:
     std::unique_ptr<IDiskFileIo>              m_tapeFileIo;
     MfTapeAudioDecoder                        m_tapeAudioDecoder;
     std::unique_ptr<TapeManager>              m_tapeManager;
+    std::atomic<bool>                         m_fastTapeLoading { true };
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

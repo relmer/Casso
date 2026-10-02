@@ -73,10 +73,12 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_doorLabel);
     Adopt (m_panOneLabel);
     Adopt (m_panTwoLabel);
+    Adopt (m_tapeLabel);
 
     Adopt (m_writeMode);
     Adopt (m_mechanism);
     Adopt (m_driveAudio);
+    Adopt (m_fastTape);
     for (DxuiCheckbox & checkbox : m_writeProtect)
     {
         Adopt (checkbox);
@@ -178,6 +180,13 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeMode.SetItems ({ L"Buffer and flush", L"Copy on write" });
     y += rowHeight + sectionGap;
 
+    // The cassette recorder's one setting. Off loads tapes at the selected
+    // speed with the tape audible, as a real load would sound.
+    m_tapeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeLabel.SetText (L"Fast tape loading:");
+    m_fastTape.SetRect  (MakeRect (controlsX, y, checkWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_audioLabel.SetText (L"Drive audio:");
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
@@ -239,6 +248,8 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeMode.SetDpi       (dpi);
     m_mechanism.SetDpi       (dpi);
     m_driveAudio.SetDpi      (dpi);
+    m_fastTape.SetDpi        (dpi);
+    m_tapeLabel.SetDpi       (dpi);
     m_writeProtect[0].SetDpi (dpi);
     m_writeProtect[1].SetDpi (dpi);
     m_motorLabel.SetDpi      (dpi);
@@ -289,6 +300,7 @@ void DiskPage::Rebuild()
     m_writeMode.SetSelected ((int) state->GetPrefs().writeMode);
     m_mechanism.SetSelected (state->GetPrefs().floppyMechanism == "alps" ? 1 : 0);
     m_driveAudio.SetChecked (state->GetPrefs().floppySoundEnabled);
+    m_fastTape.SetChecked   (state->GetPrefs().fastTapeLoading);
     m_writeProtect[0].SetChecked (state->GetPrefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->GetPrefs().writeProtect[1]);
     m_motorVol.SetValue     (state->GetPrefs().driveMotorVolume * 100.0f);
@@ -305,6 +317,7 @@ void DiskPage::Rebuild()
         state->SetFloppySound (checked);
         ApplyDriveAudioChildEnabled (checked);
     });
+    m_fastTape.SetOnChange ([state] (bool checked) { state->SetFastTapeLoading (checked); });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
 

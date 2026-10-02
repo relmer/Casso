@@ -199,28 +199,28 @@ identical memory; host time drops sharply with it on.
 
 ### Tests
 
-- [ ] T038 [P] [US2] Write `UnitTest/EmuTests/TapeTurboGovernorTests.cpp`:
+- [X] T038 [P] [US2] Write `UnitTest/EmuTests/TapeTurboGovernorTests.cpp`:
   - on only when the preference is on, the deck is playing or recording, and `nowCycle - lastAccessCycle <= cpuClockHz / 10`
   - off at end of tape, on stop or eject, and after 100 ms with no access
   - never on with the deck stopped or empty
   - //e $C061 button polling with no tape: off
   - $C060 polling with the deck stopped: off (FR-010, SC-005)
-- [ ] T039 [P] [US2] Write `UnitTest/EmuTests/CpuManagerOverrideTests.cpp` (or extend existing CpuManager tests): `GetEffectiveSpeedMode()` returns Maximum while the override is set, and the user's mode otherwise; `GetSpeedMode()` never changes
-- [ ] T040 [P] [US2] Add a settings round trip to `UnitTest/UiTests/SettingsPanelStateTests.cpp`: `fastTapeLoading` defaults to true, and load, save, equality and apply all work
+- [X] T039 [P] [US2] Write the CPU override case in `UnitTest/EmuTests/TapeTurboGovernorTests.cpp`: `GetEffectiveSpeedMode()` returns Maximum while the override is set, and the user's mode otherwise; `GetSpeedMode()` never changes
+- [X] T040 [P] [US2] Add a settings round trip to `UnitTest/UiTests/SettingsPanelStateTests.cpp`: `fastTapeLoading` defaults to true, and load, save, equality and apply all work
 
 ### Implementation
 
-- [ ] T041 [US2] Implement `TapeTurboGovernor` in `CassoEmuCore/Devices/Tape/TapeTurboGovernor.{h,cpp}`, until T038 passes
-- [ ] T042 [US2] Add `std::atomic<bool> m_maximumOverride`, `SetMaximumOverride` and `GetEffectiveSpeedMode()` to `CassoEmuCore/Shell/CpuManager.{h,cpp}`. Switch the three runtime readers to it: the pacing loop (`CpuManager.cpp:496`), `ExecuteCpuSlices` (`EmulatorShellCpuThread.cpp:802`) and `ShouldPublishFrame` (`EmulatorShellPresent.cpp:1166`). Until T039 passes
-- [ ] T043 [US2] Add a hidden `SetSuppressed (bool)` to `CassoEmuCore/WasapiAudio.{h,cpp}` that submits silence without touching master mute or volume
-- [ ] T044 [US2] Evaluate the governor once per slice on the CPU thread in `CassoEmuCore/Shell/EmulatorShellCpuThread.cpp`, and drive `SetMaximumOverride` and `SetSuppressed` from it
-- [ ] T045 [US2] Add the `fastTapeLoading` preference, following the `floppySoundEnabled` template:
+- [X] T041 [US2] Implement `TapeTurboGovernor` in `CassoEmuCore/Devices/Tape/TapeTurboGovernor.{h,cpp}`, until T038 passes
+- [X] T042 [US2] Add `std::atomic<bool> m_maximumOverride`, `SetMaximumOverride` and `GetEffectiveSpeedMode()` to `CassoEmuCore/Shell/CpuManager.{h,cpp}`. Switch the three runtime readers to it: the pacing loop (`CpuManager.cpp:496`), `ExecuteCpuSlices` (`EmulatorShellCpuThread.cpp:802`) and `ShouldPublishFrame` (`EmulatorShellPresent.cpp:1166`). Until T039 passes
+- [X] T043 [US2] Add a hidden `SetSuppressed (bool)` to `CassoEmuCore/WasapiAudio.{h,cpp}` that submits silence without touching master mute or volume
+- [X] T044 [US2] Evaluate the governor once per slice on the CPU thread in `CassoEmuCore/Shell/EmulatorShellCpuThread.cpp`, and drive `SetMaximumOverride` and `SetSuppressed` from it
+- [X] T045 [US2] Add the `fastTapeLoading` preference, following the `floppySoundEnabled` template:
   - `SettingsUiPrefs` and its setter, load, save and equality (`Ui/Settings/SettingsPanelState.{h,cpp}`)
   - an `ISettingsApplySink` virtual and `SettingsApplyAdapter`
   - the default in `Config/UserConfigStore.cpp`
-  - a "Fast tape loading" checkbox on `Ui/Settings/HardwarePage.cpp` beside the speed combo
+  - a "Fast tape loading" toggle (placed on the Disk page, `Ui/Settings/DiskPage.cpp`, beside the drive audio toggle it copies)
   - until T040 passes
-- [ ] T046 [US2] Implement `TapeAudioSource : IDriveAudioSource` in `CassoEmuCore/Audio/TapeAudioSource.{h,cpp}`. It synthesizes a square wave from the transitions at the deck position while playing and the override is off. Mix it through `DriveAudioMixer` (FR-012)
+- [X] T046 [US2] Implement `TapeAudioSource : IDriveAudioSource` in `CassoEmuCore/Audio/TapeAudioSource.{h,cpp}`. It synthesizes a square wave from the transitions at the deck position while playing and the override is off. Mix it through its own `DriveAudioMixer` (`m_tapeAudioMixer`, a new `SubmitFrame` argument) so neither the drive nor the Mockingboard setting silences it (FR-012)
 - [ ] T047 [US2] Manual check per quickstart.md step 2: time a 16 KB load with the preference on (under 10 s host time, SC-004) and off (real time, audible). Record both numbers in the commit message
 
 ---

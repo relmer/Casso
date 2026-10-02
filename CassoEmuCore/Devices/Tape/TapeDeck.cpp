@@ -257,6 +257,36 @@ bool TapeDeck::ReadInputLevel (uint64_t busCycle)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TapeDeck::PeekLevel
+//
+//  The level at a bus cycle without counting as a guest access or moving the
+//  cursor, for the tape's own sound. Low unless the tape is playing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TapeDeck::PeekLevel (uint64_t busCycle) const
+{
+    const std::vector<double>  & transitions = m_image.signal.transitions;
+    size_t                       flips       = 0;
+
+
+
+    if (m_transport != TapeTransport::Playing)
+    {
+        return false;
+    }
+
+    flips = (size_t) (upper_bound (transitions.begin(), transitions.end(), GetSampleAtCycle (busCycle)) - transitions.begin());
+
+    return m_image.signal.initialLevel != ((flips & 1) != 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TapeDeck::OnOutputToggle
 //
 //  Captured only while recording. With record not armed the output goes

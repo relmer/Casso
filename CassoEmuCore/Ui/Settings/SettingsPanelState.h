@@ -77,6 +77,7 @@ struct SettingsUiPrefs
     SettingsWriteMode  writeMode             = SettingsWriteMode::BufferAndFlush;
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
+    bool               fastTapeLoading       = true;        // tape loads run at Maximum speed
     bool               writeProtect[2]       = { false, false };
     // //c only: whether the optional external 5.25" drive is plugged into
     // the disk port. Reveals/hides the second drive-mount widget. Defaults
@@ -202,6 +203,7 @@ public:
     virtual void ApplyColorMode      (SettingsColorMode mode)        = 0;
     virtual void ApplyFloppySound    (bool enabled)                  = 0;
     virtual void ApplyMechanism      (const std::string & mechanism) = 0;
+    virtual void ApplyFastTapeLoading (bool enabled)                 = 0;
     virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
     virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
@@ -301,6 +303,7 @@ public:
     void    SetWriteMode       (SettingsWriteMode mode);
     void    SetFloppySound     (bool enabled);
     void    SetMechanism       (const std::string & mechanism);
+    void    SetFastTapeLoading (bool enabled);
     void    SetDriveMotorVolume (float gain);
     void    SetDriveHeadVolume  (float gain);
     void    SetDriveDoorVolume  (float gain);

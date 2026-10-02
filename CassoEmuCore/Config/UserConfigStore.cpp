@@ -741,6 +741,7 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
     uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
+    uiObj.emplace_back ("fastTapeLoading",    JsonValue (true));
     uiObj.emplace_back ("gamePortAdapter",    JsonValue (std::string (ControllerTokens::kpszAdapterNone)));
     wp.emplace_back (JsonValue (false));
     wp.emplace_back (JsonValue (false));

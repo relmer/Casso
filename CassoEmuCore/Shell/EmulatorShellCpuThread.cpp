@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Devices/Tape/TapeTurboGovernor.h"
+
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -107,6 +109,12 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     if (SUCCEEDED (hrOpt))
     {
         m_driveAudioMixer.SetEnabled (enabled);
+    }
+
+    hrOpt = uiPrefs->GetBool ("fastTapeLoading", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetFastTapeLoading (enabled);
     }
 
     hrOpt = uiPrefs->GetString ("floppyMechanism", mechNarrow);
@@ -635,6 +643,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplyTapeTurbo
+//
+//  Runs a tape load at Maximum speed with the audio silenced while the
+//  governor says so, and hands the user's own speed back the moment it does
+//  not. Only a change is written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyTapeTurbo()
+{
+    uint64_t  now    = *m_machine.GetCpu()->GetBusCyclePtr();
+    bool      isFast = TapeTurboGovernor::ShouldRunAtMaximum (m_fastTapeLoading.load (std::memory_order_relaxed),
+                                                              m_machine.GetTapeDeck(),
+                                                              now,
+                                                              (double) m_machine.GetConfig().clockSpeed);
+
+
+
+    if (isFast != m_cpuManager.IsMaximumOverride())
+    {
+        m_cpuManager.SetMaximumOverride (isFast);
+        m_wasapiAudio.SetSuppressed (isFast);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControlTape
 //
 //  One tape-deck command, against the recorder the machine host owns, timed
@@ -821,7 +860,7 @@ void EmulatorShell::ExecuteCpuSlices()
 
     HRESULT   hr              = S_OK;
     uint32_t  targetCycles    = m_cyclesPerFrame;
-    SpeedMode speed           = m_cpuManager.GetSpeedMode();
+    SpeedMode speed           = m_cpuManager.GetEffectiveSpeedMode();
     bool      audioActive     = false;
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
@@ -898,6 +937,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // The recorder stops itself at the end of the tape and refreshes what
         // the deck shows, on emulated time like everything else here.
         m_machine.GetTapeDeck().Update (*m_machine.GetCpu()->GetBusCyclePtr());
+        ApplyTapeTurbo();
 
         if (audioActive)
         {
@@ -909,7 +949,8 @@ void EmulatorShell::ExecuteCpuSlices()
                                             numSamples,
                                             &m_driveAudioMixer,
                                             m_machine.GetCpu()->GetTotalCycles(),
-                                            &m_mockingboardAudioMixer);
+                                            &m_mockingboardAudioMixer,
+                                            &m_tapeAudioMixer);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             m_machine.GetRefs().speaker->ClearTimestamps();

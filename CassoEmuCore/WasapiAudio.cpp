@@ -525,7 +525,8 @@ HRESULT WasapiAudio::SubmitFrame (
     uint32_t                        numSamplesToGenerate,
     DriveAudioMixer *               driveMixer,
     uint64_t                        currentCycleCount,
-    DriveAudioMixer *               mockingboardMixer)
+    DriveAudioMixer *               mockingboardMixer,
+    DriveAudioMixer *               tapeMixer)
 {
     HRESULT    hr             = S_OK;
     size_t     prevFrames     = 0;
@@ -601,11 +602,22 @@ HRESULT WasapiAudio::SubmitFrame (
                 stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
         }
 
+        // The cassette recorder's speaker, its own mixer so neither the drive
+        // nor the Mockingboard setting silences it.
+        if (tapeMixer != nullptr)
+        {
+            tapeMixer->GeneratePCM (m_driveScratch.data(), numSamplesToGenerate);
+
+            DriveAudioMixer::MixDriveIntoSpeakerStereo (
+                stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
+        }
+
         // Master volume: one gain over the completed mix so every source
         // scales together (mute == 0). Applied at generation, not drain, so
         // pending samples keep the gain they were produced under.
         {
-            float  gain = m_masterGain.load (std::memory_order_relaxed);
+            float  gain = m_isSuppressed.load (std::memory_order_relaxed) ? 0.0f
+                                                                           : m_masterGain.load (std::memory_order_relaxed);
 
             if (gain != 1.0f)
             {

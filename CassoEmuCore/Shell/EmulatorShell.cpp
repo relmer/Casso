@@ -685,6 +685,10 @@ void EmulatorShell::InitAssetPathsAndStores()
     //  check made before every write can be measured on its own.
     m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
 
+    m_tapeAudioSource.Attach (&m_machine.GetTapeDeck(),
+                              [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
+    m_tapeAudioMixer.RegisterSource (&m_tapeAudioSource);
+
     m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
     m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
                                                    m_uiFs,

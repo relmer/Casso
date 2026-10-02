@@ -1165,7 +1165,7 @@ Error:
 
 bool EmulatorShell::ShouldPublishFrame()
 {
-    SpeedMode  speed = m_cpuManager.GetSpeedMode();
+    SpeedMode  speed = m_cpuManager.GetEffectiveSpeedMode();
 
 
 

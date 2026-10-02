@@ -59,6 +59,7 @@ public:
     DxuiComboBox          & WriteModeDropdown    () { return m_writeMode; }
     DxuiComboBox          & GetMechanismDropdown () { return m_mechanism; }
     DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
+    DxuiToggle            & GetFastTapeToggle    () { return m_fastTape; }
     DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
@@ -86,10 +87,12 @@ private:
     DxuiLabel                        m_doorLabel;
     DxuiLabel                        m_panOneLabel;
     DxuiLabel                        m_panTwoLabel;
+    DxuiLabel                        m_tapeLabel;
 
     DxuiComboBox                     m_writeMode;
     DxuiComboBox                     m_mechanism;
     DxuiToggle                       m_driveAudio;
+    DxuiToggle                       m_fastTape;
     std::array<DxuiCheckbox, 2>      m_writeProtect;
     DxuiSlider                       m_motorVol;
     DxuiSlider                       m_headVol;

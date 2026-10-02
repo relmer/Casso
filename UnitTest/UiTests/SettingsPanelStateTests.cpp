@@ -47,6 +47,7 @@ public:
         SettingsSpeedMode  lastSpeed                  = SettingsSpeedMode::Authentic;
         SettingsColorMode  lastColor                  = SettingsColorMode::Color;
         bool               lastFloppySound            = true;
+        bool               lastFastTapeLoading        = true;
         std::string        lastMechanism;
         bool               lastWriteProtect[2]        = { false, false };
         float              lastDriveMotor             = -1.0f;
@@ -62,6 +63,7 @@ public:
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
         void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
+        void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
         void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
         void ApplyDriveVolumes (float motor, float head, float door) override
         {
@@ -474,8 +476,29 @@ public:
     }
 
 
-    // The whole round trip the bug ran through: open a machine that has never
-    // saved a color, change something unrelated, hit OK. What the sheet
+    TEST_METHOD (FastTapeLoading_DefaultsOnAndRoundTrips)
+    {
+        SettingsPanelState  st;
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     reloaded;
+
+        st.LoadFromMachine ("X", v, v);
+        Assert::IsTrue (st.GetPrefs().fastTapeLoading, L"on when the machine has never saved it");
+
+        st.SetFastTapeLoading (false);
+        Assert::IsTrue (st.IsDirty());
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsFalse (sink.lastFastTapeLoading, L"Apply hands the setting to the shell");
+
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        Assert::IsFalse (reloaded.fastTapeLoading, L"and writes it");
+    }
+
+
+    // The whole round trip the bug ran through: open a machine that has never    // saved a color, change something unrelated, hit OK. What the sheet
     // applies and writes must be the monitor's green, not the struct's color.
     TEST_METHOD (Apply_WithNoSavedColor_KeepsTheMonitorsPhosphor)
     {
