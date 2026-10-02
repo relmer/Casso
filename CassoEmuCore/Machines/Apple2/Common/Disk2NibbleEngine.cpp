@@ -405,16 +405,6 @@ uint8_t Disk2NibbleEngine::StepFluxPulse()
 
 void Disk2NibbleEngine::RecordFluxWriteBit (uint8_t bit)
 {
-    bool  canWrite = m_writeMode && !m_disk->IsWriteProtected();
-
-
-
-    if (!canWrite)
-    {
-        CommitPendingWrite();
-        return;
-    }
-
     if (!m_burstActive)
     {
         m_burstActive    = true;
@@ -591,60 +581,62 @@ void Disk2NibbleEngine::StepLss()
 
 
 
-    uint8_t   pulse      = 0;
-    uint8_t   idx        = 0;
-    uint8_t   command    = 0;
-    bool      prevMsbSet = false;
-    size_t    trackBits  = 0;
-    int       slot       = 0;
+    bool     readClock = (m_lssClock == kLssReadClock);
+    bool     hasTrack  = false;
+    bool     writing   = false;
+    bool     prevMsb   = false;
+    uint8_t  pulse     = 0;
+    uint8_t  outBit    = 0;
+    uint8_t  command   = 0;
+    size_t   trackBits = 0;
 
     if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
     {
         RefreshSlot();
     }
 
-    slot = m_slot;
+    // A mapped track implies a disk; with no disk the slot is -1.
+    hasTrack = (m_slot >= 0);
 
+    // Read side. A flux track can deliver a pulse on any clock; a bit track
+    // delivers one bit per cell, on the read clock. With no track under the
+    // head the head window turns silence into noise, as an empty drive does.
     if (m_isFluxSlot)
     {
-        // Most clocks neither reach a transition nor sample for weak bits, so
-        // they only move flux time on.
         m_fluxNow += kFluxUnitsPerLssClock;
 
-        if (m_fluxNow >= m_fluxDue || m_lssClock == kLssReadClock)
+        if (readClock || m_fluxNow >= m_fluxDue)
         {
             pulse = StepFluxPulse();
         }
     }
-    else if (m_lssClock == kLssReadClock)
+    else if (readClock)
     {
-        uint8_t  rawBit = (slot >= 0)
-                          ? m_disk->ReadBit (slot, m_bitPos)
-                          : 0;
-
-        pulse = ApplyHeadWindow (rawBit);
+        pulse = ApplyHeadWindow (hasTrack ? m_disk->ReadBit (m_slot, m_bitPos) : 0);
     }
 
-    idx  = static_cast<uint8_t> (pulse ? 0 : kIdxNoPulse);
-    idx |= static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? kIdxLatchMsb : 0);
-    idx |= static_cast<uint8_t> (m_shiftLoadMode ? kIdxQ6 : 0);
-    idx |= static_cast<uint8_t> (m_writeMode ? kIdxQ7 : 0);
-    idx |= static_cast<uint8_t> (m_lssState << kIdxStateShift);
-
-    command    = kSequencerRom16[idx];
-    prevMsbSet = (m_readLatch & kLatchMsbMask) != 0;
+    // The sequencer: index the P6 ROM by {state, Q7, Q6, latch MSB, no pulse}
+    // and run the command it gives.
+    prevMsb = (m_readLatch & kLatchMsbMask) != 0;
+    command = kSequencerRom16[(m_lssState << kIdxStateShift)
+                              | (m_writeMode     ? kIdxQ7       : 0)
+                              | (m_shiftLoadMode ? kIdxQ6       : 0)
+                              | (prevMsb         ? kIdxLatchMsb : 0)
+                              | (pulse           ? 0            : kIdxNoPulse)];
 
     switch (command & kLssCommandMask)
     {
         case kLssCmdClr:
             m_readLatch = 0;
             break;
-        case kLssCmdNop:
-            break;
         case kLssCmdShiftZero:
-            m_readLatch = static_cast<uint8_t> ((m_readLatch << 1) & 0xFF);
+            m_readLatch = static_cast<uint8_t> (m_readLatch << 1);
+            break;
+        case kLssCmdShiftOne:
+            m_readLatch = static_cast<uint8_t> ((m_readLatch << 1) | 0x01);
             break;
         case kLssCmdShiftRight:
+            // Write-protect sense: the switch reads back as the latch MSB.
             m_readLatch = static_cast<uint8_t> (m_readLatch >> 1);
 
             if (m_disk != nullptr && m_disk->IsWriteProtected())
@@ -656,72 +648,64 @@ void Disk2NibbleEngine::StepLss()
         case kLssCmdLoad:
             m_readLatch = m_bus;
             break;
-        case kLssCmdShiftOne:
-            m_readLatch = static_cast<uint8_t> (((m_readLatch << 1) | 0x01) & 0xFF);
-            break;
         default:
             break;
     }
 
     m_lssState = static_cast<uint8_t> ((command >> kLssStateShift) & kLssStateMask);
 
-    // Rising edge of the latch MSB in read-data mode is the LSS "byte
-    // ready" signal: a full nibble just assembled. Mark it fresh for
-    // ConsumeFreshNibble and bump the lifetime read counter. Gated to
-    // read mode so the SR write-protect-sense path (Q6 high) does not
-    // spuriously count.
-    if (!m_shiftLoadMode && !m_writeMode && !prevMsbSet && (m_readLatch & kLatchMsbMask) != 0)
+    // A rising latch MSB in read mode means a whole nibble has assembled.
+    if (!m_shiftLoadMode && !m_writeMode && !prevMsb && (m_readLatch & kLatchMsbMask) != 0)
     {
         m_latchIsFresh = true;
         m_readNibbles++;
     }
 
-    if (m_lssClock == kLssReadClock && m_isFluxSlot)
+    // Write side and head motion, once per cell. The bit written is the latch
+    // MSB -- the shift register's serial output -- not the sequencer state's
+    // high bit: the two only agree in the hardware's sub-clock lockstep,
+    // which catching the sequencer up in bursts cannot hold (GH #89).
+    if (readClock)
     {
-        // A flux track keeps its own time, so there is no bit cursor to move;
-        // a write is collected and spliced in when it ends.
-        if (m_writeMode || m_burstActive)
+        writing = m_writeMode && hasTrack && !m_disk->IsWriteProtected();
+        outBit  = (m_readLatch & kLatchMsbMask) ? 1 : 0;
+
+        if (m_isFluxSlot)
         {
-            RecordFluxWriteBit (static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? 1 : 0));
+            // Flux keeps its own time, so there is no cursor to move. The
+            // cells are collected and spliced in when the write ends.
+            if (writing)
+            {
+                RecordFluxWriteBit (outBit);
+            }
+            else if (m_burstActive)
+            {
+                CommitPendingWrite();
+            }
+        }
+        else if (hasTrack)
+        {
+            if (writing)
+            {
+                m_disk->WriteBit (m_slot, m_bitPos, outBit);
+            }
+
+            trackBits = m_disk->GetTrackBitCount (m_slot);
+
+            if (trackBits > 0)
+            {
+                m_bitPos = (m_bitPos + 1) % trackBits;
+            }
+        }
+        else if (m_disk != nullptr)
+        {
+            // A disk with nothing recorded at this position still turns
+            // under the head.
+            m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
         }
     }
-    else if (m_lssClock == kLssReadClock)
-    {
-        if (m_writeMode && slot >= 0 && !m_disk->IsWriteProtected())
-        {
-            // The bit committed to the track is the write shift register's
-            // serial output -- i.e. the data-register MSB (74LS323 QH) -- NOT
-            // the sequencer state's high bit. On real hardware the two track
-            // each other because the P6 sequencer and the shift register are
-            // clocked in lockstep by the 2 MHz Q3; a cycle-stepped emulator
-            // that catches the LSS up in bursts at each soft-switch access
-            // cannot hold that sub-clock lockstep, so sampling (state & 0x8)
-            // desyncs and deposits ~AA garbage where FF sync belongs (GH #89).
-            // Sourcing the bit straight from the latch MSB is the physically
-            // correct write-head signal and is robust to catch-up granularity.
-            // Shifts (SL0/SL1) only ever land on sequencer states 2 and A,
-            // never on the clock-4 write phase, so the latch is stable here.
-            uint8_t  outBit = static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? 1 : 0);
 
-            m_disk->WriteBit (slot, m_bitPos, outBit);
-        }
-
-        trackBits = (slot >= 0) ? m_disk->GetTrackBitCount (slot) : kUnformattedTrackBits;
-
-        if (m_disk == nullptr)
-        {
-            trackBits = 0;
-        }
-
-        if (trackBits > 0)
-        {
-            m_bitPos = (m_bitPos + 1) % trackBits;
-        }
-    }
-
-    m_lssClock++;
-
-    if (m_lssClock > kLssMaxClock)
+    if (++m_lssClock > kLssMaxClock)
     {
         m_lssClock = 0;
     }
