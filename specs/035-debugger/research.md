@@ -1534,3 +1534,65 @@ frame). Printer output already sent is not retracted (open question).
 8. If history passes back over a flush, the file is ahead of the machine until the next flush writes the current position. That is the owner's "save by default": the last flush always wins.
 
 **Running forward from the past (owner question 7).** Any change made while in the past (memory, registers, disk, a mount) makes the recorded future wrong, so it is dropped at that point and the machine runs live from there; the history band says so. With no change, two choices remain. Replaying the recorded future repeats exactly what happened, keystrokes included, so the user can step back and forth over a bug as often as they like; it costs the replayer and a divergence check. Running live is simpler but diverges at the first recorded keystroke or paddle reading, so the same bug may not recur. Recommendation: replay until the end of history or the first change, then run live.
+
+#### Prior art (2026-10-03)
+
+Sources are documentation, release notes, forum posts and papers only; no GPL
+source was read. Where a source does not say, this says "unclear".
+
+| Tool | Mechanism | Interval and budget | Restores devices? |
+|---|---|---|---|
+| Mesen (NES), Mesen 2 | Rewind keeps periodic save states in memory and re-emulates forward from the nearest one ([preferences](https://www.mesen.ca/docs/configuration/preferences.html), [forum, author](https://forums.nesdev.org/viewtopic.php?t=24391&start=75)) | Documented as roughly 1 MB per minute, window set in minutes; the author describes one state per second in Mesen 2, other secondary sources say every 30 frames ([libretro](https://docs.libretro.com/library/mesen/)), so the exact interval is unclear | Yes, whole-machine states |
+| Mesen 2 debugger | Step back, including by scanline and frame, and undo of ROM/RAM edits ([releases](https://github.com/SourMesen/Mesen2/releases)) | Whether instruction step back uses a per-instruction log or replay from a rewind state is not documented: unclear | Presumably, since it builds on states; unclear |
+| ZEsarUX + DeZog | CPU history ring of registers and stack only ([DeZog usage](https://raw.githubusercontent.com/maziac/DeZog/main/documentation/Usage.md)) | About 40 bytes per instruction; default 10,000 instructions; 1 s at 4 MHz is about 40 MB | No: memory and hardware are not rewound; memory-based conditions, watchpoints and logpoints are not evaluated in reverse |
+| rr | Forward checkpoints plus deterministic replay; reverse execution is "go to an earlier checkpoint and run forward" ([rr](https://rr-project.org/), [paper](https://www.usenix.org/system/files/conference/atc17/atc17-o_callahan.pdf)) | Checkpoint interval not fixed in the user docs: unclear | Yes, whole process |
+| WinDbg TTD | Full instruction trace plus an index built after recording ([overview](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-overview), [file size](https://learn.microsoft.com/en-us/archive/blogs/windbg/time-travel-debugging-ttd-file-size)) | 1 bit to 1 byte per instruction, 5-50 MB/s, index about twice the trace; 5x-20x slowdown ([analysis](https://whiteknightlabs.com/2025/10/14/microsoft-windbg-ttd-versus-intel-pt/)) | Process memory, yes |
+
+**Determinism checking.** rr stores registers, PC and a branch counter at
+each recorded event and declares divergence when replay reaches the event
+with different values; diagnosis then narrows by memory checksums and dumps
+([O'Callahan](https://robert.ocallahan.org/2016/06/how-to-track-down-divergence-bugs-in-rr.html),
+[issue 3341](https://github.com/rr-debugger/rr/issues/3341)). No emulator
+source above documents a runtime divergence check: unclear.
+
+**Input recording, save RAM and disk.** Mesen's movies record input and are
+debuggable ([forum](https://forums.nesdev.org/viewtopic.php?t=23004)); how
+battery RAM is treated during rewind is not documented by any source found:
+unclear. No prior art found addresses media writes; Casso's disk rules are
+ahead of it.
+
+**Reported pitfalls.** Rewind start lag of up to one interval while the
+emulator re-runs from the state, and a request for a visible "rewinding"
+indicator ([forum](https://forums.nesdev.org/viewtopic.php?t=24391&start=75));
+a step-back crash fixed in MesenCE 2.2.1
+([release](https://github.com/nesdev-org/MesenCE/releases/tag/2.2.1)); an
+uninitialized-memory read reported in rewind
+([forum](https://forums.nesdev.org/viewtopic.php?t=23004)); ZEsarUX's
+register-only history silently shows wrong memory, which DeZog has to warn
+about (link above); TTD traces grow without a cap.
+
+**Comparison.** Casso's option C is the rr model (keyframes plus replay as the
+source of truth) with a ZEsarUX-style ring as an accelerator, but unlike
+ZEsarUX the ring journals memory and devices, so it avoids the best
+documented failure. Its budget (about 50 MB for 60 s) is far above Mesen's
+1 MB per minute because Mesen compresses its states and keeps fewer.
+
+**Recommended changes.**
+1. Add a divergence check in the rr pattern: store PC, registers, cycle count
+   and a cheap RAM hash in each keyframe, and on every replay that reaches a
+   keyframe compare them; a mismatch is a hard error in Debug and a logged
+   fault plus "history unavailable" in Release. Make this the T452 test's
+   oracle as well.
+2. Compress keyframes (delta against the previous keyframe, then a fast
+   compressor); most RAM pages do not change in 10 frames. This should let
+   the default window grow well past 60 s inside the same memory.
+3. Hide replay lag: keep the ring large enough to cover at least one keyframe
+   interval, so a step back never waits on replay; Mesen's users noticed the
+   lag.
+4. Evaluate memory-based conditions, watchpoints and logpoints in reverse
+   continue against the restored state, and say so in the docs, since that is
+   exactly where ZEsarUX/DeZog fall short.
+5. Show the history band whenever the position is not live (already planned);
+   Mesen users asked for that indicator after the fact.
+6. Consider step back by frame and by scanline as cheap extra commands, as in
+   Mesen 2; both are keyframe-relative predicates.
