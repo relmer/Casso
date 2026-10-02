@@ -553,6 +553,7 @@ private:
     void     FloatCommandBar      ();
     void     DockCommandBarBack   ();
     void     OnCommandBarDragEnd  (POINT screenPx);
+    void     OnCommandBarFloatDrag (POINT screenPx);
     bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);
     RECT     GetFloatingBarRect   (POINT topLeftPx);
     void     SaveCommandBarDock   ();
@@ -964,4 +965,8 @@ private:
     //  How near an edge, past the bar's own thickness, a drag of the bar has
     //  to stay to dock there rather than float.
     static constexpr int                                                             kBarDockReachDp = 24;
+
+    //  How far past its band a drag of the docked bar has to pull before
+    //  the bar tears off to float.
+    static constexpr int                                                             kBarPullDp      = 32;
 };

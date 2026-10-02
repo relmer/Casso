@@ -8736,15 +8736,16 @@ bool DebuggerWindow::RouteCommandBarDrag (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        //  Away from every edge, or off the window, the bar tears off to
-        //  float under the pointer.
-        if (!CommandBarDock::IsInDockBand (at, m_barArea, m_scaler.ToPx (DxuiToolbar::GetBandDip() + kBarDockReachDp)))
+        //  The bar slides along the band it is in, however near another
+        //  edge the pointer comes; only a pull well away from that band
+        //  tears it off to float under the pointer.
+        if (CommandBarDock::IsPulledOut (at, m_barDock.edge, m_barArea, m_scaler.ToPx (DxuiToolbar::GetBandDip() + kBarDockReachDp), m_scaler.ToPx (kBarPullDp)))
         {
             TearOffCommandBar (at);
             break;
         }
 
-        dock = CommandBarDock::PickForDrop (at, m_barGrab, m_barArea, m_scaler.GetDpi());
+        dock = CommandBarDock::SlideAlong (at, m_barGrab, m_barDock, m_barArea, m_scaler.GetDpi());
 
         if (!(dock == m_barDock))
         {
@@ -8808,9 +8809,10 @@ void DebuggerWindow::TearOffCommandBar (POINT clientPx)
 
     ClientToScreen (GetHwnd(), &screen);
 
-    m_barDragging      = false;
-    m_barDock.floating = true;
-    m_barDock.floatPx  = POINT { screen.x - grip / 2, screen.y - band / 2 };
+    m_barDragging           = false;
+    m_barDock.floatVertical = m_barDock.IsVertical();
+    m_barDock.floating      = true;
+    m_barDock.floatPx       = m_barDock.floatVertical ? POINT { screen.x - band / 2, screen.y - grip / 2 } : POINT { screen.x - grip / 2, screen.y - band / 2 };
 
     FloatCommandBar();
 
@@ -8848,15 +8850,16 @@ RECT DebuggerWindow::GetFloatingBarRect (POINT topLeftPx)
 
 
 
-    m_commandBar->SetVertical (false);
+    m_commandBar->SetVertical (m_barDock.floatVertical);
     m_commandBar->SetLabels   (false);
 
     length = m_commandBar->GetNaturalLengthPx (m_scaler);
-    rect   = RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + length, topLeftPx.y + band };
+    rect   = m_barDock.floatVertical ? RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + band, topLeftPx.y + length }
+                                     : RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + length, topLeftPx.y + band };
 
     if (MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) == nullptr && GetWindowRect (GetHwnd(), &owner))
     {
-        rect = RECT { owner.left + band, owner.top + band, owner.left + band + length, owner.top + band * 2 };
+        OffsetRect (&rect, owner.left + band - rect.left, owner.top + band - rect.top);
     }
 
     return rect;
@@ -8921,6 +8924,7 @@ void DebuggerWindow::FloatCommandBar()
 
     window->SetToolbar          (m_commandBar);
     window->SetOnContentMouse   ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
+    window->SetOnCaptionDrag    ([this] (POINT screen)              { OnCommandBarFloatDrag (screen); });
     window->SetOnCaptionDragEnd ([this] (POINT screen)              { OnCommandBarDragEnd (screen); });
     window->SetOnMoveLoopFrame  ([this]                             { RunModalLoopTick(); });
     window->SetScreenRect       (rect);
@@ -9003,6 +9007,10 @@ void DebuggerWindow::SyncCommandBarFloat()
     bool   visible = IsWindowVisible (GetHwnd()) != FALSE;
     auto   tip     = m_floatTips.find (kBarFloatKey);
     RECT   client  = {};
+    RECT   current = {};
+    RECT   wanted  = {};
+    int    frameX  = 0;
+    int    frameY  = 0;
     HWND   hwnd    = nullptr;
 
 
@@ -9023,6 +9031,30 @@ void DebuggerWindow::SyncCommandBarFloat()
     }
 
     hwnd = m_barFloat->GetHwnd();
+
+    //  The window stays as long as the bar's entries need, so the bar never
+    //  falls back on See more while it floats: a length measured before this
+    //  window had its DPI, or before a theme or entry change, comes right
+    //  here.
+    //  The window's frame comes on top of the bar's length.
+    current = m_barFloat->GetScreenRect();
+    wanted  = GetFloatingBarRect (POINT { current.left, current.top });
+
+    if (GetClientRect (hwnd, &client))
+    {
+        frameX = (current.right - current.left) - (client.right - client.left);
+        frameY = (current.bottom - current.top) - (client.bottom - client.top);
+
+        if (wanted.right - wanted.left + frameX != current.right - current.left || wanted.bottom - wanted.top + frameY != current.bottom - current.top)
+        {
+            m_barFloat->SetScreenRect (RECT { current.left, current.top, current.left + wanted.right - wanted.left + frameX, current.top + wanted.bottom - wanted.top + frameY });
+            GetClientRect (hwnd, &client);
+        }
+
+        //  Measuring planned the bar for any length, so it is laid out
+        //  again for the window it is in.
+        m_commandBar->Layout (client, m_scaler);
+    }
 
     if ((IsWindowVisible (hwnd) != FALSE) != visible)
     {
@@ -9092,6 +9124,51 @@ void DebuggerWindow::OnCommandBarDragEnd (POINT screenPx)
     }
 
     SaveCommandBarDock();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnCommandBarFloatDrag
+//
+//  A floating bar dragged near a side of this window stands on end, and
+//  near the top or bottom lies flat again; away from every edge it keeps
+//  the orientation it last took, so it can be left floating either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OnCommandBarFloatDrag (POINT screenPx)
+{
+    POINT  client   = screenPx;
+    RECT   rect     = {};
+    int    reach    = m_scaler.ToPx (DxuiToolbar::GetBandDip() + kBarDockReachDp);
+    bool   vertical = false;
+
+
+
+    if (m_barFloat == nullptr || !IsWindowVisible (GetHwnd()))
+    {
+        return;
+    }
+
+    ScreenToClient (GetHwnd(), &client);
+
+    vertical = CommandBarDock::PickFloatVertical (client, m_barArea, reach, m_barDock.floatVertical);
+
+    if (vertical == m_barDock.floatVertical)
+    {
+        return;
+    }
+
+    rect                    = m_barFloat->GetScreenRect();
+    m_barDock.floatVertical = vertical;
+    m_barDock.floatPx       = POINT { rect.left, rect.top };
+
+    m_barFloat->SetScreenRect (GetFloatingBarRect (m_barDock.floatPx));
+    m_barFloat->Invalidate();
 }
 
 

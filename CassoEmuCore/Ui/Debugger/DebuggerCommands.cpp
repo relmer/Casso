@@ -316,7 +316,7 @@ void DebuggerCommands::PaintStepInto (IDxuiPainter & painter, const DxuiToolbarI
     float  s      = icon.size;
     float  cx     = icon.x + s * 0.5f;
     float  cy     = icon.top + icon.rowH * 0.5f;
-    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  stroke = (std::max) (1.5f, s / 7.5f);
     float  tipY   = cy + s * 0.12f;
 
 
@@ -343,7 +343,7 @@ void DebuggerCommands::PaintStepOut (IDxuiPainter & painter, const DxuiToolbarIc
     float  s      = icon.size;
     float  cx     = icon.x + s * 0.5f;
     float  cy     = icon.top + icon.rowH * 0.5f;
-    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  stroke = (std::max) (1.5f, s / 7.5f);
     float  tipY   = cy - s * 0.46f;
 
 
@@ -376,10 +376,11 @@ void DebuggerCommands::PaintStepOver (IDxuiPainter & painter, const DxuiToolbarI
     float  s      = icon.size;
     float  cx     = icon.x + s * 0.5f;
     float  cy     = icon.top + icon.rowH * 0.5f;
-    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  stroke = (std::max) (1.5f, s / 7.5f);
     float  rx     = s * 0.36f;
     float  ry     = s * 0.42f;
-    float  baseY  = cy + s * 0.08f;
+    float  baseY  = cy - s * 0.04f;
+    float  tipY   = cy + s * 0.20f;
     float  prevX  = cx - rx;
     float  prevY  = baseY;
 
@@ -397,8 +398,9 @@ void DebuggerCommands::PaintStepOver (IDxuiPainter & painter, const DxuiToolbarI
         prevY = y;
     }
 
-    PaintArrowHead (painter, cx + rx, baseY, 0.0f, 1.0f, s * 0.24f, stroke, color);
-    PaintStepDot   (painter, icon, color);
+    painter.DrawLine (cx + rx, baseY, cx + rx, tipY, stroke, color);
+    PaintArrowHead   (painter, cx + rx, tipY, 0.0f, 1.0f, s * 0.22f, stroke, color);
+    PaintStepDot     (painter, icon, color);
 }
 
 
@@ -418,7 +420,7 @@ void DebuggerCommands::PaintRunToCursor (IDxuiPainter & painter, const DxuiToolb
 {
     float  s      = icon.size;
     float  cy     = icon.top + icon.rowH * 0.5f;
-    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  stroke = (std::max) (1.5f, s / 7.5f);
     float  tipX   = icon.x + s * 0.72f;
     float  barX   = icon.x + s * 0.92f;
 
@@ -445,7 +447,7 @@ void DebuggerCommands::PaintShowNext (IDxuiPainter & painter, const DxuiToolbarI
 {
     float  s      = icon.size;
     float  cy     = icon.top + icon.rowH * 0.5f;
-    float  stroke = (std::max) (1.0f, s / 11.0f);
+    float  stroke = (std::max) (1.5f, s / 7.5f);
     float  tipX   = icon.x + s * 0.92f;
 
 

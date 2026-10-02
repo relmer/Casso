@@ -31,22 +31,24 @@ struct CommandBarDock
         Right,
     };
 
-    Edge   edge      = Edge::Top;
-    int    offsetDip = 0;
-    bool   floating  = false;
-    POINT  floatPx   = {};
+    Edge   edge          = Edge::Top;
+    int    offsetDip     = 0;
+    bool   floating      = false;
+    POINT  floatPx       = {};
+    bool   floatVertical = false;
 
     bool  IsVertical () const { return !floating && (edge == Edge::Left || edge == Edge::Right); }
 
     bool  operator== (const CommandBarDock & other) const
     {
         return floating == other.floating &&
-               (floating ? floatPx.x == other.floatPx.x && floatPx.y == other.floatPx.y
+               (floating ? floatPx.x == other.floatPx.x && floatPx.y == other.floatPx.y && floatVertical == other.floatVertical
                          : edge == other.edge && offsetDip == other.offsetDip);
     }
 
     //  "top 0", "left 120": the edge, a space, then the offset. Floating,
-    //  "float 300 -40": the window's screen position.
+    //  "float 300 -40": the window's screen position, then " vertical"
+    //  when it stands on end.
     std::wstring           ToText    () const;
 
     //  Text that does not read back gives the default place, across the top
@@ -69,6 +71,21 @@ struct CommandBarDock
     //  that leaves the band tears the bar off to float, and a floating bar
     //  dropped inside it docks.
     static bool            IsInDockBand (POINT pointer, const RECT & area, int bandPx);
+
+    //  A drag of a docked bar: it stays on the edge it is on, however near
+    //  another edge the pointer comes, and only the offset follows the
+    //  pointer.
+    static CommandBarDock  SlideAlong (POINT pointer, POINT grab, const CommandBarDock & current, const RECT & area, int dpi);
+
+    //  Whether a drag of a bar docked on dge has pulled far enough away
+    //  to tear it off: more than `bandPx + pullPx` in from that edge, or
+    //  more than `pullPx` outside it or past either end of it.
+    static bool            IsPulledOut (POINT pointer, Edge edge, const RECT & area, int bandPx, int pullPx);
+
+    //  A floating bar's orientation as it is dragged: vertical within
+    //  `bandPx` of a side of `area`, horizontal within it of the top or
+    //  bottom, and `current` anywhere else.
+    static bool            PickFloatVertical (POINT pointer, const RECT & area, int bandPx, bool current);
 
 private:
     static CommandBarDock  ReadFloating (const std::wstring & text);

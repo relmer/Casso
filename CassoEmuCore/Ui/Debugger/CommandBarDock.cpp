@@ -32,7 +32,7 @@ std::wstring CommandBarDock::ToText() const
 
     if (floating)
     {
-        return std::format (L"float {} {}", floatPx.x, floatPx.y);
+        return std::format (L"float {} {}{}", floatPx.x, floatPx.y, floatVertical ? L" vertical" : L"");
     }
 
     for (const auto & [e, w] : s_kEdgeWords)
@@ -105,7 +105,7 @@ CommandBarDock CommandBarDock::FromText (const std::wstring & text)
 //
 //  CommandBarDock::ReadFloating
 //
-//  "300 -40" after the "float": two numbers and nothing else, or the
+//  "300 -40" after the "float": two numbers, then " vertical" or nothing, or the
 //  default place.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,13 +130,14 @@ CommandBarDock CommandBarDock::ReadFloating (const std::wstring & text)
     start = end + 1;
     y     = wcstol (start, &end, 10);
 
-    if (end == start || *end != L'\0')
+    if (end == start || (*end != L'\0' && std::wstring (end) != L" vertical"))
     {
         return CommandBarDock {};
     }
 
-    dock.floating = true;
-    dock.floatPx  = POINT { x, y };
+    dock.floating      = true;
+    dock.floatPx       = POINT { x, y };
+    dock.floatVertical = *end != L'\0';
     return dock;
 }
 
@@ -221,4 +222,99 @@ bool CommandBarDock::IsInDockBand (POINT pointer, const RECT & area, int bandPx)
 
 
     return nearest >= 0 && nearest <= bandPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandBarDock::SlideAlong
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CommandBarDock CommandBarDock::SlideAlong (POINT pointer, POINT grab, const CommandBarDock & current, const RECT & area, int dpi)
+{
+    CommandBarDock  dock     = current;
+    int             offsetPx = 0;
+
+
+
+    dock.floating  = false;
+    offsetPx       = dock.IsVertical() ? pointer.y - area.top - grab.y : pointer.x - area.left - grab.x;
+    dock.offsetDip = (std::max) (0, MulDiv (offsetPx, 96, (std::max) (dpi, 1)));
+
+    return dock;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandBarDock::IsPulledOut
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandBarDock::IsPulledOut (POINT pointer, Edge edge, const RECT & area, int bandPx, int pullPx)
+{
+    int  inward = 0;
+    int  along  = 0;
+    int  start  = 0;
+    int  end    = 0;
+
+
+
+    switch (edge)
+    {
+    case Edge::Top:    inward = pointer.y - area.top;    break;
+    case Edge::Bottom: inward = area.bottom - pointer.y; break;
+    case Edge::Left:   inward = pointer.x - area.left;   break;
+    case Edge::Right:  inward = area.right - pointer.x;  break;
+    }
+
+    if (edge == Edge::Top || edge == Edge::Bottom)
+    {
+        along = pointer.x;
+        start = area.left;
+        end   = area.right;
+    }
+    else
+    {
+        along = pointer.y;
+        start = area.top;
+        end   = area.bottom;
+    }
+
+    return inward > bandPx + pullPx || inward < -pullPx || along < start - pullPx || along > end + pullPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandBarDock::PickFloatVertical
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandBarDock::PickFloatVertical (POINT pointer, const RECT & area, int bandPx, bool current)
+{
+    int  toTop    = pointer.y - area.top;
+    int  toBottom = area.bottom - pointer.y;
+    int  toLeft   = pointer.x - area.left;
+    int  toRight  = area.right - pointer.x;
+    int  nearest  = (std::min) ((std::min) (toTop, toBottom), (std::min) (toLeft, toRight));
+
+
+
+    if (nearest < 0 || nearest > bandPx)
+    {
+        return current;
+    }
+
+    return nearest == toLeft || nearest == toRight;
 }

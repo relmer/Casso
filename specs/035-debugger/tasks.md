@@ -1109,10 +1109,10 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T380 Owner review 2026-10-02: the console's dialect drop-down (AppleWin) is too short for its text and styled differently; draw it as the breakpoints pane's "Show columns" drop-down is drawn
 - [X] T381 Owner review 2026-10-02: grabbing the debug toolbar's handle pauses the debugger; a drag must not change run state
 - [ ] T382 Owner review 2026-10-02: while a toolbar is dragged over a dock band, the band appears (taking space if hidden), the toolbar snaps into it and slides along it with the mouse, and leaving takes a pull past a threshold before it pops out
-- [ ] T383 Owner review 2026-10-02: the debug toolbar never collapses into its overflow while its band has room or while floating; on a window resize a docked bar slides within its band rather than shrinking, unless another toolbar or the auto-hide tabs block it
+- [X] T383 Owner review 2026-10-02: the debug toolbar never collapses into its overflow while its band has room or while floating; on a window resize a docked bar slides within its band rather than shrinking, unless another toolbar or the auto-hide tabs block it
 - [X] T384 Owner review 2026-10-02: the disassembly shows a top tab instead of a title bar; tab strips follow Visual Studio: the tab band a slightly different color from the toolbar channel above it (vs-reference/vs-tool-window-bottom-tabs.png), and bottom tabs as in vs-reference/vs-memory-window-tabs.png
 - [X] T385 Owner review 2026-10-02: a docked toolbar draws no edge along its long sides (the panes beside it give those), only its short edges
-- [ ] T386 Owner review 2026-10-02: a floating toolbar turns vertical as it nears a vertical band and stays vertical until it nears a horizontal one, so the user picks its orientation and can still leave it floating
+- [X] T386 Owner review 2026-10-02: a floating toolbar turns vertical as it nears a vertical band and stays vertical until it nears a horizontal one, so the user picks its orientation and can still leave it floating
 - [X] T387 Owner review 2026-10-02: the debug toolbar's buttons are drawn in color with Visual Studio's shapes as vector icons (vs-reference/vs-debug-toolbar-commands.png)
 - [X] T388 Owner review 2026-10-02: the console's line spacing is a little tight; add extra space between one command's output and the next command
 - [X] T389 Owner review 2026-10-02: the disassembly's "Show ..." check boxes draw no box around them and sit a little farther apart
@@ -1140,7 +1140,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T411 Owner review 2026-10-03: restoring state at startup runs console commands (PANEL MMU and the like) and echoes them; restore through internal calls that write nothing to the console
 - [ ] T412 Owner review 2026-10-03: light theme disassembly: immediates and addresses share a color (they differ in dark); the PC row background becomes a dark yellow/brown, the jump arrow a little darker, and the result a color distinct from the operand
 - [ ] T413 Owner review 2026-10-03: the Watches pane's "Automatic", "Watches" and "Add item to watch" rows use the proportional font of list view headers, "Add item to watch" in italic; the group rows' background is subtle, not the current strong band, in every theme
-- [ ] T414 Owner review 2026-10-03: the step toolbar glyphs get a heavier stroke, and step over's arrowhead meets the end of its arc cleanly instead of running into it
+- [X] T414 Owner review 2026-10-03: the step toolbar glyphs get a heavier stroke, and step over's arrowhead meets the end of its arc cleanly instead of running into it
 - [ ] T415 Owner review 2026-10-03: System dark disassembly: the instruction blue is hard to read, the jump destination's dim blue background makes it worse, and the PC row's yellow background makes its line illegible; the memory "changed" dark red is too dark on the dark background. Retro modern's PC background is unreadable too. Every text color on every row tint meets AA in every theme
 - [ ] T416 Owner review 2026-10-03: clicking the jump arrow reliably scrolls to its destination (a larger hit area); clicking it again returns to PC
 - [ ] T417 Owner review 2026-10-03: the Debug menu's Reset, Power cycle and Restart under debugger move to the end of the menu
@@ -1156,7 +1156,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T427 Owner review 2026-10-03: the console toolbar shows "Mode:" as a static label with the dialect alone as the drop-down
 - [ ] T428 Owner review 2026-10-03: the find text box supports the standard edit functions: selection by mouse and shift-keys, Ctrl+A, cut, copy, paste, undo
 - [ ] T429 Owner review 2026-10-03: in find, space on a focused option button toggles it and must not also type a space into the text; the whole-word button shows "ab" with the tray line under it (vs-reference/vscode-find-whole-word-glyph.png)
-- [ ] T430 Owner review 2026-10-03: a toolbar dragged within its band neither changes orientation nor jumps to another band as it nears one; the band it is in wins
+- [X] T430 Owner review 2026-10-03: a toolbar dragged within its band neither changes orientation nor jumps to another band as it nears one; the band it is in wins
 - [ ] T431 Owner review 2026-10-03: the View menu cannot be left by keyboard: Alt+V then Right opens the Disassembly submenu with no way out; Left closes a submenu, Escape closes a level, Right on the last level moves to the next menu
 - [ ] T432 Owner review 2026-10-03: access-key underlines now sit a little too close; place them midway between the old and current positions
 - [ ] T433 Owner review 2026-10-03: the default window layout becomes vs-reference/casso-default-layout.webp
