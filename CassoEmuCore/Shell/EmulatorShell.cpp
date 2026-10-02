@@ -375,7 +375,8 @@ HRESULT EmulatorShell::Initialize (
     const wstring       & machineName,
     const MachineConfig & config,
     const string        & disk1Path,
-    const string        & disk2Path)
+    const string        & disk2Path,
+    const string        & tapePath)
 {
     HRESULT  hr     = S_OK;
     HRESULT  hrTape = S_OK;
@@ -606,8 +607,21 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
-    hrTape = m_tapeManager->RestoreSavedTape();
-    IGNORE_RETURN_VALUE (hrTape, S_OK);
+    // A tape named on the command line goes in instead of the remembered one,
+    // and is remembered in its place, as --disk1 is.
+    if (tapePath.empty())
+    {
+        hrTape = m_tapeManager->RestoreSavedTape();
+        IGNORE_RETURN_VALUE (hrTape, S_OK);
+    }
+    else if (MachineHasCassettePort())
+    {
+        m_tapeManager->Insert (tapePath);
+    }
+    else
+    {
+        PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
+    }
 
     ApplyPersistedAudioPrefs();
 

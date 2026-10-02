@@ -630,6 +630,7 @@ int WINAPI wWinMain (
     wstring                              machineName;
     wstring                              disk1Path;
     wstring                              disk2Path;
+    wstring                              tapePath;
     wstring                              titlePrefix;
     size_t                               traceCapacity = 0;
     bool                                 noImageWatch  = false;
@@ -699,6 +700,7 @@ int WINAPI wWinMain (
     machineName   = TextEncoding::NarrowToWide (parsed.machine);
     disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);
     disk2Path     = TextEncoding::NarrowToWide (parsed.disk2);
+    tapePath      = TextEncoding::NarrowToWide (parsed.tape);
     titlePrefix   = TextEncoding::NarrowToWide (parsed.titlePrefix);
     traceCapacity = parsed.traceEntries;
     noImageWatch  = parsed.noImageWatch;
@@ -808,7 +810,8 @@ int WINAPI wWinMain (
     // same machine without --machine.
     hr = shell->Initialize (hInstance, machineName, config,
                             fs::path (disk1Path).string(),
-                            fs::path (disk2Path).string());
+                            fs::path (disk2Path).string(),
+                            fs::path (tapePath).string());
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop

@@ -169,7 +169,8 @@ public:
         const wstring        & machineName,
         const MachineConfig  & config,
         const string    & disk1Path,
-        const string    & disk2Path);
+        const string    & disk2Path,
+        const string    & tapePath = {});
 
     int RunMessageLoop();
 
@@ -649,7 +650,7 @@ private:
     // array size: the row is centered on that, so a //c with no external
     // drive centers its one drive rather than leaving a gap where the second
     // would have been.
-    static void  LayoutDriveWidgetsInCommandBar (
+    void         LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
         int                           bottomInsetPx,
         int                           clientW,
@@ -1099,6 +1100,7 @@ private:
     void          BrowseForTape          ();
     void          InsertTape             (const std::wstring & path);
     void          CreateBlankTape        ();
+    void          PromptTapePosition     ();
     void          RegisterTapeDropTarget ();
     void          OnFileDropped          (int tag, const std::wstring & path);
 
@@ -1485,9 +1487,11 @@ private:
     // painter retires the latter. The caption (title + icon + min/max/
     // close) is owned and rendered by the DxuiHwndSource, not here.
     MainMenu                    m_mainMenu;
-    CassoTheme                  m_chromeTheme = CassoTheme::MakeSkeuomorphic();
+    CassoTheme                  m_chromeTheme   = CassoTheme::MakeSkeuomorphic();
     std::array<DriveWidget, 2>  m_driveChrome;
     TapeDeckWidget              m_tapeChrome;
+    RECT                        m_tapeAnchor    = {};   // where the drive row placed it
+    UINT                        m_tapeAnchorDpi = 0;   // and at what DPI; 0 until it has
 
     // The command toolbar: the strip below the menu bar with Settings /
     // theme + monitor-color pickers / Printer (+status LED) / master Volume

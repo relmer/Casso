@@ -298,6 +298,7 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "machine",
     "disk1",
     "disk2",
+    "tape",
     "trace",
     "seed",
 
@@ -324,6 +325,7 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--tape",    " <file>",  "Insert this WAV, AIFF or MP3 into the cassette recorder." },
     { "--trace",   " [size]",  "Record a CPU execution trace, written to the desktop "
                               "by Debug > Save CPU trace or on a crash. A size takes "
                               "a K, M or G suffix." },
@@ -4260,6 +4262,7 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         if      (arg == "--machine" && hasValue) { parsed.machine = argv[++i]; }
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
+        else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
         else if (arg == "--trace")
         {
             parsed.traceEntries = CommandLineOptions::EmulatorOptions::kTraceDefaultEntries;
@@ -4348,6 +4351,7 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
     }
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
+          || canonical == "--tape"
           || canonical == "--seed")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
