@@ -3118,6 +3118,7 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("side-a.mp3"),    slashed.tape);
             Assert::IsFalse  (missing.refusalMessage.empty(), L"--tape with no file is refused");
         }
+
         //  Bare, space-separated, and `=`; a suffix the table does not know
         //  leaves the bare number rather than failing at startup.
         TEST_METHOD (Emulator_TraceTakesItsThreeSpellings)
