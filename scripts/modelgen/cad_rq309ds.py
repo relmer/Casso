@@ -2,116 +2,213 @@
 owners actually loaded tapes from. 140 x 70 x 260 mm (W x H x D), per
 radiomuseum.org. X right, Y back, Z up; the key end faces the viewer at y = 0.
 
-MODELED FROM PHOTOGRAPHS (radiomuseum.org, panasonic_rq_309ds_2799386.jpg top
-view and panasonic_rq_309ds_2799388.jpg side view). The top view is
-150 x 290 px for the 140 x 260 mm case plus handle, so it is read as fractions
-of the depth below rather than picked by eye.
+MODELED FROM PHOTOGRAPHS of the black-key version (an eBay listing; see
+Resources/Models/CassetteRecorder/README.md for the links). The straight-down
+top view is 270 px across the 140 mm case and 517 px from handle to back, so
+every Y below is a photo row read as millimeters from the front, not a number
+picked by eye:
+
+    handle      0 -  11     chrome band wrapped round the front end
+    keys       11 -  44     six black keys on the sloped front, dished ovals
+    strip      44 -  83     silver: black "Panasonic" band with the mic slots
+                            at its left, then the RECORD ... EJECT legend row
+    door       86 - 154     smoked clear lid, the cassette showing through
+    grille    155 - 257     fine-perforated silver plate
 
 It lies FLAT, the way it sat beside a computer: the controls are all on top.
+The case is black pebbled plastic and stands a narrow black rim around the
+top plates.
 
-  - a dark navy body, a slab that runs full height at the back and falls
-    away on a slope over the last fifth toward the keys;
-  - a silver top deck carrying, back to front: a black-framed speaker grille
-    (about 36% of the depth), the smoked cassette window (22%), a black label
-    strip that reads "National Panasonic", then the row of six piano keys --
-    five cream, the last (stop/eject) blue-green;
-  - a chrome carrying handle folded across the front end.
-
-Sub-mesh identity is by part NAME; `window` is where the scene can show the
-tape turning, `keys_*` are the transport.
+Sub-mesh identity is by part NAME; `window` is the cassette door and
+`keys_*` are the transport.
 """
+
+import math
 
 import cadquery as cq
 from cadkit import Model
 
 W, H, D = 140.0, 70.0, 260.0
 
-# The slope: the side view shows the top line dropping over the front ~12%
-# to about two thirds height. The top view shows it silver, like the deck.
-SLOPE_Y = 30.0
-FRONT_H = 46.0
-EDGE_R  = 3.0
+# The slope carries the keys: it falls from full height at the back of the key
+# row to about three fifths height at the front.
+SLOPE_Y = 44.0
+FRONT_H = 42.0
+SLOPE_A = math.degrees(math.atan2(H - FRONT_H, SLOPE_Y))
+EDGE_R  = 4.0
+RIM     = 5.0                       # black rim around the top plates
 
-BODY    = (0.090, 0.100, 0.150)    # dark navy, not black
-DECK    = (0.680, 0.685, 0.690)    # brushed silver, clear of drive_door_alt
-FRAME   = (0.060, 0.060, 0.065)
-GRILLE  = (0.420, 0.425, 0.430)
-WINDOW  = (0.075, 0.095, 0.120)    # smoked lid, clear of glass and plate_recess
-LABEL   = (0.080, 0.080, 0.085)
-KEY     = (0.900, 0.880, 0.720)    # cream
-KEY_ALT = (0.180, 0.420, 0.380)    # stop/eject
-CHROME  = (0.820, 0.830, 0.840)
-
-INSET = 6.0                         # deck margin from the body's sides
-DECK_T = 1.2
-
-
-def body():
-    # Side profile (Y,Z), extruded across X.
-    prof = (cq.Workplane("YZ")
-            .polyline([(0, 0), (D, 0), (D, H), (SLOPE_Y, H), (0, FRONT_H)])
-            .close()
-            .extrude(W))
-    return prof.edges("|X").fillet(EDGE_R)
+# Colors. Every one is kept more than 0.02 in some channel from cadkit.KD.
+BODY    = (0.085, 0.085, 0.092)
+KEY     = (0.040, 0.040, 0.044)
+KEY_DISH= (0.090, 0.090, 0.098)
+SILVER  = (0.760, 0.765, 0.770)
+GRILLE  = (0.700, 0.700, 0.690)
+PERF    = (0.200, 0.200, 0.205)
+BAND    = (0.050, 0.050, 0.055)
+PRINT   = (0.940, 0.940, 0.940)
+DOOR    = (0.075, 0.095, 0.120)     # the smoked lid's frame
+CASSETTE= (0.240, 0.245, 0.255)
+CASS_LBL= (0.880, 0.880, 0.870)
+HUB     = (0.030, 0.030, 0.030)
+BRASS   = (0.700, 0.600, 0.380)
+CHROME  = (0.860, 0.870, 0.880)
 
 
-def deck_plate(y0, y1):
-    return (cq.Workplane("XY")
-            .box(W - 2 * INSET, y1 - y0, DECK_T, centered=False)
-            .translate((INSET, y0, H)))
-
-
-def flat_box(x0, x1, y0, y1, z0, z1):
+def box(x0, x1, y0, y1, z0, z1):
     return (cq.Workplane("XY")
             .box(x1 - x0, y1 - y0, z1 - z0, centered=False)
             .translate((x0, y0, z0)))
 
 
+def text(s, size, x, y, z, halign="center", bold=False):
+    return (cq.Workplane("XY").workplane(offset=z)
+            .text(s, size, 0.3, halign=halign, valign="center",
+                  kind="bold" if bold else "regular", font="Arial")
+            .translate((x, y, 0)))
+
+
+def body():
+    prof = (cq.Workplane("YZ")
+            .polyline([(0, 0), (D, 0), (D, H), (SLOPE_Y, H), (0, FRONT_H)])
+            .close()
+            .extrude(W))
+    prof = prof.edges("|Z").fillet(EDGE_R)
+    return prof.edges("|X").fillet(2.5)
+
+
+def on_slope(solid, y_front):
+    """Tilts a part built lying flat at z = 0 onto the key slope, its front
+    edge at y_front."""
+    z = FRONT_H + (H - FRONT_H) * y_front / SLOPE_Y
+    return solid.rotate((0, 0, 0), (1, 0, 0), SLOPE_A).translate((0, y_front, z))
+
+
+def perforation(x0, x1, y0, y1, z, pitch=2.0, dot=0.8):
+    """The grille's holes as dark dots: thousands of real holes would cost
+    a quarter of a million triangles for a texture the eye reads as gray."""
+    tris = []
+    row = 0
+    y = y0 + pitch / 2
+    while y < y1 - dot:
+        x = x0 + pitch / 2 + (pitch / 2 if row % 2 else 0.0)
+        while x < x1 - dot:
+            a, b = (x, y, z), (x + dot, y, z)
+            c, d = (x + dot, y + dot, z), (x, y + dot, z)
+            tris += [(a, b, c), (a, c, d)]
+            x += pitch
+        y += pitch * 0.866
+        row += 1
+    return tris
+
+
 def build():
     m = Model()
-    top = H + DECK_T
+    top = H
+    x0, x1 = RIM, W - RIM
 
-    m.add("body", body(), BODY)
-    m.add("deck", deck_plate(SLOPE_Y, D - 3.0), DECK)
-    lip = (cq.Workplane("YZ")
-           .polyline([(1.0, FRONT_H - 0.6), (SLOPE_Y, H - 0.6), (SLOPE_Y, H + DECK_T), (1.0, FRONT_H + DECK_T)])
-           .close().extrude(W - 2 * INSET).translate((INSET, 0, 0)))
-    m.add("lip", lip, DECK)
+    # The cassette well under the door: without it the cassette is inside
+    # the solid and the door shows nothing.
+    well = box(RIM + 4, W - RIM - 4, 90.0, 144.0, H - 9.0, H + 1.0)
+    m.add("body", body().cut(well), BODY, angular=0.14)
+    m.add("well_floor", box(RIM + 4, W - RIM - 4, 90.0, 144.0, H - 9.0, H - 8.5), PERF)
 
-    # Speaker grille: back 36% of the depth, in a black frame.
-    gy0, gy1 = D - 98.0, D - 8.0
-    m.add("grille_frame", flat_box(INSET + 2, W - INSET - 2, gy0, gy1, top, top + 1.0), FRAME)
-    perf = flat_box(INSET + 6, W - INSET - 6, gy0 + 4, gy1 - 4, top + 0.6, top + 1.3)
-    holes = cq.Workplane("XY").workplane(offset=top).rarray(4.0, 4.0, 24, 19).circle(1.0).extrude(2.0)
-    holes = holes.translate((W / 2, (gy0 + gy1) / 2, 0))
-    m.add("grille", perf.cut(holes), GRILLE)
+    # Grille.
+    m.add("grille", box(x0, x1, 155.0, D - RIM, top - 0.5, top + 0.6), GRILLE)
+    m.add_triangles("grille_perf", perforation(x0 + 1, x1 - 1, 156.0, D - RIM - 1, top + 0.62), PERF)
 
-    # Cassette window.
-    wy0, wy1 = gy0 - 62.0, gy0 - 3.0
-    m.add("window_frame", flat_box(INSET + 2, W - INSET - 2, wy0, wy1, top, top + 0.8), FRAME)
-    m.add("window", flat_box(INSET + 8, W - INSET - 8, wy0 + 5, wy1 - 6, top + 0.5, top + 1.2), WINDOW)
+    # Cassette door: a smoked frame with the cassette standing below it. The
+    # renderer has no translucency, so the lid is drawn as its frame and the
+    # cassette as seen through it, a shade darker than in the open.
+    dy0, dy1 = 86.0, 154.0
+    door = box(x0, x1, dy0, dy1, top - 0.5, top + 1.0)
+    door = door.cut(box(x0 + 4, x1 - 4, dy0 + 4, dy1 - 10, top - 1, top + 2))
+    m.add("window", door, DOOR)
+    m.add("door_trim", box(x0, x1, dy1 - 0.8, dy1, top + 1.0, top + 1.3), SILVER)
+    m.add("door_print",
+          box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, top + 1.0, top + 1.1)
+          .cut(box(x0 + 6.5, x0 + 29.5, dy1 - 7.0, dy1 - 4.0, top + 0.9, top + 1.2))
+          .union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top + 1.0))
+          .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top + 1.0)),
+          PRINT)
 
-    # Label strip.
-    ly0, ly1 = wy0 - 19.0, wy0 - 3.0
-    m.add("label", flat_box(INSET + 2, W - INSET - 2, ly0, ly1, top, top + 0.6), LABEL)
+    cz = top - 4.0
+    cx0, cx1 = x0 + 6, x1 - 6
+    m.add("cassette", box(cx0, cx1, dy0 + 6, dy1 - 12, cz - 2, cz), CASSETTE)
+    m.add("cassette_label", box(W / 2 - 9, W / 2 + 9, dy1 - 32, dy1 - 22, cz, cz + 0.2), CASS_LBL)
+    hubs = None
+    for hx in (W / 2 - 22, W / 2 + 22):
+        hub = cq.Workplane("XY").workplane(offset=cz).center(hx, dy1 - 27).circle(5.0).extrude(0.3)
+        hubs = hub if hubs is None else hubs.union(hub)
+    m.add("cassette_hubs", hubs, HUB)
+    mech = None
+    for hx in (W / 2 - 12, W / 2 + 6, W / 2 + 18):
+        roller = cq.Workplane("XY").workplane(offset=cz).center(hx, dy0 + 12).circle(2.6).extrude(1.5)
+        mech = roller if mech is None else mech.union(roller)
+    m.add("transport", mech, BRASS)
 
-    # Six piano keys straddling the top of the slope, the front ones stepping
-    # down with it so each pokes the same height above the case.
-    kx0, kx1 = INSET + 4.0, W - INSET - 4.0
+    # The silver strip and what is printed on it.
+    sy0, sy1 = 44.0, 83.0
+    m.add("strip", box(x0, x1, sy0, sy1 + 3.0, top - 0.5, top + 0.6), SILVER)
+    by0, by1 = 64.0, 78.0
+    m.add("band", box(x0 + 1, x1 - 1, by0, by1, top + 0.6, top + 0.8), BAND)
+    m.add("brand", text("Panasonic", 6.5, W / 2 + 8, (by0 + by1) / 2, top + 0.8, bold=True), PRINT)
+    slots = None
+    for i in range(7):
+        sx = x0 + 4 + i * 3.0
+        slot = box(sx, sx + 1.6, by0 + 2, by1 - 2, top + 0.8, top + 1.0)
+        slots = slot if slots is None else slots.union(slot)
+    m.add("mic_slots", slots, SILVER)
+
+    kx0, kx1 = x0 + 1.0, x1 - 1.0
     pitch = (kx1 - kx0) / 6.0
-    ky0, ky1 = SLOPE_Y - 4.0, ly0 - 2.0
-    for i in range(6):
-        x0 = kx0 + i * pitch + 0.8
-        key = flat_box(x0, x0 + pitch - 1.6, ky0, ky1, H - 12.0, top + 5.0)
-        m.add(f"keys_{i}", key, KEY_ALT if i == 5 else KEY, angular=0.2)
+    legends = ["RECORD", "REW", "FF", "PLAY", "STOP", "EJECT"]
+    legend = None
+    for i, s in enumerate(legends):
+        t = text(s, 3.0, kx0 + pitch * (i + 0.5), sy0 + 7, top + 0.6)
+        legend = t if legend is None else legend.union(t)
+    m.add("legend", legend, BAND)
 
-    # Chrome handle folded across the front end: a bar on two short arms.
-    r = 3.0
-    bar = (cq.Workplane("YZ").circle(r).extrude(W - 10.0)
-           .translate((5.0, -4.0, FRONT_H * 0.55)))
-    arm_l = flat_box(2.0, 6.0, -4.0, 14.0, FRONT_H * 0.55 - 2.0, FRONT_H * 0.55 + 2.0)
-    arm_r = flat_box(W - 6.0, W - 2.0, -4.0, 14.0, FRONT_H * 0.55 - 2.0, FRONT_H * 0.55 + 2.0)
-    m.add("handle", bar.union(arm_l).union(arm_r), CHROME, angular=0.15)
+    # Keys: rounded black blocks standing on the slope, each with a dished oval.
+    kw = pitch - 2.0
+    kl = SLOPE_Y / math.cos(math.radians(SLOPE_A)) - 6.0
+    for i in range(6):
+        kx = kx0 + i * pitch + 1.0
+        key = (cq.Workplane("XY").box(kw, kl, 9.0, centered=(False, False, False))
+               .translate((kx, 0, -4.0))
+               .edges("|Z").fillet(2.0)
+               .faces(">Z").edges().fillet(1.2))
+        dish = (cq.Workplane("XY").workplane(offset=4.3)
+                .center(kx + kw / 2, kl / 2).ellipse(kw * 0.34, kl * 0.36).extrude(2.0))
+        m.add(f"keys_{i}", on_slope(key.cut(dish), 4.0), KEY, angular=0.2)
+        floor = (cq.Workplane("XY").workplane(offset=4.3)
+                 .center(kx + kw / 2, kl / 2).ellipse(kw * 0.34, kl * 0.36).extrude(0.05))
+        m.add(f"key_dish_{i}", on_slope(floor, 4.0), KEY_DISH, angular=0.2)
+
+    # Chrome handle: a flat band wrapped round the front end and a little way
+    # down each side.
+    hz0, hz1 = 10.0, 24.0
+    band = (cq.Workplane("XY")
+            .rect(W + 3.0, 16.0).extrude(hz1 - hz0)
+            .edges("|Z").fillet(EDGE_R + 1.0)
+            .translate((W / 2, 6.5, hz0)))
+    band = band.cut(box(1.0, W - 1.0, -1.0, 40.0, hz0 - 1, hz1 + 1))
+    m.add("handle", band, CHROME, angular=0.15)
+
+    # The tone and volume thumbwheels in a recess in the back end.
+    m.add("wheel_well", box(W / 2 - 34, W / 2 + 34, D - 0.3, D + 0.2, 26.0, 46.0), KEY)
+    wheels = None
+    for wx in (W / 2 - 17, W / 2 + 17):
+        wheel = (cq.Workplane("YZ").workplane(offset=wx - 6).center(D - 4, 40.0)
+                 .polygon(24, 18.0).extrude(12.0))
+        wheels = wheel if wheels is None else wheels.union(wheel)
+    m.add("wheels", wheels, BAND)
+    m.add("wheel_legend",
+          text("LOW-TONE-HIGH", 2.2, W / 2 - 17, D + 0.3, 29.0)
+          .rotate((W / 2 - 17, D + 0.3, 29.0), (W / 2 - 17 + 1, D + 0.3, 29.0), 90)
+          .union(text("MIN-VOLUME-MAX", 2.2, W / 2 + 17, D + 0.3, 29.0)
+                 .rotate((W / 2 + 17, D + 0.3, 29.0), (W / 2 + 17 + 1, D + 0.3, 29.0), 90)),
+          SILVER)
 
     return m
 

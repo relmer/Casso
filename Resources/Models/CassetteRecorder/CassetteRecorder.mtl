@@ -1,31 +1,16 @@
 newmtl body
 Ka 0 0 0 
-Kd 0.09 0.1 0.15
+Kd 0.085 0.085 0.092
 d 1
 
-newmtl deck
+newmtl well_floor
 Ka 0 0 0 
-Kd 0.68 0.685 0.69
-d 1
-
-newmtl lip
-Ka 0 0 0 
-Kd 0.68 0.685 0.69
-d 1
-
-newmtl grille_frame
-Ka 0 0 0 
-Kd 0.06 0.06 0.065
+Kd 0.2 0.2 0.205
 d 1
 
 newmtl grille
 Ka 0 0 0 
-Kd 0.42 0.425 0.43
-d 1
-
-newmtl window_frame
-Ka 0 0 0 
-Kd 0.06 0.06 0.065
+Kd 0.7 0.7 0.69
 d 1
 
 newmtl window
@@ -33,43 +18,143 @@ Ka 0 0 0
 Kd 0.075 0.095 0.12
 d 1
 
-newmtl label
+newmtl door_trim
 Ka 0 0 0 
-Kd 0.08 0.08 0.085
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl door_print
+Ka 0 0 0 
+Kd 0.94 0.94 0.94
+d 1
+
+newmtl cassette
+Ka 0 0 0 
+Kd 0.24 0.245 0.255
+d 1
+
+newmtl cassette_label
+Ka 0 0 0 
+Kd 0.88 0.88 0.87
+d 1
+
+newmtl cassette_hubs
+Ka 0 0 0 
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl transport
+Ka 0 0 0 
+Kd 0.7 0.6 0.38
+d 1
+
+newmtl strip
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl band
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl brand
+Ka 0 0 0 
+Kd 0.94 0.94 0.94
+d 1
+
+newmtl mic_slots
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl legend
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
 d 1
 
 newmtl keys_0
 Ka 0 0 0 
-Kd 0.9 0.88 0.72
+Kd 0.04 0.04 0.044
+d 1
+
+newmtl key_dish_0
+Ka 0 0 0 
+Kd 0.09 0.09 0.098
 d 1
 
 newmtl keys_1
 Ka 0 0 0 
-Kd 0.9 0.88 0.72
+Kd 0.04 0.04 0.044
+d 1
+
+newmtl key_dish_1
+Ka 0 0 0 
+Kd 0.09 0.09 0.098
 d 1
 
 newmtl keys_2
 Ka 0 0 0 
-Kd 0.9 0.88 0.72
+Kd 0.04 0.04 0.044
+d 1
+
+newmtl key_dish_2
+Ka 0 0 0 
+Kd 0.09 0.09 0.098
 d 1
 
 newmtl keys_3
 Ka 0 0 0 
-Kd 0.9 0.88 0.72
+Kd 0.04 0.04 0.044
+d 1
+
+newmtl key_dish_3
+Ka 0 0 0 
+Kd 0.09 0.09 0.098
 d 1
 
 newmtl keys_4
 Ka 0 0 0 
-Kd 0.9 0.88 0.72
+Kd 0.04 0.04 0.044
+d 1
+
+newmtl key_dish_4
+Ka 0 0 0 
+Kd 0.09 0.09 0.098
 d 1
 
 newmtl keys_5
 Ka 0 0 0 
-Kd 0.18 0.42 0.38
+Kd 0.04 0.04 0.044
+d 1
+
+newmtl key_dish_5
+Ka 0 0 0 
+Kd 0.09 0.09 0.098
 d 1
 
 newmtl handle
 Ka 0 0 0 
-Kd 0.82 0.83 0.84
+Kd 0.86 0.87 0.88
+d 1
+
+newmtl wheel_well
+Ka 0 0 0 
+Kd 0.04 0.04 0.044
+d 1
+
+newmtl wheels
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl wheel_legend
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl grille_perf
+Ka 0 0 0 
+Kd 0.2 0.2 0.205
 d 1
 

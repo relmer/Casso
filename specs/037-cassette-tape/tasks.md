@@ -339,7 +339,7 @@ and fast loading (US2) once US1 lands.
 - Nothing in `CassoEmuCore` may parse Apple tape bytes. `TapeTestEncoder` is test-only.
 - Every task's tests must fail before the implementation and go red under a stubbed implementation.
 
-- [ ] T068 Remodel the RQ-309DS from the black-key version in `scripts/modelgen/cad_rq309ds.py`; the first pass reads as lo-fi. Reference photos (eBay listing via cassettedecks.us; full size is the `$_57.JPG` form):
+- [X] T068 Remodel the RQ-309DS from the black-key version in `scripts/modelgen/cad_rq309ds.py`; the first pass reads as lo-fi. Reference photos (eBay listing via cassettedecks.us; full size is the `$_57.JPG` form):
   - top views: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/ylEAAOSwkbple-RO/$_57.JPG and https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/jksAAOSwQrlle-RU/$_57.JPG
   - grille and window close-up: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/d-UAAOSws85le-RP/$_57.JPG
   - door open, keys and legend strip: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/9ToAAOSwKAxle-RQ/$_57.JPG

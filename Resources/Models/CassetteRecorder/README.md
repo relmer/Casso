@@ -16,3 +16,9 @@ viewer.
   - dimensions 140 x 70 x 260 mm (W x H x D)
   - `panasonic_rq_309ds_2799386.jpg`, top view (deck layout, key row)
   - `panasonic_rq_309ds_2799388.jpg`, side view (case profile and slope)
+- The black-key version, which this model follows (an eBay listing found through cassettedecks.us; full size is the `.JPG` form):
+  - top views: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/ylEAAOSwkbple-RO/$_57.JPG and https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/jksAAOSwQrlle-RU/$_57.JPG (the layout rows in the generator are read off the second)
+  - grille and door: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/d-UAAOSws85le-RP/$_57.JPG
+  - door open, keys and legend: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/9ToAAOSwKAxle-RQ/$_57.JPG
+  - underside: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/Z24AAOSwqj9le-RR/$_57.JPG
+  - back end, tone and volume wheels: https://i.ebayimg.com/00/s/MTYwMFgxMjAw/z/HmwAAOSwqwNle-RS/$_57.JPG
