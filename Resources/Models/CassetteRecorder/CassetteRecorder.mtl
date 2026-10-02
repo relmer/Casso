@@ -1,6 +1,6 @@
 newmtl body
 Ka 0 0 0 
-Kd 0.085 0.085 0.092
+Kd 0.2 0.2 0.205
 d 1
 
 newmtl well_floor
@@ -75,32 +75,32 @@ d 1
 
 newmtl keys_0
 Ka 0 0 0 
-Kd 0.04 0.04 0.044
+Kd 0.185 0.185 0.19
 d 1
 
 newmtl keys_1
 Ka 0 0 0 
-Kd 0.04 0.04 0.044
+Kd 0.185 0.185 0.19
 d 1
 
 newmtl keys_2
 Ka 0 0 0 
-Kd 0.04 0.04 0.044
+Kd 0.185 0.185 0.19
 d 1
 
 newmtl keys_3
 Ka 0 0 0 
-Kd 0.04 0.04 0.044
+Kd 0.185 0.185 0.19
 d 1
 
 newmtl keys_4
 Ka 0 0 0 
-Kd 0.04 0.04 0.044
+Kd 0.185 0.185 0.19
 d 1
 
 newmtl keys_5
 Ka 0 0 0 
-Kd 0.04 0.04 0.044
+Kd 0.185 0.185 0.19
 d 1
 
 newmtl handle
@@ -110,7 +110,7 @@ d 1
 
 newmtl wheel_well
 Ka 0 0 0 
-Kd 0.04 0.04 0.044
+Kd 0.185 0.185 0.19
 d 1
 
 newmtl wheels

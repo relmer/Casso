@@ -39,8 +39,8 @@ EDGE_R  = 4.0
 RIM     = 5.0                       # black rim around the top plates
 
 # Colors. Every one is kept more than 0.02 in some channel from cadkit.KD.
-BODY    = (0.085, 0.085, 0.092)
-KEY     = (0.040, 0.040, 0.044)
+BODY    = (0.200, 0.200, 0.205)    # dark gray, not black, so it shows in the light
+KEY     = (0.185, 0.185, 0.190)    # a shade off the case; clear of drive_door and drive_latch
 SILVER  = (0.760, 0.765, 0.770)
 GRILLE  = (0.700, 0.700, 0.690)
 PERF    = (0.200, 0.200, 0.205)
