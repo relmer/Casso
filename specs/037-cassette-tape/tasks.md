@@ -258,8 +258,8 @@ identical memory; host time drops sharply with it on.
 ## Phase 7: Polish & Cross-Cutting
 
 - [ ] T054 Manual quickstart.md steps 1, 3 and 5, including one real Internet Archive tape as WAV and as MP3 (SC-006)
-- [ ] T055 Search all new code for magic numbers, British spelling, `name` used as a verb in strings or comments, and `\w \(\)`
-- [ ] T056 Pre-merge gate: full suite Debug and Release x64 (`scripts/RunTests.ps1 -Build`), `scripts/Build.ps1 -RunCodeAnalysis`, ARM64 build, and `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`
+- [X] T055 Search all new code for magic numbers, British spelling, `name` used as a verb in strings or comments, and `\w \(\)`
+- [X] T056 Pre-merge gate: full suite Debug and Release x64 (`scripts/RunTests.ps1 -Build`), `scripts/Build.ps1 -RunCodeAnalysis`, ARM64 build, and `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`
 - [ ] T057 After the owner has tested and approved: draft the CHANGELOG `[Unreleased]` entry (`GH #160: ...`) and the README feature line for owner approval before committing
 
 ---
