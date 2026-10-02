@@ -103,6 +103,10 @@ public:
     const DxuiTreeNode *  FindNodeById     (const std::wstring & id) const;
     int                   GetParentRow     (int flatRow) const;
 
+    // One nesting step. The settings pages indent a child setting's label by
+    // the same amount, so it reads as nested the way a child row here does.
+    static constexpr int  kIndentDip = 18;
+
     DxuiTreeView() { m_focusable = true; }
     ~DxuiTreeView() override = default;
 
@@ -132,7 +136,7 @@ public:
     {
         m_scaler.SetDpi (dpi);
         m_rowHeightPx = m_scaler.ToPx (s_kRowHeightDip);
-        m_indentPx    = m_scaler.ToPx (18);
+        m_indentPx    = m_scaler.ToPx (kIndentDip);
         m_checkboxPx  = m_scaler.ToPx (16);
         m_twistyPx    = m_scaler.ToPx (16);
     }
@@ -239,7 +243,7 @@ private:
     SelectFn                   m_onSelect;
     ExpandFn                   m_onExpand;
     int                        m_rowHeightPx    = 22;
-    int                        m_indentPx       = 18;
+    int                        m_indentPx       = kIndentDip;
     int                        m_checkboxPx     = 16;
     int                        m_twistyPx       = 16;
     int                        m_highlight      = -1;

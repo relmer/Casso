@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiIconImage.h"
+#include "Render/IDxuiTextRenderer.h"
 #include "DxuiScrollbar.h"
 
 

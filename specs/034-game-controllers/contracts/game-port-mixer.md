@@ -95,6 +95,24 @@ Deliberate behavior changes, both toward the rule that the axis owner decides:
 - Leaving paddle mode for Off recenters the paddles; before, they kept the last mouse position.
 - Entering paddle mode centers the paddles on the ][ and ][+ as well as the //e; before, only the //e was centered.
 
+## The `Controller` contribution with two player slots (2026-09-27)
+
+The mixer's interface and rules above are unchanged. What changes is how `ControllerInputService` composes the one `Controller` contribution it submits (research R17, R18; data model [Players](../data-model.md#players-2026-09-27)):
+
+| Rule | Detail |
+|---|---|
+| One playing | When `PlayerSlotPolicy::IsOnePlaying` holds, the playing controller (or Automatic's provisional Player 1) drives PDL0, PDL1 and PB0-PB2 from its `pdl0`, `pdl1` and `pb0`-`pb2` bindings, whichever slot it holds and whatever that slot's target (FR-042, FR-039). (Superseded 2026-09-27: the lone route follows the player's mode, `PlayerTargetRules::GetLoneRoute`. In Joystick mode it is as described; in Paddle mode it drives PDL0 and PB0 only.) |
+| Both playing | Each slot drives its target's paddles (since 2026-09-27 the target is set from the two players' modes by `PlayerTargetRules::GetModeTarget`, never by the profile or the user; see the FR-039 table in the [data model](../data-model.md#playertargetrules-pure)), its `pdl0`.. bindings landing on them in ascending order (FR-038), and the button lines of its target (below) |
+| Button lines by target | Joystick 0: `pb0` to PB0 and `pb1` to PB1. Joystick 1: `pb0` to PB2. Paddle 0/1/2: `pb0` to PB0/PB1/PB2. Paddle 3: none. Bindings with no line are ignored and kept in the profile (FR-039) |
+| Held slot on disconnect | The leaver's paddles are left absent (center) and its lines released within one tick (FR-010). The slot is held for it while the other slot plays, and a held slot blocks the one-playing rule, so the remaining player keeps only its own target's paddles and lines and is not widened onto the leaver's (FR-040, SC-012) |
+| Return | The held slot's controller takes the slot back and drives its target again |
+| Start over | With no slot playing and none held, the Automatic slots empty and nothing drives the port until R16 fills one (FR-040) |
+| Waiting | A slot filled by Automatic whose holder has given no input contributes nothing, and the controller holding it is watched only for its first input (R23) |
+| Keys and mouse | Player 1 on the keys or the mouse makes the `ArrowKeys` or `MousePaddle` source the axis owner for PDL0/PDL1 as before (the mouse PDL0 alone while Player 2 plays, except in Two paddles mode, where it keeps both: `InputModeRules::State::isMouseTwoPaddles`, 2026-09-28); Player 2's controller, when playing, is the owner of its target's axes. Since 2026-09-27 the keys play only in Joystick mode and the mouse only in Paddle mode (`EmulatorShell::SetPlayerMode` turns the other off), so Player 1 on the mouse is in Paddle mode. The mouse drives PDL0 and PDL1 (the Controllers page note reads "paddles 0 and 1"), while `GetModeTarget` gives a Player 2 in Paddle mode beside it Paddle 1, which is PDL1: open question, not settled by FR-039. (Settled 2026-09-28: the mouse owns PDL0 alone while Player 2 plays, and PDL0 and PDL1 otherwise. The arrow keys own PDL0 and PDL1 only while Player 1 is not on a Joyport mode; on one, they drive the jacks their contribution marks, `keyJacks`, and the mixer's keys-to-jacks fallback follows `keyJacks` rather than the axis owner.) |
+| No second joining changes the first | A second controller that starts playing while the first plays on Joystick 0 takes Joystick 1 or a free paddle and never PDL0, PDL1, PB0 or PB1 (SC-014, edge case "A second controller bumped"). Beside a Player 1 in Paddle mode, which holds only PDL0 and PB0, a second player in Paddle mode takes PDL1 and PB1 |
+
+Supersedes, for multiplayer, the Phase 9 rule "Player one's `pb0` drives PB0 and player two's drives PB1".
+
 ## Unit-test obligations
 
 - A button held by one source stays pressed when another source releases it.
@@ -104,3 +122,5 @@ Deliberate behavior changes, both toward the rule that the axis owner decides:
 - A submission from another thread requests one flush and does not write.
 - `MachineGamePortSink` against real `AppleGamePort`, `Apple2eSoftSwitchBank` and `Apple2eKeyboard` instances: ][+ routing including PB2, //e routing with PB2 as Shift, //c leaving `$C063` alone, no game port returning true and writing nothing, a held lifetime lock returning false.
 - Existing input tests (`UnitTest/EmuTests/GamePortTests.cpp`, `InputEventCoalescingTests.cpp`) continue to pass unchanged.
+- (2026-09-27) Through `ControllerInputServiceTests`: each row of the button-lines table with both players playing; one playing in Joystick mode drives PB0-PB2 from either slot and one in Paddle mode PDL0 and PB0; each row of the FR-039 mode table, including a second joystick on the //c driving nothing; a held slot keeps the remaining player on its own lines; a return restores the leaver; start over leaves nothing driving until input; a second controller joining never changes PDL0, PDL1, PB0 or PB1 while the first plays on Joystick 0.
+- (2026-09-28) Through `GamePortInputMixerTests` and `ControllerInputServiceTests`: the keys on a Joyport mode drive only their `keyJacks` and no paddle; the mouse drives PDL0 alone while Player 2 plays; a player on Joystick or Paddle beside a Joyport player drives its lone route's paddles and no button line.

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/DxuiPanel.h"
 
 
 class DxuiLabel;

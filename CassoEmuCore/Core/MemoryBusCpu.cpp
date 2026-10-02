@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MemoryBusCpu.h"
+#include "Core/DramPowerOnPattern.h"
 #include "Prng.h"
 #include "StateReader.h"
 #include "StateWriter.h"
@@ -135,11 +136,10 @@ void MemoryBusCpu::WriteWord (Word address, Word value)
 
 void MemoryBusCpu::InitForEmulation (Prng & prng)
 {
-    // Randomize RAM ($0000-$BFFF) from the shared deterministic Prng to
-    // simulate real DRAM power-on state -- the same source PowerCycle draws
-    // from, so a pinned seed reproduces cold boot byte-for-byte and the
-    // per-boot seed log describes what actually landed in RAM.
-    prng.Fill (memory.data(), 0xC000);
+    // Fill RAM ($0000-$BFFF) with the DRAM power-on pattern, its seeded
+    // bytes drawn from the same Prng PowerCycle uses, so a pinned seed
+    // reproduces cold boot byte-for-byte.
+    DramPowerOnPattern::Fill (memory.data(), 0xC000, prng);
 
     SP = 0xFD;
 
@@ -194,14 +194,14 @@ void MemoryBusCpu::SoftReset()
 //
 //  PowerCycle
 //
-//  Phase 4 / FR-035. Re-seeds Cpu::memory[$0000-$BFFF) from the shared
-//  Prng, then runs the SoftReset sequence.
+//  Refills Cpu::memory[$0000-$BFFF) with the DRAM power-on pattern, then
+//  runs the SoftReset sequence.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryBusCpu::PowerCycle (Prng & prng)
 {
-    prng.Fill (memory.data(), 0xC000);
+    DramPowerOnPattern::Fill (memory.data(), 0xC000, prng);
 
     A             = 0;
     X             = 0;

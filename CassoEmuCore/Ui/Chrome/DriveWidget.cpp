@@ -1,10 +1,7 @@
 #include "Pch.h"
-#include "Theme/DxuiTheme.h"
-#include "Theme/DxuiColor.h"
 #include "DriveWidget.h"
 #include "../IDriveCommandSink.h"
 #include "Core/UnicodeSymbols.h"
-#include "Widgets/DxuiWarningBadge.h"
 
 
 
@@ -667,7 +664,7 @@ Error:
 //
 //  Paints the mounted disk's basename inside m_labelRect, the name row.
 //  Hidden when no disk is mounted; ellipsis-truncated to the label
-//  strip width via the pure TruncateToWidth algorithm.
+//  strip width.
 //
 //  THE WRITE-PROTECT PADLOCK SITS HERE TOO, and it does not scroll. Protection
 //  is a fact about the mounted image, so it belongs with the image's name --

@@ -4,7 +4,7 @@
 #include "DxuiTabStrip.h"
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiTextElide.h"
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 
 
 

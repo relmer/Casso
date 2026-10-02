@@ -2,16 +2,8 @@
 
 //
 //  WINDOWS COMES FIRST, because Ehm chooses its platform from `_WINDOWS_` at
-//  the point Ehm.h is parsed, and Ehm.cpp -- the single translation unit that
-//  DEFINES DEBUGMSG, RELEASEMSG and EhmNotifyUser -- lives in this project.
-//  Without it those three compiled their portable bodies, which write to
-//  stderr; a GUI process has none, so every diagnostic message in Casso and
-//  Dxui was discarded while the header promised OutputDebugString. Every other
-//  Windows project already pulls <windows.h> in ahead of this header for the
-//  same reason (see CassoCli/Pch.h); this project was the one that did not.
-//
-//  <strsafe.h> follows because that is where the StringCch* functions Ehm.cpp
-//  uses live -- <windows.h> does not provide them.
+//  the point Ehm.h is parsed. Every Windows project pulls <windows.h> in ahead
+//  of that header for the same reason (see CassoCli/Pch.h and Ehm/Pch.h).
 //
 //  THE UNDEFS ARE NOT OPTIONAL. <winnt.h> defines BitTest and its siblings as
 //  aliases for the _bittest intrinsics, and CpuOperations::BitTest is the 6502
@@ -58,7 +50,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Ehm.h"
+#include "../Ehm/Ehm.h"
 
 
 

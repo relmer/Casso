@@ -114,7 +114,9 @@ public:
     bool HasUint32 (const string & key, uint32_t & outValue) const { HRESULT hr = GetUint32 (key, outValue); return SUCCEEDED (hr); }
     bool HasBool   (const string & key, bool &     outValue) const { HRESULT hr = GetBool   (key, outValue); return SUCCEEDED (hr); }
 
-    bool HasObject (const string & key, const JsonValue *& outValue) const
+    // True only with outValue set and not null, which the annotations tell
+    // code analysis so a caller need not test the pointer again.
+    _Success_(return) bool HasObject (const string & key, _Outref_ const JsonValue *& outValue) const
     {
         HRESULT  hr = S_OK;
 
@@ -124,7 +126,7 @@ public:
         return SUCCEEDED (hr) && outValue != nullptr;
     }
 
-    bool HasArray (const string & key, const JsonValue *& outValue) const
+    _Success_(return) bool HasArray (const string & key, _Outref_ const JsonValue *& outValue) const
     {
         HRESULT  hr = S_OK;
 

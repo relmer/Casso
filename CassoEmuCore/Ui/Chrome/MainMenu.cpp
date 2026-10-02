@@ -74,8 +74,8 @@ void MainMenu::Open (MainMenuId menu, bool openedByKeyboard)
 ////////////////////////////////////////////////////////////////////////////////
 
 void MainMenu::PaintStrip (
-    DxuiPainter             & painter,
-    DxuiTextRenderer        & text,
+    IDxuiPainter            & painter,
+    IDxuiTextRenderer       & text,
     const ChromeVisualState & visual,
     const CassoTheme       & theme)
 {
@@ -94,8 +94,8 @@ void MainMenu::PaintStrip (
 ////////////////////////////////////////////////////////////////////////////////
 
 void MainMenu::PaintDropdown (
-    DxuiPainter             & painter,
-    DxuiTextRenderer        & text,
+    IDxuiPainter            & painter,
+    IDxuiTextRenderer       & text,
     const ChromeVisualState & visual,
     const CassoTheme       & theme)
 {

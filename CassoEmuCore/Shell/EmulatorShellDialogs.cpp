@@ -7,7 +7,6 @@
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -48,7 +47,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
@@ -571,7 +569,16 @@ void EmulatorShell::OpenSettings (bool showControllers)
     }
 
     m_settingsSheet = std::make_unique<SettingsSheet>();
-    m_settingsSheet->SetOnDialogEnd ([this] (int) { m_settingsSheetClosePending = true; });
+    // A size the user dragged it to is kept for the next time it opens.
+    m_settingsSheet->SetOnDialogEnd ([this] (int)
+    {
+        if (m_settingsSheet->TryStoreResizedSize())
+        {
+            SaveGlobalPrefs();
+        }
+
+        m_settingsSheetClosePending = true;
+    });
 
     (void) m_settingsSheet->OpenModeless (hInst, m_hwnd,
                                           *m_userConfigStore, m_globalPrefs, *m_themeManager,

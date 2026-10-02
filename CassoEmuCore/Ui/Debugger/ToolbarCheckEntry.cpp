@@ -2,9 +2,6 @@
 
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 
-#include "Render/IDxuiTextRenderer.h"
-#include "Theme/DxuiTheme.h"
-
 
 
 

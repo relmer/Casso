@@ -104,8 +104,9 @@ public:
     bool             IsTraceEnabled  () const           { return m_cpu6502->IsTraceEnabled (); }
     uint64_t         GetTraceCount   () const           { return m_cpu6502->GetTraceCount (); }
     HRESULT          DumpTraceToFile (const std::wstring & path,
+                                      const std::string  & preamble,
                                       const std::function<void (uint64_t, uint64_t)> & onProgress) const
-                                                        { return m_cpu6502->DumpTraceToFile (path, onProgress); }
+                                                        { return m_cpu6502->DumpTraceToFile (path, preamble, onProgress); }
 
     // 6502 register accessors
     Word             GetPC      () const  { return m_cpu6502->GetPC (); }

@@ -143,11 +143,41 @@ struct ControllerUnitKey
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AxisRole
+//
+//  What an axis does when it is let go. A centering axis springs back: a
+//  stick, and a wheel or a pedal, which may spring back to center or to one
+//  end. The others stay where they are left, as a paddle's knob does. See
+//  AxisRoleRules for how an axis is classified.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class AxisRole
+{
+    Centering,
+    Throttle,   // HID Throttle
+    Slider,     // HID Slider, or DirectInput's slider type
+    Dial,       // HID Dial
+    JoystickZ,  // a joystick-class device's Z, by convention its throttle
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControlId
 //
 //  One control on a controller. index is the axis (0-7: X, Y, Z, Rx, Ry, Rz,
 //  slider 0, slider 1), trigger (0-1), button (0-127) or hat (0-3, for the
 //  four D-pad kinds).
+//
+//  role describes an axis as its device's enumeration found it, and is not
+//  part of the control's identity: two ControlIds are the same control when
+//  their kind and index match, so a binding read from saved prefs, which
+//  carries no role, still finds its control in the device's list. Look the
+//  role up in that list (AxisRoleRules::GetRole) rather than trusting a copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,8 +185,9 @@ struct ControlId
 {
     ControlKind  kind  = ControlKind::Button;
     int          index = 0;
+    AxisRole     role  = AxisRole::Centering;
 
-    bool operator== (const ControlId &) const = default;
+    bool operator== (const ControlId & other) const { return kind == other.kind && index == other.index; }
 };
 
 
@@ -225,10 +256,9 @@ struct ControllerDeviceInfo
 //
 //  GamePortAdapter
 //
-//  The device plugged into a machine's 16-pin game I/O socket. None is the
-//  game port as it has always been emulated; the Sirius Joyport reads two
-//  Atari-style joysticks through the pushbutton inputs (Atari mode, with its
-//  Controller Select switch at Center).
+//  The device plugged into a machine's 16-pin game I/O socket, as the saved
+//  Joyport setting that per-player modes replaced recorded it. It is read
+//  once, to move a Joyport that was on into the players' modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -304,7 +334,10 @@ struct JoyportJacks
 //  `switches` is the Atari joystick one controller's mapping produces, set by
 //  the evaluator whatever the machine. `jacks` is set only on the merged
 //  controller contribution, and says which controller drives which Joyport
-//  jack.
+//  jack. `keyJacks` marks the jacks that Player 1's arrow keys drive, which
+//  the mixer fills from the keys: on the merged controller contribution, the
+//  jacks it gives the keys, and on the arrow keys' own, both jacks while
+//  Player 1 plays the keys in a jack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,6 +352,7 @@ struct GamePortContribution
     std::bitset<kButtonCount>                    buttons;
     JoystickSwitches                             switches;
     std::optional<JoyportJacks>                  jacks;
+    std::bitset<JoyportJacks::kJackCount>        keyJacks;
 
     bool operator== (const GamePortContribution &) const = default;
 };

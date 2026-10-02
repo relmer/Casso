@@ -7,7 +7,6 @@
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -48,7 +47,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
@@ -1288,6 +1286,8 @@ uint64_t EmulatorShell::ComputeColorSig()
 //  what to say is decided in core where a test can reach it, and this
 //  function chooses no wording.
 //
+//  A notice already up keeps its full time; this one goes below it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ShowNotice (const std::wstring & text)
@@ -1297,7 +1297,7 @@ void EmulatorShell::ShowNotice (const std::wstring & text)
 
 
 
-    m_notice.Show (text, nowMs);
+    m_notices.Push (text, nowMs);
 
     SyncNotice();
 
@@ -1367,22 +1367,39 @@ void EmulatorShell::PostNotice (const std::wstring & text)
 //  taken with the paddle captured must not replace the words telling the user
 //  how to get their cursor back.
 //
+//  AN EXPIRY OR A SLIDE ASKS FOR ITS OWN FRAMES. A notice leaving, and the
+//  ones below it moving up, change the picture with nothing else asking for
+//  a present; a paused machine would otherwise leave a stale notice up until
+//  something unrelated repainted. WaitForFrameOrMessage wakes for the next
+//  expiry for the same reason.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncNotice()
 {
-    RECT                 client = {};
-    RECT                 rc     = {};
-    IDxuiTextRenderer *  text   = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    float                width  = 0.0f;
-    int64_t              nowMs  = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                      std::chrono::steady_clock::now().time_since_epoch()).count();
+    RECT                 client   = {};
+    RECT                 rc       = {};
+    IDxuiTextRenderer *  text     = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    float                width    = 0.0f;
+    size_t               countWas = m_notices.GetCount();
+    int64_t              nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                        std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
-    if (!m_notice.IsShowing (nowMs) || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    //  The system's animation setting is read here and passed in, so the
+    //  stack moves notices at once when the user has turned animations off.
+    m_notices.SetAnimationsEnabled (DxuiSystemSettings::Instance().AreMenuAnimationsEnabled());
+    m_notices.Tick (nowMs);
+
+    if (m_notices.GetCount() != countWas || m_notices.IsAnimating (nowMs))
     {
-        m_notice.SetVisible (false);
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    if (!m_notices.IsShowing (nowMs) || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        m_notices.SetVisible (false);
         return;
     }
 
@@ -1394,14 +1411,12 @@ void EmulatorShell::SyncNotice()
 
     //  Measured where there is a renderer to ask; the estimate is the
     //  fallback for the frames before the renderer exists.
-    m_notice.SetDpi (m_scaler.GetDpi());
+    m_notices.SetDpi (m_scaler.GetDpi());
 
-    rc.bottom = rc.top + (LONG) ((text != nullptr)
-                                 ? m_notice.GetMeasuredHeightPx (*text, width, m_scaler)
-                                 : m_notice.GetPreferredHeightPx (width, m_scaler));
+    rc.bottom = rc.top + (LONG) m_notices.MeasureHeightPx (text, width, m_scaler);
 
-    m_notice.Layout     (rc, m_scaler);
-    m_notice.SetVisible (true);
+    m_notices.Layout     (rc, m_scaler);
+    m_notices.SetVisible (true);
 }
 
 
@@ -1489,9 +1504,9 @@ void EmulatorShell::SetStandInOverlaysHidden (bool hidden)
         m_standInBar.SetVisible        (false);
         m_standInBarSurface.SetVisible (false);
 
-        //  Including this one. Two captures inside the notice's few seconds
+        //  Including the notices. Two captures inside a notice's few seconds
         //  would otherwise photograph the first one's filename.
-        m_notice.SetVisible (false);
+        m_notices.SetVisible (false);
     }
     else
     {

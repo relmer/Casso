@@ -1,9 +1,6 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
-#include "Theme/DxuiColor.h"
-#include "Theme/DxuiDarkTheme.h"
-#include "Theme/DxuiLightTheme.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"

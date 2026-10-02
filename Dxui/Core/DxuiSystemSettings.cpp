@@ -49,13 +49,13 @@ DxuiSystemSettings::DxuiSystemSettings()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiSystemSettings::ReadFlag (UINT action, bool fallback)
+bool DxuiSystemSettings::ReadFlag (UINT action, bool fallback) const
 {
     BOOL  value = FALSE;
 
 
 
-    if (!SystemParametersInfoW (action, 0, &value, 0))
+    if (!m_pfnRead (action, 0, &value, 0))
     {
         return fallback;
     }
@@ -78,13 +78,13 @@ bool DxuiSystemSettings::ReadFlag (UINT action, bool fallback)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiSystemSettings::ReadUint (UINT action, int fallback)
+int DxuiSystemSettings::ReadUint (UINT action, int fallback) const
 {
     UINT  value = 0;
 
 
 
-    if (!SystemParametersInfoW (action, 0, &value, 0) || value == 0)
+    if (!m_pfnRead (action, 0, &value, 0) || value == 0)
     {
         return fallback;
     }
@@ -98,42 +98,73 @@ int DxuiSystemSettings::ReadUint (UINT action, int fallback)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiSystemSettings::ReadWheel
+//
+//  One wheel-scroll parameter. "One screen at a time" reports
+//  `WHEEL_PAGESCROLL`, which is UINT_MAX and would scroll four billion lines
+//  if it were taken at face value, so it maps to `kWheelPageScroll`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiSystemSettings::ReadWheel (UINT action, int fallback) const
+{
+    UINT  value = 0;
+
+
+
+    if (!m_pfnRead (action, 0, &value, 0))
+    {
+        return fallback;
+    }
+
+    return (value == WHEEL_PAGESCROLL) ? kWheelPageScroll : (int) value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiSystemSettings::Refresh
 //
 //  Re-reads every setting. Cheap enough to call on `WM_SETTINGCHANGE`
-//  without filtering on which parameter changed.
-//
-//  The wheel is the one with a sentinel rather than a count: "one screen at
-//  a time" reports `WHEEL_PAGESCROLL`, which is UINT_MAX and would scroll
-//  four billion lines if it were taken at face value.
+//  without filtering on which parameter changed; DxuiHwndSource does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiSystemSettings::Refresh()
 {
-    UINT  wheelLines = 0;
-    UINT  wheelChars = 0;
+    m_animations    = ReadFlag (SPI_GETCLIENTAREAANIMATION, kDefaultAnimations);
+    m_keyboardCues  = ReadFlag (SPI_GETKEYBOARDCUES,        kDefaultKeyboardCues);
+    m_menuAnimation = ReadFlag (SPI_GETMENUANIMATION,       kDefaultMenuAnimation);
+    m_menuFade      = ReadFlag (SPI_GETMENUFADE,            kDefaultMenuFade);
 
-
-
-    m_animations   = ReadFlag (SPI_GETCLIENTAREAANIMATION, kDefaultAnimations);
-    m_keyboardCues = ReadFlag (SPI_GETKEYBOARDCUES,        kDefaultKeyboardCues);
-    m_menuAnimation = ReadFlag (SPI_GETMENUANIMATION, kDefaultMenuAnimation);
-    m_menuFade      = ReadFlag (SPI_GETMENUFADE,      kDefaultMenuFade);
-
-    m_menuShowDelayMs   = ReadUint (SPI_GETMENUSHOWDELAY, kDefaultMenuShowDelayMs);
+    m_menuShowDelayMs   = ReadUint (SPI_GETMENUSHOWDELAY,   kDefaultMenuShowDelayMs);
     m_messageDurationMs = ReadUint (SPI_GETMESSAGEDURATION, kDefaultMessageSeconds) * kMsPerSecond;
 
-    m_wheelLines = kDefaultWheelLines;
-    m_wheelChars = kDefaultWheelChars;
-
-    if (SystemParametersInfoW (SPI_GETWHEELSCROLLLINES, 0, &wheelLines, 0))
-    {
-        m_wheelLines = (wheelLines == WHEEL_PAGESCROLL) ? kWheelPageScroll : (int) wheelLines;
-    }
-
-    if (SystemParametersInfoW (SPI_GETWHEELSCROLLCHARS, 0, &wheelChars, 0))
-    {
-        m_wheelChars = (wheelChars == WHEEL_PAGESCROLL) ? kWheelPageScroll : (int) wheelChars;
-    }
+    m_wheelLines = ReadWheel (SPI_GETWHEELSCROLLLINES, kDefaultWheelLines);
+    m_wheelChars = ReadWheel (SPI_GETWHEELSCROLLCHARS, kDefaultWheelChars);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSystemSettings::SetParameterReader
+//
+//  Replaces the system-parameters query. Takes effect at the next Refresh,
+//  so a test installs its reader, refreshes, and restores with nullptr.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiSystemSettings::SetParameterReader (ParameterReader reader)
+{
+    m_pfnRead = (reader != nullptr) ? reader : SystemParametersInfoW;
+}
+
+
+
+

@@ -119,8 +119,9 @@ Byte AppleGamePort::ReadButton (Word address) const
 //  counts up to the position value. With no cycle source wired (tests) the
 //  timer reads as already expired so a poll loop can never hang.
 //
-//  With a Joyport attached there is no potentiometer on any input, so the
-//  one-shot never times out and PDL(n) reads 255.
+//  With a Joyport attached and nothing in its rear sockets there is no
+//  potentiometer on any input, so the one-shot never times out and PDL(n)
+//  reads 255.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

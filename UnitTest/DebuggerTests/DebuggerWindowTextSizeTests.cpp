@@ -4,10 +4,6 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
-#include "Widgets/DxuiHexView.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiTextView.h"
-#include "Widgets/DxuiToolbar.h"
 
 #include "CppUnitTest.h"
 

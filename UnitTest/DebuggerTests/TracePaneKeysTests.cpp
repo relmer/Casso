@@ -8,7 +8,6 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/TracePane.h"
-#include "Widgets/DxuiListView.h"
 
 #include "CppUnitTest.h"
 

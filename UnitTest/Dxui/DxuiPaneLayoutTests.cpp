@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiPaneLayout.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -87,9 +87,6 @@ struct SettingsUiPrefs
     // but-unused mouse has no UI footprint (firmware-live gate), so
     // MousePaint works zero-config.
     bool               mouseConnected         = true;
-    // The device on the game socket: None or the Sirius Joyport. Only the
-    // machines with annunciators offer it. Applied live, never a reset.
-    GamePortAdapter    gamePortAdapter        = GamePortAdapter::None;
     // Drive-audio component gains (0..1). Defaults mirror the
     // DriveAudioMixer / Disk2AudioSource sound-mix defaults.
     static constexpr float kDefaultDriveMotorVolume = 0.90f;
@@ -177,8 +174,8 @@ struct SettingsMachineInfo
     // "External drive" Connected/Not-connected toggle. Detected from a banked
     // system ROM (romBankSize != 0), the //c's defining trait.
     bool                                 supportsExternalDrive = false;
-    // Annunciator outputs on the game socket, so the Machine tab offers the
-    // game-port adapter. False on the //c.
+    // Annunciator outputs on the game socket, so the Controllers page offers
+    // the Joyport. False on the //c.
     bool                                 supportsGamePortAdapter = false;
 };
 
@@ -210,7 +207,6 @@ public:
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void ApplyMouseConnected         (bool connected)        = 0;
-    virtual void ApplyGamePortAdapter        (GamePortAdapter adapter) = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
@@ -322,14 +318,7 @@ public:
     bool    SecondDriveAttached () const;
     void    SetSecondDriveAttached (bool attached);
     void    SetMouseConnected         (bool connected);
-    void    SetGamePortAdapter        (GamePortAdapter adapter);
 
-    // The command-bar picker changes the game-port adapter while the sheet
-    // may be open. Called each tick with the live value: a change re-seeds the
-    // baseline, and the pending value too unless the user has edited it, so
-    // OK neither reverts the picker nor counts as a change. Returns whether
-    // the Machine tab needs rebuilding.
-    bool    ObserveLiveGamePortAdapter (GamePortAdapter live);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
     // Apply

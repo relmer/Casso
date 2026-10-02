@@ -1,6 +1,5 @@
 #include "Pch.h"
 #include "Core/TextEncoding.h"
-#include "Theme/DxuiColor.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerThemes.h"

@@ -1,17 +1,13 @@
 #include "Pch.h"
 
-#include "Core/DxuiIconImage.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
-#include "Core/WindowTrace.h"
-#include "Core/DxuiWindowFrame.h"
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -52,7 +48,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
@@ -586,10 +581,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_standInBar.SetCentered (true);
     m_standInBar.SetVisible  (false);
 
-    //  THE NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both are up the
-    //  notice is the one on top -- it is the newer of the two, and the older
-    //  one is still readable in the strip above it.
-    m_host->GetRoot().Adopt (m_notice);
+    //  THE NOTICES, ADOPTED AFTER THE CAPTURE BAR so that when both are up
+    //  the notices are on top -- they are the newer, and the older one is
+    //  still readable in the strip above them.
+    m_host->GetRoot().Adopt (m_notices);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -694,16 +689,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         [this] () { return m_machine.GetMouse() != nullptr && m_mouseConnected; },
         [this] () { ToggleInputMappingMode (InputMappingMode::Mouse); });
 
-    // The Sirius Joyport row in the paddle picker, on the machines whose game
-    // socket has the annunciators it needs.
-    m_mainMenu.GetCommands().SetJoyportFns (
-        [this] () { return GetGamePortAdapter() == GamePortAdapter::SiriusJoyport; },
-        [this] () { return m_machine.GetJoyport() != nullptr; },
-        [this] ()
-        {
-            SetGamePortAdapter (GetGamePortAdapter() == GamePortAdapter::SiriusJoyport ? GamePortAdapter::None
-                                                                                       : GamePortAdapter::SiriusJoyport);
-        });
     m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;
@@ -739,10 +724,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
-    m_mainMenu.GetCommands().SetPaddleSourcePickedFn (
-        [this] (const InputModeRules::PaddleSource & source)
+    m_mainMenu.GetCommands().SetPlayerPickedFn (
+        [this] (size_t player, const PlayerEntry & entry)
         {
-            PickPaddleSource (source);
+            PickPlayer (player, entry);
+        });
+
+    m_mainMenu.GetCommands().SetPlayerModeFn (
+        [this] (size_t player, PlayerMode mode)
+        {
+            SetPlayerMode (player, mode);
         });
 
     m_mainMenu.GetCommands().SetProfilePickedFn (
@@ -751,9 +742,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             PickControllerProfile (unit, profileName);
         });
 
-    m_mainMenu.GetCommands().SetNewProfileFn ([this] ()
+    m_mainMenu.GetCommands().SetNewProfileFn ([this] (const ControllerUnitKey & unit)
     {
-        StartNewControllerProfile();
+        StartNewControllerProfile (unit);
     });
 
     m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
@@ -1494,15 +1485,23 @@ void EmulatorShell::OnModalLoopTick()
 //  a bounded upkeep interval so drive-activity sampling stays live behind a
 //  static screen, and drops to a faster tick while a tooltip dwell is pending.
 //  Every other animated surface (persistence trail, drive doors, open menus,
-//  live Settings edits) forces a present through NeedsPresent and so never
-//  reaches this path.
+//  live Settings edits, sliding notices) forces a present through
+//  NeedsPresent and so never reaches this path.
+//
+//  A notice's expiry is a change due at a known time, so the wait ends no
+//  later than that, and the notice leaves when its time is up rather than on
+//  the next upkeep tick after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::WaitForFrameOrMessage()
 {
-    DWORD  timeout = s_kIdleUpkeepMs;
-    DWORD  waited  = 0;
+    DWORD                   timeout      = s_kIdleUpkeepMs;
+    DWORD                   waited       = 0;
+    std::optional<int64_t>  nextChangeMs = m_notices.GetNextChangeMs();
+    int64_t                 untilMs      = 0;
+    int64_t                 nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                               std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
@@ -1514,6 +1513,12 @@ void EmulatorShell::WaitForFrameOrMessage()
         m_toolbar.WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;
+    }
+
+    if (nextChangeMs.has_value())
+    {
+        untilMs = std::clamp (*nextChangeMs - nowMs, (int64_t) 0, (int64_t) timeout);
+        timeout = (DWORD) untilMs;
     }
 
     waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
@@ -2524,28 +2529,27 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    // The controller thread's policy moved the selection, or a controller came
-    // or went. Saying so and writing it to the prefs both belong here, not on
-    // that thread.
+    // The players' slots changed, or a controller came or went. Saying so and
+    // writing it to the prefs both belong here, not on the controller thread.
     if (msg == WM_APP_CONTROLLER_PICK)
     {
-        std::wstring           description;
-        SelectionChangeReason  reason    = SelectionChangeReason::None;
-        bool                   hasNotice = false;
+        std::vector<std::wstring>  notices;
+        bool                       haveEntriesChanged     = false;
+        bool                       haveLastHoldersChanged = false;
 
         {
             std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
-            description               = m_controllerPickDescription;
-            reason                    = m_controllerPickReason;
-            hasNotice                 = m_controllerPickHasNotice;
-            m_controllerPickReason    = SelectionChangeReason::None;
-            m_controllerPickHasNotice = false;
+            notices.swap (m_controllerPickNotices);
+            haveEntriesChanged         = m_controllerPickHasEntries;
+            haveLastHoldersChanged     = m_controllerPickHasHolders;
+            m_controllerPickHasEntries = false;
+            m_controllerPickHasHolders = false;
         }
 
         // A device arriving or leaving changes the rows even when it changes
         // nothing else, so the list is rebuilt on every one of these.
-        ApplyControllerSelectionChange (description, reason, hasNotice);
+        ApplyControllerSlotsChange (notices, haveEntriesChanged, haveLastHoldersChanged);
         SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;

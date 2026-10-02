@@ -6,14 +6,7 @@
 #include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/MainMenu.h"
-#include "Window/DxuiCaptionBar.h"
 #include "../IDriveCommandSink.h"
-#include "Window/DxuiPropertyPage.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiSlider.h"
 
 
 class DxuiHwndSource;
@@ -106,8 +99,6 @@ public:
     // between the dropdown box and its popup menu, which the inherited
     // DxuiPanel auto-fan-out walk cannot supply -- so ThemePage overrides
     // Paint (like DisplayPage) rather than relying on the base fan-out.
-    // The host paints via the concrete DxuiPainter / DxuiTextRenderer,
-    // recovered by a downcast inside the definition.
     void  Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     DxuiComboBox                       & GetThemeDropdown ()       { return m_themeDropdown; }
@@ -195,8 +186,8 @@ public:
     { return m_framebufferSource ? m_framebufferSource (outW, outH) : nullptr; }
 
 private:
-    static void  PaintPreviewWindow (DxuiPainter                          & painter,
-                                     DxuiTextRenderer                     & text,
+    static void  PaintPreviewWindow (IDxuiPainter                         & painter,
+                                     IDxuiTextRenderer                    & text,
                                      const RECT                           & availRect,
                                      const CassoTheme                     & theme,
                                      bool                                   hasDisk,

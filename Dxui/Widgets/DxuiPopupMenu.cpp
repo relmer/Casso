@@ -6,7 +6,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
 
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Core/WindowTrace.h"
 #include "Render/DxuiStroke.h"

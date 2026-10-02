@@ -2,7 +2,6 @@
 
 #include "MockDxuiPainter.h"
 
-#include "Widgets/DxuiScrollbar.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

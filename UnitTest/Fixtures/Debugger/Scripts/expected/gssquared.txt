@@ -7,7 +7,7 @@ A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I..
 >MODE GSSQUARED
 Mode: GSSQUARED
 >300.313
-00/0300: 20 10 03 EA 4C 03 03 86 6E 65 B3 92 01 C8 21 6C   ..jL...ne3..H!l
+00/0300: 20 10 03 EA 4C 03 03 00 FF FF 00 00 FF FF 00 00   ..jL...........
 00/0310: AD 19 C0 60                                      -.@`
 
 >300
@@ -32,23 +32,23 @@ M=8 X=8
 0300: 20 10 03    JSR  $0310
 0303: EA          NOP
 0304: 4C 03 03    JMP  $0303
-0307: 86 6E       STX  $6E
-0309: 65 B3       ADC  $B3
-030B: 92          ???
-030C: 01 C8       ORA  ($C8,X)
-030E: 21 6C       AND  ($6C,X)
+0307: 00          BRK
+0308: FF FF 00    ISC  $00FF,X
+030B: 00          BRK
+030C: FF FF 00    ISC  $00FF,X
+030F: 00          BRK
 0310: AD 19 C0    LDA  $C019
 0313: 60          RTS
-0314: 3D D5 F2    AND  $F2D5,X
-0317: A7 53       LAX  $53
-0319: 9A          TXS
-031A: 2B          ???
-031B: 80 B1       NOP  #$B1
-031D: 9E          ???
-031E: FA          NOP
-031F: A0 F3       LDY  #$F3
-0321: 31 3B       AND  ($3B),Y
-0323: 8B          ???
+0314: FF FF 00    ISC  $00FF,X
+0317: 00          BRK
+0318: FF FF 00    ISC  $00FF,X
+031B: 00          BRK
+031C: FF FF 00    ISC  $00FF,X
+031F: 00          BRK
+0320: FF FF 00    ISC  $00FF,X
+0323: 00          BRK
+0324: FF FF 00    ISC  $00FF,X
+0327: 00          BRK
 >s
 Step at $0310
 >o

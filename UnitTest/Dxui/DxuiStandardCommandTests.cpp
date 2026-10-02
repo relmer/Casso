@@ -1,8 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiStandardCommand.h"
-#include "Widgets/DxuiHexView.h"
-#include "Widgets/DxuiListView.h"
 #include "MockDxuiControl.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

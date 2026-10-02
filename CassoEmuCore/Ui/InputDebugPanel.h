@@ -1,16 +1,6 @@
 #pragma once
 
-#include "Window/DxuiWindow.h"
 #include "InputDebugPanelLayout.h"
-#include "Core/DxuiFocusManager.h"
-#include "Core/DxuiPanel.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiContextMenu.h"
-#include "Widgets/DxuiTooltip.h"
 
 #include "Ui/Debug/InputDebugDialogState.h"
 #include "Ui/Debug/InputEventDisplay.h"

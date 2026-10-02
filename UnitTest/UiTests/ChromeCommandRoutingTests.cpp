@@ -142,8 +142,7 @@ public:
         { L"IDM_DRIVE_EXTERNAL_DISCONNECT", IDM_DRIVE_EXTERNAL_DISCONNECT },
         { L"IDM_MOUSE_CONNECT",             IDM_MOUSE_CONNECT             },
         { L"IDM_MOUSE_DISCONNECT",          IDM_MOUSE_DISCONNECT          },
-        { L"IDM_GAMEPORT_ADAPTER_NONE",     IDM_GAMEPORT_ADAPTER_NONE     },
-        { L"IDM_GAMEPORT_ADAPTER_JOYPORT",  IDM_GAMEPORT_ADAPTER_JOYPORT  },
+
         { L"IDM_PRINTER_DISCARD",           IDM_PRINTER_DISCARD           },
         { L"IDM_PRINTER_COPY",              IDM_PRINTER_COPY              },
         { L"IDM_PRINTER_PREVIEW",           IDM_PRINTER_PREVIEW           },
@@ -155,7 +154,8 @@ public:
         { L"IDM_VIEW_FRAME_RATE",           IDM_VIEW_FRAME_RATE           },
         { L"IDM_VIEW_SCENE_VIEW",           IDM_VIEW_SCENE_VIEW           },
         { L"IDM_VIEW_CONTROLLER_SETTINGS",  IDM_VIEW_CONTROLLER_SETTINGS  },
-        { L"IDM_HELP_KEYMAP",               IDM_HELP_KEYMAP               },
+        { L"IDM_DEBUG_SAVE_TRACE",          IDM_DEBUG_SAVE_TRACE          },
+        { L"IDM_HELP_KEYMAP",              IDM_HELP_KEYMAP               },
         { L"IDM_HELP_ABOUT",                IDM_HELP_ABOUT                },
     };
 
@@ -243,14 +243,6 @@ public:
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE2) == WindowCommandRoute::Disk);
     }
 
-
-    TEST_METHOD (GamePort_Commands_Route_To_The_Game_Port_Handler)
-    {
-        //  Posted by the Settings sheet's OK, and handled on the UI thread,
-        //  where the picker's row is resynced.
-        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_GAMEPORT_ADAPTER_NONE)    == WindowCommandRoute::GamePort);
-        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_GAMEPORT_ADAPTER_JOYPORT) == WindowCommandRoute::GamePort);
-    }
 
 
     TEST_METHOD (Every_Known_IDM_Has_MainMenu_Entry)

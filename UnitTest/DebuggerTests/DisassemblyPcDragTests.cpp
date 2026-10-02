@@ -2,7 +2,6 @@
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Debugger/SymbolTable.h"
-#include "Theme/DxuiColor.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/BranchArrow.h"

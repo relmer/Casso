@@ -8,12 +8,8 @@
 //
 //  DxuiAnimation
 //
-//  Tween engine + `DriveSyncEvent` broker. Tweens advance per-frame
-//  from a start value to an end value over a fixed duration. The
-//  drive-sync broker accepts paired (visual / audio) events and lets
-//  the chrome painter and audio mixer pop them within a single frame
-//  so the door animation and the door-close sound line up without
-//  cross-thread plumbing.
+//  Tween engine. Tweens advance per-frame from a start value to an end
+//  value over a fixed duration.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,14 +27,6 @@ struct DxuiTweenHandle
 };
 
 
-struct DxuiDriveSyncBrokerEvent
-{
-    int      driveIndex  = 0;
-    int      tag         = 0;   // caller-defined (e.g. door-open / door-close)
-    int64_t  frameTimeMs = 0;
-};
-
-
 class DxuiAnimation
 {
 public:
@@ -49,9 +37,6 @@ public:
     bool         SampleTween    (DxuiTweenHandle handle, float currentTimeSec, float & outValue) const;
     void         AdvanceTime    (float currentTimeSec);
     void         ClearTweens    ();
-
-    void         PublishSyncEvent (const DxuiDriveSyncBrokerEvent & ev);
-    std::vector<DxuiDriveSyncBrokerEvent>  ConsumePendingEvents();
 
     static float ApplyEase      (DxuiTweenEase ease, float t);
 
@@ -75,7 +60,6 @@ private:
 
 
     std::vector<DxuiTweenState>            m_tweens;
-    std::vector<DxuiDriveSyncBrokerEvent>  m_pendingSync;
     float                                  m_currentTimeSec    = 0.0f;
     bool                                   m_animationsEnabled = true;
     uint32_t                               m_nextId            = 1;

@@ -5,7 +5,6 @@
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/DebuggerWindow.h"
-#include "Widgets/DxuiToolbar.h"
 
 #include "CppUnitTest.h"
 

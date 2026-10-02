@@ -26,7 +26,6 @@ enum class WindowCommandRoute
     Help,
     ExternalDrive,
     MouseConnect,
-    GamePort,
 };
 
 
@@ -78,7 +77,6 @@ public:
     void  OnHelpCommand        (int id);
     void  OnExternalDriveCommand (int id);
     void  OnMouseConnectCommand  (int id);
-    void  OnGamePortCommand      (int id);
 
     bool  OnInitMenuPopup      (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
 

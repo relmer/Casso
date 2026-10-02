@@ -12,9 +12,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  InputModeRulesTests
 //
-//  Three sources drive the paddle axes and only one can have them, so these
-//  assert that choosing any one gives up the other two, and that the arrow
-//  keys never take the axes on their own.
+//  Player 1 plays on one of three sources, so these assert that choosing any
+//  one gives up the other two, that a controller connecting takes nothing from
+//  the keys or the mouse, and that the arrow keys never take the axes on their
+//  own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,31 +25,116 @@ namespace ControllerTests
     {
     public:
 
-        TEST_METHOD (Controller_OwnsTheAxesWhileAttached)
+        TEST_METHOD (NothingPicked_TheControllersOwnEveryAxis)
         {
-            InputModeRules::State  state;
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
 
             state.hasController        = true;
             state.isControllerAttached = true;
+            owners                     = InputModeRules::GetAxisOwners (state);
 
-            Assert::AreEqual ((int) AxisOwner::Controller, (int) InputModeRules::GetAxisOwner (state));
+            for (AxisOwner owner : owners)
+            {
+                Assert::AreEqual ((int) AxisOwner::Controller, (int) owner,
+                    L"the controllers hold every axis; one no controller drives rests at center");
+            }
         }
 
 
-        TEST_METHOD (Controller_NotReadingRestsTheAxes)
+        //  A controller connecting does not take the keys from Player 1: they
+        //  keep PDL0 and PDL1, and a controller playing as Player 2 plays the
+        //  axes of its own slot beside them.
+        TEST_METHOD (KeysPickedForPlayerOne_KeepTheirAxesWhileAControllerIsAttached)
         {
-            InputModeRules::State  state;
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
 
+            state.arrowsJoystick       = true;
             state.hasController        = true;
-            state.isControllerAttached = false;
+            state.isControllerAttached = true;
+            owners                     = InputModeRules::GetAxisOwners (state);
 
-            // Until the selected controller reads, nothing drives the axes.
-            // The arrow keys never take them on their own: arrows-to-joystick
-            // takes X and Z from the guest's keyboard (FR-008a).
-            Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (state),
-                L"the arrow keys are only ever on because the user turned them on");
+            Assert::AreEqual ((int) AxisOwner::ArrowKeys,  (int) owners[0], L"the keys keep PDL0 with a controller attached (FR-032)");
+            Assert::AreEqual ((int) AxisOwner::ArrowKeys,  (int) owners[1], L"and PDL1");
+            Assert::AreEqual ((int) AxisOwner::Controller, (int) owners[2], L"Player 2's controller owns the rest");
+            Assert::AreEqual ((int) AxisOwner::Controller, (int) owners[3]);
         }
 
+
+        TEST_METHOD (MousePickedForPlayerOne_KeepsItsAxesWhileAControllerIsAttached)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+            state.mousePaddle          = true;
+            state.hasController        = true;
+            state.isControllerAttached = true;
+            owners                     = InputModeRules::GetAxisOwners (state);
+
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[0], L"the mouse keeps PDL0 with a controller attached");
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[1]);
+            Assert::AreEqual ((int) AxisOwner::Controller,  (int) owners[2]);
+        }
+
+
+        //  While Player 2 plays the mouse keeps PDL0 alone, so it never covers
+        //  the paddle Player 2's mode gives it.
+        TEST_METHOD (MouseBesidePlayerTwo_KeepsPdl0Alone)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+
+
+            state.mousePaddle     = true;
+            state.isSecondPlaying = true;
+            owners                = InputModeRules::GetAxisOwners (state);
+
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[0], L"the mouse on PDL0");
+            Assert::AreEqual ((int) AxisOwner::Controller,  (int) owners[1], L"PDL1 left to Player 2");
+        }
+
+
+        //  In Two paddles mode the mouse's X and Y are Player 1's two paddles,
+        //  PDL0 and PDL1, while Player 2 plays too: Player 2's paddles are
+        //  PDL2 and up beside them.
+        TEST_METHOD (MouseAsTwoPaddles_KeepsPdl0AndPdl1BesidePlayerTwo)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+
+
+            state.mousePaddle       = true;
+            state.isSecondPlaying   = true;
+            state.isMouseTwoPaddles = true;
+            owners                  = InputModeRules::GetAxisOwners (state);
+
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[0], L"the mouse's X on PDL0");
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) owners[1], L"and its Y on PDL1");
+            Assert::AreEqual ((int) AxisOwner::Controller,  (int) owners[2], L"PDL2 left to Player 2");
+        }
+
+
+        //  The keys in a Joyport jack close its switches and take no axis, so
+        //  a controller beside them drives the paddle inputs.
+        TEST_METHOD (KeysInAJack_TakeNoAxis)
+        {
+            InputModeRules::State       state;
+            InputModeRules::AxisOwners  owners;
+
+
+
+            state.arrowsJoystick  = true;
+            state.isKeysOnJoyport = true;
+            owners                = InputModeRules::GetAxisOwners (state);
+
+            for (AxisOwner owner : owners)
+            {
+                Assert::AreEqual ((int) AxisOwner::Controller, (int) owner);
+            }
+        }
 
         TEST_METHOD (SelectingAController_TurnsOffTheArrowsAndThePaddle)
         {
@@ -109,168 +195,6 @@ namespace ControllerTests
         }
 
 
-        static ControllerDeviceInfo MakeStick (const std::string & unitId, const std::wstring & description)
-        {
-            ControllerDeviceInfo  info;
-
-            info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
-            info.unit.unitId = unitId;
-            info.unit.source = ControllerUnitSource::InstanceGuid;
-            info.description = description;
-            return info;
-        }
-
-
-        TEST_METHOD (PaddleSources_ListRealControllersAheadOfTheKeysAndTheMouse)
-        {
-            InputModeRules::State              state;
-            std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{A}", L"Gladiator"),
-                                                           MakeStick ("{B}", L"Gamepad") };
-            std::vector<InputModeRules::PaddleSource>  sources;
-
-            state.arrowsJoystick = true;
-            sources              = InputModeRules::BuildPaddleSources (state, devices, std::nullopt);
-
-            Assert::AreEqual (size_t (5), sources.size(), L"each attached controller, the keys and the mouse, then the two-player row");
-
-            // A real stick plays these games better than either, so it is
-            // what the list offers first.
-            Assert::AreEqual (std::wstring (L"Gladiator"),            sources[0].label);
-            Assert::AreEqual (std::wstring (L"Gamepad"),              sources[1].label);
-            Assert::AreEqual (std::wstring (L"Use keys as joystick"), sources[2].label);
-            Assert::AreEqual (std::wstring (L"Use mouse as paddle"),  sources[3].label);
-
-            Assert::AreEqual (std::wstring (L"Multiplayer..."),       sources[4].label);
-
-            Assert::IsTrue (sources[2].isArrowKeys);
-            Assert::IsTrue (sources[3].isMousePaddle);
-            Assert::IsTrue (sources[4].isMultiplayer, L"the mode where two people play sits last, below its own separator");
-            Assert::IsTrue (sources[2].isChecked, L"the one in use is checked wherever it sits");
-        }
-
-
-        TEST_METHOD (PaddleSources_AChosenControllerChecksItselfAndNotTheKeys)
-        {
-            InputModeRules::State              state;
-            std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{A}", L"Gladiator") };
-            std::vector<InputModeRules::PaddleSource>  sources;
-
-            state.arrowsJoystick = true;   // stale: the setters clear this when a controller is chosen
-            state.hasController  = true;
-            sources              = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit);
-
-            Assert::IsTrue  (sources[0].isChecked, L"the chosen controller is the checked entry");
-            Assert::IsFalse (sources[1].isChecked, L"one game port means one checked entry, never two");
-        }
-
-
-        TEST_METHOD (PaddleSources_ASelectionThatIsNotAttachedHasNoRow)
-        {
-            InputModeRules::State                      state;
-            std::vector<ControllerDeviceInfo>          devices;
-            ControllerDeviceInfo                       gone    = MakeStick ("{GONE}", L"Gladiator");
-            std::vector<InputModeRules::PaddleSource>  sources;
-
-            state.hasController = true;
-            sources             = InputModeRules::BuildPaddleSources (state, devices, gone.unit);
-
-            Assert::AreEqual (size_t (3), sources.size(),
-                L"a row for a controller that is not there would offer a pick that drives nothing");
-            Assert::IsFalse (sources[0].isChecked, L"and the keys are not checked, because they are not driving");
-            Assert::IsFalse (sources[1].isChecked);
-        }
-
-
-        // Two players on the two joysticks of a four-axis machine.
-        static MultiplayerSetup MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
-        {
-            MultiplayerSetup  setup;
-
-            setup.isEnabled         = true;
-            setup.players[0].unit   = first;
-            setup.players[0].target = PlayerAxisTarget::Joystick0;
-            setup.players[1].unit   = second;
-            setup.players[1].target = PlayerAxisTarget::Joystick1;
-            return setup;
-        }
-
-
-        TEST_METHOD (PaddleSources_OnlyTheModeIsCheckedWhileTwoPlay)
-        {
-            InputModeRules::State                      state;
-            std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator"),
-                                                                   MakeStick ("{B}", L"Gamepad") };
-            MultiplayerSetup                           setup   = MakeTwoPlayers (devices[0].unit, devices[1].unit);
-            std::vector<InputModeRules::PaddleSource>  sources;
-
-            state.hasController = true;
-            sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup);
-
-            // One game port, one checked entry. Checking the players as well
-            // asked which of the two checked answers was driving.
-            Assert::IsFalse (sources[0].isChecked, L"player one's own row is not the answer");
-            Assert::IsFalse (sources[1].isChecked, L"nor player two's");
-            Assert::IsTrue  (sources.back().isChecked, L"the mode they are playing in is");
-            Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources),
-                L"the closed picker wears the mode, not one controller's name, while two are playing");
-        }
-
-
-        TEST_METHOD (PaddleSources_APlayerTheMachineCannotPlayChecksNothing)
-        {
-            InputModeRules::State                      state;
-            std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator"),
-                                                                   MakeStick ("{B}", L"Gamepad") };
-            MultiplayerSetup                           setup   = MakeTwoPlayers (devices[0].unit, devices[1].unit);
-            std::vector<InputModeRules::PaddleSource>  sources;
-
-            state.hasController = true;
-            sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup, 2);
-
-            Assert::IsFalse  (sources[0].isChecked, L"no player's row is checked in the mode, on any machine");
-            Assert::IsFalse  (sources[1].isChecked, L"player two, on joystick 1, plays nothing on the //c");
-            Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources),
-                L"the machine is still in the mode, whatever it could find paddles for");
-
-            state.hasController  = false;
-            state.arrowsJoystick = true;
-            setup.isEnabled      = false;
-            sources              = InputModeRules::BuildPaddleSources (state, devices, std::nullopt, setup);
-
-            Assert::IsFalse  (sources[0].isChecked, L"nor do kept player slots while the keys drive");
-            Assert::IsFalse  (sources[1].isChecked);
-            Assert::AreEqual (std::wstring (L"Keys"), InputModeRules::GetPaddleSourceLabel (sources));
-        }
-
-
-        TEST_METHOD (PaddleSources_TheMultiplayerRowFollowsTheMode)
-        {
-            InputModeRules::State                      state;
-            std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator") };
-            MultiplayerSetup                           setup;
-            std::vector<InputModeRules::PaddleSource>  sources;
-
-            state.hasController = true;
-            sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup);
-
-            Assert::IsTrue   (sources.back().isMultiplayer);
-            Assert::IsFalse  (sources.back().isChecked, L"the mode is off, so the row is not the answer");
-            Assert::AreEqual (std::wstring (L"Gladiator"), InputModeRules::GetPaddleSourceLabel (sources));
-
-            setup.isEnabled = true;
-            sources         = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup);
-
-            Assert::IsTrue   (sources.back().isChecked, L"turned on, it is what drives the game port");
-            Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources));
-        }
-
-
-        TEST_METHOD (PaddleSourceLabel_NothingDrivingReadsController)
-        {
-            Assert::AreEqual (std::wstring (L"Controller"), InputModeRules::GetPaddleSourceLabel ({}));
-        }
-
-
         TEST_METHOD (Shorten_DropsTheVendorParentheticalBeforeCutting)
         {
             // The strip has no room for the ids that tell two units apart, and
@@ -283,12 +207,12 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Shorten_CutsWhatIsStillTooLong)
+        //  How much of a long description fits is measured where the label is
+        //  drawn, so Shorten cuts nothing by a count of characters.
+        TEST_METHOD (Shorten_LeavesALongDescriptionWhole)
         {
-            std::wstring  shortened = InputModeRules::Shorten (L"An Extremely Verbose Controller Name");
-
-            Assert::AreEqual (InputModeRules::kShortLabelLimit, shortened.size());
-            Assert::AreEqual (L'\x2026', shortened.back(), L"one ellipsis, not three dots");
+            Assert::AreEqual (std::wstring (L"An Extremely Verbose Controller Name"),
+                              InputModeRules::Shorten (L"An Extremely Verbose Controller Name (231d:0121)"));
         }
 
 
@@ -301,9 +225,10 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (NothingChosen_AxesRestAtCenter)
+        TEST_METHOD (NothingChosen_TheArrowsTakeNothing)
         {
-            Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (InputModeRules::State()));
+            Assert::AreEqual ((int) AxisOwner::Controller, (int) InputModeRules::GetAxisOwners (InputModeRules::State())[0],
+                L"the arrow keys are only ever on because the user turned them on");
         }
 
 
@@ -314,7 +239,7 @@ namespace ControllerTests
             state.arrowsJoystick = true;
             state.mousePaddle    = true;
 
-            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) InputModeRules::GetAxisOwner (state),
+            Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) InputModeRules::GetAxisOwners (state)[0],
                 L"the setters make this unreachable, but the owner must still be decided, never ambiguous");
         }
 

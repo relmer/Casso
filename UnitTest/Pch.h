@@ -10,8 +10,6 @@
 #include "../CassoCore/Pch.h"
 #include "Pch.h"
 
-#include "Dxui.h"
-
 // winnt.h #defines these as intrinsic aliases (_bittest etc.) which
 // mangles unrelated test calls like CpuOperations::BitTest into
 // CpuOperations::_bittest at link time. We don't use the intrinsics

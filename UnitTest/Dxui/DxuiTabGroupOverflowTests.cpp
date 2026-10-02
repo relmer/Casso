@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiTabGroup.h"
 #include "MockDxuiControl.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

@@ -325,6 +325,10 @@ void ScreenshotsPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_browseFolder.SetDpi (dpi);
 
     DxuiPanel::SetBounds (rect);
+
+    // Every control here is a fixed height, so the lowest one is where the
+    // content ends, whatever the rect.
+    SetContentHeightPx (GetLowestChildBottomPx() + scaler.ToPx (s_kPagePadDp) - rect.top);
 }
 
 

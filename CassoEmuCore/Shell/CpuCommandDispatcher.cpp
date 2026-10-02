@@ -58,6 +58,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.StepInstruction();
             break;
 
+        case IDM_DEBUG_SAVE_TRACE:
+            target.SaveTrace();
+            break;
+
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
             hr = target.MountDisk ((cmd.id == IDM_DISK_INSERT1) ? 0 : 1, cmd.payload);

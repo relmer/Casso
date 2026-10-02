@@ -238,6 +238,21 @@ public:
     }
 
 
+    //
+    //  Per-channel linear blend from `a` (t = 0) to `b` (t = 1), alpha
+    //  included, rounded and clamped to 0..255.
+    //
+    static uint32_t Lerp (uint32_t a, uint32_t b, float t)
+    {
+        uint32_t  alpha = LerpChannel (a >> 24, b >> 24, t);
+        uint32_t  r     = LerpChannel (a >> 16, b >> 16, t);
+        uint32_t  g     = LerpChannel (a >>  8, b >>  8, t);
+        uint32_t  bl    = LerpChannel (a,       b,       t);
+
+        return (alpha << 24) | (r << 16) | (g << 8) | bl;
+    }
+
+
 private:
     //  The angle between two hues in degrees, 0..180.
     static float GetHueDistance (float a, float b)
@@ -303,6 +318,17 @@ private:
         }
 
         return alpha | ((uint32_t) std::lround ((r + m) * 255.0f) << 16) | ((uint32_t) std::lround ((g + m) * 255.0f) << 8) | (uint32_t) std::lround ((b + m) * 255.0f);
+    }
+
+
+
+    static uint32_t LerpChannel (uint32_t a8, uint32_t b8, float t)
+    {
+        int  from = (int) (a8 & 0xFFu);
+        int  to   = (int) (b8 & 0xFFu);
+        int  v    = from + (int) ((to - from) * t + 0.5f);
+
+        return (uint32_t) std::clamp (v, 0, 255);
     }
 
 

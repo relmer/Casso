@@ -235,9 +235,9 @@ public:
     void  SoftReset();
 
     //  Power off and on. Dirty disks are flushed first -- the mounts
-    //  themselves persist -- and then every DRAM-owning device is re-seeded
-    //  from the shared Prng, so the machine comes up with the arbitrary
-    //  contents a real one would have rather than the ones it just had.
+    //  themselves persist -- and then every DRAM-owning device is refilled
+    //  with the power-on pattern, so the machine comes up with what a real
+    //  one would hold rather than the contents it just had.
     void  PowerCycle();
 
     //  The whole machine's state as one stream, and back. The stream opens
@@ -291,6 +291,10 @@ private:
 
     static constexpr uint64_t  kFnvOffset = 0xCBF29CE484222325ULL;
     static constexpr uint64_t  kFnvPrime  = 0x00000100000001B3ULL;
+
+    //  Power-on bytes the fill must not decide: the power-up byte and the
+    //  monitor's random seed.
+    void  ApplyPowerOnOverrides();
 
     // 4K of page tables; on the heap, see m_diskStore.
     std::unique_ptr<MemoryBus>  m_memoryBus;

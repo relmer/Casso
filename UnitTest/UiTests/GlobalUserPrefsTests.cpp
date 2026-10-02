@@ -629,6 +629,90 @@ public:
     }
 
 
+    // How many members of one object are called `key`.
+    static size_t  CountMembers (const JsonValue & obj, const std::string & key)
+    {
+        size_t  count = 0;
+
+
+
+        for (const auto & kv : obj.GetObjectEntries())
+        {
+            count += (kv.first == key) ? 1 : 0;
+        }
+
+        return count;
+    }
+
+
+    // The Joyport setting is global. Empty means never set, which is what
+    // makes a launch adopt the launched machine's old per-machine value, so
+    // it stays empty across a save until something sets it.
+    TEST_METHOD (GamePortAdapter_ASetValueRoundTripsAndIsWrittenOnce)
+    {
+        GlobalUserPrefs  orig;
+        GlobalUserPrefs  loaded;
+        JsonValue        v;
+        HRESULT          hr     = S_OK;
+
+
+
+        for (const char * token : { "none", "siriusJoyport" })
+        {
+            orig.gamePortAdapter = token;
+            v                    = orig.ToJson();
+            hr                   = loaded.FromJson (v);
+
+            AssertSucceeded (hr);
+            Assert::AreEqual (std::string (token), loaded.gamePortAdapter);
+            Assert::AreEqual ((size_t) 1, CountMembers (v, "gamePortAdapter"), L"written once, not also as an unknown key");
+
+            v = loaded.ToJson();
+            Assert::AreEqual ((size_t) 1, CountMembers (v, "gamePortAdapter"), L"and still once after a second round trip");
+        }
+    }
+
+
+    TEST_METHOD (GamePortAdapter_AnAbsentKeyLoadsEmptyAndStaysUnwritten)
+    {
+        GlobalUserPrefs                                 prefs;
+        std::vector<std::pair<std::string, JsonValue>>  root;
+        JsonValue                                       v;
+        HRESULT                                         hr    = S_OK;
+
+
+
+        root.emplace_back ("activeTheme", JsonValue (std::string ("Skeuomorphic")));
+        v  = JsonValue (std::move (root));
+        hr = prefs.FromJson (v);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue   (prefs.gamePortAdapter.empty(), L"never set");
+        Assert::AreEqual ((size_t) 0, CountMembers (prefs.ToJson(), "gamePortAdapter"), L"so a save leaves it never set");
+    }
+
+
+    // The migration removes the key by clearing it: a loaded value, once
+    // cleared, is not written back, and it is not kept as an unknown key.
+    TEST_METHOD (GamePortAdapter_ClearedIsRemovedOnSave)
+    {
+        GlobalUserPrefs  prefs;
+        GlobalUserPrefs  saved;
+        JsonValue        v;
+        HRESULT          hr    = S_OK;
+
+
+
+        prefs.gamePortAdapter = "siriusJoyport";
+        hr                    = saved.FromJson (prefs.ToJson());
+        AssertSucceeded (hr);
+
+        saved.gamePortAdapter.clear();
+        v = saved.ToJson();
+
+        Assert::AreEqual ((size_t) 0, CountMembers (v, "gamePortAdapter"), L"the key is gone");
+    }
+
     // How many times `key` appears among the members of the saved global
     // object. Counted on the reparsed document rather than by searching the
     // text, because a substring hit cannot tell one member from six.

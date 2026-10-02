@@ -56,6 +56,7 @@ namespace ControllerTests
             info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
             info.unit.unitId = "{01661270-ADF7-11F1-8005-444553540000}";
             info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.formFactor  = ControllerFormFactor::Joystick;
             info.description = L"VKBsim Gladiator";
             info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
                                  { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
@@ -77,18 +78,38 @@ namespace ControllerTests
         }
 
 
-        // Two players: the Xbox controller on joystick 0 and the stick on
-        // joystick 1, which a //c does not have.
-        static MultiplayerSetup MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
+        // A Paddle profile for the stick that reads its X axis as it stands,
+        // rather than the built-in Paddles profile's rate, so a push reads at
+        // once.
+        static void UseAbsolutePaddleProfile (ControllerInputService & service, const ControllerDeviceInfo & device)
         {
-            MultiplayerSetup  setup;
+            std::map<std::string, ControllerModelSettings>  models;
+            ControllerModelSettings                         settings;
+            ControlMapping                                  knob;
 
-            setup.isEnabled          = true;
-            setup.players[0].unit    = first;
-            setup.players[0].target  = PlayerAxisTarget::Joystick0;
-            setup.players[1].unit    = second;
-            setup.players[1].target  = PlayerAxisTarget::Joystick1;
-            return setup;
+            knob.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, 0 } });
+            knob.pb0.push_back  ({ { ControlKind::Button, 0 } });
+
+            settings.EnsureBuiltInProfiles (device.unit.model, device.formFactor, device.controls);
+            settings.AddProfile ("Knob", knob, ProfileMode::Paddle);
+            models[ControllerTokens::ModelToToken (device.unit.model)] = settings;
+
+            service.SetModelSettings  (models);
+            service.SetActiveProfiles (ProfileMode::Paddle, { { ControllerTokens::UnitToToken (device.unit), "Knob" } });
+        }
+
+
+        // Two players in Joystick mode: the Xbox controller on joystick 0 and
+        // the stick on joystick 1, which a //c does not have.
+        static PlayerEntries MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
+        {
+            PlayerEntries  entries;
+
+            entries[0].kind = PlayerEntryKind::Controller;
+            entries[0].unit = first;
+            entries[1].kind = PlayerEntryKind::Controller;
+            entries[1].unit = second;
+            return entries;
         }
 
 
@@ -113,23 +134,25 @@ namespace ControllerTests
             backend.SetSample (stick.unit, pushed);
             SkipCalibration (service, stick.unit);
 
-            service.SetMultiplayer (MakeTwoPlayers (xbox.unit, stick.unit));
+            service.SetPlayerEntries (MakeTwoPlayers (xbox.unit, stick.unit));
             service.SetAxisCount (2);
             service.Tick();
 
             Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[2], L"PDL2 is not driven on a machine with two axes");
-            Assert::IsFalse  (mixer.GetTargetState().buttons.test (1),
+            Assert::IsFalse  (mixer.GetTargetState().buttons.test (2),
                 L"a player whose paddles the machine lacks does not drive the game port at all, buttons included");
-            Assert::IsTrue   (service.GetMultiplayer().players[1].unit.has_value(), L"the slot is kept, not discarded");
+            Assert::IsTrue   (service.GetPlayerEntries()[1].unit.has_value(), L"the pick is kept, not discarded");
 
             service.SetAxisCount (4);
             service.Tick();
 
             Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[2], L"a machine with four axes plays it again");
-            Assert::IsTrue   (mixer.GetTargetState().buttons.test (1), L"and player two's button reaches PB1");
+            Assert::IsTrue   (mixer.GetTargetState().buttons.test (2), L"and player two's first button reaches PB2, joystick 1's line");
         }
 
 
+        //  Player 2 in Paddle mode beside Player 1's joystick drives paddle 2,
+        //  which the //c does not have.
         TEST_METHOD (SinglePaddlePlayer_PastTheCountPlaysNothingAndIsKept)
         {
             FakeControllerBackend   backend;
@@ -138,13 +161,13 @@ namespace ControllerTests
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    xbox   = MakeXboxDevice();
             ControllerDeviceInfo    stick  = MakeStickDevice();
-            MultiplayerSetup        setup  = MakeTwoPlayers (xbox.unit, stick.unit);
+            PlayerEntries           setup  = MakeTwoPlayers (xbox.unit, stick.unit);
             ControllerSample        pushed;
 
             pushed.connected = true;
             pushed.axes[0]   = 1.0f;
 
-            setup.players[1].target = PlayerAxisTarget::Paddle3;
+            setup[1].mode = PlayerMode::Paddle;
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
@@ -152,19 +175,56 @@ namespace ControllerTests
             backend.AddDevice (stick);
             backend.SetSample (stick.unit, pushed);
             SkipCalibration (service, stick.unit);
+            UseAbsolutePaddleProfile (service, stick);
 
-            service.SetMultiplayer (setup);
+            service.SetPlayerEntries (setup);
             service.SetAxisCount (2);
             service.Tick();
 
-            Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[1], L"a //c has no PDL3, and the player does not fall back onto PDL1");
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle3, (int) service.GetMultiplayer().players[1].target,
-                L"and the slot survives the switch");
+            Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[1], L"a //c has no PDL2, and the player does not fall back onto PDL1");
+            Assert::IsTrue   (service.GetPlayerEntries()[1].mode == PlayerMode::Paddle, L"and the mode survives the switch");
 
             service.SetAxisCount (4);
             service.Tick();
 
-            Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[3], L"a //e plays it on PDL3");
+            Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[2], L"a //e plays it on PDL2");
+        }
+
+
+        //  Two players both in Paddle mode fit on the //c's two paddles.
+        TEST_METHOD (TwoPaddlePlayers_PlayOnTheTwoAxisMachine)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox   = MakeXboxDevice();
+            ControllerDeviceInfo    stick  = MakeStickDevice();
+            PlayerEntries           setup  = MakeTwoPlayers (xbox.unit, stick.unit);
+            ControllerSample        pushed;
+
+            pushed.connected = true;
+            pushed.axes[0]   = 1.0f;
+            pushed.buttons.set (0);
+
+            setup[0].mode = PlayerMode::Paddle;
+            setup[1].mode = PlayerMode::Paddle;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (xbox, true);
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, pushed);
+            SkipCalibration (service, stick.unit);
+            UseAbsolutePaddleProfile (service, stick);
+            UseAbsolutePaddleProfile (service, stick);
+
+            service.SetPlayerEntries (setup);
+            service.SetAxisCount (2);
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[1], L"Player 2's paddle is PDL1");
+            Assert::IsTrue   (mixer.GetTargetState().buttons.test (1),                 L"and its line PB1");
         }
 
 

@@ -7,7 +7,6 @@
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -48,7 +47,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
@@ -326,34 +324,93 @@ private:
 //
 //  DumpTrace
 //
-//  Write the CPU execution-trace ring to a timestamped text file in the
-//  working directory, showing a progress window. Best-effort and one-shot:
-//  guarded so the graceful-exit path and the crash handler cannot both
-//  write, and a no-op when --trace is off. Safe to call from the crash
-//  handler on the CPU thread (the thread that owns the ring) since the
-//  process is already halted at the fault.
+//  The crash handler's trace write. One-shot, so a fault inside the write
+//  cannot start a second one, and a no-op when --trace is off. Safe on the
+//  CPU thread (the thread that owns the ring) since the process is already
+//  halted at the fault.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::DumpTrace (const wstring & reason)
 {
-    HRESULT       hr             = S_OK;
-    bool          expected       = false;
-    SYSTEMTIME    st             = {};
-    wchar_t       name[64]       = {};
-    wchar_t       cwd[MAX_PATH]  = {};
+    HRESULT       hr         = S_OK;
+    bool          expected   = false;
+    bool          wonTheRace = false;
     std::wstring  path;
-    uint64_t      total          = 0;
-    bool          wonTheRace     = false;
-    bool          hasTrace       = false;
 
 
 
-    // One-shot: the graceful-exit path and the crash handler both call this,
-    // and only the first through gets to write.
     wonTheRace = m_traceDumped.compare_exchange_strong (expected, true);
 
     BAIL_OUT_IF (!wonTheRace, S_OK);
+
+    hr = WriteTrace (reason, path);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveTrace
+//
+//  Debug > Save CPU trace, run on the CPU thread between slices so the ring
+//  holds still while it is written. The machine stops for the length of the
+//  write, which for a hang is the state worth keeping anyway. Repeatable,
+//  unlike the crash dump, and the notice gives where the file went.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveTrace()
+{
+    HRESULT       hr = S_OK;
+    std::wstring  path;
+
+
+
+    BAIL_OUT_IF (m_traceDumped.load(), S_OK);
+
+    hr = WriteTrace (L"request", path);
+    CHR (hr);
+
+    PostNotice (L"CPU trace saved to " + path);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteTrace
+//
+//  Write the CPU execution-trace ring to a timestamped text file on the
+//  desktop, headed by the power-on seed, showing a progress window. S_OK
+//  without writing when --trace is off; a failed write is reported to the
+//  user here, since from the crash handler the trace is the only artifact.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::WriteTrace (
+    const wstring  & reason,
+    std::wstring   & path)
+{
+    HRESULT       hr             = S_OK;
+    SYSTEMTIME    st             = {};
+    wchar_t       name[64]       = {};
+    std::string   preamble;
+    uint64_t      total          = 0;
+    bool          hasTrace       = false;
+
+
 
     hasTrace = m_traceCapacity != 0 && m_machine.GetCpu() != nullptr && m_machine.GetCpu()->IsTraceEnabled();
 
@@ -363,16 +420,10 @@ void EmulatorShell::DumpTrace (const wstring & reason)
     swprintf_s (name, L"casso-trace-%04u%02u%02u-%02u%02u%02u.txt",
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
 
-    if (GetCurrentDirectoryW (MAX_PATH, cwd) > 0)
-    {
-        path = std::wstring (cwd) + L"\\" + name;
-    }
-    else
-    {
-        path = name;
-    }
-
-    total = m_machine.GetCpu()->GetTraceCount();
+    path     = GetTraceFolder() + L"\\" + name;
+    preamble = std::format ("power-on seed: 0x{:016X}  (replay with --seed 0x{:016X})\n",
+                            m_prngSeed, m_prngSeed);
+    total    = m_machine.GetCpu()->GetTraceCount();
 
     // Scoped so the bails above never jump across the window's construction.
     {
@@ -380,7 +431,7 @@ void EmulatorShell::DumpTrace (const wstring & reason)
 
         win.Create (reason, path, total);
 
-        hr = m_machine.GetCpu()->DumpTraceToFile (path, [&win] (uint64_t done, uint64_t tot)
+        hr = m_machine.GetCpu()->DumpTraceToFile (path, preamble, [&win] (uint64_t done, uint64_t tot)
         {
             win.SetProgress (done, tot);
         });
@@ -395,7 +446,47 @@ void EmulatorShell::DumpTrace (const wstring & reason)
     }
 
 Error:
-    return;
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTraceFolder
+//
+//  The desktop, where someone reporting a bug will find the file without
+//  knowing what the working directory was. A launch from a shortcut usually
+//  starts in the install folder, which may not be writable. Falls back to the
+//  working directory when the desktop cannot be resolved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::GetTraceFolder()
+{
+    HRESULT       hr            = S_OK;
+    PWSTR         pszDesktop    = nullptr;
+    wchar_t       cwd[MAX_PATH] = {};
+    std::wstring  folder        = L".";
+
+
+
+    hr = SHGetKnownFolderPath (FOLDERID_Desktop, KF_FLAG_DEFAULT, nullptr, &pszDesktop);
+
+    if (SUCCEEDED (hr))
+    {
+        folder = pszDesktop;
+    }
+    else if (GetCurrentDirectoryW (MAX_PATH, cwd) > 0)
+    {
+        folder = cwd;
+    }
+
+    CoTaskMemFree (pszDesktop);
+
+    return folder;
 }
 
 

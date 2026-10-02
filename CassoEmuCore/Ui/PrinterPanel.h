@@ -1,10 +1,5 @@
 #pragma once
 
-#include "Window/DxuiWindow.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiTooltip.h"
-#include "Core/DxuiPanZoom.h"
-
 #include "Devices/Printer/PrinterViewport.h"
 #include "Devices/Printer/RgbaImage.h"
 #include "PrinterPaperView.h"

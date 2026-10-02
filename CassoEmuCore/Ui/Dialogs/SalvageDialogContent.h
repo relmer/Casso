@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "Core/DxuiPanel.h"
-#include "Widgets/DxuiInfoBanner.h"
 #include "Devices/Disk/DiskImageStore.h"
 
 

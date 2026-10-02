@@ -115,10 +115,17 @@ struct GlobalUserPrefs
     std::map<std::string, float>  monitorTilt;
 
     // GAME CONTROLLERS: each DirectInput unit's calibration, and later each
-    // model's profiles and deadzone. Held as the document rather than parsed
+    // model's profiles and dead zone. Held as the document rather than parsed
     // here, so ControllerProfileStore owns its layout and a member this build
     // does not know survives a save. Null when nothing has been saved.
     JsonValue                     controllers;
+
+    // THE JOYPORT SETTING THAT PER-PLAYER MODES REPLACED, read once: a saved
+    // "siriusJoyport" puts the players in the Joyport's jacks, and empty,
+    // never set, reads the launched machine's own older value instead
+    // (PlayerModeRules::MigrateAdapter). The saved player modes mark it read,
+    // and the migration then clears it, which removes the key on the next save.
+    std::string                   gamePortAdapter;
 
     // Text color used when the Color monitor is active (the monochrome
     // monitors derive their text from the phosphor tint instead). White is
@@ -272,6 +279,13 @@ struct GlobalUserPrefs
     // scale together. Mute keeps the slider value; the mix just gets gain 0.
     float        masterVolume             = 1.0f;   // 0 .. 1
     bool         masterMuted              = false;
+
+    // THE SETTINGS SHEET'S SIZE as the user last left it, in DIPs so it means
+    // the same on a monitor of another scale. 0 means never resized, and the
+    // sheet opens at its design size. Restored clamped to the sheet's limits
+    // and to the monitor's work area.
+    int          settingsWidthDip         = 0;
+    int          settingsHeightDip        = 0;
 
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;

@@ -31,37 +31,97 @@ see [`specs/004-apple-iie-fidelity/iie-audit.md`](specs/004-apple-iie-fidelity/i
 
 ## 1. Projects and layering
 
-Five projects in `Casso.sln`, layered so the CPU/assembler core knows nothing
-about the emulator, and the emulator core knows nothing about Win32/D3D:
+Eight projects in `Casso.sln`. Three static libraries hold all of the code; the
+two executables have none of their own, and the rest are tests and a build
+tool:
+```mermaid
+flowchart TD
+    Casso["<b>Casso.exe</b><br/>the emulator<br/>no code: links CassoEmuCore.lib,<br/>adds resources"]
+    Cli["<b>CassoCli.exe</b><br/>assembler, disk tool, run<br/>no code: links CassoEmuCore.lib"]
+    UT["<b>UnitTest.dll</b>"]
+    ST["<b>ScenarioTests.dll</b><br/>boots real software"]
+    Mesh["<b>MeshCreator.exe</b><br/>bakes the desk-scene meshes at build time"]
 
-| Project | Kind | Contents |
+    Emu["<b>CassoEmuCore.lib</b><br/>machines, devices, memory bus,<br/>shell, D3D render, WASAPI audio,<br/>both entry points"]
+    Core["<b>CassoCore.lib</b><br/>6502 and 65C02 CPU,<br/>assembler, parser"]
+    Dxui["<b>Dxui.lib</b><br/>Direct2D and DirectWrite UI library"]
+
+    Casso --> Emu
+    Cli --> Emu
+    UT --> Emu
+    ST --> Emu
+    UT --> Dxui
+    Emu --> Core
+    Emu --> Dxui
+    Mesh -. "compiles ObjMeshParser<br/>from CassoEmuCore" .-> Emu
+    classDef fast fill:#1D9E75,stroke:#0F6E56,color:#FFFFFF
+    classDef slow fill:#7F77DD,stroke:#534AB7,color:#FFFFFF
+    classDef plain fill:#888780,stroke:#5F5E5A,color:#FFFFFF
+    class Casso,Cli fast
+    class Emu,Core,Dxui slow
+    class UT,ST,Mesh plain
+```
+
+| Project | Builds | Contents |
 |---|---|---|
-| **CassoCore** | static lib | 6502/65C02 CPU, microcode/opcode tables, assembler, parser |
-| **CassoEmuCore** | static lib | Apple II devices, memory bus, MMU, video modes, audio generators |
-| **Casso** | Win32 GUI | the emulator app: D3D11 render, WASAPI audio, Dxui chrome, shell |
-| **CassoCli** | console | AS65-compatible assembler CLI (+ a `run` subcommand) |
-| **UnitTest** | DLL | MS Native CppUnitTest; links CassoCore + CassoEmuCore |
+| **CassoCore** | `CassoCore.lib` | 6502/65C02 CPU, microcode/opcode tables, assembler, parser |
+| **Dxui** | `Dxui.lib` | Direct2D/DirectWrite UI library: windows, panels, layout, text |
+| **CassoEmuCore** | `CassoEmuCore.lib` | machines, devices, memory bus, MMU, video modes, audio generators; also the shell, D3D11 rendering, WASAPI output, and both entry points |
+| **Casso** | `Casso.exe` | no code: links `CassoEmuCore.lib` and adds the resources |
+| **CassoCli** | `CassoCli.exe` | no code: links `CassoEmuCore.lib` for the assembler, disk tool and `run` |
+| **UnitTest** | `UnitTest.dll` | MS Native CppUnitTest; links all three libraries |
+| **ScenarioTests** | `ScenarioTests.dll` | boots real software and checks its guest-visible results |
+| **MeshCreator** | `MeshCreator.exe` | bakes the desk scene's OBJ models into the blobs the emulator loads; runs at build time |
 
-The dependency arrows only point downward: `Casso → {CassoEmuCore, CassoCore}`,
-`CassoEmuCore → CassoCore`, `CassoCore → nothing`. This is why the CPU can be
-driven headless by tests and by the CLI, and it is the reason one specific
-optimization (the inline read fast path, §4) is careful **not** to leak
-emulator types back up into `CassoCore`; see [Roads not taken](#9-roads-not-taken).
+The dependency arrows only point downward. `CassoCore` depends on nothing, which
+is why the CPU can be driven headless by tests and by the CLI, and it is the
+reason one specific optimization (the inline read fast path, §4) is careful
+**not** to leak emulator types back up into `CassoCore`; see
+[Roads not taken](#9-roads-not-taken). `CassoEmuCore` holds the Win32, D3D and
+WASAPI code as well as the emulation: the library split exists so `UnitTest`
+can link the shell and renderer, not to keep the platform out.
 
 The runtime object graph in the GUI:
 
-```
-EmulatorShell ── owns ── MachineManager ── builds ── the machine
-     │                                                   │
-     ├── EmuCpu (ICpu) ── MemoryBusCpu (Cpu6502/Cpu65C02 ← Cpu)
-     │                          │
-     │                          └── MemoryBus ── devices (via the bus)
-     │                                             + Apple2eMmu (coordinator)
-     ├── CpuManager (the emulation thread)
-     └── D3DRenderer / DxuiHwndSource (present) + Dxui panel tree (chrome)
+```mermaid
+flowchart TD
+    Shell["<b>EmulatorShell</b><br/>the running emulator"]
+
+    Build["<b>MachineBuilder</b>, <b>MachineManager</b><br/>build a machine; switch,<br/>reset, power cycle"]
+    CM["<b>CpuManager</b><br/>the CPU thread,<br/>command queue"]
+    Pic["<b>D3DRenderer</b>, <b>DeskScene</b>,<br/><b>DxuiHwndSource</b><br/>picture, window, chrome"]
+    Side["<b>WasapiAudio</b>, <b>PrinterWorker</b>,<br/><b>ControllerInputThread</b>"]
+    Mgrs["<b>DiskManager</b>,<br/><b>ClipboardManager</b>,<br/><b>WindowCommandManager</b>"]
+
+    subgraph machine ["MachineHost: the emulated machine, with no window"]
+        direction TB
+        EmuCpu["<b>EmuCpu</b><br/>holds an ICpu"] --> MBC["<b>MemoryBusCpu</b><br/>Cpu6502 or Cpu65C02"]
+        MBC --> Bus["<b>MemoryBus</b><br/>page table, device map"]
+        Bus --> Dev["<b>devices</b><br/>RAM, ROM, keyboard,<br/>Disk II, Mockingboard, ..."]
+        Mmu["<b>Apple2eMmu</b><br/>re-points the page table"] -.-> Bus
+        Dev -.-> IC["<b>InterruptController</b>"] -.-> EmuCpu
+        VM["<b>video modes</b>,<br/>VideoTiming"]
+        Store["<b>DiskImageStore</b>"]
+    end
+
+    Shell --> Build
+    Shell --> CM
+    Shell --> Pic
+    Shell --> Side
+    Shell --> Mgrs
+    Shell -- owns --> machine
+    Build -. builds .-> machine
+
+    classDef fast fill:#1D9E75,stroke:#0F6E56,color:#FFFFFF
+    classDef slow fill:#7F77DD,stroke:#534AB7,color:#FFFFFF
+    classDef plain fill:#888780,stroke:#5F5E5A,color:#FFFFFF
+    class EmuCpu,MBC,Bus,Dev,Mmu,IC,VM,Store fast
+    class Build,CM,Pic,Side,Mgrs slow
+    class Shell plain
+    style machine fill:none,stroke:#1D9E75
 ```
 
-`EmuCpu` is the `ICpu` wrapper the shell holds; underneath it is a
+`EmuCpu` is the `ICpu` wrapper the machine holds; underneath it is a
 `MemoryBusCpu` (a `Cpu6502`/`Cpu65C02` strategy that routes memory through the
 `MemoryBus` instead of a flat array). Tests substitute a flat-memory `TestCpu` /
 `TestCpu65C02` at the same seam.
@@ -173,6 +233,8 @@ A page gets a **page-table pointer** iff the chip that answers there is passive
 storage; it stays on the **device handler** iff the chip reacts to being
 addressed (side effects, computed reads):
 
+<p align="center"><img src="docs/memory-map.svg" alt="The Apple //e memory map from $0000 at the bottom to $FFFF at the top, with main memory, auxiliary memory, and ROM and I/O side by side. Zero page and stack are selected by ALTZP; $0200-$BFFF by RAMRD for reads and RAMWRT for writes, with PAGE2 selecting main or aux for text page 1 when 80STORE is on, and for hi-res page 1 when 80STORE and HIRES are on. $C000-$C0FF is I/O; $C100-$CFFF is slot or internal ROM, selected by INTCXROM, SLOTC3ROM and INTC8ROM; $D000-$FFFF is motherboard ROM or language-card RAM, with two $D000 banks, selected by the $C080-$C08F switches and ALTZP. Strips beside the address axis show that Casso serves RAM reads and writes through the page table, the $C000-$CFFF space through device calls, and the language card with page-table reads and device writes." width="100%" /></p>
+
 | Range | Nature | Lane |
 |---|---|---|
 | `$0000–$BFFF` | main/aux RAM | page table (read + write) |
@@ -194,17 +256,74 @@ Notes:
 ### 3.4 Re-pointing: keeping the cache correct
 
 Because the page table is a *cache* of the decode, it must be rebuilt whenever a
-latch that affects it changes. `Apple2eMmu` owns this:
+latch that affects it changes. Each switch re-resolves only the pages it
+affects:
+```mermaid
+flowchart LR
+    ALTZP["ALTZP"]
+    LC["$C080-$C08F"]
+    C028["$C028<br/>//c ROM bank"]
+    RAMRD["RAMRD, RAMWRT"]
+    STORE["80STORE"]
+    DISP["PAGE2, HIRES"]
 
-- **RAMRD/RAMWRT/80STORE** → `RebindPageTable` re-resolves `$00–$BF`
-  (`ResolveZeroPage` / `ResolveMain02_BF` / `ResolveText04_07` / `ResolveHires20_3F`).
-- **ALTZP** → re-resolves zero page **and** re-points the LC window (aux↔main).
+    ZP["ResolveZeroPage"]
+    WIN["LanguageCard::<br/>RebindWindow"]
+    CX["RebindCxxxInternalRom"]
+    MAIN["ResolveMain02_BF"]
+    TEXT["ResolveText04_07"]
+    HIRES["ResolveHires20_3F"]
+
+    P00["$00-$01<br/>read and write"]
+    PD0["$D0-$FF<br/>read"]
+    PC1["$C1-$CF read,<br/>except $C3 and $CF"]
+    P02["$02-$BF read and write,<br/>minus the pages 80STORE routes"]
+    P04["$04-$07<br/>read and write"]
+    P20["$20-$3F<br/>read and write"]
+
+    ALTZP --> ZP
+    ALTZP --> WIN
+    LC --> WIN
+    C028 --> WIN
+    C028 --> CX
+    RAMRD --> MAIN
+    STORE --> MAIN
+    STORE --> TEXT
+    STORE --> HIRES
+    DISP --> TEXT
+    DISP --> HIRES
+
+    ZP --> P00
+    WIN --> PD0
+    CX --> PC1
+    MAIN --> P02
+    TEXT --> P04
+    HIRES --> P20
+
+    classDef fast fill:#1D9E75,stroke:#0F6E56,color:#FFFFFF
+    classDef slow fill:#7F77DD,stroke:#534AB7,color:#FFFFFF
+    classDef plain fill:#888780,stroke:#5F5E5A,color:#FFFFFF
+    class ALTZP,LC,C028,RAMRD,STORE,DISP plain
+    class ZP,WIN,CX,MAIN,TEXT,HIRES slow
+    class P00,PD0,PC1,P02,P04,P20 fast
+```
+
+- **RAMRD, RAMWRT** → `ResolveMain02_BF` re-points `$02–$BF`, skipping the
+  pages 80STORE routes.
+- **80STORE** → `ResolveMain02_BF`, `ResolveText04_07` and `ResolveHires20_3F`.
+- **PAGE2, HIRES** → `OnSoftSwitchChanged`, which runs `ResolveText04_07` and
+  `ResolveHires20_3F`.
+- **ALTZP** → `ResolveZeroPage`, **and** `LanguageCard::RebindWindow`, because
+  the language card's RAM moves between main and aux with it.
 - **LC bank/read switches (`$C08x`)** → `LanguageCard::RebindWindow` re-points
-  `$D0–$FF` read pages (bank1/bank2 × main/aux, or ROM).
-- **//c internal ROM attach / `$C028` bank flip** → `RebindCxxxInternalRom`
-  re-points `$C1–$CF`, and `RebindWindow` re-points `$D0–$FF`. Both matter
-  because `SetInternalRom` move-reassigns its buffer, so stale pointers would
-  dangle.
+  the `$D0–$FF` read pages (bank 1 or 2, main or aux, or ROM).
+- **//c `$C028` bank flip** → `RebindCxxxInternalRom` re-points `$C1–$CF`, and
+  `RebindWindow` re-points `$D0–$FF`. Both matter because `SetInternalRom`
+  move-reassigns its buffer, so stale pointers would dangle.
+- **Reset, power cycle** → `RebindPageTable` runs all four RAM resolvers.
+- **INTCXROM, SLOTC3ROM, INTC8ROM** re-point nothing: `CxxxRomRouter` checks
+  them on every access, which is why `$C1xx–$CFxx` stays on the device path on
+  the //e.
 
 Miss a re-point and you serve stale bytes; that is the one real hazard of this
 design, so the trigger set above is the thing to preserve when changing banking.
@@ -236,6 +355,24 @@ Crucially it is a bare pointer-to-pointers, `CassoCore` knows nothing about
 through the bus (I/O device dispatch). The standalone base `Cpu` leaves
 `m_readPages` null and always takes the slow path into its flat `memory[]`.
 
+```mermaid
+flowchart TD
+    A["<b>Cpu::ReadByte</b>(address)<br/>inline, non-virtual"] --> B{"m_readPages<br/>wired?"}
+    B -- "no: standalone Cpu,<br/>tests, CLI" --> F["Cpu::ReadByteSlow<br/>flat memory[]"]
+    B -- yes --> C{"m_readPages[address >> 8]<br/>non-null?"}
+    C -- "yes: RAM, ROM, LC reads" --> D["return page[address & 0xFF]<br/><i>one load, no call</i>"]
+    C -- "no: I/O, and $C1xx-$CFxx on the //e" --> E["<b>MemoryBusCpu::ReadByteSlow</b><br/>UpdateBusCycle"]
+    E --> G["<b>MemoryBus::ReadByte</b><br/>FindDevice in m_ioDeviceMap,<br/>one entry per byte"]
+    G -- "device found" --> H["device->Read(address)<br/><i>can flip soft switches,<br/>latch Disk II data</i>"]
+    G -- "none, in $C000-$CFFF" --> I["floating bus:<br/>last value a device drove"]
+    classDef fast fill:#1D9E75,stroke:#0F6E56,color:#FFFFFF
+    classDef slow fill:#7F77DD,stroke:#534AB7,color:#FFFFFF
+    classDef plain fill:#888780,stroke:#5F5E5A,color:#FFFFFF
+    class A,D fast
+    class E,G,H,I slow
+    class F plain
+```
+
 `ReadByteSlow` (for I/O) calls `UpdateBusCycle`, which refreshes the
 sub-instruction bus-cycle estimate the Disk II controller samples at `$C0Ex`.
 It is **absolute** (`m_busCycle = m_totalCycles + (lastCycles-1)`), re-derived at
@@ -253,15 +390,52 @@ the gate for any change on this path.
 ## 5. Devices and the per-instruction tick
 
 Devices implement `MemoryDevice` (`Read`/`Write`/`GetStart`/`GetEnd`) and register
-on the `MemoryBus`. Cycle-driven devices are ticked **once per instruction** from
-the CPU thread with the instruction's cycle count:
+on the `MemoryBus`. The CPU thread runs each frame as slices of 1,023 cycles,
+and each slice one instruction at a time; after every instruction the
+cycle-driven devices get that instruction's cycle count:
+```mermaid
+sequenceDiagram
+    participant Mgr as CpuManager::ThreadProc
+    participant Shell as ExecuteCpuSlices
+    participant Host as MachineHost
+    participant Cpu as EmuCpu
+    participant Dev as Devices
+    participant Irq as InterruptController
 
-```cpp
-diskController->Tick (cpu->GetLastInstructionCycles());
-mockingboard  ->Tick (...);
-keyboard      ->Tick (...);
-// AppleMouse is an ICycleSink wired via SetCycleSink (same cadence)
+    Mgr->>Mgr: DrainCommandQueue
+    Mgr->>Shell: RunCpuThreadFrame
+    Shell->>Shell: keyboard auto-repeat, on real time
+    loop each slice of 1023 cycles
+        Shell->>Host: RunCycles(1023)
+        loop each instruction until the budget is spent
+            Host->>Cpu: StepOne, an interrupt vector or an opcode
+            Cpu->>Dev: AddCycles to VideoTiming and the //c mouse
+            Host->>Dev: Disk II Tick(cycles)
+            Host->>Dev: Mockingboard Tick(cycles), VIAs and SSI 263
+            Dev-->>Irq: Assert or Clear
+            Irq-->>Cpu: IRQ line
+        end
+        Shell->>Shell: SubmitFrame mixes the slice's audio
+    end
+    Shell->>Shell: RenderFramebuffer, if the video changed
+    Shell->>Shell: PublishFramebuffer
+    Mgr->>Mgr: wait on the frame timer
 ```
+
+- **`VideoTiming`**, and on the //c the **`AppleMouse`**, ride
+  `EmuCpu::AddCycles`. The mouse is an `ICycleSink` wired through
+  `SetCycleSink`.
+- **The Disk II controller and the Mockingboard** are ticked by
+  `MachineHost::StepOne`. The Disk II `Tick` only runs the motor timers; the
+  nibble engine catches up to the CPU when the CPU reads `$C0Ex`
+  (`CatchUpToCpu`).
+- **Keyboard auto-repeat** runs once per frame on real time
+  (`TickAutoRepeat`), not per instruction; only the reset-key hold is counted
+  in cycles, once per slice (`TickResetHold`).
+- **Audio** is mixed once per slice by `WasapiAudio::SubmitFrame`, which also
+  ticks the drive mixer.
+- **The printer** is not ticked by the CPU at all; the printer thread paces it
+  against the wall clock (§2).
 
 `Apple2eMmu` is not a bus device; it is a **coordinator** that owns the aux
 RAM and re-points the page table on banking changes (§3.4). It owns the
@@ -278,17 +452,55 @@ thing only when it can matter.
   changed this tick.
 
 Interrupts aggregate through `InterruptController` (level-sensitive sources:
-Mockingboard VIA, mouse X/Y + VBL, etc.), which drives the CPU IRQ line.
+the Mockingboard VIAs, the //c mouse's X/Y and VBL, the 6551 ACIA), which drives
+the CPU IRQ line.
 
 ---
 
 ## 6. Video and the render / present pipeline
 
+```mermaid
+flowchart TB
+    subgraph cpu ["CPU thread"]
+        direction LR
+        R["<b>RenderFramebuffer</b><br/>the video mode rasterizes<br/>the guest screen"] --> P["<b>PublishFramebuffer</b><br/>skipped when the bytes match<br/>the last published frame"]
+    end
+
+    subgraph ui ["UI thread"]
+        direction TB
+        T["<b>TryPresentUiFrame</b>"] --> N{"NeedsPresent?"}
+        N -- no --> NX["nothing drawn, no Present:<br/>frame clean, no redraw forced,<br/>persistence settled,<br/>CRT settings unchanged"]
+        N -- yes --> DS{"desk scene<br/>monitor on?"}
+        DS -- yes --> OFF["CRT chain into<br/>an offscreen target"] --> SCN["the desk scene draws<br/>the monitor, with that<br/>target as its screen"]
+        DS -- no --> BB["CRT chain into<br/>the back buffer"]
+        SCN --> CH["Dxui paints the chrome"]
+        BB --> CH
+        CH --> PR["<b>Present</b>"]
+        CRT["<b>CRT chain</b>, each pass skipped at zero:<br/>brightness and contrast, bloom,<br/>color bleed, persistence,<br/>scanlines, gamma"]
+        CRT -.- OFF
+        CRT -.- BB
+    end
+
+    P -- "frame-ready event" --> T
+
+    classDef fast fill:#1D9E75,stroke:#0F6E56,color:#FFFFFF
+    classDef slow fill:#7F77DD,stroke:#534AB7,color:#FFFFFF
+    classDef plain fill:#888780,stroke:#5F5E5A,color:#FFFFFF
+    class R,P,T,OFF,SCN,BB,CH,PR slow
+    class NX fast
+    class CRT plain
+    style cpu fill:none,stroke:#888780
+    style ui fill:none,stroke:#888780
+```
+
 **Frame production (CPU thread).** Video modes (`AppleTextMode`,
 `Apple80ColTextMode`, `AppleLoResMode`, `AppleHiResMode`,
 `AppleDoubleHiResMode`) rasterize the guest screen from the display pages into a
 framebuffer. Flash and mode timing come from the cycle-driven `VideoTiming`, not
-from the render.
+from the render. `RenderFramebuffer` runs only when something the picture
+depends on changed (`FramePacing::NeedsRender`: video dirty, mode, flash phase,
+color), and `PublishFramebuffer` hands the frame to the UI thread only when its
+bytes differ from the last frame published.
 
 **Dirty tracking; don't re-rasterize an unchanged screen.** The `MemoryBus`
 marks the display pages "watched"; a write that actually *changes a displayed
@@ -300,10 +512,15 @@ since it can swap which buffer the renderer reads with no write landing.
 
 **Present gating (GPU), present on change.** `D3DRenderer::NeedsPresent` returns
 false (skip both the CRT post-process and the swap-chain `Present`) when the
-framebuffer is clean, CRT params are unchanged, and the persistence trail has
-settled. So a static screen costs ~no GPU. When a present *is* needed,
-`UploadAndComposite` maps the framebuffer into a texture and `RenderCrtFrame`
-runs the CRT post-process into the back buffer.
+framebuffer is clean, no redraw is forced, CRT params are unchanged, and the
+persistence trail has settled. So a static screen costs ~no GPU. When a present
+*is* needed, `DxuiRenderTarget::RenderFrame` draws the picture before the
+chrome. Normally `UploadAndComposite` maps the framebuffer into a texture and
+`RenderCrtFrame` runs the CRT post-process into the back buffer. With the desk
+scene's monitor on, `UploadAndCompositeOffscreen` runs the same chain into an
+offscreen target and the desk scene draws the 3D monitor with that target as its
+screen. The CRT chain's passes run in order, each skipped at zero: brightness and
+contrast, bloom, color bleed, persistence, scanlines, gamma.
 
 **Chrome.** The drive band, `//c` switch bar, buttons, and letterbox are painted
 by the Dxui panel tree on the UI thread, immediate-mode, re-tessellated each

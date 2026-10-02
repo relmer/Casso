@@ -287,8 +287,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     bool               mouseConn  = false;
                     bool               fFromPort  = false;
 
-                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
-                        extPrefs != nullptr)
+                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs))
                     {
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
@@ -297,8 +296,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     // The back-panel disk port is the answer when the machine
                     // declares one; the legacy boolean above stays as the
                     // fallback for a config that has not been folded yet.
-                    if (mergedJson.HasArray ("ports", portsArray) &&
-                        portsArray != nullptr)
+                    if (mergedJson.HasArray ("ports", portsArray))
                     {
                         for (size_t p = 0; !fFromPort && p < portsArray->GetArraySize(); p++)
                         {
@@ -519,9 +517,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         hr = m_shell.BuildMachineDevices (newConfig);
         CHR (hr);
 
-        // The new machine's Joyport comes up detached; its own saved setting
-        // attaches it, before the power cycle below opens the reset window.
-        m_shell.AdoptGamePortAdapterForMachine (inputUiPrefs);
+        // The new machine's Joyport comes up detached; the global setting
+        // attaches it where it is in effect, before the power cycle below opens
+        // the reset window. The //c reads it as off and leaves it as it was.
+        m_shell.ApplyJoyportToMachine();
     }
 
     // The new devices hold none of the game-port state the mixer wrote to the

@@ -3,7 +3,6 @@
 #include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
-#include "Widgets/DxuiToolbar.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

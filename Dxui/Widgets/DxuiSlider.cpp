@@ -188,11 +188,9 @@ float DxuiSlider::ValueFromX (int x) const
     // Must match the showValue logic in Paint() exactly, otherwise the
     // puck draw position and the click-to-value mapping disagree and
     // a click on the puck snaps to a different value.
-    constexpr int  s_kPuckRoomDip = 11;   // s_kPuckRadiusFocDip: the widest the puck is ever drawn
-
     bool   showValue    = m_explicitShowValue ? m_showValue : !m_suffix.empty();
     int    valueAreaPx  = showValue ? (m_scaler.ToPx (s_kValueWidthDip) + m_scaler.ToPx (s_kValueGapDip)) : 0;
-    int    puckRoomPx   = m_scaler.ToPx (s_kPuckRoomDip);
+    int    puckRoomPx   = m_scaler.ToPx (kTrackInsetDip);
     int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_boundsDip.right - m_boundsDip.left) - valueAreaPx - puckRoomPx * 2));
     float  t            = 0.0f;
 
@@ -513,7 +511,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     // first tick left of the bar. Insetting the track by the largest puck the
     // slider ever draws keeps every part of it inside the rect it was given,
     // which is what lets a caller line one up with the control above it.
-    float    puckRoom      = m_scaler.ToPxf (s_kPuckRadiusFocDip);
+    float    puckRoom      = m_scaler.ToPxf (kTrackInsetDip);
     float    trackLeft     = (float) m_boundsDip.left + puckRoom;
     float    trackAvailW   = std::max (0.0f, rectW - valueAreaW - puckRoom * 2.0f);
     float    centerY       = (float) m_boundsDip.top + rectH * 0.5f;

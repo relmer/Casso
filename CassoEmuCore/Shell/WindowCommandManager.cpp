@@ -15,7 +15,6 @@
 #include "Devices/Printer/PrintDelivery.h"
 #include "Devices/Printer/PrintFileNaming.h"
 #include "Devices/Printer/PrintPagination.h"
-#include "Window/DxuiMessageBox.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Devices/Printer/RgbaImage.h"
@@ -434,6 +433,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_VIEW_DEBUGGER)                                      { route = WindowCommandRoute::View; }
     else if (id == IDM_DEBUG_RESTART)                                      { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_CONTROLLER_SETTINGS)                           { route = WindowCommandRoute::View; }
+    else if (id == IDM_DEBUG_SAVE_TRACE)                                   { route = WindowCommandRoute::Machine; }
     else if (id == IDM_PRINTER_DISCARD)                                    { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_COPY)                                       { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_PRINT)                                      { route = WindowCommandRoute::Printer; }
@@ -446,8 +446,6 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { route = WindowCommandRoute::ExternalDrive; }
     else if (id == IDM_MOUSE_CONNECT ||
              id == IDM_MOUSE_DISCONNECT)                                   { route = WindowCommandRoute::MouseConnect; }
-    else if (id == IDM_GAMEPORT_ADAPTER_NONE ||
-             id == IDM_GAMEPORT_ADAPTER_JOYPORT)                           { route = WindowCommandRoute::GamePort; }
 
     return route;
 }
@@ -487,7 +485,6 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
         case WindowCommandRoute::Help:                OnHelpCommand (id);          break;
         case WindowCommandRoute::ExternalDrive:       OnExternalDriveCommand (id); break;
         case WindowCommandRoute::MouseConnect:        OnMouseConnectCommand (id);  break;
-        case WindowCommandRoute::GamePort:            OnGamePortCommand (id);      break;
         case WindowCommandRoute::None:                                             break;
     }
 
@@ -542,25 +539,6 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
             m_shell.SyncSelectorState();
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnGamePortCommand
-//
-//  The Settings sheet's OK for the game-port adapter: attach or detach the
-//  Sirius Joyport, with no reset. Live only; the sheet saves the setting.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WindowCommandManager::OnGamePortCommand (int id)
-{
-    m_shell.ApplyGamePortAdapterLive (id == IDM_GAMEPORT_ADAPTER_JOYPORT ? GamePortAdapter::SiriusJoyport
-                                                                         : GamePortAdapter::None);
 }
 
 
@@ -731,6 +709,22 @@ void WindowCommandManager::OnMachineCommand (int id)
             m_shell.m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, m_shell.m_cpuManager.IsPaused() ? "1" : "0");
 
             m_shell.UpdateWindowTitle();
+            break;
+        }
+
+        case IDM_DEBUG_SAVE_TRACE:
+        {
+            // The ring belongs to the CPU thread, and pausing only sets a
+            // flag, so the write is queued to run there between slices.
+            if (m_shell.IsTracing())
+            {
+                m_shell.PostCommand (static_cast<WORD> (id));
+            }
+            else
+            {
+                m_shell.PostNotice (L"Start Casso with --trace to record a CPU trace.");
+            }
+
             break;
         }
 

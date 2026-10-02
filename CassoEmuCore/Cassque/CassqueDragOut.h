@@ -5,7 +5,6 @@
 #include "Cassque/CassqueBrowser.h"
 #include "Cassque/Model/DragPayload.h"
 #include "Cassque/Model/HostFileNaming.h"
-#include "Window/DxuiDragDropSource.h"
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Core/DramPowerOnPattern.h"
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
 #include "Core/StateReader.h"
@@ -334,9 +335,8 @@ void Apple2eMmu::OnSoftReset()
 //
 //  OnPowerCycle
 //
-//  Power-on defaults match soft reset for the flags, then aux RAM is
-//  re-seeded from the shared Prng so it matches the indeterminate-but-
-//  deterministic posture the rest of the //e DRAM gets (FR-035).
+//  Power-on defaults match soft reset for the flags, then aux RAM gets the
+//  same DRAM power-on pattern as the rest of the //e's memory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -344,7 +344,7 @@ void Apple2eMmu::OnPowerCycle (Prng & prng)
 {
     OnSoftReset();
 
-    prng.Fill (m_auxRam.data(), m_auxRam.size());
+    DramPowerOnPattern::Fill (m_auxRam.data(), m_auxRam.size(), prng);
 }
 
 

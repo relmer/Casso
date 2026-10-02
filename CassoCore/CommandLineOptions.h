@@ -343,7 +343,12 @@ struct CommandLineOptions
         std::string  disk2;                            // --disk2 <image>
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
 
-        Verdict      verdict      = Verdict::Clean;
+        //  The power-on DRAM seed, so a startup fault seen once can be
+        //  replayed. The trace file records the seed each run used.
+        bool         hasSeed      = false;             // --seed <value>
+        uint64_t     seed         = 0;
+
+        Verdict     verdict      = Verdict::Clean;
 
         //  Why the command line was refused, in the words a user reads. Empty
         //  when it was not. Composed here rather than at the window that shows

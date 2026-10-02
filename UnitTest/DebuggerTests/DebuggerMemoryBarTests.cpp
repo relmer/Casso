@@ -4,8 +4,6 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
-#include "Widgets/DxuiHexView.h"
-#include "Widgets/DxuiToolbar.h"
 
 #include "CppUnitTest.h"
 

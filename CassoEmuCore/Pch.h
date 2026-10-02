@@ -119,13 +119,11 @@
 #include <hidclass.h>
 #include <dbt.h>
 
-#include "../CassoCore/Ehm.h"
+#include "../Ehm/Ehm.h"
 
 //
-//  Dxui's public umbrella header, and the only way its headers are meant to be
-//  reached: they assume its system-header surface is already present, so a
-//  widget header included on its own fails on types it never declares. Casso's
-//  own Pch does the same thing for the same reason.
+//  Dxui's public umbrella header, and the only Dxui header a consumer includes.
+//  It also supplies the ComPtr alias.
 //
 #include "../Dxui/Dxui.h"
 
@@ -135,6 +133,3 @@ namespace fs = std::filesystem;
 typedef unsigned char   Byte;
 typedef signed   char   SByte;
 typedef unsigned short  Word;
-
-template <typename T>
-using ComPtr = Microsoft::WRL::ComPtr<T>;
