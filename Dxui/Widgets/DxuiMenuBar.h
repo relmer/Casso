@@ -178,6 +178,10 @@ private:
     static bool  IsPointInRect (const RECT & rect, int x, int y);
     static int   ScaleDpi      (int dipValue, UINT dpi);
 
+    // Whether the highlighted row of the deepest open level opens a cascade
+    // of its own, which is what Right does there; otherwise Right moves on.
+    static bool  CanOpenDeeper (const DxuiPopupMenu & menu);
+
     // Index-range predicates. The two vectors are filled at different times --
     // m_items when the menu is built, m_titleRects when it is laid out -- so a
     // valid item index is not automatically a valid rect index, and the callers

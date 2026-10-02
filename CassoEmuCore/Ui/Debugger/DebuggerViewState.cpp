@@ -1693,6 +1693,11 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
 
     reply = ExecuteActionCommand (session, action);
 
+    if (action.quiet)
+    {
+        return lines;
+    }
+
     reply.mode = mode;
     session.FormatReply (reply, mode);
 

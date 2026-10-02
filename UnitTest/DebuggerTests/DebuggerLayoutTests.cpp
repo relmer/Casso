@@ -65,8 +65,7 @@ namespace DebuggerLayoutTests
             }
 
             Assert::AreEqual ((size_t) 4, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size());
-            Assert::AreEqual ((size_t) 2, layout.GetGroup (DebuggerLayout::kConsole).size(), L"the trace is a tab of the console");
-            Assert::IsTrue   (IsInGroup (layout, DebuggerLayout::kStack, DebuggerLayout::kCallStack), L"the call stack is a tab of the stack");
+            Assert::IsTrue   (IsInGroup (layout, DebuggerLayout::kConsole, DebuggerLayout::kTrace), L"the trace is a tab of the console");
         }
 
 
@@ -102,10 +101,10 @@ namespace DebuggerLayoutTests
             Assert::IsTrue (source.right <= code.left,    L"source left of code");
             Assert::IsTrue (cons.top     >= code.bottom,  L"console below code");
             Assert::IsTrue (regs.left    >= code.right,   L"registers on the right");
+            Assert::IsTrue (stack.left   >= regs.right,   L"stack beside the registers");
             Assert::IsTrue (bps.top      >= regs.bottom,  L"breakpoints below registers");
-            Assert::IsTrue (memory.top   >= cons.bottom,  L"memory across the bottom");
-            Assert::IsTrue (stack.left   >= memory.right, L"stack beside memory");
-            Assert::AreEqual ((long) 800, stack.bottom);
+            Assert::IsTrue (memory.top   >= bps.bottom,   L"memory below breakpoints");
+            Assert::AreEqual ((long) 800, memory.bottom);
         }
 
 
@@ -191,7 +190,7 @@ namespace DebuggerLayoutTests
 
 
 
-            Assert::AreEqual ((size_t) 2, restored.GetGroup (DebuggerLayout::kConsole).size());
+            Assert::IsTrue   (IsInGroup (restored, DebuggerLayout::kConsole, DebuggerLayout::kTrace));
             Assert::IsTrue   (restored.IsDocked (DebuggerLayout::kTrace));
         }    };
 }

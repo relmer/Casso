@@ -662,6 +662,7 @@ private:
     int      GetSourceSlotOf    (const std::wstring & pane) const;
     int      GetSourceSlotAt    (POINT atDip) const;
     void     ApplyDiagnostics   ();
+    bool     IsRestoringViews   () const;
     DiagnosticsPane *  GetDiagnosticsPane (const std::wstring & pane) const;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     ShowCode         (std::optional<Word> address);

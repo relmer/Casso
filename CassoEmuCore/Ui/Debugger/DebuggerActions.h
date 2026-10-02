@@ -60,6 +60,10 @@ struct DebuggerAction
     //  A breakpoints pane action, which runs in place of `command` and goes
     //  on the pane's undo list (FR-120).
     std::optional<BreakpointStep>  breakpointStep;
+
+    //  The window putting back what it had open, not a choice the user
+    //  made: the command runs and the console shows neither echo nor reply.
+    bool                           quiet = false;
 };
 
 //  Builds an action in the session's mode, for a pane that does not know it.

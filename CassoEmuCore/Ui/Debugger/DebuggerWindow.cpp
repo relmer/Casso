@@ -5168,6 +5168,12 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 
 
 
+    //  A pane turned on opens docked and shown, not slid in at an edge.
+    if (!IsPaneShown (pane) && m_dockSite->GetPaneLayout().IsAutoHidden (pane))
+    {
+        (void) m_dockSite->EditPaneLayout().DockBack (pane);
+    }
+
     m_closedPanes.erase (pane);
 
     if (!IsPaneShown (pane))
@@ -6264,6 +6270,7 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 void DebuggerWindow::ApplySnapshot()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
+    bool                                          restoring = IsRestoringViews();
 
 
 
@@ -6288,7 +6295,9 @@ void DebuggerWindow::ApplySnapshot()
                 m_activeCode = 0;
             }
 
-            if (open && view > 0)
+            //  A view open as the window starts was open when it closed, and
+            //  its group keeps the tab it showed then.
+            if (open && view > 0 && !restoring)
             {
                 (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetCodePaneId (view));
             }
@@ -6458,6 +6467,12 @@ void DebuggerWindow::ApplySnapshot()
     //  CODE, DATA or CONSOLE: the pane comes forward, even from an edge. The
     //  keys stay where they were, so the next command can be typed; CONSOLE
     //  alone brings them to its command line.
+    //  A CODE typed before the window opened is not brought forward again.
+    if (m_snapshot->showPaneSerial != m_shownPaneSerial && restoring)
+    {
+        m_shownPaneSerial = m_snapshot->showPaneSerial;
+    }
+
     if (m_snapshot->showPaneSerial != m_shownPaneSerial)
     {
         m_shownPaneSerial = m_snapshot->showPaneSerial;
@@ -6891,9 +6906,14 @@ void DebuggerWindow::KeepOpenViews()
             }
         }
 
+        //  The panels reopen through the window's own action, quietly: the
+        //  console shows only what the user did.
         for (const std::string & panel : views.panels)
         {
-            RunAction (DebuggerActions::GetPanel (panel, true, GetMode()));
+            DebuggerAction  reopen = DebuggerActions::GetPanel (panel, true, GetMode());
+
+            reopen.quiet = true;
+            RunAction (reopen);
         }
 
         return;
@@ -7057,9 +7077,11 @@ void DebuggerWindow::ApplyDiagnostics()
         }
     }
 
+    //  A panel the window reopens at startup keeps its group on the tab
+    //  the group showed when the window closed.
     for (const std::string & id : open)
     {
-        if (!m_diagOpen.contains (id))
+        if (!m_diagOpen.contains (id) && !IsRestoringViews())
         {
             (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetDiagnosticsPaneId (id));
         }
@@ -7072,6 +7094,25 @@ void DebuggerWindow::ApplyDiagnostics()
     {
         m_dockSite->Relayout();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsRestoringViews
+//
+//  True from the window's first snapshot until the views it reopens have
+//  settled: what opens then was open when the window closed, so it does not
+//  take the front of its tab group from the tab saved there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsRestoringViews() const
+{
+    return !m_openViewsRestored || m_openViewsSettling > 0;
 }
 
 

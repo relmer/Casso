@@ -200,9 +200,10 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
         return MakeDefault();
     }
 
-    //  A memory window the text lacks joins the first, the call stack and a
-    //  device panel join the stack, and the trace the console, as they open by
-    //  default; anything else lacks a better place than the right edge.
+    //  A memory window the text lacks joins the first, and the trace and a
+    //  device panel the console, as they open by default; the call stack
+    //  joins the stack, and anything else lacks a better place than the
+    //  right edge.
     for (const std::wstring & pane : ids)
     {
         if (!layout.Contains (pane))
@@ -328,7 +329,12 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kSource;
     }
 
-    if ((pane == kCallStack || pane.starts_with (s_kpszDiagnosticsPrefix)) && layout.Contains (kStack))
+    if (pane.starts_with (s_kpszDiagnosticsPrefix) && layout.Contains (kConsole))
+    {
+        return kConsole;
+    }
+
+    if (pane == kCallStack && layout.Contains (kStack))
     {
         return kStack;
     }
@@ -352,6 +358,10 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
 //  Built by the same operations a user would perform, so the default is a
 //  layout like any other and saves and restores the same way.
 //
+//  On the left the disassembly over the console, which carries the trace
+//  and the device panels as tabs; on the right the registers beside the
+//  stack, then watches, call stack, breakpoints and memory, top to bottom.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiPaneLayout DebuggerLayout::MakeDefault()
@@ -361,17 +371,19 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
 
 
 
-    layout.Add        (kRegisters,   L"");
     layout.Add        (kConsole,     L"");
     layout.DockToSide (kConsole,     kCode,        DxuiDockSide::Bottom);
-    layout.Add        (kSource,      L"");
-    layout.DockToSide (kSource,      kCode,        DxuiDockSide::Left);
-    layout.Add        (kBreakpoints, L"");
-    layout.DockToSide (kBreakpoints, kRegisters,   DxuiDockSide::Bottom);
+    layout.Add        (kRegisters,   L"");
     layout.Add        (kWatches,     L"");
-    layout.DockToSide (kWatches,     kBreakpoints, DxuiDockSide::Bottom);
+    layout.DockToSide (kWatches,     kRegisters,   DxuiDockSide::Bottom);
+    layout.Add        (kCallStack,   L"");
+    layout.DockToSide (kCallStack,   kWatches,     DxuiDockSide::Bottom);
+    layout.Add        (kBreakpoints, L"");
+    layout.DockToSide (kBreakpoints, kCallStack,   DxuiDockSide::Bottom);
     layout.Add        (memory1,      L"");
-    layout.DockToEdge (memory1,      DxuiDockSide::Bottom);
+    layout.DockToSide (memory1,      kBreakpoints, DxuiDockSide::Bottom);
+    layout.Add        (kStack,       L"");
+    layout.DockToSide (kStack,       kRegisters,   DxuiDockSide::Right);
 
     for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
     {
@@ -383,36 +395,40 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
         layout.Add (GetCodePaneId (view), kCode);
     }
 
+    layout.Add (kTrace, kConsole);
+
+    for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
+    {
+        layout.Add (GetDiagnosticsPaneId (panel.id), kConsole);
+    }
+
+    //  The source documents sit left of the disassembly, and show only
+    //  while a debug file is loaded.
+    layout.Add        (kSource,      L"");
+    layout.DockToSide (kSource,      kCode,        DxuiDockSide::Left);
+
     for (int slot = 1; slot < SourceDocuments::kMaxDocuments; slot++)
     {
         layout.Add (GetSourcePaneId (slot), kSource);
     }
 
-    layout.Activate   (kSource);
-    layout.Activate   (kCode);
-    layout.Add        (kStack,       L"");
-    layout.DockToSide (kStack,       memory1,      DxuiDockSide::Right);
-    layout.Add        (kCallStack,   kStack);
+    layout.Activate (kSource);
+    layout.Activate (kCode);
+    layout.Activate (kConsole);
+    layout.Activate (memory1);
 
-    for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
-    {
-        layout.Add (GetDiagnosticsPaneId (panel.id), kStack);
-    }
-
-    layout.Activate   (memory1);
-    layout.Activate   (kStack);
-    layout.Add        (kTrace,       kConsole);
-    layout.Activate   (kConsole);
-
-    //  Proportions of the fixed layout this replaces: a right column of about
-    //  300 of 1100, memory eight rows high, and code over a shorter console.
-    //  A path is the split's place in the tree, one digit a level.
-    layout.SetRatio (L"",    0.70f);
-    layout.SetRatio (L"0",   0.73f);
-    layout.SetRatio (L"00",  0.65f);
-    layout.SetRatio (L"000", 0.60f);
-    layout.SetRatio (L"01",  0.34f);
-    layout.SetRatio (L"1",   0.73f);
+    //  The left column about three fifths of the width, the disassembly two
+    //  fifths of its height, and the right column's rows about equal, the
+    //  registers and the stack sharing the first. A path is the split's
+    //  place in the tree, one digit a level.
+    layout.SetRatio (L"",     0.615f);
+    layout.SetRatio (L"0",    0.41f);
+    layout.SetRatio (L"00",   0.35f);
+    layout.SetRatio (L"1",    0.20f);
+    layout.SetRatio (L"10",   0.50f);
+    layout.SetRatio (L"11",   0.25f);
+    layout.SetRatio (L"111",  0.37f);
+    layout.SetRatio (L"1111", 0.50f);
 
     return layout;
 }

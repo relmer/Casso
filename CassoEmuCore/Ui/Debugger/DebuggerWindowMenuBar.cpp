@@ -296,15 +296,11 @@ void DebuggerWindow::SetWindowMenus()
     view.push_back (DxuiPopupMenuItem::ForSeparator());
     add (view, MakeMenuCommand (L"Reset window layout", false, [this] { ResetPaneLayout(); }));
 
-    //  Debug: running and stopping, the machine's own restarts, then the
-    //  steps and how they step.
+    //  Debug: running and stopping, the steps and how they step, then the
+    //  machine's own restarts at the end.
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRun,   L"Run"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kPause, L"Break"));
     add (debug, MakeMenuCommand (L"Detach", false, [this] { Detach(); }));
-    debug.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (debug, emulator (L"Reset",                  IDM_MACHINE_RESET));
-    add (debug, emulator (L"Power cycle",            IDM_MACHINE_POWERCYCLE));
-    add (debug, emulator (L"Restart under debugger", IDM_DEBUG_RESTART));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepInto,    L"Step into"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepOver,    L"Step over"));
@@ -327,6 +323,11 @@ void DebuggerWindow::SetWindowMenus()
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
+
+    debug.push_back (DxuiPopupMenuItem::ForSeparator());
+    add (debug, emulator (L"Reset",                  IDM_MACHINE_RESET));
+    add (debug, emulator (L"Power cycle",            IDM_MACHINE_POWERCYCLE));
+    add (debug, emulator (L"Restart under debugger", IDM_DEBUG_RESTART));
 
     //  Tools: which editor's keys the window takes.
     for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })

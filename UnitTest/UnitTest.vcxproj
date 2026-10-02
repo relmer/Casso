@@ -254,6 +254,8 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowMenuBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowThemePreviewTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowViewCascadeTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowStartupStateTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerDefaultLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerResetLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerResetBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointColumnsTests.cpp" />
@@ -698,6 +700,7 @@
     <ClCompile Include="DebuggerTests\DebuggerMemoryMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuCueTests.cpp" />
+    <ClCompile Include="Dxui\DxuiMenuBarCascadeKeyTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupBandTests.cpp" />
     <ClCompile Include="Dxui\DxuiTooltipReadTimeTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyPcDragTests.cpp" />

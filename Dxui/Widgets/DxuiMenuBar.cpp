@@ -699,6 +699,7 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
     bool  onCascade   = false;
     bool  inCascade   = false;
     bool  intoCascade = false;
+    bool  pastCascade = false;
 
 
 
@@ -708,11 +709,19 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
     onCascade   = entry != nullptr && entry->kind == DxuiPopupMenuItem::Kind::Submenu;
     inCascade   = hasRows && m_dropdown.HasOpenChild();
     intoCascade = onCascade && (vk == VK_RIGHT || vk == VK_RETURN || vk == VK_SPACE);
+    pastCascade = inCascade && vk == VK_RIGHT && !CanOpenDeeper (m_dropdown);
 
     //  A cascade takes the keys while it is open, and Right or Enter on its
     //  row opens it, as a Windows menu bar's does. Left and Escape close it
-    //  and leave its parent open.
-    if (inCascade || intoCascade)
+    //  and leave its parent open, and Right on a row that opens nothing
+    //  moves on to the next menu, as it does from a menu without a cascade.
+    if (pastCascade)
+    {
+        next = (m_openIndex + 1) % menuCount;
+        Open (next, m_openedByKeyboard);
+        handled = true;
+    }
+    else if (inCascade || intoCascade)
     {
         handled = m_dropdown.OnKey (vk);
     }
@@ -755,6 +764,33 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::CanOpenDeeper
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiMenuBar::CanOpenDeeper (const DxuiPopupMenu & menu)
+{
+    const DxuiPopupMenu  * level = &menu;
+    int                    row   = 0;
+
+
+
+    while (level->HasOpenChild())
+    {
+        level = level->GetChild();
+    }
+
+    row = level->GetHighlight();
+
+    return row >= 0 && row < (int) level->GetRows().size() && level->GetRows()[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu;
 }
 
 
@@ -1569,17 +1605,22 @@ void DxuiMenuBar::ParseMnemonic (
 //  The body face's underline position as a fraction of its line height:
 //  Segoe UI's ascent is 2210 units and its descent 514, so the baseline sits
 //  at 2210 / 2724 of the line, and its underline is centered 153 units
-//  below that. Snapped to a whole pixel so the one-pixel rule stays sharp.
+//  below that. The face's own position sat too close to the letters, and
+//  the bottom of the line too far below them, so the rule goes midway
+//  between the two. Snapped to a whole pixel so the one-pixel rule stays
+//  sharp.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float DxuiMenuBar::GetMnemonicUnderlineTop (float lineTop, float lineHeight)
 {
-    static constexpr float  s_kUnderlineFraction = (2210.0f + 153.0f) / 2724.0f;
+    static constexpr float  kFaceFraction      = (2210.0f + 153.0f) / 2724.0f;
+    static constexpr float  kMidway            = 0.5f;
+    static constexpr float  kUnderlineFraction = kFaceFraction + (1.0f - kFaceFraction) * kMidway;
 
 
 
-    return std::floor (lineTop + lineHeight * s_kUnderlineFraction);
+    return std::floor (lineTop + lineHeight * kUnderlineFraction);
 }
 
 
