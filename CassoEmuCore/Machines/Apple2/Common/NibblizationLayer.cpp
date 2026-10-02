@@ -1607,7 +1607,7 @@ void NibblizationLayer::UnpackBits (
 //  NibblizationLayer::WriteFluxTrackSectors
 //
 //  A bit track takes a sector write by being regenerated, which costs it any
-//  timing or weak bits it carried. A flux track does not: each sector's data
+//  timing or weak bits it had. A flux track does not: each sector's data
 //  field is found in the track decoded at the controller's cell, and only the
 //  fields whose bytes changed are spliced back into the flux, at the cell a
 //  drive writes. Address fields, gaps and every other sector keep the timing

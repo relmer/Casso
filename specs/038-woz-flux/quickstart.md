@@ -3,7 +3,7 @@
 ## Prerequisites
 
 ```powershell
-scripts/FetchRoms.ps1 -Fixtures      # fresh worktree: the suite refuses to start without them
+scripts/FetchRoms.ps1 -Fixtures      # fresh worktree: the suite does not start without them
 ```
 
 ## 1. Unit tests (every iteration, filtered)

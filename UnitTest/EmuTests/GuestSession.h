@@ -81,7 +81,7 @@ public:
     static void  BootToPrompt (MachineHost              & host,
                                const std::vector<Byte>  & bytes);
 
-    //  The same three for a WOZ file, which carries tracks rather than
+    //  The same three for a WOZ file, which holds tracks rather than
     //  sectors. `expectedSectors` is what the drive must read off it before
     //  any processor starts -- the strongest of the pre-checks below, asked of
     //  a container that has no sector buffer of its own.

@@ -785,9 +785,9 @@ wstring DiskImageStore::FormatDamagedImageMessage (const string & path, bool has
     return L"This disk is damaged, so Casso will not write to it:\n\n" + widePath +
            (hasDamagedTracks
                ? L"\n\nRewriting it would replace the tracks that could not be read "
-                 L"with blank ones, hiding the damage it already carries. "
+                 L"with blank ones, hiding the damage. "
                : L"\n\nRewriting it would give the file a newly computed checksum, "
-                 L"hiding the damage it already carries. ") +
+                 L"hiding the damage. ") +
            L"The disk stays readable and the emulated machine sees it as "
            L"write-protected. Work on a copy if you need to write to it.";
 }

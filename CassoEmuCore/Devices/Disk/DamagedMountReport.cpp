@@ -20,7 +20,7 @@ static constexpr const wchar_t *  s_kpszFractions[DiskImage::kQuarterTracksPerWh
 //  DamagedMountReport::FormatTrackNumber
 //
 //  The head steps in quarter tracks, and a damaged track can sit on a half or
-//  quarter track, so the number carries the fraction when there is one.
+//  quarter track, so the number includes the fraction when there is one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
