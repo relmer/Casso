@@ -22,8 +22,8 @@ Operations:
   tick}. It is used on seek and on a head-angle conversion.
 - `AdvanceCursor (cursor)` moves to the next transition, summing any 255 run
   and wrapping at `m_totalTicks`.
-- `SpliceWrite (startTick, bits)` re-encodes one write burst at the nominal
-  cell (R6). The total tick count is unchanged, and so is every byte outside
+- `SpliceWrite (startTick, bits)` re-encodes one write burst at the
+  controller's cell (R6). The total tick count is unchanged, and so is every byte outside
   the burst.
 - `GetBytes()` and `GetTotalTicks()` give read-only access for Serialize and
   for the future disk inspector (FR-010).
@@ -54,13 +54,16 @@ the splice point for a sector write.
 `TrackKind` is a free enum in `DiskImage.h` (`Bits`, `Flux`), because callers
 pass it and get it back.
 
-`DamagedTrack` is a plain struct with no methods, nested in `DiskImage`:
+`DamagedTrack` is a plain struct with no methods, a free type in
+`DiskImage.h` because callers get it back from `GetDamagedTracks()`:
 `{ int trkIndex; bool isFlux; DamageReason reason; }`. `DamageReason` is a
 free enum in `DiskImage.h` with these values:
 
 - `OutsideFile`: the track's blocks lie outside the file.
-- `CountExceedsBlocks`: the bit or byte count needs more than block count ×
-  512 bytes.
+- `CountExceedsBlocks`: a flux track's byte count needs more than block
+  count × 512 bytes. Bit tracks are not checked for this: a bit track whose
+  count overruns its blocks but stays inside the file has always loaded, and
+  FR-009 keeps it that way.
 - `TruncatedRun`: the flux data ends in 255.
 - `V1RecordPastTrks`: a WOZ 1 track record lies past the end of TRKS. The quarter tracks
 affected are found through the map.
@@ -78,6 +81,21 @@ State rules:
 
 New accessors: `GetTrackKind (slot)`, `GetFluxTrack (slot)` (const and
 for-write), `GetDamagedTracks()`, `HasDamagedTracks()`.
+
+Added during implementation:
+
+- `GetLayoutGeneration()`: a counter bumped whenever what a quarter track
+  resolves to, or a flux track's bytes, may have changed. The engine caches its
+  resolved slot against it instead of resolving on every sequencer clock.
+- `SpliceFluxWrite()` (guest writes, honors write-protect) and
+  `SpliceFluxBulk()` (sector edits to an in-memory image, which bypass it the
+  way `GetTrackBitsForWrite` does).
+- `SetPendingWriteOwner()` / `CommitPendingWrite()`: see research R6.
+- `GetMappedSlot (qt)`: the raw map entry, which the damaged-track report
+  needs because a damaged slot resolves to nothing.
+- `WriteProtectInfo::damagedTracks` and `IsDamaged()`, so the drive widget,
+  the write-protect menu item and the store treat damaged tracks the way they
+  treat a checksum mismatch.
 
 ## Disk2NibbleEngine (extended state)
 

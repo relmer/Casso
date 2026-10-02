@@ -103,11 +103,15 @@ because that is the timing a real Disk II writes at. A track written and read
 back in Casso then reads exactly as written.
 
 **Flush mid-burst**: `DiskImageStore` flushes on its own path, so it cannot
-end a burst the engine is holding. Before serializing, the flush asks the
-engine to commit any open burst through the controller, on the emulation
-thread, using the same request route the flush already takes to reach the
-drive. A test flushes in the middle of a burst and checks that the partial
-write is saved.
+end a burst the engine is holding. While a burst is open, the engine registers
+itself on the `DiskImage` as its `IPendingWriteOwner`, and clears that when the
+burst is committed. `DiskImage::Flush`, `DiskImage::Eject` and
+`DiskImageStore::FlushEntry` call `DiskImage::CommitPendingWrite()` first, so
+every flush path commits the burst without the store knowing about drives.
+Every flush already runs on the CPU thread, which owns the burst. (A callback
+from the store to the controller was tried first and dropped: the store
+outlives the machine that would have supplied it.) A test flushes in the
+middle of a burst and checks that the partial write is saved.
 
 **Rationale**: FR-006 and US2. Re-encoding once per burst, about one sector,
 costs a single 38 KB pass, so no per-bit splicing is needed. Reads never happen
