@@ -130,7 +130,13 @@ namespace DebuggerTests
             Assert::IsTrue   (HasFill (painter, 69.0f, 0.0f, 1.0f, theme.Accent()), L"the head, lit");
             Assert::IsTrue   (HasText (text, L"Drive 1  track 17.25"));
 
-            //  Phases 0 and 2 lit, 1 and 3 dark, then the motor.
+            //  Phases 0 and 2 lit, 1 and 3 dark, then the motor, at full size
+            //  in a pane wide enough for the row.
+            painter.Reset();
+            view.Layout (RECT { 0, 0, 1000, 40 }, Scaler96());
+            view.Paint  (painter, text, theme);
+            view.Layout (RECT { 0, 0, 140, 40 }, Scaler96());
+
             Assert::IsTrue (HasFill (painter, (float) DiskHeadView::kCaptionDip,                         23.0f, 12.0f, theme.Accent()));
             Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip),     23.0f, 12.0f, theme.ControlBackground()));
             Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip * 2), 23.0f, 12.0f, theme.Accent()));
@@ -145,6 +151,61 @@ namespace DebuggerTests
             //  lamps, so they take a row of their own rather than being cut.
             Assert::AreEqual (view.GetPreferredHeightPx (1000, Scaler96()) + DiskHeadView::kRowDip,
                               view.GetPreferredHeightPx (140, Scaler96()));
+        }
+
+
+        //  A pane narrower than the lamp row scales the row down to fit, so
+        //  the motor's lamp and its caption stay inside the pane and on one
+        //  row with the phases.
+        TEST_METHOD (TheDiskLampRowScalesDownToFitANarrowPane)
+        {
+            constexpr LONG        kNarrow = 140;
+            constexpr float       kSlack  = 0.01f;
+            DiskHeadView          view;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            float                 phasesY = -1.0f;
+            float                 motorY  = -2.0f;
+            float                 motorX  = 0.0f;
+            float                 motorW  = 0.0f;
+            float                 motorPt = 0.0f;
+            float                 lampEnd = 0.0f;
+
+
+
+            view.SetHead ({ 69, 139, 0x05, true, 0 });
+            view.Layout  (RECT { 0, 0, kNarrow, 60 }, Scaler96());
+            view.Paint   (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.text == L"Phases")
+                {
+                    phasesY = call.y;
+                }
+
+                if (call.text == L"Motor")
+                {
+                    motorY  = call.y;
+                    motorX  = call.x;
+                    motorW  = call.width;
+                    motorPt = call.fontSizeDip;
+                }
+            }
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                if (call.kind == RecordedPaintKind::FillRect && call.y > 0.0f)
+                {
+                    lampEnd = std::max (lampEnd, call.x + call.width);
+                }
+            }
+
+            Assert::AreEqual (phasesY, motorY,                         L"the motor stays on the phases' row");
+            Assert::IsTrue   (motorX + motorW <= kNarrow + kSlack,    L"the motor's caption is inside the pane");
+            Assert::IsTrue   (lampEnd <= kNarrow + kSlack,            L"every lamp is inside the pane");
+            Assert::IsTrue   (motorPt < theme.MonospaceFont().sizeDip, L"the captions shrink with the row");
         }
 
 

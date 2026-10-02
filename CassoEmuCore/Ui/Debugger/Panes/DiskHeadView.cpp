@@ -192,6 +192,31 @@ bool DiskHeadView::IsLabelBelow (float widthPx, const DxuiDpiScaler & scaler) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskHeadView::GetLampScale
+//
+//  The lamp row never wraps or runs past the pane: where the pane is narrower
+//  than the row, the lamps, their spacing and their captions all shrink by
+//  the same factor to fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DiskHeadView::GetLampScale (float widthPx) const
+{
+    constexpr int  kPhases   = 4;
+    constexpr int  kCaptions = 2;     // "Phases" and the motor's lamp
+    float          lamps     = m_scaler.ToPxf ((float) (kLampStepDip * kPhases + kCaptionDip * kCaptions));
+
+
+
+    return std::clamp (widthPx / lamps, 0.0f, 1.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskHeadView::GetHeadX
 //
 //  Each quarter track has an equal share of the width; the marker covers the
@@ -326,13 +351,14 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
 {
     constexpr int   kPhases = 4;
     DxuiFontHandle  font    = theme.MonospaceFont();
+    float           scale   = GetLampScale ((float) (m_boundsDip.right - m_boundsDip.left));
     float           row     = m_scaler.ToPxf ((float) kRowDip);
-    float           lamp    = m_scaler.ToPxf ((float) kLampDip);
-    float           step    = m_scaler.ToPxf ((float) kLampStepDip);
-    float           caption = m_scaler.ToPxf ((float) kCaptionDip);
+    float           lamp    = m_scaler.ToPxf ((float) kLampDip) * scale;
+    float           step    = m_scaler.ToPxf ((float) kLampStepDip) * scale;
+    float           caption = m_scaler.ToPxf ((float) kCaptionDip) * scale;
     float           top     = (float) m_boundsDip.top + m_scaler.ToPxf ((float) (kRulerDip + kGapDip));
     float           x       = (float) m_boundsDip.left;
-    float           size    = m_scaler.ToPxf (font.sizeDip);
+    float           size    = m_scaler.ToPxf (font.sizeDip) * scale;
     std::wstring    label;
     HRESULT         hr      = S_OK;
 
@@ -365,6 +391,7 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
         top += row;
     }
 
+    size  = m_scaler.ToPxf (font.sizeDip);
     label = GetLabel();
     hr    = text.DrawString (label.c_str(), x, top, std::max (0.0f, (float) m_boundsDip.right - x), row, theme.Foreground(), size, font.face,
                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);

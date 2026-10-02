@@ -70,6 +70,9 @@ private:
     std::wstring  GetLabel      () const;
     bool          IsLabelBelow  (float widthPx, const DxuiDpiScaler & scaler) const;
 
+    //  1 where the lamp row fits the width, less where it has to shrink.
+    float         GetLampScale  (float widthPx) const;
+
     DiagnosticsDiskHead  m_head;
     DxuiDpiScaler        m_scaler;
     float                m_fontDip = 12.0f;     // the label's font, as last painted
