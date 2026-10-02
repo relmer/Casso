@@ -635,6 +635,8 @@ bool EmulatorShell::TryPresentUiFrame()
         m_diskManager->UpdateDriveWidgets();
     }
 
+    SyncTapeChrome();
+
     // The capture bar and the fullscreen top chrome's reveal, both per-frame
     // because both answer where the pointer is right now.
     //

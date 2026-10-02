@@ -188,6 +188,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Shell\EmulatorShellTape.cpp" />
+    <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
     <ClCompile Include="Shell\TapeManager.cpp" />
     <ClCompile Include="Devices\Tape\MfTapeAudioDecoder.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CassettePort.cpp" />
@@ -480,6 +482,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Ui\TapeDeckState.h" />
+    <ClInclude Include="Ui\Chrome\TapeDeckWidget.h" />
     <ClInclude Include="Shell\TapeManager.h" />
     <ClInclude Include="Devices\Tape\MfTapeAudioDecoder.h" />
     <ClInclude Include="Machines\Apple2\Common\CassettePort.h" />

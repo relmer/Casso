@@ -415,6 +415,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    if (m_tapeChrome.UpdateHover (x, y))
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     shellHandled = m_uiShell.OnMouseMove (x, y, leftDown);
 
     if (shellHandled)
@@ -1400,6 +1405,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     int                     x             = ((int) (short) LOWORD (lParam));
     int                     y             = ((int) (short) HIWORD (lParam));
     DriveWidgetRegion       region        = DriveWidgetRegion::None;
+    TapeDeckRegion          tapeRegion    = TapeDeckRegion::None;
     Apple2cSwitchBar::Part  switchPart    = Apple2cSwitchBar::Part::None;
     bool                    toolbarTook   = false;
     bool                    shellTook     = false;
@@ -1596,6 +1602,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 driveTook = true;
                 break;
             }
+        }
+
+        tapeRegion = driveTook ? TapeDeckRegion::None : m_tapeChrome.HitTest (x, y);
+
+        if (tapeRegion != TapeDeckRegion::None)
+        {
+            HandleTapeClick (tapeRegion);
+            driveTook = true;
         }
     }
 

@@ -533,6 +533,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
+    m_host->GetRoot().Adopt (m_tapeChrome);
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
@@ -772,6 +773,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
             case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
+            case IDM_TAPE_INSERT:   return MachineHasCassettePort();
+            case IDM_TAPE_NEW:      return MachineHasCassettePort();
+            case IDM_TAPE_PLAY:     return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,   GetTapeView());
+            case IDM_TAPE_STOP:     return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,   GetTapeView());
+            case IDM_TAPE_REWIND:   return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind, GetTapeView());
+            case IDM_TAPE_EJECT:    return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,  GetTapeView());
             default:           return true;
         }
     });

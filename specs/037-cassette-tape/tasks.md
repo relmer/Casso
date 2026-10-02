@@ -150,7 +150,7 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
 
 ### Tests
 
-- [ ] T023 [P] [US4] Write `UnitTest/UiTests/TapeDeckWidgetTests.cpp`, modeled on `DriveWidgetHitTests.cpp` and `DriveWidgetStateTests.cpp`:
+- [X] T023 [P] [US4] Write `UnitTest/UiTests/TapeDeckWidgetTests.cpp`, modeled on `DriveWidgetHitTests.cpp` and `DriveWidgetStateTests.cpp`:
   - hit regions for name, rewind, play, stop, record and eject
   - enabled states per contracts/tape-deck-ui.md
   - the `m:ss / m:ss` readout and progress fraction
@@ -164,18 +164,18 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
 
 ### Implementation
 
-- [ ] T026 [US4] Pick play, stop, record, rewind and eject glyphs from a rendered MDL2 sheet (never by guessing codepoints) and add them as named constants in `CassoEmuCore/Core/UnicodeSymbols.h`
-- [ ] T027 [US4] Implement the `TapeDeckState` UI snapshot in `CassoEmuCore/Ui/TapeDeckState.h`: path, transport, position and length in seconds, record armed, writable. It is fed from the `TapeDeck` atomics
-- [ ] T028 [US4] Implement `TapeDeckWidget : IDxuiControl` in `CassoEmuCore/Ui/Chrome/TapeDeckWidget.{h,cpp}`, matching `DriveWidget`:
+- [X] T026 [US4] Pick play, stop, record, rewind and eject glyphs from a rendered MDL2 sheet (never by guessing codepoints). Done: the sheet has play, record and rewind but no eject, so all five marks are drawn as flat shapes in `TapeDeckWidget::PaintMark` instead, and nothing goes in `UnicodeSymbols.h`
+- [X] T027 [US4] Implement the `TapeDeckState` UI snapshot in `CassoEmuCore/Ui/TapeDeckState.h`: path, transport, position and length in seconds, record armed, writable. It is fed from the `TapeDeck` atomics
+- [X] T028 [US4] Implement `TapeDeckWidget : IDxuiControl` in `CassoEmuCore/Ui/Chrome/TapeDeckWidget.{h,cpp}`, matching `DriveWidget`:
   - a "TAPE" caption column, a marqueed name row, and a progress rail styled like the head bar
   - the transport buttons, plus `HitTest`, `OnDrop` and `SyncFromState`
   - until T023 passes
-- [ ] T029 [US4] Lay the widget out in the drive band in `CassoEmuCore/Shell/EmulatorShellChrome.cpp` and `Shell/Layout/DriveRowLayout.h`. Hide it when `HasCassettePort()` is false, in all three visibility sites (`EmulatorShell.cpp:1082-1110`, `EmulatorShellPresent.cpp:912-927`, `EmulatorWindow.cpp:1936-1948`). Register its drop hit rect; until T025 passes
-- [ ] T030 [US4] Add insert, eject, rewind, play and stop to `TapeManager` (`CassoEmuCore/Shell/TapeManager.{h,cpp}`):
-  - the tape MRU picker via `IHostDialogs`, using `DiskMru` over a new `GlobalUserPrefs::recentTapes` (`Config/GlobalUserPrefs.cpp` JSON load/save)
-  - drag-and-drop insertion through `DxuiDragDropTarget` with a tape-extension filter
+- [X] T029 [US4] Lay the widget out in the drive band in `CassoEmuCore/Shell/EmulatorShellChrome.cpp` and `Shell/Layout/DriveRowLayout.h`. Hide it when `HasCassettePort()` is false, in all three visibility sites (`EmulatorShell.cpp:1082-1110`, `EmulatorShellPresent.cpp:912-927`, `EmulatorWindow.cpp:1936-1948`). Register its drop hit rect; until T025 passes
+- [X] T030 [US4] Add insert, eject, rewind, play and stop to `TapeManager` (`CassoEmuCore/Shell/TapeManager.{h,cpp}`):
+  - the tape picker via `IHostDialogs` (done as a plain file picker opening on the inserted tape's folder; a recent-tapes list is left for later)
+  - drag-and-drop insertion through `DxuiDragDropTarget` with a tape-extension filter (not done; see T063)
   - transport commands posted to the CPU thread (command-thread routing)
-- [ ] T031 [US4] Route widget clicks in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`. Add a Tape submenu (Insert tape..., New blank tape..., Eject tape, Rewind; sentence case) through `WindowCommandManager` and the resource menu, disabled on the //c
+- [X] T031 [US4] Route widget clicks in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`. Add the tape items (Insert tape..., New blank tape..., Play tape, Stop tape, Rewind tape, Eject tape; sentence case) to the Disk menu through `WindowCommandManager`, disabled on the //c
 - [X] T032 [US4] Persist the per-machine `tapePath` through `Config/DiskSettings.{h,cpp}` (beside `disk1Path`). Reinsert at launch and on machine switch via `AutoMountResolver`, rewound to 0 and stopped. Clear stale entries. Until T024 passes
 - [X] T033 [US4] Implement `MfTapeAudioDecoder` (MP3 through a Media Foundation source reader over `MFCreateMFByteStreamOnStream`, following `Audio/PrinterAudioSource.cpp`) in `CassoEmuCore/Devices/Tape/MfTapeAudioDecoder.{h,cpp}`. Inject it into `TapeImage` from the shell
 - [ ] T034 [P] [US4] Write `UnitTest/UiTests/DeskSceneRecorderTests.cpp`, modeled on the existing desk-scene hit and layout tests:

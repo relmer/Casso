@@ -45,6 +45,7 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Chrome/TapeDeckWidget.h"
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -1076,6 +1077,14 @@ private:
     // come from the composition's projected drive bounds.
     void    SyncSceneDriveChrome ();
 
+    // The cassette recorder's flat widget and what its controls do.
+    bool          MachineHasCassettePort () const;
+    TapeDeckView  GetTapeView            () const;
+    void          SyncTapeChrome         ();
+    void          HandleTapeClick        (TapeDeckRegion region);
+    void          BrowseForTape          ();
+    void          CreateBlankTape        ();
+
     // Re-hangs the mounted-image basename strip under each projected drive.
     void    SyncSceneDriveLabels ();
 
@@ -1458,6 +1467,7 @@ private:
     MainMenu                    m_mainMenu;
     CassoTheme                  m_chromeTheme = CassoTheme::MakeSkeuomorphic();
     std::array<DriveWidget, 2>  m_driveChrome;
+    TapeDeckWidget              m_tapeChrome;
 
     // The command toolbar: the strip below the menu bar with Settings /
     // theme + monitor-color pickers / Printer (+status LED) / master Volume
