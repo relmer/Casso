@@ -22,8 +22,6 @@
 class DamagedMountReport
 {
 public:
-    static constexpr size_t  kMaxListedTracks = 8;
-
     // The body of the report. Empty when the image is not damaged.
     static wstring       FormatBody              (const DiskImage & image, const wstring & path);
 
@@ -31,8 +29,8 @@ public:
     // quarter tracks the map points at it, in ascending order.
     static vector<int>   GetDamagedQuarterTracks (const DiskImage & image);
 
-    // "track 3", "tracks 3 and 7.5", "tracks 3, 7.5, and 12", and past eight,
-    // the first eight and how many more.
+    // "track 3", "tracks 3, 7.5", "tracks 1-5, 8-9, 13": tracks one whole
+    // track apart join into a run.
     static wstring       FormatTrackList         (const vector<int> & quarterTracks);
 
     static wstring       FormatTrackNumber       (int quarterTrack);
