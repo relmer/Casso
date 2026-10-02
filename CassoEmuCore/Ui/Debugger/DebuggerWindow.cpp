@@ -6010,6 +6010,11 @@ void DebuggerWindow::RenderFrame()
         list->Tick (now);
     }
 
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        pane->Tick (now);
+    }
+
     //  Focus moves by click, key and command alike, so the group the user is
     //  working in is found once a frame rather than at each of them.
     m_dockSite->SetFocusedPane (GetPaneOfFocus());

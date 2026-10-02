@@ -295,6 +295,7 @@
     <ClCompile Include="DebuggerTests\DebuggerResultColorTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerLooseSourceTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsVisualsTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskHeadSweepTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerPaneSpacingTests.cpp" />
     <ClCompile Include="DebuggerTests\BranchArrowTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyArrowTests.cpp" />

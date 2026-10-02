@@ -131,10 +131,10 @@ namespace DebuggerTests
             Assert::IsTrue   (HasText (text, L"Drive 1  track 17.25"));
 
             //  Phases 0 and 2 lit, 1 and 3 dark, then the motor.
-            Assert::IsTrue (HasFill (painter, 0.0f,                              23.0f, 12.0f, theme.Accent()));
-            Assert::IsTrue (HasFill (painter, (float) DiskHeadView::kLampStepDip,     23.0f, 12.0f, theme.ControlBackground()));
-            Assert::IsTrue (HasFill (painter, (float) DiskHeadView::kLampStepDip * 2, 23.0f, 12.0f, theme.Accent()));
-            Assert::IsTrue (HasFill (painter, (float) DiskHeadView::kLampStepDip * 4, 23.0f, 12.0f, theme.Accent()), L"the motor");
+            Assert::IsTrue (HasFill (painter, (float) DiskHeadView::kCaptionDip,                         23.0f, 12.0f, theme.Accent()));
+            Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip),     23.0f, 12.0f, theme.ControlBackground()));
+            Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip * 2), 23.0f, 12.0f, theme.Accent()));
+            Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip * 4), 23.0f, 12.0f, theme.Accent()), L"the motor");
 
             painter.Reset();
             view.SetHead ({ 0, 139, 0x00, false, 1 });

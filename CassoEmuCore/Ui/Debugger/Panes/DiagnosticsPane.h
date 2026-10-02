@@ -52,6 +52,9 @@ public:
     //  the frame has to lay out again to show.
     bool  Apply     (const DiagnosticsSnapshot & snapshot);
 
+    //  The disk head's marker sweeps and fades between snapshots.
+    void  Tick      (int64_t nowMs) { m_head->Tick (nowMs); }
+
     //  The list rows for a snapshot: a row for each group's title, then its
     //  rows as label, value and bits, a clear bit's name dimmed.
     static std::vector<std::vector<DxuiListView::Cell>>  MakeRows (const DiagnosticsSnapshot & snapshot);

@@ -4,7 +4,119 @@
 
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/IDxuiTheme.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::SetHead
+//
+//  The first head, or another drive's, places the marker at once; a seek on
+//  the same drive leaves it to sweep there on the ticks that follow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskHeadView::SetHead (const DiagnosticsDiskHead & head)
+{
+    if (!m_placed || head.drive != m_head.drive)
+    {
+        m_placed   = true;
+        m_shown    = (double) head.quarterTrack;
+        m_arriveMs = INT64_MIN / 2;
+        m_trail.clear();
+    }
+
+    m_head = head;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::Tick
+//
+//  The marker moves toward the head at the stepping speed. Each quarter track
+//  it leaves starts to fade, and the one it lands on is no longer trail.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskHeadView::Tick (int64_t nowMs)
+{
+    double  target  = (double) m_head.quarterTrack;
+    double  elapsed = (double) std::max<int64_t> (0, nowMs - m_nowMs);
+    double  reach   = elapsed / kMsPerQuarter;
+    int     from    = (int) std::lround (m_shown);
+    int     to      = 0;
+    int     step    = 0;
+
+
+
+    m_nowMs = nowMs;
+
+    if (m_shown != target)
+    {
+        m_shown = (m_shown < target) ? std::min (target, m_shown + reach) : std::max (target, m_shown - reach);
+        to      = (int) std::lround (m_shown);
+        step    = (to > from) ? 1 : -1;
+
+        for (int quarter = from; quarter != to; quarter += step)
+        {
+            //  Left as long ago as the rest of the way took to step.
+            m_trail[quarter] = nowMs - (int64_t) (std::abs (m_shown - (double) quarter) * kMsPerQuarter);
+        }
+
+        m_trail.erase (to);
+
+        if (m_shown == target)
+        {
+            m_arriveMs = nowMs;
+        }
+    }
+
+    std::erase_if (m_trail, [nowMs] (const auto & left) { return nowMs - left.second > kFadeMs; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::GetHeadColor
+//
+//  The flash is white on a dark ruler and the text color on a light one, so
+//  it stands out from the accent either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskHeadView::GetHeadColor (const IDxuiTheme & theme) const
+{
+    constexpr float     kDarkRuler = 0.4f;
+    constexpr uint32_t  kWhite     = 0xFFFFFFFFu;
+    uint32_t            flash      = DxuiColor::ComputeRelativeLuminance (theme.ControlBackground()) < kDarkRuler ? kWhite : theme.Foreground();
+    float               settled    = 0.0f;
+
+
+
+    if (!m_head.motorOn)
+    {
+        return theme.ForegroundMuted();
+    }
+
+    if (m_shown != (double) m_head.quarterTrack)
+    {
+        return flash;
+    }
+
+    settled = std::clamp ((float) (m_nowMs - m_arriveMs) / (float) kSettleMs, 0.0f, 1.0f);
+    return DxuiColor::Mix (flash, theme.Accent(), settled);
+}
 
 
 
@@ -63,9 +175,10 @@ std::wstring DiskHeadView::GetLabel() const
 bool DiskHeadView::IsLabelBelow (float widthPx, const DxuiDpiScaler & scaler) const
 {
     static constexpr float  kAdvancePerDip = 0.6f;
-    static constexpr int    kLamps         = 5;
+    static constexpr int    kPhases        = 4;
+    static constexpr int    kCaptions      = 2;     // "Phases" and the motor's lamp
     static constexpr size_t kWidestLabel   = std::size (L"Drive 2  track 39.75") - 1;
-    float                   lamps          = scaler.ToPxf ((float) kLampStepDip) * kLamps;
+    float                   lamps          = scaler.ToPxf ((float) kLampStepDip) * kPhases + scaler.ToPxf ((float) kCaptionDip) * kCaptions;
     float                   label          = scaler.ToPxf (m_fontDip) * kAdvancePerDip * (float) kWidestLabel;
 
 
@@ -88,7 +201,7 @@ bool DiskHeadView::IsLabelBelow (float widthPx, const DxuiDpiScaler & scaler) co
 
 float DiskHeadView::GetHeadX() const
 {
-    int  quarter = std::clamp (m_head.quarterTrack, 0, GetQuarterCount() - 1);
+    double  quarter = std::clamp (m_shown, 0.0, (double) (GetQuarterCount() - 1));
 
 
 
@@ -159,17 +272,18 @@ void DiskHeadView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  DiskHeadView::PaintRuler
 //
-//  A tick at the start of every track, a longer one every fifth, and the
-//  head in the accent color while the motor turns and muted while it rests.
+//  A tick at the start of every track, a longer one every fifth, the tracks
+//  the head has just left fading out, and the head itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskHeadView::PaintRuler (IDxuiPainter & painter, const IDxuiTheme & theme) const
 {
-    float  ruler = m_scaler.ToPxf ((float) kRulerDip);
-    float  line  = std::max (1.0f, std::round (m_scaler.ToPxf (1.0f)));
-    float  top   = (float) m_boundsDip.top;
-    float  width = GetHeadWidth();
+    float     ruler = m_scaler.ToPxf ((float) kRulerDip);
+    float     line  = std::max (1.0f, std::round (m_scaler.ToPxf (1.0f)));
+    float     top   = (float) m_boundsDip.top;
+    float     width = GetHeadWidth();
+    uint32_t  trail = m_head.motorOn ? theme.Accent() : theme.ForegroundMuted();
 
 
 
@@ -183,7 +297,15 @@ void DiskHeadView::PaintRuler (IDxuiPainter & painter, const IDxuiTheme & theme)
         painter.FillRect ((float) m_boundsDip.left + width * (float) quarter, top + ruler - tall, line, tall, theme.Divider());
     }
 
-    painter.FillRect (GetHeadX(), top, std::max (line, width), ruler, m_head.motorOn ? theme.Accent() : theme.ForegroundMuted());
+    for (const auto & [quarter, leftMs] : m_trail)
+    {
+        float  fade = 1.0f - std::clamp ((float) (m_nowMs - leftMs) / (float) kFadeMs, 0.0f, 1.0f);
+
+        painter.FillRect ((float) m_boundsDip.left + width * (float) quarter, top, std::max (line, width), ruler,
+                          DxuiColor::ScaleAlpha (trail, fade));
+    }
+
+    painter.FillRect (GetHeadX(), top, std::max (line, width), ruler, GetHeadColor (theme));
 }
 
 
@@ -194,8 +316,9 @@ void DiskHeadView::PaintRuler (IDxuiPainter & painter, const IDxuiTheme & theme)
 //
 //  DiskHeadView::PaintLamps
 //
-//  PH0 to PH3, then the motor, then the drive and track as text: beside the
-//  lamps, or on the row below them where it would not fit.
+//  The stepper's four phase magnets under a caption, then the motor, then
+//  the drive and track as text: beside the lamps, or on the row below them
+//  where it would not fit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,6 +329,7 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float           row     = m_scaler.ToPxf ((float) kRowDip);
     float           lamp    = m_scaler.ToPxf ((float) kLampDip);
     float           step    = m_scaler.ToPxf ((float) kLampStepDip);
+    float           caption = m_scaler.ToPxf ((float) kCaptionDip);
     float           top     = (float) m_boundsDip.top + m_scaler.ToPxf ((float) (kRulerDip + kGapDip));
     float           x       = (float) m_boundsDip.left;
     float           size    = m_scaler.ToPxf (font.sizeDip);
@@ -214,6 +338,12 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
+    hr = text.DrawString (L"Phases", x, top, caption, row, theme.ForegroundMuted(), size, font.face,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    x += caption;
+
     for (int phase = 0; phase <= kPhases; phase++)
     {
         bool  isMotor = (phase == kPhases);
@@ -221,12 +351,12 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         painter.FillRect (x, top + (row - lamp) / 2, lamp, lamp, on ? theme.Accent() : theme.ControlBackground());
 
-        label = isMotor ? std::wstring (L"M") : std::format (L"{}", phase);
-        hr    = text.DrawString (label.c_str(), x + lamp, top, step - lamp, row, theme.ForegroundMuted(), size, font.face,
+        label = isMotor ? std::wstring (L"Motor") : std::format (L"{}", phase);
+        hr    = text.DrawString (label.c_str(), x + lamp, top, (isMotor ? caption : step) - lamp, row, theme.ForegroundMuted(), size, font.face,
                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        x += step;
+        x += isMotor ? caption : step;
     }
 
     if (IsLabelBelow ((float) (m_boundsDip.right - m_boundsDip.left), m_scaler))

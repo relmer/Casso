@@ -1150,8 +1150,8 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T421 Owner review 2026-10-03: disassembly tooltips stay up long enough to read (the system's tooltip duration, scaled with text length)
 - [X] T422 Owner review 2026-10-03: the disabled "Show line numbers" check box gets a tip saying how to get line numbers
 - [X] T423 Owner review 2026-10-03: the trace pane and the call stack get syntax coloring like the disassembly
-- [ ] T424 Owner review 2026-10-03: Disk II: the head sweeps smoothly from the old track to the new one at its real stepping speed; the current track's indicator starts bright white, steps down to a theme highlight, and a track left behind fades out over a second or two
-- [ ] T425 Owner review 2026-10-03: Disk II: label the phase (stepper magnet) indicators and make clear what they show
+- [X] T424 Owner review 2026-10-03: Disk II: the head sweeps smoothly from the old track to the new one at its real stepping speed; the current track's indicator starts bright white, steps down to a theme highlight, and a track left behind fades out over a second or two
+- [X] T425 Owner review 2026-10-03: Disk II: label the phase (stepper magnet) indicators and make clear what they show
 - [X] T426 Owner review 2026-10-03: the trace pane's hotkey line puts more space between pairs, the key in the highlight color and its description in normal text
 - [X] T427 Owner review 2026-10-03: the console toolbar shows "Mode:" as a static label with the dialect alone as the drop-down
 - [X] T428 Owner review 2026-10-03: the find text box supports the standard edit functions: selection by mouse and shift-keys, Ctrl+A, cut, copy, paste, undo
