@@ -342,8 +342,8 @@ void Disk2NibbleEngine::SeekFlux (double angle)
 //
 //  StepFluxPulse
 //
-//  Advances flux time by one sequencer clock and reports whether a transition
-//  reached the head during it. With no real transition for longer than the
+//  Reports whether a transition reached the head during the sequencer clock
+//  that just moved flux time on. With no real transition for longer than the
 //  read amplifier holds its gain -- four cells, the same window the bit-track
 //  model uses -- the amplifier turns noise into pulses, once per cell and
 //  with the same odds as on a bit track.
@@ -357,15 +357,14 @@ uint8_t Disk2NibbleEngine::StepFluxPulse()
 
 
 
-    const FluxTrack  &  track = m_disk->GetFluxTrack (m_slot);
-    uint8_t             pulse = 0;
+    uint8_t  pulse = 0;
 
 
-
-    m_fluxNow += kFluxUnitsPerLssClock;
 
     if (m_fluxNow >= m_fluxDue)
     {
+        const FluxTrack  &  track = m_disk->GetFluxTrack (m_slot);
+
         pulse           = 1;
         m_fluxLastPulse = m_fluxDue;
 
@@ -608,7 +607,14 @@ void Disk2NibbleEngine::StepLss()
 
     if (m_isFluxSlot)
     {
-        pulse = StepFluxPulse();
+        // Most clocks neither reach a transition nor sample for weak bits, so
+        // they only move flux time on.
+        m_fluxNow += kFluxUnitsPerLssClock;
+
+        if (m_fluxNow >= m_fluxDue || m_lssClock == kLssReadClock)
+        {
+            pulse = StepFluxPulse();
+        }
     }
     else if (m_lssClock == kLssReadClock)
     {
@@ -674,7 +680,10 @@ void Disk2NibbleEngine::StepLss()
     {
         // A flux track keeps its own time, so there is no bit cursor to move;
         // a write is collected and spliced in when it ends.
-        RecordFluxWriteBit (static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? 1 : 0));
+        if (m_writeMode || m_burstActive)
+        {
+            RecordFluxWriteBit (static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? 1 : 0));
+        }
     }
     else if (m_lssClock == kLssReadClock)
     {
