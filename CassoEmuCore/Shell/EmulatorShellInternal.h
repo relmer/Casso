@@ -160,6 +160,12 @@ static constexpr int     s_kScenePoseHeightDp       = 24;
 
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
+// The desk name's marquee, timed as the flat widgets' is: a scroll begins as
+// the pointer arrives and repeats after the hold while it stays.
+static constexpr int     s_kSceneLabelScrollGapDp     = 25;
+static constexpr float   s_kSceneLabelScrollDipPerSec = 45.0f;
+static constexpr int64_t s_kSceneLabelScrollHoldMs    = 2000;
+
 // Padding around the 3D drive row when the CRT monitor is opted out and the
 // row composes into the classic bottom band -- breathing room off the window
 // edge, the way the 2D widgets' band padding sat around them. (Containment

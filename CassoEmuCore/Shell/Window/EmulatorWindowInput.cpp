@@ -392,6 +392,14 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         UpdateGuestMouseFromHost (x, y);
     }
 
+    // The desk's names scroll under the pointer too; a change re-hangs them so
+    // the one that was scrolling comes back to its start.
+    if (UpdateSceneLabelHover (x, y, nowMs))
+    {
+        SyncSceneDriveLabels();
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
     // write-protected drive under the pointer so the WP tooltip can show.

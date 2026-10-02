@@ -1109,6 +1109,8 @@ private:
 
     // Re-hangs the mounted-image basename strip under each projected drive.
     void    SyncSceneDriveLabels ();
+    bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
+    float   GetSceneLabelScrollPx (int drive, int64_t nowMs);
 
     // Hands each drive's name to the scene as a depth-tested quad: bakes the
     // two strings into one texture when either has changed, then re-solves
@@ -1697,6 +1699,13 @@ private:
     // The write-protect tooltip belongs to the strip now that the padlock
     // does -- see SyncSceneDriveLabels.
     std::array<RECT, 2>       m_sceneDriveLabelRect = {};
+
+    // A desk name too long for its strip scrolls while the pointer is on its
+    // drive or the name. The period is the name plus its gap in baked pixels,
+    // zero for a name that fits.
+    std::array<float, 2>      m_sceneDiskLabelPeriod  = {};
+    int                       m_sceneLabelHover       = -1;
+    int64_t                   m_sceneLabelHoverMs     = 0;
 
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no

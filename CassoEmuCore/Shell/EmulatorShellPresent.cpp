@@ -786,6 +786,12 @@ bool EmulatorShell::TryPresentUiFrame()
                 }
             }
 
+            // A name scrolling under the pointer moves every frame.
+            if (m_sceneLabelHover >= 0 && m_sceneDiskLabelPeriod[(size_t) m_sceneLabelHover] > 0.0f)
+            {
+                labelsMoved = true;
+            }
+
             if (labelsMoved)
             {
                 SyncSceneDriveLabels();

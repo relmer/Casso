@@ -1014,6 +1014,7 @@ void EmulatorShell::SyncSceneDriveLabels()
     // label; the desk hands its names to the scene instead.
     bool                          inScene = visible && !onStrip;
     std::array<std::wstring, 2>   names;
+    std::array<std::wstring, 2>   fullNames;
     int                           halfW   = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
     int                           stripH  = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     int                           gapPx   = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
@@ -1055,6 +1056,11 @@ void EmulatorShell::SyncSceneDriveLabels()
         // So it is chrome again: the same size wherever the scene is posed,
         // hung off the drive's projected anchor -- one model point rather
         // than the drive's swelling bounds, so it rides the orbit rigidly.
+        //
+        // The desk bakes the whole name and scrolls it under the pointer; only
+        // the chrome label is cut short to fit.
+        fullNames[i] = name;
+
         if (!name.empty())
         {
             rc.left   = comp.driveLabelPx[i].x - halfW;
@@ -1092,12 +1098,94 @@ void EmulatorShell::SyncSceneDriveLabels()
 
     if (inScene)
     {
-        SyncSceneDiskLabelQuads (names, cellPx, gapPx);
+        SyncSceneDiskLabelQuads (fullNames, cellPx, gapPx);
     }
     else
     {
         ClearSceneDiskLabels();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdateSceneLabelHover
+//
+//  Which desk drive the pointer is on, by its face or its name, so that
+//  drive's name can scroll. Returns whether that changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
+{
+    const DeskSceneComposition &  comp    = m_deskScene.Composition();
+    POINT                         pt      = { x, y };
+    int                           hovered = -1;
+    bool                          changed = false;
+
+
+
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
+    {
+        for (int i = 0; i < comp.driveCount && i < (int) m_sceneDriveLabelRect.size(); i++)
+        {
+            if (PtInRect (&comp.driveRectPx[i], pt) || PtInRect (&m_sceneDriveLabelRect[i], pt))
+            {
+                hovered = i;
+                break;
+            }
+        }
+    }
+
+    changed = hovered != m_sceneLabelHover;
+
+    if (changed)
+    {
+        m_sceneLabelHover   = hovered;
+        m_sceneLabelHoverMs = nowMs;
+    }
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetSceneLabelScrollPx
+//
+//  How far along its double bake a desk name's window has slid: zero for a
+//  name that fits or a drive the pointer is not on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
+{
+    float    period   = m_sceneDiskLabelPeriod[(size_t) drive];
+    float    speed    = (float) m_scaler.ToPx (1) * s_kSceneLabelScrollDipPerSec;
+    int64_t  scrollMs = 0;
+
+
+
+    if (drive != m_sceneLabelHover || period <= 0.0f || speed <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    // Finished and still under the pointer: go again after the hold.
+    scrollMs = (int64_t) (period / speed * 1000.0f);
+
+    if (nowMs - (m_sceneLabelHoverMs + scrollMs) >= s_kSceneLabelScrollHoldMs)
+    {
+        m_sceneLabelHoverMs = nowMs;
+    }
+
+    return TapeDeckWidget::GetMarqueeOffset (nowMs, m_sceneLabelHoverMs, period, speed);
 }
 
 
@@ -1125,10 +1213,11 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
                                              const SIZE                        & cellPx,
                                              int                                 gapPx)
 {
-    const DeskSceneComposition &  comp = m_deskScene.Composition();
-    IDxuiTextRenderer *           text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    UINT                          texW = 0;
-    UINT                          texH = 0;
+    const DeskSceneComposition  & comp  = m_deskScene.Composition();
+    IDxuiTextRenderer           * text  = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    UINT                          texW  = 0;
+    UINT                          texH  = 0;
+    int64_t                       nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
@@ -1172,10 +1261,16 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
         // The renderer grows that texture and never shrinks it, so the cells
         // usually cover only part of it and a 0..1 mapping would stretch
         // whatever else is still in there across the name.
-        uv[0] = 0.0f;
-        uv[1] = (float) (i * cellPx.cy)       / (float) texH;
-        uv[2] = (float) cellPx.cx             / (float) texW;
-        uv[3] = (float) ((i + 1) * cellPx.cy) / (float) texH;
+        //
+        // A scrolling name slides its window along the double bake.
+        {
+            float  scroll = GetSceneLabelScrollPx (i, nowMs);
+
+            uv[0] = scroll                        / (float) texW;
+            uv[1] = (float) (i * cellPx.cy)       / (float) texH;
+            uv[2] = (scroll + (float) cellPx.cx)  / (float) texW;
+            uv[3] = (float) ((i + 1) * cellPx.cy) / (float) texH;
+        }
 
         m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv);
     }
@@ -1214,6 +1309,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & 
     IDxuiTextRenderer         *  text       = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     ID3D11ShaderResourceView  *  srv        = nullptr;
     float                        fontPx     = 0.0f;
+    LONG                         bakeW      = cellPx.cx;
     HRESULT                      hr         = S_OK;
 
 
@@ -1223,30 +1319,70 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & 
         return false;
     }
 
-    hr = text->BeginDrawToTexture ((UINT) cellPx.cx, (UINT) (cellPx.cy * 2));
+    // The same DIP-to-pixel the chrome label paints at.
+    fontPx = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+
+    // A NAME TOO LONG FOR ITS CELL IS BAKED WHOLE, TWICE, a gap apart, so the
+    // quad can slide its window along it and come back to the start without a
+    // seam -- the flat widget's marquee, done in texture coordinates so
+    // scrolling never re-bakes. The texture widens to hold it.
+    for (int i = 0; i < (int) names.size(); i++)
+    {
+        float    textW     = 0.0f;
+        float    textH     = 0.0f;
+        HRESULT  hrMeasure = E_FAIL;
+
+        m_sceneDiskLabelPeriod[i] = 0.0f;
+
+        if (!names[i].empty())
+        {
+            hrMeasure = text->MeasureString (names[i].c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+        }
+
+        if (SUCCEEDED (hrMeasure) && textW > (float) cellPx.cx - 2.0f * DxuiShadowedText::kGlowReachPx)
+        {
+            m_sceneDiskLabelPeriod[i] = ceilf (textW + (float) m_scaler.ToPx (s_kSceneLabelScrollGapDp));
+            bakeW = max (bakeW, cellPx.cx + (LONG) m_sceneDiskLabelPeriod[i]);
+        }
+    }
+
+    hr = text->BeginDrawToTexture ((UINT) bakeW, (UINT) (cellPx.cy * 2));
 
     if (FAILED (hr))
     {
         return false;
     }
 
-    // The same DIP-to-pixel the chrome label paints at, which is also the
-    // size the truncation was measured against.
-    fontPx = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
-
     for (int i = 0; i < (int) names.size(); i++)
     {
+        float  period = m_sceneDiskLabelPeriod[i];
+        float  glow   = DxuiShadowedText::kGlowReachPx;
+
         if (names[i].empty())
         {
             continue;
         }
 
-        DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
-                                         0.0f, (float) (i * cellPx.cy),
-                                         (float) cellPx.cx, (float) cellPx.cy,
-                                         kLabelArgb, fontPx, DxuiTheme::kBodyFace,
-                                         DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                                         DxuiShadowedText::kGlowReachPx);
+        if (period <= 0.0f)
+        {
+            DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
+                                             0.0f, (float) (i * cellPx.cy),
+                                             (float) cellPx.cx, (float) cellPx.cy,
+                                             kLabelArgb, fontPx, DxuiTheme::kBodyFace,
+                                             DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                             glow);
+            continue;
+        }
+
+        for (float x : { glow, glow + period })
+        {
+            DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
+                                             x, (float) (i * cellPx.cy),
+                                             period, (float) cellPx.cy,
+                                             kLabelArgb, fontPx, DxuiTheme::kBodyFace,
+                                             DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+                                             glow);
+        }
     }
 
     hr = text->EndDrawToTexture (&srv);
