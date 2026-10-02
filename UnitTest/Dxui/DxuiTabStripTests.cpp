@@ -85,6 +85,7 @@ public:
         ev.positionDip = { 500, 500 };
         Assert::IsTrue  (ts.OnMouse (ev), L"and so does leaving the strip");
     }
+
     TEST_METHOD (Click_SelectsAndFiresOnChange)
     {
         DxuiTabStrip  ts;
