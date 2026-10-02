@@ -270,6 +270,16 @@ identical memory; host time drops sharply with it on.
 - [X] T059 [US4] Recent tapes (done as the shared disk picker and recent list, filtered by extension; the folders of every recent entry are scanned for both kinds): a `GlobalUserPrefs::recentTapes` list (`DiskMru`) and an MRU picker matching the disk picker, plus a remembered folder for new blank tapes
 - [ ] T060 [US4] Marquee a tape name too long for the widget's name row, as `DriveWidget::PaintBasenameLabel` does
 
+### After 035-debugger lands on master (merge master into 037 first; do not merge or rebase onto 035 before it ships)
+
+- [ ] T061 Merge master into 037 once 035 has shipped; expect conflicts in the shared shell plumbing (CpuCommandDispatcher, EmulatorShellCpuThread, MachineHost, menus, Dxui)
+- [ ] T062 Debugger reads of $C020-$C02F and $C060/$C068 MUST NOT have side effects: give `CassettePort` a peek path through 035's side-effect-free read mechanism, using `TapeDeck::PeekLevel` (no access recorded, no toggle, no recording click, no fast-load trigger)
+- [ ] T063 Single-instruction steps (035 FR-140) MUST also silence `m_tapeAudioMixer`
+- [ ] T064 Debugger Monitor `R`/`W` with no filename (035 FR-020): print that tape loads go through the guest's own Monitor with the deck playing; keep the host-file meaning when a filename is given
+- [ ] T065 Soft-switch operand names (035 FR-112): TAPEOUT for $C020-$C02F (ROMBANK at $C028 on the //c), TAPEIN for $C060 (RD80SW on the //c), TAPEIN mirror for $C068
+- [ ] T066 Cassette device panel (035 US9): transport, position/length, input level, output flip-flop, toggle count, last access cycle, fast-load override state
+- [ ] T067 Script commands (035 FR-014 family) `tape insert|play|stop|rewind` and a `CassoCli debug --tape` option
+
 ---
 
 ## Dependencies & Execution Order
