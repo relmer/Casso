@@ -771,7 +771,7 @@ wstring DiskImageStore::FormatMountFailureMessage (const string & path,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
+wstring DiskImageStore::FormatDamagedImageMessage (const string & path, bool hasDamagedTracks)
 {
     wstring  widePath = fs::path (path).wstring();
 
@@ -783,9 +783,12 @@ wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
     }
 
     return L"This disk is damaged, so Casso will not write to it:\n\n" + widePath +
-           L"\n\nRewriting it would hide the damage it already carries, behind "
-           L"a newly computed checksum or blank tracks where unreadable ones "
-           L"were. The disk stays readable and the emulated machine sees it as "
+           (hasDamagedTracks
+               ? L"\n\nRewriting it would replace the tracks that could not be read "
+                 L"with blank ones, hiding the damage it already carries. "
+               : L"\n\nRewriting it would give the file a newly computed checksum, "
+                 L"hiding the damage it already carries. ") +
+           L"The disk stays readable and the emulated machine sees it as "
            L"write-protected. Work on a copy if you need to write to it.";
 }
 
@@ -1376,7 +1379,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         // IS the damage report -- so the one write that is otherwise harmless
         // is the one write that would destroy the evidence.
         isDamaged = entry.image->IsDamaged();
-        CBRN (!isDamaged, FormatDamagedImageMessage (entry.path).c_str());
+        CBRN (!isDamaged, FormatDamagedImageMessage (entry.path, entry.image->HasDamagedTracks()).c_str());
 
         // Guest writes go out FIRST, while the image still accepts a flush.
         // Patching the flag byte afterwards edits a file that already holds
