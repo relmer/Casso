@@ -2,6 +2,8 @@
 
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Core/MachineConfig.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -468,4 +470,111 @@ void MockingboardCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     }
 
     snapshot.visual = std::move (meters);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockingboardCard::SaveState (StateWriter & writer) const
+{
+    HRESULT   hr = S_OK;
+    int       i  = 0;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool (m_speech != nullptr);
+
+    for (i = 0; i < kViaCount; i++)
+    {
+        writer.WriteByte (m_lastControl[i]);
+    }
+
+    for (i = 0; i < kViaCount; i++)
+    {
+        hr = m_via[i].SaveState (writer);
+        CHR (hr);
+
+        hr = m_psg[i].SaveState (writer);
+        CHR (hr);
+    }
+
+    if (m_speech != nullptr)
+    {
+        hr = m_speech->SaveState (writer);
+        CHR (hr);
+    }
+
+    hr = writer.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  A state saved from the other variant fails with ERROR_INVALID_DATA: its
+//  speech section would be missing, or left over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockingboardCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr        = S_OK;
+    uint16_t  version   = 0;
+    bool      hasSpeech = false;
+    int       i         = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (hasSpeech);
+
+    for (i = 0; i < kViaCount; i++)
+    {
+        reader.ReadByte (m_lastControl[i]);
+    }
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (hasSpeech == (m_speech != nullptr), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (i = 0; i < kViaCount; i++)
+    {
+        hr = m_via[i].LoadState (reader);
+        CHR (hr);
+
+        hr = m_psg[i].LoadState (reader);
+        CHR (hr);
+    }
+
+    if (m_speech != nullptr)
+    {
+        hr = m_speech->LoadState (reader);
+        CHR (hr);
+    }
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
 }

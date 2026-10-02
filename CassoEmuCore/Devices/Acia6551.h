@@ -4,6 +4,7 @@
 
 #include "Core/MemoryDevice.h"
 #include "Core/IInterruptController.h"
+#include "Core/IMachineState.h"
 
 class MemoryBus;
 class IAciaEndpoint;
@@ -38,7 +39,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Acia6551 : public MemoryDevice
+class Acia6551 : public MemoryDevice, public IMachineState
 {
 public:
     // Slot I/O geometry: slot n decodes $C080 + n*16; the ACIA sits at
@@ -106,6 +107,15 @@ public:
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
+    // IMachineState: the four registers. The endpoint and the IRQ source are
+    // wiring, bytes already handed to the endpoint are output and are not taken
+    // back, and the interrupt controller saves whether the line is held.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', 'C', 'I', 'A');
+    static constexpr uint16_t  kStateVersion = 1;
+
 private:
     void    ResetState           (bool hardware);
     void    ApplyProgrammedReset ();
@@ -120,11 +130,13 @@ private:
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;
 
+protected:
     Byte                     m_status  = 0;
     Byte                     m_command = 0;
     Byte                     m_control = 0;
     Byte                     m_rxData  = 0;
 
+private:
     IInterruptController *    m_ic        = nullptr;
     IrqSourceId               m_irqSource = 0;
     bool                      m_irqBound  = false;

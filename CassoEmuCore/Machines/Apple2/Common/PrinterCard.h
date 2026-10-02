@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Printer/PrinterByteRing.h"
@@ -35,7 +36,7 @@ class MemoryBus;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class PrinterCard : public MemoryDevice, public IDiagnosticsProvider
+class PrinterCard : public MemoryDevice, public IDiagnosticsProvider, public IMachineState
 {
 public:
     static constexpr Word   kSlotIoBase   = 0xC080;
@@ -84,6 +85,15 @@ public:
     std::string  GetDiagnosticsId    () const override { return "printer"; }
     std::string  GetDiagnosticsTitle () const override { return "Printer"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+
+    // IMachineState: whether the guest has written to the card. Bytes in the
+    // ring were sent to the printer and are output, which a load does not take
+    // back; the text copy is a host file.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('P', 'R', 'N', 'T');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     Byte ReadStatus() const;

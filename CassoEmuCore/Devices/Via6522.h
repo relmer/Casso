@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/IInterruptController.h"
+#include "Core/IMachineState.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 
 
@@ -50,7 +51,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Via6522
+class Via6522 : public IMachineState
 {
 public:
     static constexpr Byte  kRegOrb        = 0x0;
@@ -149,6 +150,16 @@ public:
     void     AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const;
     void     AppendTimerLevels (const std::string & title, DiagnosticsMeters & meters) const;
 
+    // IMachineState: the register file, port input latches, control lines and
+    // both timers. The IRQ source token and controller are wiring; the
+    // interrupt controller saves whether the line is held, so a load does not
+    // drive it.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('V', 'I', 'A', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
+
 private:
     void    TickTimer1  (uint32_t cycles);
     void    TickTimer2  (uint32_t cycles);
@@ -156,6 +167,7 @@ private:
     void    ClearFlag   (Byte flag);
     void    UpdateIrq   ();
 
+protected:
     Byte  m_ora     = 0;
     Byte  m_orb     = 0;
     Byte  m_ddra    = 0;
@@ -188,6 +200,7 @@ private:
     int32_t  m_t2Counter = 0;
     bool     m_t2Armed   = false;
 
+private:
     IInterruptController *   m_ic        = nullptr;
     IrqSourceId              m_irqSource = 0;
     bool                     m_irqBound  = false;

@@ -160,6 +160,8 @@
     <ClCompile Include="CpuIrqTests.cpp" />
     <ClCompile Include="InputVideoStateTests.cpp" />
     <ClCompile Include="MachineStateTests.cpp" />
+    <ClCompile Include="MockingboardStateTests.cpp" />
+    <ClCompile Include="SerialPrinterStateTests.cpp" />
     <ClCompile Include="StateStreamTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />

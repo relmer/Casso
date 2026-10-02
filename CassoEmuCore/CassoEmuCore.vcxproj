@@ -671,6 +671,7 @@
     <ClInclude Include="Core\InterruptController.h" />
     <ClInclude Include="Core\IMachineState.h" />
     <ClInclude Include="Core\StateReader.h" />
+    <ClInclude Include="Core\StateFloat.h" />
     <ClInclude Include="Core\StateWriter.h" />
     <ClInclude Include="Devices\IMmu.h" />
     <ClInclude Include="Devices\IVideoMode.h" />

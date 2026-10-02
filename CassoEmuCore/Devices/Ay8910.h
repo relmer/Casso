@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 
 
@@ -35,7 +36,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Ay8910
+class Ay8910 : public IMachineState
 {
 public:
     static constexpr Byte    kRegCount = 16;
@@ -116,6 +117,15 @@ public:
 
     static float GetVolumeForLevel (int level);
 
+    // IMachineState: the registers, the address latch, the tick accumulator and
+    // the tone, noise and envelope generators. The clock and host sample rate
+    // are configuration the machine builder sets, so they are not saved.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('P', 'S', 'G', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
+
 private:
     void    AdvanceBaseTick  ();
     void    StepLfsr         ();
@@ -140,6 +150,7 @@ private:
         0.35355339f, 0.50000000f, 0.70710678f, 1.00000000f
     };
 
+protected:
     Byte  m_regs[kRegCount] = {};
     Byte  m_latched         = 0;
 

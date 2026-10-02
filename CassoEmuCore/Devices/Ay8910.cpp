@@ -2,6 +2,9 @@
 
 #include "Devices/Ay8910.h"
 #include "Debugger/IDiagnosticsProvider.h"
+#include "Core/StateFloat.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -683,4 +686,117 @@ void Ay8910::AppendChannelLevels (const std::string & title, DiagnosticsMeters &
         meters.levels.push_back ({ std::format ("{} {}", title, kNames[channel]),
                                    silent ? 0.0f : (float) level / (float) kMaxEnvLevel });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Ay8910::SaveState (StateWriter & writer) const
+{
+    int   i = 0;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBytes (m_regs, kRegCount);
+    writer.WriteByte  (m_latched);
+
+    StateFloat::Write (writer, m_tickAccum);
+
+    for (i = 0; i < 3; i++)
+    {
+        writer.WriteUInt32 (static_cast<uint32_t> (m_toneCounter[i]));
+        writer.WriteUInt32 (static_cast<uint32_t> (m_toneState[i]));
+    }
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_noiseCounter));
+    writer.WriteUInt32 (m_lfsr);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_envCounter));
+    writer.WriteUInt32 (static_cast<uint32_t> (m_envLevel));
+    writer.WriteBool   (m_envDirUp);
+    writer.WriteBool   (m_envHolding);
+    writer.WriteBool   (m_envCont);
+    writer.WriteBool   (m_envAttack);
+    writer.WriteBool   (m_envAlt);
+    writer.WriteBool   (m_envHold);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  The envelope level indexes the volume table, so a level outside 0-15
+//  fails the load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Ay8910::LoadState (StateReader & reader)
+{
+    HRESULT   hr             = S_OK;
+    uint16_t  version        = 0;
+    uint32_t  toneCounter[3] = {};
+    uint32_t  toneState[3]   = {};
+    uint32_t  noiseCounter   = 0;
+    uint32_t  envCounter     = 0;
+    uint32_t  envLevel       = 0;
+    int       i              = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBytes (m_regs, kRegCount);
+    reader.ReadByte  (m_latched);
+
+    StateFloat::Read (reader, m_tickAccum);
+
+    for (i = 0; i < 3; i++)
+    {
+        reader.ReadUInt32 (toneCounter[i]);
+        reader.ReadUInt32 (toneState[i]);
+    }
+
+    reader.ReadUInt32 (noiseCounter);
+    reader.ReadUInt32 (m_lfsr);
+    reader.ReadUInt32 (envCounter);
+    reader.ReadUInt32 (envLevel);
+    reader.ReadBool   (m_envDirUp);
+    reader.ReadBool   (m_envHolding);
+    reader.ReadBool   (m_envCont);
+    reader.ReadBool   (m_envAttack);
+    reader.ReadBool   (m_envAlt);
+    reader.ReadBool   (m_envHold);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx (envLevel <= static_cast<uint32_t> (kMaxEnvLevel), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (i = 0; i < 3; i++)
+    {
+        m_toneCounter[i] = static_cast<int> (toneCounter[i]);
+        m_toneState[i]   = static_cast<int> (toneState[i]);
+    }
+
+    m_noiseCounter = static_cast<int> (noiseCounter);
+    m_envCounter   = static_cast<int> (envCounter);
+    m_envLevel     = static_cast<int> (envLevel);
+
+Error:
+    return hr;
 }

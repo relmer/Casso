@@ -2,6 +2,8 @@
 
 #include "Devices/Via6522.h"
 #include "Debugger/IDiagnosticsProvider.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -673,4 +675,105 @@ void Via6522::AppendTimerLevels (const std::string & title, DiagnosticsMeters & 
 
     meters.levels.push_back (makeLevel (title + " T1", m_t1Armed, GetTimer1(), t1Latch));
     meters.levels.push_back (makeLevel (title + " T2", m_t2Armed, GetTimer2(), m_t2Start));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Via6522::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte   (m_ora);
+    writer.WriteByte   (m_orb);
+    writer.WriteByte   (m_ddra);
+    writer.WriteByte   (m_ddrb);
+    writer.WriteByte   (m_portAIn);
+    writer.WriteByte   (m_portBIn);
+    writer.WriteBool   (m_ca1);
+    writer.WriteBool   (m_cb1);
+    writer.WriteByte   (m_sr);
+    writer.WriteByte   (m_acr);
+    writer.WriteByte   (m_pcr);
+    writer.WriteByte   (m_ifr);
+    writer.WriteByte   (m_ier);
+    writer.WriteByte   (m_t1LatchLo);
+    writer.WriteByte   (m_t1LatchHi);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_t1Counter));
+    writer.WriteBool   (m_t1Armed);
+    writer.WriteByte   (m_t2LatchLo);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_t2Start));
+    writer.WriteUInt32 (static_cast<uint32_t> (m_t2Counter));
+    writer.WriteBool   (m_t2Armed);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  IFR and IER hold source bits 0-6 only; a saved bit 7 in either is not
+//  something this class ever stores, so it fails the load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Via6522::LoadState (StateReader & reader)
+{
+    HRESULT   hr        = S_OK;
+    uint16_t  version   = 0;
+    uint32_t  t1Counter = 0;
+    uint32_t  t2Start   = 0;
+    uint32_t  t2Counter = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte   (m_ora);
+    reader.ReadByte   (m_orb);
+    reader.ReadByte   (m_ddra);
+    reader.ReadByte   (m_ddrb);
+    reader.ReadByte   (m_portAIn);
+    reader.ReadByte   (m_portBIn);
+    reader.ReadBool   (m_ca1);
+    reader.ReadBool   (m_cb1);
+    reader.ReadByte   (m_sr);
+    reader.ReadByte   (m_acr);
+    reader.ReadByte   (m_pcr);
+    reader.ReadByte   (m_ifr);
+    reader.ReadByte   (m_ier);
+    reader.ReadByte   (m_t1LatchLo);
+    reader.ReadByte   (m_t1LatchHi);
+    reader.ReadUInt32 (t1Counter);
+    reader.ReadBool   (m_t1Armed);
+    reader.ReadByte   (m_t2LatchLo);
+    reader.ReadUInt32 (t2Start);
+    reader.ReadUInt32 (t2Counter);
+    reader.ReadBool   (m_t2Armed);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx ((m_ifr & kIrqAny) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx ((m_ier & kIrqAny) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_t1Counter = static_cast<int32_t> (t1Counter);
+    m_t2Start   = static_cast<int32_t> (t2Start);
+    m_t2Counter = static_cast<int32_t> (t2Counter);
+
+Error:
+    return hr;
 }

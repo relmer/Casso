@@ -4,6 +4,7 @@
 
 #include "Core/MemoryDevice.h"
 #include "Core/IInterruptController.h"
+#include "Core/IMachineState.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Via6522.h"
 #include "Devices/Ay8910.h"
@@ -69,7 +70,7 @@ enum class MockingboardVariant
     SoundSpeech,    // Mockingboard C: SSI 263A installed in socket 1
 };
 
-class MockingboardCard : public MemoryDevice, public IDiagnosticsProvider
+class MockingboardCard : public MemoryDevice, public IDiagnosticsProvider, public IMachineState
 {
 public:
     static constexpr int     kViaCount   = 2;
@@ -135,6 +136,16 @@ public:
     std::string  GetDiagnosticsTitle () const override { return "Mockingboard"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
+    // IMachineState: each VIA's last PSG control lines, then both VIAs, both
+    // PSGs and the voice chip as nested sections. Whether a voice chip is
+    // installed is wiring, saved only to check that the card loading the state
+    // is the same variant. The audio sources hold host output, not state.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'O', 'C', 'K');
+    static constexpr uint16_t  kStateVersion = 1;
+
 private:
     void    SyncPsg            (int index);
     bool    IsInstalledSpeech  (Word offset) const;
@@ -151,6 +162,7 @@ private:
     Ay8910                     m_psg[kViaCount];
     MockingboardAudioSource    m_audioSource[kViaCount];
 
+protected:
     // Last control-line state (BDIR|BC1) seen on each VIA, for edge
     // detection of PSG bus operations.
     Byte     m_lastControl[kViaCount] = { 0, 0 };

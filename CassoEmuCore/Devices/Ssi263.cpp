@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Devices/Ssi263.h"
+#include "Core/StateFloat.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 // Per-phoneme acoustic targets, indexed by phoneme code $00-$3F.
 //
@@ -1128,4 +1131,120 @@ void Ssi263::BeginPhoneme()
 bool Ssi263::HasAnySource (const Ssi263PhonemeSpec & spec)
 {
     return (spec.voicedLevel > 0.0f) || (spec.fricLevel > 0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Ssi263::SaveState (StateWriter & writer) const
+{
+    int   i = 0;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBytes (m_reg, kRegCount);
+    writer.WriteByte  (m_mode);
+    writer.WriteBool  (m_request);
+    writer.WriteBool  (m_sounding);
+
+    StateFloat::Write (writer, m_phonemeCycles);
+
+    for (i = 0; i < 3; i++)
+    {
+        StateFloat::Write (writer, m_fCur[i]);
+        StateFloat::Write (writer, m_resY1[i]);
+        StateFloat::Write (writer, m_resY2[i]);
+    }
+
+    StateFloat::Write  (writer, m_envLevel);
+    StateFloat::Write  (writer, m_glottalPhase);
+    StateFloat::Write  (writer, m_excLp1);
+    StateFloat::Write  (writer, m_excLp2);
+    writer.WriteUInt32 (m_lfsr);
+    StateFloat::Write  (writer, m_noiseLp);
+    StateFloat::Write  (writer, m_vaCur);
+    StateFloat::Write  (writer, m_faCur);
+    StateFloat::Write  (writer, m_fricLp);
+    StateFloat::Write  (writer, m_fricLp2);
+    StateFloat::Write  (writer, m_fricLp3);
+    StateFloat::Write  (writer, m_fricY1);
+    StateFloat::Write  (writer, m_fricY2);
+    StateFloat::Write  (writer, m_radPrev);
+    StateFloat::Write  (writer, m_outLp);
+    StateFloat::Write  (writer, m_outLp2);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  The latched mode is one of the four duration-bit encodings; any other
+//  value fails the load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Ssi263::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+    int       i       = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBytes (m_reg, kRegCount);
+    reader.ReadByte  (m_mode);
+    reader.ReadBool  (m_request);
+    reader.ReadBool  (m_sounding);
+
+    StateFloat::Read (reader, m_phonemeCycles);
+
+    for (i = 0; i < 3; i++)
+    {
+        StateFloat::Read (reader, m_fCur[i]);
+        StateFloat::Read (reader, m_resY1[i]);
+        StateFloat::Read (reader, m_resY2[i]);
+    }
+
+    StateFloat::Read  (reader, m_envLevel);
+    StateFloat::Read  (reader, m_glottalPhase);
+    StateFloat::Read  (reader, m_excLp1);
+    StateFloat::Read  (reader, m_excLp2);
+    reader.ReadUInt32 (m_lfsr);
+    StateFloat::Read  (reader, m_noiseLp);
+    StateFloat::Read  (reader, m_vaCur);
+    StateFloat::Read  (reader, m_faCur);
+    StateFloat::Read  (reader, m_fricLp);
+    StateFloat::Read  (reader, m_fricLp2);
+    StateFloat::Read  (reader, m_fricLp3);
+    StateFloat::Read  (reader, m_fricY1);
+    StateFloat::Read  (reader, m_fricY2);
+    StateFloat::Read  (reader, m_radPrev);
+    StateFloat::Read  (reader, m_outLp);
+    StateFloat::Read  (reader, m_outLp2);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx (m_mode <= kModePhonemeTransitioned, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
 }

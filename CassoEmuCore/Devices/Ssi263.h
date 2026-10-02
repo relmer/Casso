@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
+
 
 
 
@@ -107,7 +109,7 @@ struct Ssi263PhonemeSpec
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Ssi263
+class Ssi263 : public IMachineState
 {
 public:
     static constexpr Byte    kRegCount    = 5;
@@ -195,6 +197,16 @@ public:
     // relative to it, changing "voice type" as the datasheet describes.
     static constexpr double  kNominalFilterHz = 20000.0;
 
+    // IMachineState: the registers, the latched mode, A/R, the phoneme countdown
+    // and the synthesis state, floats at their exact bits so replay renders the
+    // same samples. XCK, the tick clock, the host sample rate and the formant
+    // table are configuration and are not saved.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'I', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
+
 private:
     double  GetTickClockHz      () const { return (m_tickClockHz > 0.0) ? m_tickClockHz : m_xckHz; }
 
@@ -223,6 +235,7 @@ private:
     // device rate (see s_kSourceBreakHz). Set by SetSampleRate.
     float      m_sourcePole   = 0.0065f;
 
+protected:
     Byte       m_reg[kRegCount] = {};
 
     // Mode latched on the CTL one-to-zero transition, from the DR bits as they
@@ -237,9 +250,11 @@ private:
     double     m_phonemeCycles = 0.0;
     bool       m_sounding      = false;
 
+private:
     // Acoustic table in force; the built-in set unless replaced.
     const Ssi263PhonemeSpec *   m_formants = nullptr;
 
+protected:
     // Formant glide state: current center frequencies easing toward the
     // active phoneme's targets at the articulation rate.
     double     m_fCur[3] = { 0.0, 0.0, 0.0 };

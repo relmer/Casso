@@ -2,6 +2,8 @@
 
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Core/MachineConfig.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -234,4 +236,52 @@ void PrinterCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     group.rows.push_back (MakeTextRow ("Space left",    std::format ("{}", m_ring.GetFreeBytes())));
 
     snapshot.groups.push_back (std::move (group));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PrinterCard::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool (m_everTouched);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PrinterCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (m_everTouched);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
 }

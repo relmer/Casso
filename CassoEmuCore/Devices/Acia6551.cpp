@@ -3,6 +3,8 @@
 #include "Acia6551.h"
 #include "IAciaEndpoint.h"
 #include "Core/MachineConfig.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -463,4 +465,58 @@ unique_ptr<MemoryDevice> Acia6551::Create (const DeviceConfig & config, MemoryBu
     base = static_cast<Word> (kSlotIoBase + config.slot * kSlotIoStride + kAciaRegOffset);
 
     return make_unique<Acia6551> (base);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Acia6551::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte (m_status);
+    writer.WriteByte (m_command);
+    writer.WriteByte (m_control);
+    writer.WriteByte (m_rxData);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Acia6551::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte (m_status);
+    reader.ReadByte (m_command);
+    reader.ReadByte (m_control);
+    reader.ReadByte (m_rxData);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
 }
