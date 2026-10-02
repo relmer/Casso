@@ -41,7 +41,6 @@ RIM     = 5.0                       # black rim around the top plates
 # Colors. Every one is kept more than 0.02 in some channel from cadkit.KD.
 BODY    = (0.085, 0.085, 0.092)
 KEY     = (0.040, 0.040, 0.044)
-KEY_DISH= (0.090, 0.090, 0.098)
 SILVER  = (0.760, 0.765, 0.770)
 GRILLE  = (0.700, 0.700, 0.690)
 PERF    = (0.200, 0.200, 0.205)
@@ -169,29 +168,36 @@ def build():
         legend = t if legend is None else legend.union(t)
     m.add("legend", legend, BAND)
 
-    # Keys: 2 mm black plates with FLAT tops, parallel to the grille. They do
-    # not reach down into the slope: each is hinged at the back, just under the
-    # edge of the legend plate, and cantilevers forward over the slope. Each
-    # carries a stadium-shaped dish -- a rounded rectangle closed by a
-    # semicircle at each end.
+    # Keys: 5 mm black plates with FLAT tops, flush with the top plates and
+    # parallel to the grille. They do not reach down into the slope: each is
+    # hinged at the back, just under the edge of the legend plate, and
+    # cantilevers forward over the slope.
+    #
+    # The dish is cut by a CAPSULE -- a cylinder along the key with a sphere
+    # at each end -- sunk until it breaks the top face. Where it breaks through
+    # it leaves a stadium (a rounded rectangle closed by a semicircle at each
+    # end), and below that the hollow curves down smoothly in both directions:
+    # across the key along the cylinder, along it into the spherical ends.
     kw = pitch - 2.0
     ky0, ky1 = 6.0, SLOPE_Y + 1.0
     kl = ky1 - ky0
-    ktop = top + 3.0
+    ktop = top + 0.6
+    KEY_T = 5.0
+    DISH_W, DISH_D = kw * 0.62, 1.6
+    dish_r = (DISH_W * DISH_W / 4.0 + DISH_D * DISH_D) / (2.0 * DISH_D)
+    dish_l = kl * 0.72 - DISH_W            # the straight run between the ends
     for i in range(6):
         kx = kx0 + i * pitch + 1.0
-        key = (box(kx, kx + kw, ky0, ky1, ktop - 2.0, ktop)
+        key = (box(kx, kx + kw, ky0, ky1, ktop - KEY_T, ktop)
                .edges("|Z").fillet(2.0)
-               .faces(">Z").edges().fillet(0.6))
-        hinge = box(kx + 2.0, kx + kw - 2.0, ky1 - 4.0, ky1 - 0.5, top - 2.0, ktop - 1.0)
-        key = key.union(hinge)
-        dw = kw * 0.62
-        dish = (cq.Workplane("XY").workplane(offset=ktop - 0.8)
-                .center(kx + kw / 2, ky0 + kl / 2).slot2D(kl * 0.72, dw, 90).extrude(2.0))
-        m.add(f"keys_{i}", key.cut(dish), KEY, angular=0.2)
-        floor = (cq.Workplane("XY").workplane(offset=ktop - 0.8)
-                 .center(kx + kw / 2, ky0 + kl / 2).slot2D(kl * 0.72, dw, 90).extrude(0.05))
-        m.add(f"key_dish_{i}", floor, KEY_DISH, angular=0.2)
+               .faces(">Z").edges().fillet(0.8))
+        hinge = box(kx + 2.0, kx + kw - 2.0, ky1 - 4.0, ky1 - 0.5, top - 6.0, ktop - KEY_T + 0.5)
+        cx, cy, cz = kx + kw / 2, ky0 + kl / 2, ktop - DISH_D + dish_r
+        y0 = cy - dish_l / 2
+        capsule = (cq.Workplane(obj=cq.Solid.makeCylinder(dish_r, dish_l, cq.Vector(cx, y0, cz), cq.Vector(0, 1, 0)))
+                   .union(cq.Workplane(obj=cq.Solid.makeSphere(dish_r, cq.Vector(cx, y0, cz))))
+                   .union(cq.Workplane(obj=cq.Solid.makeSphere(dish_r, cq.Vector(cx, y0 + dish_l, cz)))))
+        m.add(f"keys_{i}", key.cut(capsule).union(hinge), KEY, angular=0.12)
     # Chrome handle: a flat band wrapped round the front end and a little way
     # down each side.
     hz0, hz1 = 10.0, 24.0
@@ -210,13 +216,16 @@ def build():
                  .polygon(24, 18.0).extrude(12.0))
         wheels = wheel if wheels is None else wheels.union(wheel)
     m.add("wheels", wheels, BAND)
-    m.add("wheel_legend",
-          text("LOW-TONE-HIGH", 2.2, W / 2 - 17, D + 0.3, 29.0)
-          .rotate((W / 2 - 17, D + 0.3, 29.0), (W / 2 - 17 + 1, D + 0.3, 29.0), 90)
-          .union(text("MIN-VOLUME-MAX", 2.2, W / 2 + 17, D + 0.3, 29.0)
-                 .rotate((W / 2 + 17, D + 0.3, 29.0), (W / 2 + 17 + 1, D + 0.3, 29.0), 90)),
-          SILVER)
+    # Read from BEHIND, so tone is on the viewer's left there -- the +X side --
+    # and the text is turned to face +Y, not -Y, or it reads mirrored.
+    def back_text(s, x):
+        return (text(s, 2.2, x, D + 0.3, 29.0)
+                .rotate((x, D + 0.3, 29.0), (x + 1, D + 0.3, 29.0), 90)
+                .rotate((x, D + 0.3, 29.0), (x, D + 0.3, 30.0), 180))
 
+    m.add("wheel_legend",
+          back_text("LOW-TONE-HIGH", W / 2 + 17).union(back_text("MIN-VOLUME-MAX", W / 2 - 17)),
+          SILVER)
     return m
 
 

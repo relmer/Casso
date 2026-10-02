@@ -78,19 +78,9 @@ Ka 0 0 0
 Kd 0.04 0.04 0.044
 d 1
 
-newmtl key_dish_0
-Ka 0 0 0 
-Kd 0.09 0.09 0.098
-d 1
-
 newmtl keys_1
 Ka 0 0 0 
 Kd 0.04 0.04 0.044
-d 1
-
-newmtl key_dish_1
-Ka 0 0 0 
-Kd 0.09 0.09 0.098
 d 1
 
 newmtl keys_2
@@ -98,19 +88,9 @@ Ka 0 0 0
 Kd 0.04 0.04 0.044
 d 1
 
-newmtl key_dish_2
-Ka 0 0 0 
-Kd 0.09 0.09 0.098
-d 1
-
 newmtl keys_3
 Ka 0 0 0 
 Kd 0.04 0.04 0.044
-d 1
-
-newmtl key_dish_3
-Ka 0 0 0 
-Kd 0.09 0.09 0.098
 d 1
 
 newmtl keys_4
@@ -118,19 +98,9 @@ Ka 0 0 0
 Kd 0.04 0.04 0.044
 d 1
 
-newmtl key_dish_4
-Ka 0 0 0 
-Kd 0.09 0.09 0.098
-d 1
-
 newmtl keys_5
 Ka 0 0 0 
 Kd 0.04 0.04 0.044
-d 1
-
-newmtl key_dish_5
-Ka 0 0 0 
-Kd 0.09 0.09 0.098
 d 1
 
 newmtl handle
