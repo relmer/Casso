@@ -1450,6 +1450,42 @@ cycle. Sources of nondeterminism found in the tree:
 | ACIA endpoint input | `Devices/AciaEndpoints.h` | Recorded with cycle stamp |
 | Frame pacing and host timing | `CpuManager.cpp` (QueryPerformanceCounter), `FramePacing` | Must only decide *when* emulation runs, never *what* it computes. Audit that no device reads host time |
 
+**Host-time audit (T449, 2026-10-02).** Every `steady_clock`, `system_clock`,
+`time()`, `GetTickCount64` and `QueryPerformanceCounter` read in `CassoEmuCore`
+was checked for a path into emulated state. Only two reach it:
+
+| Source | Where | Handled by |
+|---|---|---|
+| Key auto-repeat cadence | `FrameClock::TakeKeyRepeatElapsedUs` -> `AppleKeyboard::TickAutoRepeat`, once per CPU-thread frame | NOT moved to cycle time; see below. Each repeat that fires already reports `IInputEventSink::OnHostAutoRepeat`; T450 must journal it as a cycle-stamped key press, and replay must skip `TickKeyboardAutoRepeat` and apply the journaled presses instead |
+| Power-on RAM seed | `EmulatorShell.cpp`, `time (nullptr) ^ (pid << 32)` into `Prng` | Keyframe holds RAM and every `PowerCycle`-seeded state; a power cycle is a journaled input. The `Prng` itself must be in the keyframe (or the power cycle journaled with the RAM it produced), or a replayed power cycle draws a different pattern |
+
+Every other read decides only when emulation runs or what the host draws:
+`CpuManager` pacing (QPC), `FrameClock` frame pacing, drive-widget door
+animation (`DiskManager::GetNowMs`, `BrowseForDisk`), printer engine and
+viewport `Tick (nowMs)`, the change banner, debugger and settings tooltips, the
+debug panels' uptime stamps, `WasapiAudio`, CLI and channel timeouts, and file
+timestamps. Two are host inputs and are covered by the journal rather than by a
+code change: `ControllerInputService::MeasureElapsedLocked` (a rate binding
+moves a paddle by real time; the resulting paddle value is the journaled input)
+and `DiskImageStore::GetNowMs` (external-change settling; the reload it leads to
+is a journaled mount). Device timing is all cycle-driven: `Via6522`, `Ay8910`
+and `Ssi263` tick from `MockingboardCard::Tick (cycles)`, the Disk II motor
+spin-up and spin-down count `m_motorSpinupRemaining` / `m_motorSpindownCycles`,
+`AppleMouse` and `VideoTiming` tick by cycles, and the nibble engine's weak-bit
+LCG (`m_weakRngState`) is in its `SaveState`. The motor-off auto-flush is a host
+side effect, covered by the flush hold above.
+
+**Why auto-repeat stays in real time (owner decision needed).** The cadence was
+counted in guest cycles before, and was moved to real time on purpose: the //e
+generates repeat in its keyboard encoder, not off the 6502, and at Maximum speed
+(uncapped, tens of times real) a cycle-counted repeat fired hundreds of
+characters a second. The comments on `AppleKeyboard::TickAutoRepeat` and
+`EmulatorShell::TickKeyboardAutoRepeat` record this. A cycle cadence cannot
+match real time at Maximum without measuring the host rate, which is host time
+again. Journaling each fired repeat makes replay exact and keeps the typing
+behavior, so that is the recommendation; moving repeat back to cycle time would
+reintroduce the Maximum-speed bug.
+
 All inputs go through one **input journal** on the CPU thread: the thread that
 drains `InputEventRing` and posted commands stamps each event with the current
 cycle and position before applying it. Replay feeds the journal back at the
