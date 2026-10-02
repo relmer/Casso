@@ -84,6 +84,10 @@ struct WriteProtectInfo
     bool  checksumMismatch = false;
     bool  damagedTracks    = false;
 
+    // One quarter track per damaged track, for the report; see
+    // DamagedMountReport::GetDamagedQuarterTracks.
+    std::vector<int>  damagedQuarterTracks;
+
     bool  Any () const
     {
         return imageFlag || userSetting || readOnlyFile || noPermission || IsDamaged();
@@ -101,7 +105,8 @@ struct WriteProtectInfo
                readOnlyFile     == o.readOnlyFile     &&
                noPermission     == o.noPermission     &&
                checksumMismatch == o.checksumMismatch &&
-               damagedTracks    == o.damagedTracks;
+               damagedTracks    == o.damagedTracks    &&
+               damagedQuarterTracks == o.damagedQuarterTracks;
     }
 
     bool  operator!= (const WriteProtectInfo & o) const { return !(*this == o); }

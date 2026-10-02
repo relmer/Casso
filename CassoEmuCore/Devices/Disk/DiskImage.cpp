@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "DamagedMountReport.h"
 #include "DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -538,6 +539,11 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo() const
     info.noPermission     = m_fileNoPermission;
     info.checksumMismatch = m_sourceCrcMismatch;
     info.damagedTracks    = HasDamagedTracks();
+
+    if (info.damagedTracks)
+    {
+        info.damagedQuarterTracks = DamagedMountReport::GetDamagedQuarterTracks (*this);
+    }
 
     return info;
 }

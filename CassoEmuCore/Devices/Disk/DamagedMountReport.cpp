@@ -147,42 +147,60 @@ vector<int> DamagedMountReport::GetDamagedQuarterTracks (const DiskImage & image
 //
 //  DamagedMountReport::FormatBody
 //
-//  One bullet per problem found, then what Casso did about it.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 wstring DamagedMountReport::FormatBody (const DiskImage & image, const wstring & path)
 {
-    wstring      text;
-    wstring      bullet = wstring (1, s_kchBullet) + L" ";
-    vector<int>  tracks = GetDamagedQuarterTracks (image);
+    return FormatBody (image.GetWriteProtectInfo(), fs::path (path).filename().wstring());
+}
 
 
 
-    if (!image.IsDamaged())
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DamagedMountReport::FormatBody
+//
+//  One bullet per problem found, then what Casso did about it. The dialog on
+//  insert and the drive's tooltip both show this text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DamagedMountReport::FormatBody (const WriteProtectInfo & wp, const wstring & fileName)
+{
+    wstring  text;
+    wstring  bullet = wstring (1, s_kchBullet) + L" ";
+
+
+
+    if (!wp.IsDamaged())
     {
         return text;
     }
 
-    text = L"Casso found problems in " + fs::path (path).filename().wstring() + L":\n\n";
+    text  = L"Casso found problems in ";
+    text += fileName.empty() ? wstring (L"this disk image") : fileName;
+    text += L":\n\n";
 
-    if (image.HasSourceCrcMismatch())
+    if (wp.checksumMismatch)
     {
         text += bullet + L"The stored checksum does not match the contents.\n";
     }
 
-    if (image.HasDamagedTracks())
+    if (wp.damagedTracks)
     {
         text += bullet + L"Unable to read ";
-        text += tracks.empty() ? wstring (L"some tracks") : FormatTrackList (tracks);
+        text += wp.damagedQuarterTracks.empty() ? wstring (L"some tracks")
+                                                : FormatTrackList (wp.damagedQuarterTracks);
         text += L".\n";
     }
 
-    text += L"\nCasso has loaded the disk so you can read the undamaged portions, and has "
+    text += L"\nCasso has loaded the disk so you can read the undamaged portions and has "
             L"write-protected it for this session, because rewriting the file would hide "
             L"the damage.";
 
-    if (image.HasDamagedTracks())
+    if (wp.damagedTracks)
     {
         text += L" Unreadable tracks read as blank.";
     }

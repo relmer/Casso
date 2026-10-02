@@ -22,8 +22,10 @@
 class DamagedMountReport
 {
 public:
-    // The body of the report. Empty when the image is not damaged.
+    // The body of the report, shown on insert and as the drive's tooltip.
+    // Empty when the image is not damaged.
     static wstring       FormatBody              (const DiskImage & image, const wstring & path);
+    static wstring       FormatBody              (const WriteProtectInfo & wp, const wstring & fileName);
 
     // One quarter track per damaged track, at the middle of the run of
     // quarter tracks the map points at it, in ascending order.
