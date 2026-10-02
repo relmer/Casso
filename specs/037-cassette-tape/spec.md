@@ -20,6 +20,16 @@ Applies to the Apple ][, ][+ and //e. The //c has no cassette port and gets no
 tape support. The C64 Datasette is out of scope and belongs to a future C64
 spec.
 
+## Clarifications
+
+### Session 2026-10-02
+
+- Q: Should an MP3 tape image load directly, or must the user convert it to WAV first? → A: Load MP3 directly, decoded through Windows Media Foundation.
+- Q: Should Casso remember the inserted tape and its position across restarts? → A: Reinsert the last tape on launch, rewound to position 0.
+- Q: Where does a recording go when record is armed? → A: Like a real deck, it overwrites the inserted tape from the current position; a new blank tape gives a fresh recording.
+- Q: Should fast tape loading reuse the existing Maximum speed mode or use a separate turbo? → A: A temporary Maximum override; the speed menu keeps showing the user's setting, which is restored afterward.
+- Q: Are +/-3% speed drift and a 16 KB load in under 10 s with fast loading the right targets? → A: Yes, as written in SC-003 and SC-004.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Load a program from a tape recording (Priority: P1)
@@ -71,9 +81,9 @@ compare host wall-clock time and confirm identical memory results.
 **Acceptance Scenarios**:
 
 1. **Given** the default preference and a playing tape, **When** the guest
-   starts reading the tape, **Then** emulation runs uncapped, audio is muted,
+   starts reading the tape, **Then** emulation runs at Maximum speed, audio is muted,
    and frames are skipped.
-2. **Given** an uncapped tape load, **When** the tape ends, the user stops it,
+2. **Given** A fast tape load, **When** the tape ends, the user stops it,
    or the guest makes no tape access for about 100 ms of emulated time,
    **Then** emulation returns to normal speed with audio and video restored.
 3. **Given** a //e with no tape playing, **When** software polls the same
@@ -139,12 +149,14 @@ on the //c.
 - Inverted polarity: the ROM reads by transition timing, so it loads anyway.
 - The tape reaches its end mid-load: playback stops; the guest sees what real
   hardware would (a stalled read or checksum error), never a crash.
-- The user ejects or stops the tape during an uncapped load: speed returns to
+- The user ejects or stops the tape during a fast load: speed returns to
   normal at once.
 - The user resets or changes machine model while a tape plays: the tape stops
   and stays inserted.
 - The user saves with record not armed: the output is discarded, as with a
   disconnected recorder.
+- The user arms record on an archive tape partway through: the recording
+  replaces the tape from that point, exactly as a real deck would.
 - Emulation is paused: the tape position does not advance.
 - Long silence or leader between programs on one tape: plays through normally.
 
@@ -154,8 +166,8 @@ on the //c.
 
 **Playback**
 
-- **FR-001**: Casso MUST accept `.wav` tape recordings, and SHOULD accept
-  `.aif`/`.aiff`.
+- **FR-001**: Casso MUST accept `.wav` and `.mp3` tape recordings, and SHOULD
+  accept `.aif`/`.aiff`. MP3 is decoded through Windows Media Foundation.
 - **FR-002**: Casso MUST convert the recording to a sequence of signal level
   transitions and present the current level to the guest on the cassette
   input ($C060 bit 7) on the ][, ][+ and //e.
@@ -171,37 +183,46 @@ on the //c.
 
 - **FR-006**: While record is armed, Casso MUST capture every cassette output
   toggle ($C020) with its emulated-cycle timestamp.
-- **FR-007**: On stop or eject, Casso MUST write the captured toggles to a
-  `.wav` that loads back in Casso and in other Apple II tape tools.
+- **FR-007**: Recording MUST overwrite the inserted tape from the current
+  position, extending it if the recording runs past the end, as a real deck
+  does. On stop or eject Casso MUST write the result as a `.wav` that loads
+  back in Casso and in other Apple II tape tools.
+- **FR-007a**: The tape deck MUST offer a new blank tape, which creates an
+  empty `.wav` file chosen by the user, so a fresh recording never touches an
+  existing tape. Record MUST be unavailable for a tape Casso cannot write
+  (MP3 or AIFF, or a read-only file), like a tape with its tab broken out.
 
 **Fast loading**
 
-- **FR-008**: By default, Casso MUST run uncapped while a tape is playing (or
+- **FR-008**: By default, Casso MUST run at Maximum speed while a tape is playing (or
   record is armed) AND the guest is actively accessing the tape.
-- **FR-009**: Uncapped mode MUST end on end of tape, user stop or eject, or no
+- **FR-009**: Maximum-speed override MUST end on end of tape, user stop or eject, or no
   tape access for about 100 ms of emulated time.
-- **FR-010**: Polling the cassette input address alone MUST NOT start uncapped
-  mode, because on some models that address also reads another input (for
-  example //e PB3).
-- **FR-011**: While uncapped, audio MUST be muted or skipped and frames MUST
+- **FR-010**: Polling the cassette input address alone MUST NOT start the
+  Maximum-speed override, because on some models that address also reads
+  another input (for example //e PB3).
+- **FR-011**: During the override, audio MUST be muted or skipped and frames MUST
   be skipped.
 - **FR-012**: A preference MUST let the user choose real-time loading instead,
   with authentic speed and audible tape sound.
 
 **User interface**
 
-- **FR-013**: A tape-deck control MUST offer insert, eject, play, stop, record,
-  and rewind, and MUST show the tape's position and progress.
+- **FR-013**: A tape-deck control MUST offer insert, new blank tape, eject,
+  play, stop, record, and rewind, and MUST show the tape's position and progress.
 - **FR-014**: The tape-deck control MUST follow the conventions of the existing
   drive widgets and device toolbar.
 - **FR-015**: The tape deck MUST NOT appear on machine models without a
   cassette port.
+- **FR-016**: Casso MUST remember the inserted tape across sessions and
+  reinsert it on launch, rewound to position 0 and stopped. A remembered tape
+  that no longer exists leaves the deck empty.
 
 ### Explicitly rejected
 
 - **ROM-trap fast-load** -- intercepting READ at $FEFD and injecting
   pre-decoded bytes. It breaks custom loaders, needs a second decoder that can
-  disagree with the ROM, and uncapped loading gives near-instant loads
+  disagree with the ROM, and fast loading gives near-instant loads
   without it.
 - **TZX, TAP, T64** and other non-Apple tape formats.
 
@@ -218,7 +239,7 @@ on the //c.
   recording -- and the current position in emulated time.
 - **Recording capture**: the timestamped output toggles gathered while record
   is armed, and the file they will be written to.
-- **Fast-load preference**: uncapped (default) or real-time.
+- **Fast-load preference**: Maximum-speed override (default) or real-time.
 
 ## Success Criteria *(mandatory)*
 
@@ -234,7 +255,7 @@ on the //c.
 - **SC-004**: With the default preference, a 16 KB load finishes in under 10
   seconds of host time on the development machine (real time: about 2
   minutes).
-- **SC-005**: Uncapped mode ends within 100 ms of emulated time of the last
+- **SC-005**: Maximum-speed override ends within 100 ms of emulated time of the last
   tape access, and never starts when no tape is playing or armed.
 - **SC-006**: At least one real tape from the Internet Archive Apple II
   cassette collections loads and runs.
@@ -246,18 +267,18 @@ on the //c.
   memory byte-for-byte.
 - Record-then-playback round trip.
 - Robustness cases: noise, DC offset, level change, speed drift.
-- Uncapped start and stop conditions, including the //e shared-address case.
+- Override start and stop conditions, including the //e shared-address case.
 - Manual validation with real tapes from the Internet Archive Apple II
-  cassette collections (mostly WAV and MP3, converted to WAV) and Apple-1 ACI
+  cassette collections (mostly WAV and MP3) and Apple-1 ACI
   archives, which use the same signal scheme.
 
 ## Assumptions
 
-- MP3 tapes from archives are converted to WAV by the user; MP3 decoding is
-  not part of this feature.
 - One tape deck per machine, matching the hardware.
-- The inserted tape and its position are not persisted across sessions in
-  the first version; the last tape path may be remembered like disk paths.
-- Recording writes a new file; it does not overwrite part of an existing
-  recording.
-- Uncapped mode reuses Casso's existing unthrottled-speed path.
+- The inserted tape is remembered across sessions like disk paths and is
+  reinserted on launch rewound to position 0; the position is not saved.
+- Recording overwrites the inserted tape from the current position, like a
+  real deck; a fresh recording starts from a new blank tape.
+- Fast loading is a temporary override to Casso's existing Maximum speed
+  mode. The speed menu keeps the user's setting, which is restored when the
+  override ends.
