@@ -62,6 +62,7 @@ story's tests depend on.
   - parameters: sample rate, bit depth, leader seconds, speed factor, DC offset, gain ramp, seeded noise SNR, polarity, channels
   - outputs a WAV byte buffer through `WavCodec`
   - Test code only; it is never linked into `CassoEmuCore`
+  - This project's own implementation, written with c2t's source (Egan Ford, BSD-3-Clause, https://github.com/datajerk/c2t) as the reference for leader, sync and bit timing; credit c2t in the file banner. Never build or run c2t itself
 - [ ] T007 [P] Implement `WavCodec` (read and 16-bit mono write over `std::vector<Byte>`) in `CassoEmuCore/Devices/Tape/WavCodec.{h,cpp}`, until T003 passes
 - [ ] T008 [P] Implement `AiffCodec` (read) in `CassoEmuCore/Devices/Tape/AiffCodec.{h,cpp}`, until T004 passes
 - [ ] T009 [P] Implement `TapeSignalDecoder` in `CassoEmuCore/Devices/Tape/TapeSignalDecoder.{h,cpp}` until T005 passes:
@@ -75,7 +76,7 @@ story's tests depend on.
 - [ ] T011 Implement `TapeImage::Load` in `CassoEmuCore/Devices/Tape/TapeImage.{h,cpp}`:
   - read the bytes through `IDiskFileIo`
   - detect the format by content (`RIFF`, `FORM`, or MP3 sync/ID3), never by extension
-  - decode to 16-bit mono `pcm` and the transitions
+  - decode, keep only the transitions and `lengthSamples`, and drop the PCM
   - set `isWritable` = "WAV and not read-only"
   - fail with `ERROR_INVALID_DATA` and the error text from contracts/tape-files.md
   - tests go in `UnitTest/EmuTests/TapeImageTests.cpp` (format detection, writable flag, failure leaves no image)
@@ -177,7 +178,13 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
 - [ ] T031 [US4] Route widget clicks in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`. Add a Tape submenu (Insert tape..., New blank tape..., Eject tape, Rewind; sentence case) through `WindowCommandManager` and the resource menu, disabled on the //c
 - [ ] T032 [US4] Persist the per-machine `tapePath` through `Config/DiskSettings.{h,cpp}` (beside `disk1Path`). Reinsert at launch and on machine switch via `AutoMountResolver`, rewound to 0 and stopped. Clear stale entries. Until T024 passes
 - [ ] T033 [US4] Implement `MfTapeAudioDecoder` (MP3 through a Media Foundation source reader over `MFCreateMFByteStreamOnStream`, following `Audio/PrinterAudioSource.cpp`) in `CassoEmuCore/Devices/Tape/MfTapeAudioDecoder.{h,cpp}`. Inject it into `TapeImage` from the shell
-- [ ] T034 [US4] Launch Casso (background, `--title 037-cassette-tape`) and screenshot the deck empty, loaded, playing and stopped, and on the //c (absent). Validate visually before handoff
+- [ ] T034 [P] [US4] Write `UnitTest/UiTests/DeskSceneRecorderTests.cpp`, modeled on the existing desk-scene hit and layout tests:
+  - a `CassetteRecorder` device is present on the ][/][+/e and absent on the //c
+  - hit regions for the record, play, rewind and stop/eject keys, the cassette door and the counter map to the same commands as the flat widget
+  - the flat widget is hidden while the 3D scene is active
+- [ ] T035 [US4] Author `Resources/Models/CassetteRecorder/CassetteRecorder.mesh`: a generic, unbranded early-1980s portable cassette recorder (Apple never sold one; the manuals called for any portable recorder). Give it a row of piano keys, a cassette door with a window, a tape counter and a handle. Sub-meshes are identified by material color, as in `DiskII.mesh`. Judge the result by its overall look on a screenshot, and redesign wrong forms rather than tuning constants
+- [ ] T036 [US4] Add the `CassetteRecorder` `DeskDeviceKind` with its placement, key-press animation and door, and wire it to `TapeDeckState`, in `CassoEmuCore/Ui/Scene/DeskSceneModel.{h,cpp}`, `DeskSceneLayout.{h,cpp}`, `DeskSceneHitTester.{h,cpp}` and `DeskScene.cpp`. Route its hits through the same `TapeManager` commands as the flat widget. Hide the flat widget in that theme. Until T034 passes
+- [ ] T037 [US4] Launch Casso (background, `--title 037-cassette-tape`) and screenshot the deck empty, loaded, playing and stopped, in both the flat theme and the 3D desk scene, and on the //c (absent). Validate visually before handoff
 
 **Checkpoint**: a user can load a tape end to end from the UI at normal speed.
 
@@ -192,29 +199,29 @@ identical memory; host time drops sharply with it on.
 
 ### Tests
 
-- [ ] T035 [P] [US2] Write `UnitTest/EmuTests/TapeTurboGovernorTests.cpp`:
+- [ ] T038 [P] [US2] Write `UnitTest/EmuTests/TapeTurboGovernorTests.cpp`:
   - on only when the preference is on, the deck is playing or recording, and `nowCycle - lastAccessCycle <= cpuClockHz / 10`
   - off at end of tape, on stop or eject, and after 100 ms with no access
   - never on with the deck stopped or empty
   - //e $C061 button polling with no tape: off
   - $C060 polling with the deck stopped: off (FR-010, SC-005)
-- [ ] T036 [P] [US2] Write `UnitTest/EmuTests/CpuManagerOverrideTests.cpp` (or extend existing CpuManager tests): `GetEffectiveSpeedMode()` returns Maximum while the override is set, and the user's mode otherwise; `GetSpeedMode()` never changes
-- [ ] T037 [P] [US2] Add a settings round trip to `UnitTest/UiTests/SettingsPanelStateTests.cpp`: `fastTapeLoading` defaults to true, and load, save, equality and apply all work
+- [ ] T039 [P] [US2] Write `UnitTest/EmuTests/CpuManagerOverrideTests.cpp` (or extend existing CpuManager tests): `GetEffectiveSpeedMode()` returns Maximum while the override is set, and the user's mode otherwise; `GetSpeedMode()` never changes
+- [ ] T040 [P] [US2] Add a settings round trip to `UnitTest/UiTests/SettingsPanelStateTests.cpp`: `fastTapeLoading` defaults to true, and load, save, equality and apply all work
 
 ### Implementation
 
-- [ ] T038 [US2] Implement `TapeTurboGovernor` in `CassoEmuCore/Devices/Tape/TapeTurboGovernor.{h,cpp}`, until T035 passes
-- [ ] T039 [US2] Add `std::atomic<bool> m_maximumOverride`, `SetMaximumOverride` and `GetEffectiveSpeedMode()` to `CassoEmuCore/Shell/CpuManager.{h,cpp}`. Switch the three runtime readers to it: the pacing loop (`CpuManager.cpp:496`), `ExecuteCpuSlices` (`EmulatorShellCpuThread.cpp:802`) and `ShouldPublishFrame` (`EmulatorShellPresent.cpp:1166`). Until T036 passes
-- [ ] T040 [US2] Add a hidden `SetSuppressed (bool)` to `CassoEmuCore/WasapiAudio.{h,cpp}` that submits silence without touching master mute or volume
-- [ ] T041 [US2] Evaluate the governor once per slice on the CPU thread in `CassoEmuCore/Shell/EmulatorShellCpuThread.cpp`, and drive `SetMaximumOverride` and `SetSuppressed` from it
-- [ ] T042 [US2] Add the `fastTapeLoading` preference, following the `floppySoundEnabled` template:
+- [ ] T041 [US2] Implement `TapeTurboGovernor` in `CassoEmuCore/Devices/Tape/TapeTurboGovernor.{h,cpp}`, until T038 passes
+- [ ] T042 [US2] Add `std::atomic<bool> m_maximumOverride`, `SetMaximumOverride` and `GetEffectiveSpeedMode()` to `CassoEmuCore/Shell/CpuManager.{h,cpp}`. Switch the three runtime readers to it: the pacing loop (`CpuManager.cpp:496`), `ExecuteCpuSlices` (`EmulatorShellCpuThread.cpp:802`) and `ShouldPublishFrame` (`EmulatorShellPresent.cpp:1166`). Until T039 passes
+- [ ] T043 [US2] Add a hidden `SetSuppressed (bool)` to `CassoEmuCore/WasapiAudio.{h,cpp}` that submits silence without touching master mute or volume
+- [ ] T044 [US2] Evaluate the governor once per slice on the CPU thread in `CassoEmuCore/Shell/EmulatorShellCpuThread.cpp`, and drive `SetMaximumOverride` and `SetSuppressed` from it
+- [ ] T045 [US2] Add the `fastTapeLoading` preference, following the `floppySoundEnabled` template:
   - `SettingsUiPrefs` and its setter, load, save and equality (`Ui/Settings/SettingsPanelState.{h,cpp}`)
   - an `ISettingsApplySink` virtual and `SettingsApplyAdapter`
   - the default in `Config/UserConfigStore.cpp`
   - a "Fast tape loading" checkbox on `Ui/Settings/HardwarePage.cpp` beside the speed combo
-  - until T037 passes
-- [ ] T043 [US2] Implement `TapeAudioSource : IDriveAudioSource` in `CassoEmuCore/Audio/TapeAudioSource.{h,cpp}`. It plays the tape PCM at the deck position while playing and the override is off. Mix it through `DriveAudioMixer` (FR-012)
-- [ ] T044 [US2] Manual check per quickstart.md step 2: time a 16 KB load with the preference on (under 10 s host time, SC-004) and off (real time, audible). Record both numbers in the commit message
+  - until T040 passes
+- [ ] T046 [US2] Implement `TapeAudioSource : IDriveAudioSource` in `CassoEmuCore/Audio/TapeAudioSource.{h,cpp}`. It synthesizes a square wave from the transitions at the deck position while playing and the override is off. Mix it through `DriveAudioMixer` (FR-012)
+- [ ] T047 [US2] Manual check per quickstart.md step 2: time a 16 KB load with the preference on (under 10 s host time, SC-004) and off (real time, audible). Record both numbers in the commit message
 
 ---
 
@@ -226,35 +233,34 @@ identical memory; host time drops sharply with it on.
 
 ### Tests
 
-- [ ] T045 [P] [US3] Write `UnitTest/EmuTests/TapeRecorderTests.cpp`:
+- [ ] T048 [P] [US3] Write `UnitTest/EmuTests/TapeRecorderTests.cpp`:
   - toggles map to the expected sample edges at the tape's rate, as a square wave at 80% full scale
   - a splice at mid-tape leaves earlier samples untouched and extends past the end
   - the commit writes through `FakeDiskFileIo::ReplaceAtomically` and re-decodes the transitions
   - record is unavailable for MP3, AIFF and read-only tapes
   - a toggle with record not armed is discarded
-- [ ] T046 [US3] Add the SC-002 round trips to `UnitTest/EmuTests/TapeRomLoadTests.cpp`:
+- [ ] T049 [US3] Add the SC-002 round trips to `UnitTest/EmuTests/TapeRomLoadTests.cpp`:
   - Monitor `800.8FFW` onto a blank tape on Apple2Plus and Apple2e, then reinsert into a fresh machine, `800.8FFR`, and compare
   - Applesoft `SAVE`/`LOAD` on Apple2Plus
 
 ### Implementation
 
-- [ ] T047 [US3] Implement `RecordingCapture` and `TapeRecorder` (render, splice, write WAV, re-decode) in `CassoEmuCore/Devices/Tape/TapeRecorder.{h,cpp}`. Hook the capture into `TapeDeck::OnOutputToggle` while recording. Commit on stop and on eject. Until T045 passes
-- [ ] T048 [US3] Implement new blank tape in `TapeManager`:
+- [ ] T050 [US3] Implement `RecordingCapture` and `TapeRecorder` (render, re-read the WAV through `IDiskFileIo`, splice, write it back, re-decode, drop the PCM) in `CassoEmuCore/Devices/Tape/TapeRecorder.{h,cpp}`. Hook the capture into `TapeDeck::OnOutputToggle` while recording. Commit on stop and on eject. Until T048 passes
+- [ ] T051 [US3] Implement new blank tape in `TapeManager`:
   - `IHostDialogs::PickFileToSave` with the default folder `Documents\Casso Tapes`, remembering the last folder
   - write a zero-length 44.1 kHz 16-bit mono WAV atomically, then insert it
   - every backing-out path leaves the deck unchanged
-- [ ] T049 [US3] Wire record arming in the widget and menu, with the protected badge per contracts/tape-deck-ui.md; until T046 passes
-- [ ] T050 [US3] Manual check per quickstart.md step 4, including opening a Casso-written WAV in another Apple II tape tool (SC-002 scenario 2)
+- [ ] T052 [US3] Wire record arming in the widget and menu, with the protected badge per contracts/tape-deck-ui.md; until T049 passes
+- [ ] T053 [US3] Manual check per quickstart.md step 4, including opening a Casso-written WAV in another Apple II tape tool (SC-002 scenario 2)
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T051 Build c2t from its C source locally (never download a binary) after confirming its license. Generate WAVs of the T014 test pattern at 11025 Hz and 44100 Hz, commit them under `UnitTest/Fixtures/Tapes/` with a sidecar `LICENSE`, and add loads of them to `TapeRomLoadTests.cpp`. If the license can't be confirmed, skip this task and note it
-- [ ] T052 Manual quickstart.md steps 1, 3 and 5, including one real Internet Archive tape as WAV and as MP3 (SC-006)
-- [ ] T053 Search all new code for magic numbers, British spelling, `name` used as a verb in strings or comments, and `\w \(\)`
-- [ ] T054 Pre-merge gate: full suite Debug and Release x64 (`scripts/RunTests.ps1 -Build`), `scripts/Build.ps1 -RunCodeAnalysis`, ARM64 build, and `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`
-- [ ] T055 After the owner has tested and approved: draft the CHANGELOG `[Unreleased]` entry (`GH #160: ...`) and the README feature line for owner approval before committing
+- [ ] T054 Manual quickstart.md steps 1, 3 and 5, including one real Internet Archive tape as WAV and as MP3 (SC-006)
+- [ ] T055 Search all new code for magic numbers, British spelling, `name` used as a verb in strings or comments, and `\w \(\)`
+- [ ] T056 Pre-merge gate: full suite Debug and Release x64 (`scripts/RunTests.ps1 -Build`), `scripts/Build.ps1 -RunCodeAnalysis`, ARM64 build, and `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`
+- [ ] T057 After the owner has tested and approved: draft the CHANGELOG `[Unreleased]` entry (`GH #160: ...`) and the README feature line for owner approval before committing
 
 ---
 
@@ -263,7 +269,7 @@ identical memory; host time drops sharply with it on.
 ### Phase Dependencies
 
 - Setup -> Foundational -> US1 -> {US4, US2, US3} -> Polish
-- US4 depends on US1 (the deck and port). US2 depends on US1 and uses US4's preference UI only for T042's checkbox. US3 depends on US1, and on US4 for the blank-tape and record UI.
+- US4 depends on US1 (the deck and port). US2 depends on US1 and uses US4's preference UI only for T045's checkbox. US3 depends on US1, and on US4 for the blank-tape and record UI.
 
 ### User Story Dependencies
 
@@ -279,8 +285,8 @@ Tests first, then the model, then the device and shell wiring, then the UI, then
 ### Parallel Opportunities
 
 - T003-T005 and T006-T009 are separate files, so they can run in parallel.
-- T012/T013, T023-T025, T035-T037 and T045 are test files that can be written in parallel within their phase.
-- US2 (T035-T043) and US4 (T023-T033) touch disjoint files except `EmulatorShellCpuThread.cpp`, so coordinate that one file.
+- T012/T013, T023-T025 and T034, T038-T040 and T048 are test files that can be written in parallel within their phase.
+- US2 (T038-T046) and US4 (T023-T037) touch disjoint files except `EmulatorShellCpuThread.cpp`, so coordinate that one file.
 
 ## Parallel Example: User Story 1
 

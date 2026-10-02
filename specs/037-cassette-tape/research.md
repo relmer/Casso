@@ -26,6 +26,10 @@ folder (`CassoEmuCore\`, `CassoCore\`, `UnitTest\`).
 | $C068 | inside `AppleGamePort` ($C061-$C070), returns 0 | `Apple2eSoftSwitchBank`, returns 0 | same |
 
 - Nothing models PB3, cassette in, or cassette out on any model.
+- On the ][, ][+ and //e the cassette port is part of the motherboard: two
+  1/8-inch jacks on the back panel, with no card. The recorder is an external
+  peripheral plugged into those jacks, so the machine config, the slot list
+  and the machine JSON stay unchanged. The //c dropped the jacks.
 
 **Decision**
 
@@ -167,7 +171,9 @@ clarification.
 
 **Decision**: `TapeSignalDecoder` is a pure function from float PCM and sample
 rate to a sorted list of transition times, as fractional sample indices, plus
-the starting level. It runs at insert time, so playback is a cursor walk.
+the starting level. It runs at insert time, so playback is a cursor walk. Only
+the transition list is kept: a 16 KB load is about 130,000 edges (about 1 MB),
+so the decoded PCM is dropped once decoding finishes.
 
 1. DC removal: a one-pole high-pass at about 20 Hz. The Apple tones are
    770 Hz-2.5 kHz, far above it.
@@ -202,9 +208,10 @@ on noise and fails SC-003. Decoding Apple bits in Casso is forbidden by FR-004.
   deck's capture while record is armed. Without an armed deck, accesses toggle
   the flip-flop and are otherwise discarded, as with a disconnected recorder.
 - On stop or eject, `TapeRecorder` renders the toggles as a square wave at the
-  tape's own sample rate, at 80% full scale, and splices it into the tape's PCM
-  from the record start position, overwriting and extending past the end if
-  needed. `WavCodec` then writes the result and re-runs the decoder.
+  tape's own sample rate, at 80% full scale. It re-reads the WAV through
+  `IDiskFileIo` and splices the square wave in from the record start position,
+  overwriting and extending past the end if needed. It then writes the WAV
+  back, re-runs the decoder, and drops the PCM again.
 - A new blank tape is a zero-length 44.1 kHz 16-bit mono WAV. The user picks
   its file name through `IHostDialogs::PickFileToSave`, with the default folder
   `Documents\Casso Tapes`.
@@ -256,9 +263,18 @@ expect most widely.
 - Every glyph is picked from a rendered MDL2 sheet before use, never guessed,
   and added to `UnicodeSymbols.h`.
 
-**Open for review**: in the skeuomorphic 3D desk scene the drives are 3D
-models (`DeskSceneModel`). This plan shows the flat tape widget in the drive
-band in every theme, and leaves a 3D cassette recorder model as a follow-on.
+**3D desk scene**: Apple never sold a tape drive. The manuals called for any
+portable cassette recorder, and the Panasonic RQ-309DS was the one Apple
+recommended by name. The desk scene therefore gets a generic, unbranded
+portable recorder:
+- a new `CassetteRecorder` `DeskDeviceKind`
+- a hand-authored `Resources\Models\CassetteRecorder\CassetteRecorder.mesh`,
+  like the Disk II and ImageWriter meshes
+- a desk placement in `DeskSceneLayout`
+- hit regions in `DeskSceneHitTester` for its piano keys (record, play,
+  rewind, stop/eject), its cassette door (insert) and a tape counter
+
+The flat widget is hidden in that theme, as the flat drives are.
 
 ## R8. Persistence (FR-016) and preference (FR-012)
 
@@ -276,8 +292,8 @@ band in every theme, and leaves a 3D cassette recorder model as a follow-on.
   `ISettingsApplySink` and `UserConfigStore` defaults, and appears as a
   "Fast tape loading" checkbox on the Hardware page next to the speed combo.
 - With the preference off, the tape is mixed into the audio output through a
-  `TapeAudioSource` (an `IDriveAudioSource`, like the drive and printer sounds)
-  while playing, so the load is audible (FR-012). With it on, the tape is
+  `TapeAudioSource` (an `IDriveAudioSource`, like the drive and printer
+  sounds) that synthesizes a square wave from the transitions while playing, so the load is audible (FR-012). With it on, the tape is
   audible while it plays and the override is off, and silent during the
   override.
 
@@ -296,17 +312,14 @@ real builder. `Slots::Empty` boots to the BASIC prompt. `KeystrokeInjector`,
   builds the Apple tape signal in memory from a byte array, with parameters for
   sample rate, bit depth, leader length, speed factor, DC offset, gain ramp,
   noise (seeded PRNG) and polarity. Knowing the byte format is fine in test
-  code; FR-004 constrains the load path only. The encoder's output is checked
-  against the c2t fixtures below, so it cannot drift from what real tools
-  produce.
-- **c2t interoperability fixtures**: the project's security rules forbid
-  downloading executables, so c2t is built from its C source locally, used once
-  to generate a few small WAVs, and the WAVs are committed under
-  `UnitTest\Fixtures\Tapes\` with a sidecar `LICENSE` naming c2t's license and
-  source (fixtures are not dependencies; see the constitution). The c2t build
-  is not committed. If c2t's license can't be confirmed, those fixtures are
-  dropped and a manual check of Casso-written WAVs in another tool covers
-  SC-002 scenario 2.
+  code; FR-004 constrains the load path only.
+- **c2t as the reference**: c2t (Egan Ford, BSD-3-Clause,
+  https://github.com/datajerk/c2t) is the standard tool for making Apple II
+  tape audio. `TapeTestEncoder` is this project's own implementation, written
+  with c2t's source as the reference for leader, sync and bit timing. Its
+  banner credits c2t; as test code it needs no dependency entry. No c2t binary
+  is built or run. Interoperability with other tools (SC-002 scenario 2) is a
+  manual check of a Casso-written WAV.
 - **Real-ROM load tests** (the SC-001 matrix):
   - Monitor `800.9FFR` on the ][, ][+ and //e
   - Applesoft `LOAD` on the ][+ and //e

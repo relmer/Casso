@@ -6,8 +6,11 @@
   drive widgets' caption column ("TAPE"), name row and rail.
 - It is hidden on models without a cassette port (the //c), as drives are
   hidden when absent.
-- It appears in every theme as the flat widget. A 3D recorder in the desk scene
-  is a follow-on.
+- In the 3D desk scene the flat widget is hidden, and a generic, unbranded
+  portable cassette recorder sits on the desk instead. Apple never sold a tape
+  drive; the manuals called for any portable recorder. Its piano keys (record,
+  play, rewind, stop/eject) map to the controls below, the cassette door
+  inserts, and a counter shows position. It is absent on the //c.
 
 ## Controls
 

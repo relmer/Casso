@@ -41,9 +41,10 @@ amortized.
 **Constraints**: the load path holds no knowledge of the Apple tape byte
 format (FR-004); no ROM trap; no non-Apple formats; no tape on the //c
 
-**Scale/Scope**: tapes up to about 30 minutes. PCM is held as 16-bit mono for
-audible playback and splicing: about 5 MB per minute at 44.1 kHz, and about
-345 MB in the worst case (96 kHz, 30 min), which is acceptable.
+**Scale/Scope**: tapes up to about 30 minutes. Only the transition list stays
+in memory (about 1 MB for a 16 KB load). PCM exists only while decoding at
+insert and while splicing a recording at commit. Audible playback is
+synthesized from the transitions.
 
 ## Constitution Check
 
@@ -55,7 +56,7 @@ audible playback and splicing: about 5 MB per minute at 44.1 kHz, and about
 | IV. Performance | Pass: decode once at insert; cursor walk per access |
 | V. Simplicity | Pass: reuses Maximum, `IDriveAudioSource`, `DiskMru`, `AutoMountResolver`; no new dependency |
 | VI. Thin exe | Pass: nothing goes in `Casso`; everything is in `CassoEmuCore` |
-| Security (no external binaries) | Pass: c2t is built from source locally to make fixtures only, and is never committed |
+| Security (no external binaries) | Pass: the test encoder is this project's own code, written with c2t (BSD-3-Clause) as the reference; no c2t binary is built or run |
 
 Post-design re-check: unchanged, no violations, so Complexity Tracking stays
 empty.
@@ -102,6 +103,7 @@ CassoEmuCore/
 ├── Shell/TapeManager.{h,cpp}       shell-side owner: insert/eject/new/persist
 ├── Ui/TapeDeckState.h              UI-visible snapshot
 ├── Ui/Chrome/TapeDeckWidget.{h,cpp} drive-band widget
+├── Ui/Scene/DeskScene*.*           CassetteRecorder device kind, layout, hit regions
 ├── Ui/Settings/HardwarePage.*      Fast tape loading checkbox
 ├── Config/DiskSettings.*, GlobalUserPrefs.*  tapePath, recentTapes
 └── Core/UnicodeSymbols.h           transport glyphs
@@ -112,8 +114,9 @@ UnitTest/
 ├── EmuTests/CassettePortTests.cpp     bus decode per model
 ├── EmuTests/TapeRomLoadTests.cpp      real-ROM matrix, robustness, round trip
 ├── EmuTests/TapeTurboGovernorTests.cpp, TapeDeckTests.cpp, TapeRecorderTests.cpp
-├── UiTests/TapeDeckWidgetTests.cpp, TapeAutoMountTests.cpp
-└── Fixtures/Tapes/                    c2t WAVs + LICENSE
+└── UiTests/TapeDeckWidgetTests.cpp, TapeAutoMountTests.cpp, DeskSceneRecorderTests.cpp
+
+Resources/Models/CassetteRecorder/CassetteRecorder.mesh   generic portable recorder
 ```
 
 **Structure Decision**: the tape model gets its own `Devices/Tape` folder,
@@ -128,19 +131,18 @@ next to `Devices/Disk`. Each new file is added to `CassoEmuCore.vcxproj` and
    `CassettePort`, model forwarding, `HasCassettePort`, and the real-ROM load
    matrix plus robustness.
 3. **Deck UI and persistence** (US4): `TapeManager`, the widget, the menu, the
-   picker, drag-and-drop, `tapePath` reinsert, `recentTapes`; MP3 decoder.
+   picker, drag-and-drop, `tapePath` reinsert, `recentTapes`; MP3 decoder;
+   the 3D desk-scene cassette recorder.
 4. **Fast loading** (US2): governor, CPU override, audio suppression, the
    preference, `TapeAudioSource`.
 5. **Recording** (US3): capture, splice, blank tape, round trip, protected
    tapes.
-6. **Polish**: c2t fixtures, manual quickstart pass, CHANGELOG/README (last,
+6. **Polish**: manual quickstart pass, CHANGELOG/README (last,
    after owner sign-off).
 
 ## Open items for review
 
-- The 3D desk scene shows the flat widget in v1; a 3D recorder is a follow-on.
-- If c2t's license can't be confirmed, the interoperability fixtures are
-  dropped (research R9).
+None.
 
 ## Complexity Tracking
 

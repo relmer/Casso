@@ -11,7 +11,6 @@ An inserted recording, decoded once at insert time.
 | path | `std::string` | source file |
 | format | `TapeFormat` enum: Wav, Aiff, Mp3 | from the content, not the extension |
 | sampleRate | `uint32_t` | 8,000-96,000 Hz |
-| pcm | `std::vector<int16_t>` | mono; kept for audible playback and so a recording can be spliced in |
 | transitions | `std::vector<double>` | ascending, fractional sample indices of each level flip |
 | initialLevel | `bool` | level before the first transition |
 | isWritable | `bool` | WAV and not read-only; gates record |
@@ -20,7 +19,9 @@ An inserted recording, decoded once at insert time.
 `ERROR_INVALID_DATA` and a user-facing message, and the deck stays as it was. A
 zero-length WAV (a blank tape) is valid: no samples and no transitions.
 
-**Derived**: length in seconds is `pcm.size() / sampleRate`, and the level at
+| lengthSamples | `uint64_t` | total samples; the decoded PCM itself is not kept |
+
+**Derived**: length in seconds is `lengthSamples / sampleRate`, and the level at
 sample `s` is `initialLevel` flipped once for each transition at or before `s`.
 
 ## TapeDeck
@@ -63,8 +64,8 @@ Rewinding while playing stops first. Record cannot be armed on a protected tape.
 | initialLevel | `bool` | output flip-flop state at start |
 
 On commit, each toggle maps to sample `startSample + (cycle - startCycle) *
-sampleRate / cpuClockHz`. The square wave replaces `pcm` from `startSample` on,
-extending it if needed. The WAV is rewritten atomically and the transitions are
+sampleRate / cpuClockHz`. On commit the WAV is re-read through `IDiskFileIo`, and the square wave
+replaces its samples from `startSample` on, extending it if needed. The WAV is rewritten atomically and the transitions are
 re-decoded.
 
 ## CassettePort (bus device)
