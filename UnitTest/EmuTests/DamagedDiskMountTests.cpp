@@ -305,10 +305,10 @@ public:
         body = DamagedMountReport::FormatBody (disk, L"C:\\disks\\damaged.woz");
 
         Assert::IsTrue (body.find (L"\x2022 Unable to read track 5.\n") != wstring::npos);
-        Assert::IsTrue (body.find (L"C:\\disks\\damaged.woz") != wstring::npos);
+        Assert::IsTrue (body.find (L"Casso found problems in damaged.woz:\n\n") == 0);
+        Assert::IsTrue (body.find (L"C:\\disks") == wstring::npos, L"the report gives the file name, not the full path");
         Assert::IsTrue (body.find (L"write-protected it for this session, because rewriting the file would hide the damage.") != wstring::npos);
-        Assert::IsTrue (body.find (L"without this disk's flux timing") != wstring::npos,
-                        L"a flux disk's report must mention that salvage loses flux timing");
+        Assert::IsTrue (body.find (L"salvage") == wstring::npos, L"nothing has been salvaged yet");
     }
 
 
@@ -330,6 +330,6 @@ public:
         Assert::IsTrue (body.find (L"\x2022 The stored checksum does not match the contents.\n") != wstring::npos);
         Assert::IsTrue (body.find (L"\x2022 Unable to read track 4.\n") != wstring::npos);
         Assert::IsTrue (body.find (L"Unreadable tracks read as blank.") != wstring::npos);
-        Assert::IsTrue (body.find (L"flux timing") == wstring::npos, L"a bit-only disk has no flux to lose");
+        Assert::IsTrue (body.find (L".\n\nCasso has loaded the disk so you can read the undamaged portions") != wstring::npos);
     }
 };

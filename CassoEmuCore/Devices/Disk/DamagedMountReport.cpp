@@ -147,10 +147,7 @@ vector<int> DamagedMountReport::GetDamagedQuarterTracks (const DiskImage & image
 //
 //  DamagedMountReport::FormatBody
 //
-//  One bullet per problem found, then the file, then what Casso did about
-//  it. A flux disk adds what salvage cannot keep, because salvage writes
-//  standard sectors and a flux disk's timing is usually the reason it is a
-//  flux disk.
+//  One bullet per problem found, then what Casso did about it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,7 +164,7 @@ wstring DamagedMountReport::FormatBody (const DiskImage & image, const wstring &
         return text;
     }
 
-    text = L"Casso found these problems in this disk image:\n";
+    text = L"Casso found problems in " + fs::path (path).filename().wstring() + L":\n\n";
 
     if (image.HasSourceCrcMismatch())
     {
@@ -181,19 +178,13 @@ wstring DamagedMountReport::FormatBody (const DiskImage & image, const wstring &
         text += L".\n";
     }
 
-    text += L"\n" + path + L"\n\n";
-    text += L"Casso has loaded the disk so you can read it, and has write-protected it "
-            L"for this session, because rewriting the file would hide the damage.";
+    text += L"\nCasso has loaded the disk so you can read the undamaged portions, and has "
+            L"write-protected it for this session, because rewriting the file would hide "
+            L"the damage.";
 
     if (image.HasDamagedTracks())
     {
         text += L" Unreadable tracks read as blank.";
-    }
-
-    if (image.HasFluxTracks())
-    {
-        text += L" A salvaged copy is a standard disk image of the readable sectors, "
-                L"without this disk's flux timing or its copy protection.";
     }
 
     return text;
