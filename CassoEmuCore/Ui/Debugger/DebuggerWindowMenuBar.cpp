@@ -595,6 +595,13 @@ void DebuggerWindow::ResetPaneLayout()
     m_syncFloats = true;
     m_dockSite->Relayout();
     SaveLayout();
+
+    //  The command bar goes back to its default place too: the top band,
+    //  at the start of it, under the menu bar.
+    m_barDock = CommandBarDock {};
+    SaveCommandBarDock();
+    LayoutWidgets();
+
     SetWindowMenus();
     Invalidate();
 }

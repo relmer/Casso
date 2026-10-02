@@ -217,6 +217,12 @@ public:
 
     static constexpr int    kGripDp         = 12;
 
+    //  A strip docked in a band between panes: a hairline across each short
+    //  end and none along its long sides, which the panes beside it draw.
+    //  Off, a horizontal strip draws its bottom hairline.
+    void  SetEndEdges      (bool ends)                   { m_endEdges = ends; }
+    bool  HasEndEdges      () const                      { return m_endEdges; }
+
     //  The strip's length along its axis with nothing collapsed into See
     //  more: every label shown when horizontal, icons alone when vertical,
     //  and the grab handle included.
@@ -443,6 +449,7 @@ private:
     bool                     m_vertical       = false;
     bool                     m_labels         = true;
     bool                     m_grip           = false;
+    bool                     m_endEdges       = false;
     RECT                     m_gripRect       = {};
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;

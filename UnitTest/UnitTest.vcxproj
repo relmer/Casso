@@ -251,6 +251,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowThemePreviewTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowViewCascadeTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerResetLayoutTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerResetBarTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowBreakpointColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowFloatCloseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetPerPaneTests.cpp" />
@@ -680,6 +681,7 @@
     <ClCompile Include="Dxui\DxuiToolbarDisabledTipTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarShrinkTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarVerticalTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarEndEdgesTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandBarDockTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandBarFloatTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarLabelsTests.cpp" />

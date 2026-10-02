@@ -187,6 +187,10 @@ public:
     //
     void     SetOnModalLoopTick (std::function<void ()> fn) { m_onModalLoopTick = std::move (fn); }
 
+    //  The same keep-alive, run from a move loop another window owns, as an
+    //  owned window being dragged keeps its owner's frames going.
+    void     RunModalLoopTick   ()                          { OnModalLoopTick(); }
+
     //
     //  Control to focus when the dialog is first shown (e.g. a picker's
     //  search box), so typing / Tab work immediately. Null = focus

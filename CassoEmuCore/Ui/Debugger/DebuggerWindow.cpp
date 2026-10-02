@@ -4027,6 +4027,9 @@ void DebuggerWindow::LayoutWidgets()
     barY      = height - pad;
     m_barArea = RECT { 0, rowY, width, height };
 
+    //  Docked, the panes beside the bar draw its long sides.
+    m_commandBar->SetEndEdges (m_barFloat == nullptr);
+
     if (m_barFloat != nullptr)
     {
         m_dockSite->ClearEdgeShare();
@@ -8757,6 +8760,7 @@ void DebuggerWindow::FloatCommandBar()
     window->SetToolbar          (m_commandBar);
     window->SetOnContentMouse   ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
     window->SetOnCaptionDragEnd ([this] (POINT screen)              { OnCommandBarDragEnd (screen); });
+    window->SetOnMoveLoopFrame  ([this]                             { RunModalLoopTick(); });
     window->SetScreenRect       (rect);
 
     tip->SetPopupHost (window->GetPopupHost());

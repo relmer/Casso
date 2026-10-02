@@ -38,7 +38,7 @@ public:
     using  PointFn  = std::function<void (POINT screenPx)>;
     using  ClosedFn = std::function<void ()>;
 
-    DxuiToolbarWindow  () = default;
+    DxuiToolbarWindow  ();
     ~DxuiToolbarWindow () override = default;
 
     HRESULT  Create (const CreateParams & params);
@@ -50,6 +50,12 @@ public:
     void  SetOnCaptionDrag       (PointFn fn)  { m_onDrag       = std::move (fn); }
     void  SetOnCaptionDragEnd    (PointFn fn)  { m_onDragEnd    = std::move (fn); }
     void  SetOnCaptionDragCancel (ClosedFn fn) { m_onDragCancel = std::move (fn); }
+
+    //  Run on every tick of the system's move loop, after the drag is
+    //  reported: the OS owns the thread while the window is dragged, so an
+    //  owner that must keep drawing frames, and keep its machine running,
+    //  pumps one from here.
+    void  SetOnMoveLoopFrame     (ClosedFn fn) { m_onMoveFrame  = std::move (fn); }
 
     //  Starts the system's move loop as if the grab handle had been pressed,
     //  for an owner that tears the toolbar off while its button is down.
@@ -80,5 +86,6 @@ private:
     PointFn                   m_onDrag;
     PointFn                   m_onDragEnd;
     ClosedFn                  m_onDragCancel;
+    ClosedFn                  m_onMoveFrame;
     DxuiCaptionDragTracker    m_drag;
 };

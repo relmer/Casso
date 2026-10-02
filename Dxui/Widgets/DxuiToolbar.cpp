@@ -2048,7 +2048,8 @@ void DxuiToolbar::PaintGrip (IDxuiPainter & painter, const IDxuiTheme & theme)
 //
 //  DxuiToolbar::Paint
 //
-//  A bottom hairline separates the strip from whatever is below it; entries
+//  A bottom hairline separates the strip from whatever is below it, or, for
+//  a strip with end edges, a hairline closes each short end instead; entries
 //  paint over the strip fill, frameless until hovered.
 //
 //  The menu paints into its own popup window, outside this call, so it is
@@ -2075,7 +2076,17 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     painter.FillRect (bl, btTop, bw, bhAll, strip);
 
-    if (!m_vertical)
+    if (m_endEdges && m_vertical)
+    {
+        painter.FillRect (bl, btTop,                bw, 1.0f, theme.ContentEdge());
+        painter.FillRect (bl, btTop + bhAll - 1.0f, bw, 1.0f, theme.ContentEdge());
+    }
+    else if (m_endEdges)
+    {
+        painter.FillRect (bl,             btTop, 1.0f, bhAll, theme.ContentEdge());
+        painter.FillRect (bl + bw - 1.0f, btTop, 1.0f, bhAll, theme.ContentEdge());
+    }
+    else if (!m_vertical)
     {
         painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.ContentEdge());
     }

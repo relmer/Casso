@@ -8,6 +8,21 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbarWindow::DxuiToolbarWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarWindow::DxuiToolbarWindow()
+{
+    SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbarWindow::Create
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,8 +35,6 @@ HRESULT DxuiToolbarWindow::Create (const CreateParams & params)
 
     hr = DxuiWindow::Create (params);
     CHR (hr);
-
-    SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
 
 Error:
     return hr;
@@ -128,6 +141,11 @@ void DxuiToolbarWindow::OnMoveLoopTick()
 
 
     Report (m_drag.OnTick (buttonDown, GetScreenSize()));
+
+    if (m_onMoveFrame)
+    {
+        m_onMoveFrame();
+    }
 }
 
 

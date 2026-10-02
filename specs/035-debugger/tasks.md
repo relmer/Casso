@@ -1107,11 +1107,11 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T378 Regression found 2026-10-02 on screen after the batch 11 merge: the Registers and Stack panes show their new Undo/Redo bar but no list rows and no column headers (the Watches pane may be affected too). Find the cause (the undo-bar frames from 454d794d2 merged with the in-place editors from b3bd1c3fb; see `DebuggerWindowUndoBars.cpp`, the pane control list near `kRegisters` in `DebuggerWindow.cpp`, and `ClipPaneControls`), fix it, add a test that fails on the broken code, and confirm on screen that both panes show their rows
 - [ ] T379 Owner review 2026-10-02: the console's Mode toolbar puts "Mode:" against the pane's left edge; make it a real pane toolbar laid out like the other panes' bars
 - [ ] T380 Owner review 2026-10-02: the console's dialect drop-down (AppleWin) is too short for its text and styled differently; draw it as the breakpoints pane's "Show columns" drop-down is drawn
-- [ ] T381 Owner review 2026-10-02: grabbing the debug toolbar's handle pauses the debugger; a drag must not change run state
+- [X] T381 Owner review 2026-10-02: grabbing the debug toolbar's handle pauses the debugger; a drag must not change run state
 - [ ] T382 Owner review 2026-10-02: while a toolbar is dragged over a dock band, the band appears (taking space if hidden), the toolbar snaps into it and slides along it with the mouse, and leaving takes a pull past a threshold before it pops out
 - [ ] T383 Owner review 2026-10-02: the debug toolbar never collapses into its overflow while its band has room or while floating; on a window resize a docked bar slides within its band rather than shrinking, unless another toolbar or the auto-hide tabs block it
 - [ ] T384 Owner review 2026-10-02: the disassembly shows a top tab instead of a title bar; tab strips follow Visual Studio: the tab band a slightly different color from the toolbar channel above it (vs-reference/vs-tool-window-bottom-tabs.png), and bottom tabs as in vs-reference/vs-memory-window-tabs.png
-- [ ] T385 Owner review 2026-10-02: a docked toolbar draws no edge along its long sides (the panes beside it give those), only its short edges
+- [X] T385 Owner review 2026-10-02: a docked toolbar draws no edge along its long sides (the panes beside it give those), only its short edges
 - [ ] T386 Owner review 2026-10-02: a floating toolbar turns vertical as it nears a vertical band and stays vertical until it nears a horizontal one, so the user picks its orientation and can still leave it floating
 - [ ] T387 Owner review 2026-10-02: the debug toolbar's buttons are drawn in color with Visual Studio's shapes as vector icons (vs-reference/vs-debug-toolbar-commands.png)
 - [ ] T388 Owner review 2026-10-02: the console's line spacing is a little tight; add extra space between one command's output and the next command
@@ -1124,7 +1124,7 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T395 Owner review 2026-10-02: the find widget's up/down, in-selection and close buttons are too small or indistinct; draw them at Visual Studio Code's size and contrast (vs-reference)
 - [ ] T396 Owner review 2026-10-02: changing a find option re-runs the search with the current text
 - [ ] T397 Owner review 2026-10-02: find in selection does not work; make it search only the selection taken when the option was turned on
-- [ ] T398 Owner review 2026-10-02: the debug toolbar's default position is the top band, below the menu bar
+- [X] T398 Owner review 2026-10-02: the debug toolbar's default position is the top band, below the menu bar
 - [ ] T399 Owner review 2026-10-02: the disassembly's viewing options default to all checked
 - [ ] T400 Owner review 2026-10-02: undo text quotes the operation: Undo "changed 3 bytes at $0300", in tips and menu items
 - [ ] T401 Owner review 2026-10-02: the disabled "Show source code" check box gets a tip saying how to get source: load a debug file, or open the source
