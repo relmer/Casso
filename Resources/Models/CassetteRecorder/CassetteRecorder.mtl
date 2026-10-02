@@ -1,0 +1,75 @@
+newmtl body
+Ka 0 0 0 
+Kd 0.09 0.1 0.15
+d 1
+
+newmtl deck
+Ka 0 0 0 
+Kd 0.68 0.685 0.69
+d 1
+
+newmtl lip
+Ka 0 0 0 
+Kd 0.68 0.685 0.69
+d 1
+
+newmtl grille_frame
+Ka 0 0 0 
+Kd 0.06 0.06 0.065
+d 1
+
+newmtl grille
+Ka 0 0 0 
+Kd 0.42 0.425 0.43
+d 1
+
+newmtl window_frame
+Ka 0 0 0 
+Kd 0.06 0.06 0.065
+d 1
+
+newmtl window
+Ka 0 0 0 
+Kd 0.075 0.095 0.12
+d 1
+
+newmtl label
+Ka 0 0 0 
+Kd 0.08 0.08 0.085
+d 1
+
+newmtl keys_0
+Ka 0 0 0 
+Kd 0.9 0.88 0.72
+d 1
+
+newmtl keys_1
+Ka 0 0 0 
+Kd 0.9 0.88 0.72
+d 1
+
+newmtl keys_2
+Ka 0 0 0 
+Kd 0.9 0.88 0.72
+d 1
+
+newmtl keys_3
+Ka 0 0 0 
+Kd 0.9 0.88 0.72
+d 1
+
+newmtl keys_4
+Ka 0 0 0 
+Kd 0.9 0.88 0.72
+d 1
+
+newmtl keys_5
+Ka 0 0 0 
+Kd 0.18 0.42 0.38
+d 1
+
+newmtl handle
+Ka 0 0 0 
+Kd 0.82 0.83 0.84
+d 1
+

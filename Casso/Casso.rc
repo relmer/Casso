@@ -57,6 +57,7 @@ IDR_MODEL_DISKII_MESH              RCDATA "DiskII.dmesh"
 IDR_MODEL_MONITOR2_MESH            RCDATA "Monitor2.dmesh"
 IDR_MODEL_DISK2C_MESH              RCDATA "Disk2c.dmesh"
 IDR_MODEL_DUODISK_MESH             RCDATA "DuoDisk.dmesh"
+IDR_MODEL_CASSETTE_RECORDER_MESH   RCDATA "CassetteRecorder.dmesh"
 
 // Embedded ImageWriter II mechanical sound set (extracted to the asset base by
 // EnsureImageWriterSounds; decoded by PrinterAudioSource). CC BY 4.0 -- see
