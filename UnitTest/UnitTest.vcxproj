@@ -699,6 +699,8 @@
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuCueTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupBandTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTooltipReadTimeTests.cpp" />
+    <ClCompile Include="DebuggerTests\DisassemblyPcDragTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarLabelFontTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuSubmenuPlacementTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />

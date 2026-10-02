@@ -176,8 +176,8 @@ public:
     static constexpr int  kDragDip        = 4;
     static constexpr int  kNewTabDip      = 24;
 
-    //  How far a tool window's tab band stands off the background.
-    static constexpr float  kBandContrast = 1.12f;
+    //  How much darker than the background a tool window's tab band is.
+    static constexpr float  kBandDarken = 0.85f;
 
 private:
     struct Tab

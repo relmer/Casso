@@ -43,6 +43,7 @@ public:
         float                 stubPx        = 12.0f;   // how far the line stands off to the left
         float                 radiusPx      = 4.0f;
         float                 headPx        = 5.0f;
+        float                 slopPx        = 8.0f;   // how far off the line a click still hits it
     };
 
     struct Result

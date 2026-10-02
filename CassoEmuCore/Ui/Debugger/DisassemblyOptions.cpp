@@ -149,6 +149,35 @@ std::wstring DisassemblyOptions::GetSourceTip (bool hasDebugFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyOptions::GetLineNumbersTip
+//
+//  Line numbers number the source lines, so while they are unavailable the
+//  tip says what turns them on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DisassemblyOptions::GetLineNumbersTip (bool hasDebugFile, bool sourceShown)
+{
+    if (!hasDebugFile)
+    {
+        return L"Show line numbers\nLine numbers number the source lines. To get them, load the code's debug file\n"
+               L"(File > Open symbol or debug file), then turn on Show source code";
+    }
+
+    if (!sourceShown)
+    {
+        return L"Show line numbers\nLine numbers number the source lines. To get them, turn on Show source code";
+    }
+
+    return L"Show line numbers\nShow each source line's number in its file";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyOptions::GetSymbolsTip
 //
 ////////////////////////////////////////////////////////////////////////////////

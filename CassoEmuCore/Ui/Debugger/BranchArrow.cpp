@@ -80,7 +80,7 @@ BranchArrow::Result BranchArrow::Build (const Input & input)
 
 bool BranchArrow::HitTest (const Input & input, float x, float y)
 {
-    constexpr float  kSlopPx = 4.0f;
+    float            slop    = input.slopPx;
     float            end     = input.mnemonicX - input.marginPx;
     float            upright = end - input.stubPx;
     float            fromY   = input.sourceY.value_or (input.sourceEdgeY);
@@ -91,18 +91,18 @@ bool BranchArrow::HitTest (const Input & input, float x, float y)
 
 
 
-    if (x < upright - kSlopPx || x > end + kSlopPx || y < lowY - kSlopPx || y > highY + kSlopPx)
+    if (x < upright - slop || x > end + slop || y < lowY - slop || y > highY + slop)
     {
         return false;
     }
 
-    if (std::fabs (x - upright) <= kSlopPx)
+    if (std::fabs (x - upright) <= slop)
     {
         return true;
     }
 
-    onRow = (input.sourceY.has_value() && std::fabs (y - *input.sourceY) <= kSlopPx) ||
-            (input.targetY.has_value() && std::fabs (y - *input.targetY) <= kSlopPx);
+    onRow = (input.sourceY.has_value() && std::fabs (y - *input.sourceY) <= slop) ||
+            (input.targetY.has_value() && std::fabs (y - *input.targetY) <= slop);
 
     return onRow;
 }

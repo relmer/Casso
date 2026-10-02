@@ -34,6 +34,13 @@ public:
     // pointer does not leave a panel sitting over the control it describes.
     static constexpr int  kMaxVisibleMs = 5000;
 
+    // A long tip stays up long enough to read: the system's tip lifetime, or
+    // kReadMsPerChar for each character when that is longer, to kMaxReadMs.
+    static constexpr int  kReadMsPerChar = 60;
+    static constexpr int  kMaxReadMs     = 30000;
+
+    static int  ComputeVisibleMs (size_t textLength, int systemMs);
+
     // A tip fades in when it appears and out when it goes. Short enough that
     // it never delays reading the tip, long enough that the tip does not
     // appear to blink into place.
@@ -101,6 +108,10 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
+    //  The system's tip lifetime: ten double-click times, as Windows sets
+    //  a tooltip control's auto-pop delay.
+    static int  GetSystemVisibleMs ();
+
     //
     //  Acquire + size + show the popup balloon for the current
     //  anchor/text. No-op without a wired host or when a popup is

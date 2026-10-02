@@ -33,6 +33,49 @@ static constexpr float     s_kEstLineHeightEm = 1.4f;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComputeVisibleMs
+//
+//  How long a tip stays up: the system's tip lifetime, or long enough to
+//  read its text when that is longer, up to kMaxReadMs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTooltip::ComputeVisibleMs (size_t textLength, int systemMs)
+{
+    int64_t  readMs = (int64_t) textLength * kReadMsPerChar;
+
+
+
+    readMs = (std::min) (readMs, (int64_t) kMaxReadMs);
+
+    return (int) (std::max) ((int64_t) systemMs, readMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSystemVisibleMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTooltip::GetSystemVisibleMs()
+{
+    UINT  doubleClickMs = GetDoubleClickTime();
+
+
+
+    return (doubleClickMs > 0) ? (int) doubleClickMs * 10 : kMaxVisibleMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RequestShow
 //
 //  Queues the tooltip for display after the open dwell timeout. If
@@ -62,7 +105,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         // DIFFERENT control is a new tip and starts its own clock.
         if (changed && m_popupHost != nullptr)
         {
-            m_hideAtMs = nowMs + kMaxVisibleMs;
+            m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
 
             ReleaseActivePopup();
             ShowPopup();
@@ -157,7 +200,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
         // The OS dismisses its own after a few seconds for the same reason:
         // the tip has been read by then, and what is left is an obstruction
         // sitting over the thing it was explaining.
-        m_hideAtMs = nowMs + kMaxVisibleMs;
+        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
 
         ShowPopup();
 

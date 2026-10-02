@@ -1142,13 +1142,13 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T413 Owner review 2026-10-03: the Watches pane's "Automatic", "Watches" and "Add item to watch" rows use the proportional font of list view headers, "Add item to watch" in italic; the group rows' background is subtle, not the current strong band, in every theme
 - [X] T414 Owner review 2026-10-03: the step toolbar glyphs get a heavier stroke, and step over's arrowhead meets the end of its arc cleanly instead of running into it
 - [X] T415 Owner review 2026-10-03: System dark disassembly: the instruction blue is hard to read, the jump destination's dim blue background makes it worse, and the PC row's yellow background makes its line illegible; the memory "changed" dark red is too dark on the dark background. Retro modern's PC background is unreadable too. Every text color on every row tint meets AA in every theme
-- [ ] T416 Owner review 2026-10-03: clicking the jump arrow reliably scrolls to its destination (a larger hit area); clicking it again returns to PC
+- [X] T416 Owner review 2026-10-03: clicking the jump arrow reliably scrolls to its destination (a larger hit area); clicking it again returns to PC
 - [ ] T417 Owner review 2026-10-03: the Debug menu's Reset, Power cycle and Restart under debugger move to the end of the menu
 - [ ] T418 Owner review 2026-10-03: turning on a disassembly view from the View menu opened it auto-hidden; a pane turned on opens docked and shown
-- [ ] T419 Owner review 2026-10-03: revert T384's change of the disassembly to a tool window: it stays a document with top tabs, so document tab groups and their drop targets work; keep the title-bar look the owner asked for only if a document can have it
+- [X] T419 Owner review 2026-10-03: revert T384's change of the disassembly to a tool window: it stays a document with top tabs, so document tab groups and their drop targets work; keep the title-bar look the owner asked for only if a document can have it
 - [X] T420 Owner review 2026-10-03: survey 6502 assembly color schemes (VS Code extensions and others) and recommend one for the owner to choose
-- [ ] T421 Owner review 2026-10-03: disassembly tooltips stay up long enough to read (the system's tooltip duration, scaled with text length)
-- [ ] T422 Owner review 2026-10-03: the disabled "Show line numbers" check box gets a tip saying how to get line numbers
+- [X] T421 Owner review 2026-10-03: disassembly tooltips stay up long enough to read (the system's tooltip duration, scaled with text length)
+- [X] T422 Owner review 2026-10-03: the disabled "Show line numbers" check box gets a tip saying how to get line numbers
 - [X] T423 Owner review 2026-10-03: the trace pane and the call stack get syntax coloring like the disassembly
 - [ ] T424 Owner review 2026-10-03: Disk II: the head sweeps smoothly from the old track to the new one at its real stepping speed; the current track's indicator starts bright white, steps down to a theme highlight, and a track left behind fades out over a second or two
 - [ ] T425 Owner review 2026-10-03: Disk II: label the phase (stepper magnet) indicators and make clear what they show
@@ -1160,8 +1160,8 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T431 Owner review 2026-10-03: the View menu cannot be left by keyboard: Alt+V then Right opens the Disassembly submenu with no way out; Left closes a submenu, Escape closes a level, Right on the last level moves to the next menu
 - [ ] T432 Owner review 2026-10-03: access-key underlines now sit a little too close; place them midway between the old and current positions
 - [ ] T433 Owner review 2026-10-03: the default window layout becomes vs-reference/casso-default-layout.webp
-- [ ] T434 Owner review 2026-10-03: dragging the PC arrow visibly drags the arrow and the PC row background with the mouse
-- [ ] T435 Owner answer 2026-10-03: the bottom tab band is darker than the background, not lighter (reverses T384's direction)
+- [X] T434 Owner review 2026-10-03: dragging the PC arrow visibly drags the arrow and the PC row background with the mouse
+- [X] T435 Owner answer 2026-10-03: the bottom tab band is darker than the background, not lighter (reverses T384's direction)
 - [ ] T436 Owner answer 2026-10-03: the console's gap between commands is 75% of a line, not a whole one
 - [ ] T437 Owner answer 2026-10-03: in light themes an enabled check box has a visible outline (DxuiCheckbox)
 - [ ] T438 Owner question 2026-10-03: how can the debugger support reverse execution (step back, step back over, step back out)? Write up the design options and costs for the owner; build nothing yet

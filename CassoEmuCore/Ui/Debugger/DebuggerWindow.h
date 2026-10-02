@@ -306,6 +306,7 @@ protected:
     //  Protected so a test can press the gutter and drag the PC's arrow to
     //  another line, which sets the next statement there.
     bool                         ClickGutter         (const DxuiMouseEvent & ev);
+    void                         DragPcMarker        (POINT atDip);
     bool                         DropPcMarker        (const DxuiMouseEvent & ev);
     void                         SetNextStatement    (Word address);
 
@@ -771,8 +772,7 @@ private:
     DxuiTextInput                         * m_registerEditor     = nullptr;
     ValueEdit                               m_valueEdit;
     POINT                                   m_lastPressPx        = {};
-    POINT                                   m_arrowPressPx       = {};
-    DWORD                                   m_arrowPressTick     = 0;
+    bool                                    m_arrowShowsTarget   = false;
 
     //  The watch pane's own undo and redo (FR-097), apart from every memory
     //  window's: Ctrl+Z in the watch pane puts back its last edit only.
@@ -843,6 +843,7 @@ private:
     int                                                                              m_gutterHoverRow     = -1;
     int                                                                              m_pcDragView         = -1;
     int                                                                              m_pcDragRow          = -1;
+    int                                                                              m_pcDragOverRow      = -1;
     std::array<bool, DebuggerViewState::kMaxCodeViews>                               m_codeOpen           = { true };
     uint32_t                                                                         m_shownPaneSerial    = 0;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};

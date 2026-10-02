@@ -968,6 +968,10 @@ void DebuggerWindow::ConfigureCodeBars()
             {
                 m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSourceTip (IsCodeOptionEnabled (DisassemblyOptions::Option::Source)); });
             }
+            else if (option == DisassemblyOptions::Option::LineNumbers)
+            {
+                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetLineNumbersTip (m_snapshot != nullptr && m_snapshot->source.has_value(), m_codeOptions.IsOn (DisassemblyOptions::Option::Source)); });
+            }
             else if (option == DisassemblyOptions::Option::Symbols)
             {
                 m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSymbolsTip ((m_snapshot != nullptr) ? m_snapshot->symbolSources : std::vector<std::string>()); });

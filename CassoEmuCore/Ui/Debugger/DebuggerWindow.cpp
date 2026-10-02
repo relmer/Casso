@@ -4644,7 +4644,7 @@ void DebuggerWindow::ConfigureDockSite()
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
 
-    //  Source views are documents, the rest tool windows, each with
+    //  Source and Disassembly are documents, the rest tool windows, each with
     //  a title bar whose menu is the pane's Dock To menu (FR-084).
     m_dockSite->SetDocumentFn  ([this] (const std::wstring & pane) { return IsDocumentPane (pane); });
     m_dockSite->SetOnPaneMenu  ([this] (const std::wstring & pane, POINT clientPx) { ShowDockToMenu (pane, clientPx); });
@@ -4886,6 +4886,7 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
     input.stubPx       *= scale;
     input.radiusPx     *= scale;
     input.headPx       *= scale;
+    input.slopPx       *= scale;
 
     //  A source out of view counts only while the line runs on across the
     //  rows: above them toward a target below, or below toward one above.
@@ -4966,9 +4967,8 @@ void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
 //
 //  DebuggerWindow::ClickBranchArrow
 //
-//  A double-click on a view's branch arrow goes to where it points, as Go to
-//  would. The second press within the system's double-click time and
-//  distance of the first counts as the double-click.
+//  A click on a view's branch arrow goes to where it points, as Go to would;
+//  the next click on it goes back to the PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4977,8 +4977,6 @@ bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
     BranchArrow::Input  input;
     Word                goesTo  = 0;
     bool                isTaken = true;
-    DWORD               now     = GetTickCount();
-    bool                isPair  = false;
 
 
 
@@ -4992,23 +4990,20 @@ bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
             continue;
         }
 
-        isPair = m_arrowPressTick != 0 && now - m_arrowPressTick <= GetDoubleClickTime() &&
-                 std::abs (pointPx.x - m_arrowPressPx.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
-                 std::abs (pointPx.y - m_arrowPressPx.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
+        m_activeCode = (view < DebuggerViewState::kMaxCodeViews) ? view : m_activeCode;
 
-        m_arrowPressTick = isPair ? 0 : now;
-        m_arrowPressPx   = pointPx;
-
-        if (isPair)
+        if (m_arrowShowsTarget)
         {
-            m_activeCode = (view < DebuggerViewState::kMaxCodeViews) ? view : m_activeCode;
+            ShowCode (std::nullopt);
+        }
+        else
+        {
             ShowCode (goesTo);
         }
 
-        return isPair;
+        m_arrowShowsTarget = !m_arrowShowsTarget;
+        return true;
     }
-
-    m_arrowPressTick = 0;
 
     return false;
 }
@@ -5021,13 +5016,21 @@ bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
 //
 //  DebuggerWindow::IsDocumentPane
 //
-//  The source documents are documents; every other pane, the Disassembly
-//  views included, is a tool window with a title bar (FR-084).
+//  The Disassembly views and the source documents are documents; every
+//  other pane is a tool window (FR-084).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::IsDocumentPane (const std::wstring & pane) const
 {
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (pane == DebuggerLayout::GetCodePaneId (view))
+        {
+            return true;
+        }
+    }
+
     return GetSourceSlotOf (pane) >= 0;
 }
 
@@ -6141,12 +6144,15 @@ void DebuggerWindow::ApplyCodeView (int view)
             cells[0].icon = GetHoverBreakpointIcon();
         }
 
-        if (line->isCurrent)
+        //  While the PC's arrow is dragged, it and the PC's row color show on
+        //  the line under the pointer instead.
+        current = line->isCurrent ? (int) rows.size() : current;
+
+        if ((view == m_pcDragView && m_pcDragOverRow >= 0) ? (int) rows.size() == m_pcDragOverRow : line->isCurrent)
         {
             cells[1].text = s_kpszTriangleRight;
             cells[1].argb = GetPcMarkerArgb();
             fill          = GetPcRowArgb();
-            current       = (int) rows.size();
         }
         else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line->address)
         {
@@ -8100,8 +8106,9 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
         if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0 && m_snapshot->isPaused &&
             GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)].isCurrent)
         {
-            m_pcDragView = GetCodeViewOf (list);
-            m_pcDragRow  = row;
+            m_pcDragView    = GetCodeViewOf (list);
+            m_pcDragRow     = row;
+            m_pcDragOverRow = -1;
             return true;
         }
 
@@ -8115,6 +8122,52 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DragPcMarker
+//
+//  The pointer moving while the PC's arrow is held: the arrow and the PC's
+//  row color follow it to the instruction under it. Rows are rebuilt only
+//  when that row changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::DragPcMarker (POINT atDip)
+{
+    DxuiListView  * list = nullptr;
+    RECT            box  = {};
+    int             row  = -1;
+
+
+
+    if (m_pcDragView < 0 || m_snapshot == nullptr)
+    {
+        return;
+    }
+
+    list = m_codeLists[(size_t) m_pcDragView];
+    box  = list->GetBounds();
+
+    if (DxuiDockSite::Contains (box, atDip))
+    {
+        row = list->HitTestRow (atDip.x - box.left, atDip.y - box.top);
+        row = (GetCodeLineOfRow (m_pcDragView, row) >= 0) ? row : m_pcDragOverRow;
+    }
+
+    if (row == m_pcDragOverRow)
+    {
+        return;
+    }
+
+    m_pcDragOverRow = row;
+    ApplyCodeView (m_pcDragView);
+    Invalidate();
 }
 
 
@@ -8149,10 +8202,13 @@ bool DebuggerWindow::DropPcMarker (const DxuiMouseEvent & ev)
         return false;
     }
 
-    m_pcDragView = -1;
-    m_pcDragRow  = -1;
-    list         = m_codeLists[(size_t) view];
-    box          = list->GetBounds();
+    m_pcDragView    = -1;
+    m_pcDragRow     = -1;
+    m_pcDragOverRow = -1;
+    list            = m_codeLists[(size_t) view];
+    box             = list->GetBounds();
+
+    ApplyCodeView (view);
 
     if (DxuiDockSite::Contains (box, ev.positionDip))
     {
@@ -9389,7 +9445,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         NoteTabFocus (ev.positionDip);
     }
 
-    //  A double-click on a branch arrow goes to where it points.
+    //  A click on a branch arrow goes to where it points, and the next back.
     if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left &&
         ClickBranchArrow (ev.positionDip))
     {
@@ -9455,6 +9511,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         //  A floating window's tips show from its own tooltip.
         UpdateTooltip (ev.positionDip);
         HoverGutter   (ev.positionDip);
+        DragPcMarker  (ev.positionDip);
 
         for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
         {

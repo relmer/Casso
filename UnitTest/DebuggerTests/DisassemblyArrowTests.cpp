@@ -88,7 +88,7 @@ namespace DebuggerTests
             Assert::IsTrue  (BranchArrow::HitTest (input, upright, 100.0f), L"on the upright");
             Assert::IsTrue  (BranchArrow::HitTest (input, upright + 6.0f, 150.0f), L"on the run into the head");
             Assert::IsFalse (BranchArrow::HitTest (input, upright, 200.0f), L"past the target");
-            Assert::IsFalse (BranchArrow::HitTest (input, upright + 6.0f, 100.0f), L"beside the upright");
+            Assert::IsFalse (BranchArrow::HitTest (input, upright + 10.0f, 100.0f), L"beside the upright");
         }
 
 
