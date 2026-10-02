@@ -3,8 +3,6 @@
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiListView.h"
 
 
 

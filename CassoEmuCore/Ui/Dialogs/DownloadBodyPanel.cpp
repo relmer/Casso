@@ -4,9 +4,6 @@
 
 #include "DialogDefinition.h"
 #include "../Chrome/CassoTheme.h"
-#include "Core/DxuiEvents.h"
-#include "Render/DxuiPainter.h"
-#include "Render/DxuiTextRenderer.h"
 
 
 
@@ -40,8 +37,8 @@ void DownloadBodyPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
-    ctx.painter        = static_cast<DxuiPainter *> (&painter);
-    ctx.text           = static_cast<DxuiTextRenderer *> (&text);
+    ctx.painter        = &painter;
+    ctx.text           = &text;
     ctx.theme          = static_cast<const CassoTheme *> (&theme);
     ctx.customBodyRect = GetBounds();
     ctx.dpiScale       = m_dpiScale;

@@ -302,6 +302,11 @@ public:
         return E_NOTIMPL;
     }
 
+    HRESULT  DrawFramebuffer (const uint32_t *, int, int, float, float, float, float) override
+    {
+        return S_OK;
+    }
+
     HRESULT  DrawIconBitmap (const uint32_t *, int, int, float, float, float, float) override
     {
         return S_OK;

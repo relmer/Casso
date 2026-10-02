@@ -15,11 +15,11 @@
 //  Turns a normalized axis reading into a paddle position: the rest area
 //  around center reads as center, and what is left is rescaled so the edge of
 //  that area is center and full deflection still reaches the ends. Without
-//  the rescale a deadzone would cost travel at both ends.
+//  the rescale a dead zone would cost travel at both ends.
 //
 //  A pair of axes from one stick is shaped together, so the rest area is a
 //  circle rather than a square. Shaped separately, a diagonal push would
-//  leave one axis inside its deadzone and stick to a cardinal direction.
+//  leave one axis inside its dead zone and stick to a cardinal direction.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

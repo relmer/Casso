@@ -1221,7 +1221,7 @@ public:
         const JsonValue *  uiPrefs = nullptr;
         bool               found   = doc.HasObject ("$cassoUiPrefs", uiPrefs);
 
-        Assert::IsTrue (found && uiPrefs != nullptr, L"no $cassoUiPrefs block");
+        Assert::IsTrue (found, L"no $cassoUiPrefs block");
         return uiPrefs;
     }
 
@@ -2191,17 +2191,18 @@ public:
     }
 
 
-    //  Saves one game-port adapter token into a machine's block the way the
-    //  shell's persist path does: splice into $cassoUiPrefs, then SaveDelta.
-    static void SaveGamePortAdapter (InMemoryFileSystem & fs, UserConfigStore & store,
-                                     const std::string & machine, const char * token)
+    //  Saves one ui pref into a machine's block the way the shell does:
+    //  splice into $cassoUiPrefs, then SaveDelta. The game-port adapter key is
+    //  what builds before the Joyport setting went global wrote here.
+    static void SaveUiPref (InMemoryFileSystem & fs, UserConfigStore & store,
+                            const std::string & machine, const char * key, const char * token)
     {
         JsonValue  defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1}");
         JsonValue  merged;
         JsonValue  updated;
 
         AssertSucceeded (store.Load (machine, defaultJson, fs, merged));
-        updated = UserConfigStore::SpliceUiPrefs (merged, { { "gamePortAdapter", JsonValue (std::string (token)) } });
+        updated = UserConfigStore::SpliceUiPrefs (merged, { { key, JsonValue (std::string (token)) } });
         AssertSucceeded (store.SaveDelta (machine, updated, defaultJson, fs));
     }
 
@@ -2211,24 +2212,30 @@ public:
         InMemoryFileSystem  fs;
         UserConfigStore     store (L"C:\\Casso\\User");
 
-        SaveGamePortAdapter (fs, store, "Apple2e", "none");
+        SaveUiPref (fs, store, "Apple2e", "gamePortAdapter", "none");
 
         Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2e").find ("gamePortAdapter") == std::string::npos,
                         L"a machine with no adapter carries no key for it");
     }
 
 
-    TEST_METHOD (GamePortAdapter_TheJoyportIsKeptForItsOwnMachineOnly)
+    //  Nothing writes the per-machine key now, and nothing drops it either:
+    //  a later save of the machine's block leaves it as an older build wrote
+    //  it, so that build still finds its setting.
+    TEST_METHOD (GamePortAdapter_ALegacyKeySurvivesALaterSaveUntouched)
     {
         InMemoryFileSystem  fs;
         UserConfigStore     store (L"C:\\Casso\\User");
+        std::string         text;
 
-        SaveGamePortAdapter (fs, store, "Apple2e", "siriusJoyport");
-        SaveGamePortAdapter (fs, store, "Apple2Plus", "none");
 
-        Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2e").find ("siriusJoyport") != std::string::npos,
-                        L"the //e keeps its Joyport");
-        Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2Plus").find ("gamePortAdapter") == std::string::npos,
-                        L"and the ][+ does not pick it up");
+
+        SaveUiPref (fs, store, "Apple2e", "gamePortAdapter", "siriusJoyport");
+        SaveUiPref (fs, store, "Apple2e", "speedMode",       "maximum");
+
+        text = MachineTextOrFail (fs, store, "Apple2e");
+
+        Assert::IsTrue (text.find ("siriusJoyport") != std::string::npos, L"the //e's legacy key is still there");
+        Assert::IsTrue (text.find ("maximum")       != std::string::npos, L"beside the pref the later save wrote");
     }
 };

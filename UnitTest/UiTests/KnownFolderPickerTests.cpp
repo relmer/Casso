@@ -3,7 +3,6 @@
 #include "InMemoryFileSystem.h"
 #include "Cassque/Model/KnownFolderStore.h"
 #include "Cassque/Model/LaunchCommand.h"
-#include "Core/DxuiDpiScaler.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "../Cassque/FakeProcessLauncher.h"
 

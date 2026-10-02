@@ -62,9 +62,9 @@ ControllerSample DirectInputSampleDecoder::Decode (
 //
 //  ListControls
 //
-//  Every control the device reports, in sample order: axes, then buttons,
-//  then the four directions of each hat. DirectInput has no triggers of its
-//  own; a trigger on such a device is one of its axes.
+//  Every control the device reports, in sample order: axes, each with its
+//  role, then buttons, then the four directions of each hat. DirectInput has
+//  no triggers of its own; a trigger on such a device is one of its axes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +81,7 @@ std::vector<ControlId> DirectInputSampleDecoder::ListControls (const DirectInput
     {
         if (layout.presentAxes.test (static_cast<size_t> (axis)))
         {
-            controls.push_back ({ ControlKind::Axis, axis });
+            controls.push_back ({ ControlKind::Axis, axis, layout.axisRoles[static_cast<size_t> (axis)] });
         }
     }
 

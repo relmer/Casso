@@ -102,6 +102,8 @@ public:
     // is opaque (default), 0.0 is fully transparent.
     void    SetGlobalAlpha (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
     void    SetOrigin      (float xPx, float yPx)   override { m_originXPx = xPx; m_originYPx = yPx; }
+    void    SetClipRect    (const RECT * clipPx)    override;
+    bool    GetClipRect    (RECT & clipPx) const    override;
     float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
     void    PushClip       (float xPx, float yPx, float widthPx, float heightPx) override;
     void    PopClip        ()                                                    override;
@@ -223,6 +225,8 @@ private:
     float                             m_globalAlpha          = 1.0f;
     float                             m_originXPx            = 0.0f;
     float                             m_originYPx            = 0.0f;
+    bool                              m_hasClip              = false;
+    RECT                              m_clipPx               = {};   // after the origin, like the vertices
 
     std::vector<Vertex>               m_vertices;
     std::vector<D2D1_RECT_F>          m_clips;                  // screen pixels, innermost last

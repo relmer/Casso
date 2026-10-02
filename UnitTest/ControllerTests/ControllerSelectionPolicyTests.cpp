@@ -12,11 +12,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ControllerSelectionPolicyTests
 //
-//  Every row of the policy table, driven with made-up devices.
-//
-//  THE RULE THAT MATTERS MOST IS THAT THE SELECTION STAYS ON THE CONTROLLER
-//  IN USE. One arriving never takes it; only the selected one leaving moves
-//  it, and then to a controller that is here or to nothing.
+//  The rules both player slots share: the paddles a target maps to, what a
+//  slot may be offered, how an overlapping pair is refused, and how a picked
+//  controller that came back under another identity is recognized.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,15 +75,11 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Players_DriveOnlyThePaddlesTheirSlotMapsTo)
+        TEST_METHOD (FindPlayer_OnlyWhileTwoPlay)
         {
             ControllerUnitKey  xbox   = MakeXbox().unit;
             ControllerUnitKey  stick  = MakeStick ("{A}").unit;
             MultiplayerSetup   setup  = MakeTwoPlayers (xbox, stick);
-
-            Assert::AreEqual (0x3ul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 0, 4).to_ulong(),
-                L"player one plays joystick 0, which is PDL0 and PDL1");
-            Assert::AreEqual (0xCul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 1, 4).to_ulong());
 
             Assert::IsTrue   (ControllerSelectionPolicy::FindPlayer (setup, stick).value() == 1);
             Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, MakeStick ("{OTHER}").unit).has_value(),
@@ -93,78 +87,7 @@ namespace ControllerTests
 
             setup.isEnabled = false;
 
-            Assert::AreEqual (0x0ul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 0, 4).to_ulong(),
-                L"with the mode off the slots drive nothing at all");
-            Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, stick).has_value());
-        }
-
-
-        //
-        //  The saved mode is intent. What the machine plays is the mode less
-        //  any player whose controller is not plugged in, so a game port with
-        //  a controller attached is never left dead (FR-040).
-        //
-
-        TEST_METHOD (Playable_NeedsOneOfItsPlayersAttached)
-        {
-            ControllerDeviceInfo               xbox    = MakeXbox();
-            ControllerDeviceInfo               stick   = MakeStick ("{A}");
-            MultiplayerSetup                   setup   = MakeTwoPlayers (xbox.unit, stick.unit);
-            std::vector<ControllerDeviceInfo>  both    = { xbox, stick };
-            std::vector<ControllerDeviceInfo>  oneOnly = { stick };
-            std::vector<ControllerDeviceInfo>  neither = { MakeStick ("{OTHER}") };
-
-            Assert::IsTrue  (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, both),
-                L"both players are plugged in, so the mode is played as saved");
-            Assert::IsTrue  (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, oneOnly),
-                L"one player leaving does not end the game for the other (SC-012)");
-            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, neither),
-                L"with neither player attached the port would be dead, so one controller takes it");
-            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, {}),
-                L"and with nothing attached there is nothing to play");
-        }
-
-
-        // A user who set one player up and left the other slot alone is
-        // playing a one-player setup through the mode; the empty slot is not
-        // a controller anyone has to plug in.
-        TEST_METHOD (Playable_AnEmptySlotIsNotARequirement)
-        {
-            ControllerDeviceInfo               stick = MakeStick ("{A}");
-            MultiplayerSetup                   setup;
-            std::vector<ControllerDeviceInfo>  devices = { stick };
-
-            setup.isEnabled       = true;
-            setup.players[0].unit = stick.unit;
-
-            Assert::IsTrue (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, devices));
-        }
-
-
-        // With both slots empty there is no two-player game to play, whatever
-        // the saved flag says, so the one controller drives as it always did.
-        TEST_METHOD (Playable_AnEnabledModeWithNoPlayersIsNotPlayed)
-        {
-            ControllerDeviceInfo               stick   = MakeStick ("{A}");
-            MultiplayerSetup                   setup;
-            std::vector<ControllerDeviceInfo>  devices = { stick };
-
-            setup.isEnabled = true;
-
-            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, devices));
-        }
-
-
-        TEST_METHOD (Playable_ModeOffIsNeverPlayed)
-        {
-            ControllerDeviceInfo               xbox    = MakeXbox();
-            ControllerDeviceInfo               stick   = MakeStick ("{A}");
-            MultiplayerSetup                   setup   = MakeTwoPlayers (xbox.unit, stick.unit);
-            std::vector<ControllerDeviceInfo>  devices = { xbox, stick };
-
-            setup.isEnabled = false;
-
-            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, devices));
+            Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, stick).has_value(), L"with one playing there are no two players to find");
         }
 
 
@@ -267,239 +190,80 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (TargetChoices_LeaveOutTheOtherPlayersAndWhatTheMachineLacks)
+        TEST_METHOD (AdoptedUnit_AnAttachedPickIsItself)
         {
-            ControllerUnitKey              xbox    = MakeXbox().unit;
-            ControllerUnitKey              stick   = MakeStick ("{A}").unit;
-            MultiplayerSetup               setup   = MakeTwoPlayers (xbox, stick);
-            std::vector<PlayerAxisTarget>  choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 4);
+            ControllerDeviceInfo               stick   = MakeStick ("{A}");
+            std::vector<ControllerDeviceInfo>  devices = { MakeXbox(), stick };
 
-            // Player one holds joystick 0, so PDL0 and PDL1 are gone in every
-            // form they could be offered in.
-            Assert::AreEqual (size_t (3), choices.size(), L"joystick 1, paddle 2 and paddle 3 are what is left");
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) choices[0]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle2,   (int) choices[1]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle3,   (int) choices[2]);
-
-            choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 2);
-
-            Assert::AreEqual (size_t (0), choices.size(),
-                L"on a //c player one's joystick 0 is the whole game port, so player two has nothing to take");
-
-            setup.players[0].unit.reset();
-            choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 2);
-
-            Assert::AreEqual (size_t (3), choices.size(), L"with no other player, a //c offers joystick 0, paddle 0 and paddle 1");
-            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) choices[0]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle0,   (int) choices[1]);
-            Assert::AreEqual ((int) PlayerAxisTarget::Paddle1,   (int) choices[2]);
+            Assert::IsTrue (ControllerSelectionPolicy::FindAdoptedUnit (stick.unit, devices).value() == stick.unit,
+                L"a picked controller that is attached is played as itself");
         }
 
 
-        TEST_METHOD (Replacement_PrefersAControllerNoPlayerIsHolding)
+        TEST_METHOD (AdoptedUnit_SoleSameModelIsAdopted)
         {
-            ControllerDeviceInfo               gone   = MakeStick ("{GONE}");
-            ControllerDeviceInfo               held   = MakeStick ("{HELD}");
-            ControllerDeviceInfo               free   = MakeStick ("{FREE}");
-            std::vector<ControllerDeviceInfo>  devices = { held, free };
-            MultiplayerSetup                   setup;
+            ControllerDeviceInfo               moved   = MakeStick ("{OLD-PORT}");
+            ControllerDeviceInfo               same    = MakeStick ("{NEW-PORT}");
+            std::vector<ControllerDeviceInfo>  devices = { MakeXbox(), same };
 
-            setup.isEnabled         = true;
-            setup.players[0].unit   = held.unit;
-            setup.players[0].target = PlayerAxisTarget::Joystick0;
-
-            ControllerSelectionPolicy::Decision  decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true, setup);
-
-            Assert::IsTrue (decision.selection.value() == free.unit,
-                L"a controller a player is holding is left to them, though it was attached longer");
-
-            decision = ControllerSelectionPolicy::Evaluate (gone.unit, { held }, true, setup);
-
-            Assert::IsTrue (decision.selection.value() == held.unit, L"with no free controller, a player's still takes the selection");
+            Assert::IsTrue (ControllerSelectionPolicy::FindAdoptedUnit (moved.unit, devices).value() == same.unit,
+                L"the same stick on another port is still that stick");
         }
 
 
-        TEST_METHOD (NoneSelected_FirstAttachedIsTaken)
+        TEST_METHOD (AdoptedUnit_TwoOfTheSameModelIsNotAnAdoption)
         {
-            std::vector<ControllerDeviceInfo>          devices  = { MakeStick ("{A}"), MakeXbox() };
-            ControllerSelectionPolicy::Decision        decision = ControllerSelectionPolicy::Evaluate (std::nullopt, devices, true);
+            ControllerDeviceInfo               moved   = MakeStick ("{OLD-PORT}");
+            std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{ONE}"), MakeStick ("{TWO}") };
 
-            Assert::IsTrue  (decision.hasChanged,                                    L"a controller must be chosen when none is");
-            Assert::IsTrue  (decision.selection.value() == devices.front().unit,     L"the first one enumerated is the one chosen");
-            Assert::IsTrue  (decision.clearsOtherInputModes,                         L"and it takes the axes from the arrows and the paddle");
-            Assert::AreEqual ((int) SelectionChangeReason::AutomaticSelection, (int) decision.reason);
+            Assert::IsFalse (ControllerSelectionPolicy::FindAdoptedUnit (moved.unit, devices).has_value(),
+                L"which of the two moved is a coin flip, so neither is taken to be it");
         }
 
 
-        TEST_METHOD (NoneSelected_NothingAttachedChangesNothing)
+        TEST_METHOD (AdoptedUnit_ADifferentModelIsNotAdopted)
         {
-            std::vector<ControllerDeviceInfo>    devices;
-            ControllerSelectionPolicy::Decision  decision = ControllerSelectionPolicy::Evaluate (std::nullopt, devices, true);
+            ControllerDeviceInfo               moved   = MakeStick ("{OLD}", 0x0121);
+            std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{OTHER}", 0x0999) };
 
-            Assert::IsFalse (decision.hasChanged,            L"there is nothing to choose");
-            Assert::IsFalse (decision.selection.has_value(), L"so the selection stays empty");
-        }
-
-
-        TEST_METHOD (AlreadySelected_ConnectingAnotherChangesNothing)
-        {
-            ControllerDeviceInfo               stick    = MakeStick ("{A}");
-            std::vector<ControllerDeviceInfo>  devices  = { stick, MakeXbox() };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (stick.unit, devices, true);
-
-            Assert::IsFalse (decision.hasChanged,                     L"a controller arriving must not steal the selection");
-            Assert::IsTrue  (decision.selection.value() == stick.unit, L"the chosen one keeps it");
-        }
-
-
-        TEST_METHOD (SelectedAbsent_LongestAttachedTakesOver)
-        {
-            ControllerDeviceInfo               gone     = MakeStick ("{GONE}");
-            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox(), MakeStick ("{LATER}", 0x0999) };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true);
-
-            Assert::IsTrue   (decision.hasChanged,                                L"the selection follows the controllers that are here");
-            Assert::IsTrue   (decision.selection.value() == devices.front().unit, L"and the one attached longest, listed first, takes it");
-            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason);
-            Assert::IsFalse  (decision.clearsOtherInputModes,                     L"a controller already had the axes, so nothing else was on");
-        }
-
-
-        TEST_METHOD (SelectedAbsent_NothingAttachedClearsTheSelection)
-        {
-            ControllerDeviceInfo               gone     = MakeStick ("{GONE}");
-            std::vector<ControllerDeviceInfo>  devices;
-            auto                               decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true);
-
-            Assert::IsTrue   (decision.hasChanged);
-            Assert::IsFalse  (decision.selection.has_value(), L"nothing drives the axes, and the arrow keys are not turned on for the user");
-            Assert::AreEqual ((int) SelectionChangeReason::Cleared, (int) decision.reason);
-            Assert::IsFalse  (decision.clearsOtherInputModes);
-        }
-
-
-        TEST_METHOD (SelectedAbsent_SoleSameModelIsAdopted)
-        {
-            ControllerDeviceInfo               moved    = MakeStick ("{OLD-PORT}");
-            ControllerDeviceInfo               same     = MakeStick ("{NEW-PORT}");
-            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox(), same };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (moved.unit, devices, true);
-
-            Assert::IsTrue   (decision.hasChanged,                    L"the same stick on another port is still that stick");
-            Assert::IsTrue   (decision.selection.value() == same.unit, L"so its new identity is adopted, ahead of a controller attached longer");
-            Assert::AreEqual ((int) SelectionChangeReason::Adoption, (int) decision.reason);
-        }
-
-
-        TEST_METHOD (SelectedAbsent_TwoOfTheSameModelIsNotAnAdoption)
-        {
-            ControllerDeviceInfo               moved    = MakeStick ("{OLD-PORT}");
-            std::vector<ControllerDeviceInfo>  devices  = { MakeStick ("{ONE}"), MakeStick ("{TWO}") };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (moved.unit, devices, true);
-
-            // Which of the two moved is a coin flip, so they count as any
-            // other controller would, and the one attached longest takes over.
-            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason);
-            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
-        }
-
-
-        TEST_METHOD (SelectedAbsent_ADifferentModelIsNotAdopted)
-        {
-            ControllerDeviceInfo               moved    = MakeStick ("{OLD}", 0x0121);
-            std::vector<ControllerDeviceInfo>  devices  = { MakeStick ("{OTHER}", 0x0999) };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (moved.unit, devices, true);
-
-            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason,
+            Assert::IsFalse (ControllerSelectionPolicy::FindAdoptedUnit (moved.unit, devices).has_value(),
                 L"another model is another controller, whatever port it is on");
         }
 
 
-        TEST_METHOD (XboxSelection_KeepsTheSlotItWasMadeOn)
+        // Slots are assigned in connection order and can change across a
+        // replug, so the sole attached Xbox controller is taken to be the
+        // picked one.
+        TEST_METHOD (AdoptedUnit_SoleXboxIsAdopted)
         {
-            ControllerDeviceInfo               xbox     = MakeXbox (1);
-            std::vector<ControllerDeviceInfo>  devices  = { xbox };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (xbox.unit, devices, true);
+            std::vector<ControllerDeviceInfo>  devices = { MakeXbox (2) };
 
-            Assert::IsFalse (decision.hasChanged, L"the selected controller is attached, so nothing moves");
-            Assert::IsTrue  (ControllerSelectionPolicy::IsSelectedAttached (xbox.unit, devices));
+            Assert::IsTrue (ControllerSelectionPolicy::FindAdoptedUnit (MakeXbox (0).unit, devices).value() == devices.front().unit);
+            Assert::IsTrue (ControllerSelectionPolicy::FindAdoptedUnit (MakeSlotlessXbox(), devices).value() == devices.front().unit,
+                L"a pick saved before slots existed adopts the one Xbox controller attached");
+
+            devices.push_back (MakeXbox (1));
+
+            Assert::IsFalse (ControllerSelectionPolicy::FindAdoptedUnit (MakeXbox (0).unit, devices).has_value(),
+                L"with two attached, which one the user had is a coin flip");
         }
 
 
-        // Two of them are two controllers, so both can be picked and both can
-        // fill a player slot.
-        TEST_METHOD (Xbox_TwoAttachedAreDistinctAndBothSelectable)
+        // Two of them are two controllers, so both can fill a player slot.
+        TEST_METHOD (Xbox_TwoAttachedAreDistinctPlayers)
         {
-            ControllerDeviceInfo               first    = MakeXbox (0);
-            ControllerDeviceInfo               second   = MakeXbox (1);
-            std::vector<ControllerDeviceInfo>  devices  = { first, second };
-            MultiplayerSetup                   setup    = MakeTwoPlayers (first.unit, second.unit);
-            auto                               decision = ControllerSelectionPolicy::Evaluate (second.unit, devices, true);
+            ControllerDeviceInfo  first  = MakeXbox (0);
+            ControllerDeviceInfo  second = MakeXbox (1);
+            MultiplayerSetup      setup  = MakeTwoPlayers (first.unit, second.unit);
 
-            Assert::IsFalse (first.unit == second.unit,       L"two Xbox controllers are two units");
-            Assert::IsTrue  (first.unit.model == second.unit.model, L"and one model, so they share profiles and deadzone");
-            Assert::IsFalse (decision.hasChanged,             L"the selection stays on the one that was picked");
-            Assert::IsTrue  (decision.selection.value() == second.unit);
+            Assert::IsFalse (first.unit == second.unit,             L"two Xbox controllers are two units");
+            Assert::IsTrue  (first.unit.model == second.unit.model, L"and one model, so they share profiles and dead zone");
 
             setup = ControllerSelectionPolicy::Normalize (setup);
 
             Assert::IsTrue  (setup.players[1].unit.has_value(), L"two of them can play as two players");
             Assert::IsTrue  (ControllerSelectionPolicy::FindPlayer (setup, first.unit).value() == 0);
             Assert::IsTrue  (ControllerSelectionPolicy::FindPlayer (setup, second.unit).value() == 1);
-        }
-
-
-        // Slots are assigned in connection order and can change across a
-        // replug, so the sole attached Xbox controller is taken to be the
-        // saved one.
-        TEST_METHOD (XboxSelectedAbsent_SoleXboxIsAdopted)
-        {
-            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox (2) };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (MakeXbox (0).unit, devices, true);
-
-            Assert::AreEqual ((int) SelectionChangeReason::Adoption, (int) decision.reason);
-            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
-
-            decision = ControllerSelectionPolicy::Evaluate (MakeSlotlessXbox(), devices, true);
-
-            Assert::AreEqual ((int) SelectionChangeReason::Adoption, (int) decision.reason,
-                L"a selection saved before slots existed adopts the one Xbox controller attached");
-            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
-        }
-
-
-        TEST_METHOD (XboxSelectedAbsent_TwoAttachedIsNotAnAdoption)
-        {
-            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox (1), MakeXbox (2) };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (MakeXbox (0).unit, devices, true);
-
-            // Which one the user had is a coin flip, so the one attached
-            // longest takes over, as for any other controller.
-            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason);
-            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
-        }
-
-
-        TEST_METHOD (NoGamePort_PolicyIsInertButKeepsTheSelection)
-        {
-            ControllerDeviceInfo               stick    = MakeStick ("{A}");
-            std::vector<ControllerDeviceInfo>  devices  = { stick };
-            auto                               decision = ControllerSelectionPolicy::Evaluate (std::nullopt, devices, false);
-
-            Assert::IsFalse (decision.hasChanged,            L"a machine with no game port must not select anything");
-            Assert::IsFalse (decision.selection.has_value(), L"and nothing is invented for it");
-
-            decision = ControllerSelectionPolicy::Evaluate (stick.unit, devices, false);
-            Assert::IsTrue (decision.selection.value() == stick.unit,
-                L"a selection made on another machine survives being carried to one with no port");
-        }
-
-
-        TEST_METHOD (IsSelectedAttached_FalseWithoutASelection)
-        {
-            std::vector<ControllerDeviceInfo>  devices = { MakeXbox() };
-
-            Assert::IsFalse (ControllerSelectionPolicy::IsSelectedAttached (std::nullopt, devices));
         }
     };
 }

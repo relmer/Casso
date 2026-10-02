@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Window/DxuiCaptionDragTracker.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

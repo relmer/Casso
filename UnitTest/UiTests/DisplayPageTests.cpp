@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiDpiScaler.h"
 #include "Ui/Settings/DisplayPage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

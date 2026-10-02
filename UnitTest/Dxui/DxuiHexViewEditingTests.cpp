@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiHexView.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

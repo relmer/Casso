@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
+#include "Core/DramPowerOnPattern.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 
@@ -59,15 +60,15 @@ public:
 
     TEST_METHOD (PowerCycleMenuItemDispatchesPowerCycle)
     {
-        size_t       nonZero = 0;
+        size_t       patternBytes = 0;
 
 
 
         // Contract: IDM_MACHINE_POWERCYCLE drives MemoryBus::PowerCycleAll
-        // (Prng-seeded fan-out) and the same SoftReset effect. Verify by
-        // observing that the RAM is non-zero after the call (the
-        // PowerCycle path that the menu item ultimately runs is the only
-        // one that re-seeds DRAM).
+        // and the same SoftReset effect. Verify by observing that zeroed
+        // RAM comes back holding the DRAM power-on pattern (the PowerCycle
+        // path that the menu item ultimately runs is the only one that
+        // refills DRAM).
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (0xCA550001ULL);
 
@@ -76,14 +77,14 @@ public:
 
         for (size_t i = 0; i < 0xC000; i++)
         {
-            if (ram.Read (static_cast<Word> (i)) != 0)
+            if (!DramPowerOnPattern::IsHole (i) && ram.Read (static_cast<Word> (i)) == DramPowerOnPattern::GetPatternByte (i))
             {
-                ++nonZero;
+                ++patternBytes;
             }
         }
 
-        Assert::IsTrue (nonZero > 40000,
-            L"IDM_MACHINE_POWERCYCLE must re-seed DRAM via the shared Prng");
+        Assert::AreEqual<size_t> (0xC000 - 4 * (0xC000 / DramPowerOnPattern::kHoleStride), patternBytes,
+            L"IDM_MACHINE_POWERCYCLE must refill DRAM with the power-on pattern");
     }
 
     TEST_METHOD (Audit_80ColModePersistenceAcrossResetIsFixed)

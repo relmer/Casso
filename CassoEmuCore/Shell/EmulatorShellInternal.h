@@ -182,6 +182,9 @@ static constexpr int     s_kMenuRightPadDp    = 12;
 // single //e keypress instead of flooding $C000 at the host repeat rate.
 static constexpr LPARAM  s_kPreviousKeyDownLParamBit = 0x40000000;
 
+// WM_SYSKEYDOWN lParam bit 29 (context code): set when Alt is held.
+static constexpr LPARAM  s_kAltContextLParamBit      = 0x20000000;
+
 // Emulated joystick axis extremes. The PREAD model reads 0..255; an axis
 // deflected to a key maps to a rail, neutral sits at s_knPaddleCenter.
 static constexpr Byte    s_kPaddleAxisMin            = 0;

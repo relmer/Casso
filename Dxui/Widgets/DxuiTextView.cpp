@@ -4,7 +4,7 @@
 #include "DxuiTextView.h"
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiClipboard.h"
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 
 
 

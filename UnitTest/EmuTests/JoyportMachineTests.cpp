@@ -66,6 +66,27 @@ public:
     }
 
 
+    //  The hardware reads the rear sockets at the paddle inputs whichever
+    //  jacks the front switch selects, so a player on Joystick or Paddle
+    //  beside a player in a jack still drives them.
+    TEST_METHOD (ThePaddlesReadTheRearSocketsWhileSomethingIsInThem)
+    {
+        for (const char * id : { "Apple2Plus", "Apple2e" })
+        {
+            TestMachine  machine (id, TestMachine::Slots::Empty);
+
+            BootToPrompt (machine);
+
+            machine.GetJoyport()->SetAttached         (true);
+            machine.GetJoyport()->SetPaddlesConnected (true);
+            Assert::IsFalse (IsPaddleStillTiming (machine), L"a centered paddle in the rear socket times out as usual");
+
+            machine.GetJoyport()->SetPaddlesConnected (false);
+            Assert::IsTrue (IsPaddleStillTiming (machine), L"and with nothing there, PDL(0) reads 255 again");
+        }
+    }
+
+
     TEST_METHOD (DetachedTheIIPlusButtonsAreTheGamePortsAgain)
     {
         TestMachine  machine ("Apple2Plus", TestMachine::Slots::Empty);

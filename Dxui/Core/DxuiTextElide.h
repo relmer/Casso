@@ -24,6 +24,11 @@ class IDxuiTextRenderer;
 //            lands on a separator, because a component sliced in half looks
 //            like a real folder and is not.
 //
+//  Middle    keep BOTH ends: "Xbox W...oller +1"
+//            Right for a device description, where the first words give the
+//            maker and the last the model. A count of trailing characters can
+//            be kept whole, so a marker after the description is never cut.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class DxuiElide
@@ -31,6 +36,7 @@ enum class DxuiElide
     None,
     Tail,
     PathHead,
+    Middle,
 };
 
 
@@ -58,12 +64,15 @@ enum class DxuiElide
 class DxuiTextElide
 {
 public:
+    // `keptSuffix` counts the trailing characters Middle never cuts; the
+    // other modes ignore it.
     static std::wstring  ToWidth (IDxuiTextRenderer  & text,
                                   const std::wstring & value,
                                   float                fontDip,
                                   const wchar_t      * fontFamily,
                                   float                maxWidthDip,
-                                  DxuiElide            mode);
+                                  DxuiElide            mode,
+                                  size_t               keptSuffix = 0);
 
 private:
     static std::wstring  ElideTail     (IDxuiTextRenderer  & text,
@@ -77,6 +86,17 @@ private:
                                         float                fontDip,
                                         const wchar_t      * fontFamily,
                                         float                maxWidthDip);
+
+    static std::wstring  ElideMiddle   (IDxuiTextRenderer  & text,
+                                        const std::wstring & value,
+                                        float                fontDip,
+                                        const wchar_t      * fontFamily,
+                                        float                maxWidthDip,
+                                        size_t               keptSuffix);
+
+    static std::wstring  JoinMiddle    (const std::wstring & body,
+                                        size_t               kept,
+                                        const std::wstring & suffix);
 
     static bool  Fits (IDxuiTextRenderer  & text,
                        const std::wstring & candidate,

@@ -147,6 +147,26 @@ public:
     //  The point is in client pixels, as the control's mouse events are.
     virtual bool  IsOverScrollbar (POINT clientDip) const                       { (void) clientDip; return false; }
 
+    // True when this container hides its children at a client point, as a
+    // scrolled page does past its viewport. A press there must not reach or
+    // focus a child that is laid out under it but not drawn.
+    virtual bool  IsPointClipped  (POINT clientPx) const                        { (void) clientPx; return false; }
+
+    // True for a container whose focusable descendants Tab visits together,
+    // in their own order, at the container's place in the tab order. A
+    // scrolled list lays rows out past its viewport, where their bounds would
+    // otherwise sort them among the controls below it.
+    virtual bool  IsTabGroup      () const                                      { return false; }
+
+    // Where a tab group sorts in the tab order: what it shows of its
+    // descendants, which for a container laid out past its viewport is the
+    // viewport rather than its bounds.
+    virtual RECT  GetTabGroupPlace () const                                     { return GetBounds(); }
+
+    // Scrolls a scrolling container just far enough to show a descendant the
+    // keyboard just focused. Nothing for a container that does not scroll.
+    virtual void  RevealDescendant (const IDxuiControl & descendant)            { (void) descendant; }
+
     virtual std::wstring        GetAccessibleName () const                        { return L""; }
     virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }
 

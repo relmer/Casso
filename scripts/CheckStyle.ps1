@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Fails if changed code violates the mechanically-checkable subset of the
     Casso coding standards in .github/copilot-instructions.md.
@@ -190,7 +190,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = '(?<!_)\bgoto\s+Error'
         Message = 'bare goto Error -- use an EHM macro (CHR / CBR / CWRA / ...)'
-        Exclude = @('CassoCore/Ehm.h', 'CassoCore/Ehm.cpp', 'UnitTest/EhmTestHelper.h', 'UnitTest/EhmTestHelper.cpp')
+        Exclude = @('Ehm/Ehm.h', 'Ehm/Ehm.cpp', 'UnitTest/EhmTestHelper.h', 'UnitTest/EhmTestHelper.cpp')
     },
     @{
         # Producing S_FALSE overloads the return with a second, private
@@ -202,7 +202,7 @@ $checks = @(
         Globs    = @('*.cpp', '*.h')
         Pattern  = '\breturn\s+S_FALSE\b|(?<![=!<>])=\s*S_FALSE\b|,\s*S_FALSE\s*\)'
         Message  = 'producing S_FALSE -- use an explicit status enum/out-param, or mark the line // EHM-ALLOW-SFALSE: <reason>'
-        Exclude  = @('CassoCore/Ehm.h')
+        Exclude  = @('Ehm/Ehm.h')
         Suppress = 'EHM-ALLOW-SFALSE'
     },
     @{
@@ -216,7 +216,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = 'CB[RW]?A?F?Ex\s*\(.*,\s*E_FAIL\s*[,)]'
         Message = 'redundant -Ex: that is the family default, so use the base macro'
-        Exclude = @('CassoCore/Ehm.h')
+        Exclude = @('Ehm/Ehm.h')
     },
     @{
         Id      = 'CS0007'
@@ -255,9 +255,28 @@ $checks = @(
         # implements it and the Pch files are where it belongs.
         Id      = 'CS0012'
         Globs   = @('*.cpp', '*.h')
-        Pattern = '#include\s*"(?:\.\./)*(?:CassoCore/)?Ehm\.h"'
+        Pattern = '#include\s*"(?:\.\./)*(?:CassoCore/|Ehm/)?Ehm\.h"'
         Message = 'Ehm.h comes from Pch.h -- do not include it directly'
-        Exclude = @('CassoCore/Ehm.cpp', 'Pch.h')
+        Exclude = @('Ehm/Ehm.cpp', 'Pch.h')
+    },
+    @{
+        # A consumer of Dxui includes Dxui/Dxui.h and nothing else from it,
+        # normally through its Pch. No consumer project has ..\Dxui on its
+        # include path, so the compiler rejects "Core/DxuiPanel.h" outright;
+        # this catches the relative form ("../Dxui/Core/DxuiPanel.h") the
+        # compiler would accept, and the bare name before a build. Every Dxui
+        # header but Pch.h is named Dxui* or IDxui*; the test mocks are Mock*.
+        #
+        # Include rather than Exclude, because Exclude matches a SUFFIX and a
+        # 'Dxui/' entry would also exempt UnitTest/Dxui/, the library tests,
+        # which are consumers like any other. A new consumer project belongs
+        # in this list.
+        Id      = 'CS0022'
+        Globs   = @('*.cpp', '*.h')
+        Pattern = '^\s*#include\s*"(?:[^"]*/)?(?!Dxui\.h")I?Dxui\w*\.h"'
+        Message = 'direct Dxui header include -- consumers include only Dxui/Dxui.h, through their Pch'
+        Include = @('Casso/', 'CassoCli/', 'CassoCore/', 'CassoEmuCore/', 'Cassque/', 'Ehm/', 'MeshCreator/', 'ScenarioTests/', 'UnitTest/')
+        Exclude = @()
     },
     @{
         # IGNORE_RETURN_VALUE (result, replacement) overwrites an already-
@@ -275,7 +294,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = 'IGNORE_RETURN_VALUE\s*\(\s*\w+\s*,\s*([^)]*\(|$)'
         Message = 'call inside IGNORE_RETURN_VALUE -- capture the result first, then IGNORE_RETURN_VALUE (result, S_OK)'
-        Exclude = @('CassoCore/Ehm.h')
+        Exclude = @('Ehm/Ehm.h')
     }
 )
 
@@ -707,7 +726,7 @@ function Test-EhmConditionCalls
     {
         if ($rel -notlike '*.cpp' -and $rel -notlike '*.h') { continue }
         if ($rel -like '*External/*')                       { continue }
-        if ($rel -like '*CassoCore/Ehm.h')                  { continue }
+        if ($rel -like '*Ehm/Ehm.h')                  { continue }
 
         $full = Join-Path $repoRoot $rel
         if (-not (Test-Path -LiteralPath $full)) { continue }

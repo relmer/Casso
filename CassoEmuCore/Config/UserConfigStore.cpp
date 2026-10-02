@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Config/UserConfigStore.h"
-#include "Core/WindowTrace.h"
 
 
 #include "Controllers/ControllerTokens.h"

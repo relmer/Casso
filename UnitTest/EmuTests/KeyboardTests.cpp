@@ -777,7 +777,7 @@ public:
         // Physical release: any-key-down clears and the shell disarms the
         // repeat. No further repeats may fire, no matter how long we tick.
         kbd.SetKeyDown    (false);
-        kbd.BeginKeyRepeat(0);
+        kbd.EndKeyRepeat();
 
         kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
 
@@ -812,13 +812,48 @@ public:
         kbd.Read (0xC010);
         kbd.TickAutoRepeat (1);
 
-        // Disarm (arm value 0) before the delay elapses: even with the key
+        // Disarm before the delay elapses: even with the key
         // still flagged down, no repeat should fire.
-        kbd.BeginKeyRepeat(0);
+        kbd.EndKeyRepeat();
         kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
 
         Assert::IsTrue (kbd.IsStrobeClear(),
             L"Disarming auto-repeat must suppress further repeats");
+    }
+
+    TEST_METHOD (CtrlAt_LatchesNulWithStrobe)
+    {
+        AppleKeyboard  kbd;
+        Byte           val = 0;
+
+        // Ctrl+@ sends $00; the latch must hold it with the strobe set, which
+        // a program polling $C000 sees as $80.
+        kbd.PressKey (0x00);
+
+        val = kbd.Read (0xC000);
+        Assert::AreEqual (static_cast<Byte> (0x80), val,
+            L"Ctrl+@ must latch $00 with the strobe set");
+    }
+
+    TEST_METHOD (CtrlAt_AutoRepeats)
+    {
+        AppleKeyboard  kbd;
+        Byte           val = 0;
+
+        kbd.PressKey      (0x00);
+        kbd.SetKeyDown    (true);
+        kbd.BeginKeyRepeat(0x00);
+
+        kbd.Read (0xC010);
+        kbd.TickAutoRepeat (1);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
+
+        Assert::IsFalse (kbd.IsStrobeClear(),
+            L"A held Ctrl+@ must auto-repeat like any other key");
+
+        val = kbd.Read (0xC000);
+        Assert::AreEqual (static_cast<Byte> (0x80), val,
+            L"The Ctrl+@ repeat must re-latch $00");
     }
 
     TEST_METHOD (AutoRepeat_LongStallYieldsOneRepeat)

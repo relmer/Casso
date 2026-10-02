@@ -1,11 +1,9 @@
 #include "Pch.h"
-#include "Theme/DxuiTheme.h"
 
 #include "ThemePage.h"
 
 #include "../Chrome/ChromeMetrics.h"
 #include "../IDriveCommandSink.h"
-#include "Core/DxuiFormLayout.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -90,8 +88,8 @@ void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::PaintPreviewWindow (DxuiPainter                          & painter,
-                                   DxuiTextRenderer                     & text,
+void ThemePage::PaintPreviewWindow (IDxuiPainter                         & painter,
+                                   IDxuiTextRenderer                    & text,
                                    const RECT                           & availRect,
                                    const CassoTheme                     & theme,
                                    bool                                   hasDisk,
@@ -763,11 +761,6 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //  -- a user sees each theme before choosing it -- and it falls back to the
 //  committed value once the dropdown closes.
 //
-//  The interface references are downcast to the concrete Dxui renderers
-//  because the preview needs their actual surface to blit a mock chrome and
-//  framebuffer. That is safe here: the host always paints through those
-//  concrete types.
-//
 //  The preview drives are initialized lazily and reused, so the mock chrome
 //  has real drive widgets to render without building them on every frame.
 //
@@ -776,18 +769,11 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, const IDxuiTheme & theme)
+void ThemePage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     static NullDriveCommandSink  s_kNullSink;
     int                          previewIndex = 0;
 
-
-
-    // The host always paints through the concrete Dxui renderers; the
-    // theme-preview window (mock chrome + framebuffer blit) needs their
-    // concrete surface, so recover them from the interface references.
-    DxuiPainter       & painter = static_cast<DxuiPainter &> (painterIf);
-    DxuiTextRenderer  & text    = static_cast<DxuiTextRenderer &> (textIf);
 
 
     m_themeDropdown.SetTheme    (&theme);

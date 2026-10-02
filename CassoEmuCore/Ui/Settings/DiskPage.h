@@ -4,14 +4,6 @@
 
 #include "SettingsPanelState.h"
 
-#include "Window/DxuiPropertyPage.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiToggle.h"
-#include "Widgets/DxuiSlider.h"
-#include "Widgets/DxuiIconButton.h"
-#include "Widgets/DxuiButton.h"
 
 
 class IDxuiTheme;

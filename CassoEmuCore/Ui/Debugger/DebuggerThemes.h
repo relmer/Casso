@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Theme/DxuiDarkTheme.h"
-#include "Theme/DxuiLightTheme.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 

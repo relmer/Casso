@@ -48,8 +48,6 @@
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
-#include "Widgets/DxuiShadowedText.h"
-#include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -63,23 +61,12 @@
 #include "Ui/Scene/FullscreenStripState.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
-#include "Widgets/DxuiTooltip.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiSurface.h"
 #include "Ui/UiCommandTypes.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Video/VideoOutput.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "WasapiAudio.h"
-#include "Window/DxuiHwndSource.h"
-#include "Widgets/DxuiActionBanner.h"
-#include "Widgets/DxuiInfoBanner.h"
-#include "Widgets/DxuiTimedInfoBanner.h"
 #include "Devices/Disk/ChangePrompt.h"
-#include "Window/IDxuiHostClient.h"
-#include "Core/DxuiAbsoluteLayout.h"
-#include "Core/DxuiDockLayout.h"
-#include "Core/DxuiViewport.h"
 
 
 
@@ -238,11 +225,15 @@ public:
 
     // Execution trace (--trace switch). SetTraceCapacity must be called
     // before Initialize so the CPU's ring is allocated when the machine
-    // is built. DumpTrace writes the recorded ring to a timestamped text
-    // file in the working directory, showing a progress window; it is
-    // called both on graceful exit and from the crash handler, and is a
-    // no-op (and self-guards against a double dump) when tracing is off.
+    // is built. The ring is written to a timestamped text file on the
+    // desktop by Debug > Save CPU trace (SaveTrace) or by the crash handler
+    // (DumpTrace, one-shot); both are no-ops when tracing is off.
     void SetTraceCapacity (size_t capacityEntries) { m_traceCapacity = capacityEntries; }
+
+    // Power-on DRAM seed (--seed). Replaces the one the constructor drew
+    // from the clock; must be called before Initialize.
+    void     SetPrngSeed (uint64_t seed);
+    uint64_t GetPrngSeed () const { return m_prngSeed; }
 
     // Runs with change notification deliberately broken, so the check made
     // before every write can be measured on its own. Undocumented; set from
@@ -260,7 +251,9 @@ public:
     // not refresh the caption itself.
     void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
     bool IsTracing        () const { return m_traceCapacity > 0; }
-    void DumpTrace        (const wstring & reason);
+    void    DumpTrace        (const wstring & reason);
+    HRESULT WriteTrace       (const wstring & reason, std::wstring & path);
+    static std::wstring GetTraceFolder();
 
     // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
@@ -418,6 +411,7 @@ private:
     // have the target's signature; these are the ones that were inline in
     // the dispatch switch before it became CpuCommandDispatcher.
     void     StepInstruction         () override;
+    void     SaveTrace               () override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
     void     RemountDisks            () override;
 
@@ -699,25 +693,23 @@ private:
     // disagree about whether the band is big enough.
     int           GetStandInBarHeightPx (float widthPx) const;
 
-    // The controller thread moved the selection, or a controller came or
-    // went: the axis owner, the picker and the prefs follow on the UI thread.
-    void    ApplyControllerSelectionChange (const std::wstring & description, SelectionChangeReason reason, bool hasNotice);
-    // BY VALUE, not by reference. The source arrives from a picker row's
-    // dispatch, and picking rebuilds the rows -- turning the arrows and the
-    // paddle off each re-syncs the picker -- so a reference into the row
-    // would outlive the row it refers to.
-    void    PickPaddleSource       (InputModeRules::PaddleSource source);
-    void    SetControllerSelection (const std::optional<ControllerUnitKey> & selection);
-    void    SaveControllerCalibrations ();
+    // The players' slots changed, or a controller came or went: the axis
+    // owner, the picker and the prefs follow on the UI thread.
+    void    ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged, bool haveLastHoldersChanged);
+    void    PickPlayerEntry        (size_t player, const PlayerEntry & entry);
+    void    LoadControllerPrefs        ();
+    void    SaveControllerPrefs        ();
     void    SyncPaddleSourceList   ();
-    void    SyncProfileList        (const ControllerInputService::Snapshot & snapshot);
 
-    // BY VALUE for the same reason as PickPaddleSource. Empty for Default.
+    std::map<std::string, InputModeRules::ProfileChoices>  GetPickerProfileChoices (const ControllerInputService::Snapshot & snapshot) const;
+
+    // BY VALUE for the same reason as PickPlayer. Empty for the mode's
+    // built-in profile.
     void    PickControllerProfile  (ControllerUnitKey unit, std::string profileName);
 
     // Opens Settings on the Controllers page with the New Profile dialog up,
-    // for the controller Editing opens on.
-    void    StartNewControllerProfile ();
+    // for the given controller. BY VALUE for the same reason as PickPlayer.
+    void    StartNewControllerProfile (ControllerUnitKey unit);
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from
@@ -732,6 +724,12 @@ private:
     void    SetArrowsJoystick   (bool on);
     void    SetPointerMapping   (InputMappingMode pointer);   // Off/Paddle/Mouse
 
+    // What each setter does to the OTHER stand-in, with no sync: the setter
+    // that calls it syncs once, with both already changed.
+    void    DropPaddleMode         ();
+    void    DropArrowsJoystick     ();
+    void    ReleaseArrowKeySources ();
+
     // The single mode the legacy toggle button displays: the pointer
     // mapping when active, else Joystick when the keys mapping is on.
     InputMappingMode  GetDisplayInputMode() const
@@ -745,15 +743,10 @@ private:
     // until mouse software runs thanks to the firmware-live gate).
     void    ApplyDefaultPointerForMachine();
 
-    // The device on the running machine's game socket. Attaching or
-    // detaching the Sirius Joyport takes effect on the next button read,
-    // with no reset. The machine's Joyport is the only record of it, so
-    // the answer cannot drift from what the guest reads. UI thread.
-    // SetGamePortAdapter also saves it with the machine; the live-only form
-    // is the Settings sheet's, which saves on its own.
-    void             SetGamePortAdapter       (GamePortAdapter adapter);
-    void             ApplyGamePortAdapterLive (GamePortAdapter adapter);
-    GamePortAdapter  GetGamePortAdapter       () const;
+    // Whether the running machine's Joyport is on, which it is while a
+    // player's mode puts that player in one of its jacks. Never on the //c,
+    // which has none. UI thread.
+    bool             IsJoyportInEffect  () const;
 
 private:
     // Window-placement and chrome-layout helpers. Every reader is an
@@ -829,6 +822,21 @@ public:
     // Radio-group toggle for the Machine-menu items: selects `target`, or
     // turns mapping Off if `target` is already the active mode.
     void    ToggleInputMappingMode (InputMappingMode target);
+
+    // The user picked an entry in a player's submenu. BY VALUE, not by
+    // reference. The entry arrives from a picker row's dispatch, and picking
+    // rebuilds the rows, so a reference into the row would outlive the row it
+    // refers to.
+    void    PickPlayer             (size_t player, PlayerEntry entry);
+
+    // The user set a player's mode, Joystick or Paddle. Player 1's keys and
+    // mouse are a joystick and a paddle, so a mode that cannot have them
+    // turns them off.
+    void    SetPlayerMode          (size_t player, PlayerMode mode);
+
+    // Whether the running machine can take a Joyport, which is what the
+    // picker's row and the Controllers page's switch are offered on.
+    bool    IsJoyportOffered       () const;
 
     // //c mouse mode. True while Mouse mode is selected AND the
     // current machine has the IOU mouse — every runtime consumer guards on
@@ -1563,6 +1571,7 @@ private:
     MachineHost             m_machine;
 
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
+    uint64_t               m_prngSeed      = 0;       // power-on DRAM seed; --seed overrides
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
     wstring                m_titlePrefix;                 // --title (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
@@ -1602,8 +1611,10 @@ private:
     void  RefreshToolbarThemeList          ();
     void  SyncToolbarState                 ();
     void  PersistColorModeForMachine       (int settingsColorModeIndex);
-    void  PersistGamePortAdapterForMachine (GamePortAdapter adapter);
-    void  AdoptGamePortAdapterForMachine   (const JsonValue * uiPrefs);
+    void  MigrateJoyportAtLaunch           (const JsonValue * uiPrefs);
+    void  ApplyJoyportToMachine            ();
+    void  SyncJoyport                      ();
+    bool  IsPlayerOneOnJoyport             () const;
 
     // The pure model deriving the printer LED state from the worker's live
     // signals, plus the last state pushed to the toolbar so a transition
@@ -1853,20 +1864,22 @@ private:
 
     PendingCapture             m_pendingCapture;
 
-    // The transient notice: a screenshot's filename or the reason it failed,
-    // or which write-protect mechanism a Disk menu command changed. Its own
-    // bar rather than the mouse-capture one's, because the two can be wanted
-    // at once and this one expires on a timer while that one tracks a state.
+    // The transient notices: a screenshot's filename or the reason it failed,
+    // which write-protect mechanism a Disk menu command changed, a controller
+    // that left. Their own bars rather than the mouse-capture one's, because
+    // the two can be wanted at once and these expire on a timer while that one
+    // tracks a state. Several can be up at once, stacked in arrival order,
+    // each for its own full time.
     //
-    // A MESSAGE BAR ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. It was
-    // shadowed text over the bottom of the viewport, which put a filename --
-    // the one thing here that is never about the machine -- in the middle of
-    // the photograph. It now reads as the same kind of thing the
+    // MESSAGE BARS ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. The notice
+    // was shadowed text over the bottom of the viewport, which put a filename
+    // -- the one thing here that is never about the machine -- in the middle
+    // of the photograph. It now reads as the same kind of thing the
     // pointer-capture bar is, and says so by looking like it.
     //
-    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. It hangs under whatever docked
-    // chrome is at the top and covers a little of the picture instead.
-    DxuiTimedInfoBanner            m_notice;
+    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. The stack hangs under whatever
+    // docked chrome is at the top and covers a little of the picture instead.
+    DxuiNoticeStack                m_notices;
 
     void  ShowNotice   (const std::wstring & text);
     void  PostNotice   (const std::wstring & text);
@@ -2263,12 +2276,25 @@ private:
     WPARAM          m_lastHorizontalArrowVk = 0;
     WPARAM          m_lastVerticalArrowVk   = 0;
 
+protected:
+
+    //  Reachable by a test subclass: Player 1's stand-ins, the mixer and the
+    //  controller service are what a pick in the picker changes, and a test
+    //  installs a service over a scripted backend to watch the entries it is
+    //  handed. Declared here, in their original order, so the teardown order
+    //  below is unchanged.
+
     // How host arrow / pointer input is mapped onto the emulated game
     // port (Off / Joystick / Paddle). Mirrors
     // GlobalUserPrefs (split model) and is cycled via the Machine
     // menu's "Cycle Input Mode" item, Ctrl+Shift+J, and the drive-bar widget.
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
     bool              m_arrowsJoystick = false;                    // Keys axis
+
+    // Whether the players' modes were saved before this launch, which marks
+    // the Joyport setting they replaced as read. Taken when the controller
+    // prefs load, before the adoption can save any.
+    bool              m_hadSavedPlayerModes = false;
 
     // The single writer of the paddles and pushbuttons. Every host input
     // source submits to the mixer; only the sink touches the machine.
@@ -2282,13 +2308,20 @@ private:
     std::unique_ptr<ControllerInputService>  m_controllerService;
     std::unique_ptr<ControllerInputThread>   m_controllerThread;
 
-    // Written by the controller thread when the policy moves the selection,
+private:
+
+    // Written by the controller thread when the players' slots change,
     // read on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting
     // prefs and raising a notice are both UI-thread work.
     std::mutex                               m_controllerPickMutex;
-    std::wstring                             m_controllerPickDescription;
-    SelectionChangeReason                    m_controllerPickReason     = SelectionChangeReason::None;
-    bool                                     m_controllerPickHasNotice  = false;
+    std::vector<std::wstring>                m_controllerPickNotices;
+    bool                                     m_controllerPickHasEntries = false;
+    bool                                     m_controllerPickHasHolders = false;
+
+    // Each controller seen this session, by unit token: how the picker shows
+    // a picked controller after it is unplugged. UI thread only.
+    std::map<std::string, std::wstring>      m_controllerDescriptions;
+
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

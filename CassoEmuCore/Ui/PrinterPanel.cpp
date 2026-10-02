@@ -5,8 +5,6 @@
 #include "CassoTheme.h"
 #include "Printer3DScene.h"
 #include "../resource.h"
-#include "Render/IDxuiPainter.h"
-#include "Render/IDxuiTextRenderer.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/Printer/PrinterPreviewModel.h"

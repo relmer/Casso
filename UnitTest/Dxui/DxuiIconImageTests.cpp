@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/DxuiIconImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

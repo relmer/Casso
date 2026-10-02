@@ -2,8 +2,6 @@
 
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/SourceSyntax.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiTextView.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"

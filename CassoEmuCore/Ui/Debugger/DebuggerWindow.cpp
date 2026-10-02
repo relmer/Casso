@@ -6,20 +6,15 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
-#include "Core/WindowTrace.h"
-#include "Core/DxuiWindowFrame.h"
 #include "Config/WindowPlacementProfile.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
-#include "Widgets/DxuiContextMenu.h"
 #include "Ui/Debugger/FlagsDialog.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/SymbolDescriptions.h"
 #include "Cassque/CassquePromptDialog.h"
-#include "Core/DxuiClipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "Theme/DxuiWindowsThemeColors.h"
 
 
 

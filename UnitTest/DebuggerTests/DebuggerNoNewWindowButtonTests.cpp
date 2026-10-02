@@ -5,8 +5,6 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
-#include "Widgets/DxuiDockSite.h"
-#include "Widgets/DxuiTabGroup.h"
 
 #include "CppUnitTest.h"
 

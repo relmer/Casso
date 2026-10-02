@@ -1,8 +1,5 @@
 #include "Pch.h"
 
-#include "Theme/DxuiColor.h"
-#include "Theme/DxuiDarkTheme.h"
-#include "Theme/DxuiLightTheme.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 #include "CppUnitTest.h"

@@ -1,7 +1,5 @@
 #include "Pch.h"
 
-#include "Theme/DxuiColor.h"
-#include "Widgets/DxuiHexView.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

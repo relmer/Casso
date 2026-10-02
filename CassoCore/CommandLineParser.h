@@ -381,6 +381,10 @@ public:
     //  not an error at startup.
     static size_t  ParseTraceSize (const std::string & text);
 
+    //  A --seed value, decimal or hex after 0x or $. False for anything else,
+    //  including a value too large for 64 bits.
+    static bool    TryParseSeed   (const std::string & text, uint64_t & seed);
+
     // Whether one argument is the user asking for usage text, in any form
     // and either prefix. Public because a subcommand's own grammar has to ask
     // the same question the top level does.
@@ -557,6 +561,10 @@ private:
                                          const std::string & canonical,
                                          CommandLineOptions::EmulatorOptions & parsed);
 
+    //  Records a --seed value, or refuses the command line over a bad one.
+    static void  ApplySeed               (const std::string & text,
+                                          CommandLineOptions::EmulatorOptions & parsed);
+
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);
     static HRESULT  ParseDecimal    (const char * text, uint32_t & value);
@@ -607,7 +615,6 @@ private:
     static void  ApplyMerlinDefaults (CommandLineOptions & options, const FileExistsFn & fileExists);
     static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
     static void  ParseDebugOptions   (int argc, char * argv[], int argIndex, CommandLineOptions & options);
-    static bool  TryParseSeed        (const std::string & text, uint64_t & seed);
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
     static bool  RefuseSourceWithoutDialect         (CommandLineOptions & options);

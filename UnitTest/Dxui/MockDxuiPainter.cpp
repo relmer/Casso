@@ -24,7 +24,7 @@ void MockDxuiPainter::FillRect (float xPx, float yPx, float widthPx, float heigh
     call.width  = widthPx;
     call.height = heightPx;
     call.argb   = argbColor;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -50,7 +50,7 @@ void MockDxuiPainter::FillGradientRect (float xPx, float yPx, float widthPx, flo
     call.height     = heightPx;
     call.argb       = argbTop;
     call.argbSecond = argbBottom;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -76,7 +76,7 @@ void MockDxuiPainter::OutlineRect (float xPx, float yPx, float widthPx, float he
     call.height    = heightPx;
     call.thickness = thicknessPx;
     call.argb      = argbColor;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -107,7 +107,7 @@ void MockDxuiPainter::OutlineRoundedRect (float xPx, float yPx, float widthPx, f
     call.radius    = radiusPx;
     call.thickness = thicknessPx;
     call.argb      = argbColor;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -133,7 +133,7 @@ void MockDxuiPainter::FillRoundedRect (float xPx, float yPx, float widthPx, floa
     call.height = heightPx;
     call.radius = radiusPx;
     call.argb   = argbColor;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -158,7 +158,7 @@ void MockDxuiPainter::FillCircle (float cxPx, float cyPx, float radiusPx, uint32
     call.width  = radiusPx * 2.0f;
     call.height = radiusPx * 2.0f;
     call.argb   = argbColor;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -189,7 +189,7 @@ void MockDxuiPainter::FillConvexQuad (float x0, float y0, float x1, float y1,
     call.width  = maxX - minX;
     call.height = maxY - minY;
     call.argb   = argbColor;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -214,7 +214,7 @@ void MockDxuiPainter::FillEllipse (float cxPx, float cyPx, float radiusXPx, floa
     call.width  = radiusXPx * 2.0f;
     call.height = radiusYPx * 2.0f;
     call.argb   = argbColor;
-    m_calls.push_back (call);
+    Record (call);
 }
 
 
@@ -240,5 +240,29 @@ void MockDxuiPainter::DrawLine (float x0, float y0, float x1, float y1, float th
     call.height    = std::max (y0, y1) - call.y;
     call.thickness = thicknessPx;
     call.argb      = argbColor;
+    Record (call);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Record
+//
+//  Each call carries the clip in force when it was drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockDxuiPainter::Record (RecordedPaintCall & call)
+{
+    call.isClipped = m_hasClip;
+    call.clip      = m_clip;
     m_calls.push_back (call);
 }
+
+
+
+
+

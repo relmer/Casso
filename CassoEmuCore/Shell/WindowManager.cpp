@@ -3,8 +3,6 @@
 #include "WindowManager.h"
 
 #include "Config/WindowPlacementProfile.h"
-#include "Core/WindowTrace.h"
-#include "Core/DxuiWindowFrame.h"
 #include "Config/GlobalUserPrefs.h"
 
 

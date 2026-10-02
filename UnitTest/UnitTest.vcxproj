@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -81,7 +81,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -98,7 +98,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -115,7 +115,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -132,7 +132,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -391,6 +391,8 @@
     <ClCompile Include="EmuTests\JoyportMachineTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerTokensTests.cpp" />
     <ClCompile Include="ControllerTests\AxisBudgetTests.cpp" />
+    <ClCompile Include="ControllerTests\AxisResponseRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\AxisRoleRulesTests.cpp" />
     <ClCompile Include="ControllerTests\GamePortInputMixerTests.cpp" />
     <ClCompile Include="ControllerTests\MachineGamePortSinkTests.cpp" />
     <ClCompile Include="ControllerTests\DirectInputSampleDecoderTests.cpp" />
@@ -404,7 +406,12 @@
     <ClCompile Include="ControllerTests\ControllerProfileStoreTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerSelectionPolicyTests.cpp" />
     <ClCompile Include="ControllerTests\InputModeRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerModeRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerSlotPolicyTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerTargetRulesTests.cpp" />
     <ClCompile Include="ControllerTests\PaddleSourceRowsTests.cpp" />
+    <ClCompile Include="ControllerTests\PlayerPickTests.cpp" />
+    <ClCompile Include="ControllerTests\JoyportJackRulesTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerInputServiceTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerDescriptionsTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
@@ -592,25 +599,26 @@
     <ClCompile Include="UiTests\MachineInputPrefsTests.cpp" />
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementKeyTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
-    <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />
-    <ClCompile Include="UiTests\DxuiRadioGroupTests.cpp" />
-    <ClCompile Include="UiTests\DxuiSearchBoxTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextInputCaretTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextInputDegenerateTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextInputWordSelectionTests.cpp" />
-    <ClCompile Include="UiTests\DxuiOrbitControlTests.cpp" />
-    <ClCompile Include="UiTests\DxuiSliderTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTreeViewTests.cpp" />
-    <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
-    <ClCompile Include="UiTests\DxuiAddressBarTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextViewFindOptionsTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextViewGutterTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
-    <ClCompile Include="UiTests\DxuiFieldErrorTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />
+    <ClCompile Include="Dxui\DxuiRadioGroupTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSearchBoxTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextInputCaretTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextInputDegenerateTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextInputWordSelectionTests.cpp" />
+    <ClCompile Include="Dxui\DxuiOrbitControlTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSliderTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTreeViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiModalScrimTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
+    <ClCompile Include="Dxui\DxuiAddressBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextViewFindOptionsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextViewGutterTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTabStripTests.cpp" />
+    <ClCompile Include="Dxui\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\DebuggerOpenKeyTests.cpp" />
     <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
@@ -640,6 +648,8 @@
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
     <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\SettingsPageEnablementTests.cpp" />
+    <ClCompile Include="UiTests\ControllersPageLayoutTests.cpp" />
+    <ClCompile Include="UiTests\ControllersPageLiveTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
@@ -652,13 +662,15 @@
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
-    <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiFrameRateTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextElideTests.cpp" />
     <ClCompile Include="Dxui\DxuiLinkFocusRingTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSystemSettingsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiColorTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourcePlacementTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceClientTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceTests.cpp" />
@@ -683,6 +695,8 @@
     <ClCompile Include="Dxui\DxuiDockSiteTearOffTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
+    <ClCompile Include="Dxui\DxuiComboBoxFitTests.cpp" />
+    <ClCompile Include="Dxui\DxuiComboBoxItemEnabledTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarRelayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
@@ -717,13 +731,13 @@
     <ClCompile Include="Dxui\DxuiPopupMenuSubmenuPlacementTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarCompactTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToggleTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />
     <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewCheckTests.cpp" />
-    <ClCompile Include="Dxui\DxuiColorTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewSelectionContrastTests.cpp" />
     <ClCompile Include="DebuggerTests\ByteChangesTests.cpp" />
     <ClCompile Include="DebuggerTests\PaneUndoTextTests.cpp" />
@@ -751,8 +765,11 @@
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerWidthTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSlideTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiScrollPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />
     <ClCompile Include="Dxui\DxuiWidgetIDxuiControlTests.cpp" />
@@ -763,7 +780,6 @@
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
-    <ClCompile Include="DriveLabelTruncationTests.cpp" />
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
     <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />
@@ -823,6 +839,9 @@
     <ClInclude Include="EmuTests\WarpRenderHarness.h" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Ehm\Ehm.vcxproj">
+      <Project>{5E1D2C3B-7A49-4F08-B6E1-2C8D9A0F4E71}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
       <Project>{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}</Project>
     </ProjectReference>

@@ -18,7 +18,6 @@
 #include "Shell/DiskMru.h"
 #include "Cassque/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "Window/DxuiMessageBox.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -711,6 +710,11 @@ extern "C" int WINAPI wCassoMain (
     shell->SetImageWatchDisabled (noImageWatch);
     shell->SetOpenDebuggerAtStart (parsed.openDebugger);
 
+    if (parsed.hasSeed)
+    {
+        shell->SetPrngSeed (parsed.seed);
+    }
+
     // --title: set before the window exists, so the first caption the shell
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
@@ -814,14 +818,11 @@ extern "C" int WINAPI wCassoMain (
 
     // Run message loop
 
+    // No trace dump on a normal exit: --trace can stay on for weeks waiting
+    // for a fault, and a file on every exit would bury the one that matters.
+    // Debug > Save CPU trace writes it on request, and TraceCrashFilter on a
+    // crash.
     exitCode = shell->RunMessageLoop();
-
-    // --trace graceful-exit dump. No-op (one-shot guard) if a crash
-    // already flushed the ring via TraceCrashFilter.
-    if (shell->IsTracing())
-    {
-        shell->DumpTrace (L"exit");
-    }
 
     // Success falls into the same tail the bails jump to: clearing the trace
     // back-pointer must happen exactly once, on every path, before the shell

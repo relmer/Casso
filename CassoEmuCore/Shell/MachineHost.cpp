@@ -441,7 +441,7 @@ void MachineHost::SoftReset()
 //
 //  MachineHost::PowerCycle
 //
-//  Reseeds every DRAM-owning device from the shared Prng, then runs the
+//  Refills every DRAM-owning device with the power-on pattern, then runs the
 //  reset sequence.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -490,6 +490,9 @@ void MachineHost::PowerCycle()
     {
         m_cpu->PowerCycle (*m_prng);
     }
+
+    // After the CPU's power cycle, which is what fills main RAM.
+    ApplyPowerOnOverrides();
 
     // Last: the CPU's power cycle zeroes the cycle counter, and the window
     // is measured from that zero.
@@ -887,6 +890,53 @@ HRESULT MachineHost::CheckStateHeader (StateReader & reader, size_t partCount)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ApplyPowerOnOverrides
+//
+//  Bytes whose power-on contents software reads before writing, and which the
+//  fill must not decide.
+//
+//  $03F2-$03F4: the autostart ROM treats a reset as warm, and jumps through
+//  the soft-entry vector at $03F2, when the power-up byte at $03F4 equals the
+//  vector's high byte XOR $A5. Zeroing all three fails that check, so a power
+//  cycle always cold-boots. Without it, a power-on fill that happened to pass
+//  sent the ROM into garbage with the screen never cleared (GH #157).
+//
+//  $4E/$4F: the monitor's random seed, counted up while the ROM waits for a
+//  key. A disk that autostarts never waits, so a program that seeds from it
+//  sees the fill, and the pattern puts 00 00 here. Pooyan loops forever on a
+//  zero seed, so each byte is forced nonzero, the rest of it from the Prng.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ApplyPowerOnOverrides()
+{
+    constexpr Word  kSoftEntryLo  = 0x03F2;
+    constexpr Word  kPowerUpByte  = 0x03F4;
+    constexpr Word  kRandomSeedLo = 0x004E;
+    constexpr Word  kRandomSeedHi = 0x004F;
+    constexpr Byte  kNonzeroBit   = 0x20;
+
+
+
+    Word  address = 0;
+
+
+
+    for (address = kSoftEntryLo; address <= kPowerUpByte; address++)
+    {
+        m_memoryBus->WriteByte (address, 0);
+    }
+
+    m_memoryBus->WriteByte (kRandomSeedLo, static_cast<Byte> (kNonzeroBit | m_prng->NextByte()));
+    m_memoryBus->WriteByte (kRandomSeedHi, static_cast<Byte> (kNonzeroBit | m_prng->NextByte()));
 }
 
 

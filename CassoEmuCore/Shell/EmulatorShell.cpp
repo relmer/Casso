@@ -11,7 +11,6 @@
 #include "Controllers/ControllerProfileStore.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -52,7 +51,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
@@ -111,18 +109,7 @@ EmulatorShell::EmulatorShell()
 
     seed ^= static_cast<uint64_t> (GetCurrentProcessId()) << 32;
 
-    m_machine.SetPrng (make_unique<Prng> (seed));
-
-#ifdef _DEBUG
-    // Log the per-boot DRAM seed so when an illegal-opcode (or any
-    // other non-deterministic) fault fires later, the user can grep
-    // the debug output for "[Casso] Cold boot seed:" and capture the
-    // value into a bug report. Re-running with the same seed gives
-    // byte-identical DRAM at every PowerCycle, which is the first
-    // requirement for reproducing flaky CPU faults.
-    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n",
-              (unsigned long long) seed);
-#endif
+    SetPrngSeed (seed);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -240,7 +227,7 @@ EmulatorShell::~EmulatorShell()
 
     // What automatic calibration learned this session, while the service that
     // holds it still exists and nothing is reading into it.
-    SaveControllerCalibrations();
+    SaveControllerPrefs();
 
     m_controllerService.reset();
     m_controllerBackend.reset();
@@ -470,36 +457,30 @@ HRESULT EmulatorShell::Initialize (
     m_controllerBackend = std::make_unique<Win32ControllerBackend>();
     m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
 
-    // Saved controller settings and calibrations, before the thread starts
-    // reading. Anything that cannot be used is said once: it falls back to
-    // the default mapping or to automatic calibration, and the next save
-    // drops it, so there is nothing to say again.
-    {
-        ControllerProfileStore    store;
-        std::vector<std::string>  rejected;
-
-        store.FromJson (m_globalPrefs.controllers, rejected);
-        m_controllerService->SetModelSettings  (store.models);
-        m_controllerService->SetCalibrations   (store.calibrations);
-        m_controllerService->SetActiveProfiles (store.activeProfiles);
-
-        if (!rejected.empty())
-        {
-            PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
-        }
-    }
+    // Saved controller settings, calibrations and players, before the thread
+    // starts reading, so its first evaluation already knows who was picked
+    // and who last held each slot.
+    LoadControllerPrefs();
 
     m_controllerThread  = std::make_unique<ControllerInputThread>();
 
-    m_controllerService->SetSelectionChangedFn (
-        [this] (const ControllerSelectionPolicy::Decision & decision)
+    // A controller that held a slot and left is said over the picture, and so
+    // is one Automatic gave a slot that another controller held last time;
+    // the command bar's picker already shows what is playing after either.
+    m_controllerService->SetSlotsChangedFn (
+        [this] (const ControllerInputService::SlotsChange & change)
         {
             {
                 std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
-                m_controllerPickDescription = decision.departedDescription;
-                m_controllerPickReason      = decision.reason;
-                m_controllerPickHasNotice   = decision.isAnnounced;
+                for (const std::wstring & description : change.departedDescriptions)
+                {
+                    m_controllerPickNotices.push_back (description + L" disconnected.");
+                }
+
+                m_controllerPickNotices.insert (m_controllerPickNotices.end(), change.notices.begin(), change.notices.end());
+                m_controllerPickHasEntries = m_controllerPickHasEntries || change.haveEntriesChanged;
+                m_controllerPickHasHolders = m_controllerPickHasHolders || change.haveLastHoldersChanged;
             }
 
             PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
@@ -1358,6 +1339,28 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 void EmulatorShell::SoftReset()
 {
     m_machineManager->SoftReset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPrngSeed
+//
+//  Replaces the power-on DRAM Prng with one seeded from `seed`. The seed is
+//  kept so the trace file can record it: the same seed gives byte-identical
+//  DRAM at the first power-on, which is what replaying a startup fault needs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetPrngSeed (uint64_t seed)
+{
+    m_prngSeed = seed;
+    m_machine.SetPrng (make_unique<Prng> (seed));
+
+    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n", (unsigned long long) seed);
 }
 
 

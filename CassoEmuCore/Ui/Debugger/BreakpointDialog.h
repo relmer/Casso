@@ -1,11 +1,6 @@
 #pragma once
 
-#include "Core/DxuiPanel.h"
 #include "Debugger/Reply.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiTextInput.h"
-#include "Window/DxuiDialogWindow.h"
 
 
 

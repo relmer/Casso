@@ -4,8 +4,6 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/SourceSyntax.h"
-#include "Widgets/DxuiActionBanner.h"
-#include "Widgets/DxuiTextView.h"
 
 
 

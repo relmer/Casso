@@ -5,14 +5,8 @@
 #include "Ui/Settings/ControllerReadoutViews.h"
 #include "Ui/Settings/ControllersPageState.h"
 #include "Ui/Settings/JoyportSwitchView.h"
+#include "Ui/Settings/PaddleBarView.h"
 #include "Ui/Settings/ProfileDialogOverlay.h"
-
-#include "Window/DxuiPropertyPage.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiSlider.h"
 
 
 class DxuiHwndSource;
@@ -30,19 +24,28 @@ class DxuiHwndSource;
 //  forwards every edit to it; the sheet's apply pipeline commits that state on
 //  OK and reverts it on Cancel.
 //
+//      * Players            (each player's entry and its mode -- Joystick, a
+//                            Joyport jack, Paddle or Two paddles, and
+//                            Automatic for Player 2 -- and a warning under a
+//                            player whose buttons the Joyport has taken)
 //      * Controller         (DxuiComboBox: every attached controller)
 //      * Profile            (DxuiComboBox: the model's profiles, with New,
 //                            Rename and Delete)
 //      * Joystick           (a circle with a dot where the stick is, PDL0 and
-//                            PDL1 labeled, beside a row per mapping for each)
+//                            PDL1 labeled, beside a row per mapping for each;
+//                            in Paddle and Two paddles mode a bar per paddle,
+//                            labeled with its value)
 //      * Buttons            (PB0 .. PB2: a light, and a row per mapping)
-//      * Deadzone, Calibration, Reset profile
+//      * Dead zone, Calibration, Reset profile
 //
 //  ONE DROP-DOWN PER MAPPING. It shows the control assigned, and lists "Press
 //  to assign...", "None" and the controller's controls. A target takes more
 //  than one control through "+", which adds a row; "None" on an added row
 //  removes it. The first row always stays, showing "None" when the target is
-//  unassigned, so every target keeps its place on the page.
+//  unassigned, so every target keeps its place on the page. A target's rows
+//  form a table as tall as its rows up to kTableRows, which scrolls past that;
+//  "+" sits beside the table's first row, and the axis options and the
+//  sharing warning sit under the table.
 //
 //  The page is polled each dialog tick with the controller's latest reading,
 //  which is what drives press-to-assign, the Calibrate steps, the stick and
@@ -57,11 +60,17 @@ public:
     static constexpr size_t  kTargetCount = 5;
     static constexpr size_t  kAxisCount   = 2;
     static constexpr size_t  kButtonCount = 3;
-    static constexpr size_t  kMaxRows     = 4;
+    static constexpr size_t  kTableRows   = 4;     // rows a target's table shows before it scrolls
     static constexpr size_t  kPlayerCount = MultiplayerSetup::kPlayerCount;
+    static constexpr size_t  kPlayerTwo   = ControllersPageState::kPlayerTwo;
 
-    using SampleSource = std::function<std::optional<ControllerSample> (const ControllerUnitKey &)>;
-    using InspectFn    = std::function<void (const std::optional<ControllerUnitKey> &)>;
+    // How often the page wants polling while it is shown: one frame at 60 Hz,
+    // about as fine as a Win32 timer runs.
+    static constexpr UINT    kLivePollMs  = 16;
+
+    using SampleSource  = std::function<std::optional<ControllerSample> (const ControllerUnitKey &)>;
+    using HistorySource = std::function<std::vector<ControllerSample> (const ControllerUnitKey &)>;
+    using InspectFn     = std::function<void (const std::optional<ControllerUnitKey> &)>;
 
     explicit ControllersPage (std::wstring title = L"Controllers");
 
@@ -70,19 +79,33 @@ public:
     void  SetOnInspect     (InspectFn onInspect);
     void  SetPopupHost     (DxuiHwndSource * host);
 
+    // Every reading of the controller shown since the last poll, so a press
+    // too quick for one poll to see still lights its button.
+    void  SetHistorySource (HistorySource source) { m_historySource = std::move (source); }
+
+    // Whether the button lights animate: the system's animation setting,
+    // which the sheet passes in.
+    void  SetAnimationsEnabled (bool isEnabled);
+
+    // What Layout measures the player warnings with, in place of the popup
+    // host's. With neither they are sized from the banner's estimate.
+    void  SetTextRenderer  (IDxuiTextRenderer * renderer) { m_textRenderer = renderer; }
+
     // Where Save on the profile-switch prompt commits the edited model.
     void  SetOnCommitProfile (ControllersPageState::CommitFn onCommit) { m_onCommitProfile = std::move (onCommit); }
 
-    // Whether the running machine has the Sirius Joyport attached. While it
-    // does, the stick and the button lights give way to the five switch
-    // lights the Joyport reads.
-    void  SetJoyportAttachedFn (std::function<bool()> isAttached) { m_isJoyportAttached = std::move (isAttached); }
 
     void  Layout           (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
     // Each dialog tick: feed the controller's latest reading to the capture,
-    // the calibration, the stick and the lights.
+    // the calibration, the stick and the lights. `nowMs` is the clock the
+    // lights time their minimum and their fade on; Poll() reads the tick count.
     void  Poll             ();
+    void  Poll             (int64_t nowMs);
+
+    // kLivePollMs while the page is shown, else 0: a hidden page reads
+    // nothing and wants no polls.
+    UINT  GetPollIntervalMs () const;
 
     // Re-sync every widget from the state.
     void  Refresh          ();
@@ -97,9 +120,9 @@ public:
     // with player one's slot empty.
     void  FollowPlayerOne  ();
 
-    // New... from the paddle picker's Profiles submenu: the New Profile dialog
-    // for the controller being edited, after asking about unsaved edits.
-    void  StartNewProfile  () { OnNewProfile(); }
+    // New... from a profile section in the paddle picker: the New Profile dialog
+    // for that section's controller, after asking about unsaved edits.
+    void  StartNewProfile  (const ControllerUnitKey & unit);
 
     // Press-to-assign in progress, for the sheet's prompt over the page: the
     // sentence it shows, and a way to call the wait off.
@@ -109,6 +132,7 @@ public:
 
     // The page's rows came or went, which changes what Tab reaches.
     void          SetOnLayoutChanged (std::function<void ()> onLayoutChanged);
+
 
     // The profile dialog, for the sheet to show over the page and route input
     // to while it is open.
@@ -130,6 +154,9 @@ private:
     static constexpr int  kNoneItem          = 1;
     static constexpr int  kFirstControlItem  = 2;
 
+    // A target's mapping drop-downs, one per row, made as rows are needed.
+    using RowList = std::vector<std::unique_ptr<DxuiComboBox>>;
+
     static RECT          MakeRect           (int l, int t, int w, int h);
     static PaddleTarget  TargetAt           (size_t index);
     static std::wstring  DescribeAxis       (ControllerKind kind, const AxisBinding & binding);
@@ -139,13 +166,19 @@ private:
 
     size_t               GetBindingCount    (size_t target) const;
     size_t               GetShownRows       (size_t target) const;
+    void                 EnsureRows         (size_t target, size_t count);
+    int                  LayOutTable        (size_t target, int x, int y, int width, bool isInPlay, const DxuiDpiScaler & scaler);
     int                  FindChoice         (size_t target, size_t row) const;
 
     void                 RebuildChoices     ();
     void                 RefreshRows        ();
-    void                 RefreshMultiplayer ();
-    void                 OnPlayerControllerSelect (size_t player, int item);
-    void                 OnPlayerTargetSelect     (size_t player, int item);
+    void                 RefreshPlayers     ();
+    void                 StretchPlayerRows  (int left, int right, int gap, const DxuiDpiScaler & scaler);
+    int                  GetModeWidthPx     (const DxuiDpiScaler & scaler) const;
+    int                  GetEntryFitWidthPx () const;
+    void                 OnPlayerEntrySelect  (size_t player, int item);
+    void                 OnPlayerModeSelect   (size_t player, int item);
+    void                 ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
     void                 RefreshAxisOptions ();
     void                 RefreshCalibration ();
     void                 OnRowSelect        (size_t target, size_t row, int item);
@@ -159,24 +192,35 @@ private:
     void                 OnNewProfile       ();
     void                 OpenNewProfileDialog ();
     void                 SwitchController   (size_t index);
-    void                 ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit);
+
     void                 AskToSaveProfileEdits (std::function<void ()> proceed);
     void                 OnRenameProfile    ();
     void                 OnDeleteProfile    ();
     void                 ShowDialog         ();
     void                 AfterEdit          ();
-    bool                 IsJoyportAttached  () const;
+    bool                 IsJoyportMode      () const;
+    bool                 IsPaddlesMode      () const;
+    void                 PollPaddleBars     (const GamePortContribution * reading);
+    void                 SyncJoyportLayout  ();
     bool                 IsTargetShown      (size_t target) const;
-    static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport);
+    static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport, bool isPaddles);
+    std::wstring         GetTargetLabel     (PaddleTarget target) const;
+    std::wstring         MakeSharedNotice   (PaddleTarget target) const;
+    int                  LayOutSharedWarning (size_t target, int x, int y, int width, IDxuiTextRenderer * text, const DxuiDpiScaler & scaler);
+    bool                 HasSharedNoticeChanged () const;
     void                 PollSwitchLights   (const GamePortContribution * reading);
     ControllerKind       GetSelectedKind    () const;
+    IDxuiTextRenderer  * GetMeasuringRenderer () const;
 
     ControllersPageState                      * m_state               = nullptr;
     SampleSource                                m_sampleSource;
+    HistorySource                               m_historySource;
+    int64_t                                     m_lastPollMs          = 0;
     InspectFn                                   m_onInspect;
     ControllersPageState::CommitFn              m_onCommitProfile;
     std::optional<ControllerUnitKey>            m_inspected;
     size_t                                      m_lastControllerCount = 0;
+    bool                                        m_wasEditedConnected  = false;
 
     // The controller each row of the Editing drop-down stands for. In
     // multiplayer the list holds only the players' controllers, so a row's
@@ -189,18 +233,20 @@ private:
     bool                                        m_hasLayout           = false;
     bool                                        m_isSyncing           = false;
     std::function<void ()>                      m_onLayoutChanged;
+    IDxuiTextRenderer                         * m_textRenderer        = nullptr;
+    DxuiHwndSource                            * m_popupHost           = nullptr;
 
-    // The two player slots, shown only while the machine is in multiplayer
-    // mode. Each row's drop-downs carry what they offer, so a pick resolves
-    // to a controller and a target rather than to an index into a list that
-    // may have been rebuilt since.
-    DxuiLabel                                                                m_multiplayerHeading;
-    std::array<DxuiLabel, kPlayerCount>                                      m_playerLabel;
-    std::array<DxuiComboBox, kPlayerCount>                                   m_playerController;
-    std::array<DxuiLabel, kPlayerCount>                                      m_playerMapsLabel;
-    std::array<DxuiComboBox, kPlayerCount>                                   m_playerTarget;
-    std::array<std::vector<std::optional<ControllerUnitKey>>, kPlayerCount>  m_playerUnits;
-    std::array<std::vector<PlayerAxisTarget>, kPlayerCount>                  m_playerTargets;
+    // The two players, each always shown: the entry and the mode, and under
+    // a player whose buttons the Joyport has taken, a warning saying so. The entry and mode drop-downs carry
+    // what they offer, so a pick resolves to an entry or a mode rather than
+    // to an index into a list that may have been rebuilt since.
+    std::array<DxuiLabel, kPlayerCount>                 m_playerLabel;
+    std::array<DxuiComboBox, kPlayerCount>              m_playerEntry;
+    std::array<DxuiComboBox, kPlayerCount>              m_playerMode;
+    std::array<DxuiInfoBanner, kPlayerCount>            m_playerWarning;
+    std::array<std::vector<PlayerEntry>, kPlayerCount>  m_playerEntries;
+    std::array<std::vector<PlayerMode>, kPlayerCount>   m_playerModes;
+    std::array<bool, kPlayerCount>                      m_isWarningShown = {};
 
     DxuiLabel          m_controllerLabel;
     DxuiComboBox       m_controller;
@@ -217,25 +263,35 @@ private:
     StickPositionView  m_stick;
     DxuiLabel          m_buttonsHeading;
 
-    // The Joyport's switches, drawn where the stick is while it is attached.
+    // The Joyport's switches, drawn where the stick is while it is on.
     JoyportSwitchView      m_switchView;
-    std::function<bool()>  m_isJoyportAttached;
     bool                   m_isJoyportShown = false;
+
+    // In the paddle modes, a bar for each paddle in its own row, in place of
+    // the stick.
+    std::array<PaddleBarView, kAxisCount>  m_paddleBars;
+    bool                                   m_isPaddlesShown = false;
 
     std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;
     std::array<ButtonLightView, kButtonCount>                           m_lights;
-    std::array<std::array<DxuiComboBox, kMaxRows>, kTargetCount>        m_rows;
+    std::array<RowList, kTargetCount>                                   m_rows;
+    std::array<DxuiScrollPanel, kTargetCount>                           m_tables;
     std::array<DxuiButton, kTargetCount>                                m_addRow;
     std::array<std::vector<ControlChoice>, kTargetCount>                m_choices;
 
     std::array<DxuiCheckbox, kAxisCount>  m_invert;
     std::array<DxuiComboBox, kAxisCount>  m_response;
+    std::array<DxuiLabel, kAxisCount>     m_speedLabel;
     std::array<DxuiSlider, kAxisCount>    m_speed;
 
-    DxuiLabel          m_sharedWarning;
+    // Under each target's rows, a warning for every control there that is also
+    // on another target; the one that last came into view, for the sheet to
+    // scroll to.
+    std::array<DxuiInfoBanner, kTargetCount>  m_sharedWarning;
+    std::optional<size_t>                     m_revealedWarning;
 
-    DxuiLabel          m_deadzoneLabel;
-    DxuiSlider         m_deadzone;
+    DxuiLabel          m_deadZoneLabel;
+    DxuiSlider         m_deadZone;
 
     DxuiLabel          m_calibrationLabel;
     DxuiLabel          m_calibrationStatus;

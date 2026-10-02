@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiToolbar.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

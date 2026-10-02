@@ -170,41 +170,59 @@ void AppleKeyboard::PressKey (Byte asciiChar)
 //
 //  BeginKeyRepeat
 //
-//  Arms (or disarms with 0) the //e auto-repeat for the freshly-pressed
-//  key, then raises the UI-thread host key-down / key-up notification on
-//  the input sink. Called only from the Windows message handlers, never
-//  from the CPU thread, so the host notifications are safe to stage
-//  directly into the panel's UI-owned buffer. A repeated press of the
-//  same held key (host OS key repeat that slips through) is coalesced.
+//  Arms the //e auto-repeat for the freshly-pressed key, then raises the
+//  UI-thread host key-down notification on the input sink. Called only from
+//  the Windows message handlers, never from the CPU thread, so the host
+//  notifications are safe to stage directly into the panel's UI-owned
+//  buffer. A repeated press of the same held key (host OS key repeat that
+//  slips through) is coalesced.
+//
+//  Every code arms, $00 included: Ctrl+@ repeats on the //e like any other
+//  key, and some games wait for it. The stored value carries kKeyArmedBit
+//  so that a held $00 is distinguishable from no key at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleKeyboard::BeginKeyRepeat (Byte asciiChar)
 {
-    Byte  released = 0;
+    Byte  armed = (Byte) ((asciiChar & kKeyCodeMask) | kKeyArmedBit);
 
 
 
-    m_repeatKey.store (asciiChar, memory_order_release);
+    m_repeatKey.store (armed, memory_order_release);
 
-    if (m_inputSink == nullptr)
+    // Coalesce a host OS repeat that slipped through: the same key arriving
+    // twice is still one key-down.
+    if (m_inputSink != nullptr && armed != m_lastHostKeyDownAscii)
     {
-        // Nothing to notify; the repeat arming above is the whole job.
+        m_lastHostKeyDownAscii = armed;
+        m_inputSink->OnHostKeyDown (asciiChar);
     }
-    else if (asciiChar != 0)
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndKeyRepeat
+//
+//  Disarms the auto-repeat on key release and raises the host key-up
+//  notification, once, for the key BeginKeyRepeat last reported down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::EndKeyRepeat()
+{
+    Byte  released = (Byte) (m_lastHostKeyDownAscii & kKeyCodeMask);
+
+
+
+    m_repeatKey.store (0, memory_order_release);
+
+    if (m_inputSink != nullptr && m_lastHostKeyDownAscii != 0)
     {
-        // Coalesce a host OS repeat that slipped through: the same key
-        // arriving twice is still one key-down.
-        if (asciiChar != m_lastHostKeyDownAscii)
-        {
-            m_lastHostKeyDownAscii = asciiChar;
-            m_inputSink->OnHostKeyDown (asciiChar);
-        }
-    }
-    else if (m_lastHostKeyDownAscii != 0)
-    {
-        // Disarm (asciiChar 0) is the key-up edge, but only once.
-        released               = m_lastHostKeyDownAscii;
         m_lastHostKeyDownAscii = 0;
         m_inputSink->OnHostKeyUp (released);
     }
@@ -330,11 +348,11 @@ void AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
         {
             m_repeatAccumUs -= threshold;
             m_repeatStarted  = true;
-            PressKey (key);
+            PressKey ((Byte) (key & kKeyCodeMask));
 
             if (m_inputSink != nullptr)
             {
-                m_inputSink->OnHostAutoRepeat (key);
+                m_inputSink->OnHostAutoRepeat ((Byte) (key & kKeyCodeMask));
             }
         }
     }

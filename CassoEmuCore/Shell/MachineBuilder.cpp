@@ -1050,16 +1050,14 @@ void MachineBuilder::WireBankedRom()
         std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
         std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
 
-        m_host.SetApple2cRomBank (std::make_unique<Apple2cRomBank> (*lc, *mmu));
-        m_host.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
-        sw->SetRomBankSwitch (m_host.GetApple2cRomBank());
-
         // A machine with no card slots has nothing that could answer in
         // $C100-$CFFF, so the router leaves the whole range to the internal
         // firmware. That is a fact about the machine, and the machine says
         // it: the //c declares zero slots, every other model declares seven.
         // Reading it here rather than assuming it means a later banked-ROM
-        // machine that DOES have slots keeps them.
+        // machine that DOES have slots keeps them. It is set before the bank
+        // images go in, because applying a bank maps the $C1-$CF read pages
+        // only when the router already knows there are no slots.
         {
             const MachineDefinition *  definition =
                 MachineDefinitions::Find (TextEncoding::WideToNarrow (m_host.GetCurrentMachineName()));
@@ -1069,6 +1067,10 @@ void MachineBuilder::WireBankedRom()
                 mmu->GetCxxxRouter()->SetNoExternalSlots (true);
             }
         }
+
+        m_host.SetApple2cRomBank (std::make_unique<Apple2cRomBank> (*lc, *mmu));
+        m_host.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
+        sw->SetRomBankSwitch (m_host.GetApple2cRomBank());
     }
 }
 

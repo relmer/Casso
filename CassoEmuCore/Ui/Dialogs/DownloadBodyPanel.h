@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/DxuiPanel.h"
 
 
 struct DialogInputEvent;
@@ -17,10 +16,9 @@ struct DialogPaintContext;
 //
 //  Paint/input bridge for StartupDownloadDialog's asset rows. Renders them
 //  through the caller's PaintBody callback and forwards mouse events to the
-//  per-row checkboxes via HandleBodyInput. It draws through the concrete
-//  DxuiPainter / DxuiTextRenderer / CassoTheme (the modal host's actual
-//  types) that the legacy DialogPaintContext expects, which is why the
-//  callbacks take a context rather than the interfaces.
+//  per-row checkboxes via HandleBodyInput. The callbacks take the legacy
+//  DialogPaintContext, which carries the painter, text renderer and the
+//  CassoTheme the modal host paints with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

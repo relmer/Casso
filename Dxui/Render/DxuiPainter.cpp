@@ -352,6 +352,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_clips.clear();
     m_erase            = false;
     m_betweenBeginEnd  = true;
+    m_hasClip          = false;
 
 Error:
     return hr;
@@ -400,6 +401,58 @@ DxuiPainter::Vertex DxuiPainter::MakeVertex (uint32_t argbColor, float alphaMult
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetClipRect
+//
+//  Stored with the origin already applied, because PushQuad compares it
+//  against positions that have the origin applied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::SetClipRect (const RECT * clipPx)
+{
+    m_hasClip = (clipPx != nullptr);
+
+    if (m_hasClip)
+    {
+        m_clipPx.left   = clipPx->left   + (LONG) m_originXPx;
+        m_clipPx.top    = clipPx->top    + (LONG) m_originYPx;
+        m_clipPx.right  = clipPx->right  + (LONG) m_originXPx;
+        m_clipPx.bottom = clipPx->bottom + (LONG) m_originYPx;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetClipRect
+//
+//  The clip in the coordinates SetClipRect was given, the origin taken back
+//  off, so a caller can set it again as it found it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPainter::GetClipRect (RECT & clipPx) const
+{
+    if (m_hasClip)
+    {
+        clipPx.left   = m_clipPx.left   - (LONG) m_originXPx;
+        clipPx.top    = m_clipPx.top    - (LONG) m_originYPx;
+        clipPx.right  = m_clipPx.right  - (LONG) m_originXPx;
+        clipPx.bottom = m_clipPx.bottom - (LONG) m_originYPx;
+    }
+
+    return m_hasClip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NdcFromPixel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -437,30 +490,46 @@ void DxuiPainter::PushQuad (
     const Vertex & bottomLeft,
     const Vertex & bottomRight)
 {
-    Vertex  tl = topLeft;
-    Vertex  tr = topRight;
-    Vertex  bl = bottomLeft;
-    Vertex  br = bottomRight;
-    float   x0 = xPx + m_originXPx;
-    float   y0 = yPx + m_originYPx;
-    float   x1 = x0 + widthPx;
-    float   y1 = y0 + heightPx;
-    float   u0 = 0.0f;
-    float   v0 = 0.0f;
-    float   u1 = 1.0f;
-    float   v1 = 1.0f;
+    Vertex       tl        = topLeft;
+    Vertex       tr        = topRight;
+    Vertex       bl        = bottomLeft;
+    Vertex       br        = bottomRight;
+    float        x0        = xPx + m_originXPx;
+    float        y0        = yPx + m_originYPx;
+    float        x1        = x0 + widthPx;
+    float        y1        = y0 + heightPx;
+    float        u0        = 0.0f;
+    float        v0        = 0.0f;
+    float        u1        = 1.0f;
+    float        v1        = 1.0f;
+    bool         isClipped = m_hasClip || !m_clips.empty();
+    D2D1_RECT_F  rectClip  = {};
 
 
 
     // The origin is applied HERE and only here: every primitive, spans and
     // arcs included, reaches the vertex buffer through this function. So
-    // is the clip, which cuts the quad down and carries every attribute at
-    // the new corners, color and shape position alike, to match.
-    if (!m_clips.empty())
+    // are the clips, the pushed stack and the one SetClipRect sets, which
+    // trim the quad itself rather than discarding pixels. Every vertex
+    // attribute -- color, shape-local position, edge distances -- is affine
+    // in screen position across an axis-aligned quad, so the trimmed corners
+    // interpolate to exactly what the pixel shader would have seen there,
+    // and a clipped rounded rect keeps its curve.
+    if (isClipped)
     {
-        if (!TryClipRect (m_clips.back(), x0, y0, x1, y1))
+        if (!m_clips.empty() && !TryClipRect (m_clips.back(), x0, y0, x1, y1))
         {
             return;
+        }
+
+        if (m_hasClip)
+        {
+            rectClip = { (float) m_clipPx.left, (float) m_clipPx.top, (float) m_clipPx.right, (float) m_clipPx.bottom };
+
+            if (!TryClipRect (rectClip, x0, y0, x1, y1))
+            {
+                return;
+            }
         }
 
         if (widthPx > 0.0f)

@@ -5,8 +5,6 @@
 #include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/ControllersPageState.h"
 
-#include "Window/DxuiPropertySheet.h"
-
 #include "SettingsPanelState.h"
 #include "SettingsMachineCatalog.h"
 #include "SettingsDisplayCrtBridge.h"
@@ -82,10 +80,16 @@ public:
     void    ShowControllersPage ();
 
     //
-    //  The New Profile dialog on the Controllers page, for the Profiles
-    //  submenu's New... The caller has already brought the page forward.
+    //  The Controllers page on one controller with the New Profile dialog up,
+    //  for New... in a player's profile section.
     //
-    void    StartNewControllerProfile ();
+    void    StartNewControllerProfile (const ControllerUnitKey & unit);
+
+    //
+    //  Records the sheet's size in the prefs when the user has resized it
+    //  since it opened; false when there was nothing new to record.
+    //
+    bool    TryStoreResizedSize ();
 
 protected:
     void     OnBuildPages () override;
@@ -130,6 +134,11 @@ private:
 
     //  A profile dialog from the Controllers page is open over the sheet.
     bool  IsProfileDialogOpen () const;
+
+    //  The players as they stand now on the Controllers page, and the page
+    //  brought to the front.
+    bool  TrySyncControllersPlayers ();
+    void  ActivateControllersPage   ();
 
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
     // verbatim from SettingsPanel: push the current volumes / pan / mechanism
@@ -226,6 +235,14 @@ private:
     // list (CreateChild), raw pointer for layout / text updates. Null pre-Create.
     DxuiLabel               * m_restartNotice = nullptr;
 
+    // The window's size in DIPs, and what it was when the sheet opened or
+    // last grew to fit its content. Any other size is one the user chose.
+    SIZE  GetSizeDip     () const;
+    bool  IsUserResized  () const;
+    void  GrowToContent  ();
+
+    SIZE                      m_openedSizeDip = {};
+
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine
     // selector + CPU speed + hardware spec + device tree, GH #84).
@@ -252,4 +269,10 @@ private:
 
     // Refresh the Disk tab's presence from the staged hardware config.
     void  UpdateDiskTabVisibility ();
+
+    // The dialog tick last asked for: the Controllers page's live rate while
+    // it is shown, the default otherwise.
+    UINT           m_tickMs = kDefaultDialogTickMs;
+
+    void  UpdateTickInterval ();
 };

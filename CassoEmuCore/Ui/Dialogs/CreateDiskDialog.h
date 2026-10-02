@@ -1,17 +1,10 @@
 #pragma once
 
 #include "Pch.h"
-#include "Window/DxuiDialogWindow.h"
 
 #include "../FileBrowseModel.h"
 #include "../CreateDiskBodyPanel.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiTextInput.h"
 
 
 
