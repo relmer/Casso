@@ -133,7 +133,7 @@ parallel (different files, no dependency on an unfinished task).
   - a write to a missing sector failing cleanly;
   - a `disk`-command style write through `DiskImageStore` over a synthetic flux image, flushed and reloaded;
   - bit-track decode and write results unchanged.
-- [X] T028 [US2] Check *Bandits* by hand again. Boot it and let it write if it does (otherwise write through the `disk` command), then flush, reload and boot again (US2 scenario 4). Also open it in Casso Explorer and confirm its flux tracks are listed and readable, not blank. Done: Casso's save of Bandits is byte-identical to the Applesauce original and boots. Bandits does not write and its half tracks make sector writes refuse by design; the Explorer check is left for the owner (the same `VolumeImage` path is covered by `FluxSectorAccessTests`)
+- [X] T028 [US2] Check *Bandits* by hand again. Boot it and let it write if it does (otherwise write through the `disk` command), then flush, reload and boot again (US2 scenario 4). Also open it in Casso Explorer and confirm its flux tracks are listed and readable, not blank. Done: Casso's save of Bandits is byte-identical to the Applesauce original and boots. Bandits does not write and its half tracks make sector writes refuse by design; Casso Explorer is not on this branch, so it gets flux through the shared `VolumeImage` path when the two meet on master; `FluxSectorAccessTests` covers that path here
 
 **Checkpoint**: US1 and US2 complete.
 
@@ -217,7 +217,7 @@ parallel (different files, no dependency on an unfinished task).
   - Track lists become runs of tracks one whole track apart ("1-5, 8-9, 13"; Bandits' half tracks read "1.5-19.5"), with "track" or "tracks" by how many the list covers. This replaces the eight-then-"N more" cutoff in `FormatTrackList`.
   - "Unreadable tracks read as blank." only with damaged tracks; the salvage sentence only on flux disks. A checksum-only disk has one bullet.
   - The drive tooltip and the write-protect refusal keep their single-sentence wording.
-- [ ] T044 Owner checks still open: open a flux disk in Casso Explorer (T028) and run the pinned full-machine speed comparison (T037). The six real flux disks for this and any later check are in `%LOCALAPPDATA%\Casso\FluxTestDisks` (never committed; keep until 038 closes). Baseline 2026-10-02: Bandits, Minotaur, Fly Wars, Cyclod, Lemmings and Jellyfish all boot in Casso, save byte-identical, and match AppleEm's Disk Inspector cell count on every flux track (104 tracks).
+- [ ] T044 Owner check still open: run the pinned full-machine speed comparison (T037). The six real flux disks for this and any later check are in `%LOCALAPPDATA%\Casso\FluxTestDisks` (never committed; keep until 038 closes). Baseline 2026-10-02: Bandits, Minotaur, Fly Wars, Cyclod, Lemmings and Jellyfish all boot in Casso, save byte-identical, and match AppleEm's Disk Inspector cell count on every flux track (104 tracks).
 
 ---
 
