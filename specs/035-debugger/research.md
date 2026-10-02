@@ -1237,3 +1237,76 @@ already see, and it needs no new theme roles. If the owner wants a second
 choice, AppleWin's palette is the one worth offering as an option, because
 it is the Apple II debugger users know; it would need its own page color
 rather than the theme's. The owner chooses.
+## R-040: Reverse execution (step back, step back over, step back out)
+**Status**: design options for the owner; nothing is built.
+**The problem**: a 6502 instruction is not invertible from the CPU state
+alone. `LDA #$00` destroys the old A, `STA` destroys the old byte, and a
+soft-switch or I/O access (`$C0xx`) changes device state the CPU never sees.
+Going backward therefore needs either recorded undo data or a way to replay
+forward from an earlier point. Every debugger that offers it (rr, WinDbg Time
+Travel, GDB `record`, and emulators such as Mesen and bsnes-plus) uses one
+or both of these.
+**Option A: per-instruction undo log.** The CPU hook records, for each
+executed instruction, the prior PC, A, X, Y, S, P, cycle count, and the old
+value of each byte written (at most 3 on a 6502, 7 for `BRK`/interrupt
+entry). A ring buffer of 16 bytes per entry holds about a million
+instructions (roughly one second of 1 MHz execution) in 16 MB. Step back pops
+one entry and restores it.
+- Cost: low to build; a few percent of CPU-hook time while recording.
+- Limit: it restores CPU and RAM only. Device state (disk head position and
+  nibble stream, the language-card and auxiliary-memory switches, the video
+  mode, the speaker, the 6522/AY timers, the ACIA) does not rewind. Undoing
+  a soft-switch access is possible for the MMU switches, which are plain
+  flags, but not for the disk or audio. Stepping back across a disk read
+  leaves the drive where it was.
+- Only reachable range: as far back as the ring holds.
+**Option B: snapshots plus deterministic replay.** Take a full machine
+snapshot (CPU, all RAM banks, every device) every N frames, and record the
+nondeterministic inputs between them (keystrokes, paddle and joystick
+values, mouse, host time if any device reads it). Step back to instruction K
+restores the nearest earlier snapshot and runs forward K-1 instructions
+with breakpoints and UI updates suppressed.
+- Cost: high. Casso has no machine save state today (only
+  `DiagnosticsSnapshot`, which is read-only diagnostics). Every device needs
+  serialize and restore, and the emulation must be proven deterministic
+  given the same inputs, which needs a test that replays a recorded session
+  and compares RAM and cycle count. Audio and disk timing are the likely
+  nondeterminism sources.
+- Gain: exact rewind of the whole machine, unlimited depth (bounded by
+  snapshot memory, about 200 KB each on a 128 KB //e plus disk-track
+  state), and it also delivers save states and a "rewind" feature for
+  ordinary use.
+**Option C: A for short range, B for long range.** Use the undo log for the
+last million instructions (instant step back) and fall back to snapshot
+replay beyond it. This is what Mesen-class debuggers effectively offer.
+**Commands on either option.** All three reduce to "run backward until a
+predicate holds", evaluated over the undo log or the replay:
+- Step back: undo one instruction.
+- Step back over: undo until S and the PC return to the instruction before
+  the current one at the same stack depth, treating a whole `JSR`...`RTS`
+  body as one step (the stack-pointer rule of R-033 run in reverse).
+- Step back out: undo until the `JSR` that entered the current routine,
+  that is, until S rises above its value at routine entry; land on the
+  `JSR`.
+- Reverse continue: undo until a breakpoint or watchpoint fires. Write
+  watchpoints are exact on the undo log, because each entry holds the
+  addresses written.
+The trace pane and the call stack can read the same log, so the trace
+becomes a view of history instead of a separate buffer.
+**UI**: three toolbar buttons and menu items beside the forward steps
+(VS uses Step back and Step forward in IntelliTrace; WinDbg TTD uses
+`t-`, `p-`, `g-`). Suggested keys: Shift plus the forward-step key. While
+the machine is in a rewound state, panes show a "history" indicator, and
+any forward execution that diverges (a user edit of memory or registers)
+discards the future part of the log.
+**Recommendation**: build Option A first. It is self-contained in the CPU
+hook, gives step back, step back over, step back out and reverse continue
+for CPU and memory, and covers nearly all debugging of program logic. State
+plainly in the UI that device state is not rewound. Treat Option B as a
+separate feature (machine save states), since its cost is in every device
+and it pays off outside the debugger as well; once it exists, Option C
+follows with little extra work.
+**Open questions for the owner**: whether the device-state limit of Option A
+is acceptable; the ring size (memory against reach); and whether machine
+save states are wanted on their own merits, which decides whether Option B
+is worth its cost.

@@ -1164,4 +1164,4 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T435 Owner answer 2026-10-03: the bottom tab band is darker than the background, not lighter (reverses T384's direction)
 - [X] T436 Owner answer 2026-10-03: the console's gap between commands is 75% of a line, not a whole one
 - [X] T437 Owner answer 2026-10-03: in light themes an enabled check box has a visible outline (DxuiCheckbox)
-- [ ] T438 Owner question 2026-10-03: how can the debugger support reverse execution (step back, step back over, step back out)? Write up the design options and costs for the owner; build nothing yet
+- [X] T438 Owner question 2026-10-03: how can the debugger support reverse execution (step back, step back over, step back out)? Write up the design options and costs for the owner; build nothing yet
