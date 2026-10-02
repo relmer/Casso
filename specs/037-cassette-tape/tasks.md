@@ -173,7 +173,7 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
 - [X] T029 [US4] Lay the widget out in the drive band in `CassoEmuCore/Shell/EmulatorShellChrome.cpp` and `Shell/Layout/DriveRowLayout.h`. Hide it when `HasCassettePort()` is false, in all three visibility sites (`EmulatorShell.cpp:1082-1110`, `EmulatorShellPresent.cpp:912-927`, `EmulatorWindow.cpp:1936-1948`). Register its drop hit rect; until T025 passes
 - [X] T030 [US4] Add insert, eject, rewind, play and stop to `TapeManager` (`CassoEmuCore/Shell/TapeManager.{h,cpp}`):
   - the tape picker via `IHostDialogs` (done as a plain file picker opening on the inserted tape's folder; a recent-tapes list is left for later)
-  - drag-and-drop insertion through `DxuiDragDropTarget` with a tape-extension filter (not done; see T063)
+  - drag-and-drop insertion through `DxuiDragDropTarget` with a tape-extension filter (not done; see T058)
   - transport commands posted to the CPU thread (command-thread routing)
 - [X] T031 [US4] Route widget clicks in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`. Add the tape items (Insert tape..., New blank tape..., Play tape, Stop tape, Rewind tape, Eject tape; sentence case) to the Disk menu through `WindowCommandManager`, disabled on the //c
 - [X] T032 [US4] Persist the per-machine `tapePath` through `Config/DiskSettings.{h,cpp}` (beside `disk1Path`). Reinsert at launch and on machine switch via `AutoMountResolver`, rewound to 0 and stopped. Clear stale entries. Until T024 passes
@@ -261,6 +261,14 @@ identical memory; host time drops sharply with it on.
 - [ ] T055 Search all new code for magic numbers, British spelling, `name` used as a verb in strings or comments, and `\w \(\)`
 - [ ] T056 Pre-merge gate: full suite Debug and Release x64 (`scripts/RunTests.ps1 -Build`), `scripts/Build.ps1 -RunCodeAnalysis`, ARM64 build, and `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`
 - [ ] T057 After the owner has tested and approved: draft the CHANGELOG `[Unreleased]` entry (`GH #160: ...`) and the README feature line for owner approval before committing
+
+---
+
+### Follow-ons found during implementation
+
+- [ ] T058 [US4] Drag a tape file onto the tape widget to insert it: register the widget's rect with `DxuiDragDropTarget` alongside the drive rects (`EmulatorShell::InstallDragDropTarget`) and accept WAV, AIFF and MP3
+- [ ] T059 [US4] Recent tapes: a `GlobalUserPrefs::recentTapes` list (`DiskMru`) and an MRU picker matching the disk picker, plus a remembered folder for new blank tapes
+- [ ] T060 [US4] Marquee a tape name too long for the widget's name row, as `DriveWidget::PaintBasenameLabel` does
 
 ---
 

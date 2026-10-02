@@ -15,25 +15,30 @@
 
 | Control | Action | Enabled when |
 |---|---|---|
-| Name row (click) | Opens the tape picker (recent tapes plus Browse) | always |
-| Name row (drop a file) | Inserts that file | always |
+| Name row (click) | Opens the file picker on the inserted tape's folder (a recent-tapes list is a follow-on) | always |
 | Rewind | Stops if moving, then sets position to 0 | a tape is inserted |
 | Play | Starts playback, or recording if record is armed | stopped with a tape |
 | Stop | Stops; commits a recording | playing or recording |
 | Record | Toggles record armed | the tape is writable and stopped |
 | Eject | Commits any recording, then empties the deck | a tape is inserted |
 
-Menu (Tape submenu beside the disk items): Insert tape..., New blank tape...,
-Eject tape, Rewind. All labels are sentence case.
+Menu: the Disk menu gains Insert tape..., New blank tape..., Play tape, Stop
+tape, Rewind tape and Eject tape, after the drive items. All are disabled on the
+//c, and the transport items follow the same enabled rules as the buttons. All
+labels are sentence case.
 
 ## Display
 
-- File name, marqueed when too long; `(empty)` with no tape.
+- File name, centered and clipped to the row; `(empty)` with no tape. A marquee for long names is a follow-on.
 - A progress rail showing position over length, and an `m:ss / m:ss` readout.
 - State: play lit while playing; record lit red while recording and dimmed
-  while armed; a protected-tape badge when record is unavailable.
+  while armed. A protected tape shows the record button disabled, like a tape
+  with its tab broken out.
+- The transport marks (rewind, play, stop, record, eject) are drawn shapes:
+  Segoe MDL2 has no eject glyph, and drawn shapes stay one set.
 
 ## Settings
 
-Hardware page: a "Fast tape loading" checkbox, on by default. Off means
-loads run at the selected speed and the tape is audible.
+Disk page: a "Fast tape loading" toggle, on by default, beside the drive audio
+toggle it copies. Off means loads run at the selected speed and the tape is
+audible.
