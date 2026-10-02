@@ -76,8 +76,6 @@ WORD  MachineManager::ResolveMachineSpeedCommand (const JsonValue & mergedJson)
 
     if (SUCCEEDED (hr) && uiPrefs != nullptr)
     {
-        _Analysis_assume_ (uiPrefs != nullptr);
-
         hr = uiPrefs->GetString ("speedMode", speed);
     }
 

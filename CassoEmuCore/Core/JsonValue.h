@@ -94,8 +94,8 @@ public:
     HRESULT GetInt    (const string & key, int &              outValue) const { return GetValue (key, JsonType::Number, outValue); }
     HRESULT GetUint32 (const string & key, uint32_t &         outValue) const { return GetValue (key, JsonType::Number, outValue); }
     HRESULT GetBool   (const string & key, bool &             outValue) const { return GetValue (key, JsonType::Bool,   outValue); }
-    HRESULT GetObject (const string & key, const JsonValue *& outValue) const { return GetValue (key, JsonType::Object, outValue); }
-    HRESULT GetArray  (const string & key, const JsonValue *& outValue) const { return GetValue (key, JsonType::Array,  outValue); }
+    _Success_(SUCCEEDED (return)) HRESULT GetObject (const string & key, _Outref_ const JsonValue *& outValue) const { return GetValue (key, JsonType::Object, outValue); }
+    _Success_(SUCCEEDED (return)) HRESULT GetArray  (const string & key, _Outref_ const JsonValue *& outValue) const { return GetValue (key, JsonType::Array,  outValue); }
 
     // Presence tests -- the same lookups, answered as a bool.
     //
