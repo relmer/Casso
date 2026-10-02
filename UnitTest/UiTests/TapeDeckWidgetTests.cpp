@@ -221,4 +221,20 @@ public:
         Assert::AreEqual (std::wstring (L"adventure.wav"), TapeDeckWidget::GetDisplayName (MakeView (TapeTransport::Stopped)));
         Assert::AreEqual (std::wstring (L"(empty)"),       TapeDeckWidget::GetDisplayName (TapeDeckView()));
     }
+
+    TEST_METHOD (LoadingOffersOnlyThePickerAndEject)
+    {
+        TapeDeckView  view = MakeView (TapeTransport::Stopped);
+
+
+
+        view.loadingPath = L"C:\\Tapes\\long.mp3";
+
+        Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Name,   view));
+        Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,  view), L"eject cancels the load");
+        Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,   view));
+        Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind, view));
+        Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Record, view));
+        Assert::AreEqual (std::wstring (L"Loading long.mp3\x2026"), TapeDeckWidget::GetDisplayName (view));
+    }
 };

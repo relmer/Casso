@@ -88,6 +88,10 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_mechanism);
     Adopt (m_driveAudio);
     Adopt (m_fastTape);
+    Adopt (m_tapeAutoStop);
+    Adopt (m_tapeVolume);
+    Adopt (m_tapeVolumeLabel);
+    Adopt (m_tapeAutoStopLabel);
     for (DxuiCheckbox & checkbox : m_writeProtect)
     {
         Adopt (checkbox);
@@ -263,6 +267,18 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_tapeLabel.SetText (L"Fast tape loading:");
     m_fastTape.SetRect  (MakeRect (controlsX, y, checkWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // Heard only when loading at real speed.
+    m_tapeVolumeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeVolumeLabel.SetText (L"Tape volume:");
+    ConfigureVolumeSlider (m_tapeVolume, MakeRect (controlsX, y, dropWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // Off leaves the deck running on past the end until Stop is pressed.
+    m_tapeAutoStopLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeAutoStopLabel.SetText (L"Stop at end of tape:");
+    m_tapeAutoStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
 
     m_wpLabel.SetDpi         (dpi);
     m_writeModeLabel.SetDpi  (dpi);
@@ -272,6 +288,10 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_mechanism.SetDpi       (dpi);
     m_driveAudio.SetDpi      (dpi);
     m_fastTape.SetDpi        (dpi);
+    m_tapeAutoStop.SetDpi    (dpi);
+    m_tapeVolume.SetDpi      (dpi);
+    m_tapeVolumeLabel.SetDpi (dpi);
+    m_tapeAutoStopLabel.SetDpi (dpi);
     m_tapeLabel.SetDpi       (dpi);
     m_diskHeading.SetDpi     (dpi);
     m_tapeHeading.SetDpi     (dpi);
@@ -327,6 +347,8 @@ void DiskPage::Rebuild()
     m_mechanism.SetSelected (state->GetPrefs().floppyMechanism == "alps" ? 1 : 0);
     m_driveAudio.SetChecked (state->GetPrefs().floppySoundEnabled);
     m_fastTape.SetChecked   (state->GetPrefs().fastTapeLoading);
+    m_tapeAutoStop.SetChecked (state->GetPrefs().tapeAutoStop);
+    m_tapeVolume.SetValue   (state->GetPrefs().tapeVolume * 100.0f);
     m_writeProtect[0].SetChecked (state->GetPrefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->GetPrefs().writeProtect[1]);
     m_motorVol.SetValue     (state->GetPrefs().driveMotorVolume * 100.0f);
@@ -344,6 +366,8 @@ void DiskPage::Rebuild()
         ApplyDriveAudioChildEnabled (checked);
     });
     m_fastTape.SetOnChange ([state] (bool checked) { state->SetFastTapeLoading (checked); });
+    m_tapeAutoStop.SetOnChange ([state] (bool checked) { state->SetTapeAutoStop (checked); });
+    m_tapeVolume.SetOnChange ([state] (float v) { state->SetTapeVolume (v / 100.0f); });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
 

@@ -267,7 +267,7 @@ identical memory; host time drops sharply with it on.
 ### Follow-ons found during implementation
 
 - [ ] T058 [US4] Drag a tape file onto the tape widget to insert it: register the widget's rect with `DxuiDragDropTarget` alongside the drive rects (`EmulatorShell::InstallDragDropTarget`) and accept WAV, AIFF and MP3
-- [ ] T059 [US4] Recent tapes: a `GlobalUserPrefs::recentTapes` list (`DiskMru`) and an MRU picker matching the disk picker, plus a remembered folder for new blank tapes
+- [X] T059 [US4] Recent tapes (done as the shared disk picker and recent list, filtered by extension; the folders of every recent entry are scanned for both kinds): a `GlobalUserPrefs::recentTapes` list (`DiskMru`) and an MRU picker matching the disk picker, plus a remembered folder for new blank tapes
 - [ ] T060 [US4] Marquee a tape name too long for the widget's name row, as `DriveWidget::PaintBasenameLabel` does
 
 ---

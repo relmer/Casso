@@ -205,10 +205,18 @@ RECT TapeDeckWidget::GetButtonRect (TapeDeckRegion region) const
 
 bool TapeDeckWidget::IsRegionEnabled (TapeDeckRegion region, const TapeDeckView & view)
 {
-    bool  hasTape  = view.transport != TapeTransport::Empty;
-    bool  isMoving = view.transport == TapeTransport::Playing || view.transport == TapeTransport::Recording;
+    bool  hasTape   = view.transport != TapeTransport::Empty;
+    bool  isMoving  = view.transport == TapeTransport::Playing || view.transport == TapeTransport::Recording;
+    bool  isLoading = !view.loadingPath.empty();
 
 
+
+    // While a tape loads, only the picker and eject (which cancels the load)
+    // do anything.
+    if (isLoading)
+    {
+        return region == TapeDeckRegion::Name || region == TapeDeckRegion::Eject;
+    }
 
     switch (region)
     {
@@ -301,6 +309,11 @@ float TapeDeckWidget::GetProgress (const TapeDeckView & view)
 
 std::wstring TapeDeckWidget::GetDisplayName (const TapeDeckView & view)
 {
+    if (!view.loadingPath.empty())
+    {
+        return L"Loading " + std::filesystem::path (view.loadingPath).filename().wstring() + s_kchEllipsis;
+    }
+
     if (view.transport == TapeTransport::Empty || view.path.empty())
     {
         return kEmptyLabel;
@@ -360,7 +373,7 @@ void TapeDeckWidget::Paint (
                           (float) m_nameRect.left, (float) m_nameRect.top,
                           (float) (m_nameRect.right - m_nameRect.left),
                           (float) (m_nameRect.bottom - m_nameRect.top),
-                          hasTape ? theme.driveLabel : theme.dropdownAccel,
+                          hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel,
                           kNameFontDip * dipScale, kFontFamily,
                           DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);

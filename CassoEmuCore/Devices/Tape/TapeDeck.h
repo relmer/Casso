@@ -60,6 +60,7 @@ public:
     void  Stop           (uint64_t nowCycle);
     void  Rewind         (uint64_t nowCycle);
     void  SetRecordArmed (bool isArmed);
+    void  SetAutoStop    (bool isOn) { m_isAutoStop.store (isOn, std::memory_order_relaxed); }
     void  Update         (uint64_t nowCycle);
 
     bool  ReadInputLevel (uint64_t busCycle) override;
@@ -104,6 +105,7 @@ private:
     RecordingCapture  m_capture;
     bool              m_hasPendingRecording = false;
 
+    std::atomic<bool>           m_isAutoStop      { true };
     std::atomic<TapeTransport>  m_shownTransport  { TapeTransport::Empty };
     std::atomic<double>         m_shownPosition   { 0.0 };
     std::atomic<uint64_t>       m_shownLength     { 0 };

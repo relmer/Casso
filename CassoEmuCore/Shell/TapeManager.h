@@ -55,6 +55,10 @@ public:
 
     std::string  GetInsertedPath () const;
 
+    //  The tape being read and decoded right now and how long ago that began,
+    //  or an empty path when nothing is loading.
+    std::string  GetLoadingPath  (int64_t & elapsedMs) const;
+
     void     Execute           (TapeCommand command, TapeDeck & deck, uint64_t nowCycle);
     HRESULT  CommitPendingRecording (TapeDeck & deck);
 
@@ -81,8 +85,10 @@ private:
     RunFn                m_runInBackground;
     std::function<void (const std::wstring &)>  m_notify;
 
-    mutable std::mutex        m_pendingLock;
-    std::optional<TapeImage>  m_pending;
-    std::string               m_insertedPath;
-    uint64_t                  m_request = 0;   // the newest insert or eject asked for
+    mutable std::mutex                     m_pendingLock;
+    std::optional<TapeImage>               m_pending;
+    std::string                            m_insertedPath;
+    uint64_t                               m_request      = 0;   // the newest insert or eject asked for
+    std::string                            m_loadingPath;
+    std::chrono::steady_clock::time_point  m_loadStarted;
 };

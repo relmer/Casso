@@ -4,6 +4,7 @@
 
 #include "../AssetBootstrap.h"
 #include "Config/WindowPlacementProfile.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
@@ -1119,7 +1120,6 @@ Error:
 HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMountStarted)
 {
     HRESULT                    hr        = S_OK;
-    PWSTR                      docsRaw   = nullptr;
     int                        choice    = IDYES;
     bool                       occupied  = false;
     std::wstring               folder;
@@ -1128,7 +1128,6 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     std::vector<int>           mountedDrives;
     vector<Byte>               imageBytes;
     std::string                imageContent;
-    std::error_code            ec;
     BootPayload                payload;
     FileBrowseModel            model;
     CreateDiskDialog           dialog;
@@ -1138,33 +1137,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
     outMountStarted = false;
 
-    // The last create's folder wins while it still exists; otherwise the
-    // default Documents\Casso Disks, created on demand.
-    if (!m_shell.m_globalPrefs.lastDiskCreateFolder.empty())
-    {
-        const std::string &  stored = m_shell.m_globalPrefs.lastDiskCreateFolder;
-        std::u8string        u8     (reinterpret_cast<const char8_t *> (stored.data()),
-                                     stored.size());
-        std::wstring         last   = std::filesystem::path (u8).wstring();
-
-        if (std::filesystem::exists (last, ec))
-        {
-            folder = last;
-        }
-    }
-
-    if (folder.empty())
-    {
-        hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &docsRaw);
-        CHRA (hr);
-
-        folder = docsRaw;
-        CoTaskMemFree (docsRaw);
-        docsRaw = nullptr;
-
-        folder += L"\\Casso Disks";
-        std::filesystem::create_directories (folder, ec);
-    }
+    folder = GetDiskCreateFolder();
 
     // The model refuses a target that is currently mounted in any drive; the
     // store's backing paths are UTF-8 and go wide through the same u8string
@@ -1308,6 +1281,153 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDiskCreateFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WindowCommandManager::GetDiskCreateFolder()
+{
+    HRESULT          hr      = S_OK;
+    PWSTR            docsRaw = nullptr;
+    std::wstring     folder;
+    std::error_code  ec;
+
+
+
+    if (!m_shell.m_globalPrefs.lastDiskCreateFolder.empty())
+    {
+        const std::string &  stored = m_shell.m_globalPrefs.lastDiskCreateFolder;
+        std::u8string        u8     (reinterpret_cast<const char8_t *> (stored.data()), stored.size());
+        std::wstring         last   = std::filesystem::path (u8).wstring();
+
+        if (std::filesystem::exists (last, ec))
+        {
+            folder = last;
+        }
+    }
+
+    BAIL_OUT_IF (!folder.empty(), S_OK);
+
+    hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &docsRaw);
+    CHRA (hr);
+
+    folder = docsRaw;
+    folder += L"\\Casso Disks";
+    std::filesystem::create_directories (folder, ec);
+
+Error:
+    if (docsRaw != nullptr)
+    {
+        CoTaskMemFree (docsRaw);
+    }
+
+    return folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRecentMedia
+//
+//  The picker's list for one kind of media: the recent entries of that kind
+//  that still exist, then the files of that kind in the folders of EVERY
+//  recent entry, then the bundled demos. Disks and tapes share the recent list
+//  and the folders; the filter is the only difference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<DiskMru::Entry> & entries)
+{
+    DiskMru                      mru      = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
+                                                               m_shell.m_globalPrefs.recentDiskLoadedAt);
+    std::vector<DiskMru::Entry>  existing = mru.Prune ([] (const std::filesystem::path & p)
+                                                       {
+                                                           return std::filesystem::exists (p)
+                                                                  && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                                       });
+
+
+
+    entries.clear();
+
+    for (const DiskMru::Entry & entry : existing)
+    {
+        if (isWanted (entry.path.wstring()))
+        {
+            entries.push_back (entry);
+        }
+    }
+
+    AssetBootstrap::AppendSiblingDisksFromMruFolders (entries, existing, isWanted);
+    AssetBootstrap::AppendBundledDemoDisks (entries, isWanted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptInsertTapeMru
+//
+//  The disk picker, choosing a tape: same recent list, same folders, tape
+//  files only, and no stock downloads. Browse and create-new go to the tape
+//  versions of those flows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
+{
+    HRESULT                      hr            = S_OK;
+    std::vector<DiskMru::Entry>  entries;
+    std::wstring                 chosenPath;
+    std::string                  error;
+    bool                         userBrowsed   = false;
+    bool                         userCreateNew = false;
+
+
+
+    GetRecentMedia (TapeImageLoader::IsTapeFileExtension, entries);
+
+    hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
+                                              m_shell.m_hwnd,
+                                              AssetBootstrap::MakeTapePickerKind(),
+                                              anchorRectPx,
+                                              entries,
+                                              AssetBootstrap::GetDiskDirectory(),
+                                              m_shell.m_globalPrefs.activeTheme,
+                                              chosenPath,
+                                              userBrowsed,
+                                              userCreateNew,
+                                              error);
+    CHR (hr);
+
+    if (userBrowsed)
+    {
+        m_shell.BrowseForTape();
+    }
+    else if (userCreateNew)
+    {
+        m_shell.CreateBlankTape();
+    }
+    else if (!chosenPath.empty())
+    {
+        m_shell.InsertTape (chosenPath);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PromptInsertDiskMru
 //
 //  Shows the themed disk MRU picker. Routes the user's chosen disk
@@ -1335,21 +1455,12 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
 
 
 
-    diskDir   = AssetBootstrap::GetDiskDirectory();
-    mru       = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
-                                   m_shell.m_globalPrefs.recentDiskLoadedAt);
-    mruPruned = mru.Prune ([] (const std::filesystem::path & p)
-                           {
-                               return std::filesystem::exists (p)
-                                      && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                           });
-
-    AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
-    AssetBootstrap::AppendBundledDemoDisks (mruPruned);
+    diskDir = AssetBootstrap::GetDiskDirectory();
+    GetRecentMedia (IsSupportedDiskImageExtension, mruPruned);
 
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
                                               m_shell.m_hwnd,
-                                              drive,
+                                              AssetBootstrap::MakeDiskPickerKind (drive),
                                               anchorRectPx,
                                               mruPruned,
                                               diskDir,
@@ -1444,7 +1555,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         // The tape items open their pickers here; the deck commands are
         // queued to the CPU thread by the tape manager.
-        case IDM_TAPE_INSERT: m_shell.BrowseForTape();                 break;
+        case IDM_TAPE_INSERT: m_shell.PickTape();                      break;
         case IDM_TAPE_NEW:    m_shell.CreateBlankTape();               break;
         case IDM_TAPE_EJECT:  m_shell.m_tapeManager->Eject();          break;
         case IDM_TAPE_PLAY:   m_shell.m_tapeManager->Play();           break;

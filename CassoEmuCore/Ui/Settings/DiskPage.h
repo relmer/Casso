@@ -96,6 +96,10 @@ private:
     DxuiComboBox                     m_mechanism;
     DxuiToggle                       m_driveAudio;
     DxuiToggle                       m_fastTape;
+    DxuiToggle                       m_tapeAutoStop;
+    DxuiSlider                       m_tapeVolume;
+    DxuiLabel                        m_tapeVolumeLabel;
+    DxuiLabel                        m_tapeAutoStopLabel;
     std::array<DxuiCheckbox, 2>      m_writeProtect;
     DxuiSlider                       m_motorVol;
     DxuiSlider                       m_headVol;

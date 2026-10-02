@@ -74,17 +74,18 @@
 
 void EmulatorShell::ApplyPersistedAudioPrefs()
 {
-    HRESULT            hr      = S_OK;
-    HRESULT            hrOpt   = S_OK;
+    HRESULT            hr         = S_OK;
+    HRESULT            hrOpt      = S_OK;
     JsonValue          doc;
-    const JsonValue *  uiPrefs = nullptr;
-    bool               enabled = true;
+    const JsonValue  * uiPrefs    = nullptr;
+    bool               enabled    = true;
     std::string        mechNarrow;
-    double             motorV  = Disk2AudioSource::kMotorVolume;
-    double             headV   = Disk2AudioSource::kHeadVolume;
-    double             doorV   = Disk2AudioSource::kDoorVolume;
-    double             pan0    = DriveAudioMixer::kDefaultDriveOnePan;
-    double             pan1    = DriveAudioMixer::kDefaultDriveTwoPan;
+    double             motorV     = Disk2AudioSource::kMotorVolume;
+    double             headV      = Disk2AudioSource::kHeadVolume;
+    double             doorV      = Disk2AudioSource::kDoorVolume;
+    double             pan0       = DriveAudioMixer::kDefaultDriveOnePan;
+    double             pan1       = DriveAudioMixer::kDefaultDriveTwoPan;
+    double             tapeVolume = 1.0;
 
 
 
@@ -115,6 +116,18 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     if (SUCCEEDED (hrOpt))
     {
         SetFastTapeLoading (enabled);
+    }
+
+    hrOpt = uiPrefs->GetBool ("tapeAutoStop", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeAutoStop (enabled);
+    }
+
+    hrOpt = uiPrefs->GetNumber ("tapeVolume", tapeVolume);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeVolume ((float) tapeVolume);
     }
 
     hrOpt = uiPrefs->GetString ("floppyMechanism", mechNarrow);

@@ -237,7 +237,7 @@ void TapeDeck::SetRecordArmed (bool isArmed)
 
 void TapeDeck::Update (uint64_t nowCycle)
 {
-    bool  isPastEnd = m_transport == TapeTransport::Playing &&
+    bool  isPastEnd = m_transport == TapeTransport::Playing && m_isAutoStop.load (std::memory_order_relaxed) &&
                       GetSampleAtCycle (nowCycle) >= (double) m_image.signal.lengthSamples;
 
 

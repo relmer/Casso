@@ -172,4 +172,13 @@ public:
         Assert::AreEqual (E_FAIL, hr);
         Assert::IsTrue   (image.path.empty());
     }
+
+    TEST_METHOD (TapeExtensionsAreRecognizedWhateverTheirCase)
+    {
+        Assert::IsTrue  (TapeImageLoader::IsTapeFileExtension (L"C:\\Tapes\\a.wav"));
+        Assert::IsTrue  (TapeImageLoader::IsTapeFileExtension (L"C:\\Tapes\\b.AIFF"));
+        Assert::IsTrue  (TapeImageLoader::IsTapeFileExtension (L"c.Mp3"));
+        Assert::IsFalse (TapeImageLoader::IsTapeFileExtension (L"C:\\Disks\\dos.dsk"));
+        Assert::IsFalse (TapeImageLoader::IsTapeFileExtension (L"noextension"));
+    }
 };

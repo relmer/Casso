@@ -61,7 +61,9 @@ void TapeManager::Insert (const std::string & path)
     {
         std::lock_guard<std::mutex>  lock (m_pendingLock);
 
-        request = ++m_request;
+        request       = ++m_request;
+        m_loadingPath = path;
+        m_loadStarted = std::chrono::steady_clock::now();
     }
 
     m_runInBackground ([this, path, request] ()
@@ -120,6 +122,7 @@ HRESULT TapeManager::LoadAndPost (const std::string & path, uint64_t request)
         {
             m_pending      = std::move (image);
             m_insertedPath = path;
+            m_loadingPath.clear();
         }
     }
 
@@ -131,6 +134,15 @@ HRESULT TapeManager::LoadAndPost (const std::string & path, uint64_t request)
 Error:
     if (FAILED (hr))
     {
+        {
+            std::lock_guard<std::mutex>  lock (m_pendingLock);
+
+            if (request == m_request)
+            {
+                m_loadingPath.clear();
+            }
+        }
+
         Notify (L"Error: unreadable tape\n" + std::filesystem::path (error).wstring());
     }
 
@@ -218,6 +230,7 @@ void TapeManager::Eject()
 
         ++m_request;
         m_insertedPath.clear();
+        m_loadingPath.clear();
         m_pending.reset();
     }
 
@@ -241,6 +254,27 @@ std::string TapeManager::GetInsertedPath() const
 
 
     return m_insertedPath;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLoadingPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TapeManager::GetLoadingPath (int64_t & elapsedMs) const
+{
+    std::lock_guard<std::mutex>  lock (m_pendingLock);
+
+
+
+    elapsedMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now() - m_loadStarted).count();
+
+    return m_loadingPath;
 }
 
 

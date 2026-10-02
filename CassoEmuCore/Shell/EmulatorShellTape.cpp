@@ -38,8 +38,11 @@ bool EmulatorShell::MachineHasCassettePort() const
 
 TapeDeckView EmulatorShell::GetTapeView() const
 {
-    TapeDeck::Snapshot  snapshot = m_machine.GetTapeDeck().GetSnapshot();
+    constexpr int64_t   kLoadingShowMs = 150;
+    TapeDeck::Snapshot  snapshot       = m_machine.GetTapeDeck().GetSnapshot();
     TapeDeckView        view;
+    std::string         loading;
+    int64_t             loadingMs      = 0;
 
 
 
@@ -50,6 +53,14 @@ TapeDeckView EmulatorShell::GetTapeView() const
     if (m_tapeManager != nullptr)
     {
         view.path = std::filesystem::path (m_tapeManager->GetInsertedPath()).wstring();
+        loading   = m_tapeManager->GetLoadingPath (loadingMs);
+
+        // A quick load shows nothing, so a WAV that decodes at once does not
+        // flicker a message.
+        if (!loading.empty() && loadingMs >= kLoadingShowMs)
+        {
+            view.loadingPath = std::filesystem::path (loading).wstring();
+        }
     }
 
     if (snapshot.sampleRate != 0)
@@ -136,7 +147,7 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
 
     switch (region)
     {
-        case TapeDeckRegion::Name:   BrowseForTape();                                    break;
+        case TapeDeckRegion::Name:   PickTape();                                         break;
         case TapeDeckRegion::Rewind: m_tapeManager->Rewind();                            break;
         case TapeDeckRegion::Play:   m_tapeManager->Play();                              break;
         case TapeDeckRegion::Stop:   m_tapeManager->Stop();                              break;
@@ -172,10 +183,7 @@ void EmulatorShell::BrowseForTape()
 
     spec.filters = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.mp3" }, { L"All files", L"*.*" } };
 
-    if (m_tapeManager != nullptr && !m_tapeManager->GetInsertedPath().empty())
-    {
-        spec.initialFolder = std::filesystem::path (m_tapeManager->GetInsertedPath()).parent_path();
-    }
+    spec.initialFolder = m_windowCommandManager->GetDiskCreateFolder();
 
     m_host->BeginModalKeepAlive();
     hr = m_hostDialogs.PickFileToOpen (m_hwnd, spec, picked, isPicked);
@@ -184,7 +192,7 @@ void EmulatorShell::BrowseForTape()
     CHR (hr);
     BAIL_OUT_IF (!isPicked, S_OK);
 
-    m_tapeManager->Insert (picked.string());
+    InsertTape (picked.wstring());
 
 Error:
     return;
@@ -208,6 +216,7 @@ void EmulatorShell::CreateBlankTape()
     HRESULT                hr        = S_OK;
     FileDialogSpec         spec;
     std::filesystem::path  picked;
+    std::u8string          folderUtf8;
     bool                   isPicked  = false;
 
 
@@ -215,6 +224,7 @@ void EmulatorShell::CreateBlankTape()
     spec.filters          = { { L"WAV recordings", L"*.wav" } };
     spec.defaultExtension = L"wav";
     spec.defaultFileName  = L"New tape.wav";
+    spec.initialFolder    = m_windowCommandManager->GetDiskCreateFolder();
 
     m_host->BeginModalKeepAlive();
     hr = m_hostDialogs.PickFileToSave (m_hwnd, spec, picked, isPicked);
@@ -223,8 +233,75 @@ void EmulatorShell::CreateBlankTape()
     CHR (hr);
     BAIL_OUT_IF (!isPicked || m_tapeManager == nullptr, S_OK);
 
+    // New tapes and new disks share the create folder.
+    folderUtf8 = picked.parent_path().u8string();
+    m_globalPrefs.lastDiskCreateFolder.assign (folderUtf8.begin(), folderUtf8.end());
+    SaveGlobalPrefs();
+
     m_tapeManager->CreateBlank (picked.string());
+    RecordRecentDisk (picked.wstring(), S_OK);
 
 Error:
     return;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickTape
+//
+//  The disk picker, choosing a tape, anchored under the tape widget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PickTape()
+{
+    HRESULT       hr       = S_OK;
+    RECT          anchor   = m_tapeChrome.GetNameRect();
+    const RECT  * pAnchor  = nullptr;
+
+
+
+    if (!IsRectEmpty (&anchor))
+    {
+        MapWindowPoints (m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchor), 2);
+        pAnchor = &anchor;
+    }
+
+    m_host->BeginModalKeepAlive();
+    hr = m_windowCommandManager->PromptInsertTapeMru (pAnchor);
+    m_host->EndModalKeepAlive();
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InsertTape
+//
+//  Starts the load and puts the tape at the top of the recent list, which
+//  disks and tapes share.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InsertTape (const std::wstring & path)
+{
+    if (m_tapeManager == nullptr)
+    {
+        return;
+    }
+
+    m_tapeManager->Insert (std::filesystem::path (path).string());
+    RecordRecentDisk (path, S_OK);
+}
+
+
+
+

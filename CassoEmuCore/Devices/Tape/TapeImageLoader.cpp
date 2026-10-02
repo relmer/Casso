@@ -89,3 +89,40 @@ bool TapeImageLoader::IsMp3 (std::span<const Byte> bytes)
 
     return hasId3 || hasFrameSync;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeImageLoader::IsTapeFileExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TapeImageLoader::IsTapeFileExtension (const std::wstring & path)
+{
+    static constexpr const wchar_t * s_kExtensions[] = { L".wav", L".aif", L".aiff", L".aifc", L".mp3" };
+    std::wstring                     extension       = std::filesystem::path (path).extension().wstring();
+
+
+
+    for (wchar_t & ch : extension)
+    {
+        ch = (wchar_t) towlower (ch);
+    }
+
+    for (const wchar_t * pszCandidate : s_kExtensions)
+    {
+        if (extension == pszCandidate)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+

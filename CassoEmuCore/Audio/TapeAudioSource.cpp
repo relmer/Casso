@@ -39,6 +39,7 @@ void TapeAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     uint64_t  first     = m_hasLast && m_lastCycle <= now ? m_lastCycle : now;
     double    span      = (double) (now - first);
     bool      isPlaying = m_deck != nullptr && m_deck->GetTransport() == TapeTransport::Playing;
+    float     level     = kAmplitude * m_volume.load (std::memory_order_relaxed);
 
 
 
@@ -46,7 +47,7 @@ void TapeAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     {
         uint64_t  cycle = first + (uint64_t) (span * (double) (i + 1) / (double) numSamples);
 
-        outMono[i] = !isPlaying ? 0.0f : (m_deck->PeekLevel (cycle) ? kAmplitude : -kAmplitude);
+        outMono[i] = !isPlaying ? 0.0f : (m_deck->PeekLevel (cycle) ? level : -level);
     }
 
     m_lastCycle = now;

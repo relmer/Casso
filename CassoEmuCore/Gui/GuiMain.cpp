@@ -329,6 +329,7 @@ static HRESULT LoadMachineConfig (
             Win32FileSystem        fs_prefs;
             DiskMru                mru;
             vector<DiskMru::Entry> mruPruned;
+            vector<DiskMru::Entry> mruExisting;
             HRESULT                hrPrefs    = S_OK;
             bool                   userClosed = false;
 
@@ -338,14 +339,22 @@ static HRESULT LoadMachineConfig (
             IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
             mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
+            mruExisting = mru.Prune ([] (const fs::path & p)
+                                     {
+                                         return fs::exists (p)
+                                                && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                     });
+
+            // The recent list holds tapes too; a boot disk is a disk.
             mruPruned = mru.Prune ([] (const fs::path & p)
                                    {
                                        return fs::exists (p)
-                                              && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                              && !AssetBootstrap::IsForeignCheckoutDisk (p)
+                                              && IsSupportedDiskImageExtension (p.wstring());
                                    });
 
-            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
-            AssetBootstrap::AppendBundledDemoDisks (mruPruned);
+            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned, mruExisting, IsSupportedDiskImageExtension);
+            AssetBootstrap::AppendBundledDemoDisks (mruPruned, IsSupportedDiskImageExtension);
 
             hr = AssetBootstrap::PromptBootDiskMru (
                 hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);

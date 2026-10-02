@@ -785,6 +785,8 @@ public:
     // Whether tape loads run at Maximum speed. Read by the CPU thread each
     // slice; written by Settings and at startup.
     void SetFastTapeLoading (bool enabled) { m_fastTapeLoading.store (enabled, std::memory_order_relaxed); }
+    void SetTapeVolume      (float gain)   { m_tapeAudioSource.SetVolume (gain); }
+    void SetTapeAutoStop    (bool enabled) { m_machine.GetTapeDeck().SetAutoStop (enabled); }
 
     // Single-step the CPU from the UI thread. Only safe when the
     // CPU thread is paused (provably idle on pauseCV.wait); the
@@ -1092,7 +1094,9 @@ private:
     TapeDeckView  GetTapeView            () const;
     void          SyncTapeChrome         ();
     void          HandleTapeClick        (TapeDeckRegion region);
+    void          PickTape               ();
     void          BrowseForTape          ();
+    void          InsertTape             (const std::wstring & path);
     void          CreateBlankTape        ();
 
     // Re-hangs the mounted-image basename strip under each projected drive.

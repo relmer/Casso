@@ -324,4 +324,19 @@ public:
         Assert::AreEqual ( TapeAudioSource::kAmplitude, pcm[3]);
         Assert::IsFalse  (deck.HasBeenAccessed(), L"listening is not the guest reading the tape");
     }
+
+    TEST_METHOD (WithAutoStopOffTheTapeRunsOnPastTheEnd)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.SetAutoStop (false);
+        deck.Play (0);
+        deck.Update (kLength + 500);
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Playing);
+        Assert::AreEqual ((double) kLength + 500.0, deck.GetPositionSamples (kLength + 500));
+    }
 };

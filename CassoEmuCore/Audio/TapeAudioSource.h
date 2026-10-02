@@ -27,6 +27,7 @@ public:
     using NowFn = std::function<uint64_t ()>;
 
     void  Attach      (const TapeDeck * deck, NowFn now);
+    void  SetVolume   (float gain) { m_volume.store (gain, std::memory_order_relaxed); }
 
     void  GeneratePCM (float * outMono, uint32_t numSamples) override;
     float GetPanLeft  () const override { return m_panLeft; }
@@ -47,6 +48,7 @@ private:
     NowFn             m_now;
     uint64_t          m_lastCycle  = 0;
     bool              m_hasLast    = false;
+    std::atomic<float>  m_volume   { 1.0f };
     float             m_panLeft    = kCenterPan;
     float             m_panRight   = kCenterPan;
 };

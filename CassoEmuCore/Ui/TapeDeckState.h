@@ -24,4 +24,5 @@ struct TapeDeckView
     double         lengthSeconds   = 0.0;
     bool           isRecordArmed   = false;
     bool           isWritable      = false;
+    std::wstring   loadingPath;                  // set while a tape is being read and decoded
 };

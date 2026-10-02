@@ -48,6 +48,8 @@ public:
         SettingsColorMode  lastColor                  = SettingsColorMode::Color;
         bool               lastFloppySound            = true;
         bool               lastFastTapeLoading        = true;
+        float              lastTapeVolume             = 1.0f;
+        bool               lastTapeAutoStop           = true;
         std::string        lastMechanism;
         bool               lastWriteProtect[2]        = { false, false };
         float              lastDriveMotor             = -1.0f;
@@ -64,6 +66,8 @@ public:
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
         void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
         void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
+        void ApplyTapeVolume   (float gain) override               { lastTapeVolume = gain; }
+        void ApplyTapeAutoStop (bool enabled) override             { lastTapeAutoStop = enabled; }
         void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
         void ApplyDriveVolumes (float motor, float head, float door) override
         {
@@ -488,6 +492,8 @@ public:
         Assert::IsTrue (st.GetPrefs().fastTapeLoading, L"on when the machine has never saved it");
 
         st.SetFastTapeLoading (false);
+        st.SetTapeVolume      (0.25f);
+        st.SetTapeAutoStop    (false);
         Assert::IsTrue (st.IsDirty());
 
         AssertSucceeded (st.Apply (sink, outJson));
@@ -495,6 +501,10 @@ public:
 
         AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
         Assert::IsFalse (reloaded.fastTapeLoading, L"and writes it");
+        Assert::AreEqual (0.25f, reloaded.tapeVolume);
+        Assert::IsFalse  (reloaded.tapeAutoStop);
+        Assert::AreEqual (0.25f, sink.lastTapeVolume);
+        Assert::IsFalse  (sink.lastTapeAutoStop);
     }
 
 
