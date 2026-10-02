@@ -1520,3 +1520,17 @@ frame). Printer output already sent is not retracted (open question).
    file nearly free. Ship it as a feature, or keep it internal for now?
 7. **Running forward from history**: replay the recorded future (proposed), or
    always run live and discard it?
+
+**Owner answers 2026-10-03 (T464).** Keys follow Visual Studio's Ctrl+R chords; depth is a setting; recording always on if T461 shows full speed holds; saved by default; output already sent stays sent; save states ship as a feature.
+
+**Disk safety rules (2026-10-03).**
+1. The in-memory disk is machine state. Every guest write to a track is journaled with its old bits, and snapshots carry the changed tracks, so a step back restores the disk exactly as it was at that position. The emulated disk never disagrees with the CPU and memory.
+2. The host file is only ever written with a state the machine actually reached at its current position, never a mix of two positions.
+3. The motor-off auto-flush is suspended while the machine is behind live; flushes happen on eject, machine switch, exit and an explicit save, of the current position.
+4. Flushes write to a temporary file and replace the image atomically, so a crash during a flush cannot leave a half-written image. A crash while writes are held loses only the writes since the last flush, as on a real drive with the power cut.
+5. An eject inside history keeps the ejected image's in-memory copy, with its unsaved writes, until that point leaves history, so stepping back across an eject or insert restores the right disk with the right contents. Its file is still flushed on eject (save by default).
+6. If the image file changes on the host while writes are held (another program wrote it), the flush detects it by size and timestamp and asks before overwriting.
+7. Write protect toggles, mounts and ejects are journaled inputs, so replay repeats them.
+8. If history passes back over a flush, the file is ahead of the machine until the next flush writes the current position. That is the owner's "save by default": the last flush always wins.
+
+**Running forward from the past (owner question 7).** Any change made while in the past (memory, registers, disk, a mount) makes the recorded future wrong, so it is dropped at that point and the machine runs live from there; the history band says so. With no change, two choices remain. Replaying the recorded future repeats exactly what happened, keystrokes included, so the user can step back and forth over a bug as often as they like; it costs the replayer and a divergence check. Running live is simpler but diverges at the first recorded keystroke or paddle reading, so the same bug may not recur. Recommendation: replay until the end of history or the first change, then run live.
