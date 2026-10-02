@@ -2156,22 +2156,22 @@ namespace DebuggerViewStateTests
         {
             for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
             {
-                MachineRig  rig;
+                auto  rig = std::make_unique<MachineRig>();   // heap: two rigs overflow the frame (C6262)
 
 
 
                 for (const char * line : { "SRC ON", "SRC OFF" })
                 {
-                    Reply  reply = RunInWindow (rig, DebuggerViewState::GetModeLine (line, mode), mode);
+                    Reply  reply = RunInWindow (*rig, DebuggerViewState::GetModeLine (line, mode), mode);
 
                     Assert::IsTrue (reply.status != CommandStatus::Unknown, L"the mode reads the line");
                 }
             }
 
             {
-                MachineRig  rig;
+                auto  rig = std::make_unique<MachineRig>();
 
-                Assert::IsTrue (RunInWindow (rig, "SRC ON", CommandMode::WinDbg).status == CommandStatus::Unknown, L"not a WinDbg line");
+                Assert::IsTrue (RunInWindow (*rig, "SRC ON", CommandMode::WinDbg).status == CommandStatus::Unknown, L"not a WinDbg line");
             }
         }
 
@@ -3355,26 +3355,26 @@ namespace DebuggerViewStateTests
         {
             for (CommandMode mode : { CommandMode::WinDbg, CommandMode::GSSquared, CommandMode::Monitor })
             {
-                PanelRig  rig;
-                Reply     reply;
+                auto   rig = std::make_unique<PanelRig>();   // heap: two rigs overflow the frame (C6262)
+                Reply  reply;
 
 
 
-                reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), mode), mode);
+                reply = rig->Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), mode), mode);
                 Assert::IsTrue (reply.status == CommandStatus::Ok, L"the control opens the panel");
-                Assert::IsTrue (rig.view.IsPanelOpen ("fake"));
+                Assert::IsTrue (rig->view.IsPanelOpen ("fake"));
 
-                reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), mode), mode);
+                reply = rig->Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), mode), mode);
                 Assert::IsTrue  (reply.status == CommandStatus::Ok, L"the control closes the panel");
-                Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+                Assert::IsFalse (rig->view.IsPanelOpen ("fake"));
             }
 
             {
-                PanelRig  rig;
-                Reply     reply = rig.Run ("!panel fake", CommandMode::WinDbg);
+                auto   rig   = std::make_unique<PanelRig>();
+                Reply  reply = rig->Run ("!panel fake", CommandMode::WinDbg);
 
                 Assert::IsTrue (reply.status == CommandStatus::Ok, L"typed in WinDbg's words");
-                Assert::IsTrue (rig.view.IsPanelOpen ("fake"));
+                Assert::IsTrue (rig->view.IsPanelOpen ("fake"));
             }
         }
 
@@ -3731,24 +3731,48 @@ namespace DebuggerViewStateTests
 
         static Word FirstListed (const Reply & reply)
         {
-            const DisassemblyData * data = std::get_if<DisassemblyData> (&reply.data);
+            HRESULT                  hr       = S_OK;
+            const DisassemblyData  * data     = std::get_if<DisassemblyData> (&reply.data);
+            bool                     hasLines = false;
+            Word                     address  = 0;
 
 
 
-            Assert::IsTrue (data != nullptr && !data->lines.empty());
-            return data->lines[0].instruction.address;
+            Assert::IsNotNull (data);
+            CBR (data != nullptr);
+
+            hasLines = !data->lines.empty();
+            Assert::IsTrue (hasLines);
+            CBR (hasLines);
+
+            address = data->lines[0].instruction.address;
+
+        Error:
+            return address;
         }
 
 
 
         static Word FirstDumped (const Reply & reply)
         {
-            const MemoryData * data = std::get_if<MemoryData> (&reply.data);
+            HRESULT             hr      = S_OK;
+            const MemoryData  * data    = std::get_if<MemoryData> (&reply.data);
+            bool                hasRows = false;
+            Word                address = 0;
 
 
 
-            Assert::IsTrue (data != nullptr && !data->rows.empty());
-            return data->rows[0].address;
+            Assert::IsNotNull (data);
+            CBR (data != nullptr);
+
+            hasRows = !data->rows.empty();
+            Assert::IsTrue (hasRows);
+            CBR (hasRows);
+
+            address = data->rows[0].address;
+
+        Error:
+            return address;
         }
 
 
@@ -3779,24 +3803,24 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (ABareUOrDContinuesTheUsersListingAfterARebuild)
         {
-            MachineRig  plain;
-            MachineRig  rebuilt;
-            Word        listed = 0;
-            Word        dumped = 0;
+            auto  plain   = std::make_unique<MachineRig>();   // heap: two rigs overflow the frame (C6262)
+            auto  rebuilt = std::make_unique<MachineRig>();
+            Word  listed  = 0;
+            Word  dumped  = 0;
 
 
 
-            plain.Run ("U 1000");
-            plain.Run ("D 2000");
-            listed = FirstListed (plain.Run ("U"));
-            dumped = FirstDumped (plain.Run ("D"));
+            plain->Run ("U 1000");
+            plain->Run ("D 2000");
+            listed = FirstListed (plain->Run ("U"));
+            dumped = FirstDumped (plain->Run ("D"));
 
-            rebuilt.Run ("U 1000");
-            rebuilt.Run ("D 2000");
-            (void) rebuilt.view.Build (rebuilt.controller.GetSession());
+            rebuilt->Run ("U 1000");
+            rebuilt->Run ("D 2000");
+            (void) rebuilt->view.Build (rebuilt->controller.GetSession());
 
-            Assert::AreEqual ((int) listed, (int) FirstListed (rebuilt.Run ("U")));
-            Assert::AreEqual ((int) dumped, (int) FirstDumped (rebuilt.Run ("D")));
+            Assert::AreEqual ((int) listed, (int) FirstListed (rebuilt->Run ("U")));
+            Assert::AreEqual ((int) dumped, (int) FirstDumped (rebuilt->Run ("D")));
         }
 
 

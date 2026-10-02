@@ -1005,8 +1005,8 @@ namespace DebuggerTests
             }
 
             Assert::IsTrue  (appleWinChecked.has_value() && vsChecked.has_value());
-            Assert::IsTrue  (*appleWinChecked, L"the saved scheme is the checked one");
-            Assert::IsFalse (*vsChecked,       L"the default is not checked when another is in force");
+            Assert::IsTrue  (appleWinChecked.value_or (false), L"the saved scheme is the checked one");
+            Assert::IsFalse (vsChecked.value_or (true),        L"the default is not checked when another is in force");
         }
 
 
