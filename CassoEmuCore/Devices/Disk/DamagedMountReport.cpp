@@ -184,8 +184,8 @@ wstring DamagedMountReport::FormatBody (const DiskImage & image, const wstring &
 
     if (image.HasFluxTracks())
     {
-        text += L"\n\nSalvage copies the readable sectors to a standard disk image. "
-                L"It does not keep this disk's flux timing or its copy protection.";
+        text += L"\n\nA salvaged copy is a standard disk image of the readable sectors, "
+                L"without this disk's flux timing or its copy protection.";
     }
 
     return text;

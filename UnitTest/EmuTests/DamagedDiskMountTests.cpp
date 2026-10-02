@@ -308,7 +308,7 @@ public:
         Assert::IsTrue (body.find (L"could not be read from the file: track 5.") != wstring::npos);
         Assert::IsTrue (body.find (L"C:\\disks\\damaged.woz") != wstring::npos);
         Assert::IsTrue (body.find (L"write-protected it for this session") != wstring::npos);
-        Assert::IsTrue (body.find (L"does not keep this disk's flux timing") != wstring::npos,
+        Assert::IsTrue (body.find (L"without this disk's flux timing") != wstring::npos,
                         L"a flux disk's report must mention that salvage loses flux timing");
     }
 
