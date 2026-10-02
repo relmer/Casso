@@ -55,6 +55,7 @@ enum class DeskDeviceKind
     Monitor2,      // the //e's beige 12-inch (Monitor II)
     DiskII,
     Disk2c,        // the platinum 5.25 that pairs with the //c
+    CassetteRecorder,  // the Panasonic RQ-309DS beside the stack: no lamp, door or glass
 };
 
 
@@ -151,6 +152,7 @@ class DeskSceneModel
 public:
     // Parses and splits the OBJ/MTL text. Monitor2c must carry exactly one
     // valid spherical-sag glass sheet; DiskII must carry its activity lamp.
+    // CassetteRecorder carries none of those and needs only geometry.
     HRESULT  Load (DeskDeviceKind kind, std::span<const uint8_t> meshBlob);
 
     DeskDeviceKind                                Kind         () const { return m_kind; }

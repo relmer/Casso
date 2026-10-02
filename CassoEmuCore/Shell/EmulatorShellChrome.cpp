@@ -1099,8 +1099,11 @@ void EmulatorShell::ReflowChromeForMachineChange()
 
     // The desk wears what the machine wore, so crossing the //c boundary
     // swaps both models. Reloading rebuilds every cached mesh, so the
-    // scene's own state is pushed again right after.
-    if (m_deskSceneReady && MachineHasCaseSwitches() != m_deskSceneMachineIsC)
+    // scene's own state is pushed again right after. Gaining or losing
+    // cassette jacks adds or removes the recorder, which is a reload too.
+    if (m_deskSceneReady &&
+        (MachineHasCaseSwitches() != m_deskSceneMachineIsC ||
+         MachineHasCassettePort() != m_deskScene.HasRecorder()))
     {
         HRESULT  hrModels = LoadDeskSceneModelsForMachine();
 

@@ -1576,6 +1576,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             driveTook = true;
         }
+
+        // The recorder does what the flat deck's body does: pick a tape.
+        if (sceneHit.target == SceneHitResult::Target::Recorder)
+        {
+            HandleTapeClick (TapeDeckRegion::Name);
+            driveTook = true;
+        }
     }
     else
     {

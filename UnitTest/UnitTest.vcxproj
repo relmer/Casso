@@ -516,6 +516,7 @@
     <ClCompile Include="UiTests\DeskSceneLayoutTests.cpp" />
     <ClCompile Include="UiTests\ChromeBandLayoutTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneModelTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneRecorderTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneHitTesterTests.cpp" />
     <ClCompile Include="UiTests\FullscreenStripStateTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />

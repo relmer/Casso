@@ -31,6 +31,7 @@ struct SceneHitResult
         Glass,
         Drive,
         BezelTilt,
+        Recorder,      // the cassette recorder beside the stack
     };
 
     Target             target        = Target::None;
@@ -67,7 +68,9 @@ public:
                                      const float *                      monitorBoundsMax = nullptr,
                                      const float *                      driveBoundsMin   = nullptr,
                                      const float *                      driveBoundsMax   = nullptr,
-                                     const DeskRegionBox *              driveDoorBoxes   = nullptr);
+                                     const DeskRegionBox *              driveDoorBoxes   = nullptr,
+                                     const float *                      recorderBoundsMin = nullptr,
+                                     const float *                      recorderBoundsMax = nullptr);
 
 private:
     // Slab test; reports the entry distance so drives can compete on
@@ -90,4 +93,16 @@ private:
                              const float   boxMin[3],
                              const float   boxMax[3],
                              float       & outTNear);
+
+    // The recorder is one target, its whole bounds box, tested through
+    // comp.recorderWorld. It joins the nearest-wins contest the drives use,
+    // and occluderT is the nearest entry of any other device's body.
+    static void  ClassifyRecorder (const DeskSceneComposition & comp,
+                                   const float                  origin[3],
+                                   const float                  dir[3],
+                                   const float                  boxMin[3],
+                                   const float                  boxMax[3],
+                                   float                        occluderT,
+                                   float                      & bestT,
+                                   SceneHitResult             & result);
 };

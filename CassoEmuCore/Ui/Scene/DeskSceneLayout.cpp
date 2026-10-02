@@ -383,6 +383,14 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         }
     }
 
+    // The cassette recorder joins both bounds, so the camera fit contains it
+    // and its shadow exactly as it does the stack.
+    if (metrics.hasRecorder)
+    {
+        PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, deviceMin, deviceMax,
+                       sceneMin, sceneMax, out);
+    }
+
     // The camera looks at the glass center from slightly above (a person at
     // a desk), so top surfaces show and every device picks up its position's
     // parallax automatically. The straight-axis closed form seeds the
@@ -546,6 +554,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                     SceneCamera::Mul44 (out.driveWorld[i], rot, rotated);
                     memcpy (out.driveWorld[i], rotated, sizeof (rotated));
                 }
+
+                if (out.hasRecorder != 0)
+                {
+                    SceneCamera::Mul44 (out.recorderWorld, rot, rotated);
+                    memcpy (out.recorderWorld, rotated, sizeof (rotated));
+                }
             }
         }
 
@@ -662,6 +676,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         }
     }
 
+    if (out.hasRecorder != 0)
+    {
+        ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
+                         out.viewProj, viewportPx, out.recorderRectPx);
+    }
+
     // Scene scale and the projected glass rect: the glass's on-screen
     // bounds against the 2D chrome's native 384 dp. All four glass corners
     // project (the downward gaze keystones the quad slightly), and the rect
@@ -704,6 +724,104 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::PlaceRecorder
+//
+//  The cassette recorder lies flat on the desk to the right of the stack,
+//  key end toward the viewer: its left edge kRecorderGapMm clear of whatever
+//  the stack's right edge is (the monitor's or a drive's, whichever reaches
+//  further), and its front kRecorderForwardMm ahead of the drives' front
+//  plane. `frontZ` is that plane in world Z. Grows both bounds by it, the
+//  scene bounds by its shadow's ground clearance as well.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::PlaceRecorder (const DeskSceneMetrics & metrics,
+                                     float                    frontZ,
+                                     float                    deviceMin[3],
+                                     float                    deviceMax[3],
+                                     float                    sceneMin[3],
+                                     float                    sceneMax[3],
+                                     DeskSceneComposition   & out)
+{
+    float   tx     = deviceMax[0] + kRecorderGapMm - metrics.recorderMin[0];
+    float   tz     = frontZ + kRecorderForwardMm;
+    float   lo[3]  = { metrics.recorderMin[0] + tx, metrics.recorderMin[2], tz - metrics.recorderMax[1] };
+    float   hi[3]  = { metrics.recorderMax[0] + tx, metrics.recorderMax[2], tz - metrics.recorderMin[1] };
+
+
+
+    MakeDeviceWorld (tx, 0.0f, tz, 1.0f, out.recorderWorld);
+    out.hasRecorder = 1;
+
+    for (int axis = 0; axis < 3; axis++)
+    {
+        deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
+        deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
+    }
+
+    sceneMin[0] = std::min (sceneMin[0], lo[0] - metrics.recorderPadSideMm);
+    sceneMax[0] = std::max (sceneMax[0], hi[0] + metrics.recorderPadSideMm);
+    sceneMin[1] = std::min (sceneMin[1], lo[1]);
+    sceneMax[1] = std::max (sceneMax[1], hi[1]);
+    sceneMin[2] = std::min (sceneMin[2], lo[2]);
+    sceneMax[2] = std::max (sceneMax[2], hi[2] + metrics.recorderPadDepthMm);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::ProjectModelBox
+//
+//  A model box through its world matrix to its screen bounds. Leaves `outPx`
+//  untouched when any corner fails to project.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::ProjectModelBox (const float    world[16],
+                                       const float    boxMin[3],
+                                       const float    boxMax[3],
+                                       const float    viewProj[16],
+                                       const RECT   & viewportPx,
+                                       RECT         & outPx)
+{
+    float   pxMin[2] = { FLT_MAX, FLT_MAX };
+    float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
+
+
+
+    for (int corner = 0; corner < 8; corner++)
+    {
+        float   pt[3]      = { (corner & 1) ? boxMax[0] : boxMin[0],
+                               (corner & 2) ? boxMax[1] : boxMin[1],
+                               (corner & 4) ? boxMax[2] : boxMin[2] };
+        float   worldPt[3] = {};
+        float   px[2]      = {};
+
+        if (!SceneCamera::TransformPoint (world, pt, worldPt) ||
+            !SceneCamera::ProjectToScreen (viewProj, worldPt, viewportPx, px))
+        {
+            return;
+        }
+
+        pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+        pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+    }
+
+    outPx.left   = (LONG) std::floor (pxMin[0]);
+    outPx.top    = (LONG) std::floor (pxMin[1]);
+    outPx.right  = (LONG) std::ceil (pxMax[0]);
+    outPx.bottom = (LONG) std::ceil (pxMax[1]);
 }
 
 

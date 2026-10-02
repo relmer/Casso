@@ -46,9 +46,12 @@ public:
     // `monitorKind` selects which monitor is being loaded, which decides
     // where its brand stamp lands -- the //c wears it on the chin, the
     // Monitor II on its divided right strip.
+    // An empty `recorderMesh` leaves the cassette recorder off the desk,
+    // which is what a machine with no cassette jacks wants.
     HRESULT  LoadModels (DeskDeviceKind             monitorKind,
                          std::span<const uint8_t>   monitorMesh,
-                         std::span<const uint8_t>   driveMesh);
+                         std::span<const uint8_t>   driveMesh,
+                         std::span<const uint8_t>   recorderMesh = {});
 
     // Share another scene's parsed models rather than parsing the same text
     // again. The data is pure CPU vertex arrays, so a scene on a different
@@ -106,7 +109,9 @@ public:
                                         outMin, outMax);
     }
 
-    const DeskSceneModel &  DriveModel   () const { return m_drive; }
+    const DeskSceneModel &  DriveModel    () const { return m_drive; }
+    const DeskSceneModel &  RecorderModel () const { return m_recorder; }
+    bool                    HasRecorder   () const { return m_hasRecorder; }
 
     // THE MOUNTED IMAGE'S NAME, as a surface in the scene rather than as
     // chrome laid over it.
@@ -450,6 +455,7 @@ private:
     void     BuildDerivedGeometry ();
     void     BuildGlassSheen  (const CurvedDisplaySurface & surface, float tiltRad);
     HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawRecorder     (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
 
     // The mounted-image names, drawn after every opaque body so the depth
     // they test against is the whole scene's.
@@ -569,6 +575,8 @@ private:
     ID3D11DeviceContext   * m_context      = nullptr;   // non-owning
     DeskSceneModel          m_monitor;
     DeskSceneModel          m_drive;
+    DeskSceneModel          m_recorder;
+    bool                    m_hasRecorder  = false;
     DeskSceneComposition    m_comp;
     bool                    m_modelsLoaded = false;
 
@@ -596,6 +604,7 @@ private:
     // Contact shadows, likewise built once in model space.
     std::vector<Dxui3DRenderer::Vertex>   m_monitorShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_driveShadowVerts;
+    std::vector<Dxui3DRenderer::Vertex>   m_recorderShadowVerts;
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
@@ -629,6 +638,7 @@ private:
     // memory holding a duplicate.
     Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
+    Dxui3DRenderer::StaticMesh            m_recorderOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 
     // The mounted image's name: its quad in WORLD space, and the texture the
@@ -645,6 +655,7 @@ private:
     Dxui3DRenderer::StaticMesh             m_monitorTiltMesh;
     Dxui3DRenderer::StaticMesh             m_monitorShadowMesh;
     Dxui3DRenderer::StaticMesh             m_driveShadowMesh;
+    Dxui3DRenderer::StaticMesh             m_recorderShadowMesh;
     Dxui3DRenderer::StaticMesh             m_monitorGlowMesh;
     Dxui3DRenderer::StaticMesh             m_driveGlowMesh;
     Dxui3DRenderer::StaticMesh             m_glassMesh;

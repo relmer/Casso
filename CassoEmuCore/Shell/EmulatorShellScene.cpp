@@ -156,14 +156,25 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
     std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
                                                                                    : IDR_MODEL_DISKII_MESH);
+    std::span<const uint8_t>   recorderMesh;
     bool                       haveMeshes  = false;
+    bool                       haveTape    = false;
 
 
 
     haveMeshes = !monitorMesh.empty() && !driveMesh.empty();
     CBRA (haveMeshes);
 
-    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh);
+    // The cassette recorder sits beside the stack only on a machine with
+    // cassette jacks to plug it into.
+    if (MachineHasCassettePort())
+    {
+        recorderMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_CASSETTE_RECORDER_MESH);
+        haveTape     = !recorderMesh.empty();
+        CBRA (haveTape);
+    }
+
+    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh, recorderMesh);
     CHRA (hr);
 
     m_deskSceneMachineIsC = isC;
@@ -440,6 +451,8 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
     float          monHi[3]                    = {};
     float          drvLo[3]                    = {};
     float          drvHi[3]                    = {};
+    float          recLo[3]                    = {};
+    float          recHi[3]                    = {};
     DeskRegionBox  doorBoxes[s_kSceneDriveMax] = {};
 
 
@@ -449,6 +462,8 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
     m_deskScene.MonitorModel().BoundsMax (monHi);
     m_deskScene.DriveModel().BoundsMin (drvLo);
     m_deskScene.DriveModel().BoundsMax (drvHi);
+    m_deskScene.RecorderModel().BoundsMin (recLo);
+    m_deskScene.RecorderModel().BoundsMax (recHi);
     BuildDriveDoorBoxes (doorBoxes);
 
     return DeskSceneHitTester::Classify (m_deskScene.Composition(),
@@ -462,7 +477,9 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          &m_deskScene.MonitorModel().TiltGrips(),
                                          tiltWorld,
                                          monLo, monHi, drvLo, drvHi,
-                                         doorBoxes);
+                                         doorBoxes,
+                                         m_deskScene.HasRecorder() ? recLo : nullptr,
+                                         m_deskScene.HasRecorder() ? recHi : nullptr);
 }
 
 

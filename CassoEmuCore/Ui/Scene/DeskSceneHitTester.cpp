@@ -80,7 +80,9 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
                                              const float *                      monitorBoundsMax,
                                              const float *                      driveBoundsMin,
                                              const float *                      driveBoundsMax,
-                                             const DeskRegionBox *              driveDoorBoxes)
+                                             const DeskRegionBox *              driveDoorBoxes,
+                                             const float *                      recorderBoundsMin,
+                                             const float *                      recorderBoundsMax)
 {
     SceneHitResult   result;
     float            invViewProj[16] = {};
@@ -323,5 +325,73 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
         }
     }
 
+    if (comp.hasRecorder != 0 && recorderBoundsMin != nullptr && recorderBoundsMax != nullptr)
+    {
+        float  occluderT = tMonitorBody;
+
+        for (int drive = 0; drive < comp.driveCount; drive++)
+        {
+            occluderT = std::min (occluderT, tDriveBody[drive]);
+        }
+
+        ClassifyRecorder (comp, origin, dir, recorderBoundsMin, recorderBoundsMax,
+                          occluderT, bestT, result);
+    }
+
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneHitTester::ClassifyRecorder
+//
+//  The whole case is the target: a click anywhere on the recorder means the
+//  same thing, which is picking a tape. Tested from any side, since it has
+//  no front furniture whose box would extend through air behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneHitTester::ClassifyRecorder (const DeskSceneComposition & comp,
+                                           const float                  origin[3],
+                                           const float                  dir[3],
+                                           const float                  boxMin[3],
+                                           const float                  boxMax[3],
+                                           float                        occluderT,
+                                           float                      & bestT,
+                                           SceneHitResult             & result)
+{
+    float   invWorld[16]   = {};
+    float   modelOrigin[3] = {};
+    float   modelDir[3]    = {};
+    float   tNear          = 0.0f;
+
+
+
+    if (!SceneCamera::Inverse44 (comp.recorderWorld, invWorld) ||
+        !SceneCamera::TransformPoint (invWorld, origin, modelOrigin))
+    {
+        return;
+    }
+
+    SceneCamera::TransformVector (invWorld, dir, modelDir);
+
+    if (!RayHitsBox (modelOrigin, modelDir, boxMin, boxMax, tNear))
+    {
+        return;
+    }
+
+    // Another device's body standing nearer along the ray hides it.
+    if (occluderT < tNear - kOcclusionSlackMm || tNear >= bestT)
+    {
+        return;
+    }
+
+    bestT             = tNear;
+    result.target     = SceneHitResult::Target::Recorder;
+    result.driveIndex = -1;
+    result.region     = {};
 }

@@ -484,8 +484,9 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
     float                                anchorHi      = -FLT_MAX;
     float                                frontLo       = FLT_MAX;
     float                                frontHi       = -FLT_MAX;
-    bool                                 lampFound     = false;
+    bool                                 lampOk        = false;
     bool                                 doorOk        = false;
+    bool                                 hasGeometry   = false;
 
 
 
@@ -764,8 +765,14 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
     // refined model) is a broken asset, not a runtime condition. Likewise a
     // drive without its door assembly -- the mount/eject animation depends
     // on it.
-    lampFound = !m_lamp.empty();
-    CBRA (lampFound);
+    //
+    // The cassette recorder has no lamp, door or glass to lose, so the only
+    // thing it can be missing is itself.
+    lampOk = (kind == DeskDeviceKind::CassetteRecorder) || !m_lamp.empty();
+    CBRA (lampOk);
+
+    hasGeometry = !m_opaque.empty();
+    CBRA (hasGeometry);
 
     doorOk = !IsDriveKind (kind) || !m_door.empty();
     CBRA (doorOk);
@@ -891,7 +898,12 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             }
         }
 
-        m_lamps.push_back (anchor);
+        // No lens, no anchor: a lampless device reports an empty list rather
+        // than one zero-sized lamp at its origin.
+        if (!m_lamp.empty())
+        {
+            m_lamps.push_back (anchor);
+        }
     }
 
     AddRegionBoxes();

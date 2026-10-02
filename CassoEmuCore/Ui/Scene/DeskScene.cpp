@@ -66,7 +66,8 @@ void DeskScene::Shutdown()
 
 HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
                                std::span<const uint8_t>   monitorMesh,
-                               std::span<const uint8_t>   driveMesh)
+                               std::span<const uint8_t>   driveMesh,
+                               std::span<const uint8_t>   recorderMesh)
 {
     DeskDeviceKind  driveKind = (monitorKind == DeskDeviceKind::Monitor2c)
                                 ? DeskDeviceKind::Disk2c : DeskDeviceKind::DiskII;
@@ -76,6 +77,19 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
 
     hr = m_monitor.Load (monitorKind, monitorMesh);
     CHRA (hr);
+
+    // Reset whether or not a recorder follows, so switching to a machine
+    // without cassette jacks leaves no recorder from the last one behind.
+    m_hasRecorder = false;
+    m_recorder    = DeskSceneModel {};
+
+    if (!recorderMesh.empty())
+    {
+        hr = m_recorder.Load (DeskDeviceKind::CassetteRecorder, recorderMesh);
+        CHRA (hr);
+
+        m_hasRecorder = true;
+    }
 
     // The drive that comes with the monitor. They are never mixed -- the //c
     // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
@@ -138,6 +152,9 @@ HRESULT DeskScene::AdoptModelsFrom (const DeskScene & other)
     m_monitor = other.m_monitor;
     m_drive   = other.m_drive;
 
+    m_recorder    = other.m_recorder;
+    m_hasRecorder = other.m_hasRecorder;
+
     m_driveLabelVerts[0] = other.m_driveLabelVerts[0];
     m_driveLabelVerts[1] = other.m_driveLabelVerts[1];
 
@@ -184,6 +201,14 @@ void DeskScene::BuildDerivedGeometry()
     BuildContactShadow (m_drive,   kShadowMarginSideMm,        kShadowMarginDepthMm,
                         m_driveShadowVerts);
 
+    m_recorderShadowVerts.clear();
+
+    if (m_hasRecorder)
+    {
+        BuildContactShadow (m_recorder, kShadowMarginSideMm, kShadowMarginDepthMm,
+                            m_recorderShadowVerts);
+    }
+
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
@@ -224,6 +249,17 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.monitorPadDepthMm = kMonitorShadowMarginDepthMm;
     metrics.drivePadSideMm    = kShadowMarginSideMm;
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
+
+    metrics.hasRecorder = m_hasRecorder;
+
+    if (m_hasRecorder)
+    {
+        m_recorder.BoundsMin (metrics.recorderMin);
+        m_recorder.BoundsMax (metrics.recorderMax);
+
+        metrics.recorderPadSideMm  = kShadowMarginSideMm;
+        metrics.recorderPadDepthMm = kShadowMarginDepthMm;
+    }
 
     return metrics;
 }
@@ -1011,6 +1047,11 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
     {
         accumulate (m_drive, comp.driveWorld[drive]);
     }
+
+    if (comp.hasRecorder != 0 && m_hasRecorder)
+    {
+        accumulate (m_recorder, comp.recorderWorld);
+    }
 }
 
 
@@ -1184,6 +1225,16 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
                                         m_geometryRev, mvp, false, viewport, true);
         }
 
+        if (comp.hasRecorder != 0 && m_hasRecorder && SUCCEEDED (hr))
+        {
+            SceneCamera::Mul44 (comp.recorderWorld, m_lightVp[k], mvp);
+
+            hr = m_renderer.DrawStatic (m_recorderOpaqueMesh,
+                                        m_recorder.OpaqueVerts().data(),
+                                        m_recorder.OpaqueVerts().size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+        }
+
         m_renderer.EndShadowPass();
         CHRA (hr);
     }
@@ -1292,6 +1343,42 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
             CHRA (hr);
         }
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::DrawRecorder
+//
+//  The cassette recorder beside the stack, when the composition placed one:
+//  a single opaque body with no lamp, door or label to pose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT   hr      = S_OK;
+    float     mvp[16] = {};
+
+
+
+    BAIL_OUT_IF (comp.hasRecorder == 0 || !m_hasRecorder, S_OK);
+
+    SceneCamera::Mul44 (comp.recorderWorld, comp.viewProj, mvp);
+
+    SetModelLighting (m_recorder, comp.recorderWorld);
+
+    hr = m_renderer.DrawStatic (m_recorderOpaqueMesh,
+                                m_recorder.OpaqueVerts().data(),
+                                m_recorder.OpaqueVerts().size(),
+                                m_geometryRev, mvp, false, viewport, true);
+    CHRA (hr);
 
 Error:
     return hr;
@@ -1658,6 +1745,15 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
         CHRA (hr);
     }
 
+    if (comp.hasRecorder != 0 && !m_recorderShadowVerts.empty())
+    {
+        SceneCamera::Mul44 (comp.recorderWorld, comp.viewProj, mvp);
+
+        hr = m_renderer.DrawStatic (m_recorderShadowMesh, m_recorderShadowVerts.data(), m_recorderShadowVerts.size(),
+                                    m_geometryRev, mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
 Error:
     return hr;
 }
@@ -1979,6 +2075,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
         hr = DrawDrives (m_comp, viewport);
         CHRA (hr);
+
+        hr = DrawRecorder (m_comp, viewport);
+        CHRA (hr);
     }
 
     // THE TILTING ASSEMBLY, on its own transform. Lit through that same
@@ -2108,6 +2207,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
             }
 
             hr = DrawDrives (m_comp, viewport);
+            CHRA (hr);
+
+            hr = DrawRecorder (m_comp, viewport);
             CHRA (hr);
         }
 
